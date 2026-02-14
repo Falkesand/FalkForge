@@ -12,5 +12,17 @@ public enum ErrorKind
     SecurityError,
     PlatformError,
     InvalidOperation,
-    NotSupported
+    NotSupported,
+    ProtocolError,
+    TransportError,
+    HandshakeError,
+    EngineError,
+    ElevationError,
+    BundleError,
+    PayloadError,
+    CacheError,
+    RollbackError,
+    DetectionError,
+    PlanningError,
+    ExecutionError
 }

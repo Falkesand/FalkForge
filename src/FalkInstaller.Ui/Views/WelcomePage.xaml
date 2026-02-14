@@ -1,0 +1,32 @@
+<UserControl x:Class="FalkInstaller.Ui.Views.WelcomePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:FalkInstaller.Ui.Converters">
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+
+    <StackPanel Margin="10">
+        <TextBlock Text="{Binding Title}"
+                   FontSize="24" FontWeight="Bold"
+                   Margin="0,0,0,10" />
+        <TextBlock Text="{Binding Description}"
+                   FontSize="14"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,20" />
+
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="Install"
+                    Width="100" Height="30"
+                    Margin="0,0,10,0"
+                    Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}" />
+            <Button Content="Uninstall"
+                    Width="100" Height="30"
+                    Margin="0,0,10,0"
+                    Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVisibility}}" />
+            <Button Content="Repair"
+                    Width="100" Height="30"
+                    Visibility="{Binding CanRepair, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FalkInstaller.Engine</RootNamespace>
+    <Description>NativeAOT bundle engine for FalkInstaller</Description>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkInstaller.Engine.Protocol\FalkInstaller.Engine.Protocol.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Platform.Windows\FalkInstaller.Platform.Windows.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Compiler.Msi\FalkInstaller.Compiler.Msi.csproj" />
+  </ItemGroup>
+</Project>

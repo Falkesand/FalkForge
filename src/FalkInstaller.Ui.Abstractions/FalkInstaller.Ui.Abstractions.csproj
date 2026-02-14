@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkInstaller.Ui.Abstractions</RootNamespace>
+    <Description>UI abstractions and base ViewModels for FalkInstaller</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkInstaller.Engine.Protocol\FalkInstaller.Engine.Protocol.csproj" />
+  </ItemGroup>
+</Project>
