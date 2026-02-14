@@ -5,14 +5,12 @@ using FalkInstaller.Models;
 
 public static class Installer
 {
-    public static int Build(string[] args, Action<PackageBuilder> configure)
+    public static int Build(string[] args, Action<PackageBuilder> configure, ICompiler? compiler = null)
     {
         var builder = new PackageBuilder();
         configure(builder);
         var package = builder.Build();
 
-        // In Phase 1, we validate and return the model.
-        // The actual MSI compilation will be handled by FalkInstaller.Compiler.Msi
         var validation = Validation.ModelValidator.Validate(package);
         if (!validation.IsValid)
         {
@@ -28,7 +26,28 @@ public static class Installer
             Console.Error.WriteLine($"Warning {warning.Code}: {warning.Message}");
         }
 
-        // TODO: Pass to MsiCompiler when available
+        if (compiler is not null)
+        {
+            var outputPath = GetOutputPath(args);
+            var result = compiler.Compile(package, outputPath);
+            if (result.IsFailure)
+            {
+                Console.Error.WriteLine($"Compilation failed: {result.Error}");
+                return 1;
+            }
+            Console.WriteLine($"Package created: {result.Value}");
+        }
+
         return 0;
+    }
+
+    private static string GetOutputPath(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] is "-o" or "--output")
+                return args[i + 1];
+        }
+        return Directory.GetCurrentDirectory();
     }
 }

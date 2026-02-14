@@ -10,8 +10,14 @@ public sealed class PackageBuilder
     private readonly List<ServiceModel> _services = [];
     private readonly List<RegistryEntryModel> _registryEntries = [];
     private readonly List<EnvironmentVariableModel> _environmentVariables = [];
+    private readonly List<FontModel> _fonts = [];
     private readonly List<PropertyModel> _properties = [];
     private readonly List<LaunchConditionModel> _launchConditions = [];
+    private readonly List<IniFileModel> _iniFiles = [];
+    private readonly List<PermissionModel> _permissions = [];
+    private readonly List<FileAssociationModel> _fileAssociations = [];
+    private readonly List<CustomActionModel> _customActions = [];
+    private readonly List<BinaryModel> _binaries = [];
 
     public string Name { get; set; } = string.Empty;
     public string Manufacturer { get; set; } = string.Empty;
@@ -29,8 +35,10 @@ public sealed class PackageBuilder
     public string? AboutUrl { get; set; }
     public string? UpdateUrl { get; set; }
     public string? LicenseFile { get; set; }
+    public bool EnableRestartManager { get; set; }
 
     private UpgradeModel? _upgrade;
+    private SigningOptions? _signing;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -100,6 +108,66 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder Font(string fileName, Action<FontBuilder>? configure = null)
+    {
+        var builder = new FontBuilder(fileName);
+        configure?.Invoke(builder);
+        _fonts.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder IniFile(string fileName, Action<IniFileBuilder> configure)
+    {
+        var builder = new IniFileBuilder(fileName);
+        configure(builder);
+        _iniFiles.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder Permission(string lockObject, Action<PermissionBuilder> configure)
+    {
+        var builder = new PermissionBuilder(lockObject);
+        configure(builder);
+        _permissions.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder FileAssociation(string extension, Action<FileAssociationBuilder> configure)
+    {
+        var builder = new FileAssociationBuilder(extension);
+        configure(builder);
+        _fileAssociations.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder CustomAction(string id, Action<CustomActionBuilder> configure)
+    {
+        var builder = new CustomActionBuilder(id);
+        configure(builder);
+        _customActions.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder Binary(string name, string sourcePath)
+    {
+        _binaries.Add(new BinaryModel { Name = name, SourcePath = sourcePath });
+        return this;
+    }
+
+    public PackageBuilder EnableRestartManagerSupport()
+    {
+        EnableRestartManager = true;
+        return this;
+    }
+
+    public PackageBuilder Signing(Action<SigningOptionsBuilder> configure)
+    {
+        var builder = new SigningOptionsBuilder();
+        configure(builder);
+        _signing = builder.Build();
+        return this;
+    }
+
     internal void AddShortcut(ShortcutModel shortcut) => _shortcuts.Add(shortcut);
 
     public PackageModel Build()
@@ -135,8 +203,16 @@ public sealed class PackageBuilder
             Services = _services,
             RegistryEntries = _registryEntries,
             EnvironmentVariables = _environmentVariables,
+            Fonts = _fonts,
             Properties = _properties,
             LaunchConditions = _launchConditions,
+            IniFiles = _iniFiles,
+            Permissions = _permissions,
+            FileAssociations = _fileAssociations,
+            CustomActions = _customActions,
+            Binaries = _binaries,
+            EnableRestartManager = EnableRestartManager,
+            Signing = _signing,
             Upgrade = _upgrade ?? new UpgradeModel()
         };
     }

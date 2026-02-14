@@ -27,5 +27,13 @@ public sealed class PackageModel
     public IReadOnlyList<EnvironmentVariableModel> EnvironmentVariables { get; init; } = [];
     public UpgradeModel? Upgrade { get; init; }
     public IReadOnlyList<PropertyModel> Properties { get; init; } = [];
+    public IReadOnlyList<FontModel> Fonts { get; init; } = [];
     public IReadOnlyList<LaunchConditionModel> LaunchConditions { get; init; } = [];
+    public IReadOnlyList<IniFileModel> IniFiles { get; init; } = [];
+    public IReadOnlyList<PermissionModel> Permissions { get; init; } = [];
+    public IReadOnlyList<FileAssociationModel> FileAssociations { get; init; } = [];
+    public IReadOnlyList<CustomActionModel> CustomActions { get; init; } = [];
+    public IReadOnlyList<BinaryModel> Binaries { get; init; } = [];
+    public bool EnableRestartManager { get; init; }
+    public SigningOptions? Signing { get; init; }
 }
