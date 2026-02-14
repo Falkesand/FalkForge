@@ -291,6 +291,46 @@ public sealed class ModelValidatorTests
     }
 
     [Fact]
+    public void Validate_ServiceWithPlaintextPassword_EmitsSVC005Warning()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Service("MySvc", svc =>
+            {
+                svc.Executable = "svc.exe";
+                svc.Account = ServiceAccount.User;
+                svc.UserName = @"DOMAIN\svcuser";
+                svc.Password = "P@ssw0rd!";
+            });
+        });
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Contains(result.Warnings, w => w.Code == "SVC005");
+        Assert.Contains(result.Warnings, w => w.Message.Contains("plaintext password"));
+    }
+
+    [Fact]
+    public void Validate_ServiceWithoutPassword_DoesNotEmitSVC005()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Service("MySvc", svc =>
+            {
+                svc.Executable = "svc.exe";
+            });
+        });
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Code == "SVC005");
+    }
+
+    [Fact]
     public void ValidateAndAssertValid_OnInvalidPackage_Throws()
     {
         var package = InstallerTestHost.BuildPackage(p =>

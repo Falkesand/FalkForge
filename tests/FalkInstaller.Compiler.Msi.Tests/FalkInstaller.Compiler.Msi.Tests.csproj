@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkInstaller.Compiler.Msi\FalkInstaller.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\..\src\FalkInstaller.Platform.Windows\FalkInstaller.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\FalkInstaller.Testing\FalkInstaller.Testing.csproj" />
   </ItemGroup>
 </Project>
