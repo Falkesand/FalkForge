@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkInstaller</RootNamespace>
+    <Description>Domain model and fluent API for FalkInstaller</Description>
+  </PropertyGroup>
+</Project>

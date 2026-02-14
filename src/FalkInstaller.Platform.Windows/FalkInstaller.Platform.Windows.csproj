@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkInstaller.Platform.Windows</RootNamespace>
+    <Description>Windows P/Invoke implementations</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkInstaller.Platform\FalkInstaller.Platform.csproj" />
+  </ItemGroup>
+</Project>

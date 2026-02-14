@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FalkInstaller.Compiler.Msi/FalkInstaller.Compiler.Msi.csproj" />
+    <Project Path="src/FalkInstaller.Core/FalkInstaller.Core.csproj" />
+    <Project Path="src/FalkInstaller.Extensibility/FalkInstaller.Extensibility.csproj" />
+    <Project Path="src/FalkInstaller.Platform.Windows/FalkInstaller.Platform.Windows.csproj" />
+    <Project Path="src/FalkInstaller.Platform/FalkInstaller.Platform.csproj" />
+    <Project Path="src/FalkInstaller.Sdk/FalkInstaller.Sdk.csproj" />
+    <Project Path="src/FalkInstaller.Testing/FalkInstaller.Testing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FalkInstaller.Compiler.Msi.Tests/FalkInstaller.Compiler.Msi.Tests.csproj" />
+    <Project Path="tests/FalkInstaller.Core.Tests/FalkInstaller.Core.Tests.csproj" />
+  </Folder>
+</Solution>
