@@ -1,0 +1,68 @@
+using System.Security.Cryptography;
+using FalkInstaller.Compiler.Bundle.Validation;
+
+namespace FalkInstaller.Compiler.Bundle.Compilation;
+
+public sealed class BundleCompiler
+{
+    private readonly BundleValidator _validator = new();
+    private readonly ManifestGenerator _manifestGenerator = new();
+
+    public Result<string> Compile(BundleModel model, string outputPath)
+    {
+        // Step 1: Validate
+        var validation = _validator.Validate(model);
+        if (validation.IsFailure)
+            return Result<string>.Failure(validation.Error);
+
+        // Step 2: Generate manifest
+        var manifestResult = _manifestGenerator.Generate(model);
+        if (manifestResult.IsFailure)
+            return Result<string>.Failure(manifestResult.Error);
+
+        var manifest = manifestResult.Value;
+
+        // Step 3: Read and prepare payloads
+        var payloads = new List<PayloadEntry>();
+        foreach (var package in model.Packages)
+        {
+            if (!File.Exists(package.SourcePath))
+                return Result<string>.Failure(ErrorKind.PayloadError, $"Package source not found: {package.SourcePath}");
+
+            var data = File.ReadAllBytes(package.SourcePath);
+            var hash = Convert.ToHexString(SHA256.HashData(data));
+
+            payloads.Add(new PayloadEntry
+            {
+                PackageId = package.Id,
+                Data = data,
+                Sha256Hash = hash
+            });
+        }
+
+        // Step 4: Create stub (minimal placeholder -- in production, this is the pre-compiled NativeAOT engine binary)
+        var stubPath = CreateStub(outputPath);
+
+        // Step 5: Embed payloads
+        var outputFilePath = Path.Combine(outputPath, $"{model.Name}.exe");
+        var embedder = new PayloadEmbedder();
+        var embedResult = embedder.Embed(stubPath, outputFilePath, manifest, payloads);
+
+        // Clean up stub
+        try { File.Delete(stubPath); }
+        catch (IOException) { /* best effort cleanup */ }
+
+        if (embedResult.IsFailure)
+            return Result<string>.Failure(embedResult.Error);
+
+        return outputFilePath;
+    }
+
+    private static string CreateStub(string outputDir)
+    {
+        var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
+        Directory.CreateDirectory(outputDir);
+        File.WriteAllBytes(stubPath, []);
+        return stubPath;
+    }
+}

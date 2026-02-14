@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.firegiant.com)",
+      "WebFetch(domain:wixtoolset.org)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.firegiant.com)",
+      "Bash(dotnet:*)",
+      "Bash(dotnet --list-sdks:*)"
+    ]
+  }
+}

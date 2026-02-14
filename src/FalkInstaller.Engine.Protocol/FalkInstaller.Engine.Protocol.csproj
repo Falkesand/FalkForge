@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkInstaller.Engine.Protocol</RootNamespace>
+    <Description>IPC protocol types and serialization for FalkInstaller engine</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkInstaller.Core\FalkInstaller.Core.csproj" />
+  </ItemGroup>
+</Project>

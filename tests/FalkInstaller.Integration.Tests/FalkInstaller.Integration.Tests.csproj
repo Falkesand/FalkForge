@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FalkInstaller.Engine\FalkInstaller.Engine.csproj" />
+    <ProjectReference Include="..\..\src\FalkInstaller.Engine.Elevation\FalkInstaller.Engine.Elevation.csproj" />
+    <ProjectReference Include="..\..\src\FalkInstaller.Engine.Protocol\FalkInstaller.Engine.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\FalkInstaller.Compiler.Bundle\FalkInstaller.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\..\src\FalkInstaller.Testing\FalkInstaller.Testing.csproj" />
+  </ItemGroup>
+</Project>
