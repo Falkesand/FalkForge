@@ -6,14 +6,14 @@ C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compile
 
 ```bash
 dotnet build          # 0 warnings required (TreatWarningsAsErrors)
-dotnet test           # ~1380 tests, xUnit 2.9.3
+dotnet test           # ~1585 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 
 - .NET 10, C# latest, nullable enabled, central package management
 - `global.json`: SDK 10.0.103
 
-## Solution Structure (23 src + 14 test projects)
+## Solution Structure (26 src + 17 test projects)
 
 ```
 src/
@@ -35,6 +35,9 @@ src/
   FalkInstaller.Ui/                    # WPF + ReactiveUI installer UI
   FalkInstaller.Sdk/                   # MSBuild SDK targets (netstandard2.0)
   FalkInstaller.Testing/               # Test utilities, mocks
+  FalkInstaller.Localization/          # JSON-based localization with culture fallback
+  FalkInstaller.Decompiler/            # MSI decompiler (Windows-only) -> PackageModel + C# source
+  FalkInstaller.Cli/                   # Spectre.Console CLI: build, validate, inspect, decompile
 
 tests/
   FalkInstaller.Core.Tests/
@@ -51,6 +54,9 @@ tests/
   FalkInstaller.Extensions.DotNet.Tests/
   FalkInstaller.Extensions.Iis.Tests/
   FalkInstaller.Extensions.Sql.Tests/
+  FalkInstaller.Localization.Tests/
+  FalkInstaller.Decompiler.Tests/
+  FalkInstaller.Cli.Tests/
 ```
 
 ## Dependency Graph
@@ -68,9 +74,12 @@ Core (no deps)
   +-> Extensions.Iis (Core + Extensibility)
   +-> Extensions.Sql (Core + Extensibility)
   +-> Testing (Core + Platform)
+  +-> Localization (Core)
+  +-> Decompiler (Core + Compiler.Msi, Windows-only)
 
 Engine (exe):     Engine.Protocol + Platform.Windows + Compiler.Msi
 Elevation (exe):  Engine.Protocol + Platform.Windows
+Cli (exe):        Core + Compiler.Msi + Compiler.Bundle + Decompiler + Localization
 ```
 
 ## Key Patterns & Locations
@@ -101,7 +110,7 @@ Abstraction for process execution enabling deterministic testing of MSI/MSU/MSP/
 
 ## Core Project Layout
 
-### Models (`src/FalkInstaller.Core/Models/`) -- 48 files
+### Models (`src/FalkInstaller.Core/Models/`) -- 49 files
 Top-level: `PackageModel`, `FeatureModel`, `ComponentModel`, `FileEntryModel`
 Output Types: `MergeModuleModel`, `PatchModel`, `TransformModel`
 Services: `ServiceModel`, `ServiceControlModel`, `ServiceDependencyModel`
@@ -112,6 +121,7 @@ Tables: `CustomTableModel`, `CustomTableColumnModel`, `CustomTableColumnType`
 Sequences: `SequenceTable`, `SequenceActionModel`, `SequencePosition` (ActionPosition)
 UI: `MsiDialogSet`
 Upgrade: `MajorUpgradeModel`, `RemoveExistingProductsSchedule`
+Localization: `LocalizationData`
 Other: `ShortcutModel`, `EnvironmentVariableModel`, `AssemblyModel`, `AssemblyType`, `MediaTemplateModel`, `FeatureConditionModel`, `SigningOptions`, `ExitCodeBehavior`, `RelatedBundleRelation`
 
 ### Builders (`src/FalkInstaller.Core/Builders/`) -- 32 files
@@ -139,7 +149,9 @@ Additional validators: `MergeModuleValidator` (MSM001-004), `PatchValidator` (MS
 - `FileNameSanitizer.cs` -- Shared filename sanitization
 - `MsiDatabase.cs` -- MSI database wrapper (open/insert/query/commit)
 - `ComponentResolver.cs` -- Component ID resolution
-- `CabinetBuilder.cs` -- Cabinet file generation
+- `CabinetBuilder.cs` -- Cabinet file generation (single-threaded)
+- `ParallelCabinetBuilder.cs` -- Multi-threaded cabinet creation via Parallel.ForEachAsync
+- `CabinetWorkItem.cs`, `CabinetBuildResult.cs` -- Parallel cabinet record structs
 - `SummaryInfoWriter.cs` -- MSI summary stream
 - `Tables/TableEmitter.cs` -- 1466 lines, emits all MSI tables
 - `Tables/MsiTableDefinitions.cs` -- Table schema
@@ -243,6 +255,38 @@ IIS application pool, website, web binding, and certificate configuration.
 SQL Server database creation, script execution, and string execution.
 - Error codes: SQL001-013
 
+## Localization (`src/FalkInstaller.Localization/`)
+- `LocalizationModel.cs` -- Parsed string table (Culture + Dictionary<string, string>)
+- `LocalizationLoader.cs` -- JSON file loading, culture extraction from filename
+- `CultureFallbackChain.cs` -- Builds ordered fallback: specific → parent → default (de-AT → de → en-US)
+- `LocalizedStringResolver.cs` -- Resolves `!(loc.StringId)` references with nested/circular detection
+- `LocalizationBuilder.cs` -- Fluent API: AddCulture(), DefaultCulture(), AddJsonFile(), Build()
+- `PackageBuilderExtensions.cs` -- Extension method bridging Localization → Core PackageBuilder
+- Error codes: LOC001-004
+
+## Decompiler (`src/FalkInstaller.Decompiler/`)
+Windows-only (`[SupportedOSPlatform("windows")]`).
+- `MsiDecompiler.cs` -- Main entry: Decompile(path) → Result<PackageModel>, DecompileToCSharp(path) → Result<string>
+- `IMsiTableAccess.cs` -- Abstraction for MSI database reads (testability)
+- `MsiTableAccess.cs` -- Production implementation wrapping MsiDatabase
+- `DirectoryResolver.cs` -- MSI directory parent-child resolution, standard directory tokens
+- `CSharpEmitter.cs` -- PackageModel → fluent C# source via StringBuilder
+- `TableReaders/` -- PropertyTableReader, DirectoryTableReader, ComponentTableReader, FileTableReader, FeatureTableReader, RegistryTableReader, ServiceTableReader, ShortcutTableReader, UpgradeTableReader
+- Error codes: DEC001-003
+
+## CLI (`src/FalkInstaller.Cli/`)
+Spectre.Console CLI tool (`falk` command).
+- `Program.cs` -- CommandApp with build/validate/inspect/decompile commands
+- `Commands/BuildCommand.cs` -- Roslyn scripting to compile C# definitions
+- `Commands/ValidateCommand.cs` -- Validation-only mode
+- `Commands/InspectCommand.cs` -- MSI metadata display with tree views (Windows-only)
+- `Commands/DecompileCommand.cs` -- Delegates to MsiDecompiler (Windows-only)
+- `Settings/` -- BuildSettings, ValidateSettings, InspectSettings, DecompileSettings
+- `ExitCodes.cs` -- 0=success, 1=validation, 2=compilation, 3=runtime
+- `IConsoleOutput.cs`, `SpectreConsoleOutput.cs` -- Console abstraction for testability
+- `ScriptLoader.cs` -- Roslyn scripting for C# project loading
+- `MsiInspector.cs`, `MsiInspectionResult.cs` -- MSI metadata extraction
+
 ## Namespace Conventions
 ```
 FalkInstaller                              Core types (Result, Error, Unit, Installer)
@@ -272,4 +316,10 @@ FalkInstaller.Extensions.Firewall          Firewall extension
 FalkInstaller.Extensions.DotNet            .NET detection extension
 FalkInstaller.Extensions.Iis               IIS extension
 FalkInstaller.Extensions.Sql               SQL Server extension
+FalkInstaller.Localization                 JSON localization + culture fallback
+FalkInstaller.Decompiler                   MSI decompiler (Windows-only)
+FalkInstaller.Decompiler.TableReaders      Per-table MSI readers
+FalkInstaller.Cli                          Spectre.Console CLI tool
+FalkInstaller.Cli.Commands                 CLI command implementations
+FalkInstaller.Cli.Settings                 CLI command settings
 ```
