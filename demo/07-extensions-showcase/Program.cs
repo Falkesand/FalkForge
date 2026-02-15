@@ -7,7 +7,7 @@ using FalkForge.Extensions.Firewall;
 using FalkForge.Extensions.Iis;
 using FalkForge.Extensions.Iis.Models;
 using FalkForge.Extensions.Sql;
-using FalkForge.Extensions.Sql.Models;
+using FalkForge.Extensions.Sql.Builders;
 using FalkForge.Extensions.DotNet;
 using FalkForge.Extensions.Util;
 using FalkForge.Extensions.Util.XmlConfig;
@@ -69,7 +69,7 @@ Console.WriteLine($"[Firewall] {firewall.Name} extension: 2 rules configured.");
 
 var iis = new IisExtension();
 
-iis.AddAppPool(pool => pool
+var appPool = iis.DefineAppPool(pool => pool
     .Id("ShowcaseAppPool")
     .Name("ShowcaseAppPool")
     .NoManagedCode()
@@ -82,7 +82,7 @@ iis.AddWebSite(site => site
     .Id("ShowcaseWebSite")
     .Description("Extensions Showcase Web Site")
     .Directory("[INSTALLDIR]wwwroot")
-    .AppPool("ShowcaseAppPool")
+    .AppPool(appPool)
     .Binding(8080, "http")
     .AutoStart(true)
     .ConnectionTimeout(120));
@@ -102,27 +102,34 @@ Console.WriteLine($"[IIS] {iis.Name} extension: {iis.AppPools.Count} pool(s), {i
 
 var sql = new SqlExtension();
 
-sql.Databases.Add(new SqlDatabaseModel
-{
-    Id = "AppDb",
-    Server = "[SQLSERVER]",
-    Database = "ExtShowcaseDb",
-    CreateOnInstall = true,
-    DropOnUninstall = false,
-    ConfirmOverwrite = true,
-});
+var dbRef = sql.DefineDatabase(db => db
+    .Id("AppDb")
+    .Server("[SQLSERVER]")
+    .Database("ExtShowcaseDb")
+    .CreateOnInstall()
+    .ConfirmOverwrite());
 
-sql.Scripts.Add(new SqlScriptModel
+if (dbRef.IsFailure)
 {
-    Id = "CreateTables",
-    DatabaseRef = "AppDb",
-    SourceFile = "payload\\create-tables.sql",
-    ExecuteOnInstall = true,
-    ExecuteOnReinstall = false,
-    ExecuteOnUninstall = false,
-    Sequence = 1,
-    ContinueOnError = false,
-});
+    Console.Error.WriteLine($"SQL: {dbRef.Error}");
+    return 1;
+}
+
+var scriptResult = new SqlScriptBuilder()
+    .Id("CreateTables")
+    .Database(dbRef.Value)
+    .SourceFile("payload\\create-tables.sql")
+    .ExecuteOnInstall()
+    .Sequence(1)
+    .Build();
+
+if (scriptResult.IsFailure)
+{
+    Console.Error.WriteLine($"SQL: {scriptResult.Error}");
+    return 1;
+}
+
+sql.Scripts.Add(scriptResult.Value);
 
 Console.WriteLine($"[SQL] {sql.Name} extension: 1 database, 1 script.");
 

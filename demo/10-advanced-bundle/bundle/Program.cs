@@ -1,4 +1,5 @@
 using FalkForge;
+using FalkForge.Compiler.Bundle;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 
@@ -29,7 +30,7 @@ return Installer.BuildBundle(args, outputPath =>
     // ──────────────────────────────────────────────────────────────────
     // Build the bundle model
     // ──────────────────────────────────────────────────────────────────
-    var bundle = new BundleBuilder()
+    var bundleBuilder = new BundleBuilder()
         .Name("Northwind Deployment Suite")
         .Manufacturer("Northwind Traders")
         .Version("2.5.0")
@@ -45,27 +46,34 @@ return Installer.BuildBundle(args, outputPath =>
         // ──────────────────────────────────────────────────────────────
         // Related bundles -- detect and upgrade previous versions
         // ──────────────────────────────────────────────────────────────
-        .RelatedBundle("{C3D4E5F6-A7B8-4C9D-0E1F-2A3B4C5D6E7F}", rb => rb
+        .RelatedBundle(new Guid("C3D4E5F6-A7B8-4C9D-0E1F-2A3B4C5D6E7F"), rb => rb
             .Relation(RelatedBundleRelation.Upgrade))
-        .RelatedBundle("{D4E5F6A7-B8C9-4D0E-1F2A-3B4C5D6E7F8A}", rb => rb
-            .Relation(RelatedBundleRelation.Detect))
+        .RelatedBundle(new Guid("D4E5F6A7-B8C9-4D0E-1F2A-3B4C5D6E7F8A"), rb => rb
+            .Relation(RelatedBundleRelation.Detect));
 
-        // ──────────────────────────────────────────────────────────────
-        // Containers -- logical payload grouping
-        // ──────────────────────────────────────────────────────────────
-        .Container("Prerequisites", c => c
-            .DownloadUrl("https://cdn.northwind.example.com/prereqs/"))
-        .Container("Application", c => c
-            .DownloadUrl("https://cdn.northwind.example.com/app/"))
+    // ──────────────────────────────────────────────────────────────
+    // Containers -- typed references for logical payload grouping
+    // ──────────────────────────────────────────────────────────────
+    var prereqs = bundleBuilder.DefineContainer("Prerequisites", c => c
+        .DownloadUrl("https://cdn.northwind.example.com/prereqs/"));
+    var appContainer = bundleBuilder.DefineContainer("Application", c => c
+        .DownloadUrl("https://cdn.northwind.example.com/app/"));
 
-        // ──────────────────────────────────────────────────────────────
-        // Installation chain
-        // ──────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────
+    // Rollback boundaries -- typed references for failure isolation
+    // ──────────────────────────────────────────────────────────────
+    var prereqBoundary = bundleBuilder.DefineRollbackBoundary("PrereqBoundary");
+    var appBoundary = bundleBuilder.DefineRollbackBoundary("AppBoundary");
+
+    // ──────────────────────────────────────────────────────────────
+    // Installation chain
+    // ──────────────────────────────────────────────────────────────
+    var bundle = bundleBuilder
         .Chain(chain => chain
 
             // Rollback boundary: prerequisites
             // If any prerequisite fails, only prerequisites roll back.
-            .RollbackBoundary("PrereqBoundary")
+            .RollbackBoundary(prereqBoundary)
 
             // EXE package: Visual C++ Redistributable prerequisite
             .ExePackage(prereqExePath, exe => exe
@@ -74,7 +82,7 @@ return Installer.BuildBundle(args, outputPath =>
                 .Version("14.40.33816")
                 .Vital(true)
                 .InstallCondition("NOT VCRedistInstalled")
-                .Container("Prerequisites")
+                .Container(prereqs)
                 .ExitCode(0, ExitCodeBehavior.Success)
                 .ExitCode(3010, ExitCodeBehavior.RebootRequired)
                 .ExitCode(1638, ExitCodeBehavior.Success)    // Already installed
@@ -90,7 +98,7 @@ return Installer.BuildBundle(args, outputPath =>
 
             // Rollback boundary: application
             // Isolates the main application from prerequisites.
-            .RollbackBoundary("AppBoundary", rb => rb
+            .RollbackBoundary(appBoundary, rb => rb
                 .Vital(true))
 
             // MSI package: the Northwind application
@@ -99,7 +107,7 @@ return Installer.BuildBundle(args, outputPath =>
                 .DisplayName("Northwind Application")
                 .Version("2.5.0")
                 .Vital(true)
-                .Container("Application")
+                .Container(appContainer)
                 .Property("INSTALLFOLDER", "[ProgramFiles64Folder]Northwind Traders\\NorthwindApp")
                 .Property("CONTOSO_MODE", "bundled"))
 

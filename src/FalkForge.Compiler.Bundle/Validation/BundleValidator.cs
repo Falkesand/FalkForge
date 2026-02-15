@@ -30,6 +30,15 @@ public sealed class BundleValidator
         if (duplicateIds.Length > 0)
             return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL005: Duplicate package IDs: {string.Join(", ", duplicateIds)}");
 
+        // BDL006: Package container references must resolve to defined containers
+        var containerIds = new HashSet<string>(model.Containers.Select(c => c.Id));
+        var invalidRefs = model.Packages
+            .Where(p => p.ContainerId is not null && !containerIds.Contains(p.ContainerId))
+            .Select(p => $"Package '{p.Id}' references undefined container '{p.ContainerId}'")
+            .ToArray();
+        if (invalidRefs.Length > 0)
+            return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL006: {string.Join("; ", invalidRefs)}");
+
         return Unit.Value;
     }
 }

@@ -41,6 +41,8 @@ public sealed class WebBindingBuilder
         return this;
     }
 
+    public WebBindingBuilder Certificate(CertificateRef certificateRef) => Certificate(certificateRef.Id);
+
     internal WebBindingModel Build() => new()
     {
         Protocol = _protocol,

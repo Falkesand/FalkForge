@@ -93,6 +93,20 @@ Readonly record struct. `Result<T>.Success(value)` / `Result<T>.Failure(error)`.
 ### ErrorKind -- `src/FalkForge.Core/ErrorKind.cs`
 29 values: Validation, FileNotFound, CompilationError, SecurityError, ProtocolError, EngineError, ElevationError, BundleError, DownloadError, LayoutError, etc.
 
+### MsiProperty -- `src/FalkForge.Core/MsiProperty.cs`
+Sealed class for type-safe MSI property references. `MsiProperty.InstallFolder` → `[INSTALLFOLDER]`. Static instances for ~45 built-in properties (Product, Directories, OS Version, Architecture, System Folders, Session, User, State). `Custom(string)` factory for user-defined properties. `/` operator for path composition (`MsiProperty.InstallFolder / "bin"` → `[INSTALLFOLDER]bin`). Comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`) return `Condition`.
+
+### Condition -- `src/FalkForge.Core/Condition.cs`
+Sealed class for type-safe MSI condition expressions. Pre-composed conditions: `Is64BitOS`, `IsPrivileged`, `IsAdmin`, `IsWindows10OrLater`, `IsWindows11OrLater`, `IsInstalled`, `IsInstalling`, `IsUninstalling`, `IsRepairing`. Logical operators: `&` (AND), `|` (OR), `!` (NOT) with automatic parenthesization. `Property(string)` and `Raw(string)` factories. Implicit string conversion for backward compatibility with existing string-accepting builder methods.
+
+### Reference Handles -- Typed Cross-References
+Sealed records (`ContainerRef`, `RollbackBoundaryRef`, `AppPoolRef`, `CertificateRef`, `SqlDatabaseRef`) providing compile-time-safe, IntelliSense-discoverable cross-references. `Define*` methods return refs; consumer methods accept refs via overloads. Backward compatible with existing string APIs.
+
+Locations:
+- `src/FalkForge.Compiler.Bundle/ContainerRef.cs`, `RollbackBoundaryRef.cs`
+- `src/FalkForge.Extensions.Iis/AppPoolRef.cs`, `CertificateRef.cs`
+- `src/FalkForge.Extensions.Sql/SqlDatabaseRef.cs`
+
 ### Unit -- `src/FalkForge.Core/Unit.cs`
 `readonly record struct Unit { static readonly Unit Value = default; }` -- for `Result<Unit>`.
 
@@ -215,10 +229,11 @@ Error: any -> Failed -> RollingBack -> Shutdown
 ## Compiler.Bundle Layout
 
 - `Builders/BundleBuilder.cs`, `ChainBuilder.cs`, `BundlePackageBuilder.cs`, `ContainerBuilder.cs`, `RelatedBundleBuilder.cs`, `RollbackBoundaryBuilder.cs`, `MsuPackageBuilder.cs`, `MspPackageBuilder.cs`, `NestedBundlePackageBuilder.cs`
+- `ContainerRef.cs`, `RollbackBoundaryRef.cs` -- Typed cross-reference handles for containers and rollback boundaries
 - `Models/ContainerModel.cs`, `RemotePayloadModel.cs`, `RelatedBundleModel.cs`, `RollbackBoundaryModel.cs`, `ChainItem.cs`, `PackageChainItem.cs`, `RollbackBoundaryChainItem.cs`
 - `Compilation/BundleCompiler.cs`, `PayloadEmbedder.cs`, `ManifestGenerator.cs`
 - `Compression/GzipCompressor.cs`
-- `Validation/BundleValidator.cs` -- BDL001-005
+- `Validation/BundleValidator.cs` -- BDL001-006
 - EXE format: [PE stub][Magic: "FALKBUNDLE"][Manifest][Compressed payloads][TOC][Footer]
 
 ## NativeAOT Constraints (Engine + Elevation)
@@ -249,10 +264,12 @@ Windows Firewall rule definitions and validation.
 
 ### Extensions.Iis (`src/FalkForge.Extensions.Iis/`)
 IIS application pool, website, web binding, and certificate configuration. Targets `net10.0` (cross-platform model definitions).
-- Error codes: IIS001-009
+Typed refs: `AppPoolRef.cs`, `CertificateRef.cs` for compile-time-safe cross-references.
+- Error codes: IIS001-011
 
 ### Extensions.Sql (`src/FalkForge.Extensions.Sql/`)
 SQL Server database creation, script execution, and string execution.
+Typed ref: `SqlDatabaseRef.cs` for compile-time-safe database cross-references.
 - Error codes: SQL001-013
 
 ## Localization (`src/FalkForge.Localization/`)

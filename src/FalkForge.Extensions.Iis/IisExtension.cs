@@ -34,12 +34,30 @@ public sealed class IisExtension : IFalkForgeExtension
         return this;
     }
 
+    public AppPoolRef DefineAppPool(Action<AppPoolBuilder> configure)
+    {
+        var builder = new AppPoolBuilder();
+        configure(builder);
+        var model = builder.Build();
+        _appPools.Add(model);
+        return new AppPoolRef(model.Id);
+    }
+
     public IisExtension AddCertificate(Action<CertificateBuilder> configure)
     {
         var builder = new CertificateBuilder();
         configure(builder);
         _certificates.Add(builder.Build());
         return this;
+    }
+
+    public CertificateRef DefineCertificate(Action<CertificateBuilder> configure)
+    {
+        var builder = new CertificateBuilder();
+        configure(builder);
+        var model = builder.Build();
+        _certificates.Add(model);
+        return new CertificateRef(model.Id);
     }
 
     public Result<Unit> Validate() =>
