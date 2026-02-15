@@ -1,6 +1,6 @@
-using FalkInstaller;
-using FalkInstaller.Builders;
-using FalkInstaller.Models;
+using FalkForge;
+using FalkForge.Builders;
+using FalkForge.Models;
 
 var payloadDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "payload"));
 

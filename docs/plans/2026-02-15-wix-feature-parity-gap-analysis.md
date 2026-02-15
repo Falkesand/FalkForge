@@ -1,13 +1,13 @@
-# FalkInstaller vs WiX Toolset 6.0.2 — Feature Gap Analysis
+# FalkForge vs WiX Toolset 6.0.2 — Feature Gap Analysis
 
 **Date:** 2026-02-15
 **Status:** Active
-**Purpose:** Track feature parity between FalkInstaller and WiX Toolset 6.0.2
+**Purpose:** Track feature parity between FalkForge and WiX Toolset 6.0.2
 **Last updated:** 2026-02-15 (after Phase 8 merge)
 
 ## Current State
 
-FalkInstaller has 26 source projects across 8 completed phases:
+FalkForge has 26 source projects across 8 completed phases:
 - **Phase 1:** Core domain model, platform abstractions, extensibility, MSBuild SDK, MSI compiler, testing utilities
 - **Phase 2:** Cabinet P/Invoke, Environment, Fonts, Close Apps, INI files, Permissions, File Associations, Custom Actions, ICE validation, Code signing
 - **Phase 3:** Bundle Engine + UI (Engine, Elevation, Protocol, WPF UI, Bundle Compiler)
@@ -78,7 +78,7 @@ FalkInstaller has 26 source projects across 8 completed phases:
 | InstallExecuteSequence | Implemented | SequenceTable, SequenceActionModel, SequenceBuilder |
 | InstallUISequence | Implemented | Shared sequence infrastructure |
 | AdminExecute/UISequence | Partial | Sequence infrastructure supports it; not explicitly targeted |
-| EmbeddedUI | Missing | FalkInstaller uses bundle-level WPF UI |
+| EmbeddedUI | Missing | FalkForge uses bundle-level WPF UI |
 | Pre-built dialog sets (WixUI_*) | Implemented | 5 templates: Minimal, InstallDir, FeatureTree, Mondo, Advanced |
 | Maintenance mode UI | Implemented | MaintenancePageViewModel |
 
@@ -105,15 +105,15 @@ FalkInstaller has 26 source projects across 8 completed phases:
 | Update feeds | Missing | |
 | Embedded bundle mode | Missing | |
 | Custom BA SDK (.NET 6+) | Partial | WPF UI exists but no BA SDK for extensibility |
-| Themeable standard BA | N/A | FalkInstaller uses WPF + ReactiveUI instead of WiX standard BA |
+| Themeable standard BA | N/A | FalkForge uses WPF + ReactiveUI instead of WiX standard BA |
 | Engine-UI bidirectional control | Implemented | Named pipe IPC protocol with 12 message types |
 
 ## 5. Build System & Developer Experience
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| MSBuild SDK integration | Implemented | FalkInstaller.Sdk |
-| C# fluent API | Implemented | FalkInstaller advantage over WiX |
+| MSBuild SDK integration | Implemented | FalkForge.Sdk |
+| C# fluent API | Implemented | FalkForge advantage over WiX |
 | Preprocessor | N/A | C# replaces WiX preprocessor |
 | Localization | Implemented | JSON-based, culture fallback, !(loc.X) resolution |
 | Harvesting (glob patterns) | Partial | Wildcard expansion but not full Heat equivalent |
@@ -129,7 +129,7 @@ FalkInstaller has 26 source projects across 8 completed phases:
 
 | Extension | Status | Notes |
 |-----------|--------|-------|
-| Extension framework/interfaces | Implemented | IFalkInstallerExtension, IComponentContributor, IMsiTableContributor |
+| Extension framework/interfaces | Implemented | IFalkForgeExtension, IComponentContributor, IMsiTableContributor |
 | Util (CloseApp, Permissions) | Implemented | Full support |
 | Util (XmlConfig, User/Group, FileShare) | Implemented | XCF001-009 error codes |
 | Util (QuietExec, RemoveFolderEx, InternetShortcut) | Implemented | Full support |
@@ -207,4 +207,4 @@ FalkInstaller has 26 source projects across 8 completed phases:
 
 - **COM Registration:** Explicitly deferred to a future phase.
 - **Preprocessor/Fragments/Libraries:** N/A — C# fluent API replaces WiX XML preprocessor and fragment/library model.
-- **Themeable standard BA:** N/A — FalkInstaller uses WPF + ReactiveUI for bundle UI, which is more flexible than WiX standard BA themes.
+- **Themeable standard BA:** N/A — FalkForge uses WPF + ReactiveUI for bundle UI, which is more flexible than WiX standard BA themes.

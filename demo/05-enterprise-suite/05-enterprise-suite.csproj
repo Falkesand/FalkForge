@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <RootNamespace>FalkInstaller.Demo.EnterpriseSuite</RootNamespace>
+    <RootNamespace>FalkForge.Demo.EnterpriseSuite</RootNamespace>
     <Description>Demo: Enterprise Development Suite installer with advanced UI and ~80 payload files across ~15 features</Description>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\FalkInstaller.Core\FalkInstaller.Core.csproj" />
-    <ProjectReference Include="..\..\src\FalkInstaller.Compiler.Msi\FalkInstaller.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
   </ItemGroup>
 </Project>

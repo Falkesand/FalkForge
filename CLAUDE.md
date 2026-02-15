@@ -1,4 +1,4 @@
-# FalkInstaller
+# FalkForge
 
 C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI. Extension system for Firewall, IIS, SQL, .NET detection, and utility actions. Supports MSI, MSM, MSP, MST, and EXE bundle output types.
 
@@ -17,46 +17,46 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 
 ```
 src/
-  FalkInstaller.Core/                  # Domain model, fluent API, validation
-  FalkInstaller.Compiler.Msi/          # MSI/MSM/MSP/MST generation via msi.dll P/Invoke
-  FalkInstaller.Compiler.Bundle/       # Self-extracting EXE bundle compiler
-  FalkInstaller.Engine/                # NativeAOT installer runtime (exe)
-  FalkInstaller.Engine.Elevation/      # NativeAOT elevated companion (exe)
-  FalkInstaller.Engine.Protocol/       # IPC message types + serialization (AOT-safe)
-  FalkInstaller.Platform/              # OS abstractions (IFileSystem, IRegistry)
-  FalkInstaller.Platform.Windows/      # Windows P/Invoke implementations
-  FalkInstaller.Extensibility/         # Extension system interfaces
-  FalkInstaller.Extensions.Util/       # XmlConfig, UserManagement, FileShare, QuietExec, RemoveFolderEx, InternetShortcut
-  FalkInstaller.Extensions.Firewall/   # Firewall rule definitions and validation
-  FalkInstaller.Extensions.DotNet/     # .NET runtime detection via registry and filesystem
-  FalkInstaller.Extensions.Iis/        # IIS AppPool, WebSite, WebBinding, Certificate configuration
-  FalkInstaller.Extensions.Sql/        # SQL Server database, script, and string execution
-  FalkInstaller.Ui.Abstractions/       # IInstallerEngine, base ViewModels
-  FalkInstaller.Ui/                    # WPF + ReactiveUI installer UI
-  FalkInstaller.Sdk/                   # MSBuild SDK targets (netstandard2.0)
-  FalkInstaller.Testing/               # Test utilities, mocks
-  FalkInstaller.Localization/          # JSON-based localization with culture fallback
-  FalkInstaller.Decompiler/            # MSI decompiler (Windows-only) -> PackageModel + C# source
-  FalkInstaller.Cli/                   # Spectre.Console CLI: build, validate, inspect, decompile
+  FalkForge.Core/                  # Domain model, fluent API, validation
+  FalkForge.Compiler.Msi/          # MSI/MSM/MSP/MST generation via msi.dll P/Invoke
+  FalkForge.Compiler.Bundle/       # Self-extracting EXE bundle compiler
+  FalkForge.Engine/                # NativeAOT installer runtime (exe)
+  FalkForge.Engine.Elevation/      # NativeAOT elevated companion (exe)
+  FalkForge.Engine.Protocol/       # IPC message types + serialization (AOT-safe)
+  FalkForge.Platform/              # OS abstractions (IFileSystem, IRegistry)
+  FalkForge.Platform.Windows/      # Windows P/Invoke implementations
+  FalkForge.Extensibility/         # Extension system interfaces
+  FalkForge.Extensions.Util/       # XmlConfig, UserManagement, FileShare, QuietExec, RemoveFolderEx, InternetShortcut
+  FalkForge.Extensions.Firewall/   # Firewall rule definitions and validation
+  FalkForge.Extensions.DotNet/     # .NET runtime detection via registry and filesystem
+  FalkForge.Extensions.Iis/        # IIS AppPool, WebSite, WebBinding, Certificate configuration
+  FalkForge.Extensions.Sql/        # SQL Server database, script, and string execution
+  FalkForge.Ui.Abstractions/       # IInstallerEngine, base ViewModels
+  FalkForge.Ui/                    # WPF + ReactiveUI installer UI
+  FalkForge.Sdk/                   # MSBuild SDK targets (netstandard2.0)
+  FalkForge.Testing/               # Test utilities, mocks
+  FalkForge.Localization/          # JSON-based localization with culture fallback
+  FalkForge.Decompiler/            # MSI decompiler (Windows-only) -> PackageModel + C# source
+  FalkForge.Cli/                   # Spectre.Console CLI: build, validate, inspect, decompile
 
 tests/
-  FalkInstaller.Core.Tests/
-  FalkInstaller.Compiler.Msi.Tests/
-  FalkInstaller.Compiler.Bundle.Tests/
-  FalkInstaller.Engine.Tests/
-  FalkInstaller.Engine.Elevation.Tests/
-  FalkInstaller.Engine.Protocol.Tests/
-  FalkInstaller.Ui.Abstractions.Tests/
-  FalkInstaller.Ui.Tests/
-  FalkInstaller.Integration.Tests/
-  FalkInstaller.Extensions.Util.Tests/
-  FalkInstaller.Extensions.Firewall.Tests/
-  FalkInstaller.Extensions.DotNet.Tests/
-  FalkInstaller.Extensions.Iis.Tests/
-  FalkInstaller.Extensions.Sql.Tests/
-  FalkInstaller.Localization.Tests/
-  FalkInstaller.Decompiler.Tests/
-  FalkInstaller.Cli.Tests/
+  FalkForge.Core.Tests/
+  FalkForge.Compiler.Msi.Tests/
+  FalkForge.Compiler.Bundle.Tests/
+  FalkForge.Engine.Tests/
+  FalkForge.Engine.Elevation.Tests/
+  FalkForge.Engine.Protocol.Tests/
+  FalkForge.Ui.Abstractions.Tests/
+  FalkForge.Ui.Tests/
+  FalkForge.Integration.Tests/
+  FalkForge.Extensions.Util.Tests/
+  FalkForge.Extensions.Firewall.Tests/
+  FalkForge.Extensions.DotNet.Tests/
+  FalkForge.Extensions.Iis.Tests/
+  FalkForge.Extensions.Sql.Tests/
+  FalkForge.Localization.Tests/
+  FalkForge.Decompiler.Tests/
+  FalkForge.Cli.Tests/
 ```
 
 ## Dependency Graph
@@ -84,33 +84,33 @@ Cli (exe):        Core + Compiler.Msi + Compiler.Bundle + Decompiler + Localizat
 
 ## Key Patterns & Locations
 
-### Result<T> -- `src/FalkInstaller.Core/Result.cs`
+### Result<T> -- `src/FalkForge.Core/Result.cs`
 Readonly record struct. `Result<T>.Success(value)` / `Result<T>.Failure(error)`. Match/Map/Bind.
 
-### Error -- `src/FalkInstaller.Core/Error.cs`
+### Error -- `src/FalkForge.Core/Error.cs`
 `record struct Error(ErrorKind Kind, string Message)`
 
-### ErrorKind -- `src/FalkInstaller.Core/ErrorKind.cs`
+### ErrorKind -- `src/FalkForge.Core/ErrorKind.cs`
 29 values: Validation, FileNotFound, CompilationError, SecurityError, ProtocolError, EngineError, ElevationError, BundleError, DownloadError, LayoutError, etc.
 
-### Unit -- `src/FalkInstaller.Core/Unit.cs`
+### Unit -- `src/FalkForge.Core/Unit.cs`
 `readonly record struct Unit { static readonly Unit Value = default; }` -- for `Result<Unit>`.
 
-### Entry Point -- `src/FalkInstaller.Core/Installer.cs`
+### Entry Point -- `src/FalkForge.Core/Installer.cs`
 `Installer.Build()` for MSI, `Installer.BuildBundle()` for EXE bundles, `Installer.BuildMergeModule()` for MSM, `Installer.BuildPatch()` for MSP, `Installer.BuildTransform()` for MST.
 
-### ConditionEvaluator -- `src/FalkInstaller.Engine/Variables/ConditionEvaluator.cs`
+### ConditionEvaluator -- `src/FalkForge.Engine/Variables/ConditionEvaluator.cs`
 Recursive-descent parser for WiX-compatible condition expressions (AND, OR, NOT, comparisons, version ranges).
 
-### VariableStore -- `src/FalkInstaller.Engine/Variables/VariableStore.cs`
+### VariableStore -- `src/FalkForge.Engine/Variables/VariableStore.cs`
 Thread-safe variable storage with 30+ built-in variables (OS version, architecture, paths, etc.).
 
-### IProcessRunner -- `src/FalkInstaller.Engine/Execution/IProcessRunner.cs`
+### IProcessRunner -- `src/FalkForge.Engine/Execution/IProcessRunner.cs`
 Abstraction for process execution enabling deterministic testing of MSI/MSU/MSP/Bundle executors.
 
 ## Core Project Layout
 
-### Models (`src/FalkInstaller.Core/Models/`) -- 49 files
+### Models (`src/FalkForge.Core/Models/`) -- 49 files
 Top-level: `PackageModel`, `FeatureModel`, `ComponentModel`, `FileEntryModel`
 Output Types: `MergeModuleModel`, `PatchModel`, `TransformModel`
 Services: `ServiceModel`, `ServiceControlModel`, `ServiceDependencyModel`
@@ -124,7 +124,7 @@ Upgrade: `MajorUpgradeModel`, `RemoveExistingProductsSchedule`
 Localization: `LocalizationData`
 Other: `ShortcutModel`, `EnvironmentVariableModel`, `AssemblyModel`, `AssemblyType`, `MediaTemplateModel`, `FeatureConditionModel`, `SigningOptions`, `ExitCodeBehavior`, `RelatedBundleRelation`
 
-### Builders (`src/FalkInstaller.Core/Builders/`) -- 32 files
+### Builders (`src/FalkForge.Core/Builders/`) -- 32 files
 Main: `PackageBuilder` (orchestrates all sub-builders)
 Output Types: `MergeModuleBuilder`, `PatchBuilder`, `TransformBuilder`
 Features: `FeatureBuilder`
@@ -136,7 +136,7 @@ Tables: `CustomTableBuilder`, `ColumnOptions`, `RowBuilder`
 Sequences: `SequenceBuilder`
 Other: `ShortcutBuilder`, `EnvironmentVariableBuilder`, `AssemblyBuilder`, `MajorUpgradeBuilder`, `MediaTemplateBuilder`
 
-### Validation (`src/FalkInstaller.Core/Validation/`)
+### Validation (`src/FalkForge.Core/Validation/`)
 Static `Validate(PackageModel)` returns `ValidationResult`. Error codes: PKG001, FEA001, SVC001, REG001, CTB001-010, MUP001-003, etc.
 Additional validators: `MergeModuleValidator` (MSM001-004), `PatchValidator` (MSP001-004), `TransformValidator` (MST001-002).
 
@@ -176,7 +176,7 @@ Additional validators: `MergeModuleValidator` (MSM001-004), `PatchValidator` (MS
        |<-- Named Pipe A -->|<-- Named Pipe B ------->|
 ```
 
-### Engine State Machine (`src/FalkInstaller.Engine/`)
+### Engine State Machine (`src/FalkForge.Engine/`)
 Phases: Initializing -> Detecting -> Planning -> Elevating -> Applying -> Completing -> Shutdown
 Error: any -> Failed -> RollingBack -> Shutdown
 - `EngineHost.cs` -- Top-level orchestrator
@@ -195,18 +195,18 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `RestartManager/` -- IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
 - `Logging/` -- IEngineLogger, EngineLogger, LogEntry, NullLogger
 
-### Engine.Protocol (`src/FalkInstaller.Engine.Protocol/`)
+### Engine.Protocol (`src/FalkForge.Engine.Protocol/`)
 - `Messages/` -- 12 message types (DetectBegin/Complete, PlanBegin/Complete, ApplyBegin/Complete, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Result)
 - `Serialization/MessageSerializer.cs`, `MessageDeserializer.cs` -- Binary format: [Version:ushort][Type:ushort][Length:int][Payload]
 - `Transport/PipeServer.cs`, `PipeClient.cs` -- Named pipe IPC with HMAC-SHA256 handshake
 - `Manifest/InstallerManifest.cs`, `PackageInfo.cs`, `PackageType.cs`, `RelatedBundleEntry.cs`, `RollbackBoundaryInfo.cs`, `ManifestChainItem.cs`, `PackageManifestChainItem.cs`, `RollbackBoundaryManifestChainItem.cs`
 
-### Engine.Elevation (`src/FalkInstaller.Engine.Elevation/`)
+### Engine.Elevation (`src/FalkForge.Engine.Elevation/`)
 - `ElevatedHost.cs` -- Parse args, verify parent PID, HMAC handshake
 - `ElevatedCommandExecutor.cs` -- Whitelisted command dispatch
 - `Commands/` -- MsiInstallCommand, MsiUninstallCommand, ServiceInstallCommand, RegistryWriteCommand, FileWriteCommand
 
-### UI (`src/FalkInstaller.Ui/`)
+### UI (`src/FalkForge.Ui/`)
 - `EngineClient.cs` -- IInstallerEngine over PipeClient
 - `ViewModels/` -- DefaultShellViewModel, WelcomePageViewModel, LicensePageViewModel, InstallDirPageViewModel, FeaturesPageViewModel, ProgressPageViewModel, CompletePageViewModel, MaintenancePageViewModel
 - `Views/` -- 8 XAML files (+ MaintenancePage.xaml, MaintenancePage.xaml.cs)
@@ -227,35 +227,35 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `PublishAot: true`, `InvariantGlobalization: true`, `IlcOptimizationPreference: Size`
 - All serialization via MessageSerializer (binary protocol)
 
-## Extension System (`src/FalkInstaller.Extensibility/`)
-- `IFalkInstallerExtension` -- Extension entry point (`Name` property + `Register()` method)
+## Extension System (`src/FalkForge.Extensibility/`)
+- `IFalkForgeExtension` -- Extension entry point (`Name` property + `Register()` method)
 - `IComponentContributor`, `IMsiTableContributor` -- Contribute components/tables
 - `IExtensionValidator` -- Validate extensions
 - `ExtensionContext`, `MsiTableRow`
 
 ## Extensions
 
-### Extensions.Util (`src/FalkInstaller.Extensions.Util/`)
+### Extensions.Util (`src/FalkForge.Extensions.Util/`)
 XML configuration, user/group management, file shares, quiet execution, folder removal, internet shortcuts.
 - Error codes: XCF001-009
 
-### Extensions.Firewall (`src/FalkInstaller.Extensions.Firewall/`)
+### Extensions.Firewall (`src/FalkForge.Extensions.Firewall/`)
 Windows Firewall rule definitions and validation.
 - Error codes: FWL001-004
 
-### Extensions.DotNet (`src/FalkInstaller.Extensions.DotNet/`)
+### Extensions.DotNet (`src/FalkForge.Extensions.DotNet/`)
 .NET runtime detection via registry and filesystem probing.
 - Error codes: NET001-003
 
-### Extensions.Iis (`src/FalkInstaller.Extensions.Iis/`)
+### Extensions.Iis (`src/FalkForge.Extensions.Iis/`)
 IIS application pool, website, web binding, and certificate configuration.
 - Error codes: IIS001-009
 
-### Extensions.Sql (`src/FalkInstaller.Extensions.Sql/`)
+### Extensions.Sql (`src/FalkForge.Extensions.Sql/`)
 SQL Server database creation, script execution, and string execution.
 - Error codes: SQL001-013
 
-## Localization (`src/FalkInstaller.Localization/`)
+## Localization (`src/FalkForge.Localization/`)
 - `LocalizationModel.cs` -- Parsed string table (Culture + Dictionary<string, string>)
 - `LocalizationLoader.cs` -- JSON file loading, culture extraction from filename
 - `CultureFallbackChain.cs` -- Builds ordered fallback: specific → parent → default (de-AT → de → en-US)
@@ -264,7 +264,7 @@ SQL Server database creation, script execution, and string execution.
 - `PackageBuilderExtensions.cs` -- Extension method bridging Localization → Core PackageBuilder
 - Error codes: LOC001-004
 
-## Decompiler (`src/FalkInstaller.Decompiler/`)
+## Decompiler (`src/FalkForge.Decompiler/`)
 Windows-only (`[SupportedOSPlatform("windows")]`).
 - `MsiDecompiler.cs` -- Main entry: Decompile(path) → Result<PackageModel>, DecompileToCSharp(path) → Result<string>
 - `IMsiTableAccess.cs` -- Abstraction for MSI database reads (testability)
@@ -274,8 +274,8 @@ Windows-only (`[SupportedOSPlatform("windows")]`).
 - `TableReaders/` -- PropertyTableReader, DirectoryTableReader, ComponentTableReader, FileTableReader, FeatureTableReader, RegistryTableReader, ServiceTableReader, ShortcutTableReader, UpgradeTableReader
 - Error codes: DEC001-003
 
-## CLI (`src/FalkInstaller.Cli/`)
-Spectre.Console CLI tool (`falk` command).
+## CLI (`src/FalkForge.Cli/`)
+Spectre.Console CLI tool (`forge` command).
 - `Program.cs` -- CommandApp with build/validate/inspect/decompile commands
 - `Commands/BuildCommand.cs` -- Roslyn scripting to compile C# definitions
 - `Commands/ValidateCommand.cs` -- Validation-only mode
@@ -287,48 +287,48 @@ Spectre.Console CLI tool (`falk` command).
 - `ScriptLoader.cs` -- Roslyn scripting for C# project loading
 - `MsiInspector.cs`, `MsiInspectionResult.cs` -- MSI metadata extraction
 
-## SDK (`src/FalkInstaller.Sdk/`)
+## SDK (`src/FalkForge.Sdk/`)
 MSBuild SDK (netstandard2.0) with source generation for referenced project outputs.
 - `Sdk.targets` -- Main MSBuild integration
 - `_ComputeFalkArtifactPath` target -- Computes expected artifact path from FalkOutputType (Msi/Msm/Msp/Mst/Bundle)
-- `_GetFalkInstallerOutput` target -- Exports project output metadata for referencing projects
+- `_GetFalkForgeOutput` target -- Exports project output metadata for referencing projects
 - `_GenerateProjectOutputs` target -- Generates `ProjectOutputs.g.cs` from ProjectReference items with `ReferenceOutputAssembly=false`
 - `_WriteFalkProjectOutputsSource` inline task (RoslynCodeTaskFactory) -- C# code generation with identifier sanitization (char.IsLetterOrDigit allowlist), XML-escaped doc comments, quote-escaped paths
 - Generated class: `ProjectOutputs` with static properties for each referenced project's artifact path
 
 ## Namespace Conventions
 ```
-FalkInstaller                              Core types (Result, Error, Unit, Installer)
-FalkInstaller.Models                       Domain models
-FalkInstaller.Builders                     Fluent builders
-FalkInstaller.Validation                   Model validation
-FalkInstaller.Compiler.Msi                 MSI compiler
-FalkInstaller.Compiler.Msi.Interop         P/Invoke wrappers
-FalkInstaller.Compiler.Msi.Tables          Table emitters
-FalkInstaller.Compiler.Bundle              Bundle compiler
-FalkInstaller.Compiler.Msi.UI              MSI dialog models + emitter
-FalkInstaller.Compiler.Msi.UI.Templates   Built-in dialog templates
-FalkInstaller.Engine                       Engine runtime
-FalkInstaller.Engine.Journal.UndoOperations Rollback undo operations
-FalkInstaller.Engine.RestartManager        Restart Manager integration
-FalkInstaller.Engine.Logging               Engine logging infrastructure
-FalkInstaller.Engine.Phases                State machine phases
-FalkInstaller.Engine.Protocol              IPC protocol
-FalkInstaller.Engine.Protocol.Transport    Named pipe transport
-FalkInstaller.Engine.Elevation             Elevated process
-FalkInstaller.Platform                     Platform abstractions
-FalkInstaller.Platform.Windows             Windows implementations
-FalkInstaller.Ui                           WPF UI
-FalkInstaller.Ui.ViewModels                ViewModels
-FalkInstaller.Extensions.Util              Utility extension (XmlConfig, UserManagement, etc.)
-FalkInstaller.Extensions.Firewall          Firewall extension
-FalkInstaller.Extensions.DotNet            .NET detection extension
-FalkInstaller.Extensions.Iis               IIS extension
-FalkInstaller.Extensions.Sql               SQL Server extension
-FalkInstaller.Localization                 JSON localization + culture fallback
-FalkInstaller.Decompiler                   MSI decompiler (Windows-only)
-FalkInstaller.Decompiler.TableReaders      Per-table MSI readers
-FalkInstaller.Cli                          Spectre.Console CLI tool
-FalkInstaller.Cli.Commands                 CLI command implementations
-FalkInstaller.Cli.Settings                 CLI command settings
+FalkForge                              Core types (Result, Error, Unit, Installer)
+FalkForge.Models                       Domain models
+FalkForge.Builders                     Fluent builders
+FalkForge.Validation                   Model validation
+FalkForge.Compiler.Msi                 MSI compiler
+FalkForge.Compiler.Msi.Interop         P/Invoke wrappers
+FalkForge.Compiler.Msi.Tables          Table emitters
+FalkForge.Compiler.Bundle              Bundle compiler
+FalkForge.Compiler.Msi.UI              MSI dialog models + emitter
+FalkForge.Compiler.Msi.UI.Templates   Built-in dialog templates
+FalkForge.Engine                       Engine runtime
+FalkForge.Engine.Journal.UndoOperations Rollback undo operations
+FalkForge.Engine.RestartManager        Restart Manager integration
+FalkForge.Engine.Logging               Engine logging infrastructure
+FalkForge.Engine.Phases                State machine phases
+FalkForge.Engine.Protocol              IPC protocol
+FalkForge.Engine.Protocol.Transport    Named pipe transport
+FalkForge.Engine.Elevation             Elevated process
+FalkForge.Platform                     Platform abstractions
+FalkForge.Platform.Windows             Windows implementations
+FalkForge.Ui                           WPF UI
+FalkForge.Ui.ViewModels                ViewModels
+FalkForge.Extensions.Util              Utility extension (XmlConfig, UserManagement, etc.)
+FalkForge.Extensions.Firewall          Firewall extension
+FalkForge.Extensions.DotNet            .NET detection extension
+FalkForge.Extensions.Iis               IIS extension
+FalkForge.Extensions.Sql               SQL Server extension
+FalkForge.Localization                 JSON localization + culture fallback
+FalkForge.Decompiler                   MSI decompiler (Windows-only)
+FalkForge.Decompiler.TableReaders      Per-table MSI readers
+FalkForge.Cli                          Spectre.Console CLI tool
+FalkForge.Cli.Commands                 CLI command implementations
+FalkForge.Cli.Settings                 CLI command settings
 ```
