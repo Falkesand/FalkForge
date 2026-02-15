@@ -1,5 +1,7 @@
 using FalkInstaller.Engine;
 using FalkInstaller.Engine.Detection;
+using FalkInstaller.Engine.Journal;
+using FalkInstaller.Engine.Journal.UndoOperations;
 using FalkInstaller.Engine.Phases;
 using FalkInstaller.Engine.Planning;
 using FalkInstaller.Engine.Protocol;
@@ -181,7 +183,7 @@ public sealed class EngineLifecycleTests
             new TrackingHandler(EnginePhase.Failed, visitedPhases,
                 new FailedHandler()),
             new TrackingHandler(EnginePhase.RollingBack, visitedPhases,
-                new RollingBackHandler()),
+                new RollingBackHandler(new RollbackExecutor(Array.Empty<IUndoOperation>()))),
         };
 
         var sm = new EngineStateMachine(handlers);

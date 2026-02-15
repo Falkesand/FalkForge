@@ -6,7 +6,7 @@ C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compile
 
 ```bash
 dotnet build          # 0 warnings required (TreatWarningsAsErrors)
-dotnet test           # ~965 tests, xUnit 2.9.3
+dotnet test           # ~1126 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 
@@ -86,17 +86,19 @@ Abstraction for process execution enabling deterministic testing of MSI/MSU/MSP/
 
 ## Core Project Layout
 
-### Models (`src/FalkInstaller.Core/Models/`) -- 41 files
+### Models (`src/FalkInstaller.Core/Models/`) -- 45 files
 Top-level: `PackageModel`, `FeatureModel`, `ComponentModel`, `FileEntryModel`
 Services: `ServiceModel`, `ServiceControlModel`, `ServiceDependencyModel`
 Registry: `RegistryEntryModel`, `RemoveRegistryModel`, `RemoveRegistryAction`
 Files: `MoveFileModel`, `DuplicateFileModel`, `RemoveFileModel`, `CreateFolderModel`
 Actions: `CustomActionModel`, `CustomActionType`
 Tables: `CustomTableModel`, `CustomTableColumnModel`, `CustomTableColumnType`
+Sequences: `SequenceTable`, `SequenceActionModel`, `SequencePosition` (ActionPosition)
+UI: `MsiDialogSet`
 Upgrade: `MajorUpgradeModel`, `RemoveExistingProductsSchedule`
 Other: `ShortcutModel`, `EnvironmentVariableModel`, `AssemblyModel`, `AssemblyType`, `MediaTemplateModel`, `FeatureConditionModel`, `SigningOptions`, `ExitCodeBehavior`, `RelatedBundleRelation`
 
-### Builders (`src/FalkInstaller.Core/Builders/`) -- 28 files
+### Builders (`src/FalkInstaller.Core/Builders/`) -- 29 files
 Main: `PackageBuilder` (orchestrates all sub-builders)
 Features: `FeatureBuilder`
 Files: `FileSetBuilder`, `MoveFileBuilder`, `DuplicateFileBuilder`, `RemoveFileBuilder`, `CreateFolderBuilder`
@@ -104,6 +106,7 @@ Services: `ServiceBuilder`, `ServiceControlBuilder`
 Registry: `RegistryBuilder`, `RemoveRegistryBuilder`
 Actions: `CustomActionBuilder`
 Tables: `CustomTableBuilder`, `ColumnOptions`, `RowBuilder`
+Sequences: `SequenceBuilder`
 Other: `ShortcutBuilder`, `EnvironmentVariableBuilder`, `AssemblyBuilder`, `MajorUpgradeBuilder`, `MediaTemplateBuilder`
 
 ### Validation (`src/FalkInstaller.Core/Validation/ModelValidator.cs`)
@@ -124,6 +127,11 @@ Static `Validate(PackageModel)` returns `ValidationResult`. Error codes: PKG001,
 - `Interop/MsiDatabaseHandle.cs`, `MsiRecordHandle.cs`, `MsiViewHandle.cs` -- Safe handles
 - `Signing/` -- Code signing support
 - `Validation/IceValidator.cs` -- ICE validation
+- `UI/MsiDialogModel.cs`, `MsiControlModel.cs`, `MsiControlEventModel.cs`, `MsiControlConditionModel.cs` -- MSI dialog models
+- `UI/DialogEmitter.cs` -- Emits MSI dialog tables from models
+- `UI/IDialogTemplate.cs` -- Dialog template interface
+- `UI/MsiDialogSet.cs` -- Dialog set placeholder
+- `UI/Templates/` -- MinimalDialogTemplate, InstallDirDialogTemplate, FeatureTreeDialogTemplate, MondoDialogTemplate, AdvancedDialogTemplate
 
 ## Engine Architecture (3-process model)
 
@@ -148,7 +156,10 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `Download/PayloadDownloader.cs` -- HTTP download with retry + SHA256 verification
 - `Layout/LayoutManager.cs`, `LayoutJsonContext.cs`
 - `Cache/PackageCache.cs`, `CacheLayout.cs`
-- `Journal/RollbackJournal.cs`, `JournalEntry.cs`
+- `Journal/RollbackJournal.cs`, `JournalEntry.cs`, `RollbackExecutor.cs`
+- `Journal/UndoOperations/` -- IUndoOperation, MsiUninstallOperation, ExeRollbackOperation, CacheCleanupOperation
+- `RestartManager/` -- IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
+- `Logging/` -- IEngineLogger, EngineLogger, LogEntry, NullLogger
 
 ### Engine.Protocol (`src/FalkInstaller.Engine.Protocol/`)
 - `Messages/` -- 12 message types (DetectBegin/Complete, PlanBegin/Complete, ApplyBegin/Complete, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Result)
@@ -163,8 +174,8 @@ Error: any -> Failed -> RollingBack -> Shutdown
 
 ### UI (`src/FalkInstaller.Ui/`)
 - `EngineClient.cs` -- IInstallerEngine over PipeClient
-- `ViewModels/` -- DefaultShellViewModel, WelcomePageViewModel, LicensePageViewModel, InstallDirPageViewModel, FeaturesPageViewModel, ProgressPageViewModel, CompletePageViewModel
-- `Views/` -- 7 XAML files
+- `ViewModels/` -- DefaultShellViewModel, WelcomePageViewModel, LicensePageViewModel, InstallDirPageViewModel, FeaturesPageViewModel, ProgressPageViewModel, CompletePageViewModel, MaintenancePageViewModel
+- `Views/` -- 8 XAML files (+ MaintenancePage.xaml, MaintenancePage.xaml.cs)
 - `Converters/` -- WPF value converters
 
 ## Compiler.Bundle Layout
@@ -198,7 +209,12 @@ FalkInstaller.Compiler.Msi                 MSI compiler
 FalkInstaller.Compiler.Msi.Interop         P/Invoke wrappers
 FalkInstaller.Compiler.Msi.Tables          Table emitters
 FalkInstaller.Compiler.Bundle              Bundle compiler
+FalkInstaller.Compiler.Msi.UI              MSI dialog models + emitter
+FalkInstaller.Compiler.Msi.UI.Templates   Built-in dialog templates
 FalkInstaller.Engine                       Engine runtime
+FalkInstaller.Engine.Journal.UndoOperations Rollback undo operations
+FalkInstaller.Engine.RestartManager        Restart Manager integration
+FalkInstaller.Engine.Logging               Engine logging infrastructure
 FalkInstaller.Engine.Phases                State machine phases
 FalkInstaller.Engine.Protocol              IPC protocol
 FalkInstaller.Engine.Protocol.Transport    Named pipe transport

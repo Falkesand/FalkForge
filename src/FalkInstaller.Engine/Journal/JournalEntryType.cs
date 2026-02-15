@@ -9,5 +9,9 @@ public enum JournalEntryType
     RegistryKeyCreated,
     RegistryValueSet,
     ServiceInstalled,
-    SegmentBoundary
+    SegmentBoundary,
+    MsiInstalled,
+    ExeInstalled,
+    PayloadCached,
+    RegistryModified
 }
