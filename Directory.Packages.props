@@ -8,6 +8,12 @@
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
   </ItemGroup>
   <ItemGroup>
+    <!-- CLI dependencies -->
+    <PackageVersion Include="Spectre.Console" Version="0.50.0" />
+    <PackageVersion Include="Spectre.Console.Cli" Version="0.50.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.13.0" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Test dependencies -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />

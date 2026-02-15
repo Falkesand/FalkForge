@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Spectre.Console.Cli" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+    <ProjectReference Include="..\FalkInstaller.Core\FalkInstaller.Core.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Compiler.Msi\FalkInstaller.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Compiler.Bundle\FalkInstaller.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Decompiler\FalkInstaller.Decompiler.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Localization\FalkInstaller.Localization.csproj" />
+  </ItemGroup>
+</Project>
