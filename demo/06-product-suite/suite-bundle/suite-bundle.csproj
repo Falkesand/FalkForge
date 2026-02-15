@@ -7,8 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\FalkInstaller.Core\FalkInstaller.Core.csproj" />
-    <ProjectReference Include="..\..\..\src\FalkInstaller.Compiler.Bundle\FalkInstaller.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
     <!-- These ProjectReferences enable source generation of ProjectOutputs.g.cs -->
     <ProjectReference Include="..\app-installer\app-installer.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\service-installer\service-installer.csproj" ReferenceOutputAssembly="false" />

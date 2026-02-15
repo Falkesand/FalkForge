@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FalkForge.Engine</RootNamespace>
+    <Description>NativeAOT bundle engine for FalkForge</Description>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
+    <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
+    <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+  </ItemGroup>
+</Project>

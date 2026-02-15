@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkForge.Platform.Windows</RootNamespace>
+    <Description>Windows P/Invoke implementations</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
+  </ItemGroup>
+</Project>

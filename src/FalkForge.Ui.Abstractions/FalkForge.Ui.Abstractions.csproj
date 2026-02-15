@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkForge.Ui.Abstractions</RootNamespace>
+    <Description>UI abstractions and base ViewModels for FalkForge</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
+  </ItemGroup>
+</Project>

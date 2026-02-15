@@ -1,5 +1,5 @@
-using FalkInstaller;
-using FalkInstaller.Models;
+using FalkForge;
+using FalkForge.Models;
 
 return Installer.Build(args, p =>
 {

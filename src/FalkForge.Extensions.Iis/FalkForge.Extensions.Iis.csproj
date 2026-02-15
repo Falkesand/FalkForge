@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>FalkForge.Extensions.Iis</RootNamespace>
+    <Description>IIS extension for FalkForge — manages web sites, application pools, virtual directories, and certificates during installation</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Extensions.Iis.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
+  </ItemGroup>
+</Project>

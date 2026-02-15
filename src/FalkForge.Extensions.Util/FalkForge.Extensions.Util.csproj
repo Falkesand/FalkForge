@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkForge.Extensions.Util</RootNamespace>
+    <Description>Util extension for FalkForge - XML configuration file manipulation</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Extensions.Util.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
+  </ItemGroup>
+</Project>

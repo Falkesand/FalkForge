@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <!-- FalkForge output type: Msi, Bundle, Module, Patch -->
+    <FalkOutputType Condition="'$(FalkOutputType)' == ''">Msi</FalkOutputType>
+
+    <!-- Default output directory for generated installers -->
+    <FalkOutputDirectory Condition="'$(FalkOutputDirectory)' == ''">$(OutputPath)</FalkOutputDirectory>
+
+    <!-- Enable/disable ICE validation -->
+    <FalkRunIceValidation Condition="'$(FalkRunIceValidation)' == ''">true</FalkRunIceValidation>
+
+    <!-- Code signing -->
+    <FalkSignOutput Condition="'$(FalkSignOutput)' == ''">false</FalkSignOutput>
+    <FalkSignToolPath Condition="'$(FalkSignToolPath)' == ''">signtool.exe</FalkSignToolPath>
+
+    <!-- Compression -->
+    <FalkCompressionLevel Condition="'$(FalkCompressionLevel)' == ''">High</FalkCompressionLevel>
+
+    <!-- Platform -->
+    <FalkPlatform Condition="'$(FalkPlatform)' == ''">x64</FalkPlatform>
+
+    <!-- Verbose output -->
+    <FalkVerbose Condition="'$(FalkVerbose)' == ''">false</FalkVerbose>
+  </PropertyGroup>
+</Project>

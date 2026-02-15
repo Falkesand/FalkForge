@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Spectre.Console.Cli" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\FalkForge.Decompiler\FalkForge.Decompiler.csproj" />
+    <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj" />
+  </ItemGroup>
+</Project>

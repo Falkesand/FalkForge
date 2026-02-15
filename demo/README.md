@@ -1,10 +1,10 @@
-# FalkInstaller Demos
+# FalkForge Demos
 
-Practical examples showing how to build Windows Installer packages with FalkInstaller's fluent C# API.
+Practical examples showing how to build Windows Installer packages with FalkForge's fluent C# API.
 
-## What is FalkInstaller?
+## What is FalkForge?
 
-FalkInstaller is a C# MSI/Bundle installer framework. Instead of writing XML (like WiX), you define your installer as a regular C# console application using a fluent API. The framework compiles your definition into a standard `.msi` Windows Installer package (or `.exe` bundle, `.msm` merge module, `.msp` patch, or `.mst` transform).
+FalkForge is a C# MSI/Bundle installer framework. Instead of writing XML (like WiX), you define your installer as a regular C# console application using a fluent API. The framework compiles your definition into a standard `.msi` Windows Installer package (or `.exe` bundle, `.msm` merge module, `.msp` patch, or `.mst` transform).
 
 Key properties:
 - **Pure C#** -- installers are regular .NET console apps, debuggable and testable
@@ -32,7 +32,7 @@ Define (C# fluent API)  -->  Validate (model rules)  -->  Compile (msi.dll P/Inv
                     +--------+---------+
                              |
                     +--------v---------+
-                    |  FalkInstaller    |  <-- Domain model, fluent builders, validation
+                    |  FalkForge    |  <-- Domain model, fluent builders, validation
                     |      .Core       |
                     +--------+---------+
                              |
@@ -61,9 +61,9 @@ Define (C# fluent API)  -->  Validate (model rules)  -->  Compile (msi.dll P/Inv
 The simplest possible installer:
 
 ```csharp
-using FalkInstaller;
-using FalkInstaller.Builders;
-using FalkInstaller.Models;
+using FalkForge;
+using FalkForge.Builders;
+using FalkForge.Models;
 
 return Installer.Build(args, package =>
 {
@@ -236,7 +236,7 @@ package.CustomAction("SetConfig", ca =>
 
 ### Dialog Sets
 
-FalkInstaller includes five built-in MSI dialog sets:
+FalkForge includes five built-in MSI dialog sets:
 
 ```csharp
 package.UseDialogSet(MsiDialogSet.Minimal);     // Progress-only, no user interaction
@@ -267,7 +267,7 @@ package.UseDialogSet(MsiDialogSet.Advanced);     // All options including per-us
 
 ## Feature Matrix
 
-Which FalkInstaller features each demo covers:
+Which FalkForge features each demo covers:
 
 | Feature               | 01 | 02 | 03 | 04 | 05 | 06 |
 |-----------------------|----|----|----|----|----|----|
@@ -317,11 +317,11 @@ dotnet run --project demo/06-product-suite/service-installer -- -o ./output
 dotnet run --project demo/06-product-suite/suite-bundle -- -o ./output
 ```
 
-Note: The demos reference `FalkInstaller.Core` and `FalkInstaller.Compiler.Msi` as project references. Building with `dotnet build` always works. Running with `dotnet run` to generate an `.msi` requires Windows with `msi.dll` available. Demo 06 additionally references `FalkInstaller.Compiler.Bundle` for the EXE bundle output.
+Note: The demos reference `FalkForge.Core` and `FalkForge.Compiler.Msi` as project references. Building with `dotnet build` always works. Running with `dotnet run` to generate an `.msi` requires Windows with `msi.dll` available. Demo 06 additionally references `FalkForge.Compiler.Bundle` for the EXE bundle output.
 
 ## Output Types
 
-FalkInstaller supports five output types:
+FalkForge supports five output types:
 
 | Type      | Extension | Entry Point                    | Description                                    |
 |-----------|-----------|--------------------------------|------------------------------------------------|
@@ -333,7 +333,7 @@ FalkInstaller supports five output types:
 
 ## Demo 06: Bundles (Product Suite)
 
-Demo 06 introduces FalkInstaller's **bundle** output type -- a self-extracting `.exe` that chains multiple MSI packages into a single installer with a unified user experience.
+Demo 06 introduces FalkForge's **bundle** output type -- a self-extracting `.exe` that chains multiple MSI packages into a single installer with a unified user experience.
 
 ### What is a Bundle?
 
@@ -390,10 +390,10 @@ dotnet run --project demo/06-product-suite/suite-bundle -- -o ./output
 
 Today, the bundle project references MSI paths as raw strings (`"output/AcmeApp.msi"`). This works but is fragile -- rename an MSI project or change its output path and the bundle silently breaks at runtime.
 
-The planned **ProjectOutputs** feature will solve this with MSBuild source generation. When a bundle project has a `<ProjectReference>` to an MSI project, the FalkInstaller SDK will generate a `ProjectOutputs.g.cs` file containing strongly-typed references:
+The planned **ProjectOutputs** feature will solve this with MSBuild source generation. When a bundle project has a `<ProjectReference>` to an MSI project, the FalkForge SDK will generate a `ProjectOutputs.g.cs` file containing strongly-typed references:
 
 ```csharp
-// Auto-generated by FalkInstaller.Sdk from <ProjectReference> items
+// Auto-generated by FalkForge.Sdk from <ProjectReference> items
 internal static class ProjectOutputs
 {
     internal static string AppInstaller => @"D:\output\AcmeApp.msi";

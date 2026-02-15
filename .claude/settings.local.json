@@ -9,7 +9,15 @@
       "WebFetch(domain:www.firegiant.com)",
       "Bash(dotnet:*)",
       "Bash(dotnet --list-sdks:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(D:/git/FalkInstaller/tests/FalkInstaller.Decompiler.Tests/FalkInstaller.Decompiler.Tests.csproj:*)",
+      "Bash(D:/git/FalkInstaller/tests/FalkInstaller.Cli.Tests/FalkInstaller.Cli.Tests.csproj:*)",
+      "Bash(git status:*)",
+      "Bash(git checkout:*)",
+      "Bash(git mv:*)",
+      "Bash(echo:*)",
+      "Bash(git -C /d/git/FalkInstaller status --short)",
+      "Bash(git -C /d/git/FalkInstaller diff --name-only -- '*.md')"
     ]
   }
 }

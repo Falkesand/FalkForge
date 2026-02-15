@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\FalkInstaller.Core\FalkInstaller.Core.csproj" />
-    <ProjectReference Include="..\..\..\src\FalkInstaller.Compiler.Msi\FalkInstaller.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
   </ItemGroup>
 </Project>

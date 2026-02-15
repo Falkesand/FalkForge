@@ -1,8 +1,8 @@
-using FalkInstaller;
-using FalkInstaller.Compiler.Bundle.Builders;
-using FalkInstaller.Compiler.Bundle.Compilation;
+using FalkForge;
+using FalkForge.Compiler.Bundle.Builders;
+using FalkForge.Compiler.Bundle.Compilation;
 
-// With FalkInstaller SDK source generation, use: ProjectOutputs.AppInstaller
+// With FalkForge SDK source generation, use: ProjectOutputs.AppInstaller
 // For standalone demo, reference built MSI paths directly:
 const string appMsiPath = "../app-installer/app-installer.msi";
 const string serviceMsiPath = "../service-installer/service-installer.msi";
