@@ -6,7 +6,7 @@ C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compile
 
 ```bash
 dotnet build          # 0 warnings required (TreatWarningsAsErrors)
-dotnet test           # ~1585 tests, xUnit 2.9.3
+dotnet test           # ~1593 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 
@@ -131,7 +131,7 @@ Features: `FeatureBuilder`
 Files: `FileSetBuilder`, `MoveFileBuilder`, `DuplicateFileBuilder`, `RemoveFileBuilder`, `CreateFolderBuilder`
 Services: `ServiceBuilder`, `ServiceControlBuilder`
 Registry: `RegistryBuilder`, `RemoveRegistryBuilder`
-Actions: `CustomActionBuilder`
+Actions: `CustomActionBuilder` -- Includes simplified overload `CustomAction(string binaryPath, string entryPoint, Action<CustomActionBuilder>? configure = null)` that auto-registers binary and creates DllFromBinary action
 Tables: `CustomTableBuilder`, `ColumnOptions`, `RowBuilder`
 Sequences: `SequenceBuilder`
 Other: `ShortcutBuilder`, `EnvironmentVariableBuilder`, `AssemblyBuilder`, `MajorUpgradeBuilder`, `MediaTemplateBuilder`
@@ -286,6 +286,15 @@ Spectre.Console CLI tool (`falk` command).
 - `IConsoleOutput.cs`, `SpectreConsoleOutput.cs` -- Console abstraction for testability
 - `ScriptLoader.cs` -- Roslyn scripting for C# project loading
 - `MsiInspector.cs`, `MsiInspectionResult.cs` -- MSI metadata extraction
+
+## SDK (`src/FalkInstaller.Sdk/`)
+MSBuild SDK (netstandard2.0) with source generation for referenced project outputs.
+- `Sdk.targets` -- Main MSBuild integration
+- `_ComputeFalkArtifactPath` target -- Computes expected artifact path from FalkOutputType (Msi/Msm/Msp/Mst/Bundle)
+- `_GetFalkInstallerOutput` target -- Exports project output metadata for referencing projects
+- `_GenerateProjectOutputs` target -- Generates `ProjectOutputs.g.cs` from ProjectReference items with `ReferenceOutputAssembly=false`
+- `_WriteFalkProjectOutputsSource` inline task (RoslynCodeTaskFactory) -- C# code generation with identifier sanitization (char.IsLetterOrDigit allowlist), XML-escaped doc comments, quote-escaped paths
+- Generated class: `ProjectOutputs` with static properties for each referenced project's artifact path
 
 ## Namespace Conventions
 ```

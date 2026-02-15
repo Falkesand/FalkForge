@@ -256,18 +256,47 @@ package.UseDialogSet(MsiDialogSet.Advanced);     // All options including per-us
 
 ## Demo Index
 
-| #  | Name           | Description                                       | Dialog Set  | Key Concepts                                  |
-|----|----------------|---------------------------------------------------|-------------|-----------------------------------------------|
-| 01 | Hello World    | Absolute minimum installer -- one file, no options | Minimal     | `Installer.Build`, `Files`, `KnownFolder`     |
-| 02 | Notepad Clone  | Small app with shortcuts, registry, upgrade        | InstallDir  | Shortcuts, Registry, MajorUpgrade, LicenseFile|
+| #  | Name             | Lines | Description                                          | Dialog Set      | Key Concepts                                           |
+|----|------------------|-------|------------------------------------------------------|-----------------|--------------------------------------------------------|
+| 01 | Hello World      | ~15   | Absolute minimum installer -- one file, no options   | Minimal         | `Installer.Build`, `Files`, `KnownFolder`              |
+| 02 | Notepad Clone    | ~55   | Small app with shortcuts, registry, upgrade          | InstallDir      | Shortcuts, Registry, MajorUpgrade, LicenseFile         |
+| 03 | Client-Server    | ~106  | Multi-feature suite with services and conditions     | FeatureTree     | Features, Services, Environment Variables, Conditions  |
+| 04 | Dev Toolkit      | ~185  | Developer tools with nested features and extensions  | Mondo           | Nested Features, File Associations, Custom Actions     |
+| 05 | Enterprise Suite | ~500  | Full enterprise IDE with 15 features and 71 files    | Advanced        | Custom Tables, Fonts, Properties, Launch Conditions    |
+| 06 | Product Suite    | ~200  | Bundle wrapping multiple MSI packages                | Built-in WPF    | Bundle, Rollback Boundaries, Multi-package chaining    |
+
+## Feature Matrix
+
+Which FalkInstaller features each demo covers:
+
+| Feature               | 01 | 02 | 03 | 04 | 05 | 06 |
+|-----------------------|----|----|----|----|----|----|
+| Files                 | x  | x  | x  | x  | x  | x  |
+| Shortcuts             |    | x  | x  | x  | x  |    |
+| Registry              |    | x  | x  | x  | x  |    |
+| Services              |    |    | x  |    | x  | x  |
+| Environment Variables |    |    | x  | x  | x  |    |
+| Features (multi)      |    |    | x  | x  | x  |    |
+| Nested Features       |    |    |    | x  | x  |    |
+| Custom Actions        |    |    |    | x  | x  |    |
+| File Associations     |    |    |    | x  | x  |    |
+| Custom Tables         |    |    |    |    | x  |    |
+| Fonts                 |    |    |    |    | x  |    |
+| Major Upgrade         |    | x  | x  | x  | x  |    |
+| Launch Conditions     |    |    | x  |    | x  |    |
+| Bundle                |    |    |    |    |    | x  |
+| Rollback Boundaries   |    |    |    |    |    | x  |
 
 ## Building Demos
 
-Each demo is a standalone .NET console application. Build with:
+Each MSI demo is a standalone .NET console application. Build with:
 
 ```bash
 dotnet build demo/01-hello-world/
 dotnet build demo/02-notepad-clone/
+dotnet build demo/03-client-server/
+dotnet build demo/04-dev-toolkit/
+dotnet build demo/05-enterprise-suite/
 ```
 
 To actually produce an `.msi` file, run the demo on Windows (requires `msi.dll`):
@@ -275,9 +304,20 @@ To actually produce an `.msi` file, run the demo on Windows (requires `msi.dll`)
 ```bash
 dotnet run --project demo/01-hello-world/ -- -o ./output
 dotnet run --project demo/02-notepad-clone/ -- -o ./output
+dotnet run --project demo/03-client-server/ -- -o ./output
+dotnet run --project demo/04-dev-toolkit/ -- -o ./output
+dotnet run --project demo/05-enterprise-suite/ -- -o ./output
 ```
 
-Note: The demos reference `FalkInstaller.Core` and `FalkInstaller.Compiler.Msi` as project references. Building with `dotnet build` always works. Running with `dotnet run` to generate an `.msi` requires Windows with `msi.dll` available.
+Demo 06 is a multi-project bundle. Build the MSI packages first, then the bundle:
+
+```bash
+dotnet run --project demo/06-product-suite/app-installer -- -o ./output
+dotnet run --project demo/06-product-suite/service-installer -- -o ./output
+dotnet run --project demo/06-product-suite/suite-bundle -- -o ./output
+```
+
+Note: The demos reference `FalkInstaller.Core` and `FalkInstaller.Compiler.Msi` as project references. Building with `dotnet build` always works. Running with `dotnet run` to generate an `.msi` requires Windows with `msi.dll` available. Demo 06 additionally references `FalkInstaller.Compiler.Bundle` for the EXE bundle output.
 
 ## Output Types
 
@@ -290,3 +330,85 @@ FalkInstaller supports five output types:
 | MSP       | `.msp`    | `Installer.BuildPatch()`      | Patch (delta updates)                          |
 | MST       | `.mst`    | `Installer.BuildTransform()`  | Transform (MSI customization)                  |
 | EXE Bundle| `.exe`    | `Installer.BuildBundle()`     | Self-extracting bundle chaining multiple packages |
+
+## Demo 06: Bundles (Product Suite)
+
+Demo 06 introduces FalkInstaller's **bundle** output type -- a self-extracting `.exe` that chains multiple MSI packages into a single installer with a unified user experience.
+
+### What is a Bundle?
+
+A standard `.msi` installs one product. A **bundle** wraps multiple packages (MSIs, MSUs, MSPs, or nested bundles) into a single `.exe` that:
+
+- **Detects** which packages are already installed
+- **Plans** the install/uninstall/repair sequence across all packages
+- **Chains** execution in order, passing overall progress to the UI
+- **Rolls back** all packages if any single package fails (via rollback boundaries)
+- **Presents** a unified WPF UI instead of per-package MSI dialogs
+
+### Demo 06 Structure
+
+```
+demo/06-product-suite/
+  app-installer/       MSI for "Acme Application"
+                       InstallDir UI, shortcuts, registry, 4 files
+  service-installer/   MSI for "Acme Background Service"
+                       Minimal UI, Windows service, env var, 3 files
+  suite-bundle/        EXE bundle wrapping both MSIs
+                       RollbackBoundaries, built-in WPF UI
+```
+
+The bundle project uses `Installer.BuildBundle()` instead of `Installer.Build()`. Each MSI package in the chain is defined with `.MsiPackage()` and wrapped in a `RollbackBoundary` so that a failure in one package rolls back the entire installation:
+
+```csharp
+return Installer.BuildBundle(args, bundle =>
+{
+    bundle.Name = "Acme Product Suite";
+    // ...
+
+    bundle.Chain(chain =>
+    {
+        chain.RollbackBoundary("AppBoundary");
+        chain.MsiPackage("output/AcmeApp.msi", p => p.Id("AcmeApp"));
+
+        chain.RollbackBoundary("ServiceBoundary");
+        chain.MsiPackage("output/AcmeService.msi", p => p.Id("AcmeService"));
+    });
+});
+```
+
+### Build Order
+
+Because the bundle references the MSI files produced by the other two projects, they must be built first:
+
+```bash
+dotnet run --project demo/06-product-suite/app-installer -- -o ./output
+dotnet run --project demo/06-product-suite/service-installer -- -o ./output
+dotnet run --project demo/06-product-suite/suite-bundle -- -o ./output
+```
+
+## ProjectOutputs (Planned)
+
+Today, the bundle project references MSI paths as raw strings (`"output/AcmeApp.msi"`). This works but is fragile -- rename an MSI project or change its output path and the bundle silently breaks at runtime.
+
+The planned **ProjectOutputs** feature will solve this with MSBuild source generation. When a bundle project has a `<ProjectReference>` to an MSI project, the FalkInstaller SDK will generate a `ProjectOutputs.g.cs` file containing strongly-typed references:
+
+```csharp
+// Auto-generated by FalkInstaller.Sdk from <ProjectReference> items
+internal static class ProjectOutputs
+{
+    internal static string AppInstaller => @"D:\output\AcmeApp.msi";
+    internal static string ServiceInstaller => @"D:\output\AcmeService.msi";
+}
+```
+
+This enables type-safe, refactor-friendly bundle definitions:
+
+```csharp
+chain.MsiPackage(ProjectOutputs.AppInstaller, p => p.Id("AcmeApp"));
+chain.MsiPackage(ProjectOutputs.ServiceInstaller, p => p.Id("AcmeService"));
+```
+
+Benefits:
+- **Compile-time safety** -- renaming or removing a referenced project produces a build error, not a runtime failure
+- **No path guessing** -- the SDK resolves the actual output path from MSBuild properties
+- **IntelliSense support** -- discovered MSI outputs appear as typed members

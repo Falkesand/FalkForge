@@ -188,6 +188,25 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder CustomAction(string binaryPath, string entryPoint, Action<CustomActionBuilder>? configure = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(binaryPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(entryPoint);
+
+        var binaryName = Path.GetFileNameWithoutExtension(binaryPath);
+
+        if (!_binaries.Exists(b => b.Name == binaryName))
+        {
+            _binaries.Add(new BinaryModel { Name = binaryName, SourcePath = binaryPath });
+        }
+
+        var builder = new CustomActionBuilder(entryPoint);
+        builder.DllFromBinary(binaryName, entryPoint);
+        configure?.Invoke(builder);
+        _customActions.Add(builder.Build());
+        return this;
+    }
+
     public PackageBuilder RemoveFile(Action<RemoveFileBuilder> configure)
     {
         var builder = new RemoveFileBuilder();

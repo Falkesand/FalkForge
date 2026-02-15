@@ -626,4 +626,133 @@ public sealed class CustomActionTests
         var result = InstallerValidator.Validate(package);
         Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
     }
+
+    // --- Binary-path CustomAction overload tests ---
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_RegistersBinaryAndCreatesAction()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction(@"C:\build\custom.dll", "DoStuff");
+        });
+
+        Assert.Single(package.Binaries);
+        Assert.Equal("custom", package.Binaries[0].Name);
+        Assert.Equal(@"C:\build\custom.dll", package.Binaries[0].SourcePath);
+
+        Assert.Single(package.CustomActions);
+        Assert.Equal("DoStuff", package.CustomActions[0].Id);
+        Assert.Equal("custom", package.CustomActions[0].SourceRef);
+        Assert.Equal("DoStuff", package.CustomActions[0].Target);
+        Assert.Equal(CustomActionType.DllFromBinary, package.CustomActions[0].Type);
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_WithConfigure_AppliesConfiguration()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction(@"C:\build\custom.dll", "DoStuff", ca =>
+            {
+                ca.Deferred().NoImpersonate();
+                ca.After = "InstallFiles";
+                ca.Condition = "NOT Installed";
+            });
+        });
+
+        var action = package.CustomActions[0];
+        var expectedType = CustomActionType.DllFromBinary
+                         | CustomActionType.InScript
+                         | CustomActionType.NoImpersonate;
+        Assert.Equal(expectedType, action.Type);
+        Assert.Equal("InstallFiles", action.After);
+        Assert.Equal("NOT Installed", action.Condition);
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_MultipleSameBinary_RegistersBinaryOnce()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction(@"C:\build\custom.dll", "DoStuff");
+            p.CustomAction(@"C:\build\custom.dll", "DoOtherStuff");
+        });
+
+        Assert.Single(package.Binaries);
+        Assert.Equal("custom", package.Binaries[0].Name);
+        Assert.Equal(2, package.CustomActions.Count);
+        Assert.Equal("DoStuff", package.CustomActions[0].Id);
+        Assert.Equal("DoOtherStuff", package.CustomActions[1].Id);
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_DerivesBinaryNameFromFilename()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction(@"C:\path\to\My.Custom.Actions.dll", "Entry");
+        });
+
+        Assert.Single(package.Binaries);
+        Assert.Equal("My.Custom.Actions", package.Binaries[0].Name);
+        Assert.Equal("My.Custom.Actions", package.CustomActions[0].SourceRef);
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_UsesEntryPointAsActionId()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction(@"C:\build\actions.dll", "InstallDatabase");
+        });
+
+        Assert.Equal("InstallDatabase", package.CustomActions[0].Id);
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_NullPath_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "App";
+                p.Manufacturer = "Corp";
+                p.CustomAction(null!, "Entry");
+            }));
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_EmptyEntryPoint_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "App";
+                p.Manufacturer = "Corp";
+                p.CustomAction(@"C:\build\custom.dll", "");
+            }));
+    }
+
+    [Fact]
+    public void CustomAction_FromBinaryPath_WhitespaceEntryPoint_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "App";
+                p.Manufacturer = "Corp";
+                p.CustomAction(@"C:\build\custom.dll", "   ");
+            }));
+    }
 }
