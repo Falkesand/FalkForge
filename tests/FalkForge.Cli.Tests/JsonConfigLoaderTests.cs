@@ -1,0 +1,643 @@
+using FalkForge.Cli;
+using Xunit;
+
+namespace FalkForge.Cli.Tests;
+
+public sealed class JsonConfigLoaderTests
+{
+    private const string BaseDir = @"C:\test";
+
+    [Fact]
+    public void LoadFromString_MinimalValidJson_ReturnsSuccess()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("TestApp", result.Value.Name);
+        Assert.Equal("TestCorp", result.Value.Manufacturer);
+    }
+
+    [Fact]
+    public void LoadFromString_WithVersion_ParsesVersion()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "version": "2.1.0"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new Version(2, 1, 0), result.Value.Version);
+    }
+
+    [Fact]
+    public void LoadFromString_InvalidVersion_ReturnsJSN004()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "version": "not-a-version"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN004", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_MissingName_ReturnsJSN002()
+    {
+        var json = """
+        {
+            "product": {
+                "manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN002", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_MissingManufacturer_ReturnsJSN003()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN003", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_InvalidJson_ReturnsJSN001()
+    {
+        var json = "{ invalid json }}}";
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN001", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_ValidUpgradeCode_ParsesGuid()
+    {
+        var guid = Guid.NewGuid();
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "upgradeCode": "{{guid}}"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(guid, result.Value.UpgradeCode);
+    }
+
+    [Fact]
+    public void LoadFromString_InvalidUpgradeCode_ReturnsJSN005()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "upgradeCode": "not-a-guid"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN005", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_ValidDialogSet_SetsDialogSet()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "ui": "InstallDir"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FalkForge.Models.MsiDialogSet.InstallDir, result.Value.DialogSet);
+    }
+
+    [Fact]
+    public void LoadFromString_InvalidDialogSet_ReturnsJSN006()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "ui": "NonExistent"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN006", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_InvalidPlatform_ReturnsJSN007()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "platform": "MIPS"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN007", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_X64Platform_SetsArchitecture()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "platform": "X64"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FalkForge.ProcessorArchitecture.X64, result.Value.Architecture);
+    }
+
+    [Fact]
+    public void LoadFromString_WithDescription_SetsDescription()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "description": "A test application"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("A test application", result.Value.Description);
+    }
+
+    [Fact]
+    public void LoadFromString_FeatureWithoutId_ReturnsJSN009()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "title": "No ID Feature"
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN009", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_WithFeature_CreatesFeature()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "MainFeature",
+                    "title": "Main Feature",
+                    "description": "The main feature",
+                    "default": true,
+                    "required": false
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Features);
+        Assert.Equal("MainFeature", result.Value.Features[0].Id);
+        Assert.Equal("Main Feature", result.Value.Features[0].Title);
+        Assert.Equal("The main feature", result.Value.Features[0].Description);
+    }
+
+    [Fact]
+    public void LoadFromString_WithNestedFeatures_CreatesFeatureTree()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Parent",
+                    "title": "Parent Feature",
+                    "features": [
+                        {
+                            "id": "Child",
+                            "title": "Child Feature"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Features);
+        var parent = result.Value.Features[0];
+        Assert.Equal("Parent", parent.Id);
+        Assert.Single(parent.Children);
+        Assert.Equal("Child", parent.Children[0].Id);
+    }
+
+    [Fact]
+    public void LoadFromString_WithMajorUpgrade_ConfiguresUpgrade()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "majorUpgrade": {
+                "allowDowngrades": true,
+                "downgradeMessage": "Cannot downgrade"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.MajorUpgrade);
+    }
+
+    [Fact]
+    public void LoadFromString_WithLaunchConditions_AddsConditions()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "launchConditions": [
+                {
+                    "condition": "VersionNT >= 603",
+                    "message": "Windows 8.1 or later required"
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.LaunchConditions);
+    }
+
+    [Fact]
+    public void LoadFromString_EmptyJson_ReturnsJSN002()
+    {
+        var json = "{}";
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN002", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_JsonWithComments_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            // This is a comment
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_JsonWithTrailingCommas_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+            },
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_CaseInsensitivePropertyNames_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "Product": {
+                "Name": "TestApp",
+                "Manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_AllDialogSets_ParseSuccessfully()
+    {
+        string[] dialogSets = ["Minimal", "InstallDir", "FeatureTree", "Mondo", "Advanced"];
+
+        foreach (var ds in dialogSets)
+        {
+            var json = $$"""
+            {
+                "product": {
+                    "name": "TestApp",
+                    "manufacturer": "TestCorp"
+                },
+                "ui": "{{ds}}"
+            }
+            """;
+
+            var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+            Assert.True(result.IsSuccess, $"Dialog set '{ds}' should parse successfully");
+        }
+    }
+
+    [Fact]
+    public void LoadFromString_RequiredFeature_SetsIsRequired()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Core",
+                    "title": "Core",
+                    "required": true
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Features[0].IsRequired);
+    }
+
+    [Fact]
+    public void LoadFromString_NonDefaultFeature_SetsIsDefault()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Optional",
+                    "title": "Optional Feature",
+                    "default": false
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.Features[0].IsDefault);
+    }
+
+    [Fact]
+    public void LoadFromString_MultipleFeatures_CreatesAll()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Feature1", "title": "Feature 1" },
+                { "id": "Feature2", "title": "Feature 2" },
+                { "id": "Feature3", "title": "Feature 3" }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value.Features.Count);
+    }
+
+    [Fact]
+    public void LoadFromString_DefaultValues_AppliedCorrectly()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        var model = result.Value;
+        Assert.Equal(new Version(1, 0, 0), model.Version);
+        Assert.Equal(FalkForge.ProcessorArchitecture.X64, model.Architecture);
+        Assert.NotEqual(Guid.Empty, model.UpgradeCode);
+    }
+
+    [Fact]
+    public void LoadFromFile_NonExistentFile_ReturnsFailure()
+    {
+        var result = JsonConfigLoader.LoadFromFile(@"C:\nonexistent\installer.json");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(FalkForge.ErrorKind.FileNotFound, result.Error.Kind);
+    }
+
+    [Fact]
+    public void LoadFromString_Arm64Platform_SetsArchitecture()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "platform": "Arm64"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FalkForge.ProcessorArchitecture.Arm64, result.Value.Architecture);
+    }
+
+    [Fact]
+    public void LoadFromString_CaseInsensitivePlatform_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "platform": "x64"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FalkForge.ProcessorArchitecture.X64, result.Value.Architecture);
+    }
+
+    [Fact]
+    public void LoadFromString_InstallDirectory_CreatesInstallPath()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "installDirectory": "TestCorp/TestApp"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.DefaultInstallDirectory);
+    }
+
+    [Fact]
+    public void LoadFromString_WithLicense_SetsLicenseFile()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "license": "License.rtf"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.LicenseFile);
+        Assert.Contains("License.rtf", result.Value.LicenseFile);
+    }
+}

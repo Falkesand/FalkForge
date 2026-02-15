@@ -7,8 +7,8 @@ namespace FalkForge.Cli.Settings;
 
 public sealed class BuildSettings : CommandSettings
 {
-    [Description("Path to the C# installer definition file")]
-    [CommandArgument(0, "<project.cs>")]
+    [Description("Path to the installer definition file (.cs or .json)")]
+    [CommandArgument(0, "<project>")]
     public string ProjectPath { get; init; } = string.Empty;
 
     [Description("Output directory path")]
@@ -33,8 +33,9 @@ public sealed class BuildSettings : CommandSettings
         if (ProjectPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
             return CliValidationResult.Error("Project path contains invalid characters.");
 
-        if (!ProjectPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            return CliValidationResult.Error("Project path must be a .cs file.");
+        if (!ProjectPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) &&
+            !ProjectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            return CliValidationResult.Error("Project path must be a .cs or .json file.");
 
         if (OutputPath is not null && OutputPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
             return CliValidationResult.Error("Output path contains invalid characters.");

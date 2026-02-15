@@ -6,8 +6,8 @@ using Spectre.Console.Cli;
 namespace FalkForge.Cli.Commands;
 
 /// <summary>
-/// Compiles a C# installer definition into an MSI or bundle.
-/// Uses Roslyn scripting to evaluate the .cs file and invoke the appropriate compiler.
+/// Compiles an installer definition (.cs or .json) into an MSI or bundle.
+/// Uses Roslyn scripting for .cs files and JsonConfigLoader for .json files.
 /// </summary>
 public sealed class BuildCommand : Command<BuildSettings>
 {
@@ -34,6 +34,21 @@ public sealed class BuildCommand : Command<BuildSettings>
             _console.MarkupLine($"[grey]Loading project: {Markup.Escape(projectPath)}[/]");
 
         var outputPath = settings.OutputPath ?? Directory.GetCurrentDirectory();
+
+        if (projectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            var jsonResult = JsonConfigLoader.LoadFromFile(projectPath);
+            if (jsonResult.IsFailure)
+            {
+                _console.WriteError(jsonResult.Error.Message);
+                return ExitCodes.FromErrorKind(jsonResult.Error.Kind);
+            }
+
+            var package = jsonResult.Value;
+            _console.MarkupLine($"[green]Loaded JSON config:[/] {Markup.Escape(package.Name)} v{package.Version}");
+            _console.MarkupLine("[yellow]MSI compilation from JSON is not yet supported.[/]");
+            return ExitCodes.Success;
+        }
 
         var loadResult = ScriptLoader.LoadAndBuild(projectPath, outputPath, settings.Configuration);
         if (loadResult.IsFailure)

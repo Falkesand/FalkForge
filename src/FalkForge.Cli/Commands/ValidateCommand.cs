@@ -7,7 +7,7 @@ using Spectre.Console.Cli;
 namespace FalkForge.Cli.Commands;
 
 /// <summary>
-/// Loads a C# installer definition and runs validation without producing output.
+/// Loads an installer definition (.cs or .json) and runs validation without producing output.
 /// </summary>
 public sealed class ValidateCommand : Command<ValidateSettings>
 {
@@ -33,7 +33,13 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         if (settings.Verbose)
             _console.MarkupLine($"[grey]Loading project: {Markup.Escape(projectPath)}[/]");
 
-        var loadResult = ScriptLoader.LoadPackageModel(projectPath);
+        Result<FalkForge.Models.PackageModel> loadResult;
+
+        if (projectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            loadResult = JsonConfigLoader.LoadFromFile(projectPath);
+        else
+            loadResult = ScriptLoader.LoadPackageModel(projectPath);
+
         if (loadResult.IsFailure)
         {
             _console.WriteError(loadResult.Error.Message);
