@@ -7,6 +7,11 @@
     <Project Path="src/FalkInstaller.Engine.Elevation/FalkInstaller.Engine.Elevation.csproj" />
     <Project Path="src/FalkInstaller.Engine.Protocol/FalkInstaller.Engine.Protocol.csproj" />
     <Project Path="src/FalkInstaller.Extensibility/FalkInstaller.Extensibility.csproj" />
+    <Project Path="src/FalkInstaller.Extensions.DotNet/FalkInstaller.Extensions.DotNet.csproj" />
+    <Project Path="src/FalkInstaller.Extensions.Firewall/FalkInstaller.Extensions.Firewall.csproj" />
+    <Project Path="src/FalkInstaller.Extensions.Iis/FalkInstaller.Extensions.Iis.csproj" />
+    <Project Path="src/FalkInstaller.Extensions.Sql/FalkInstaller.Extensions.Sql.csproj" />
+    <Project Path="src/FalkInstaller.Extensions.Util/FalkInstaller.Extensions.Util.csproj" />
     <Project Path="src/FalkInstaller.Platform/FalkInstaller.Platform.csproj" />
     <Project Path="src/FalkInstaller.Platform.Windows/FalkInstaller.Platform.Windows.csproj" />
     <Project Path="src/FalkInstaller.Sdk/FalkInstaller.Sdk.csproj" />
@@ -21,6 +26,11 @@
     <Project Path="tests/FalkInstaller.Engine.Elevation.Tests/FalkInstaller.Engine.Elevation.Tests.csproj" />
     <Project Path="tests/FalkInstaller.Engine.Protocol.Tests/FalkInstaller.Engine.Protocol.Tests.csproj" />
     <Project Path="tests/FalkInstaller.Engine.Tests/FalkInstaller.Engine.Tests.csproj" />
+    <Project Path="tests/FalkInstaller.Extensions.DotNet.Tests/FalkInstaller.Extensions.DotNet.Tests.csproj" />
+    <Project Path="tests/FalkInstaller.Extensions.Firewall.Tests/FalkInstaller.Extensions.Firewall.Tests.csproj" />
+    <Project Path="tests/FalkInstaller.Extensions.Iis.Tests/FalkInstaller.Extensions.Iis.Tests.csproj" />
+    <Project Path="tests/FalkInstaller.Extensions.Sql.Tests/FalkInstaller.Extensions.Sql.Tests.csproj" />
+    <Project Path="tests/FalkInstaller.Extensions.Util.Tests/FalkInstaller.Extensions.Util.Tests.csproj" />
     <Project Path="tests/FalkInstaller.Integration.Tests/FalkInstaller.Integration.Tests.csproj" />
     <Project Path="tests/FalkInstaller.Ui.Abstractions.Tests/FalkInstaller.Ui.Abstractions.Tests.csproj" />
     <Project Path="tests/FalkInstaller.Ui.Tests/FalkInstaller.Ui.Tests.csproj" />
