@@ -10,6 +10,9 @@ public sealed class BundlePackageBuilder
     private bool _vital = true;
     private string? _installCondition;
     private readonly Dictionary<string, string> _properties = new();
+    private readonly Dictionary<int, ExitCodeBehavior> _exitCodes = new();
+    private RemotePayloadModel? _remotePayload;
+    private string? _containerId;
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -24,7 +27,19 @@ public sealed class BundlePackageBuilder
     public BundlePackageBuilder Version(string version) { _version = version; return this; }
     public BundlePackageBuilder Vital(bool vital) { _vital = vital; return this; }
     public BundlePackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
+    public BundlePackageBuilder ExitCode(int code, ExitCodeBehavior behavior) { _exitCodes[code] = behavior; return this; }
     public BundlePackageBuilder Property(string key, string value) { _properties[key] = value; return this; }
+    public BundlePackageBuilder RemotePayload(string url, string sha256, long size)
+    {
+        _remotePayload = new RemotePayloadModel
+        {
+            DownloadUrl = url,
+            Sha256Hash = sha256,
+            Size = size
+        };
+        return this;
+    }
+    public BundlePackageBuilder Container(string containerId) { _containerId = containerId; return this; }
 
     internal BundlePackageModel Build()
     {
@@ -37,7 +52,10 @@ public sealed class BundlePackageBuilder
             Vital = _vital,
             SourcePath = _sourcePath,
             Properties = new Dictionary<string, string>(_properties),
-            InstallCondition = _installCondition
+            InstallCondition = _installCondition,
+            ExitCodes = new Dictionary<int, ExitCodeBehavior>(_exitCodes),
+            RemotePayload = _remotePayload,
+            ContainerId = _containerId
         };
     }
 }

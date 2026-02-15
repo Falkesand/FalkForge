@@ -50,6 +50,26 @@ public sealed class PackageCache
         return string.Equals(hash, package.Sha256Hash, StringComparison.Ordinal);
     }
 
+    public Result<string> CacheDownloadedPayload(Guid bundleId, PackageInfo package, string downloadedFilePath)
+    {
+        var fileName = Path.GetFileName(downloadedFilePath);
+        var targetPath = _layout.GetPayloadPath(bundleId, package.Id, fileName);
+
+        if (string.Equals(Path.GetFullPath(downloadedFilePath), Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
+            return targetPath;
+
+        return CachePackage(bundleId, package, downloadedFilePath);
+    }
+
+    public string? GetCachedPath(Guid bundleId, PackageInfo package, string fileName)
+    {
+        var path = _layout.GetPayloadPath(bundleId, package.Id, fileName);
+        if (!File.Exists(path)) return null;
+
+        var hash = ComputeHash(path);
+        return string.Equals(hash, package.Sha256Hash, StringComparison.Ordinal) ? path : null;
+    }
+
     private static string ComputeHash(string filePath)
     {
         using var stream = File.OpenRead(filePath);

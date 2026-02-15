@@ -63,6 +63,45 @@ public sealed class RollbackJournal : IDisposable
         }
     }
 
+    public Result<Unit> BeginSegment(string boundaryId)
+    {
+        return WriteEntry(new JournalEntry
+        {
+            EntryType = JournalEntryType.SegmentBoundary,
+            Description = boundaryId
+        });
+    }
+
+    public IReadOnlyList<JournalEntry> GetSegmentEntries(string boundaryId)
+    {
+        var result = new List<JournalEntry>();
+        var inSegment = false;
+
+        foreach (var entry in _entries)
+        {
+            if (entry.EntryType == JournalEntryType.SegmentBoundary)
+            {
+                if (entry.Description == boundaryId)
+                {
+                    inSegment = true;
+                    continue;
+                }
+
+                if (inSegment)
+                {
+                    // Hit the next segment boundary, stop
+                    break;
+                }
+            }
+            else if (inSegment)
+            {
+                result.Add(entry);
+            }
+        }
+
+        return result.AsReadOnly();
+    }
+
     public static Result<JournalEntry[]> ReadEntries(string journalPath)
     {
         if (!File.Exists(journalPath))

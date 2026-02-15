@@ -74,4 +74,24 @@ public sealed class MockRegistry : IRegistry
 
         return null;
     }
+
+    public IReadOnlyList<string> GetSubKeyNames(string rootKey, string subKey)
+    {
+        var prefix = $@"{rootKey}\{subKey}\";
+        var result = new List<string>();
+        foreach (var key in _keys.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var remainder = key[prefix.Length..];
+                // Only direct children (no further backslash separators)
+                if (!remainder.Contains('\\'))
+                {
+                    result.Add(remainder);
+                }
+            }
+        }
+
+        return result;
+    }
 }

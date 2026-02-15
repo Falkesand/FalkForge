@@ -8,7 +8,7 @@ public sealed partial class MsiExecutor
 {
     private static readonly char[] ProhibitedValueChars = ['"', '&', '|', ';', '>', '<'];
 
-    public async Task<Result<Unit>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
     {
         var args = action.ActionType switch
         {
@@ -20,7 +20,7 @@ public sealed partial class MsiExecutor
 
         if (args is null)
         {
-            return Result<Unit>.Failure(
+            return Result<int>.Failure(
                 ErrorKind.ExecutionError, $"Unknown action type: {action.ActionType}");
         }
 
@@ -28,12 +28,12 @@ public sealed partial class MsiExecutor
         foreach (var prop in action.Properties)
         {
             if (!MsiPropertyKeyPattern().IsMatch(prop.Key))
-                return Result<Unit>.Failure(
+                return Result<int>.Failure(
                     ErrorKind.SecurityError,
                     $"Invalid MSI property key '{prop.Key}': must match ^[A-Z_][A-Z0-9_.]*$");
 
             if (prop.Value.AsSpan().IndexOfAny(ProhibitedValueChars) >= 0)
-                return Result<Unit>.Failure(
+                return Result<int>.Failure(
                     ErrorKind.SecurityError,
                     $"MSI property value for '{prop.Key}' contains prohibited characters");
 
@@ -54,15 +54,11 @@ public sealed partial class MsiExecutor
             process.Start();
             await process.WaitForExitAsync(ct);
 
-            return process.ExitCode == 0
-                ? Unit.Value
-                : Result<Unit>.Failure(
-                    ErrorKind.ExecutionError,
-                    $"msiexec.exe exited with code {process.ExitCode}");
+            return process.ExitCode;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return Result<Unit>.Failure(
+            return Result<int>.Failure(
                 ErrorKind.ExecutionError, $"Failed to execute MSI: {ex.Message}");
         }
     }
