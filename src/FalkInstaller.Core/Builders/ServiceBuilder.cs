@@ -18,6 +18,30 @@ public sealed class ServiceBuilder
     public string? Password { get; set; }
     public List<string> Dependencies { get; } = [];
 
+    private readonly List<ServiceDependencyModel> _typedDependencies = [];
+
+    public ServiceBuilder DependsOn(string serviceName)
+    {
+        _typedDependencies.Add(new ServiceDependencyModel
+        {
+            ServiceName = _name,
+            DependsOn = serviceName,
+            Group = false
+        });
+        return this;
+    }
+
+    public ServiceBuilder DependsOnGroup(string groupName)
+    {
+        _typedDependencies.Add(new ServiceDependencyModel
+        {
+            ServiceName = _name,
+            DependsOn = groupName,
+            Group = true
+        });
+        return this;
+    }
+
     public ServiceBuilder FailureActions(Action<ServiceFailureActionsBuilder> configure)
     {
         var builder = new ServiceFailureActionsBuilder();
@@ -37,6 +61,7 @@ public sealed class ServiceBuilder
         UserName = UserName,
         Password = Password,
         Dependencies = Dependencies,
+        TypedDependencies = _typedDependencies,
         FailureActions = _failureActions
     };
 }

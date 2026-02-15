@@ -10,4 +10,5 @@ public sealed class FileEntryModel
     public Guid? ComponentGuid { get; init; }
     public string? FeatureRef { get; init; }
     public bool Vital { get; init; } = true;
+    public string? ComponentCondition { get; init; }
 }

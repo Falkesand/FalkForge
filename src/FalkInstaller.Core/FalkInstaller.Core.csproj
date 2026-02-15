@@ -3,4 +3,7 @@
     <RootNamespace>FalkInstaller</RootNamespace>
     <Description>Domain model and fluent API for FalkInstaller</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkInstaller.Core.Tests" />
+  </ItemGroup>
 </Project>

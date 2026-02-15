@@ -7,6 +7,7 @@ public sealed class FeatureBuilder
     private readonly string _id;
     private readonly List<FeatureModel> _children = [];
     private readonly List<FileEntryModel> _files = [];
+    private readonly List<FeatureConditionModel> _conditions = [];
 
     internal FeatureBuilder(string id) => _id = id;
 
@@ -21,6 +22,17 @@ public sealed class FeatureBuilder
         configure(builder);
         _children.Add(builder.Build());
         return this;
+    }
+
+    public FeatureBuilder Condition(string condition, int level)
+    {
+        _conditions.Add(new FeatureConditionModel { Condition = condition, Level = level });
+        return this;
+    }
+
+    public FeatureBuilder Condition(string condition)
+    {
+        return Condition(condition, 0);
     }
 
     public FeatureBuilder Files(Action<FileSetBuilder> configure)
@@ -38,6 +50,7 @@ public sealed class FeatureBuilder
         Description = Description,
         IsRequired = IsRequired,
         IsDefault = IsDefault,
-        Children = _children
+        Children = _children,
+        Conditions = _conditions
     };
 }

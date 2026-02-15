@@ -8,7 +8,9 @@ public sealed class PackageBuilder
     private readonly List<FeatureModel> _features = [];
     private readonly List<ShortcutModel> _shortcuts = [];
     private readonly List<ServiceModel> _services = [];
+    private readonly List<ServiceControlModel> _serviceControls = [];
     private readonly List<RegistryEntryModel> _registryEntries = [];
+    private readonly List<RemoveRegistryModel> _removeRegistryEntries = [];
     private readonly List<EnvironmentVariableModel> _environmentVariables = [];
     private readonly List<FontModel> _fonts = [];
     private readonly List<PropertyModel> _properties = [];
@@ -18,6 +20,13 @@ public sealed class PackageBuilder
     private readonly List<FileAssociationModel> _fileAssociations = [];
     private readonly List<CustomActionModel> _customActions = [];
     private readonly List<BinaryModel> _binaries = [];
+    private readonly List<RemoveFileModel> _removeFiles = [];
+    private readonly List<CreateFolderModel> _createFolders = [];
+    private readonly List<MoveFileModel> _moveFiles = [];
+    private readonly List<DuplicateFileModel> _duplicateFiles = [];
+    private readonly List<AssemblyModel> _assemblies = [];
+    private readonly List<CustomTableModel> _customTables = [];
+    private MediaTemplateModel? _mediaTemplate;
 
     public string Name { get; set; } = string.Empty;
     public string Manufacturer { get; set; } = string.Empty;
@@ -38,6 +47,7 @@ public sealed class PackageBuilder
     public bool EnableRestartManager { get; set; }
 
     private UpgradeModel? _upgrade;
+    private MajorUpgradeModel? _majorUpgrade;
     private SigningOptions? _signing;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
@@ -62,6 +72,14 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder ServiceControl(Action<ServiceControlBuilder> configure)
+    {
+        var builder = new ServiceControlBuilder();
+        configure(builder);
+        _serviceControls.Add(builder.Build());
+        return this;
+    }
+
     public PackageBuilder Feature(string id, Action<FeatureBuilder> configure)
     {
         var builder = new FeatureBuilder(id);
@@ -75,6 +93,14 @@ public sealed class PackageBuilder
         var builder = new RegistryBuilder();
         configure(builder);
         _registryEntries.AddRange(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder RemoveRegistry(Action<RemoveRegistryBuilder> configure)
+    {
+        var builder = new RemoveRegistryBuilder();
+        configure(builder);
+        _removeRegistryEntries.Add(builder.Build());
         return this;
     }
 
@@ -105,6 +131,14 @@ public sealed class PackageBuilder
         var builder = new UpgradeBuilder();
         configure(builder);
         _upgrade = builder.Build();
+        return this;
+    }
+
+    public PackageBuilder MajorUpgrade(Action<MajorUpgradeBuilder> configure)
+    {
+        var builder = new MajorUpgradeBuilder();
+        configure(builder);
+        _majorUpgrade = builder.Build();
         return this;
     }
 
@@ -145,6 +179,62 @@ public sealed class PackageBuilder
         var builder = new CustomActionBuilder(id);
         configure(builder);
         _customActions.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder RemoveFile(Action<RemoveFileBuilder> configure)
+    {
+        var builder = new RemoveFileBuilder();
+        configure(builder);
+        _removeFiles.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder CreateFolder(Action<CreateFolderBuilder> configure)
+    {
+        var builder = new CreateFolderBuilder();
+        configure(builder);
+        _createFolders.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder MoveFile(Action<MoveFileBuilder> configure)
+    {
+        var builder = new MoveFileBuilder();
+        configure(builder);
+        _moveFiles.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder DuplicateFile(Action<DuplicateFileBuilder> configure)
+    {
+        var builder = new DuplicateFileBuilder();
+        configure(builder);
+        _duplicateFiles.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder GacAssembly(Action<AssemblyBuilder> configure)
+    {
+        var builder = new AssemblyBuilder();
+        configure(builder);
+        _assemblies.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder CustomTable(Action<CustomTableBuilder> configure)
+    {
+        var builder = new CustomTableBuilder();
+        configure(builder);
+        _customTables.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder MediaTemplate(Action<MediaTemplateBuilder> configure)
+    {
+        var builder = new MediaTemplateBuilder();
+        configure(builder);
+        _mediaTemplate = builder.Build();
         return this;
     }
 
@@ -201,7 +291,9 @@ public sealed class PackageBuilder
             Features = features,
             Shortcuts = _shortcuts,
             Services = _services,
+            ServiceControls = _serviceControls,
             RegistryEntries = _registryEntries,
+            RemoveRegistryEntries = _removeRegistryEntries,
             EnvironmentVariables = _environmentVariables,
             Fonts = _fonts,
             Properties = _properties,
@@ -211,9 +303,17 @@ public sealed class PackageBuilder
             FileAssociations = _fileAssociations,
             CustomActions = _customActions,
             Binaries = _binaries,
+            RemoveFiles = _removeFiles,
+            CreateFolders = _createFolders,
+            MoveFiles = _moveFiles,
+            DuplicateFiles = _duplicateFiles,
+            Assemblies = _assemblies,
+            CustomTables = _customTables,
+            MediaTemplate = _mediaTemplate,
             EnableRestartManager = EnableRestartManager,
             Signing = _signing,
-            Upgrade = _upgrade ?? new UpgradeModel()
+            Upgrade = _upgrade ?? (_majorUpgrade is null ? new UpgradeModel() : null),
+            MajorUpgrade = _majorUpgrade
         };
     }
 }
