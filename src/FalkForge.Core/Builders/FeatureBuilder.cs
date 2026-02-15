@@ -35,6 +35,12 @@ public sealed class FeatureBuilder
         return Condition(condition, 0);
     }
 
+    public FeatureBuilder Condition(Condition condition, int level) =>
+        Condition(condition.ToString(), level);
+
+    public FeatureBuilder Condition(Condition condition) =>
+        Condition(condition.ToString(), 0);
+
     public FeatureBuilder Files(Action<FileSetBuilder> configure)
     {
         var builder = new FileSetBuilder();

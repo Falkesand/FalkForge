@@ -23,6 +23,8 @@ public sealed class MspPackageBuilder
     public MspPackageBuilder PatchCode(string patchCode) { _patchCode = patchCode; return this; }
     public MspPackageBuilder TargetProductCode(string targetProductCode) { _targetProductCode = targetProductCode; return this; }
     public MspPackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
+    public MspPackageBuilder InstallCondition(Condition condition) =>
+        InstallCondition(condition.ToString());
 
     internal BundlePackageModel Build()
     {

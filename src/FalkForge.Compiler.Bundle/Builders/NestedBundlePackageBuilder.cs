@@ -19,6 +19,8 @@ public sealed class NestedBundlePackageBuilder
     public NestedBundlePackageBuilder DisplayName(string name) { _displayName = name; return this; }
     public NestedBundlePackageBuilder Vital(bool vital) { _vital = vital; return this; }
     public NestedBundlePackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
+    public NestedBundlePackageBuilder InstallCondition(Condition condition) =>
+        InstallCondition(condition.ToString());
 
     internal BundlePackageModel Build()
     {

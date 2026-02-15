@@ -21,6 +21,8 @@ public sealed class MsuPackageBuilder
     public MsuPackageBuilder Vital(bool vital) { _vital = vital; return this; }
     public MsuPackageBuilder KbArticle(string kbArticle) { _kbArticle = kbArticle; return this; }
     public MsuPackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
+    public MsuPackageBuilder InstallCondition(Condition condition) =>
+        InstallCondition(condition.ToString());
 
     internal BundlePackageModel Build()
     {
