@@ -1,6 +1,7 @@
 namespace FalkInstaller.Engine.Phases;
 
 using FalkInstaller.Engine.Protocol;
+using FalkInstaller.Engine.Variables;
 
 public sealed class InitializingHandler : IEnginePhaseHandler
 {
@@ -14,6 +15,9 @@ public sealed class InitializingHandler : IEnginePhaseHandler
             context.ErrorMessage = "No manifest loaded";
             return Task.FromResult(EnginePhase.Failed);
         }
+
+        // Populate built-in variables
+        BuiltInVariables.Populate(context.Variables, context.Platform);
 
         // Set default install directory if not set
         if (string.IsNullOrEmpty(context.InstallDirectory))

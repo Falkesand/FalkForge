@@ -10,4 +10,11 @@ public sealed class PackageInfo
     public required string SourcePath { get; init; }
     public required string Sha256Hash { get; init; }
     public Dictionary<string, string> Properties { get; init; } = new();
+    public string? InstallCondition { get; init; }
+    public IReadOnlyDictionary<int, ExitCodeBehavior>? ExitCodes { get; init; }
+    public string? KbArticle { get; init; }
+    public string? PatchCode { get; init; }
+    public string? TargetProductCode { get; init; }
+    public string? DownloadUrl { get; init; }
+    public string? ContainerId { get; init; }
 }

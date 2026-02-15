@@ -33,11 +33,16 @@ public sealed class PayloadEmbedder
             writer.Write(manifestJson.Length);
             writer.Write(manifestJson);
 
-            // Write compressed payloads and track offsets
+            // Write compressed payloads and track offsets, grouped by container
             var compressor = new GzipCompressor();
             var tocEntries = new List<TocEntry>();
 
-            foreach (var payload in payloads)
+            // Group by container: containerless first, then by container ID
+            var orderedPayloads = payloads
+                .OrderBy(p => p.ContainerId ?? string.Empty)
+                .ToList();
+
+            foreach (var payload in orderedPayloads)
             {
                 var offset = stream.Position;
                 var compressResult = compressor.Compress(payload.Data);

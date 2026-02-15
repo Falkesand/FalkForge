@@ -9,6 +9,9 @@ public sealed class BundleBuilder
     private Guid _upgradeCode = Guid.NewGuid();
     private InstallScope _scope = InstallScope.PerMachine;
     private readonly List<BundlePackageModel> _packages = new();
+    private readonly List<ChainItem> _chainItems = new();
+    private readonly List<RelatedBundleModel> _relatedBundles = new();
+    private readonly List<ContainerModel> _containers = new();
     private BundleUiConfig? _uiConfig;
 
     public BundleBuilder Name(string name) { _name = name; return this; }
@@ -23,6 +26,7 @@ public sealed class BundleBuilder
         var chain = new ChainBuilder();
         configure(chain);
         _packages.AddRange(chain.Build());
+        _chainItems.AddRange(chain.BuildChain());
         return this;
     }
 
@@ -44,6 +48,22 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder RelatedBundle(string bundleId, Action<RelatedBundleBuilder>? configure = null)
+    {
+        var builder = new RelatedBundleBuilder().BundleId(bundleId);
+        configure?.Invoke(builder);
+        _relatedBundles.Add(builder.Build());
+        return this;
+    }
+
+    public BundleBuilder Container(string id, Action<ContainerBuilder>? configure = null)
+    {
+        var builder = new ContainerBuilder().Id(id);
+        configure?.Invoke(builder);
+        _containers.Add(builder.Build());
+        return this;
+    }
+
     public BundleModel Build()
     {
         return new BundleModel
@@ -55,6 +75,9 @@ public sealed class BundleBuilder
             UpgradeCode = _upgradeCode,
             Scope = _scope,
             Packages = _packages.AsReadOnly(),
+            RelatedBundles = _relatedBundles.AsReadOnly(),
+            Chain = _chainItems.AsReadOnly(),
+            Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig
         };
     }
