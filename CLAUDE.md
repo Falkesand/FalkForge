@@ -6,14 +6,14 @@ C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compile
 
 ```bash
 dotnet build          # 0 warnings required (TreatWarningsAsErrors)
-dotnet test           # ~1593 tests, xUnit 2.9.3
+dotnet test           # ~1625 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 
 - .NET 10, C# latest, nullable enabled, central package management
 - `global.json`: SDK 10.0.103
 
-## Solution Structure (26 src + 17 test projects)
+## Solution Structure (21 src + 17 test projects)
 
 ```
 src/
@@ -79,7 +79,7 @@ Core (no deps)
 
 Engine (exe):     Engine.Protocol + Platform.Windows + Compiler.Msi
 Elevation (exe):  Engine.Protocol + Platform.Windows
-Cli (exe):        Core + Compiler.Msi + Compiler.Bundle + Decompiler + Localization
+Cli (exe):        Core + Compiler.Msi + Compiler.Bundle + Decompiler + Localization + Extensibility + Extensions.*
 ```
 
 ## Key Patterns & Locations
@@ -248,7 +248,7 @@ Windows Firewall rule definitions and validation.
 - Error codes: NET001-003
 
 ### Extensions.Iis (`src/FalkForge.Extensions.Iis/`)
-IIS application pool, website, web binding, and certificate configuration.
+IIS application pool, website, web binding, and certificate configuration. Targets `net10.0` (cross-platform model definitions).
 - Error codes: IIS001-009
 
 ### Extensions.Sql (`src/FalkForge.Extensions.Sql/`)
@@ -275,9 +275,11 @@ Windows-only (`[SupportedOSPlatform("windows")]`).
 - Error codes: DEC001-003
 
 ## CLI (`src/FalkForge.Cli/`)
-Spectre.Console CLI tool (`forge` command).
+Spectre.Console CLI tool (`forge` command). Supports both C# script and JSON config inputs.
+- `forge build installer.csx` -- C# script via Roslyn scripting
+- `forge build installer.json` -- JSON config file (auto-detected by `.json` extension)
 - `Program.cs` -- CommandApp with build/validate/inspect/decompile commands
-- `Commands/BuildCommand.cs` -- Roslyn scripting to compile C# definitions
+- `Commands/BuildCommand.cs` -- Roslyn scripting to compile C# definitions; detects JSON and delegates to JsonConfigLoader
 - `Commands/ValidateCommand.cs` -- Validation-only mode
 - `Commands/InspectCommand.cs` -- MSI metadata display with tree views (Windows-only)
 - `Commands/DecompileCommand.cs` -- Delegates to MsiDecompiler (Windows-only)
@@ -286,6 +288,16 @@ Spectre.Console CLI tool (`forge` command).
 - `IConsoleOutput.cs`, `SpectreConsoleOutput.cs` -- Console abstraction for testability
 - `ScriptLoader.cs` -- Roslyn scripting for C# project loading
 - `MsiInspector.cs`, `MsiInspectionResult.cs` -- MSI metadata extraction
+- `JsonConfigLoader.cs` -- Maps JSON config → PackageBuilder → PackageModel. Validates required fields, parses GUIDs/versions/enums. Error codes: JSN001-JSN010
+- `Models/` -- 19 DTO files for JSON config deserialization:
+  - `InstallerConfig.cs` -- Root config (product, features, files, registry, shortcuts, services, env vars, extensions, ui, launchConditions, majorUpgrade)
+  - `ProductConfig.cs` -- Name, manufacturer, version, upgradeCode, platform, installScope, description, comments
+  - `FeatureConfig.cs`, `FileConfig.cs`, `RegistryConfig.cs`, `ShortcutConfig.cs`, `ServiceConfig.cs`
+  - `EnvironmentVariableConfig.cs`, `LaunchConditionConfig.cs`, `MajorUpgradeConfig.cs`
+  - `ExtensionsConfig.cs` -- Aggregates all extension configs
+  - `FirewallRuleConfig.cs`, `IisConfig.cs`, `IisAppPoolConfig.cs`, `IisWebSiteConfig.cs`, `IisBindingConfig.cs`
+  - `SqlConfig.cs`, `SqlScriptConfig.cs`, `DotNetSearchConfig.cs`
+- References: Core, Compiler.Msi, Compiler.Bundle, Decompiler, Localization, Extensibility, and all 5 extension projects (Firewall, IIS, SQL, DotNet, Util)
 
 ## SDK (`src/FalkForge.Sdk/`)
 MSBuild SDK (netstandard2.0) with source generation for referenced project outputs.
@@ -295,6 +307,30 @@ MSBuild SDK (netstandard2.0) with source generation for referenced project outpu
 - `_GenerateProjectOutputs` target -- Generates `ProjectOutputs.g.cs` from ProjectReference items with `ReferenceOutputAssembly=false`
 - `_WriteFalkProjectOutputsSource` inline task (RoslynCodeTaskFactory) -- C# code generation with identifier sanitization (char.IsLetterOrDigit allowlist), XML-escaped doc comments, quote-escaped paths
 - Generated class: `ProjectOutputs` with static properties for each referenced project's artifact path
+
+## Demos (`demo/`)
+
+### C# Script Demos (10 projects)
+- `01-hello-world/` -- Minimal single-file MSI installer
+- `02-notepad-clone/` -- Notepad-style app with shortcuts and file associations
+- `03-client-server/` -- Multi-component client/server with services
+- `04-dev-toolkit/` -- Developer tools with environment variables and registry
+- `05-enterprise-suite/` -- Feature tree with multiple optional components
+- `06-product-suite/` -- EXE bundle packaging multiple MSI packages
+- `07-extensions-showcase/` -- Firewall, IIS, SQL, .NET detection, and utility extensions
+- `08-localization/` -- Multi-language installer with culture fallback
+- `09-advanced-msi/` -- Custom actions, custom tables, sequence manipulation, merge modules, patches, transforms
+- `10-advanced-bundle/` -- Multi-project bundle with rollback boundaries, related bundles, MSU/MSP packages
+
+### JSON Config Demos (`demo/json/`, 7 files)
+- `01-minimal.json` -- Minimal JSON-driven MSI
+- `02-installdir.json` -- InstallDir dialog set
+- `03-featuretree.json` -- Feature tree with multiple components
+- `04-mondo.json` -- Mondo dialog set with all features
+- `05-advanced.json` -- Advanced dialog set with registry, shortcuts, env vars
+- `06-web-server.json` -- IIS web server with firewall rules
+- `07-database-app.json` -- SQL Server database deployment
+- `payload/` -- Shared dummy payload files for JSON demos
 
 ## Namespace Conventions
 ```
@@ -330,5 +366,6 @@ FalkForge.Decompiler                   MSI decompiler (Windows-only)
 FalkForge.Decompiler.TableReaders      Per-table MSI readers
 FalkForge.Cli                          Spectre.Console CLI tool
 FalkForge.Cli.Commands                 CLI command implementations
+FalkForge.Cli.Models                   JSON config DTO models (19 files)
 FalkForge.Cli.Settings                 CLI command settings
 ```
