@@ -27,6 +27,8 @@ public sealed class BundlePackageBuilder
     public BundlePackageBuilder Version(string version) { _version = version; return this; }
     public BundlePackageBuilder Vital(bool vital) { _vital = vital; return this; }
     public BundlePackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
+    public BundlePackageBuilder InstallCondition(Condition condition) =>
+        InstallCondition(condition.ToString());
     public BundlePackageBuilder ExitCode(int code, ExitCodeBehavior behavior) { _exitCodes[code] = behavior; return this; }
     public BundlePackageBuilder Property(string key, string value) { _properties[key] = value; return this; }
     public BundlePackageBuilder RemotePayload(string url, string sha256, long size)
@@ -40,6 +42,7 @@ public sealed class BundlePackageBuilder
         return this;
     }
     public BundlePackageBuilder Container(string containerId) { _containerId = containerId; return this; }
+    public BundlePackageBuilder Container(ContainerRef containerRef) => Container(containerRef.Id);
 
     internal BundlePackageModel Build()
     {

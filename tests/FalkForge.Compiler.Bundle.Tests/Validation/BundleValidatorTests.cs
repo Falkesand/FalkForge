@@ -124,11 +124,49 @@ public sealed class BundleValidatorTests
         Assert.True(result.IsSuccess);
     }
 
+    [Fact]
+    public void Validate_UndefinedContainer_ReturnsBDL006()
+    {
+        var packages = new[] { CreatePackage("Pkg1", containerId: "NonExistent") };
+        var model = CreateModel(packages: packages);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.Contains("BDL006", result.Error.Message);
+        Assert.Contains("NonExistent", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_DefinedContainer_Succeeds()
+    {
+        var packages = new[] { CreatePackage("Pkg1", containerId: "MyContainer") };
+        var containers = new[] { new ContainerModel { Id = "MyContainer" } };
+        var model = CreateModel(packages: packages, containers: containers);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Validate_NullContainerId_Succeeds()
+    {
+        var packages = new[] { CreatePackage("Pkg1") };
+        var model = CreateModel(packages: packages);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
     private static BundleModel CreateModel(
         string name = "TestBundle",
         string manufacturer = "TestCo",
         string version = "1.0.0",
-        BundlePackageModel[]? packages = null)
+        BundlePackageModel[]? packages = null,
+        ContainerModel[]? containers = null)
     {
         return new BundleModel
         {
@@ -138,15 +176,17 @@ public sealed class BundleValidatorTests
             BundleId = Guid.NewGuid(),
             UpgradeCode = Guid.NewGuid(),
             Scope = InstallScope.PerMachine,
-            Packages = packages ?? [CreatePackage("Pkg1")]
+            Packages = packages ?? [CreatePackage("Pkg1")],
+            Containers = containers ?? []
         };
     }
 
-    private static BundlePackageModel CreatePackage(string id) => new()
+    private static BundlePackageModel CreatePackage(string id, string? containerId = null) => new()
     {
         Id = id,
         Type = BundlePackageType.MsiPackage,
         DisplayName = id,
-        SourcePath = "test.msi"
+        SourcePath = "test.msi",
+        ContainerId = containerId
     };
 }

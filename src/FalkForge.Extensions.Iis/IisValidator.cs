@@ -112,6 +112,42 @@ public static class IisValidator
         if (siteResult.IsFailure)
             return siteResult;
 
+        var refResult = ValidateRefs(webSites, appPools, certificates);
+        if (refResult.IsFailure)
+            return refResult;
+
+        return Unit.Value;
+    }
+
+    public static Result<Unit> ValidateRefs(
+        IReadOnlyList<WebSiteModel> webSites,
+        IReadOnlyList<AppPoolModel> appPools,
+        IReadOnlyList<CertificateModel> certificates)
+    {
+        var poolIds = new HashSet<string>(appPools.Select(p => p.Id));
+        var certIds = new HashSet<string>(certificates.Select(c => c.Id));
+
+        foreach (var site in webSites)
+        {
+            if (site.AppPool is not null && !poolIds.Contains(site.AppPool))
+                return Result<Unit>.Failure(ErrorKind.Validation,
+                    $"IIS010: WebSite '{site.Description}' references undefined app pool '{site.AppPool}'.");
+
+            foreach (var app in site.WebApplications)
+            {
+                if (app.AppPool is not null && !poolIds.Contains(app.AppPool))
+                    return Result<Unit>.Failure(ErrorKind.Validation,
+                        $"IIS010: WebApplication '{app.Alias}' on site '{site.Description}' references undefined app pool '{app.AppPool}'.");
+            }
+
+            foreach (var binding in site.Bindings)
+            {
+                if (binding.CertificateRef is not null && !certIds.Contains(binding.CertificateRef))
+                    return Result<Unit>.Failure(ErrorKind.Validation,
+                        $"IIS011: Binding on site '{site.Description}' references undefined certificate '{binding.CertificateRef}'.");
+            }
+        }
+
         return Unit.Value;
     }
 }

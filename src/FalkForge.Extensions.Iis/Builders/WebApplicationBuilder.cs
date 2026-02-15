@@ -33,6 +33,8 @@ public sealed class WebApplicationBuilder
         return this;
     }
 
+    public WebApplicationBuilder AppPool(AppPoolRef appPoolRef) => AppPool(appPoolRef.Id);
+
     internal WebApplicationModel Build() => new()
     {
         Id = string.IsNullOrEmpty(_id) ? _alias : _id,

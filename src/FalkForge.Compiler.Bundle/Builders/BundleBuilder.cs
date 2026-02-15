@@ -13,6 +13,8 @@ public sealed class BundleBuilder
     private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<ContainerModel> _containers = new();
     private BundleUiConfig? _uiConfig;
+    private int _containerCounter;
+    private int _rollbackBoundaryCounter;
 
     public BundleBuilder Name(string name) { _name = name; return this; }
     public BundleBuilder Manufacturer(string manufacturer) { _manufacturer = manufacturer; return this; }
@@ -63,6 +65,37 @@ public sealed class BundleBuilder
         _containers.Add(builder.Build());
         return this;
     }
+
+    public ContainerRef DefineContainer(string id, Action<ContainerBuilder>? configure = null)
+    {
+        Container(id, configure);
+        return new ContainerRef(id);
+    }
+
+    public ContainerRef DefineContainer(Action<ContainerBuilder>? configure = null)
+    {
+        var id = $"Container_{++_containerCounter}";
+        Container(id, configure);
+        return new ContainerRef(id);
+    }
+
+    /// <summary>
+    /// Creates a rollback boundary reference with the specified id. Unlike <see cref="DefineContainer"/>,
+    /// rollback boundaries are positional chain items registered when passed to
+    /// <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)"/>.
+    /// </summary>
+    public RollbackBoundaryRef DefineRollbackBoundary(string id) => new(id);
+
+    /// <summary>
+    /// Creates a rollback boundary reference with an auto-generated id. Unlike <see cref="DefineContainer()"/>,
+    /// rollback boundaries are positional chain items registered when passed to
+    /// <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)"/>.
+    /// </summary>
+    public RollbackBoundaryRef DefineRollbackBoundary() =>
+        new($"RollbackBoundary_{++_rollbackBoundaryCounter}");
+
+    public BundleBuilder RelatedBundle(Guid bundleId, Action<RelatedBundleBuilder>? configure = null) =>
+        RelatedBundle(bundleId.ToString("B").ToUpperInvariant(), configure);
 
     public BundleModel Build()
     {

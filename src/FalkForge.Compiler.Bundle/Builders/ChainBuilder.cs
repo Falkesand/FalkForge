@@ -73,6 +73,9 @@ public sealed class ChainBuilder
         return this;
     }
 
+    public ChainBuilder RollbackBoundary(RollbackBoundaryRef boundaryRef, Action<RollbackBoundaryBuilder>? configure = null) =>
+        RollbackBoundary(boundaryRef.Id, configure);
+
     internal IReadOnlyList<BundlePackageModel> Build() => _packages.AsReadOnly();
 
     internal IReadOnlyList<ChainItem> BuildChain() => _chainItems.AsReadOnly();

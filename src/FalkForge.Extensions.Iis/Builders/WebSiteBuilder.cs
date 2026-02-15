@@ -57,6 +57,8 @@ public sealed class WebSiteBuilder
         return this;
     }
 
+    public WebSiteBuilder AppPool(AppPoolRef appPoolRef) => AppPool(appPoolRef.Id);
+
     public WebSiteBuilder AutoStart(bool autoStart)
     {
         _autoStart = autoStart;

@@ -28,6 +28,8 @@ public sealed class SqlScriptBuilder
         return this;
     }
 
+    public SqlScriptBuilder Database(SqlDatabaseRef databaseRef) => Database(databaseRef.Id);
+
     public SqlScriptBuilder SourceFile(string sourceFile)
     {
         _sourceFile = sourceFile;

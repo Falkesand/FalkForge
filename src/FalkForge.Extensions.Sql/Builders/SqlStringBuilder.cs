@@ -24,6 +24,8 @@ public sealed class SqlStringBuilder
         return this;
     }
 
+    public SqlStringBuilder Database(SqlDatabaseRef databaseRef) => Database(databaseRef.Id);
+
     public SqlStringBuilder Sql(string sql)
     {
         _sql = sql;
