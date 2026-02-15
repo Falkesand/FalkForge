@@ -23,9 +23,12 @@ public sealed class PackageModel
     public IReadOnlyList<FeatureModel> Features { get; init; } = [];
     public IReadOnlyList<ShortcutModel> Shortcuts { get; init; } = [];
     public IReadOnlyList<ServiceModel> Services { get; init; } = [];
+    public IReadOnlyList<ServiceControlModel> ServiceControls { get; init; } = [];
     public IReadOnlyList<RegistryEntryModel> RegistryEntries { get; init; } = [];
+    public IReadOnlyList<RemoveRegistryModel> RemoveRegistryEntries { get; init; } = [];
     public IReadOnlyList<EnvironmentVariableModel> EnvironmentVariables { get; init; } = [];
     public UpgradeModel? Upgrade { get; init; }
+    public MajorUpgradeModel? MajorUpgrade { get; init; }
     public IReadOnlyList<PropertyModel> Properties { get; init; } = [];
     public IReadOnlyList<FontModel> Fonts { get; init; } = [];
     public IReadOnlyList<LaunchConditionModel> LaunchConditions { get; init; } = [];
@@ -34,6 +37,13 @@ public sealed class PackageModel
     public IReadOnlyList<FileAssociationModel> FileAssociations { get; init; } = [];
     public IReadOnlyList<CustomActionModel> CustomActions { get; init; } = [];
     public IReadOnlyList<BinaryModel> Binaries { get; init; } = [];
+    public IReadOnlyList<RemoveFileModel> RemoveFiles { get; init; } = [];
+    public IReadOnlyList<CreateFolderModel> CreateFolders { get; init; } = [];
+    public IReadOnlyList<MoveFileModel> MoveFiles { get; init; } = [];
+    public IReadOnlyList<DuplicateFileModel> DuplicateFiles { get; init; } = [];
+    public IReadOnlyList<AssemblyModel> Assemblies { get; init; } = [];
+    public IReadOnlyList<CustomTableModel> CustomTables { get; init; } = [];
+    public MediaTemplateModel? MediaTemplate { get; init; }
     public bool EnableRestartManager { get; init; }
     public SigningOptions? Signing { get; init; }
 }

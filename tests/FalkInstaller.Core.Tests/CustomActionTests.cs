@@ -333,4 +333,297 @@ public sealed class CustomActionTests
         Assert.Equal("TestBinary", binary.Name);
         Assert.Equal(@"C:\path\to\binary.dll", binary.SourcePath);
     }
+
+    // --- Task 4F: Custom Action Rollback/Commit Scheduling Tests ---
+
+    [Fact]
+    public void CustomActionType_SchedulingFlags_HaveCorrectValues()
+    {
+        Assert.Equal(0x040, CustomActionType.Continue);
+        Assert.Equal(0x100, CustomActionType.InScript);
+        Assert.Equal(0x200, CustomActionType.Rollback);
+        Assert.Equal(0x400, CustomActionType.Commit);
+        Assert.Equal(0x800, CustomActionType.NoImpersonate);
+    }
+
+    [Fact]
+    public void Deferred_SetsInScriptBit()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_Deferred", ca =>
+            {
+                ca.DllFromBinary("MyDll", "Entry").Deferred();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript, type);
+        Assert.Equal(0x101, type);
+    }
+
+    [Fact]
+    public void Rollback_SetsInScriptAndRollbackBits()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_Rollback", ca =>
+            {
+                ca.DllFromBinary("MyDll", "RollbackEntry").Rollback();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.Rollback, type);
+        Assert.Equal(0x301, type);
+    }
+
+    [Fact]
+    public void Commit_SetsInScriptAndCommitBits()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_Commit", ca =>
+            {
+                ca.DllFromBinary("MyDll", "CommitEntry").Commit();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.Commit, type);
+        Assert.Equal(0x501, type);
+    }
+
+    [Fact]
+    public void NoImpersonate_SetsNoImpersonateBit()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_NoImpersonate", ca =>
+            {
+                ca.DllFromBinary("MyDll", "Entry").Deferred().NoImpersonate();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.NoImpersonate, type);
+        Assert.Equal(0x901, type);
+    }
+
+    [Fact]
+    public void ContinueOnError_SetsContinueBit()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_Continue", ca =>
+            {
+                ca.DllFromBinary("MyDll", "Entry").ContinueOnError();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.Continue, type);
+        Assert.Equal(0x041, type);
+    }
+
+    [Fact]
+    public void DeferredPlusNoImpersonate_CombinesCorrectly()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_DeferredNoImp", ca =>
+            {
+                ca.ExeFromBinary("MyExe").Deferred().NoImpersonate();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        var expected = CustomActionType.ExeFromBinary | CustomActionType.InScript | CustomActionType.NoImpersonate;
+        Assert.Equal(expected, type);
+        Assert.Equal(0x902, type);
+    }
+
+    [Fact]
+    public void RollbackPlusNoImpersonatePlusContinue_CombinesCorrectly()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_RollbackFull", ca =>
+            {
+                ca.DllFromBinary("MyDll", "Entry")
+                    .Rollback()
+                    .NoImpersonate()
+                    .ContinueOnError();
+            });
+        });
+
+        var type = package.CustomActions[0].Type;
+        var expected = CustomActionType.DllFromBinary
+                     | CustomActionType.InScript
+                     | CustomActionType.Rollback
+                     | CustomActionType.NoImpersonate
+                     | CustomActionType.Continue;
+        Assert.Equal(expected, type);
+        Assert.Equal(0xB41, type);
+    }
+
+    [Fact]
+    public void Validate_RollbackAndCommitConflict_ProducesCA004()
+    {
+        var package = new PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(),
+            ProductCode = Guid.NewGuid(),
+            CustomActions =
+            [
+                new CustomActionModel
+                {
+                    Id = "CA_Conflict",
+                    Type = CustomActionType.DllFromBinary
+                         | CustomActionType.InScript
+                         | CustomActionType.Rollback
+                         | CustomActionType.Commit,
+                    SourceRef = "MyDll"
+                }
+            ],
+            Features =
+            [
+                new FeatureModel
+                {
+                    Id = "Complete",
+                    Title = "Complete",
+                    IsRequired = true,
+                    IsDefault = true
+                }
+            ]
+        };
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Code == "CA004");
+    }
+
+    [Fact]
+    public void Validate_NoImpersonateWithoutInScript_ProducesCA005Warning()
+    {
+        var package = new PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(),
+            ProductCode = Guid.NewGuid(),
+            CustomActions =
+            [
+                new CustomActionModel
+                {
+                    Id = "CA_BadNoImp",
+                    Type = CustomActionType.DllFromBinary | CustomActionType.NoImpersonate,
+                    SourceRef = "MyDll"
+                }
+            ],
+            Features =
+            [
+                new FeatureModel
+                {
+                    Id = "Complete",
+                    Title = "Complete",
+                    IsRequired = true,
+                    IsDefault = true
+                }
+            ]
+        };
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Contains(result.Warnings, w => w.Code == "CA005");
+    }
+
+    [Fact]
+    public void Validate_DeferredWithNoImpersonate_NoWarnings()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.CustomAction("CA_Valid", ca =>
+            {
+                ca.DllFromBinary("MyDll", "Entry").Deferred().NoImpersonate();
+            });
+        });
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Code == "CA005");
+        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
+    }
+
+    [Fact]
+    public void DeferredCustomAction_IntegrationWithPackageBuilder()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "FullApp";
+            p.Manufacturer = "Corp";
+            p.Binary("CustomDll", @"C:\build\custom.dll");
+            p.CustomAction("CA_SetData", ca =>
+            {
+                ca.SetProperty("CA_DeferredAction", "SomeData");
+            });
+            p.CustomAction("CA_DeferredAction", ca =>
+            {
+                ca.DllFromBinary("CustomDll", "DeferredEntry")
+                    .Deferred()
+                    .NoImpersonate();
+                ca.After = "InstallFiles";
+                ca.Condition = "NOT Installed";
+            });
+            p.CustomAction("CA_RollbackAction", ca =>
+            {
+                ca.DllFromBinary("CustomDll", "RollbackEntry")
+                    .Rollback()
+                    .NoImpersonate();
+                ca.Before = "CA_DeferredAction";
+            });
+        });
+
+        Assert.Equal(3, package.CustomActions.Count);
+        Assert.Single(package.Binaries);
+
+        // Verify the set-property action is immediate (no flags)
+        Assert.Equal(CustomActionType.SetProperty, package.CustomActions[0].Type);
+
+        // Verify deferred action
+        var deferred = package.CustomActions[1];
+        Assert.Equal(0x901, deferred.Type);
+        Assert.Equal("InstallFiles", deferred.After);
+        Assert.Equal("NOT Installed", deferred.Condition);
+
+        // Verify rollback action
+        var rollback = package.CustomActions[2];
+        Assert.Equal(0xB01, rollback.Type);
+        Assert.Equal("CA_DeferredAction", rollback.Before);
+
+        // Validate the whole package
+        var result = InstallerValidator.Validate(package);
+        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
+    }
 }

@@ -6,6 +6,7 @@ public sealed class FileSetBuilder
 {
     private readonly List<FileEntrySource> _sources = [];
     private InstallPath? _targetDirectory;
+    private string? _componentCondition;
 
     public FileSetBuilder FromDirectory(string sourcePath)
     {
@@ -22,6 +23,12 @@ public sealed class FileSetBuilder
     public FileSetBuilder To(InstallPath targetDirectory)
     {
         _targetDirectory = targetDirectory;
+        return this;
+    }
+
+    public FileSetBuilder ComponentCondition(string condition)
+    {
+        _componentCondition = condition;
         return this;
     }
 
@@ -43,7 +50,8 @@ public sealed class FileSetBuilder
                     SourcePath = source.Path,
                     TargetDirectory = _targetDirectory,
                     FileName = "*",
-                    IsKeyPath = files.Count == 0
+                    IsKeyPath = files.Count == 0,
+                    ComponentCondition = _componentCondition
                 });
             }
             else
@@ -53,7 +61,8 @@ public sealed class FileSetBuilder
                     SourcePath = source.Path,
                     TargetDirectory = _targetDirectory,
                     FileName = System.IO.Path.GetFileName(source.Path),
-                    IsKeyPath = files.Count == 0
+                    IsKeyPath = files.Count == 0,
+                    ComponentCondition = _componentCondition
                 });
             }
         }

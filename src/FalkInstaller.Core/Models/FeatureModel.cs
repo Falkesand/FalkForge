@@ -9,5 +9,6 @@ public sealed class FeatureModel
     public bool IsDefault { get; init; } = true;
     public int DisplayLevel { get; init; } = 1;
     public IReadOnlyList<FeatureModel> Children { get; init; } = [];
+    public IReadOnlyList<FeatureConditionModel> Conditions { get; init; } = [];
     public IReadOnlyList<string> ComponentRefs { get; init; } = [];
 }

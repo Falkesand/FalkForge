@@ -11,6 +11,7 @@ public sealed class ServiceModel
     public string? UserName { get; init; }
     public string? Password { get; init; }
     public IReadOnlyList<string> Dependencies { get; init; } = [];
+    public IReadOnlyList<ServiceDependencyModel> TypedDependencies { get; init; } = [];
     public ServiceFailureActionsModel? FailureActions { get; init; }
     public string? FeatureRef { get; init; }
 }
