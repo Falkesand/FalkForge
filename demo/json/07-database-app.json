@@ -1,0 +1,57 @@
+{
+  "product": {
+    "name": "DatabaseApp",
+    "manufacturer": "Contoso",
+    "version": "1.0.0",
+    "description": "Application with SQL Server database setup"
+  },
+  "ui": "InstallDir",
+  "installDirectory": "Contoso/DatabaseApp",
+  "majorUpgrade": {
+    "downgradeMessage": "A newer version is already installed."
+  },
+  "features": [
+    {
+      "id": "Application",
+      "title": "Database Application",
+      "required": true,
+      "files": [
+        { "source": "payload/dbapp.exe" },
+        { "source": "payload/dbapp.dll" }
+      ]
+    }
+  ],
+  "extensions": {
+    "sql": [
+      {
+        "id": "AppDatabase",
+        "server": "[SQLSERVER]",
+        "database": "ContosoDb",
+        "createOnInstall": true,
+        "dropOnUninstall": false,
+        "scripts": [
+          {
+            "id": "CreateSchema",
+            "sourceFile": "payload/sql/create-schema.sql",
+            "executeOnInstall": true,
+            "sequence": 1
+          },
+          {
+            "id": "SeedData",
+            "sourceFile": "payload/sql/seed-data.sql",
+            "executeOnInstall": true,
+            "sequence": 2
+          }
+        ]
+      }
+    ],
+    "dotnet": [
+      {
+        "runtimeType": "Runtime",
+        "platform": "X64",
+        "minimumVersion": "8.0.0",
+        "variableName": "DOTNET8_INSTALLED"
+      }
+    ]
+  }
+}

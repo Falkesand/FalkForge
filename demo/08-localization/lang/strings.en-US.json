@@ -1,0 +1,8 @@
+{
+  "ProductName": "Localized App",
+  "WelcomeMessage": "Welcome to the installation wizard",
+  "LicenseTitle": "License Agreement",
+  "FeatureCore": "Core Application",
+  "FeaturePlugins": "Optional Plugins",
+  "FinishMessage": "Installation complete. Click Finish to exit."
+}

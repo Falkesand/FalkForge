@@ -1,0 +1,146 @@
+{
+  "product": {
+    "name": "AdvancedInstaller",
+    "manufacturer": "Contoso",
+    "version": "4.2.1",
+    "description": "Demonstrates all JSON configuration features",
+    "platform": "X64",
+    "upgradeCode": "DEADBEEF-CAFE-BABE-FACE-123456789ABC"
+  },
+  "ui": "Advanced",
+  "installDirectory": "Contoso/AdvancedDemo",
+  "license": "payload/eula.rtf",
+  "majorUpgrade": {
+    "allowDowngrades": false,
+    "downgradeMessage": "Cannot install an older version over a newer one.",
+    "schedule": "AfterInstallExecute"
+  },
+  "launchConditions": [
+    {
+      "condition": "VersionNT64",
+      "message": "64-bit Windows 10 or later is required."
+    },
+    {
+      "condition": "NOT OLDERVERSIONBEINGUPGRADED",
+      "message": "An older version must be removed before upgrading."
+    }
+  ],
+  "features": [
+    {
+      "id": "Core",
+      "title": "Core Application",
+      "description": "Main application binaries",
+      "required": true,
+      "files": [
+        {
+          "source": "payload/app.exe",
+          "shortcut": {
+            "name": "Advanced Demo",
+            "location": "Desktop",
+            "description": "Launch the Advanced Demo application",
+            "icon": "payload/app.ico"
+          }
+        },
+        { "source": "payload/app.dll" },
+        { "source": "payload/config.json" }
+      ],
+      "registry": [
+        {
+          "root": "HKLM",
+          "key": "Software\\Contoso\\AdvancedDemo",
+          "name": "InstallDir",
+          "value": "[INSTALLDIR]"
+        },
+        {
+          "root": "HKLM",
+          "key": "Software\\Contoso\\AdvancedDemo",
+          "name": "Version",
+          "value": "4.2.1"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "ADVANCED_HOME",
+          "value": "[INSTALLDIR]",
+          "action": "Set",
+          "system": true
+        },
+        {
+          "name": "PATH",
+          "value": "[INSTALLDIR]bin",
+          "action": "Append",
+          "system": true
+        }
+      ]
+    },
+    {
+      "id": "Services",
+      "title": "Background Services",
+      "description": "Monitoring and automation services",
+      "features": [
+        {
+          "id": "MonitorService",
+          "title": "Monitor Service",
+          "description": "System health monitoring",
+          "files": [
+            { "source": "payload/monitor-svc.exe" }
+          ],
+          "services": [
+            {
+              "name": "ContosoMonitor",
+              "displayName": "Contoso Monitor Service",
+              "description": "Monitors system health and reports metrics",
+              "executable": "[INSTALLDIR]monitor-svc.exe",
+              "startType": "Automatic",
+              "account": "LocalService"
+            }
+          ]
+        },
+        {
+          "id": "UpdateService",
+          "title": "Update Service",
+          "description": "Automatic update checker",
+          "default": false,
+          "files": [
+            { "source": "payload/update-svc.exe" }
+          ],
+          "services": [
+            {
+              "name": "ContosoUpdater",
+              "displayName": "Contoso Update Service",
+              "description": "Checks for and applies product updates",
+              "executable": "[INSTALLDIR]update-svc.exe",
+              "startType": "DelayedAutomatic",
+              "account": "LocalSystem"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Tools",
+      "title": "Command-Line Tools",
+      "description": "CLI utilities and scripts",
+      "files": [
+        { "source": "payload/cli-tool.exe" }
+      ],
+      "environmentVariables": [
+        {
+          "name": "PATH",
+          "value": "[INSTALLDIR]tools",
+          "action": "Append",
+          "system": false
+        }
+      ]
+    },
+    {
+      "id": "Docs",
+      "title": "Documentation",
+      "description": "Offline documentation and tutorials",
+      "default": false,
+      "files": [
+        { "source": "payload/manual.pdf" }
+      ]
+    }
+  ]
+}
