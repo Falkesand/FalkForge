@@ -216,4 +216,136 @@ public sealed class RollbackJournalTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.True(File.Exists(nestedPath));
     }
+
+    [Fact]
+    public void ReadEntries_RoundTrip_PreservesAllFields()
+    {
+        using (var journal = new RollbackJournal(_journalPath))
+        {
+            journal.Open();
+            journal.WriteEntry(new JournalEntry
+            {
+                EntryType = JournalEntryType.MsiInstalled,
+                Description = "Installed MSI package 'TestApp'",
+                PackageId = "TestApp",
+                PackageType = "MsiPackage",
+                CachePath = @"C:\ProgramData\FalkInstaller\Cache\testapp.msi",
+                ProductCode = "{12345678-1234-1234-1234-123456789ABC}",
+                UninstallCommand = null
+            });
+            journal.WriteEntry(new JournalEntry
+            {
+                EntryType = JournalEntryType.ExeInstalled,
+                Description = "Installed EXE package 'Helper'",
+                UndoData = new byte[] { 0xDE, 0xAD },
+                PackageId = "Helper",
+                PackageType = "ExePackage",
+                CachePath = @"C:\ProgramData\FalkInstaller\Cache\helper.exe",
+                ProductCode = null,
+                UninstallCommand = @"""C:\Program Files\Helper\uninstall.exe"" /silent"
+            });
+            journal.WriteEntry(new JournalEntry
+            {
+                EntryType = JournalEntryType.PayloadCached,
+                Description = "Cached payload",
+                PackageId = "Payload1",
+                PackageType = null,
+                CachePath = @"C:\ProgramData\FalkInstaller\Cache\payload.cab",
+                ProductCode = null,
+                UninstallCommand = null
+            });
+        }
+
+        var readResult = RollbackJournal.ReadEntries(_journalPath);
+
+        Assert.True(readResult.IsSuccess);
+        var entries = readResult.Value;
+        Assert.Equal(3, entries.Length);
+
+        // Entry 0: MsiInstalled
+        Assert.Equal(JournalEntryType.MsiInstalled, entries[0].EntryType);
+        Assert.Equal("Installed MSI package 'TestApp'", entries[0].Description);
+        Assert.Equal("TestApp", entries[0].PackageId);
+        Assert.Equal("MsiPackage", entries[0].PackageType);
+        Assert.Equal(@"C:\ProgramData\FalkInstaller\Cache\testapp.msi", entries[0].CachePath);
+        Assert.Equal("{12345678-1234-1234-1234-123456789ABC}", entries[0].ProductCode);
+        Assert.Null(entries[0].UninstallCommand);
+        Assert.Null(entries[0].UndoData);
+
+        // Entry 1: ExeInstalled
+        Assert.Equal(JournalEntryType.ExeInstalled, entries[1].EntryType);
+        Assert.Equal("Installed EXE package 'Helper'", entries[1].Description);
+        Assert.Equal("Helper", entries[1].PackageId);
+        Assert.Equal("ExePackage", entries[1].PackageType);
+        Assert.Equal(@"C:\ProgramData\FalkInstaller\Cache\helper.exe", entries[1].CachePath);
+        Assert.Null(entries[1].ProductCode);
+        Assert.Equal(@"""C:\Program Files\Helper\uninstall.exe"" /silent", entries[1].UninstallCommand);
+        Assert.Equal(new byte[] { 0xDE, 0xAD }, entries[1].UndoData);
+
+        // Entry 2: PayloadCached
+        Assert.Equal(JournalEntryType.PayloadCached, entries[2].EntryType);
+        Assert.Equal("Cached payload", entries[2].Description);
+        Assert.Equal("Payload1", entries[2].PackageId);
+        Assert.Null(entries[2].PackageType);
+        Assert.Equal(@"C:\ProgramData\FalkInstaller\Cache\payload.cab", entries[2].CachePath);
+        Assert.Null(entries[2].ProductCode);
+        Assert.Null(entries[2].UninstallCommand);
+    }
+
+    [Fact]
+    public void WriteEntry_MsiInstalled_WithoutProductCode_ReturnsValidationFailure()
+    {
+        using var journal = new RollbackJournal(_journalPath);
+        journal.Open();
+
+        var result = journal.WriteEntry(new JournalEntry
+        {
+            EntryType = JournalEntryType.MsiInstalled,
+            Description = "Test",
+            PackageId = "Pkg1",
+            ProductCode = null
+        });
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("ProductCode", result.Error.Message);
+    }
+
+    [Fact]
+    public void WriteEntry_ExeInstalled_WithoutUninstallCommand_ReturnsValidationFailure()
+    {
+        using var journal = new RollbackJournal(_journalPath);
+        journal.Open();
+
+        var result = journal.WriteEntry(new JournalEntry
+        {
+            EntryType = JournalEntryType.ExeInstalled,
+            Description = "Test",
+            PackageId = "Pkg1",
+            UninstallCommand = null
+        });
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("UninstallCommand", result.Error.Message);
+    }
+
+    [Fact]
+    public void WriteEntry_PayloadCached_WithoutCachePath_ReturnsValidationFailure()
+    {
+        using var journal = new RollbackJournal(_journalPath);
+        journal.Open();
+
+        var result = journal.WriteEntry(new JournalEntry
+        {
+            EntryType = JournalEntryType.PayloadCached,
+            Description = "Test",
+            PackageId = "Pkg1",
+            CachePath = null
+        });
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("CachePath", result.Error.Message);
+    }
 }

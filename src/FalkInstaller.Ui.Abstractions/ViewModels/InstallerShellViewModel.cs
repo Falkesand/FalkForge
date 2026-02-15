@@ -7,6 +7,12 @@ public abstract class InstallerShellViewModel : INavigationService
 
     public IInstallerEngine Engine { get; }
 
+    /// <summary>
+    /// Gets a value indicating whether the installer is in maintenance mode
+    /// (product is already installed).
+    /// </summary>
+    public bool IsMaintenanceMode { get; protected set; }
+
     protected InstallerShellViewModel(IInstallerEngine engine)
     {
         Engine = engine;

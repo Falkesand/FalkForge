@@ -26,6 +26,8 @@ public sealed class PackageBuilder
     private readonly List<DuplicateFileModel> _duplicateFiles = [];
     private readonly List<AssemblyModel> _assemblies = [];
     private readonly List<CustomTableModel> _customTables = [];
+    private readonly List<SequenceActionModel> _executeSequenceActions = [];
+    private readonly List<SequenceActionModel> _uiSequenceActions = [];
     private MediaTemplateModel? _mediaTemplate;
 
     public string Name { get; set; } = string.Empty;
@@ -46,6 +48,7 @@ public sealed class PackageBuilder
     public string? LicenseFile { get; set; }
     public bool EnableRestartManager { get; set; }
 
+    private MsiDialogSet _dialogSet = MsiDialogSet.None;
     private UpgradeModel? _upgrade;
     private MajorUpgradeModel? _majorUpgrade;
     private SigningOptions? _signing;
@@ -230,6 +233,26 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder ExecuteSequence(Action<SequenceBuilder> configure)
+    {
+        var builder = new SequenceBuilder(SequenceTable.InstallExecuteSequence);
+        configure(builder);
+        var result = builder.Build();
+        if (result.IsSuccess)
+            _executeSequenceActions.AddRange(result.Value);
+        return this;
+    }
+
+    public PackageBuilder UISequence(Action<SequenceBuilder> configure)
+    {
+        var builder = new SequenceBuilder(SequenceTable.InstallUISequence);
+        configure(builder);
+        var result = builder.Build();
+        if (result.IsSuccess)
+            _uiSequenceActions.AddRange(result.Value);
+        return this;
+    }
+
     public PackageBuilder MediaTemplate(Action<MediaTemplateBuilder> configure)
     {
         var builder = new MediaTemplateBuilder();
@@ -255,6 +278,12 @@ public sealed class PackageBuilder
         var builder = new SigningOptionsBuilder();
         configure(builder);
         _signing = builder.Build();
+        return this;
+    }
+
+    public PackageBuilder UseDialogSet(MsiDialogSet dialogSet)
+    {
+        _dialogSet = dialogSet;
         return this;
     }
 
@@ -309,11 +338,14 @@ public sealed class PackageBuilder
             DuplicateFiles = _duplicateFiles,
             Assemblies = _assemblies,
             CustomTables = _customTables,
+            ExecuteSequenceActions = _executeSequenceActions,
+            UISequenceActions = _uiSequenceActions,
             MediaTemplate = _mediaTemplate,
             EnableRestartManager = EnableRestartManager,
             Signing = _signing,
             Upgrade = _upgrade ?? (_majorUpgrade is null ? new UpgradeModel() : null),
-            MajorUpgrade = _majorUpgrade
+            MajorUpgrade = _majorUpgrade,
+            DialogSet = _dialogSet
         };
     }
 }

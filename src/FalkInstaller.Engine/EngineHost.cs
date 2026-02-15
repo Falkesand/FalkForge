@@ -3,12 +3,16 @@ namespace FalkInstaller.Engine;
 using FalkInstaller.Engine.Cache;
 using FalkInstaller.Engine.Detection;
 using FalkInstaller.Engine.Execution;
+using FalkInstaller.Engine.Journal;
+using FalkInstaller.Engine.Journal.UndoOperations;
+using FalkInstaller.Engine.Logging;
 using FalkInstaller.Engine.Phases;
 using FalkInstaller.Engine.Planning;
 using FalkInstaller.Engine.Protocol;
 using FalkInstaller.Engine.Protocol.Manifest;
 using FalkInstaller.Engine.Protocol.Messages;
 using FalkInstaller.Engine.Protocol.Transport;
+using FalkInstaller.Engine.RestartManager;
 using FalkInstaller.Platform;
 
 public sealed class EngineHost : IAsyncDisposable
@@ -19,6 +23,7 @@ public sealed class EngineHost : IAsyncDisposable
     private PipeServer? _uiPipe;
     private EngineContext? _context;
     private EngineStateMachine? _stateMachine;
+    private IEngineLogger? _logger;
 
     public EngineHost(InstallerManifest manifest, IPlatformServices platform, PipeConnectionOptions? pipeOptions = null)
     {
@@ -29,6 +34,11 @@ public sealed class EngineHost : IAsyncDisposable
 
     public async Task<int> RunAsync(CancellationToken ct = default)
     {
+        // Initialize structured logger
+        _logger = new EngineLogger(EngineLogger.GetDefaultLogPath());
+        _logger.MinimumLevel = LogLevel.Debug;
+        _logger.Info("EngineHost", "Engine starting");
+
         // Create pipe server if options provided
         if (_pipeOptions is not null)
         {
@@ -36,9 +46,12 @@ public sealed class EngineHost : IAsyncDisposable
             var connectResult = await _uiPipe.StartAsync(ct);
             if (connectResult.IsFailure)
             {
-                await Console.Error.WriteLineAsync($"Pipe connection failed: {connectResult.Error}");
+                _logger.Error("EngineHost", string.Concat("Pipe connection failed: ", connectResult.Error.ToString()));
+                // Logger disposal is owned by DisposeAsync
                 return 1;
             }
+
+            _logger.Info("EngineHost", "UI pipe connected");
         }
 
         var userCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -49,7 +62,8 @@ public sealed class EngineHost : IAsyncDisposable
             Platform = _platform,
             UiPipe = _uiPipe,
             ShutdownToken = ct,
-            UserCancellationSource = userCts
+            UserCancellationSource = userCts,
+            Logger = _logger
         };
 
         // Create dependencies (manual DI for NativeAOT)
@@ -64,6 +78,39 @@ public sealed class EngineHost : IAsyncDisposable
         var cacheLayout = new CacheLayout(_manifest.Scope);
         var cache = new PackageCache(cacheLayout);
 
+        // Create and open rollback journal
+        var journalPath = Path.Combine(Path.GetTempPath(), "FalkInstaller", $"rollback_{Guid.NewGuid():N}.journal");
+        var journal = new RollbackJournal(journalPath);
+        var journalOpenResult = journal.Open();
+        if (journalOpenResult.IsSuccess)
+        {
+            _context.Journal = journal;
+        }
+        else
+        {
+            _logger.Warning("EngineHost", $"Failed to open rollback journal: {journalOpenResult.Error.Message}");
+            journal.Dispose();
+            journal = null;
+        }
+
+        // Create Restart Manager session (Windows only)
+        IRestartManager? restartManager = null;
+        if (OperatingSystem.IsWindows())
+        {
+            restartManager = new RestartManagerSession();
+            _context.RestartManager = restartManager;
+            _context.RestartManagerEnabled = true;
+        }
+
+        // Create rollback infrastructure
+        var undoOperations = new IUndoOperation[]
+        {
+            new MsiUninstallOperation(processRunner),
+            new ExeRollbackOperation(processRunner),
+            new CacheCleanupOperation()
+        };
+        var rollbackExecutor = new RollbackExecutor(undoOperations, _logger);
+
         // Create phase handlers
         var handlers = new IEnginePhaseHandler[]
         {
@@ -74,7 +121,7 @@ public sealed class EngineHost : IAsyncDisposable
             new ApplyingHandler(packageExecutor),
             new CompletingHandler(),
             new FailedHandler(),
-            new RollingBackHandler(),
+            new RollingBackHandler(rollbackExecutor, _context.Journal),
             new ShutdownHandler()
         };
 
@@ -82,10 +129,17 @@ public sealed class EngineHost : IAsyncDisposable
 
         try
         {
-            return await _stateMachine.RunAsync(_context, userCts.Token);
+            _logger.Info("EngineHost", "Starting state machine");
+            var exitCode = await _stateMachine.RunAsync(_context, userCts.Token);
+            _logger.Info("EngineHost", string.Concat("Engine completed with exit code ", exitCode.ToString()));
+            return exitCode;
         }
         finally
         {
+            journal?.Dispose();
+            restartManager?.Dispose();
+            // Logger disposal is owned by DisposeAsync -- do not dispose here
+            // to avoid double-dispose race with concurrent DisposeAsync calls.
             userCts.Dispose();
         }
     }
@@ -158,7 +212,8 @@ public sealed class EngineHost : IAsyncDisposable
 
             default:
                 // Unknown message type -- log warning and skip
-                _ = LogWarningAsync(context, $"Unrecognized UI message type: {message.Type}");
+                context.Logger.Warning("EngineHost", string.Concat("Unrecognized UI message type: ", message.Type.ToString()));
+                _ = LogWarningAsync(context, string.Concat("Unrecognized UI message type: ", message.Type.ToString()));
                 break;
         }
 
@@ -186,6 +241,8 @@ public sealed class EngineHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _logger?.Dispose();
+
         if (_uiPipe is not null)
         {
             await _uiPipe.DisposeAsync();
