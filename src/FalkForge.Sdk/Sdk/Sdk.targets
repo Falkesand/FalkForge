@@ -154,7 +154,7 @@ File.WriteAllText(OutputFile, sb.ToString(), new UTF8Encoding(false));
     <Message Importance="high" Text="FalkForge: Generating $(FalkOutputType) installer..." />
 
     <!-- Execute the compiled installer project to generate the MSI/Bundle -->
-    <Exec Command="dotnet exec &quot;$(_FalkForgeAssembly)&quot; --falk-build --output-dir &quot;$(FalkOutputDirectory)&quot; --output-type $(FalkOutputType) --compression $(FalkCompressionLevel) --platform $(FalkPlatform)"
+    <Exec Command="dotnet exec &quot;$(_FalkForgeAssembly)&quot; --forge-build --output-dir &quot;$(FalkOutputDirectory)&quot; --output-type $(FalkOutputType) --compression $(FalkCompressionLevel) --platform $(FalkPlatform)"
           Condition="'$(FalkOutputType)' == 'Msi' or '$(FalkOutputType)' == 'Bundle'"
           ConsoleToMsBuild="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="_FalkBuildOutput" />

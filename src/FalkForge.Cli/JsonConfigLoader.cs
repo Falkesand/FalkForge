@@ -147,12 +147,20 @@ public static class JsonConfigLoader
             }
         }
 
+        // Extensions (validate configuration; actual extension compilation is a separate concern)
+        if (config.Extensions is not null)
+        {
+            var extensionResult = ValidateExtensions(config.Extensions);
+            if (extensionResult.IsFailure)
+                return Result<PackageModel>.Failure(extensionResult.Error);
+        }
+
         try
         {
             var model = builder.Build();
             return Result<PackageModel>.Success(model);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
             return Result<PackageModel>.Failure(new Error(ErrorKind.InvalidConfiguration, $"JSN010: Configuration error: {ex.Message}"));
         }
@@ -176,7 +184,7 @@ public static class JsonConfigLoader
             {
                 fb.Files(fs =>
                 {
-                    fs.To(KnownFolder.ProgramFiles / builder.Name);
+                    fs.To(builder.DefaultInstallDirectory ?? KnownFolder.ProgramFiles / builder.Name);
                     foreach (var file in featureConfig.Files)
                     {
                         if (!string.IsNullOrWhiteSpace(file.Source))
@@ -197,7 +205,7 @@ public static class JsonConfigLoader
                     {
                         fb.Feature(childFeature.Id, cfb =>
                         {
-                            ConfigureNestedFeature(cfb, childFeature, baseDirectory, builder.Name);
+                            ConfigureNestedFeature(cfb, childFeature, baseDirectory, builder.DefaultInstallDirectory ?? KnownFolder.ProgramFiles / builder.Name);
                         });
                     }
                 }
@@ -298,7 +306,7 @@ public static class JsonConfigLoader
         return Result<Unit>.Success(Unit.Value);
     }
 
-    private static void ConfigureNestedFeature(FeatureBuilder fb, FeatureConfig config, string baseDirectory, string productName)
+    private static void ConfigureNestedFeature(FeatureBuilder fb, FeatureConfig config, string baseDirectory, InstallPath installDirectory)
     {
         if (!string.IsNullOrWhiteSpace(config.Title))
             fb.Title = config.Title;
@@ -313,7 +321,7 @@ public static class JsonConfigLoader
         {
             fb.Files(fs =>
             {
-                fs.To(KnownFolder.ProgramFiles / productName);
+                fs.To(installDirectory);
                 foreach (var file in config.Files)
                 {
                     if (!string.IsNullOrWhiteSpace(file.Source))
@@ -333,7 +341,7 @@ public static class JsonConfigLoader
                 {
                     fb.Feature(childFeature.Id, cfb =>
                     {
-                        ConfigureNestedFeature(cfb, childFeature, baseDirectory, productName);
+                        ConfigureNestedFeature(cfb, childFeature, baseDirectory, installDirectory);
                     });
                 }
             }
@@ -350,6 +358,94 @@ public static class JsonConfigLoader
             "HKU" or "USERS" => RegistryRoot.Users,
             _ => RegistryRoot.LocalMachine,
         };
+    }
+
+    private static Result<Unit> ValidateExtensions(ExtensionsConfig extensions)
+    {
+        // Firewall rules
+        if (extensions.Firewall is not null)
+        {
+            for (var i = 0; i < extensions.Firewall.Count; i++)
+            {
+                var rule = extensions.Firewall[i];
+
+                if (string.IsNullOrWhiteSpace(rule.Id))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN011: Firewall rule at index {i} is missing required field 'id'"));
+
+                if (string.IsNullOrWhiteSpace(rule.Name))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN011: Firewall rule '{rule.Id}' is missing required field 'name'"));
+
+                if (string.IsNullOrWhiteSpace(rule.Port) && string.IsNullOrWhiteSpace(rule.Program))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN011: Firewall rule '{rule.Id}' must specify either 'port' or 'program'"));
+            }
+        }
+
+        // IIS
+        if (extensions.Iis is not null)
+        {
+            if (extensions.Iis.AppPools is not null)
+            {
+                for (var i = 0; i < extensions.Iis.AppPools.Count; i++)
+                {
+                    var pool = extensions.Iis.AppPools[i];
+
+                    if (string.IsNullOrWhiteSpace(pool.Name))
+                        return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN012: IIS app pool at index {i} is missing required field 'name'"));
+                }
+            }
+
+            if (extensions.Iis.WebSites is not null)
+            {
+                for (var i = 0; i < extensions.Iis.WebSites.Count; i++)
+                {
+                    var site = extensions.Iis.WebSites[i];
+
+                    if (string.IsNullOrWhiteSpace(site.Description))
+                        return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN012: IIS web site at index {i} is missing required field 'description'"));
+
+                    if (site.Bindings is null || site.Bindings.Count == 0)
+                        return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN012: IIS web site '{site.Description}' must have at least one binding"));
+                }
+            }
+        }
+
+        // SQL
+        if (extensions.Sql is not null)
+        {
+            for (var i = 0; i < extensions.Sql.Count; i++)
+            {
+                var sql = extensions.Sql[i];
+
+                if (string.IsNullOrWhiteSpace(sql.Server))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN013: SQL configuration at index {i} is missing required field 'server'"));
+
+                if (string.IsNullOrWhiteSpace(sql.Database))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN013: SQL configuration at index {i} is missing required field 'database'"));
+            }
+        }
+
+        // .NET detection
+        if (extensions.DotNet is not null)
+        {
+            for (var i = 0; i < extensions.DotNet.Count; i++)
+            {
+                var dotnet = extensions.DotNet[i];
+
+                if (string.IsNullOrWhiteSpace(dotnet.RuntimeType))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN014: .NET detection at index {i} is missing required field 'runtimeType'"));
+
+                if (string.IsNullOrWhiteSpace(dotnet.Platform))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN014: .NET detection at index {i} is missing required field 'platform'"));
+
+                if (string.IsNullOrWhiteSpace(dotnet.MinimumVersion))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN014: .NET detection at index {i} is missing required field 'minimumVersion'"));
+
+                if (string.IsNullOrWhiteSpace(dotnet.VariableName))
+                    return Result<Unit>.Failure(new Error(ErrorKind.Validation, $"JSN014: .NET detection at index {i} is missing required field 'variableName'"));
+            }
+        }
+
+        return Result<Unit>.Success(Unit.Value);
     }
 
     private static string ResolvePath(string path, string baseDirectory)
