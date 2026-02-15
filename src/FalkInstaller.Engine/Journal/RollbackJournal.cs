@@ -41,6 +41,25 @@ public sealed class RollbackJournal : IDisposable
             return Result<Unit>.Failure(ErrorKind.RollbackError, "Journal not open");
         }
 
+        // Validate required fields based on entry type
+        if (entry.EntryType == JournalEntryType.MsiInstalled && string.IsNullOrWhiteSpace(entry.ProductCode))
+        {
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"MsiInstalled entry requires ProductCode (package '{entry.PackageId}')");
+        }
+
+        if (entry.EntryType == JournalEntryType.ExeInstalled && string.IsNullOrWhiteSpace(entry.UninstallCommand))
+        {
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"ExeInstalled entry requires UninstallCommand (package '{entry.PackageId}')");
+        }
+
+        if (entry.EntryType == JournalEntryType.PayloadCached && string.IsNullOrWhiteSpace(entry.CachePath))
+        {
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"PayloadCached entry requires CachePath (package '{entry.PackageId}')");
+        }
+
         try
         {
             _writer.Write((int)entry.EntryType);
@@ -52,6 +71,13 @@ public sealed class RollbackJournal : IDisposable
                 _writer.Write(entry.UndoData!.Length);
                 _writer.Write(entry.UndoData);
             }
+
+            // Write additional fields (empty string for null to support round-trip)
+            _writer.Write(entry.PackageId ?? string.Empty);
+            _writer.Write(entry.PackageType ?? string.Empty);
+            _writer.Write(entry.CachePath ?? string.Empty);
+            _writer.Write(entry.ProductCode ?? string.Empty);
+            _writer.Write(entry.UninstallCommand ?? string.Empty);
 
             _writer.Flush();
             _entries.Add(entry);
@@ -127,11 +153,23 @@ public sealed class RollbackJournal : IDisposable
                     undoData = reader.ReadBytes(length);
                 }
 
+                // Read additional fields (empty string becomes null)
+                var packageId = NullIfEmpty(reader.ReadString());
+                var packageType = NullIfEmpty(reader.ReadString());
+                var cachePath = NullIfEmpty(reader.ReadString());
+                var productCode = NullIfEmpty(reader.ReadString());
+                var uninstallCommand = NullIfEmpty(reader.ReadString());
+
                 entries.Add(new JournalEntry
                 {
                     EntryType = entryType,
                     Description = description,
-                    UndoData = undoData
+                    UndoData = undoData,
+                    PackageId = packageId,
+                    PackageType = packageType,
+                    CachePath = cachePath,
+                    ProductCode = productCode,
+                    UninstallCommand = uninstallCommand
                 });
             }
 
@@ -141,6 +179,11 @@ public sealed class RollbackJournal : IDisposable
         {
             return Result<JournalEntry[]>.Failure(ErrorKind.RollbackError, $"Failed to read journal: {ex.Message}");
         }
+    }
+
+    private static string? NullIfEmpty(string value)
+    {
+        return string.IsNullOrEmpty(value) ? null : value;
     }
 
     public void Dispose()

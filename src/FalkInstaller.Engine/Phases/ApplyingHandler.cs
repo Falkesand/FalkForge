@@ -3,9 +3,12 @@ namespace FalkInstaller.Engine.Phases;
 using FalkInstaller.Engine.Cache;
 using FalkInstaller.Engine.Download;
 using FalkInstaller.Engine.Execution;
+using FalkInstaller.Engine.Journal;
 using FalkInstaller.Engine.Planning;
 using FalkInstaller.Engine.Protocol;
+using FalkInstaller.Engine.Protocol.Manifest;
 using FalkInstaller.Engine.Protocol.Messages;
+using FalkInstaller.Engine.RestartManager;
 
 public sealed class ApplyingHandler : IEnginePhaseHandler
 {
@@ -42,14 +45,118 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
             }, ct);
         }
 
-        // If we have segments, use segment-aware execution
-        if (plan.Segments.Count > 0)
+        // Restart Manager: start session, register files, and shut down affected processes
+        var rmActive = false;
+        var rmShutdownPerformed = false;
+
+        if (context.RestartManagerEnabled && context.RestartManager is not null)
         {
-            return await ExecuteWithSegmentsAsync(context, plan, totalPackages, ct);
+            try
+            {
+                rmActive = TryStartRestartManagerSession(context, plan);
+                if (rmActive)
+                {
+                    rmShutdownPerformed = TryShutdownAffectedProcesses(context);
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+            {
+                // RM is best-effort; do not fail the installation if it errors
+                context.Logger.Warning("RestartManager", $"Restart Manager failed: {ex.Message}");
+                rmActive = false;
+                rmShutdownPerformed = false;
+            }
         }
 
-        // Fallback: flat execution for backwards compatibility
-        return await ExecuteFlatAsync(context, plan, totalPackages, ct);
+        try
+        {
+            // If we have segments, use segment-aware execution
+            if (plan.Segments.Count > 0)
+            {
+                return await ExecuteWithSegmentsAsync(context, plan, totalPackages, ct);
+            }
+
+            // Fallback: flat execution for backwards compatibility
+            return await ExecuteFlatAsync(context, plan, totalPackages, ct);
+        }
+        finally
+        {
+            // Restart Manager: restart processes and end session (always in finally)
+            if (rmActive && context.RestartManager is not null)
+            {
+                try
+                {
+                    if (rmShutdownPerformed)
+                    {
+                        context.RestartManager.RestartProcesses();
+                    }
+                }
+                finally
+                {
+                    context.RestartManager.EndSession();
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Starts a Restart Manager session and registers all package source paths.
+    /// Returns true if the session was successfully started and resources registered.
+    /// </summary>
+    private static bool TryStartRestartManagerSession(EngineContext context, InstallPlan plan)
+    {
+        var rm = context.RestartManager!;
+        var startResult = rm.StartSession();
+        if (startResult.IsFailure)
+            return false;
+
+        var filePaths = CollectPackageFilePaths(plan);
+        if (filePaths.Count == 0)
+            return true;
+
+        var registerResult = rm.RegisterResources(filePaths);
+        return registerResult.IsSuccess;
+    }
+
+    /// <summary>
+    /// Queries for affected processes and shuts them down gracefully if any exist.
+    /// Returns true if shutdown was performed (processes need to be restarted later).
+    /// </summary>
+    private static bool TryShutdownAffectedProcesses(EngineContext context)
+    {
+        var rm = context.RestartManager!;
+        var affectedResult = rm.GetAffectedProcesses();
+        if (affectedResult.IsFailure)
+            return false;
+
+        if (affectedResult.Value.Count == 0)
+            return false;
+
+        var shutdownResult = rm.ShutdownProcesses();
+        if (shutdownResult.IsFailure)
+        {
+            context.RebootPending = true;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Collects all package source file paths from the install plan for RM registration.
+    /// </summary>
+    private static List<string> CollectPackageFilePaths(InstallPlan plan)
+    {
+        var filePaths = new List<string>(plan.Actions.Count);
+        foreach (var action in plan.Actions)
+        {
+            if (!string.IsNullOrEmpty(action.Package.SourcePath))
+            {
+                filePaths.Add(action.Package.SourcePath);
+            }
+        }
+
+        return filePaths;
     }
 
     private async Task<EnginePhase> ExecuteWithSegmentsAsync(
@@ -63,6 +170,9 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
         for (var segmentIndex = 0; segmentIndex < plan.Segments.Count; segmentIndex++)
         {
             var segment = plan.Segments[segmentIndex];
+
+            // Write segment boundary to journal
+            context.Journal?.BeginSegment(segment.BoundaryId);
 
             foreach (var action in segment.Actions)
             {
@@ -140,6 +250,9 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
 
                     return EnginePhase.RollingBack;
                 }
+
+                // Record successful installation in rollback journal
+                WriteInstallJournalEntry(context.Journal, action);
 
                 // Track reboot requirements from execution outcome
                 if (result.Value.Behavior is ExitCodeBehavior.RebootRequired
@@ -246,6 +359,9 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                 return EnginePhase.Failed;
             }
 
+            // Record successful installation in rollback journal
+            WriteInstallJournalEntry(context.Journal, action);
+
             // Track reboot requirements from execution outcome
             if (result.Value.Behavior is ExitCodeBehavior.RebootRequired
                 or ExitCodeBehavior.ScheduleReboot)
@@ -264,6 +380,34 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
         }
 
         return EnginePhase.Completing;
+    }
+
+    private static void WriteInstallJournalEntry(RollbackJournal? journal, PlanAction action)
+    {
+        if (journal is null)
+            return;
+
+        var package = action.Package;
+        var entryType = package.Type switch
+        {
+            PackageType.MsiPackage => JournalEntryType.MsiInstalled,
+            PackageType.ExePackage => JournalEntryType.ExeInstalled,
+            _ => JournalEntryType.PackageInstalled
+        };
+
+        var productCode = package.Properties.GetValueOrDefault("ProductCode");
+        var uninstallCommand = package.Properties.GetValueOrDefault("UninstallCommand");
+
+        journal.WriteEntry(new JournalEntry
+        {
+            EntryType = entryType,
+            Description = $"Installed {package.Type} package '{package.Id}'",
+            PackageId = package.Id,
+            PackageType = package.Type.ToString(),
+            ProductCode = productCode,
+            UninstallCommand = uninstallCommand,
+            CachePath = package.SourcePath
+        });
     }
 
     private async Task<Result<Unit>> AcquirePayloadIfNeededAsync(PlanAction action, CancellationToken ct)
