@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkInstaller.Extensions.DotNet</RootNamespace>
+    <Description>.NET runtime detection extension for FalkInstaller</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkInstaller.Extensions.DotNet.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkInstaller.Core\FalkInstaller.Core.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Extensibility\FalkInstaller.Extensibility.csproj" />
+    <ProjectReference Include="..\FalkInstaller.Platform\FalkInstaller.Platform.csproj" />
+  </ItemGroup>
+</Project>

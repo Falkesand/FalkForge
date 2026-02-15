@@ -1,24 +1,24 @@
 # FalkInstaller
 
-C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI.
+C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI. Extension system for Firewall, IIS, SQL, .NET detection, and utility actions. Supports MSI, MSM, MSP, MST, and EXE bundle output types.
 
 ## Build & Test
 
 ```bash
 dotnet build          # 0 warnings required (TreatWarningsAsErrors)
-dotnet test           # ~1126 tests, xUnit 2.9.3
+dotnet test           # ~1380 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 
 - .NET 10, C# latest, nullable enabled, central package management
 - `global.json`: SDK 10.0.103
 
-## Solution Structure (14 src + 9 test projects)
+## Solution Structure (23 src + 14 test projects)
 
 ```
 src/
   FalkInstaller.Core/                  # Domain model, fluent API, validation
-  FalkInstaller.Compiler.Msi/          # MSI generation via msi.dll P/Invoke
+  FalkInstaller.Compiler.Msi/          # MSI/MSM/MSP/MST generation via msi.dll P/Invoke
   FalkInstaller.Compiler.Bundle/       # Self-extracting EXE bundle compiler
   FalkInstaller.Engine/                # NativeAOT installer runtime (exe)
   FalkInstaller.Engine.Elevation/      # NativeAOT elevated companion (exe)
@@ -26,21 +26,31 @@ src/
   FalkInstaller.Platform/              # OS abstractions (IFileSystem, IRegistry)
   FalkInstaller.Platform.Windows/      # Windows P/Invoke implementations
   FalkInstaller.Extensibility/         # Extension system interfaces
+  FalkInstaller.Extensions.Util/       # XmlConfig, UserManagement, FileShare, QuietExec, RemoveFolderEx, InternetShortcut
+  FalkInstaller.Extensions.Firewall/   # Firewall rule definitions and validation
+  FalkInstaller.Extensions.DotNet/     # .NET runtime detection via registry and filesystem
+  FalkInstaller.Extensions.Iis/        # IIS AppPool, WebSite, WebBinding, Certificate configuration
+  FalkInstaller.Extensions.Sql/        # SQL Server database, script, and string execution
   FalkInstaller.Ui.Abstractions/       # IInstallerEngine, base ViewModels
   FalkInstaller.Ui/                    # WPF + ReactiveUI installer UI
   FalkInstaller.Sdk/                   # MSBuild SDK targets (netstandard2.0)
   FalkInstaller.Testing/               # Test utilities, mocks
 
 tests/
-  FalkInstaller.Core.Tests/            # 332 tests
-  FalkInstaller.Compiler.Msi.Tests/    # 78 tests
-  FalkInstaller.Compiler.Bundle.Tests/ # 104 tests
-  FalkInstaller.Engine.Tests/          # 270 tests
-  FalkInstaller.Engine.Elevation.Tests/# 11 tests
-  FalkInstaller.Engine.Protocol.Tests/ # 87 tests
-  FalkInstaller.Ui.Abstractions.Tests/ # 42 tests
-  FalkInstaller.Ui.Tests/             # 18 tests
-  FalkInstaller.Integration.Tests/     # 23 tests
+  FalkInstaller.Core.Tests/
+  FalkInstaller.Compiler.Msi.Tests/
+  FalkInstaller.Compiler.Bundle.Tests/
+  FalkInstaller.Engine.Tests/
+  FalkInstaller.Engine.Elevation.Tests/
+  FalkInstaller.Engine.Protocol.Tests/
+  FalkInstaller.Ui.Abstractions.Tests/
+  FalkInstaller.Ui.Tests/
+  FalkInstaller.Integration.Tests/
+  FalkInstaller.Extensions.Util.Tests/
+  FalkInstaller.Extensions.Firewall.Tests/
+  FalkInstaller.Extensions.DotNet.Tests/
+  FalkInstaller.Extensions.Iis.Tests/
+  FalkInstaller.Extensions.Sql.Tests/
 ```
 
 ## Dependency Graph
@@ -52,6 +62,11 @@ Core (no deps)
   |                               +-> Compiler.Bundle
   +-> Compiler.Msi (Core + Platform)
   +-> Extensibility (standalone)
+  +-> Extensions.Util (Core + Extensibility)
+  +-> Extensions.Firewall (Core + Extensibility)
+  +-> Extensions.DotNet (Core + Extensibility)
+  +-> Extensions.Iis (Core + Extensibility)
+  +-> Extensions.Sql (Core + Extensibility)
   +-> Testing (Core + Platform)
 
 Engine (exe):     Engine.Protocol + Platform.Windows + Compiler.Msi
@@ -73,7 +88,7 @@ Readonly record struct. `Result<T>.Success(value)` / `Result<T>.Failure(error)`.
 `readonly record struct Unit { static readonly Unit Value = default; }` -- for `Result<Unit>`.
 
 ### Entry Point -- `src/FalkInstaller.Core/Installer.cs`
-`Installer.Build()` for MSI, `Installer.BuildBundle()` for EXE bundles.
+`Installer.Build()` for MSI, `Installer.BuildBundle()` for EXE bundles, `Installer.BuildMergeModule()` for MSM, `Installer.BuildPatch()` for MSP, `Installer.BuildTransform()` for MST.
 
 ### ConditionEvaluator -- `src/FalkInstaller.Engine/Variables/ConditionEvaluator.cs`
 Recursive-descent parser for WiX-compatible condition expressions (AND, OR, NOT, comparisons, version ranges).
@@ -86,8 +101,9 @@ Abstraction for process execution enabling deterministic testing of MSI/MSU/MSP/
 
 ## Core Project Layout
 
-### Models (`src/FalkInstaller.Core/Models/`) -- 45 files
+### Models (`src/FalkInstaller.Core/Models/`) -- 48 files
 Top-level: `PackageModel`, `FeatureModel`, `ComponentModel`, `FileEntryModel`
+Output Types: `MergeModuleModel`, `PatchModel`, `TransformModel`
 Services: `ServiceModel`, `ServiceControlModel`, `ServiceDependencyModel`
 Registry: `RegistryEntryModel`, `RemoveRegistryModel`, `RemoveRegistryAction`
 Files: `MoveFileModel`, `DuplicateFileModel`, `RemoveFileModel`, `CreateFolderModel`
@@ -98,8 +114,9 @@ UI: `MsiDialogSet`
 Upgrade: `MajorUpgradeModel`, `RemoveExistingProductsSchedule`
 Other: `ShortcutModel`, `EnvironmentVariableModel`, `AssemblyModel`, `AssemblyType`, `MediaTemplateModel`, `FeatureConditionModel`, `SigningOptions`, `ExitCodeBehavior`, `RelatedBundleRelation`
 
-### Builders (`src/FalkInstaller.Core/Builders/`) -- 29 files
+### Builders (`src/FalkInstaller.Core/Builders/`) -- 32 files
 Main: `PackageBuilder` (orchestrates all sub-builders)
+Output Types: `MergeModuleBuilder`, `PatchBuilder`, `TransformBuilder`
 Features: `FeatureBuilder`
 Files: `FileSetBuilder`, `MoveFileBuilder`, `DuplicateFileBuilder`, `RemoveFileBuilder`, `CreateFolderBuilder`
 Services: `ServiceBuilder`, `ServiceControlBuilder`
@@ -109,12 +126,17 @@ Tables: `CustomTableBuilder`, `ColumnOptions`, `RowBuilder`
 Sequences: `SequenceBuilder`
 Other: `ShortcutBuilder`, `EnvironmentVariableBuilder`, `AssemblyBuilder`, `MajorUpgradeBuilder`, `MediaTemplateBuilder`
 
-### Validation (`src/FalkInstaller.Core/Validation/ModelValidator.cs`)
+### Validation (`src/FalkInstaller.Core/Validation/`)
 Static `Validate(PackageModel)` returns `ValidationResult`. Error codes: PKG001, FEA001, SVC001, REG001, CTB001-010, MUP001-003, etc.
+Additional validators: `MergeModuleValidator` (MSM001-004), `PatchValidator` (MSP001-004), `TransformValidator` (MST001-002).
 
 ## Compiler.Msi Layout
 
-- `MsiCompiler.cs` -- Main compiler (implements `ICompiler`)
+- `MsiCompiler.cs` -- Main MSI compiler (implements `ICompiler`)
+- `MsmCompiler.cs` -- Merge module (.msm) compiler
+- `PatchCompiler.cs` -- Patch (.msp) compiler
+- `TransformCompiler.cs` -- Transform (.mst) compiler
+- `FileNameSanitizer.cs` -- Shared filename sanitization
 - `MsiDatabase.cs` -- MSI database wrapper (open/insert/query/commit)
 - `ComponentResolver.cs` -- Component ID resolution
 - `CabinetBuilder.cs` -- Cabinet file generation
@@ -194,10 +216,32 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - All serialization via MessageSerializer (binary protocol)
 
 ## Extension System (`src/FalkInstaller.Extensibility/`)
-- `IFalkInstallerExtension` -- Extension entry point
+- `IFalkInstallerExtension` -- Extension entry point (`Name` property + `Register()` method)
 - `IComponentContributor`, `IMsiTableContributor` -- Contribute components/tables
 - `IExtensionValidator` -- Validate extensions
 - `ExtensionContext`, `MsiTableRow`
+
+## Extensions
+
+### Extensions.Util (`src/FalkInstaller.Extensions.Util/`)
+XML configuration, user/group management, file shares, quiet execution, folder removal, internet shortcuts.
+- Error codes: XCF001-009
+
+### Extensions.Firewall (`src/FalkInstaller.Extensions.Firewall/`)
+Windows Firewall rule definitions and validation.
+- Error codes: FWL001-004
+
+### Extensions.DotNet (`src/FalkInstaller.Extensions.DotNet/`)
+.NET runtime detection via registry and filesystem probing.
+- Error codes: NET001-003
+
+### Extensions.Iis (`src/FalkInstaller.Extensions.Iis/`)
+IIS application pool, website, web binding, and certificate configuration.
+- Error codes: IIS001-009
+
+### Extensions.Sql (`src/FalkInstaller.Extensions.Sql/`)
+SQL Server database creation, script execution, and string execution.
+- Error codes: SQL001-013
 
 ## Namespace Conventions
 ```
@@ -223,4 +267,9 @@ FalkInstaller.Platform                     Platform abstractions
 FalkInstaller.Platform.Windows             Windows implementations
 FalkInstaller.Ui                           WPF UI
 FalkInstaller.Ui.ViewModels                ViewModels
+FalkInstaller.Extensions.Util              Utility extension (XmlConfig, UserManagement, etc.)
+FalkInstaller.Extensions.Firewall          Firewall extension
+FalkInstaller.Extensions.DotNet            .NET detection extension
+FalkInstaller.Extensions.Iis               IIS extension
+FalkInstaller.Extensions.Sql               SQL Server extension
 ```

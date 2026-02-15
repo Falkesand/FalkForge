@@ -8,7 +8,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.firegiant.com)",
       "Bash(dotnet:*)",
-      "Bash(dotnet --list-sdks:*)"
+      "Bash(dotnet --list-sdks:*)",
+      "Bash(tail:*)"
     ]
   }
 }
