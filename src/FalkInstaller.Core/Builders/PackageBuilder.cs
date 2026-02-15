@@ -47,6 +47,9 @@ public sealed class PackageBuilder
     public string? UpdateUrl { get; set; }
     public string? LicenseFile { get; set; }
     public bool EnableRestartManager { get; set; }
+    public int CabinetThreadCount { get; set; }
+
+    private readonly List<LocalizationData> _localizationData = [];
 
     private MsiDialogSet _dialogSet = MsiDialogSet.None;
     private UpgradeModel? _upgrade;
@@ -273,6 +276,13 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder CabinetThreads(int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        CabinetThreadCount = count;
+        return this;
+    }
+
     public PackageBuilder Signing(Action<SigningOptionsBuilder> configure)
     {
         var builder = new SigningOptionsBuilder();
@@ -284,6 +294,13 @@ public sealed class PackageBuilder
     public PackageBuilder UseDialogSet(MsiDialogSet dialogSet)
     {
         _dialogSet = dialogSet;
+        return this;
+    }
+
+    public PackageBuilder SetLocalizationData(IReadOnlyList<LocalizationData> data)
+    {
+        _localizationData.Clear();
+        _localizationData.AddRange(data);
         return this;
     }
 
@@ -345,7 +362,9 @@ public sealed class PackageBuilder
             Signing = _signing,
             Upgrade = _upgrade ?? (_majorUpgrade is null ? new UpgradeModel() : null),
             MajorUpgrade = _majorUpgrade,
-            DialogSet = _dialogSet
+            DialogSet = _dialogSet,
+            CabinetThreadCount = CabinetThreadCount,
+            LocalizationData = _localizationData
         };
     }
 }
