@@ -440,28 +440,6 @@ public sealed class JsonConfigLoaderTests
     }
 
     [Fact]
-    public void LoadFromString_AllDialogSets_ParseSuccessfully()
-    {
-        string[] dialogSets = ["Minimal", "InstallDir", "FeatureTree", "Mondo", "Advanced"];
-
-        foreach (var ds in dialogSets)
-        {
-            var json = $$"""
-            {
-                "product": {
-                    "name": "TestApp",
-                    "manufacturer": "TestCorp"
-                },
-                "ui": "{{ds}}"
-            }
-            """;
-
-            var result = JsonConfigLoader.LoadFromString(json, BaseDir);
-            Assert.True(result.IsSuccess, $"Dialog set '{ds}' should parse successfully");
-        }
-    }
-
-    [Fact]
     public void LoadFromString_RequiredFeature_SetsIsRequired()
     {
         var json = """
@@ -639,5 +617,299 @@ public sealed class JsonConfigLoaderTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.LicenseFile);
         Assert.Contains("License.rtf", result.Value.LicenseFile);
+    }
+
+    [Fact]
+    public void LoadFromString_WithService_CreatesService()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "services": [
+                        {
+                            "name": "TestSvc",
+                            "displayName": "Test Service",
+                            "description": "A test service",
+                            "executable": "[INSTALLDIR]svc.exe",
+                            "startType": "Automatic",
+                            "account": "LocalService"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Services);
+        Assert.Equal("TestSvc", result.Value.Services[0].Name);
+        Assert.Equal("Test Service", result.Value.Services[0].DisplayName);
+    }
+
+    [Fact]
+    public void LoadFromString_WithRegistry_CreatesRegistryEntries()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "HKLM",
+                            "key": "Software\\TestCorp\\TestApp",
+                            "name": "Version",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(result.Value.RegistryEntries);
+    }
+
+    [Fact]
+    public void LoadFromString_WithEnvironmentVariable_CreatesEnvVar()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "environmentVariables": [
+                        {
+                            "name": "TEST_HOME",
+                            "value": "[INSTALLDIR]",
+                            "action": "Set",
+                            "system": true
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.EnvironmentVariables);
+        Assert.Equal("TEST_HOME", result.Value.EnvironmentVariables[0].Name);
+    }
+
+    [Fact]
+    public void LoadFromString_WithShortcut_CreatesShortcut()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": [
+                        {
+                            "source": "app.exe",
+                            "shortcut": {
+                                "name": "TestApp",
+                                "location": "Desktop",
+                                "description": "Launch TestApp"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Shortcuts);
+        Assert.Equal("TestApp", result.Value.Shortcuts[0].Name);
+    }
+
+    [Fact]
+    public void LoadFromString_ThreeLevelNestedFeatures_CreatesFullTree()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Level1",
+                    "title": "Level 1",
+                    "features": [
+                        {
+                            "id": "Level2",
+                            "title": "Level 2",
+                            "features": [
+                                {
+                                    "id": "Level3",
+                                    "title": "Level 3"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        var level1 = result.Value.Features[0];
+        Assert.Equal("Level1", level1.Id);
+        Assert.Single(level1.Children);
+        var level2 = level1.Children[0];
+        Assert.Equal("Level2", level2.Id);
+        Assert.Single(level2.Children);
+        var level3 = level2.Children[0];
+        Assert.Equal("Level3", level3.Id);
+    }
+
+    [Theory]
+    [InlineData("Minimal")]
+    [InlineData("InstallDir")]
+    [InlineData("FeatureTree")]
+    [InlineData("Mondo")]
+    [InlineData("Advanced")]
+    public void LoadFromString_EachDialogSet_ParsesSuccessfully(string dialogSet)
+    {
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "ui": "{{dialogSet}}"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_WithExtensionsFirewall_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ],
+            "extensions": {
+                "firewall": [
+                    {
+                        "id": "HttpRule",
+                        "name": "Allow HTTP",
+                        "protocol": "Tcp",
+                        "port": "80",
+                        "direction": "Inbound",
+                        "action": "Allow"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_WithExtensionsSql_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ],
+            "extensions": {
+                "sql": [
+                    {
+                        "id": "AppDb",
+                        "server": "localhost",
+                        "database": "TestDb",
+                        "createOnInstall": true
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_WithExtensionsDotNet_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ],
+            "extensions": {
+                "dotnet": [
+                    {
+                        "runtimeType": "Runtime",
+                        "platform": "X64",
+                        "minimumVersion": "8.0.0",
+                        "variableName": "DOTNET8_FOUND"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
     }
 }

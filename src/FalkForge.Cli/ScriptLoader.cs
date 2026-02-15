@@ -67,7 +67,7 @@ public static class ScriptLoader
             }
 
             return Result<string>.Failure(ErrorKind.NotSupported,
-                "Direct compilation from CLI is not yet supported. Use 'falk validate' to check your project.");
+                "Direct compilation from CLI is not yet supported. Use 'forge validate' to check your project.");
         }
         catch (CompilationErrorException ex)
         {
