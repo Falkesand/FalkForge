@@ -24,5 +24,7 @@ public enum ErrorKind
     RollbackError,
     DetectionError,
     PlanningError,
-    ExecutionError
+    ExecutionError,
+    DownloadError,
+    LayoutError
 }

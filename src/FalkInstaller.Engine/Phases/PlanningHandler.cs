@@ -18,6 +18,18 @@ public sealed class PlanningHandler : IEnginePhaseHandler
 
     public async Task<EnginePhase> ExecuteAsync(EngineContext context, CancellationToken ct)
     {
+        // Apply user-selected install directory if set
+        if (context.UserInstallDirectory is not null)
+        {
+            context.InstallDirectory = context.UserInstallDirectory;
+        }
+
+        // Apply feature selections to variables for condition evaluation
+        foreach (var (featureId, isSelected) in context.FeatureSelections)
+        {
+            context.Variables.Set($"Feature_{featureId}", isSelected ? "1" : "0");
+        }
+
         // Notify UI that planning is beginning
         if (context.UiPipe is not null && context.UiPipe.IsConnected)
         {
@@ -32,7 +44,12 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             context.DetectedVersion,
             context.DetectedFeatures);
 
-        var planResult = _planner.CreatePlan(context.Manifest, detection, context.RequestedAction);
+        var planResult = _planner.CreatePlan(
+            context.Manifest,
+            detection,
+            context.RequestedAction,
+            context.Variables,
+            context.DetectedRelatedBundles);
         if (planResult.IsFailure)
         {
             context.ErrorMessage = planResult.Error.Message;

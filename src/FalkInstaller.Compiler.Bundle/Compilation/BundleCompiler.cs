@@ -22,10 +22,14 @@ public sealed class BundleCompiler
 
         var manifest = manifestResult.Value;
 
-        // Step 3: Read and prepare payloads
+        // Step 3: Read and prepare payloads (skip remote-only packages)
         var payloads = new List<PayloadEntry>();
         foreach (var package in model.Packages)
         {
+            // Remote-only payloads are not embedded in the bundle
+            if (package.RemotePayload is not null)
+                continue;
+
             if (!File.Exists(package.SourcePath))
                 return Result<string>.Failure(ErrorKind.PayloadError, $"Package source not found: {package.SourcePath}");
 
@@ -36,7 +40,8 @@ public sealed class BundleCompiler
             {
                 PackageId = package.Id,
                 Data = data,
-                Sha256Hash = hash
+                Sha256Hash = hash,
+                ContainerId = package.ContainerId
             });
         }
 

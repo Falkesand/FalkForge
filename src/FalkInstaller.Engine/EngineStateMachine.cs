@@ -64,6 +64,7 @@ public sealed class EngineStateMachine
             (EnginePhase.Planning, EnginePhase.Elevating) => true,
             (EnginePhase.Planning, EnginePhase.Applying) => true, // PerUser doesn't need elevation
             (EnginePhase.Elevating, EnginePhase.Applying) => true,
+            (EnginePhase.Applying, EnginePhase.RollingBack) => true, // User cancellation during apply
             (EnginePhase.Applying, EnginePhase.Completing) => true,
             (EnginePhase.Completing, EnginePhase.Shutdown) => true,
             _ => false

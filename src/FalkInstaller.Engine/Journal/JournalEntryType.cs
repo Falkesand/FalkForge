@@ -8,5 +8,6 @@ public enum JournalEntryType
     FileModified,
     RegistryKeyCreated,
     RegistryValueSet,
-    ServiceInstalled
+    ServiceInstalled,
+    SegmentBoundary
 }
