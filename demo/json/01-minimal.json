@@ -1,0 +1,17 @@
+{
+  "product": {
+    "name": "MinimalApp",
+    "manufacturer": "Contoso",
+    "version": "1.0.0"
+  },
+  "ui": "Minimal",
+  "features": [
+    {
+      "id": "Complete",
+      "title": "Complete",
+      "files": [
+        { "source": "payload/MinimalApp.exe" }
+      ]
+    }
+  ]
+}

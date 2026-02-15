@@ -1,0 +1,8 @@
+{
+  "ProductName": "Application Localisee",
+  "WelcomeMessage": "Bienvenue dans l'assistant d'installation",
+  "LicenseTitle": "Contrat de licence",
+  "FeatureCore": "Application principale",
+  "FeaturePlugins": "Plugins optionnels",
+  "FinishMessage": "Installation terminee. Cliquez sur Terminer pour quitter."
+}
