@@ -20,6 +20,9 @@ public sealed class RegistryKeyBuilder
         return this;
     }
 
+    public RegistryKeyBuilder Value(string name, MsiProperty property) =>
+        Value(name, property.ToString());
+
     public RegistryKeyBuilder DWord(string name, int value)
     {
         _entries.Add(new RegistryEntryModel { Root = _root, Key = _key, ValueName = name, Value = value, ValueType = RegistryValueType.DWord });

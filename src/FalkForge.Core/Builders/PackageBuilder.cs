@@ -118,6 +118,9 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder EnvironmentVariable(string name, MsiProperty property, Action<EnvironmentVariableBuilder>? configure = null) =>
+        EnvironmentVariable(name, property.ToString(), configure);
+
     public PackageBuilder Property(string name, string value, Action<PropertyBuilder>? configure = null)
     {
         var builder = new PropertyBuilder(name, value);
@@ -131,6 +134,9 @@ public sealed class PackageBuilder
         _launchConditions.Add(new LaunchConditionModel { Condition = condition, Message = message });
         return this;
     }
+
+    public PackageBuilder Require(Condition condition, string message) =>
+        Require(condition.ToString(), message);
 
     public PackageBuilder Upgrade(Action<UpgradeBuilder> configure)
     {

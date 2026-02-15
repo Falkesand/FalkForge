@@ -72,10 +72,18 @@ return Installer.Build(args, p =>
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\Acme\ClientServer\Server", k => k
             .Value("Version", "3.5.0")
-            .Value("Port", "8080")));
+            .Value("Port", "8080")
+            .Value("InstallPath", MsiProperty.InstallFolder)));
 
     // Server environment variable
     p.EnvironmentVariable("ACME_SERVER_PORT", "8080", ev =>
+    {
+        ev.IsSystem = true;
+        ev.Action = EnvironmentVariableAction.Set;
+    });
+
+    // Install directory environment variable (typed MsiProperty API)
+    p.EnvironmentVariable("ACME_INSTALL_DIR", MsiProperty.InstallFolder, ev =>
     {
         ev.IsSystem = true;
         ev.Action = EnvironmentVariableAction.Set;
@@ -101,6 +109,6 @@ return Installer.Build(args, p =>
     p.MajorUpgrade(mu => mu
         .DowngradeErrorMessage("A newer version is already installed."));
 
-    // Launch condition: Require Windows 10+
-    p.Require("VersionNT >= 603", "This application requires Windows 10 or later.");
+    // Launch condition: Require Windows 10+ (typed Condition API)
+    p.Require(Condition.IsWindows10OrLater, "This application requires Windows 10 or later.");
 });
