@@ -24,6 +24,12 @@ public sealed class WindowsRegistry : IRegistry
         return key?.GetValue(valueName) as int?;
     }
 
+    public IReadOnlyList<string> GetSubKeyNames(string rootKey, string subKey)
+    {
+        using var key = GetRootKey(rootKey)?.OpenSubKey(subKey);
+        return key?.GetSubKeyNames() ?? [];
+    }
+
     private static RegistryKey? GetRootKey(string rootKey) => rootKey switch
     {
         "HKLM" or "HKEY_LOCAL_MACHINE" => Microsoft.Win32.Registry.LocalMachine,

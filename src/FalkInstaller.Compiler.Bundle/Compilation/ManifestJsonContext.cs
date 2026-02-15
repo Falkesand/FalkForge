@@ -7,4 +7,6 @@ namespace FalkInstaller.Compiler.Bundle.Compilation;
 [JsonSerializable(typeof(PackageInfo))]
 [JsonSerializable(typeof(PackageType))]
 [JsonSerializable(typeof(InstallScope))]
+[JsonSerializable(typeof(RelatedBundleEntry))]
+[JsonSerializable(typeof(RelatedBundleRelation))]
 internal partial class ManifestJsonContext : JsonSerializerContext;

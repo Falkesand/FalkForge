@@ -6,11 +6,15 @@ using FalkInstaller.Platform;
 
 public sealed class PackageDetector
 {
+    private readonly IRegistry _registry;
     private readonly MsiDetector _msiDetector;
+    private readonly RelatedBundleDetector _relatedBundleDetector;
 
     public PackageDetector(IRegistry registry)
     {
+        _registry = registry;
         _msiDetector = new MsiDetector(registry);
+        _relatedBundleDetector = new RelatedBundleDetector();
     }
 
     public DetectionResult Detect(InstallerManifest manifest)
@@ -70,6 +74,11 @@ public sealed class PackageDetector
         return _msiDetector.IsProductInstalled(productCode)
             ? InstallState.Installed
             : InstallState.NotInstalled;
+    }
+
+    public Result<IReadOnlyList<RelatedBundleInfo>> DetectRelatedBundles(InstallerManifest manifest)
+    {
+        return _relatedBundleDetector.Detect(manifest.RelatedBundles, _registry);
     }
 
     public static InstallState CompareVersions(string installed, string target)

@@ -415,6 +415,25 @@ public sealed class EngineLifecycleTests
                 return dword;
             return null;
         }
+
+        public IReadOnlyList<string> GetSubKeyNames(string rootKey, string subKey)
+        {
+            var prefix = $@"{rootKey}\{subKey}\";
+            var result = new List<string>();
+            foreach (var key in _keys.Keys)
+            {
+                if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var remainder = key[prefix.Length..];
+                    if (!remainder.Contains('\\'))
+                    {
+                        result.Add(remainder);
+                    }
+                }
+            }
+
+            return result;
+        }
     }
 
     /// <summary>

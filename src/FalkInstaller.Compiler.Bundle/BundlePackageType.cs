@@ -4,5 +4,8 @@ public enum BundlePackageType
 {
     MsiPackage,
     ExePackage,
-    NetRuntime
+    NetRuntime,
+    MsuPackage,
+    MspPackage,
+    BundlePackage
 }
