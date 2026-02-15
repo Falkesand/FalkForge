@@ -43,7 +43,10 @@ public sealed class PackageModel
     public IReadOnlyList<DuplicateFileModel> DuplicateFiles { get; init; } = [];
     public IReadOnlyList<AssemblyModel> Assemblies { get; init; } = [];
     public IReadOnlyList<CustomTableModel> CustomTables { get; init; } = [];
+    public IReadOnlyList<SequenceActionModel> ExecuteSequenceActions { get; init; } = [];
+    public IReadOnlyList<SequenceActionModel> UISequenceActions { get; init; } = [];
     public MediaTemplateModel? MediaTemplate { get; init; }
     public bool EnableRestartManager { get; init; }
     public SigningOptions? Signing { get; init; }
+    public MsiDialogSet DialogSet { get; init; } = MsiDialogSet.None;
 }

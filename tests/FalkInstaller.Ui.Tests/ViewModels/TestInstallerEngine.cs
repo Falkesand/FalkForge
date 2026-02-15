@@ -30,8 +30,13 @@ internal sealed class TestInstallerEngine : IInstallerEngine
     public Task<DetectResult> DetectAsync(CancellationToken ct = default)
         => Task.FromResult(new DetectResult(DetectedState, "1.0.0", []));
 
+    public InstallAction? LastPlannedAction { get; private set; }
+
     public Task<PlanResult> PlanAsync(InstallAction action, CancellationToken ct = default)
-        => Task.FromResult(new PlanResult(["Install TestPackage"], 1024L));
+    {
+        LastPlannedAction = action;
+        return Task.FromResult(new PlanResult(["Install TestPackage"], 1024L));
+    }
 
     public Task<ApplyResult> ApplyAsync(CancellationToken ct = default)
         => Task.FromResult(new ApplyResult(0, null));

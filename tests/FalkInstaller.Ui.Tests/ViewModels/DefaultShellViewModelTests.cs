@@ -8,11 +8,11 @@ public class DefaultShellViewModelTests
     private readonly TestInstallerEngine _engine = new();
 
     [Fact]
-    public void Constructor_RegistersSixPages()
+    public void Constructor_RegistersSevenPages()
     {
         var shell = new DefaultShellViewModel(_engine);
 
-        Assert.Equal(6, shell.Pages.Count);
+        Assert.Equal(7, shell.Pages.Count);
     }
 
     [Fact]
@@ -32,8 +32,9 @@ public class DefaultShellViewModelTests
         Assert.IsType<LicensePageViewModel>(shell.Pages[1]);
         Assert.IsType<InstallDirPageViewModel>(shell.Pages[2]);
         Assert.IsType<FeaturesPageViewModel>(shell.Pages[3]);
-        Assert.IsType<ProgressPageViewModel>(shell.Pages[4]);
-        Assert.IsType<CompletePageViewModel>(shell.Pages[5]);
+        Assert.IsType<MaintenancePageViewModel>(shell.Pages[4]);
+        Assert.IsType<ProgressPageViewModel>(shell.Pages[5]);
+        Assert.IsType<CompletePageViewModel>(shell.Pages[6]);
     }
 
     [Fact]
