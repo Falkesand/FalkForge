@@ -121,6 +121,9 @@ public sealed class InstallerWindowBuilderTests
             .Accent("#FFFFFF")
             .Title("Test")
             .Icon("test.ico")
+            .WatermarkImage("watermark.bmp")
+            .BannerImage("banner.bmp")
+            .BannerIcon("icon.bmp")
             .CustomWindow<TestWindow>();
 
         Assert.Same(builder, result);
@@ -140,5 +143,59 @@ public sealed class InstallerWindowBuilderTests
         var config = new InstallerWindowBuilder().Build();
 
         Assert.Equal(0.0, config.CornerRadius);
+    }
+
+    [Fact]
+    public void WatermarkImage_SetsPath()
+    {
+        var config = new InstallerWindowBuilder()
+            .WatermarkImage("watermark.bmp")
+            .Build();
+
+        Assert.Equal("watermark.bmp", config.WatermarkImagePath);
+    }
+
+    [Fact]
+    public void BannerImage_SetsPath()
+    {
+        var config = new InstallerWindowBuilder()
+            .BannerImage("banner.bmp")
+            .Build();
+
+        Assert.Equal("banner.bmp", config.BannerImagePath);
+    }
+
+    [Fact]
+    public void BannerIcon_SetsPath()
+    {
+        var config = new InstallerWindowBuilder()
+            .BannerIcon("icon.bmp")
+            .Build();
+
+        Assert.Equal("icon.bmp", config.BannerIconPath);
+    }
+
+    [Fact]
+    public void Default_WatermarkImage_IsNull()
+    {
+        var config = new InstallerWindowBuilder().Build();
+
+        Assert.Null(config.WatermarkImagePath);
+    }
+
+    [Fact]
+    public void Default_BannerImage_IsNull()
+    {
+        var config = new InstallerWindowBuilder().Build();
+
+        Assert.Null(config.BannerImagePath);
+    }
+
+    [Fact]
+    public void Default_BannerIcon_IsNull()
+    {
+        var config = new InstallerWindowBuilder().Build();
+
+        Assert.Null(config.BannerIconPath);
     }
 }

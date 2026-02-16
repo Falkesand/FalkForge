@@ -3,30 +3,43 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:FalkForge.Ui.Converters">
     <UserControl.Resources>
-        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
     </UserControl.Resources>
 
-    <StackPanel Margin="10">
-        <TextBlock Text="{Binding Title}"
-                   FontSize="24" FontWeight="Bold"
-                   Margin="0,0,0,10" />
-        <TextBlock Text="{Binding Description}"
-                   FontSize="14"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,20" />
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="164"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-            <Button Content="Install"
-                    Width="100" Height="30"
-                    Margin="0,0,10,0"
-                    Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}" />
-            <Button Content="Uninstall"
-                    Width="100" Height="30"
-                    Margin="0,0,10,0"
-                    Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVisibility}}" />
-            <Button Content="Repair"
-                    Width="100" Height="30"
-                    Visibility="{Binding CanRepair, Converter={StaticResource BoolToVisibility}}" />
+        <!-- Watermark panel -->
+        <Grid Grid.Column="0" Background="{DynamicResource WatermarkBrush}">
+            <Image Source="{DynamicResource WatermarkImage}" Stretch="Fill"/>
+        </Grid>
+
+        <!-- Content panel -->
+        <StackPanel Grid.Column="1" Margin="20,16,16,16">
+            <TextBlock Text="{Binding Title}"
+                       Style="{StaticResource ExteriorTitle}"/>
+            <TextBlock Text="{Binding Description}"
+                       Style="{StaticResource ExteriorDescription}"/>
+
+            <StackPanel Margin="0,20,0,0">
+                <Button Content="Install"
+                        Width="100" Height="26"
+                        HorizontalAlignment="Left"
+                        Margin="0,0,0,6"
+                        Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}"/>
+                <Button Content="Uninstall"
+                        Width="100" Height="26"
+                        HorizontalAlignment="Left"
+                        Margin="0,0,0,6"
+                        Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVisibility}}"/>
+                <Button Content="Repair"
+                        Width="100" Height="26"
+                        HorizontalAlignment="Left"
+                        Visibility="{Binding CanRepair, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </Grid>
 </UserControl>

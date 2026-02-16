@@ -32,14 +32,23 @@ public sealed class BundleBuilder
         return this;
     }
 
-    public BundleBuilder UseBuiltInUI(string? licenseFile = null, string? logoFile = null, string? themeColor = null)
+    public BundleBuilder UseBuiltInUI(
+        string? licenseFile = null,
+        string? logoFile = null,
+        string? themeColor = null,
+        string? watermarkImage = null,
+        string? bannerImage = null,
+        string? bannerIcon = null)
     {
         _uiConfig = new BundleUiConfig
         {
             UiType = BundleUiType.BuiltIn,
             LicenseFile = licenseFile,
             LogoFile = logoFile,
-            ThemeColor = themeColor
+            ThemeColor = themeColor,
+            WatermarkImage = watermarkImage,
+            BannerImage = bannerImage,
+            BannerIcon = bannerIcon
         };
         return this;
     }
