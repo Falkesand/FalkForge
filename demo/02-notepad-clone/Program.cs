@@ -2,7 +2,6 @@ using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
-using FalkForge.Platform.Windows;
 
 // A small application installer with shortcuts, registry, major upgrade, and license.
 return Installer.Build(args, package =>
@@ -52,4 +51,4 @@ return Installer.Build(args, package =>
             "A newer version of FalkPad is already installed. Please uninstall it first.");
     });
 
-}, new MsiCompiler(new WindowsFileSystem()));
+}, new MsiCompiler());

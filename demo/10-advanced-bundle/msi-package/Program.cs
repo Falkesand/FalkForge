@@ -1,7 +1,6 @@
 using FalkForge;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
-using FalkForge.Platform.Windows;
 
 // Demo 10 -- Advanced Bundle: MSI Package
 //
@@ -38,4 +37,4 @@ return Installer.Build(args, p =>
 
     p.Require(Condition.IsWindows10OrLater, "Northwind Application requires Windows 10 or later.");
 
-}, new MsiCompiler(new WindowsFileSystem()));
+}, new MsiCompiler());

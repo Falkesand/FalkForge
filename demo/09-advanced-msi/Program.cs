@@ -2,7 +2,6 @@ using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
-using FalkForge.Platform.Windows;
 
 // Demo 09 -- Advanced MSI Features
 //
@@ -299,4 +298,4 @@ return Installer.Build(args, p =>
     p.Property("CONTOSO_LICENSE_KEY", "", prop => prop.IsSecure = true);
     p.Property("ARPNOMODIFY", "1");
 
-}, new MsiCompiler(new WindowsFileSystem()));
+}, new MsiCompiler());

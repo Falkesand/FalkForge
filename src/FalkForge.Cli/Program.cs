@@ -1,3 +1,4 @@
+using FalkForge.Cli;
 using FalkForge.Cli.Commands;
 using Spectre.Console.Cli;
 
@@ -6,6 +7,8 @@ var app = new CommandApp();
 app.Configure(config =>
 {
     config.SetApplicationName("forge");
+
+    config.Settings.Registrar.Register<IConsoleOutput, SpectreConsoleOutput>();
 
     config.AddCommand<BuildCommand>("build")
         .WithDescription("Compile an installer definition (.cs or .json) into MSI/Bundle")
