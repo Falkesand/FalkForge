@@ -14,6 +14,9 @@ public sealed class InstallerWindowBuilder
     private string? _title;
     private string? _iconPath;
     private Type? _customWindowType;
+    private string? _watermarkImagePath;
+    private string? _bannerImagePath;
+    private string? _bannerIconPath;
 
     public InstallerWindowBuilder Size(double width, double height)
     {
@@ -64,6 +67,27 @@ public sealed class InstallerWindowBuilder
         return this;
     }
 
+    public InstallerWindowBuilder WatermarkImage(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _watermarkImagePath = path;
+        return this;
+    }
+
+    public InstallerWindowBuilder BannerImage(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _bannerImagePath = path;
+        return this;
+    }
+
+    public InstallerWindowBuilder BannerIcon(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _bannerIconPath = path;
+        return this;
+    }
+
     internal InstallerWindowConfig Build() => new()
     {
         Width = _width,
@@ -75,5 +99,8 @@ public sealed class InstallerWindowBuilder
         Title = _title,
         IconPath = _iconPath,
         CustomWindowType = _customWindowType,
+        WatermarkImagePath = _watermarkImagePath,
+        BannerImagePath = _bannerImagePath,
+        BannerIconPath = _bannerIconPath,
     };
 }

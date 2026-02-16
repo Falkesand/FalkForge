@@ -66,6 +66,27 @@ internal partial class CustomInstallerWindow : Window
                 // Icon loading is best-effort
             }
         }
+
+        ApplyImageResource(config.WatermarkImagePath, "WatermarkImage");
+        ApplyImageResource(config.BannerImagePath, "BannerImage");
+        ApplyImageResource(config.BannerIconPath, "BannerIconImage");
+    }
+
+    private void ApplyImageResource(string? path, string resourceKey)
+    {
+        if (path is null)
+            return;
+
+        try
+        {
+            var image = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri(path, UriKind.RelativeOrAbsolute));
+            Resources[resourceKey] = image;
+        }
+        catch
+        {
+            // Image loading is best-effort
+        }
     }
 
     private void DragHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
