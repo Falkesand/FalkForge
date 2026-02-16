@@ -1,0 +1,27 @@
+<UserControl x:Class="CustomUiVsStyle.Views.CompleteView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E1E">
+    <UserControl.Resources>
+        <ResourceDictionary Source="/Themes/DarkTheme.xaml"/>
+    </UserControl.Resources>
+
+    <Grid Margin="40,32">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="500">
+            <!-- Success icon -->
+            <Border Width="64" Height="64" CornerRadius="32" Background="#252526"
+                    HorizontalAlignment="Center" Margin="0,0,0,24">
+                <TextBlock Text="&#x2714;" FontSize="32" Foreground="#4EC9B0"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
+            <TextBlock Text="{Binding Message}" FontSize="18" FontWeight="SemiBold"
+                       Foreground="#CCCCCC" TextAlignment="Center"
+                       TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+            <TextBlock Text="{Binding Details}" FontSize="13"
+                       Foreground="#969696" TextAlignment="Center"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

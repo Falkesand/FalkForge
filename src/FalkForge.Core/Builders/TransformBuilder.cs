@@ -1,0 +1,64 @@
+namespace FalkForge.Builders;
+
+using FalkForge.Models;
+using FalkForge.Validation;
+
+public sealed class TransformBuilder
+{
+    private string? _id;
+    private string _baseMsiPath = string.Empty;
+    private string _targetMsiPath = string.Empty;
+    private string? _description;
+    private readonly Dictionary<string, string> _propertyChanges = new();
+
+    public TransformBuilder Id(string id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public TransformBuilder BaseMsi(string path)
+    {
+        _baseMsiPath = path;
+        return this;
+    }
+
+    public TransformBuilder TargetMsi(string path)
+    {
+        _targetMsiPath = path;
+        return this;
+    }
+
+    public TransformBuilder Description(string description)
+    {
+        _description = description;
+        return this;
+    }
+
+    public TransformBuilder SetProperty(string name, string value)
+    {
+        _propertyChanges[name] = value;
+        return this;
+    }
+
+    public Result<TransformModel> Build()
+    {
+        var model = new TransformModel
+        {
+            Id = _id,
+            BaseMsiPath = _baseMsiPath,
+            TargetMsiPath = _targetMsiPath,
+            Description = _description,
+            PropertyChanges = _propertyChanges
+        };
+
+        var validation = TransformValidator.Validate(model);
+        if (!validation.IsValid)
+        {
+            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
+            return Result<TransformModel>.Failure(ErrorKind.Validation, errors);
+        }
+
+        return model;
+    }
+}

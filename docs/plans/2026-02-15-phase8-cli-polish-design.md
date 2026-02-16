@@ -6,7 +6,7 @@
 
 ## Overview
 
-Phase 8 adds developer tooling and polish to FalkInstaller: JSON-based localization, a Spectre.Console CLI tool, an MSI decompiler, and multi-threaded cabinet creation. These are the highest-value remaining features for production readiness.
+Phase 8 adds developer tooling and polish to FalkForge: JSON-based localization, a Spectre.Console CLI tool, an MSI decompiler, and multi-threaded cabinet creation. These are the highest-value remaining features for production readiness.
 
 **Target metrics:** ~26 src projects, ~17 test projects, ~1,550 tests, 0 warnings.
 
@@ -14,9 +14,9 @@ Phase 8 adds developer tooling and polish to FalkInstaller: JSON-based localizat
 
 | Task | Project | Type | Dependencies |
 |------|---------|------|-------------|
-| 8A | FalkInstaller.Localization | classlib | Core |
-| 8B | FalkInstaller.Cli | exe | Core, Compiler.Msi, Compiler.Bundle, Decompiler, Localization |
-| 8C | FalkInstaller.Decompiler | classlib | Core, Compiler.Msi |
+| 8A | FalkForge.Localization | classlib | Core |
+| 8B | FalkForge.Cli | exe | Core, Compiler.Msi, Compiler.Bundle, Decompiler, Localization |
+| 8C | FalkForge.Decompiler | classlib | Core, Compiler.Msi |
 | 8E | *(in Compiler.Msi)* | enhancement | — |
 
 Plus 3 new test projects (Localization.Tests, Cli.Tests, Decompiler.Tests). 8E tests go into existing Compiler.Msi.Tests.
@@ -56,10 +56,10 @@ Plus 3 new test projects (Localization.Tests, Cli.Tests, Decompiler.Tests). 8E t
 
 | Command | Description |
 |---------|-------------|
-| `falk build <project.cs>` | Compile C# installer definition into MSI/Bundle |
-| `falk validate <project.cs>` | Run validators without producing output |
-| `falk inspect <file.msi>` | Display MSI metadata (tables, features, summary info) |
-| `falk decompile <file.msi>` | Decompile MSI into C# source |
+| `forge build <project.cs>` | Compile C# installer definition into MSI/Bundle |
+| `forge validate <project.cs>` | Run validators without producing output |
+| `forge inspect <file.msi>` | Display MSI metadata (tables, features, summary info) |
+| `forge decompile <file.msi>` | Decompile MSI into C# source |
 
 **Architecture:**
 - `Program.cs` — CommandApp configuration
@@ -69,7 +69,7 @@ Plus 3 new test projects (Localization.Tests, Cli.Tests, Decompiler.Tests). 8E t
 - `Commands/DecompileCommand.cs` — Delegates to Decompiler project
 - `Settings/*.cs` — CommandSettings with -o, -c, --verbose options
 
-**C# script loading:** Roslyn scripting (Microsoft.CodeAnalysis.CSharp.Scripting) evaluates .cs files with FalkInstaller.Core referenced.
+**C# script loading:** Roslyn scripting (Microsoft.CodeAnalysis.CSharp.Scripting) evaluates .cs files with FalkForge.Core referenced.
 
 **Exit codes:** 0 = success, 1 = validation failure, 2 = compilation error, 3 = runtime error
 
@@ -102,7 +102,7 @@ Result<string> DecompileToCSharp(string msiPath)
 
 ## 8E: Multi-threaded Cabinet Creation
 
-**Enhancement to existing FalkInstaller.Compiler.Msi.**
+**Enhancement to existing FalkForge.Compiler.Msi.**
 
 **Types:**
 - `ParallelCabinetBuilder` — Builds multiple cabinets concurrently via Parallel.ForEachAsync

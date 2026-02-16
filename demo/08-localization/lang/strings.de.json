@@ -1,0 +1,8 @@
+{
+  "ProductName": "Lokalisierte App",
+  "WelcomeMessage": "Willkommen beim Installationsassistenten",
+  "LicenseTitle": "Lizenzvereinbarung",
+  "FeatureCore": "Kernanwendung",
+  "FeaturePlugins": "Optionale Plugins",
+  "FinishMessage": "Installation abgeschlossen. Klicken Sie auf Fertig stellen."
+}
