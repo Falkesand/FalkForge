@@ -14,7 +14,7 @@ public sealed class DecompileCommandTests
     {
         var console = new TestConsoleOutput();
         var command = new DecompileCommand(console);
-        var settings = new Settings.DecompileSettings { MsiPath = "nonexistent_file_xyz.msi" };
+        var settings = new Settings.DecompileSettings { FilePath = "nonexistent_file_xyz.msi" };
 
         var result = command.Execute(CreateContext(), settings);
 
@@ -26,7 +26,7 @@ public sealed class DecompileCommandTests
     {
         var console = new TestConsoleOutput();
         var command = new DecompileCommand(console);
-        var settings = new Settings.DecompileSettings { MsiPath = "missing.msi" };
+        var settings = new Settings.DecompileSettings { FilePath = "missing.msi" };
 
         command.Execute(CreateContext(), settings);
 
@@ -36,7 +36,7 @@ public sealed class DecompileCommandTests
     [Fact]
     public void Execute_OutputPathDefault_IsNull()
     {
-        var settings = new Settings.DecompileSettings { MsiPath = "test.msi" };
+        var settings = new Settings.DecompileSettings { FilePath = "test.msi" };
 
         Assert.Null(settings.OutputPath);
     }

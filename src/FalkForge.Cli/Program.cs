@@ -26,9 +26,11 @@ app.Configure(config =>
         .WithExample("inspect", "package.msi", "--verbose");
 
     config.AddCommand<DecompileCommand>("decompile")
-        .WithDescription("Decompile an MSI into C# source code")
+        .WithDescription("Decompile an MSI or bundle EXE into C# source code")
         .WithExample("decompile", "package.msi")
-        .WithExample("decompile", "package.msi", "-o", "installer.cs");
+        .WithExample("decompile", "package.msi", "-o", "installer.cs")
+        .WithExample("decompile", "bundle.exe")
+        .WithExample("decompile", "bundle.exe", "-o", "installer.cs");
 });
 
 return app.Run(args);
