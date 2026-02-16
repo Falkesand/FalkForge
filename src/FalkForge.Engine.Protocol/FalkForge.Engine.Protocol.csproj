@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkForge.Engine.Protocol</RootNamespace>
+    <Description>IPC protocol types and serialization for FalkForge engine</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+  </ItemGroup>
+</Project>

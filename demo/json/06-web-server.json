@@ -1,0 +1,70 @@
+{
+  "product": {
+    "name": "WebServerApp",
+    "manufacturer": "Contoso",
+    "version": "1.0.0",
+    "description": "Web application with IIS and firewall configuration"
+  },
+  "ui": "InstallDir",
+  "installDirectory": "Contoso/WebServerApp",
+  "majorUpgrade": {
+    "downgradeMessage": "A newer version is already installed."
+  },
+  "features": [
+    {
+      "id": "WebApp",
+      "title": "Web Application",
+      "required": true,
+      "files": [
+        { "source": "payload/webapp.dll" },
+        { "source": "payload/web.config" },
+        { "source": "payload/appsettings.json" }
+      ]
+    }
+  ],
+  "extensions": {
+    "firewall": [
+      {
+        "id": "HttpRule",
+        "name": "WebServerApp HTTP",
+        "protocol": "Tcp",
+        "port": "80",
+        "direction": "Inbound",
+        "action": "Allow",
+        "profile": "All"
+      },
+      {
+        "id": "HttpsRule",
+        "name": "WebServerApp HTTPS",
+        "protocol": "Tcp",
+        "port": "443",
+        "direction": "Inbound",
+        "action": "Allow",
+        "profile": "All"
+      }
+    ],
+    "iis": {
+      "appPools": [
+        {
+          "id": "WebAppPool",
+          "name": "WebServerAppPool",
+          "runtimeVersion": "v4.0",
+          "pipelineMode": "Integrated",
+          "identity": "ApplicationPoolIdentity"
+        }
+      ],
+      "webSites": [
+        {
+          "id": "WebSite",
+          "description": "WebServerApp Site",
+          "directory": "[INSTALLDIR]",
+          "appPool": "WebAppPool",
+          "bindings": [
+            { "protocol": "http", "port": 80, "host": "localhost" },
+            { "protocol": "https", "port": 443, "host": "localhost" }
+          ]
+        }
+      ]
+    }
+  }
+}

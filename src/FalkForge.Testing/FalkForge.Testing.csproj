@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkForge.Testing</RootNamespace>
+    <Description>Test utilities for FalkForge</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
+  </ItemGroup>
+</Project>

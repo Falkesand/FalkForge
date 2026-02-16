@@ -1,0 +1,76 @@
+{
+  "product": {
+    "name": "DevToolkit",
+    "manufacturer": "Contoso",
+    "version": "3.0.0",
+    "description": "Developer productivity toolkit",
+    "platform": "X64"
+  },
+  "ui": "FeatureTree",
+  "installDirectory": "Contoso/DevToolkit",
+  "majorUpgrade": {
+    "downgradeMessage": "A newer version of DevToolkit is already installed."
+  },
+  "launchConditions": [
+    {
+      "condition": "VersionNT64",
+      "message": "This application requires a 64-bit operating system."
+    }
+  ],
+  "features": [
+    {
+      "id": "CoreTools",
+      "title": "Core Tools",
+      "description": "Essential developer tools",
+      "required": true,
+      "files": [
+        { "source": "payload/devtoolkit.exe" },
+        { "source": "payload/core.dll" }
+      ]
+    },
+    {
+      "id": "Plugins",
+      "title": "Plugins",
+      "description": "Optional plugin modules",
+      "default": true,
+      "features": [
+        {
+          "id": "GitPlugin",
+          "title": "Git Integration",
+          "description": "Source control integration",
+          "files": [
+            { "source": "payload/git-plugin.dll" }
+          ]
+        },
+        {
+          "id": "DockerPlugin",
+          "title": "Docker Support",
+          "description": "Container management tools",
+          "default": false,
+          "files": [
+            { "source": "payload/docker-plugin.dll" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BackgroundService",
+      "title": "Background Service",
+      "description": "DevToolkit background service for file watching",
+      "default": false,
+      "files": [
+        { "source": "payload/devtoolkit-svc.exe" }
+      ],
+      "services": [
+        {
+          "name": "DevToolkitSvc",
+          "displayName": "DevToolkit File Watcher",
+          "description": "Watches project files for changes",
+          "executable": "[INSTALLDIR]devtoolkit-svc.exe",
+          "startType": "Manual",
+          "account": "LocalService"
+        }
+      ]
+    }
+  ]
+}

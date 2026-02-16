@@ -1,0 +1,100 @@
+{
+  "product": {
+    "name": "EnterpriseSuite",
+    "manufacturer": "Contoso",
+    "version": "5.0.0",
+    "description": "Enterprise application suite with all components",
+    "platform": "X64",
+    "upgradeCode": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+  },
+  "ui": "Mondo",
+  "installDirectory": "Contoso/EnterpriseSuite",
+  "license": "payload/license.rtf",
+  "majorUpgrade": {
+    "allowDowngrades": false,
+    "downgradeMessage": "A newer version is already installed. Please uninstall it first.",
+    "schedule": "AfterInstallValidate"
+  },
+  "launchConditions": [
+    {
+      "condition": "VersionNT64",
+      "message": "64-bit Windows is required."
+    },
+    {
+      "condition": "MsiNTProductType = 1",
+      "message": "This product cannot be installed on a server OS."
+    }
+  ],
+  "features": [
+    {
+      "id": "Server",
+      "title": "Server Components",
+      "description": "Backend services and APIs",
+      "required": true,
+      "files": [
+        { "source": "payload/server.exe" },
+        { "source": "payload/server.dll" }
+      ],
+      "services": [
+        {
+          "name": "ContosoAPI",
+          "displayName": "Contoso API Service",
+          "description": "REST API backend",
+          "executable": "[INSTALLDIR]server.exe",
+          "startType": "Automatic",
+          "account": "NetworkService"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "CONTOSO_HOME",
+          "value": "[INSTALLDIR]",
+          "action": "Set",
+          "system": true
+        }
+      ]
+    },
+    {
+      "id": "Client",
+      "title": "Client Application",
+      "description": "Desktop client UI",
+      "files": [
+        {
+          "source": "payload/client.exe",
+          "shortcut": {
+            "name": "EnterpriseSuite Client",
+            "location": "StartMenu",
+            "description": "Launch EnterpriseSuite"
+          }
+        },
+        { "source": "payload/client.dll" }
+      ],
+      "registry": [
+        {
+          "root": "HKCU",
+          "key": "Software\\Contoso\\EnterpriseSuite",
+          "name": "InstallPath",
+          "value": "[INSTALLDIR]"
+        }
+      ]
+    },
+    {
+      "id": "Documentation",
+      "title": "Documentation",
+      "description": "User guides and API reference",
+      "default": false,
+      "files": [
+        { "source": "payload/docs.chm" }
+      ]
+    },
+    {
+      "id": "Samples",
+      "title": "Code Samples",
+      "description": "Example projects and scripts",
+      "default": false,
+      "files": [
+        { "source": "payload/samples.zip" }
+      ]
+    }
+  ]
+}

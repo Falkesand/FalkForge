@@ -1,0 +1,40 @@
+{
+  "product": {
+    "name": "NotepadClone",
+    "manufacturer": "Contoso",
+    "version": "2.1.0",
+    "description": "A simple text editor",
+    "upgradeCode": "12345678-1234-1234-1234-123456789012"
+  },
+  "ui": "InstallDir",
+  "installDirectory": "Contoso/NotepadClone",
+  "majorUpgrade": {
+    "downgradeMessage": "A newer version is already installed."
+  },
+  "features": [
+    {
+      "id": "MainFeature",
+      "title": "NotepadClone Application",
+      "required": true,
+      "files": [
+        {
+          "source": "payload/NotepadClone.exe",
+          "shortcut": {
+            "name": "NotepadClone",
+            "location": "Desktop",
+            "description": "Launch NotepadClone"
+          }
+        },
+        { "source": "payload/NotepadClone.dll" }
+      ],
+      "registry": [
+        {
+          "root": "HKCU",
+          "key": "Software\\Contoso\\NotepadClone",
+          "name": "Version",
+          "value": "2.1.0"
+        }
+      ]
+    }
+  ]
+}

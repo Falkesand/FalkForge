@@ -1,8 +1,8 @@
-using FalkInstaller;
-using FalkInstaller.Builders;
-using FalkInstaller.Compiler.Msi;
-using FalkInstaller.Models;
-using FalkInstaller.Platform.Windows;
+using FalkForge;
+using FalkForge.Builders;
+using FalkForge.Compiler.Msi;
+using FalkForge.Models;
+using FalkForge.Platform.Windows;
 
 // The simplest possible installer: one file, no features, Minimal dialog set.
 return Installer.Build(args, package =>
