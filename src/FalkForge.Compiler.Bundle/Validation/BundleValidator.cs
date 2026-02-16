@@ -12,6 +12,14 @@ public sealed class BundleValidator
         if (string.IsNullOrWhiteSpace(model.Manufacturer))
             return Result<Unit>.Failure(ErrorKind.BundleError, "BDL002: Bundle manufacturer is required");
 
+        // BDL008: BundleId must not be empty
+        if (model.BundleId == Guid.Empty)
+            return Result<Unit>.Failure(ErrorKind.BundleError, "BDL008: BundleId must not be empty GUID");
+
+        // BDL009: UpgradeCode must not be empty
+        if (model.UpgradeCode == Guid.Empty)
+            return Result<Unit>.Failure(ErrorKind.BundleError, "BDL009: UpgradeCode must not be empty GUID");
+
         // BDL003: Version must be valid
         if (!System.Version.TryParse(model.Version, out _))
             return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL003: Invalid version format: {model.Version}");

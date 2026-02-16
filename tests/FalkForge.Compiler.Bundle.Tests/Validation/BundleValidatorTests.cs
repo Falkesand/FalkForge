@@ -234,10 +234,36 @@ public sealed class BundleValidatorTests
         Assert.True(result.IsSuccess);
     }
 
+    [Fact]
+    public void Validate_EmptyBundleId_ReturnsBDL008()
+    {
+        var model = CreateModel(bundleId: Guid.Empty);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.Contains("BDL008", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_EmptyUpgradeCode_ReturnsBDL009()
+    {
+        var model = CreateModel(upgradeCode: Guid.Empty);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.Contains("BDL009", result.Error.Message);
+    }
+
     private static BundleModel CreateModel(
         string name = "TestBundle",
         string manufacturer = "TestCo",
         string version = "1.0.0",
+        Guid? bundleId = null,
+        Guid? upgradeCode = null,
         BundlePackageModel[]? packages = null,
         ContainerModel[]? containers = null,
         BundleUiConfig? uiConfig = null)
@@ -247,8 +273,8 @@ public sealed class BundleValidatorTests
             Name = name,
             Manufacturer = manufacturer,
             Version = version,
-            BundleId = Guid.NewGuid(),
-            UpgradeCode = Guid.NewGuid(),
+            BundleId = bundleId ?? Guid.NewGuid(),
+            UpgradeCode = upgradeCode ?? Guid.NewGuid(),
             Scope = InstallScope.PerMachine,
             Packages = packages ?? [CreatePackage("Pkg1")],
             Containers = containers ?? [],
