@@ -81,7 +81,7 @@ return Installer.BuildBundle(args, outputPath =>
                 .DisplayName("Visual C++ Redistributable")
                 .Version("14.40.33816")
                 .Vital(true)
-                .InstallCondition("NOT VCRedistInstalled")
+                .InstallCondition(!Condition.Property("VCRedistInstalled"))
                 .Container(prereqs)
                 .ExitCode(0, ExitCodeBehavior.Success)
                 .ExitCode(3010, ExitCodeBehavior.RebootRequired)
@@ -94,7 +94,7 @@ return Installer.BuildBundle(args, outputPath =>
                 .DisplayName("Security Update KB5034441")
                 .KbArticle("KB5034441")
                 .Vital(false)
-                .InstallCondition("VersionNT >= 603 AND NOT KB5034441Installed"))
+                .InstallCondition(Condition.IsWindows10OrLater & !Condition.Property("KB5034441Installed")))
 
             // Rollback boundary: application
             // Isolates the main application from prerequisites.
@@ -108,8 +108,8 @@ return Installer.BuildBundle(args, outputPath =>
                 .Version("2.5.0")
                 .Vital(true)
                 .Container(appContainer)
-                .Property("INSTALLFOLDER", "[ProgramFiles64Folder]Northwind Traders\\NorthwindApp")
-                .Property("CONTOSO_MODE", "bundled"))
+                .Property("INSTALLFOLDER", (MsiProperty.ProgramFiles64Folder / @"Northwind Traders\NorthwindApp").ToString())
+                .Property("NORTHWIND_MODE", "bundled"))
 
             // MSP package: cumulative patch (applied after MSI install)
             .MspPackage(patchMspPath, msp => msp
@@ -118,7 +118,7 @@ return Installer.BuildBundle(args, outputPath =>
                 .PatchCode("{E5F6A7B8-C9D0-4E1F-2A3B-4C5D6E7F8A9B}")
                 .TargetProductCode("{D1E2F3A4-B5C6-4D7E-8F9A-0B1C2D3E4F5A}")
                 .Vital(false)
-                .InstallCondition("PATCH_AVAILABLE")))
+                .InstallCondition(Condition.Property("PATCH_AVAILABLE"))))
 
         .Build();
 

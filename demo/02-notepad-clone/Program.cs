@@ -42,7 +42,7 @@ return Installer.Build(args, package =>
         .Key(RegistryRoot.LocalMachine, @"Software\FalkSoftware\FalkPad", key =>
         {
             key.Value("Version", "2.1.0");
-            key.Value("InstallPath", "[INSTALLDIR]");
+            key.Value("InstallPath", MsiProperty.InstallDir);
         }));
 
     // Major upgrade support -- block downgrades

@@ -35,14 +35,14 @@ return Installer.Build(args, p =>
         .To(KnownFolder.ProgramFiles / "Falk Technologies" / "DevToolkit"));
 
     // FALK_HOME environment variable
-    p.EnvironmentVariable("FALK_HOME", "[INSTALLFOLDER]", ev =>
+    p.EnvironmentVariable("FALK_HOME", MsiProperty.InstallFolder, ev =>
     {
         ev.IsSystem = true;
         ev.Action = EnvironmentVariableAction.Set;
     });
 
     // PATH append
-    p.EnvironmentVariable("PATH", "[INSTALLFOLDER]bin", ev =>
+    p.EnvironmentVariable("PATH", MsiProperty.InstallFolder / "bin", ev =>
     {
         ev.IsSystem = true;
         ev.Action = EnvironmentVariableAction.Append;
@@ -131,7 +131,7 @@ return Installer.Build(args, p =>
 
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\FalkTech\Toolkit", k => k
-            .Value("CompilerPath", @"[INSTALLFOLDER]Compiler\compiler.exe")));
+            .Value("CompilerPath", MsiProperty.InstallFolder / @"Compiler\compiler.exe")));
 
     // =====================================================================
     // Feature: Debugger (not default -- user opt-in)
@@ -152,7 +152,7 @@ return Installer.Build(args, p =>
 
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\FalkTech\Toolkit", k => k
-            .Value("DebuggerPath", @"[INSTALLFOLDER]Debugger\debugger.exe")));
+            .Value("DebuggerPath", MsiProperty.InstallFolder / @"Debugger\debugger.exe")));
 
     // =====================================================================
     // Feature: Documentation (default)
