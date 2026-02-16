@@ -210,4 +210,52 @@ public sealed class BundleBuilderTests
 
         Assert.Empty(model.Packages);
     }
+
+    [Fact]
+    public void UseCustomUI_SetsUiTypeAndPath()
+    {
+        var model = new BundleBuilder()
+            .Name("Test")
+            .Manufacturer("Corp")
+            .UseCustomUI("path/to/ui.csproj")
+            .Build();
+
+        Assert.NotNull(model.UiConfig);
+        Assert.Equal(BundleUiType.Custom, model.UiConfig.UiType);
+        Assert.Equal("path/to/ui.csproj", model.UiConfig.CustomUiProjectPath);
+    }
+
+    [Fact]
+    public void UseCustomUI_NullPath_ThrowsArgumentException()
+    {
+        var builder = new BundleBuilder();
+        Assert.Throws<ArgumentNullException>(() => builder.UseCustomUI(null!));
+    }
+
+    [Fact]
+    public void UseCustomUI_EmptyPath_ThrowsArgumentException()
+    {
+        var builder = new BundleBuilder();
+        Assert.Throws<ArgumentException>(() => builder.UseCustomUI(""));
+    }
+
+    [Fact]
+    public void UseCustomUI_WhitespacePath_ThrowsArgumentException()
+    {
+        var builder = new BundleBuilder();
+        Assert.Throws<ArgumentException>(() => builder.UseCustomUI("   "));
+    }
+
+    [Fact]
+    public void UseCustomUI_OverridesBuiltInUI()
+    {
+        var model = new BundleBuilder()
+            .Name("Test")
+            .Manufacturer("Corp")
+            .UseBuiltInUI()
+            .UseCustomUI("ui.csproj")
+            .Build();
+
+        Assert.Equal(BundleUiType.Custom, model.UiConfig!.UiType);
+    }
 }

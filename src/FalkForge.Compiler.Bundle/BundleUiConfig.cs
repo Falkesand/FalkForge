@@ -6,4 +6,5 @@ public sealed class BundleUiConfig
     public string? LicenseFile { get; init; }
     public string? LogoFile { get; init; }
     public string? ThemeColor { get; init; }
+    public string? CustomUiProjectPath { get; init; }
 }

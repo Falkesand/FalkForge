@@ -11,6 +11,9 @@
     <PackageReference Include="System.Reactive" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Ui.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\FalkForge.Ui.Abstractions\FalkForge.Ui.Abstractions.csproj" />
     <ProjectReference Include="..\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
   </ItemGroup>

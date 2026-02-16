@@ -39,6 +39,11 @@ public sealed class BundleValidator
         if (invalidRefs.Length > 0)
             return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL006: {string.Join("; ", invalidRefs)}");
 
+        // BDL007: Custom UI requires a project path
+        if (model.UiConfig is { UiType: BundleUiType.Custom } uiConfig &&
+            string.IsNullOrWhiteSpace(uiConfig.CustomUiProjectPath))
+            return Result<Unit>.Failure(ErrorKind.BundleError, "BDL007: Custom UI requires a project path (CustomUiProjectPath)");
+
         return Unit.Value;
     }
 }
