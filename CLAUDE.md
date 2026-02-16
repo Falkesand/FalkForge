@@ -6,7 +6,7 @@ C# MSI/Bundle installer framework. Fluent API for defining packages, MSI compile
 
 ```bash
 dotnet build          # 0 warnings required (TreatWarningsAsErrors)
-dotnet test           # ~1625 tests, xUnit 2.9.3
+dotnet test           # ~1900 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 
@@ -31,8 +31,8 @@ src/
   FalkForge.Extensions.DotNet/     # .NET runtime detection via registry and filesystem
   FalkForge.Extensions.Iis/        # IIS AppPool, WebSite, WebBinding, Certificate configuration
   FalkForge.Extensions.Sql/        # SQL Server database, script, and string execution
-  FalkForge.Ui.Abstractions/       # IInstallerEngine, base ViewModels
-  FalkForge.Ui/                    # WPF + ReactiveUI installer UI
+  FalkForge.Ui.Abstractions/       # IInstallerEngine, base ViewModels, PageResult, InstallerState
+  FalkForge.Ui/                    # WPF + ReactiveUI installer UI + Custom UI framework
   FalkForge.Sdk/                   # MSBuild SDK targets (netstandard2.0)
   FalkForge.Testing/               # Test utilities, mocks
   FalkForge.Localization/          # JSON-based localization with culture fallback
@@ -106,6 +106,19 @@ Locations:
 - `src/FalkForge.Compiler.Bundle/ContainerRef.cs`, `RollbackBoundaryRef.cs`
 - `src/FalkForge.Extensions.Iis/AppPoolRef.cs`, `CertificateRef.cs`
 - `src/FalkForge.Extensions.Sql/SqlDatabaseRef.cs`
+
+### PageResult -- `src/FalkForge.Ui.Abstractions/PageResult.cs`
+Sealed class for page navigation results in custom UI. Singletons: `Next`, `Previous`, `Finish`, `Cancel`, `Install`, `Uninstall`, `Repair`. Factories: `Stay(message?)` for validation errors, `GoTo<TPage>()` for type-targeted navigation. `Kind` (PageResultKind), `Message` (string?), `TargetType` (Type?, internal).
+
+### InstallerState -- `src/FalkForge.Ui.Abstractions/InstallerState.cs`
+Thread-safe `ConcurrentDictionary<string, object>` for cross-page data sharing. Typed `Get<T>(key)` / `Set<T>(key, value)`. Convenience `InstallDirectory` property.
+
+### InstallerPage / InstallerPage<TView> -- Custom UI Page Base
+`InstallerPage` (`src/FalkForge.Ui/InstallerPage.cs`): Non-generic abstract base with internal constructor. Properties: `Engine` (IInstallerEngine), `SharedState` (InstallerState), `DetectedState` (InstallState) -- all internal set. Virtual: `OnNext()` -> PageResult, `OnBack()` -> PageResult, `CanGoNext`, `CanGoBack`, lifecycle hooks. INotifyPropertyChanged with `SetField<T>` helper.
+`InstallerPage<TView>` (`src/FalkForge.Ui/InstallerPageOfT.cs`): Generic subclass where `TView : FrameworkElement, new()`. Auto-creates view and wires DataContext.
+
+### InstallerApp -- `src/FalkForge.Ui/InstallerApp.cs`
+Static `Run(string[] args, Action<InstallerUIBuilder> configure)` entry point for custom UI installers. Orchestrates page creation, engine wiring, window creation, and WPF application lifecycle.
 
 ### Unit -- `src/FalkForge.Core/Unit.cs`
 `readonly record struct Unit { static readonly Unit Value = default; }` -- for `Result<Unit>`.
@@ -225,6 +238,16 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `ViewModels/` -- DefaultShellViewModel, WelcomePageViewModel, LicensePageViewModel, InstallDirPageViewModel, FeaturesPageViewModel, ProgressPageViewModel, CompletePageViewModel, MaintenancePageViewModel
 - `Views/` -- 8 XAML files (+ MaintenancePage.xaml, MaintenancePage.xaml.cs)
 - `Converters/` -- WPF value converters
+- `InstallerPage.cs` -- Non-generic abstract base for custom pages (internal ctor)
+- `InstallerPageOfT.cs` -- Generic `InstallerPage<TView>` base class
+- `InstallerApp.cs` -- Static entry point for custom UI installers
+- `InstallerUIBuilder.cs` -- Fluent builder composing window config and page registration
+- `InstallerWindowBuilder.cs` -- Window configuration (size, borderless, colors, icon)
+- `InstallerWindowConfig.cs` -- Internal record holding window configuration
+- `PageRegistrar.cs` -- Page factory registration
+- `RelayCommand.cs` -- Internal ICommand for async operations
+- `ViewModels/CustomShellViewModel.cs` -- Internal orchestrator for custom UI navigation and engine actions
+- `Views/CustomInstallerWindow.xaml` -- Default window shell for custom UI pages
 
 ## Compiler.Bundle Layout
 
@@ -233,7 +256,8 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `Models/ContainerModel.cs`, `RemotePayloadModel.cs`, `RelatedBundleModel.cs`, `RollbackBoundaryModel.cs`, `ChainItem.cs`, `PackageChainItem.cs`, `RollbackBoundaryChainItem.cs`
 - `Compilation/BundleCompiler.cs`, `PayloadEmbedder.cs`, `ManifestGenerator.cs`
 - `Compression/GzipCompressor.cs`
-- `Validation/BundleValidator.cs` -- BDL001-006
+- `Validation/BundleValidator.cs` -- BDL001-007
+- `UseCustomUI(string uiProjectPath)` on `BundleBuilder` -- Registers a custom UI project. Validation: BDL007 (path required).
 - EXE format: [PE stub][Magic: "FALKBUNDLE"][Manifest][Compressed payloads][TOC][Footer]
 
 ## NativeAOT Constraints (Engine + Elevation)
@@ -327,7 +351,7 @@ MSBuild SDK (netstandard2.0) with source generation for referenced project outpu
 
 ## Demos (`demo/`)
 
-### C# Script Demos (10 projects)
+### C# Script Demos (12 projects)
 - `01-hello-world/` -- Minimal single-file MSI installer
 - `02-notepad-clone/` -- Notepad-style app with shortcuts and file associations
 - `03-client-server/` -- Multi-component client/server with services
@@ -338,6 +362,8 @@ MSBuild SDK (netstandard2.0) with source generation for referenced project outpu
 - `08-localization/` -- Multi-language installer with culture fallback
 - `09-advanced-msi/` -- Custom actions, custom tables, sequence manipulation, merge modules, patches, transforms
 - `10-advanced-bundle/` -- Multi-project bundle with rollback boundaries, related bundles, MSU/MSP packages
+- `11-custom-ui-simple/` -- Minimal custom UI: Welcome -> Install -> Complete. Standard window with blue accent. Demonstrates InstallerPage<TView> + InstallerApp.Run() entry point.
+- `12-custom-ui-vstyle/` -- VS Installer-style dark theme UI for fictional "FalkForge DevTools Suite 2026". Borderless window, workload selection with component details, per-workload progress bars. 4 pages: Product, Workloads, Progress, Complete. Dark theme (#1E1E1E) with purple accent (#7B68EE).
 
 ### JSON Config Demos (`demo/json/`, 7 files)
 - `01-minimal.json` -- Minimal JSON-driven MSI
@@ -371,7 +397,7 @@ FalkForge.Engine.Protocol.Transport    Named pipe transport
 FalkForge.Engine.Elevation             Elevated process
 FalkForge.Platform                     Platform abstractions
 FalkForge.Platform.Windows             Windows implementations
-FalkForge.Ui                           WPF UI
+FalkForge.Ui                           WPF UI + Custom UI types (InstallerPage, InstallerApp, builders)
 FalkForge.Ui.ViewModels                ViewModels
 FalkForge.Extensions.Util              Utility extension (XmlConfig, UserManagement, etc.)
 FalkForge.Extensions.Firewall          Firewall extension

@@ -161,12 +161,86 @@ public sealed class BundleValidatorTests
         Assert.True(result.IsSuccess);
     }
 
+    [Fact]
+    public void Validate_CustomUiWithNullPath_ReturnsBDL007()
+    {
+        var model = CreateModel(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.Custom,
+            CustomUiProjectPath = null
+        });
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.Contains("BDL007", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_CustomUiWithEmptyPath_ReturnsBDL007()
+    {
+        var model = CreateModel(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.Custom,
+            CustomUiProjectPath = ""
+        });
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL007", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_CustomUiWithWhitespacePath_ReturnsBDL007()
+    {
+        var model = CreateModel(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.Custom,
+            CustomUiProjectPath = "   "
+        });
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL007", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_CustomUiWithValidPath_Succeeds()
+    {
+        var model = CreateModel(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.Custom,
+            CustomUiProjectPath = "path/to/ui.csproj"
+        });
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Validate_BuiltInUiWithNoCustomPath_Succeeds()
+    {
+        var model = CreateModel(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.BuiltIn
+        });
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
     private static BundleModel CreateModel(
         string name = "TestBundle",
         string manufacturer = "TestCo",
         string version = "1.0.0",
         BundlePackageModel[]? packages = null,
-        ContainerModel[]? containers = null)
+        ContainerModel[]? containers = null,
+        BundleUiConfig? uiConfig = null)
     {
         return new BundleModel
         {
@@ -177,7 +251,8 @@ public sealed class BundleValidatorTests
             UpgradeCode = Guid.NewGuid(),
             Scope = InstallScope.PerMachine,
             Packages = packages ?? [CreatePackage("Pkg1")],
-            Containers = containers ?? []
+            Containers = containers ?? [],
+            UiConfig = uiConfig
         };
     }
 

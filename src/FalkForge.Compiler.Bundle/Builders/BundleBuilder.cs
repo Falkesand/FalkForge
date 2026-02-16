@@ -50,6 +50,17 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder UseCustomUI(string uiProjectPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uiProjectPath);
+        _uiConfig = new BundleUiConfig
+        {
+            UiType = BundleUiType.Custom,
+            CustomUiProjectPath = uiProjectPath
+        };
+        return this;
+    }
+
     public BundleBuilder RelatedBundle(string bundleId, Action<RelatedBundleBuilder>? configure = null)
     {
         var builder = new RelatedBundleBuilder().BundleId(bundleId);

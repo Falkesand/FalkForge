@@ -4,6 +4,10 @@
     <Description>UI abstractions and base ViewModels for FalkForge</Description>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Ui.Abstractions.Tests" />
+    <InternalsVisibleTo Include="FalkForge.Ui" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
   </ItemGroup>
 </Project>
