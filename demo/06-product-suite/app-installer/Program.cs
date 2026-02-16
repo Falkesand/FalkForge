@@ -57,7 +57,7 @@ return Installer.Build(args, p =>
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\Acme\AcmeApp", k => k
             .Value("Version", "2.0.0")
-            .Value("InstallPath", "[INSTALLFOLDER]")));
+            .Value("InstallPath", MsiProperty.InstallFolder)));
 
     // ──────────────────────────────────────────────────────────────────
     // Major upgrade
@@ -66,5 +66,5 @@ return Installer.Build(args, p =>
         .DowngradeErrorMessage("A newer version of Acme Application is already installed."));
 
     // Launch condition: Require Windows 10+
-    p.Require("VersionNT >= 603", "Acme Application requires Windows 10 or later.");
+    p.Require(Condition.IsWindows10OrLater, "Acme Application requires Windows 10 or later.");
 });

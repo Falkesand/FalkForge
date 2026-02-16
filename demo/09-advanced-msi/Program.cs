@@ -73,7 +73,7 @@ return Installer.Build(args, p =>
             tools.IsDefault = true;
 
             // Condition: disable on Server Core (no shell)
-            tools.Condition("NOT MsiNTSuitePersonal", 0);
+            tools.Condition(!Condition.Property("MsiNTSuitePersonal"), 0);
         });
 
         // Sub-feature: Documentation (optional)
@@ -160,7 +160,7 @@ return Installer.Build(args, p =>
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\Contoso\ServerPlatform", k => k
             .Value("Version", "3.1.0")
-            .Value("InstallPath", "[INSTALLFOLDER]")
+            .Value("InstallPath", MsiProperty.InstallFolder)
             .DWord("Installed", 1)
             .Value("LogPath", "[LOGSDIR]", RegistryValueType.ExpandString)));
 
@@ -191,7 +191,7 @@ return Installer.Build(args, p =>
     p.CustomAction("SetInstallMode", ca =>
     {
         ca.SetProperty("CONTOSO_INSTALL_MODE", "server");
-        ca.Condition = "NOT Installed";
+        ca.Condition = Condition.IsInstalling;
         ca.After = "CostFinalize";
     });
 
@@ -199,7 +199,7 @@ return Installer.Build(args, p =>
     p.CustomAction("SetUpgradeFlag", ca =>
     {
         ca.SetProperty("CONTOSO_UPGRADING", "1");
-        ca.Condition = "WIX_UPGRADE_DETECTED";
+        ca.Condition = Condition.Property("WIX_UPGRADE_DETECTED");
         ca.After = "FindRelatedProducts";
     });
 
@@ -211,7 +211,7 @@ return Installer.Build(args, p =>
         ca.Deferred();
         ca.NoImpersonate();
         ca.After = "InstallFiles";
-        ca.Condition = "NOT Installed";
+        ca.Condition = Condition.IsInstalling;
     });
 
     // Custom Action -- Rollback for the deferred action
@@ -221,7 +221,7 @@ return Installer.Build(args, p =>
         ca.Rollback();
         ca.NoImpersonate();
         ca.Before = "ConfigureDatabase";
-        ca.Condition = "NOT Installed";
+        ca.Condition = Condition.IsInstalling;
     });
 
     // ──────────────────────────────────────────────────────────────────
@@ -268,16 +268,16 @@ return Installer.Build(args, p =>
     p.ExecuteSequence(seq => seq
         .Action("SetInstallMode")
             .After("CostFinalize")
-            .Condition("NOT Installed")
+            .Condition(Condition.IsInstalling)
         .Action("SetUpgradeFlag")
             .After("FindRelatedProducts")
-            .Condition("WIX_UPGRADE_DETECTED")
+            .Condition(Condition.Property("WIX_UPGRADE_DETECTED"))
         .Action("RollbackDatabase")
             .Before("ConfigureDatabase")
-            .Condition("NOT Installed")
+            .Condition(Condition.IsInstalling)
         .Action("ConfigureDatabase")
             .After("InstallFiles")
-            .Condition("NOT Installed"));
+            .Condition(Condition.IsInstalling));
 
     // ──────────────────────────────────────────────────────────────────
     // Major upgrade -- replace previous versions
@@ -290,7 +290,7 @@ return Installer.Build(args, p =>
     // ──────────────────────────────────────────────────────────────────
     // Launch conditions
     // ──────────────────────────────────────────────────────────────────
-    p.Require("VersionNT >= 603", "Contoso Server Platform requires Windows 10 or later.");
+    p.Require(Condition.IsWindows10OrLater, "Contoso Server Platform requires Windows 10 or later.");
     p.Require("CONTOSO_LICENSE_KEY", "A valid Contoso license key is required. Set the CONTOSO_LICENSE_KEY property.");
 
     // ──────────────────────────────────────────────────────────────────
