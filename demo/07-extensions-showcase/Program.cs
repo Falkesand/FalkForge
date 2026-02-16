@@ -2,7 +2,7 @@ using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
-using FalkForge.Platform.Windows;
+
 using FalkForge.Extensions.Firewall;
 using FalkForge.Extensions.Iis;
 using FalkForge.Extensions.Iis.Models;
@@ -242,4 +242,4 @@ return Installer.Build(args, package =>
             .To(KnownFolder.ProgramFiles / "Contoso" / "ExtensionsShowcase"));
     });
 
-}, new MsiCompiler(new WindowsFileSystem()));
+}, new MsiCompiler());
