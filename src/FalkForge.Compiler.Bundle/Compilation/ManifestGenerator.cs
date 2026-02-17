@@ -77,6 +77,12 @@ public sealed class ManifestGenerator
             f.IsRequired,
             f.PackageIds.ToArray())).ToArray();
 
+        var dependencyProviders = model.DependencyProviders.Select(p =>
+            new ManifestDependencyProvider(p.Key, p.Version, p.DisplayName)).ToArray();
+
+        var dependencyConsumers = model.DependencyConsumers.Select(c =>
+            new ManifestDependencyConsumer(c.ProviderKey, c.ConsumerKey)).ToArray();
+
         return new InstallerManifest
         {
             Name = model.Name,
@@ -89,6 +95,8 @@ public sealed class ManifestGenerator
             Chain = chainItems,
             Variables = variables,
             Features = features,
+            DependencyProviders = dependencyProviders,
+            DependencyConsumers = dependencyConsumers,
             LicenseFile = model.UiConfig?.LicenseFile,
             Scope = model.Scope
         };

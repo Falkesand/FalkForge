@@ -36,6 +36,14 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             context.Variables.Set($"Feature_{featureId}", isSelected ? "1" : "0");
         }
 
+        // Block uninstall if dependencies exist (before notifying UI of plan begin)
+        if (context.RequestedAction == InstallAction.Uninstall && context.DependencyBlockers.Count > 0)
+        {
+            var blockerNames = string.Join(", ", context.DependencyBlockers.Select(b => b.DisplayName ?? b.ProviderKey));
+            context.Logger.Error("Dependency", $"Cannot uninstall: other products depend on this package ({blockerNames})");
+            return EnginePhase.Failed;
+        }
+
         // Notify UI that planning is beginning
         if (context.UiPipe is not null && context.UiPipe.IsConnected)
         {

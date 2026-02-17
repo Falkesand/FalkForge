@@ -14,6 +14,8 @@ public sealed class BundleBuilder
     private readonly List<ContainerModel> _containers = new();
     private readonly List<BundleVariableModel> _variables = new();
     private readonly List<BundleFeatureModel> _features = new();
+    private readonly List<BundleDependencyProviderModel> _dependencyProviders = new();
+    private readonly List<BundleDependencyConsumerModel> _dependencyConsumers = new();
     private BundleUiConfig? _uiConfig;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
@@ -135,6 +137,31 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder DependencyProvider(string key, string version, string? displayName = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        _dependencyProviders.Add(new BundleDependencyProviderModel
+        {
+            Key = key,
+            Version = version,
+            DisplayName = displayName
+        });
+        return this;
+    }
+
+    public BundleBuilder DependencyConsumer(string providerKey, string consumerKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerKey);
+        _dependencyConsumers.Add(new BundleDependencyConsumerModel
+        {
+            ProviderKey = providerKey,
+            ConsumerKey = consumerKey
+        });
+        return this;
+    }
+
     public BundleModel Build()
     {
         return new BundleModel
@@ -150,6 +177,8 @@ public sealed class BundleBuilder
             Chain = _chainItems.AsReadOnly(),
             Variables = _variables.AsReadOnly(),
             Features = _features.AsReadOnly(),
+            DependencyProviders = _dependencyProviders.AsReadOnly(),
+            DependencyConsumers = _dependencyConsumers.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig
         };
