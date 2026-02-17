@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Compiler.Msi.Tests" />
+    <InternalsVisibleTo Include="FalkForge.Decompiler" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
