@@ -374,7 +374,7 @@ public sealed class BundleValidatorTests
         var result = _validator.Validate(model);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
         Assert.Contains("BDL025", result.Error.Message);
     }
 
@@ -389,7 +389,7 @@ public sealed class BundleValidatorTests
         var result = _validator.Validate(model);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
         Assert.Contains("BDL024", result.Error.Message);
     }
 

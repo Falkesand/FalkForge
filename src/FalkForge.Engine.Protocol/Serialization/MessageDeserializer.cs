@@ -78,6 +78,20 @@ public static class MessageDeserializer
                 MessageType.RequestApply => new RequestApplyMessage { SequenceId = sequenceId },
                 MessageType.ElevateExecute => ReadElevateExecute(reader, sequenceId),
                 MessageType.ElevateResult => ReadElevateResult(reader, sequenceId),
+                MessageType.UpdateAvailable => new UpdateAvailableMessage
+                {
+                    SequenceId = sequenceId,
+                    Version = reader.ReadString(),
+                    ReleaseNotes = ReadNullableString(reader),
+                    DownloadUrl = reader.ReadString(),
+                    LocalPath = ReadNullableString(reader)
+                },
+                MessageType.UpdateReady => new UpdateReadyMessage
+                {
+                    SequenceId = sequenceId,
+                    Version = reader.ReadString(),
+                    LocalPath = reader.ReadString()
+                },
                 _ => throw new InvalidOperationException($"Unhandled message type: {type}")
             };
         }

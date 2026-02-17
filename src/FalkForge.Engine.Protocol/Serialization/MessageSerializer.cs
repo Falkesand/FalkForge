@@ -142,6 +142,18 @@ public static class MessageSerializer
                 }
                 break;
 
+            case UpdateAvailableMessage m:
+                writer.Write(m.Version);
+                writer.Write(m.ReleaseNotes ?? string.Empty);
+                writer.Write(m.DownloadUrl);
+                writer.Write(m.LocalPath ?? string.Empty);
+                break;
+
+            case UpdateReadyMessage m:
+                writer.Write(m.Version);
+                writer.Write(m.LocalPath);
+                break;
+
             default:
                 throw new InvalidOperationException($"Unknown message type: {message.GetType().Name}");
         }

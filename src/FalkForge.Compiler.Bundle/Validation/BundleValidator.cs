@@ -171,9 +171,9 @@ public sealed class BundleValidator
         if (model.UpdateFeed is not null)
         {
             if (!Uri.TryCreate(model.UpdateFeed.FeedUrl, UriKind.Absolute, out var feedUri))
-                return Result<Unit>.Failure(ErrorKind.Validation, $"BDL024: Update feed URL '{model.UpdateFeed.FeedUrl}' is not a valid absolute URI.");
+                return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL024: Update feed URL '{model.UpdateFeed.FeedUrl}' is not a valid absolute URI.");
             else if (feedUri.Scheme != Uri.UriSchemeHttps)
-                return Result<Unit>.Failure(ErrorKind.Validation, $"BDL025: Update feed URL must use HTTPS scheme, got '{feedUri.Scheme}'.");
+                return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL025: Update feed URL must use HTTPS scheme, got '{feedUri.Scheme}'.");
         }
 
         return Unit.Value;
