@@ -388,6 +388,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+# Documentation generator fragments
+docs/gen/
+
 # JetBrains Rider
 *.sln.iml
 .idea/
