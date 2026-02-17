@@ -81,7 +81,7 @@ public sealed class EngineLifecycleTests
             new TrackingHandler(EnginePhase.Planning, visitedPhases,
                 new PlanningHandler(planner)),
             new TrackingHandler(EnginePhase.Elevating, visitedPhases,
-                new ElevatingHandler()),
+                new StubElevatingHandler()),
             new TrackingHandler(EnginePhase.Applying, visitedPhases,
                 new SuccessApplyHandler()),
             new TrackingHandler(EnginePhase.Completing, visitedPhases,
@@ -335,6 +335,19 @@ public sealed class EngineLifecycleTests
         {
             _visited.Add(Phase);
             return _inner.ExecuteAsync(context, ct);
+        }
+    }
+
+    /// <summary>
+    /// Stub handler for the Elevating phase that skips real elevation.
+    /// </summary>
+    private sealed class StubElevatingHandler : IEnginePhaseHandler
+    {
+        public EnginePhase Phase => EnginePhase.Elevating;
+
+        public Task<EnginePhase> ExecuteAsync(EngineContext context, CancellationToken ct)
+        {
+            return Task.FromResult(EnginePhase.Applying);
         }
     }
 

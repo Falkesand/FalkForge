@@ -1,7 +1,9 @@
 namespace FalkForge.Engine;
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
@@ -106,4 +108,21 @@ public sealed class EngineContext
     /// Rollback journal for recording actions that can be undone during rollback.
     /// </summary>
     public RollbackJournal? Journal { get; set; }
+
+    /// <summary>
+    /// Client for sending commands to the elevated companion process.
+    /// Null when elevation has not been established.
+    /// </summary>
+    public IElevationClient? ElevationClient { get; set; }
+
+    /// <summary>
+    /// The named pipe server used for communication with the elevated companion process.
+    /// Null when elevation has not been established.
+    /// </summary>
+    public PipeServer? ElevationPipe { get; set; }
+
+    /// <summary>
+    /// The elevated companion process, if launched.
+    /// </summary>
+    public Process? ElevatedProcess { get; set; }
 }
