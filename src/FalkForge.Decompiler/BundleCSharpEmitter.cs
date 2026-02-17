@@ -70,6 +70,7 @@ internal static class BundleCSharpEmitter
         EmitUnmappedFeatures(unmappedFeatures, AppendLine);
 
         EmitVariables(bundle.Variables, AppendLine);
+        EmitFeatures(bundle.Features, AppendLine, ref indent);
         EmitRelatedBundles(bundle.RelatedBundles, AppendLine, ref indent);
         EmitContainers(bundle.Containers, AppendLine, ref indent);
         EmitUiConfig(bundle.UiConfig, AppendLine, ref indent);
@@ -367,6 +368,39 @@ internal static class BundleCSharpEmitter
                 builderCalls.Add("Secret()");
 
             appendLine($"b.Variable({Quote(variable.Name)}, v => v.{string.Join(".", builderCalls)});");
+        }
+    }
+
+    private static void EmitFeatures(
+        IReadOnlyList<BundleFeatureModel> features,
+        Action<string> appendLine,
+        ref int indent)
+    {
+        if (features.Count == 0)
+            return;
+
+        appendLine("");
+        foreach (var feature in features)
+        {
+            appendLine($"b.Feature({Quote(feature.Id)}, f =>");
+            appendLine("{");
+            indent++;
+
+            appendLine($"f.Title({Quote(feature.Title)});");
+
+            if (feature.Description is not null)
+                appendLine($"f.Description({Quote(feature.Description)});");
+
+            if (feature.IsRequired)
+                appendLine("f.Required();");
+            else if (!feature.IsDefault)
+                appendLine("f.Default(false);");
+
+            foreach (var packageId in feature.PackageIds)
+                appendLine($"f.Package({Quote(packageId)});");
+
+            indent--;
+            appendLine("});");
         }
     }
 

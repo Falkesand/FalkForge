@@ -104,8 +104,8 @@ public class MessageSerializerTests
     {
         var features = new[]
         {
-            new FeatureState("feat-1", "Feature One", true, 1024L),
-            new FeatureState("feat-2", "Feature Two", false, 2048L)
+            new FeatureState("feat-1", "Feature One", "First feature", true, false, false, 1024L),
+            new FeatureState("feat-2", "Feature Two", null, false, true, true, 2048L)
         };
 
         var message = new DetectCompleteMessage
@@ -135,12 +135,18 @@ public class MessageSerializerTests
 
         var f1Id = reader.ReadString();
         var f1Title = reader.ReadString();
+        var f1Description = reader.ReadString();
         var f1Selected = reader.ReadBoolean();
+        var f1Required = reader.ReadBoolean();
+        var f1WasPrevious = reader.ReadBoolean();
         var f1Space = reader.ReadInt64();
 
         Assert.Equal("feat-1", f1Id);
         Assert.Equal("Feature One", f1Title);
+        Assert.Equal("First feature", f1Description);
         Assert.True(f1Selected);
+        Assert.False(f1Required);
+        Assert.False(f1WasPrevious);
         Assert.Equal(1024L, f1Space);
     }
 

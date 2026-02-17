@@ -47,7 +47,10 @@ public static class MessageSerializer
                 {
                     writer.Write(f.FeatureId);
                     writer.Write(f.Title);
+                    writer.Write(f.Description ?? string.Empty);
                     writer.Write(f.IsSelected);
+                    writer.Write(f.IsRequired);
+                    writer.Write(f.WasPreviouslyInstalled);
                     writer.Write(f.DiskSpaceRequired);
                 }
                 break;

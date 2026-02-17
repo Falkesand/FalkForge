@@ -69,6 +69,14 @@ public sealed class ManifestGenerator
             v.Secret
         )).ToArray();
 
+        var features = model.Features.Select(f => new ManifestFeature(
+            f.Id,
+            f.Title,
+            f.Description,
+            f.IsDefault,
+            f.IsRequired,
+            f.PackageIds.ToArray())).ToArray();
+
         return new InstallerManifest
         {
             Name = model.Name,
@@ -80,6 +88,7 @@ public sealed class ManifestGenerator
             RelatedBundles = relatedBundles,
             Chain = chainItems,
             Variables = variables,
+            Features = features,
             LicenseFile = model.UiConfig?.LicenseFile,
             Scope = model.Scope
         };

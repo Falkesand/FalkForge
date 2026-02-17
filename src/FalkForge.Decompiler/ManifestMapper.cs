@@ -14,6 +14,7 @@ internal static class ManifestMapper
         var containers = CollectContainers(manifest.Packages);
         var uiConfig = MapUiConfig(manifest.LicenseFile);
         var variables = MapVariables(manifest.Variables);
+        var features = MapFeatures(manifest.Features);
 
         return Result<BundleModel>.Success(new BundleModel
         {
@@ -28,6 +29,7 @@ internal static class ManifestMapper
             Chain = chain,
             Containers = containers,
             Variables = variables,
+            Features = features,
             UiConfig = uiConfig
         });
     }
@@ -175,6 +177,19 @@ internal static class ManifestMapper
             v.Hidden,
             v.Secret
         )).ToList();
+    }
+
+    private static List<BundleFeatureModel> MapFeatures(ManifestFeature[] features)
+    {
+        return features.Select(f => new BundleFeatureModel
+        {
+            Id = f.Id,
+            Title = f.Title,
+            Description = f.Description,
+            IsDefault = f.IsDefault,
+            IsRequired = f.IsRequired,
+            PackageIds = f.PackageIds.ToList().AsReadOnly()
+        }).ToList();
     }
 
     private static BundleUiConfig? MapUiConfig(string? licenseFile)

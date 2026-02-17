@@ -24,6 +24,12 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             context.InstallDirectory = context.UserInstallDirectory;
         }
 
+        // Populate feature selections from detected features where the user hasn't overridden them
+        foreach (var featureState in context.DetectedFeatures)
+        {
+            context.FeatureSelections.TryAdd(featureState.FeatureId, featureState.IsSelected);
+        }
+
         // Apply feature selections to variables for condition evaluation
         foreach (var (featureId, isSelected) in context.FeatureSelections)
         {
@@ -44,12 +50,14 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             context.DetectedVersion,
             context.DetectedFeatures);
 
+        var featureSnapshot = new Dictionary<string, bool>(context.FeatureSelections);
         var planResult = _planner.CreatePlan(
             context.Manifest,
             detection,
             context.RequestedAction,
             context.Variables,
-            context.DetectedRelatedBundles);
+            context.DetectedRelatedBundles,
+            featureSnapshot);
         if (planResult.IsFailure)
         {
             context.ErrorMessage = planResult.Error.Message;
