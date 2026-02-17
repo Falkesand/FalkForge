@@ -34,6 +34,17 @@ app.Configure(config =>
         .WithExample("decompile", "package.msi", "-o", "installer.cs")
         .WithExample("decompile", "bundle.exe")
         .WithExample("decompile", "bundle.exe", "-o", "installer.cs");
+
+    config.AddBranch("bundle", bundle =>
+    {
+        bundle.SetDescription("Bundle signing operations (detach/reattach for code signing)");
+        bundle.AddCommand<BundleDetachCommand>("detach")
+            .WithDescription("Detach PE stub from bundle for external signing")
+            .WithExample("bundle", "detach", "installer.exe", "--stub", "stub.exe", "--data", "bundle.dat");
+        bundle.AddCommand<BundleReattachCommand>("reattach")
+            .WithDescription("Reattach signed PE stub to bundle data")
+            .WithExample("bundle", "reattach", "--stub", "signed.exe", "--data", "bundle.dat", "-o", "installer.exe");
+    });
 });
 
 return app.Run(args);
