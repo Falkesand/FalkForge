@@ -10,7 +10,13 @@ namespace FalkForge.Decompiler;
 /// </summary>
 internal static class BundleCSharpEmitter
 {
-    public static string Emit(BundleModel bundle)
+    public static string Emit(BundleModel bundle) =>
+        Emit(bundle, preamble: null, unmappedFeatures: null);
+
+    public static string Emit(
+        BundleModel bundle,
+        string? preamble = null,
+        IReadOnlyList<WixUnmappedFeature>? unmappedFeatures = null)
     {
         var sb = new StringBuilder();
         var indent = 0;
@@ -25,6 +31,12 @@ internal static class BundleCSharpEmitter
 
             sb.Append(new string(' ', indent * 4));
             sb.AppendLine(line);
+        }
+
+        if (preamble is not null)
+        {
+            EmitPreamble(preamble, AppendLine);
+            AppendLine();
         }
 
         AppendLine($"// Decompiled from bundle: {bundle.Name}");
@@ -54,6 +66,8 @@ internal static class BundleCSharpEmitter
 
         if (bundle.Scope != InstallScope.PerMachine)
             AppendLine($"b.Scope(InstallScope.{bundle.Scope});");
+
+        EmitUnmappedFeatures(unmappedFeatures, AppendLine);
 
         EmitRelatedBundles(bundle.RelatedBundles, AppendLine, ref indent);
         EmitContainers(bundle.Containers, AppendLine, ref indent);
@@ -288,6 +302,36 @@ internal static class BundleCSharpEmitter
         foreach (var prop in package.Properties)
         {
             appendLine($"p.Property({Quote(prop.Key)}, {Quote(prop.Value)});");
+        }
+    }
+
+    private static void EmitPreamble(string preamble, Action<string> appendLine)
+    {
+        appendLine("// ============================================================");
+        foreach (var line in preamble.Split('\n'))
+        {
+            var trimmed = line.TrimEnd('\r');
+            appendLine(string.IsNullOrEmpty(trimmed) ? "//" : $"// {trimmed}");
+        }
+
+        appendLine("// ============================================================");
+    }
+
+    private static void EmitUnmappedFeatures(
+        IReadOnlyList<WixUnmappedFeature>? unmappedFeatures,
+        Action<string> appendLine)
+    {
+        if (unmappedFeatures is null || unmappedFeatures.Count == 0)
+            return;
+
+        appendLine("");
+        appendLine("// ============================================================");
+        appendLine("// Unmapped WiX features (not supported by FalkForge)");
+        appendLine("// Consider implementing these manually.");
+        appendLine("// ============================================================");
+        foreach (var feature in unmappedFeatures)
+        {
+            appendLine($"// [{feature.Category}] {feature.Description}");
         }
     }
 

@@ -145,4 +145,86 @@ internal static partial class NativeMethods
     [DllImport("cabinet.dll", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool FCIDestroy(nint hfci);
+
+    // ── FDI (File Decompression Interface) - Cabinet extraction API ────
+    // All callbacks use Cdecl calling convention.
+    // FDI uses ANSI strings, so we use DllImport with CharSet.Ansi.
+
+    // ── FDI notification types ────────────────────────────────────────
+
+    internal const int FdintCabinetInfo = 0;
+    internal const int FdintPartialFile = 1;
+    internal const int FdintCopyFile = 2;
+    internal const int FdintCloseFileInfo = 3;
+    internal const int FdintNextCabinet = 4;
+    internal const int FdintEnumerate = 5;
+
+    // ── FDI notification structure ────────────────────────────────────
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    internal struct FdiNotification
+    {
+        public int cb;       // Uncompressed file size
+        public nint psz1;   // File name (CopyFile), cabinet name (NextCabinet)
+        public nint psz2;   // Disk name (NextCabinet)
+        public nint psz3;   // Cabinet path (NextCabinet)
+        public nint pv;     // User data pointer
+        public nint hf;     // File handle
+        public ushort date;  // DOS date
+        public ushort time;  // DOS time
+        public ushort attribs; // File attributes
+        public ushort setID;   // Cabinet set ID
+        public ushort iCabinet; // Cabinet number
+        public ushort iFolder;  // Folder number
+        public int fdie;    // FDI error code
+    }
+
+    // ── FDI callback delegates (all Cdecl) ────────────────────────────
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    internal delegate nint FnFdiOpen(string pszFile, int oflag, int pmode);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint FnFdiRead(nint hf, nint pv, uint cb);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint FnFdiWrite(nint hf, nint pv, uint cb);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int FnFdiClose(nint hf);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int FnFdiSeek(nint hf, int dist, int seektype);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate nint FnFdiNotify(int fdint, nint pfdin);
+
+    // ── FDI functions ─────────────────────────────────────────────────
+
+    [DllImport("cabinet.dll", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
+    internal static extern nint FDICreate(
+        FnFciAlloc pfnAlloc,
+        FnFciFree pfnFree,
+        FnFdiOpen pfnOpen,
+        FnFdiRead pfnRead,
+        FnFdiWrite pfnWrite,
+        FnFdiClose pfnClose,
+        FnFdiSeek pfnSeek,
+        int cpuType,
+        ref ERF perf);
+
+    [DllImport("cabinet.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool FDICopy(
+        nint hfdi,
+        string pszCabinet,
+        string pszCabPath,
+        int flags,
+        FnFdiNotify pfnfdin,
+        nint pfnfdid,
+        nint pvUser);
+
+    [DllImport("cabinet.dll", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool FDIDestroy(nint hfdi);
 }

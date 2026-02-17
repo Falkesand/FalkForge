@@ -65,10 +65,20 @@ public sealed class DecompileCommand : Command<DecompileSettings>
     {
         _console.MarkupLine($"[grey]Decompiling bundle: {Markup.Escape(exePath)}[/]");
 
-        var decompiler = new BundleDecompiler();
-        var result = decompiler.DecompileToCSharp(exePath);
+        // Try FALKBUNDLE first (cross-platform)
+        var falkResult = new BundleDecompiler().DecompileToCSharp(exePath);
+        if (falkResult.IsSuccess)
+            return WriteResult(falkResult, outputPath);
 
-        return WriteResult(result, outputPath);
+        // If FALKBUNDLE failed, try WiX Burn (Windows-only, requires cabinet.dll)
+        if (!OperatingSystem.IsWindows())
+        {
+            _console.WriteError("Bundle decompilation requires Windows for WiX Burn bundles.");
+            return ExitCodes.RuntimeError;
+        }
+
+        var wixResult = new WixBundleDecompiler().DecompileToCSharp(exePath);
+        return WriteResult(wixResult, outputPath);
     }
 
     private int WriteResult(Result<string> result, string? outputPath)
