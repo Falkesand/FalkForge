@@ -17,4 +17,5 @@ public sealed class BundleModel
     public IReadOnlyList<BundleDependencyProviderModel> DependencyProviders { get; init; } = [];
     public IReadOnlyList<BundleDependencyConsumerModel> DependencyConsumers { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
+    public UpdateFeedConfig? UpdateFeed { get; init; }
 }

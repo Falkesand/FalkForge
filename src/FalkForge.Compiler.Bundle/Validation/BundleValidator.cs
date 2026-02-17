@@ -167,6 +167,15 @@ public sealed class BundleValidator
                 return Result<Unit>.Failure(ErrorKind.BundleError, "BDL023: Dependency consumer key must not be empty.");
         }
 
+        // BDL024/BDL025: Update feed validation
+        if (model.UpdateFeed is not null)
+        {
+            if (!Uri.TryCreate(model.UpdateFeed.FeedUrl, UriKind.Absolute, out var feedUri))
+                return Result<Unit>.Failure(ErrorKind.Validation, $"BDL024: Update feed URL '{model.UpdateFeed.FeedUrl}' is not a valid absolute URI.");
+            else if (feedUri.Scheme != Uri.UriSchemeHttps)
+                return Result<Unit>.Failure(ErrorKind.Validation, $"BDL025: Update feed URL must use HTTPS scheme, got '{feedUri.Scheme}'.");
+        }
+
         return Unit.Value;
     }
 }

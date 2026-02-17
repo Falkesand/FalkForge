@@ -1,3 +1,5 @@
+using FalkForge.Engine.Protocol.Manifest;
+
 namespace FalkForge.Compiler.Bundle.Builders;
 
 public sealed class BundleBuilder
@@ -17,6 +19,7 @@ public sealed class BundleBuilder
     private readonly List<BundleDependencyProviderModel> _dependencyProviders = new();
     private readonly List<BundleDependencyConsumerModel> _dependencyConsumers = new();
     private BundleUiConfig? _uiConfig;
+    private UpdateFeedConfig? _updateFeed;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
 
@@ -71,6 +74,13 @@ public sealed class BundleBuilder
             UiType = BundleUiType.Custom,
             CustomUiProjectPath = uiProjectPath
         };
+        return this;
+    }
+
+    public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(feedUrl);
+        _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy };
         return this;
     }
 
@@ -180,7 +190,8 @@ public sealed class BundleBuilder
             DependencyProviders = _dependencyProviders.AsReadOnly(),
             DependencyConsumers = _dependencyConsumers.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
-            UiConfig = _uiConfig
+            UiConfig = _uiConfig,
+            UpdateFeed = _updateFeed
         };
     }
 }

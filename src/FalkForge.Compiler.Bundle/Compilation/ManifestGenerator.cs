@@ -83,6 +83,10 @@ public sealed class ManifestGenerator
         var dependencyConsumers = model.DependencyConsumers.Select(c =>
             new ManifestDependencyConsumer(c.ProviderKey, c.ConsumerKey)).ToArray();
 
+        ManifestUpdateFeed? updateFeed = model.UpdateFeed is not null
+            ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy)
+            : null;
+
         return new InstallerManifest
         {
             Name = model.Name,
@@ -98,6 +102,7 @@ public sealed class ManifestGenerator
             DependencyProviders = dependencyProviders,
             DependencyConsumers = dependencyConsumers,
             LicenseFile = model.UiConfig?.LicenseFile,
+            UpdateFeed = updateFeed,
             Scope = model.Scope
         };
     }
