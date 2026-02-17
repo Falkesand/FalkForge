@@ -13,6 +13,7 @@ public sealed class BundleBuilder
     private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<ContainerModel> _containers = new();
     private readonly List<BundleVariableModel> _variables = new();
+    private readonly List<BundleFeatureModel> _features = new();
     private BundleUiConfig? _uiConfig;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
@@ -126,6 +127,14 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder Feature(string id, Action<BundleFeatureBuilder> configure)
+    {
+        var builder = new BundleFeatureBuilder(id);
+        configure(builder);
+        _features.Add(builder.Build());
+        return this;
+    }
+
     public BundleModel Build()
     {
         return new BundleModel
@@ -140,6 +149,7 @@ public sealed class BundleBuilder
             RelatedBundles = _relatedBundles.AsReadOnly(),
             Chain = _chainItems.AsReadOnly(),
             Variables = _variables.AsReadOnly(),
+            Features = _features.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig
         };

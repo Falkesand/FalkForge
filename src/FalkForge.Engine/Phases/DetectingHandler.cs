@@ -28,7 +28,16 @@ public sealed class DetectingHandler : IEnginePhaseHandler
 
         context.DetectedState = result.State;
         context.DetectedVersion = result.CurrentVersion;
-        context.DetectedFeatures = result.Features;
+
+        // Detect features using registry + MSI fallback
+        var perPackageStates = _detector.DetectPerPackage(context.Manifest);
+        var features = FeatureDetector.Detect(
+            context.Manifest.Features,
+            context.Platform.Registry,
+            context.Manifest.BundleId,
+            context.Manifest.Scope,
+            perPackageStates);
+        context.DetectedFeatures = features;
 
         // Detect related bundles
         var relatedResult = _detector.DetectRelatedBundles(context.Manifest);
@@ -47,7 +56,7 @@ public sealed class DetectingHandler : IEnginePhaseHandler
             {
                 State = result.State,
                 CurrentVersion = result.CurrentVersion,
-                Features = result.Features
+                Features = features
             }, ct);
         }
 

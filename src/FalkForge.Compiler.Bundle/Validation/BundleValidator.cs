@@ -89,6 +89,53 @@ public sealed class BundleValidator
                 return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL013: Variable '{variable.Name}' is Secret and cannot be Persisted");
         }
 
+        // BDL014: Feature ID is required
+        foreach (var feature in model.Features)
+        {
+            if (string.IsNullOrWhiteSpace(feature.Id))
+                return Result<Unit>.Failure(ErrorKind.BundleError, "BDL014: Feature ID is required");
+        }
+
+        // BDL018: Feature title is required
+        foreach (var feature in model.Features)
+        {
+            if (string.IsNullOrWhiteSpace(feature.Title))
+                return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL018: Feature '{feature.Id}' title is required");
+        }
+
+        // BDL015: Feature IDs must be unique
+        var duplicateFeatureIds = model.Features
+            .GroupBy(f => f.Id)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
+
+        if (duplicateFeatureIds.Length > 0)
+            return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL015: Duplicate feature IDs: {string.Join(", ", duplicateFeatureIds)}");
+
+        // BDL016: Feature package references must resolve to defined packages
+        var packageIds = new HashSet<string>(
+            model.Chain
+                .OfType<PackageChainItem>()
+                .Select(ci => ci.Package.Id));
+
+        foreach (var feature in model.Features)
+        {
+            var unknownPackages = feature.PackageIds
+                .Where(pid => !packageIds.Contains(pid))
+                .ToArray();
+
+            if (unknownPackages.Length > 0)
+                return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL016: Feature '{feature.Id}' references unknown package IDs: {string.Join(", ", unknownPackages)}");
+        }
+
+        // BDL017: Required feature must have at least one package
+        foreach (var feature in model.Features)
+        {
+            if (feature.IsRequired && feature.PackageIds.Count == 0)
+                return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL017: Required feature '{feature.Id}' has no packages");
+        }
+
         return Unit.Value;
     }
 }

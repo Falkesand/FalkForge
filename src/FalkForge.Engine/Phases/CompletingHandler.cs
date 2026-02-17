@@ -34,6 +34,26 @@ public sealed class CompletingHandler : IEnginePhaseHandler
             }
         }
 
+        // Save or clear persisted feature selections
+        if (context.Manifest.Features.Length > 0)
+        {
+            if (context.RequestedAction is InstallAction.Uninstall)
+            {
+                FeaturePersistence.ClearFeatureSelections(
+                    context.Platform.Registry,
+                    context.Manifest.BundleId,
+                    context.Manifest.Scope);
+            }
+            else
+            {
+                FeaturePersistence.SaveFeatureSelections(
+                    context.Platform.Registry,
+                    context.Manifest.BundleId,
+                    context.Manifest.Scope,
+                    context.FeatureSelections);
+            }
+        }
+
         // Dispose secrets -- zero memory regardless of success/failure
         context.Variables.DisposeSecrets();
 

@@ -11,6 +11,7 @@ public sealed class InstallerManifest
     public RelatedBundleEntry[] RelatedBundles { get; init; } = [];
     public ManifestChainItem[] Chain { get; init; } = [];
     public ManifestVariable[] Variables { get; init; } = [];
+    public ManifestFeature[] Features { get; init; } = [];
     public string? LicenseFile { get; init; }
     public required InstallScope Scope { get; init; }
 }

@@ -148,8 +148,8 @@ public sealed class ProtocolRoundtripTests
                 CurrentVersion = "2.0.0",
                 Features =
                 [
-                    new FeatureState("core", "Core Feature", true, 1024000),
-                    new FeatureState("extras", "Extra Plugins", false, 512000)
+                    new FeatureState("core", "Core Feature", "Core components", true, false, true, 1024000),
+                    new FeatureState("extras", "Extra Plugins", "Optional plugins", false, false, false, 512000)
                 ]
             });
 
@@ -292,7 +292,7 @@ public sealed class ProtocolRoundtripTests
                 SequenceId = seq++,
                 State = InstallState.Installed,
                 CurrentVersion = "1.2.3",
-                Features = [new FeatureState("feat1", "Feature One", true, 4096)]
+                Features = [new FeatureState("feat1", "Feature One", null, true, false, false, 4096)]
             },
             new PlanBeginMessage { SequenceId = seq++, Action = InstallAction.Install },
             new PlanCompleteMessage

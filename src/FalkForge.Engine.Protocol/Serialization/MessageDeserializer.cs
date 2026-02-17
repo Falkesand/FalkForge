@@ -104,11 +104,15 @@ public static class MessageDeserializer
         var features = new FeatureState[featureCount];
         for (var i = 0; i < featureCount; i++)
         {
+            var featureId = reader.ReadString();
+            var title = reader.ReadString();
+            var description = ReadNullableString(reader);
+            var isSelected = reader.ReadBoolean();
+            var isRequired = reader.ReadBoolean();
+            var wasPreviouslyInstalled = reader.ReadBoolean();
+            var diskSpaceRequired = reader.ReadInt64();
             features[i] = new FeatureState(
-                reader.ReadString(),
-                reader.ReadString(),
-                reader.ReadBoolean(),
-                reader.ReadInt64());
+                featureId, title, description, isSelected, isRequired, wasPreviouslyInstalled, diskSpaceRequired);
         }
 
         return new DetectCompleteMessage

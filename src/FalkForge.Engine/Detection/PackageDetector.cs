@@ -76,6 +76,17 @@ public sealed class PackageDetector
             : InstallState.NotInstalled;
     }
 
+    public Dictionary<string, InstallState> DetectPerPackage(InstallerManifest manifest)
+    {
+        var results = new Dictionary<string, InstallState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var package in manifest.Packages)
+        {
+            results[package.Id] = DetectPackage(package);
+        }
+
+        return results;
+    }
+
     public Result<IReadOnlyList<RelatedBundleInfo>> DetectRelatedBundles(InstallerManifest manifest)
     {
         return _relatedBundleDetector.Detect(manifest.RelatedBundles, _registry);

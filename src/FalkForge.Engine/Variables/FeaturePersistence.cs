@@ -1,0 +1,56 @@
+namespace FalkForge.Engine.Variables;
+
+using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Platform;
+
+internal static class FeaturePersistence
+{
+    private const string FeaturesSubKeyTemplate = @"SOFTWARE\FalkForge\Burn\{0}\Features";
+
+    public static void SaveFeatureSelections(
+        IRegistry registry,
+        Guid bundleId,
+        InstallScope scope,
+        IReadOnlyDictionary<string, bool> selections)
+    {
+        var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
+        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+
+        foreach (var (featureId, selected) in selections)
+        {
+            registry.SetStringValue(rootKey, keyPath, featureId, selected ? "1" : "0");
+        }
+    }
+
+    public static Dictionary<string, bool> LoadFeatureSelections(
+        IRegistry registry,
+        Guid bundleId,
+        InstallScope scope,
+        IReadOnlyList<ManifestFeature> features)
+    {
+        var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
+        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var result = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var feature in features)
+        {
+            var value = registry.GetStringValue(rootKey, keyPath, feature.Id);
+            if (value is not null)
+            {
+                result[feature.Id] = value == "1";
+            }
+        }
+
+        return result;
+    }
+
+    public static void ClearFeatureSelections(
+        IRegistry registry,
+        Guid bundleId,
+        InstallScope scope)
+    {
+        var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
+        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        registry.DeleteKey(rootKey, keyPath);
+    }
+}
