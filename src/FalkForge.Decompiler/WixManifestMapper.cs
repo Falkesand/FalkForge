@@ -201,23 +201,30 @@ internal static class WixManifestMapper
             _ => BundlePackageType.ExePackage
         };
 
-        // Collect MsiProperty and ExitCode child elements as unmapped
+        var properties = new Dictionary<string, string>();
         foreach (var child in element.Elements(ns + "MsiProperty"))
         {
-            var propId = child.Attribute("Id")?.Value ?? "";
+            var propId = child.Attribute("Id")?.Value;
             var propValue = child.Attribute("Value")?.Value ?? "";
-            unmapped.Add(new WixUnmappedFeature(
-                "MsiProperty",
-                $"Package={id} Id={propId} Value={propValue}",
-                child.ToString()));
+            if (propId is not null)
+                properties[propId] = propValue;
         }
 
+        var exitCodes = new Dictionary<int, ExitCodeBehavior>();
         foreach (var child in element.Elements(ns + "ExitCode"))
         {
-            unmapped.Add(new WixUnmappedFeature(
-                "ExitCode",
-                $"Package={id} Code={child.Attribute("Code")?.Value} Behavior={child.Attribute("Behavior")?.Value}",
-                child.ToString()));
+            var codeAttr = child.Attribute("Code")?.Value;
+            if (codeAttr is not null && int.TryParse(codeAttr, out var code))
+            {
+                var behavior = child.Attribute("Type")?.Value switch
+                {
+                    "1" => ExitCodeBehavior.Success,
+                    "3" => ExitCodeBehavior.RebootRequired,
+                    "4" => ExitCodeBehavior.ScheduleReboot,
+                    _ => ExitCodeBehavior.Failure
+                };
+                exitCodes[code] = behavior;
+            }
         }
 
         return new BundlePackageModel
@@ -230,7 +237,9 @@ internal static class WixManifestMapper
             SourcePath = element.Attribute("SourceFile")?.Value ?? "",
             InstallCondition = installCondition,
             PatchCode = patchCode,
-            ContainerId = containerId
+            ContainerId = containerId,
+            Properties = properties,
+            ExitCodes = exitCodes
         };
     }
 

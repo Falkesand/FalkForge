@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using FalkForge;
 using FalkForge.Compiler.Bundle;
 using Xunit;
 
@@ -240,21 +241,71 @@ public sealed class WixManifestMapperTests
     }
 
     [Fact]
-    public void Map_MsiProperty_CollectedAsUnmapped()
+    public void Map_MsiPackage_WithMsiProperties_MapsToPackageProperties()
     {
         var xml = XDocument.Parse(MinimalManifest(
             chainContent: @"<MsiPackage Id=""pkg1"" Vital=""yes"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"">
-                <MsiProperty Id=""INSTALLFOLDER"" Value=""C:\MyApp"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+                <MsiProperty Id=""INSTALLFOLDER"" Value=""[ProgramFilesFolder]"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+                <MsiProperty Id=""ALLUSERS"" Value=""1"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+            </MsiPackage>"));
+
+        var result = WixManifestMapper.Map(xml, TestBundleId);
+
+        Assert.True(result.IsSuccess);
+        var (model, _) = result.Value;
+        var package = Assert.Single(model.Packages);
+        Assert.Equal("[ProgramFilesFolder]", package.Properties["INSTALLFOLDER"]);
+        Assert.Equal("1", package.Properties["ALLUSERS"]);
+    }
+
+    [Fact]
+    public void Map_ExePackage_WithExitCodes_MapsToPackageExitCodes()
+    {
+        var xml = XDocument.Parse(MinimalManifest(
+            chainContent: @"<ExePackage Id=""exe1"" Vital=""yes"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"">
+                <ExitCode Code=""0"" Type=""1"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+                <ExitCode Code=""3010"" Type=""3"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+            </ExePackage>"));
+
+        var result = WixManifestMapper.Map(xml, TestBundleId);
+
+        Assert.True(result.IsSuccess);
+        var (model, _) = result.Value;
+        var package = Assert.Single(model.Packages);
+        Assert.Equal(ExitCodeBehavior.Success, package.ExitCodes[0]);
+        Assert.Equal(ExitCodeBehavior.RebootRequired, package.ExitCodes[3010]);
+    }
+
+    [Fact]
+    public void Map_MsiPackage_WithMsiProperties_NotInUnmappedFeatures()
+    {
+        var xml = XDocument.Parse(MinimalManifest(
+            chainContent: @"<MsiPackage Id=""pkg1"" Vital=""yes"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"">
+                <MsiProperty Id=""INSTALLFOLDER"" Value=""[ProgramFilesFolder]"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+                <MsiProperty Id=""ALLUSERS"" Value=""1"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
             </MsiPackage>"));
 
         var result = WixManifestMapper.Map(xml, TestBundleId);
 
         Assert.True(result.IsSuccess);
         var (_, unmapped) = result.Value;
-        var prop = Assert.Single(unmapped, u => u.Category == "MsiProperty");
-        Assert.Contains("Package=pkg1", prop.Description);
-        Assert.Contains("Id=INSTALLFOLDER", prop.Description);
-        Assert.Contains("Value=C:\\MyApp", prop.Description);
+        Assert.DoesNotContain(unmapped, u => u.Category == "MsiProperty");
+    }
+
+    [Fact]
+    public void Map_ExePackage_WithExitCodes_NotInUnmappedFeatures()
+    {
+        var xml = XDocument.Parse(MinimalManifest(
+            chainContent: @"<ExePackage Id=""exe1"" Vital=""yes"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"">
+                <ExitCode Code=""0"" Type=""1"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+                <ExitCode Code=""3010"" Type=""3"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />
+            </ExePackage>"));
+
+        var result = WixManifestMapper.Map(xml, TestBundleId);
+
+        Assert.True(result.IsSuccess);
+        var (_, unmapped) = result.Value;
+        Assert.DoesNotContain(unmapped, u => u.Category == "ExitCode");
     }
 
     [Fact]
