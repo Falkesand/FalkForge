@@ -30,6 +30,30 @@ public sealed class WindowsRegistry : IRegistry
         return key?.GetSubKeyNames() ?? [];
     }
 
+    public void SetStringValue(string rootKey, string subKey, string valueName, string value)
+    {
+        var root = GetRootKey(rootKey);
+        if (root is null) return;
+
+        using var key = root.CreateSubKey(subKey, writable: true);
+        key.SetValue(valueName, value, RegistryValueKind.String);
+    }
+
+    public void DeleteKey(string rootKey, string subKey)
+    {
+        var root = GetRootKey(rootKey);
+        if (root is null) return;
+
+        try
+        {
+            root.DeleteSubKeyTree(subKey, throwOnMissingSubKey: false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Silently ignore permission failures during cleanup
+        }
+    }
+
     private static RegistryKey? GetRootKey(string rootKey) => rootKey switch
     {
         "HKLM" or "HKEY_LOCAL_MACHINE" => Microsoft.Win32.Registry.LocalMachine,

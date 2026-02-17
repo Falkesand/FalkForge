@@ -32,6 +32,7 @@ internal static class WixManifestMapper
         var relatedBundles = ParseRelatedBundles(root, ns);
         var (packages, chainItems) = ParseChain(root, ns, unmapped);
         var containers = ParseContainers(root, ns);
+        var variables = ParseVariables(root, ns);
 
         CollectUnmappedElements(root, ns, packages, unmapped);
 
@@ -46,7 +47,8 @@ internal static class WixManifestMapper
             Packages = packages,
             RelatedBundles = relatedBundles,
             Chain = chainItems,
-            Containers = containers
+            Containers = containers,
+            Variables = variables
         };
 
         return Result<(BundleModel, IReadOnlyList<WixUnmappedFeature>)>.Success((model, unmapped));
@@ -265,20 +267,36 @@ internal static class WixManifestMapper
         return result;
     }
 
+    private static List<BundleVariableModel> ParseVariables(XElement root, XNamespace ns)
+    {
+        var result = new List<BundleVariableModel>();
+
+        foreach (var el in root.Elements(ns + "Variable"))
+        {
+            var name = el.Attribute("Id")?.Value ?? el.Attribute("Name")?.Value ?? "";
+            if (string.IsNullOrEmpty(name))
+                continue;
+
+            var type = el.Attribute("Type")?.Value switch
+            {
+                "numeric" => BundleVariableType.Numeric,
+                "version" => BundleVariableType.Version,
+                _ => BundleVariableType.String
+            };
+
+            var defaultValue = el.Attribute("Value")?.Value;
+            var hidden = ParseYesNo(el.Attribute("Hidden")?.Value, defaultValue: false);
+            var persisted = ParseYesNo(el.Attribute("Persisted")?.Value, defaultValue: false);
+
+            result.Add(new BundleVariableModel(name, type, defaultValue, persisted, hidden, Secret: false));
+        }
+
+        return result;
+    }
+
     private static void CollectUnmappedElements(
         XElement root, XNamespace ns, List<BundlePackageModel> packages, List<WixUnmappedFeature> unmapped)
     {
-        foreach (var el in root.Elements(ns + "Variable"))
-        {
-            var id = el.Attribute("Id")?.Value ?? "";
-            var value = el.Attribute("Value")?.Value ?? "";
-            var type = el.Attribute("Type")?.Value ?? "";
-            unmapped.Add(new WixUnmappedFeature(
-                "Variable",
-                $"Id={id} Value={value} Type={type}",
-                el.ToString()));
-        }
-
         foreach (var el in root.Elements(ns + "Search"))
         {
             var id = el.Attribute("Id")?.Value ?? "";

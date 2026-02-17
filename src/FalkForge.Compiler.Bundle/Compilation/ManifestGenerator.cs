@@ -54,6 +54,21 @@ public sealed class ManifestGenerator
         var chainItems = BuildChainItems(model, packages);
         var relatedBundles = MapRelatedBundles(model.RelatedBundles);
 
+        var variables = model.Variables.Select(v => new ManifestVariable(
+            v.Name,
+            v.Type switch
+            {
+                BundleVariableType.String => "string",
+                BundleVariableType.Numeric => "numeric",
+                BundleVariableType.Version => "version",
+                _ => "string"
+            },
+            v.DefaultValue,
+            v.Persisted,
+            v.Hidden,
+            v.Secret
+        )).ToArray();
+
         return new InstallerManifest
         {
             Name = model.Name,
@@ -64,6 +79,7 @@ public sealed class ManifestGenerator
             Packages = packages.ToArray(),
             RelatedBundles = relatedBundles,
             Chain = chainItems,
+            Variables = variables,
             LicenseFile = model.UiConfig?.LicenseFile,
             Scope = model.Scope
         };

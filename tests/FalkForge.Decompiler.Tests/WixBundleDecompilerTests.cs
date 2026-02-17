@@ -106,7 +106,7 @@ public sealed class WixBundleDecompilerTests
     }
 
     [Fact]
-    public void DecompileToCSharp_WithUnmappedFeatures_ContainsComments()
+    public void DecompileToCSharp_WithVariable_EmitsVariableBuilderCall()
     {
         var xml = CreateManifestXml(extraElements:
             $"""<Variable xmlns="{Ns}" Id="MyVar" Value="hello" Type="string" />""");
@@ -116,8 +116,10 @@ public sealed class WixBundleDecompilerTests
         var result = decompiler.DecompileToCSharp("dummy.exe");
 
         Assert.True(result.IsSuccess);
-        Assert.Contains("[Variable]", result.Value);
-        Assert.Contains("MyVar", result.Value);
+        Assert.Contains("b.Variable(\"MyVar\"", result.Value);
+        Assert.Contains("String()", result.Value);
+        Assert.Contains("Default(\"hello\")", result.Value);
+        Assert.DoesNotContain("[Variable]", result.Value);
     }
 
     [Fact]

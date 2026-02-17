@@ -9,4 +9,6 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 [JsonSerializable(typeof(InstallScope))]
 [JsonSerializable(typeof(RelatedBundleEntry))]
 [JsonSerializable(typeof(RelatedBundleRelation))]
+[JsonSerializable(typeof(ManifestVariable))]
+[JsonSerializable(typeof(ManifestVariable[]))]
 internal partial class ManifestJsonContext : JsonSerializerContext;

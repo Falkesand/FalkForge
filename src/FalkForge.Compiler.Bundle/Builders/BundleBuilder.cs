@@ -12,6 +12,7 @@ public sealed class BundleBuilder
     private readonly List<ChainItem> _chainItems = new();
     private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<ContainerModel> _containers = new();
+    private readonly List<BundleVariableModel> _variables = new();
     private BundleUiConfig? _uiConfig;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
@@ -117,6 +118,14 @@ public sealed class BundleBuilder
     public BundleBuilder RelatedBundle(Guid bundleId, Action<RelatedBundleBuilder>? configure = null) =>
         RelatedBundle(bundleId.ToString("B").ToUpperInvariant(), configure);
 
+    public BundleBuilder Variable(string name, Action<BundleVariableBuilder> configure)
+    {
+        var builder = new BundleVariableBuilder(name);
+        configure(builder);
+        _variables.Add(builder.Build());
+        return this;
+    }
+
     public BundleModel Build()
     {
         return new BundleModel
@@ -130,6 +139,7 @@ public sealed class BundleBuilder
             Packages = _packages.AsReadOnly(),
             RelatedBundles = _relatedBundles.AsReadOnly(),
             Chain = _chainItems.AsReadOnly(),
+            Variables = _variables.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig
         };

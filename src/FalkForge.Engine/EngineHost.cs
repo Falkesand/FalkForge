@@ -71,7 +71,7 @@ public sealed class EngineHost : IAsyncDisposable
         var detector = new PackageDetector(_platform.Registry);
         var planner = new Planner();
         var processRunner = new ProcessRunner();
-        var msiExecutor = new MsiExecutor(() => _context.ElevationClient);
+        var msiExecutor = new MsiExecutor(() => _context.ElevationClient, () => _context.Variables);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
         var bundleExecutor = new BundleExecutor(processRunner);
