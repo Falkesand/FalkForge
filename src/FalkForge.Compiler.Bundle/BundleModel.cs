@@ -14,5 +14,7 @@ public sealed class BundleModel
     public IReadOnlyList<ContainerModel> Containers { get; init; } = [];
     public IReadOnlyList<BundleVariableModel> Variables { get; init; } = [];
     public IReadOnlyList<BundleFeatureModel> Features { get; init; } = [];
+    public IReadOnlyList<BundleDependencyProviderModel> DependencyProviders { get; init; } = [];
+    public IReadOnlyList<BundleDependencyConsumerModel> DependencyConsumers { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
 }

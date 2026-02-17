@@ -258,6 +258,96 @@ public sealed class BundleValidatorTests
         Assert.Contains("BDL009", result.Error.Message);
     }
 
+    [Fact]
+    public void Validate_EmptyDependencyProviderKey_ReturnsBDL019()
+    {
+        var model = CreateModel(dependencyProviders: [
+            new BundleDependencyProviderModel { Key = "", Version = "1.0.0" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL019", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_InvalidDependencyProviderVersion_ReturnsBDL020()
+    {
+        var model = CreateModel(dependencyProviders: [
+            new BundleDependencyProviderModel { Key = "MyApp", Version = "not-a-version" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL020", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_ValidDependencyProviderVersion_Succeeds()
+    {
+        var model = CreateModel(dependencyProviders: [
+            new BundleDependencyProviderModel { Key = "MyApp", Version = "1.0.0" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Validate_DuplicateDependencyProviderKeys_ReturnsBDL021()
+    {
+        var model = CreateModel(dependencyProviders: [
+            new BundleDependencyProviderModel { Key = "MyApp", Version = "1.0.0" },
+            new BundleDependencyProviderModel { Key = "MyApp", Version = "2.0.0" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL021", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_EmptyConsumerProviderKey_ReturnsBDL022()
+    {
+        var model = CreateModel(dependencyConsumers: [
+            new BundleDependencyConsumerModel { ProviderKey = "", ConsumerKey = "OtherApp" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL022", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_EmptyConsumerKey_ReturnsBDL023()
+    {
+        var model = CreateModel(dependencyConsumers: [
+            new BundleDependencyConsumerModel { ProviderKey = "MyApp", ConsumerKey = "" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL023", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_ValidDependencyConsumer_Succeeds()
+    {
+        var model = CreateModel(dependencyConsumers: [
+            new BundleDependencyConsumerModel { ProviderKey = "MyApp", ConsumerKey = "OtherApp" }
+        ]);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
     private static BundleModel CreateModel(
         string name = "TestBundle",
         string manufacturer = "TestCo",
@@ -266,7 +356,9 @@ public sealed class BundleValidatorTests
         Guid? upgradeCode = null,
         BundlePackageModel[]? packages = null,
         ContainerModel[]? containers = null,
-        BundleUiConfig? uiConfig = null)
+        BundleUiConfig? uiConfig = null,
+        BundleDependencyProviderModel[]? dependencyProviders = null,
+        BundleDependencyConsumerModel[]? dependencyConsumers = null)
     {
         return new BundleModel
         {
@@ -278,7 +370,9 @@ public sealed class BundleValidatorTests
             Scope = InstallScope.PerMachine,
             Packages = packages ?? [CreatePackage("Pkg1")],
             Containers = containers ?? [],
-            UiConfig = uiConfig
+            UiConfig = uiConfig,
+            DependencyProviders = dependencyProviders ?? [],
+            DependencyConsumers = dependencyConsumers ?? []
         };
     }
 

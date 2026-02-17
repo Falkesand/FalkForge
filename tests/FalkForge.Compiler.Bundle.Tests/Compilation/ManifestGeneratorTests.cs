@@ -315,6 +315,120 @@ public sealed class ManifestGeneratorTests : IDisposable
         Assert.Empty(result.Value.Variables);
     }
 
+    [Fact]
+    public void Generate_MapsDependencyProviders()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            DependencyProviders =
+            [
+                new BundleDependencyProviderModel { Key = "MyApp", Version = "1.0.0", DisplayName = "My Application" },
+                new BundleDependencyProviderModel { Key = "SharedLib", Version = "2.0.0" }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.DependencyProviders.Length);
+        Assert.Equal("MyApp", result.Value.DependencyProviders[0].Key);
+        Assert.Equal("1.0.0", result.Value.DependencyProviders[0].Version);
+        Assert.Equal("My Application", result.Value.DependencyProviders[0].DisplayName);
+        Assert.Equal("SharedLib", result.Value.DependencyProviders[1].Key);
+        Assert.Equal("2.0.0", result.Value.DependencyProviders[1].Version);
+        Assert.Null(result.Value.DependencyProviders[1].DisplayName);
+    }
+
+    [Fact]
+    public void Generate_MapsDependencyConsumers()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            DependencyConsumers =
+            [
+                new BundleDependencyConsumerModel { ProviderKey = "SharedLib", ConsumerKey = "MyApp" },
+                new BundleDependencyConsumerModel { ProviderKey = "Runtime", ConsumerKey = "MyApp" }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.DependencyConsumers.Length);
+        Assert.Equal("SharedLib", result.Value.DependencyConsumers[0].ProviderKey);
+        Assert.Equal("MyApp", result.Value.DependencyConsumers[0].ConsumerKey);
+        Assert.Equal("Runtime", result.Value.DependencyConsumers[1].ProviderKey);
+        Assert.Equal("MyApp", result.Value.DependencyConsumers[1].ConsumerKey);
+    }
+
+    [Fact]
+    public void Generate_NoDependencies_ReturnsEmptyArrays()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.DependencyProviders);
+        Assert.Empty(result.Value.DependencyConsumers);
+    }
+
     private string CreateTempFile(string name, string content)
     {
         var path = Path.Combine(_tempDir, name);

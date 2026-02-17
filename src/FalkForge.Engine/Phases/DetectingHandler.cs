@@ -39,6 +39,11 @@ public sealed class DetectingHandler : IEnginePhaseHandler
             perPackageStates);
         context.DetectedFeatures = features;
 
+        // Detect dependency blockers
+        context.DependencyBlockers = DependencyDetector.DetectBlockingDependencies(
+            context.Manifest.DependencyProviders,
+            context.Platform.Registry);
+
         // Detect related bundles
         var relatedResult = _detector.DetectRelatedBundles(context.Manifest);
         if (relatedResult.IsSuccess)

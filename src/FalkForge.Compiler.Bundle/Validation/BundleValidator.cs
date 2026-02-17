@@ -136,6 +136,37 @@ public sealed class BundleValidator
                 return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL017: Required feature '{feature.Id}' has no packages");
         }
 
+        // BDL019: Dependency provider key must not be empty
+        foreach (var provider in model.DependencyProviders)
+        {
+            if (string.IsNullOrWhiteSpace(provider.Key))
+                return Result<Unit>.Failure(ErrorKind.BundleError, "BDL019: Dependency provider key must not be empty.");
+
+            // BDL020: Dependency provider version must be valid
+            if (!string.IsNullOrWhiteSpace(provider.Version) && !System.Version.TryParse(provider.Version, out _))
+                return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL020: Dependency provider '{provider.Key}' has invalid version '{provider.Version}'.");
+        }
+
+        // BDL021: Duplicate dependency provider keys
+        var duplicateProviderKeys = model.DependencyProviders
+            .Where(p => !string.IsNullOrWhiteSpace(p.Key))
+            .GroupBy(p => p.Key)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
+
+        if (duplicateProviderKeys.Length > 0)
+            return Result<Unit>.Failure(ErrorKind.BundleError, $"BDL021: Duplicate dependency provider key '{string.Join(", ", duplicateProviderKeys)}'.");
+
+        // BDL022/BDL023: Dependency consumer validation
+        foreach (var consumer in model.DependencyConsumers)
+        {
+            if (string.IsNullOrWhiteSpace(consumer.ProviderKey))
+                return Result<Unit>.Failure(ErrorKind.BundleError, "BDL022: Dependency consumer provider key must not be empty.");
+            if (string.IsNullOrWhiteSpace(consumer.ConsumerKey))
+                return Result<Unit>.Failure(ErrorKind.BundleError, "BDL023: Dependency consumer key must not be empty.");
+        }
+
         return Unit.Value;
     }
 }
