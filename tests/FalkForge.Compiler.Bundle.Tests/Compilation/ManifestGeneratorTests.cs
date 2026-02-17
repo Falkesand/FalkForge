@@ -429,6 +429,75 @@ public sealed class ManifestGeneratorTests : IDisposable
         Assert.Empty(result.Value.DependencyConsumers);
     }
 
+    [Fact]
+    public void Generate_MapsUpdateFeed()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            UpdateFeed = new UpdateFeedConfig
+            {
+                FeedUrl = "https://updates.example.com/feed.json",
+                Policy = UpdatePolicy.DownloadAndPrompt
+            }
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.UpdateFeed);
+        Assert.Equal("https://updates.example.com/feed.json", result.Value.UpdateFeed.FeedUrl);
+        Assert.Equal(UpdatePolicy.DownloadAndPrompt, result.Value.UpdateFeed.Policy);
+    }
+
+    [Fact]
+    public void Generate_NoUpdateFeed_ReturnsNull()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value.UpdateFeed);
+    }
+
     private string CreateTempFile(string name, string content)
     {
         var path = Path.Combine(_tempDir, name);

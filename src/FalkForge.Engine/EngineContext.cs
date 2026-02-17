@@ -3,6 +3,7 @@ namespace FalkForge.Engine;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Download;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Logging;
@@ -37,6 +38,7 @@ public sealed class EngineContext
     public FeatureState[] DetectedFeatures { get; set; } = [];
     public IReadOnlyList<RelatedBundleInfo> DetectedRelatedBundles { get; set; } = [];
     internal IReadOnlyList<DependencyBlocker> DependencyBlockers { get; set; } = [];
+    internal UpdateCheckResult? AvailableUpdate { get; set; }
     public InstallAction RequestedAction { get; set; }
     public InstallPlan? CurrentPlan { get; set; }
     public string InstallDirectory { get; set; } = string.Empty;

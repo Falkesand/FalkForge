@@ -2,6 +2,7 @@ namespace FalkForge.Engine;
 
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Download;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
@@ -22,6 +23,7 @@ public sealed class EngineHost : IAsyncDisposable
     private readonly IPlatformServices _platform;
     private readonly PipeConnectionOptions? _pipeOptions;
     private PipeServer? _uiPipe;
+    private HttpClient? _httpClient;
     private EngineContext? _context;
     private EngineStateMachine? _stateMachine;
     private IEngineLogger? _logger;
@@ -69,6 +71,9 @@ public sealed class EngineHost : IAsyncDisposable
 
         // Create dependencies (manual DI for NativeAOT)
         var detector = new PackageDetector(_platform.Registry);
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("FalkForge-Engine/1.0");
+        var updateChecker = new UpdateChecker(_httpClient, _logger);
         var planner = new Planner();
         var processRunner = new ProcessRunner();
         var msiExecutor = new MsiExecutor(() => _context.ElevationClient, () => _context.Variables);
@@ -119,7 +124,7 @@ public sealed class EngineHost : IAsyncDisposable
         var handlers = new IEnginePhaseHandler[]
         {
             new InitializingHandler(),
-            new DetectingHandler(detector),
+            new DetectingHandler(detector, updateChecker),
             new PlanningHandler(planner),
             new ElevatingHandler(processLauncher, _logger),
             new ApplyingHandler(packageExecutor),
@@ -245,6 +250,7 @@ public sealed class EngineHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _httpClient?.Dispose();
         _logger?.Dispose();
 
         if (_uiPipe is not null)
