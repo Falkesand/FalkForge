@@ -69,6 +69,7 @@ internal static class BundleCSharpEmitter
 
         EmitUnmappedFeatures(unmappedFeatures, AppendLine);
 
+        EmitVariables(bundle.Variables, AppendLine);
         EmitRelatedBundles(bundle.RelatedBundles, AppendLine, ref indent);
         EmitContainers(bundle.Containers, AppendLine, ref indent);
         EmitUiConfig(bundle.UiConfig, AppendLine, ref indent);
@@ -332,6 +333,40 @@ internal static class BundleCSharpEmitter
         foreach (var feature in unmappedFeatures)
         {
             appendLine($"// [{feature.Category}] {feature.Description}");
+        }
+    }
+
+    private static void EmitVariables(
+        IReadOnlyList<BundleVariableModel> variables,
+        Action<string> appendLine)
+    {
+        if (variables.Count == 0)
+            return;
+
+        appendLine("");
+        foreach (var variable in variables)
+        {
+            var builderCalls = new List<string>();
+            builderCalls.Add(variable.Type switch
+            {
+                BundleVariableType.Numeric => "Numeric()",
+                BundleVariableType.Version => "Version()",
+                _ => "String()"
+            });
+
+            if (variable.DefaultValue is not null)
+                builderCalls.Add($"Default({Quote(variable.DefaultValue)})");
+
+            if (variable.Persisted)
+                builderCalls.Add("Persisted()");
+
+            if (variable.Hidden)
+                builderCalls.Add("Hidden()");
+
+            if (variable.Secret)
+                builderCalls.Add("Secret()");
+
+            appendLine($"b.Variable({Quote(variable.Name)}, v => v.{string.Join(".", builderCalls)});");
         }
     }
 

@@ -223,6 +223,98 @@ public sealed class ManifestGeneratorTests : IDisposable
         Assert.Equal("license.rtf", result.Value.LicenseFile);
     }
 
+    [Fact]
+    public void Generate_WithVariables_SerializesCorrectly()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            Variables =
+            [
+                new BundleVariableModel("INSTALLFOLDER", BundleVariableType.String, @"C:\Program Files\MyApp", Persisted: false, Hidden: false, Secret: false),
+                new BundleVariableModel("RETRY_COUNT", BundleVariableType.Numeric, "3", Persisted: true, Hidden: false, Secret: false),
+                new BundleVariableModel("MIN_VERSION", BundleVariableType.Version, "2.0.0", Persisted: false, Hidden: false, Secret: false),
+                new BundleVariableModel("DB_PASSWORD", BundleVariableType.String, null, Persisted: false, Hidden: true, Secret: true)
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        var manifest = result.Value;
+        Assert.Equal(4, manifest.Variables.Length);
+
+        Assert.Equal("INSTALLFOLDER", manifest.Variables[0].Name);
+        Assert.Equal("string", manifest.Variables[0].Type);
+        Assert.Equal(@"C:\Program Files\MyApp", manifest.Variables[0].DefaultValue);
+        Assert.False(manifest.Variables[0].Persisted);
+        Assert.False(manifest.Variables[0].Hidden);
+        Assert.False(manifest.Variables[0].Secret);
+
+        Assert.Equal("RETRY_COUNT", manifest.Variables[1].Name);
+        Assert.Equal("numeric", manifest.Variables[1].Type);
+        Assert.Equal("3", manifest.Variables[1].DefaultValue);
+        Assert.True(manifest.Variables[1].Persisted);
+
+        Assert.Equal("MIN_VERSION", manifest.Variables[2].Name);
+        Assert.Equal("version", manifest.Variables[2].Type);
+        Assert.Equal("2.0.0", manifest.Variables[2].DefaultValue);
+
+        Assert.Equal("DB_PASSWORD", manifest.Variables[3].Name);
+        Assert.Equal("string", manifest.Variables[3].Type);
+        Assert.Null(manifest.Variables[3].DefaultValue);
+        Assert.True(manifest.Variables[3].Hidden);
+        Assert.True(manifest.Variables[3].Secret);
+    }
+
+    [Fact]
+    public void Generate_WithNoVariables_ReturnsEmptyArray()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Variables);
+    }
+
     private string CreateTempFile(string name, string content)
     {
         var path = Path.Combine(_tempDir, name);

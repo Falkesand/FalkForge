@@ -4,27 +4,37 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Planning;
+using FalkForge.Engine.Variables;
 
 public sealed partial class MsiExecutor
 {
     private static readonly char[] ProhibitedValueChars = ['"', '&', '|', ';', '>', '<'];
 
     private readonly Func<IElevationClient?> _elevationClientAccessor;
+    private readonly Func<VariableStore?> _variableStoreAccessor;
 
     public MsiExecutor()
     {
         _elevationClientAccessor = static () => null;
+        _variableStoreAccessor = static () => null;
     }
 
     public MsiExecutor(Func<IElevationClient?> elevationClientAccessor)
     {
         _elevationClientAccessor = elevationClientAccessor;
+        _variableStoreAccessor = static () => null;
+    }
+
+    public MsiExecutor(Func<IElevationClient?> elevationClientAccessor, Func<VariableStore?> variableStoreAccessor)
+    {
+        _elevationClientAccessor = elevationClientAccessor;
+        _variableStoreAccessor = variableStoreAccessor;
     }
 
     public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
     {
         // Validate custom properties up front (applies to both elevated and direct paths)
-        var propsResult = ValidateAndBuildPropertyArgs(action);
+        var propsResult = ValidateAndBuildPropertyArgs(action, _variableStoreAccessor());
         if (propsResult.IsFailure)
             return Result<int>.Failure(propsResult.Error);
 
@@ -37,7 +47,7 @@ public sealed partial class MsiExecutor
         return await ExecuteDirectAsync(action, propsResult.Value, ct);
     }
 
-    private static Result<string> ValidateAndBuildPropertyArgs(PlanAction action)
+    private static Result<string> ValidateAndBuildPropertyArgs(PlanAction action, VariableStore? variableStore)
     {
         var additionalArgs = string.Empty;
 
@@ -48,15 +58,37 @@ public sealed partial class MsiExecutor
                     ErrorKind.SecurityError,
                     $"Invalid MSI property key '{prop.Key}': must match ^[A-Z_][A-Z0-9_.]*$");
 
-            if (prop.Value.AsSpan().IndexOfAny(ProhibitedValueChars) >= 0)
+            var resolvedValue = ResolvePropertyValue(prop.Value, variableStore);
+
+            if (resolvedValue.AsSpan().IndexOfAny(ProhibitedValueChars) >= 0)
                 return Result<string>.Failure(
                     ErrorKind.SecurityError,
                     $"MSI property value for '{prop.Key}' contains prohibited characters");
 
-            additionalArgs += $" {prop.Key}=\"{prop.Value}\"";
+            additionalArgs += $" {prop.Key}=\"{resolvedValue}\"";
         }
 
         return additionalArgs;
+    }
+
+    private static string ResolvePropertyValue(string value, VariableStore? variableStore)
+    {
+        if (variableStore is null || value.Length < 3)
+            return value;
+
+        // Resolve [VariableName] references to secret variable values
+        if (value.StartsWith('[') && value.EndsWith(']'))
+        {
+            var variableName = value[1..^1];
+            if (variableStore.IsSecret(variableName))
+            {
+                var secretResult = variableStore.GetSecret(variableName);
+                if (secretResult.IsSuccess)
+                    return secretResult.Value;
+            }
+        }
+
+        return value;
     }
 
     private static async Task<Result<int>> ExecuteElevatedAsync(

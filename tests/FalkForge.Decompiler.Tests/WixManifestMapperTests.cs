@@ -209,7 +209,54 @@ public sealed class WixManifestMapperTests
     }
 
     [Fact]
-    public void Map_Variable_CollectedAsUnmapped()
+    public void Map_Variables_MapsToModel()
+    {
+        var xml = XDocument.Parse(MinimalManifest(
+            extraElements: @"<Variable Id=""INSTALLDB"" Value=""false"" Type=""string"" Persisted=""yes"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />"));
+
+        var result = WixManifestMapper.Map(xml, TestBundleId);
+
+        Assert.True(result.IsSuccess);
+        var (model, _) = result.Value;
+        var variable = Assert.Single(model.Variables);
+        Assert.Equal("INSTALLDB", variable.Name);
+        Assert.Equal(BundleVariableType.String, variable.Type);
+        Assert.Equal("false", variable.DefaultValue);
+        Assert.True(variable.Persisted);
+        Assert.False(variable.Hidden);
+        Assert.False(variable.Secret);
+    }
+
+    [Fact]
+    public void Map_Variables_NumericType_MapsCorrectly()
+    {
+        var xml = XDocument.Parse(MinimalManifest(
+            extraElements: @"<Variable Id=""RetryCount"" Value=""3"" Type=""numeric"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />"));
+
+        var result = WixManifestMapper.Map(xml, TestBundleId);
+
+        Assert.True(result.IsSuccess);
+        var (model, _) = result.Value;
+        var variable = Assert.Single(model.Variables);
+        Assert.Equal(BundleVariableType.Numeric, variable.Type);
+    }
+
+    [Fact]
+    public void Map_Variables_HiddenFlag_MapsCorrectly()
+    {
+        var xml = XDocument.Parse(MinimalManifest(
+            extraElements: @"<Variable Id=""SecretKey"" Value=""abc"" Type=""string"" Hidden=""yes"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />"));
+
+        var result = WixManifestMapper.Map(xml, TestBundleId);
+
+        Assert.True(result.IsSuccess);
+        var (model, _) = result.Value;
+        var variable = Assert.Single(model.Variables);
+        Assert.True(variable.Hidden);
+    }
+
+    [Fact]
+    public void Map_Variables_NotInUnmappedFeatures()
     {
         var xml = XDocument.Parse(MinimalManifest(
             extraElements: @"<Variable Id=""InstallDir"" Value=""C:\App"" Type=""string"" xmlns=""http://schemas.microsoft.com/wix/2008/Burn"" />"));
@@ -218,11 +265,7 @@ public sealed class WixManifestMapperTests
 
         Assert.True(result.IsSuccess);
         var (_, unmapped) = result.Value;
-        var variable = Assert.Single(unmapped, u => u.Category == "Variable");
-        Assert.Contains("Id=InstallDir", variable.Description);
-        Assert.Contains("Value=C:\\App", variable.Description);
-        Assert.Contains("Type=string", variable.Description);
-        Assert.Contains("Variable", variable.OriginalXml);
+        Assert.DoesNotContain(unmapped, u => u.Category == "Variable");
     }
 
     [Fact]
