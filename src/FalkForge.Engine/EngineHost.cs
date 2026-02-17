@@ -2,6 +2,7 @@ namespace FalkForge.Engine;
 
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Journal.UndoOperations;
@@ -70,7 +71,7 @@ public sealed class EngineHost : IAsyncDisposable
         var detector = new PackageDetector(_platform.Registry);
         var planner = new Planner();
         var processRunner = new ProcessRunner();
-        var msiExecutor = new MsiExecutor();
+        var msiExecutor = new MsiExecutor(() => _context.ElevationClient);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
         var bundleExecutor = new BundleExecutor(processRunner);
@@ -93,13 +94,16 @@ public sealed class EngineHost : IAsyncDisposable
             journal = null;
         }
 
-        // Create Restart Manager session (Windows only)
+        // Create Windows-only dependencies (guarded for platform analysis)
         IRestartManager? restartManager = null;
+        IProcessLauncher? processLauncher = null;
         if (OperatingSystem.IsWindows())
         {
             restartManager = new RestartManagerSession();
             _context.RestartManager = restartManager;
             _context.RestartManagerEnabled = true;
+
+            processLauncher = new ProcessLauncher();
         }
 
         // Create rollback infrastructure
@@ -117,7 +121,7 @@ public sealed class EngineHost : IAsyncDisposable
             new InitializingHandler(),
             new DetectingHandler(detector),
             new PlanningHandler(planner),
-            new ElevatingHandler(),
+            new ElevatingHandler(processLauncher, _logger),
             new ApplyingHandler(packageExecutor),
             new CompletingHandler(),
             new FailedHandler(),
