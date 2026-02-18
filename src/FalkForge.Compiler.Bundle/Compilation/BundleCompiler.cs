@@ -22,7 +22,7 @@ public sealed class BundleCompiler
 
         var manifest = manifestResult.Value;
 
-        // Step 3: Read and prepare payloads (skip remote-only packages)
+        // Step 3: Prepare payload metadata (skip remote-only packages); stream SHA256 to avoid ReadAllBytes
         var payloads = new List<PayloadEntry>();
         foreach (var package in model.Packages)
         {
@@ -33,13 +33,19 @@ public sealed class BundleCompiler
             if (!File.Exists(package.SourcePath))
                 return Result<string>.Failure(ErrorKind.PayloadError, $"Package source not found: {package.SourcePath}");
 
-            var data = File.ReadAllBytes(package.SourcePath);
-            var hash = Convert.ToHexString(SHA256.HashData(data));
+            long originalSize;
+            string hash;
+            using (var fileStream = File.OpenRead(package.SourcePath))
+            {
+                originalSize = fileStream.Length;
+                hash = Convert.ToHexString(SHA256.HashData(fileStream));
+            }
 
             payloads.Add(new PayloadEntry
             {
                 PackageId = package.Id,
-                Data = data,
+                SourcePath = package.SourcePath,
+                OriginalSize = originalSize,
                 Sha256Hash = hash,
                 ContainerId = package.ContainerId
             });

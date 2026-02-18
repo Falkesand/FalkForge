@@ -29,12 +29,12 @@ public sealed class PayloadEmbedderTests : IDisposable
         var stubPath = CreateStub();
         var outputPath = Path.Combine(_tempDir, "bundle.exe");
         var payloadData = Encoding.UTF8.GetBytes("Test payload data for MSI package");
-        var hash = Convert.ToHexString(SHA256.HashData(payloadData));
+        var (payloadPath, hash) = CreatePayloadFile(payloadData);
 
         var manifest = CreateManifest();
         var payloads = new[]
         {
-            new PayloadEntry { PackageId = "TestPkg", Data = payloadData, Sha256Hash = hash }
+            new PayloadEntry { PackageId = "TestPkg", SourcePath = payloadPath, OriginalSize = payloadData.Length, Sha256Hash = hash }
         };
 
         var embedResult = _embedder.Embed(stubPath, outputPath, manifest, payloads);
@@ -72,16 +72,16 @@ public sealed class PayloadEmbedderTests : IDisposable
         var data1 = Encoding.UTF8.GetBytes("First package content");
         var data2 = Encoding.UTF8.GetBytes("Second package content - longer data for testing");
         var data3 = Encoding.UTF8.GetBytes("Third");
-        var hash1 = Convert.ToHexString(SHA256.HashData(data1));
-        var hash2 = Convert.ToHexString(SHA256.HashData(data2));
-        var hash3 = Convert.ToHexString(SHA256.HashData(data3));
+        var (path1, hash1) = CreatePayloadFile(data1);
+        var (path2, hash2) = CreatePayloadFile(data2);
+        var (path3, hash3) = CreatePayloadFile(data3);
 
         var manifest = CreateManifest();
         var payloads = new[]
         {
-            new PayloadEntry { PackageId = "Pkg1", Data = data1, Sha256Hash = hash1 },
-            new PayloadEntry { PackageId = "Pkg2", Data = data2, Sha256Hash = hash2 },
-            new PayloadEntry { PackageId = "Pkg3", Data = data3, Sha256Hash = hash3 }
+            new PayloadEntry { PackageId = "Pkg1", SourcePath = path1, OriginalSize = data1.Length, Sha256Hash = hash1 },
+            new PayloadEntry { PackageId = "Pkg2", SourcePath = path2, OriginalSize = data2.Length, Sha256Hash = hash2 },
+            new PayloadEntry { PackageId = "Pkg3", SourcePath = path3, OriginalSize = data3.Length, Sha256Hash = hash3 }
         };
 
         var embedResult = _embedder.Embed(stubPath, outputPath, manifest, payloads);
@@ -113,12 +113,12 @@ public sealed class PayloadEmbedderTests : IDisposable
         var outputPath = Path.Combine(_tempDir, "compressed.exe");
         var payloadData = new byte[10_000];
         Array.Fill(payloadData, (byte)'X');
-        var hash = Convert.ToHexString(SHA256.HashData(payloadData));
+        var (payloadPath, hash) = CreatePayloadFile(payloadData);
 
         var manifest = CreateManifest();
         var payloads = new[]
         {
-            new PayloadEntry { PackageId = "CompressTest", Data = payloadData, Sha256Hash = hash }
+            new PayloadEntry { PackageId = "CompressTest", SourcePath = payloadPath, OriginalSize = payloadData.Length, Sha256Hash = hash }
         };
 
         var embedResult = _embedder.Embed(stubPath, outputPath, manifest, payloads);
@@ -154,6 +154,14 @@ public sealed class PayloadEmbedderTests : IDisposable
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.PayloadError, result.Error.Kind);
+    }
+
+    private (string Path, string Hash) CreatePayloadFile(byte[] data)
+    {
+        var path = Path.Combine(_tempDir, $"payload_{Guid.NewGuid():N}.bin");
+        File.WriteAllBytes(path, data);
+        var hash = Convert.ToHexString(SHA256.HashData(data));
+        return (path, hash);
     }
 
     private string CreateStub()

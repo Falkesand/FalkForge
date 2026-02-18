@@ -494,12 +494,14 @@ public sealed class BundleDetacherTests : IDisposable
         var payload2Data = Encoding.UTF8.GetBytes("Second MSI package with different content");
         var hash1 = Convert.ToHexString(SHA256.HashData(payload1Data));
         var hash2 = Convert.ToHexString(SHA256.HashData(payload2Data));
+        var payload1Path = CreatePayloadFile(payload1Data);
+        var payload2Path = CreatePayloadFile(payload2Data);
 
         var manifest = CreateManifest();
         var payloads = new[]
         {
-            new PayloadEntry { PackageId = "RoundTrip1", Data = payload1Data, Sha256Hash = hash1 },
-            new PayloadEntry { PackageId = "RoundTrip2", Data = payload2Data, Sha256Hash = hash2 }
+            new PayloadEntry { PackageId = "RoundTrip1", SourcePath = payload1Path, OriginalSize = payload1Data.Length, Sha256Hash = hash1 },
+            new PayloadEntry { PackageId = "RoundTrip2", SourcePath = payload2Path, OriginalSize = payload2Data.Length, Sha256Hash = hash2 }
         };
 
         var embedder = new PayloadEmbedder();
@@ -654,6 +656,13 @@ public sealed class BundleDetacherTests : IDisposable
         // Write footer
         writer.Write(Magic);
         writer.Write(tocOffset);
+    }
+
+    private string CreatePayloadFile(byte[] data)
+    {
+        var path = Path.Combine(_tempDir, $"payload_{Guid.NewGuid():N}.bin");
+        File.WriteAllBytes(path, data);
+        return path;
     }
 
     private string CreateStubFile(string content)
