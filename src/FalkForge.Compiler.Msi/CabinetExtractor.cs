@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Interop;
@@ -199,10 +200,17 @@ internal sealed class CabinetExtractor : IDisposable
                 return unchecked((uint)-1);
             }
 
-            var buffer = new byte[cb];
-            var bytesRead = stream.Read(buffer, 0, (int)cb);
-            Marshal.Copy(buffer, 0, pv, bytesRead);
-            return (uint)bytesRead;
+            var buffer = ArrayPool<byte>.Shared.Rent((int)cb);
+            try
+            {
+                var bytesRead = stream.Read(buffer, 0, (int)cb);
+                Marshal.Copy(buffer, 0, pv, bytesRead);
+                return (uint)bytesRead;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
         catch (Exception ex)
         {
@@ -221,10 +229,17 @@ internal sealed class CabinetExtractor : IDisposable
                 return unchecked((uint)-1);
             }
 
-            var buffer = new byte[cb];
-            Marshal.Copy(pv, buffer, 0, (int)cb);
-            stream.Write(buffer, 0, (int)cb);
-            return cb;
+            var buffer = ArrayPool<byte>.Shared.Rent((int)cb);
+            try
+            {
+                Marshal.Copy(pv, buffer, 0, (int)cb);
+                stream.Write(buffer, 0, (int)cb);
+                return cb;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
         catch (Exception ex)
         {

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Interop;
@@ -217,10 +218,17 @@ public sealed class CabinetBuilder : IDisposable
                 return unchecked((uint)-1);
             }
 
-            var buffer = new byte[cb];
-            var bytesRead = stream.Read(buffer, 0, (int)cb);
-            Marshal.Copy(buffer, 0, memory, bytesRead);
-            return (uint)bytesRead;
+            var buffer = ArrayPool<byte>.Shared.Rent((int)cb);
+            try
+            {
+                var bytesRead = stream.Read(buffer, 0, (int)cb);
+                Marshal.Copy(buffer, 0, memory, bytesRead);
+                return (uint)bytesRead;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
         catch
         {
@@ -240,10 +248,17 @@ public sealed class CabinetBuilder : IDisposable
                 return unchecked((uint)-1);
             }
 
-            var buffer = new byte[cb];
-            Marshal.Copy(memory, buffer, 0, (int)cb);
-            stream.Write(buffer, 0, (int)cb);
-            return cb;
+            var buffer = ArrayPool<byte>.Shared.Rent((int)cb);
+            try
+            {
+                Marshal.Copy(memory, buffer, 0, (int)cb);
+                stream.Write(buffer, 0, (int)cb);
+                return cb;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
         catch
         {
