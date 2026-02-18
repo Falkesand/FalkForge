@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Execution;
 
 using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Planning;
@@ -49,7 +50,10 @@ public sealed partial class MsiExecutor
 
     private static Result<string> ValidateAndBuildPropertyArgs(PlanAction action, VariableStore? variableStore)
     {
-        var additionalArgs = string.Empty;
+        if (action.Properties.Count == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
 
         foreach (var prop in action.Properties)
         {
@@ -65,10 +69,14 @@ public sealed partial class MsiExecutor
                     ErrorKind.SecurityError,
                     $"MSI property value for '{prop.Key}' contains prohibited characters");
 
-            additionalArgs += $" {prop.Key}=\"{resolvedValue}\"";
+            sb.Append(' ');
+            sb.Append(prop.Key);
+            sb.Append("=\"");
+            sb.Append(resolvedValue);
+            sb.Append('"');
         }
 
-        return additionalArgs;
+        return sb.ToString();
     }
 
     private static string ResolvePropertyValue(string value, VariableStore? variableStore)
