@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,6 +10,8 @@ namespace FalkForge.Compiler.Msi;
 [SupportedOSPlatform("windows")]
 public sealed class ComponentResolver
 {
+    private static readonly ConcurrentDictionary<string, string> _stableHashCache = new();
+
     private readonly IFileSystem _fileSystem;
 
     public ComponentResolver(IFileSystem fileSystem)
@@ -121,8 +124,11 @@ public sealed class ComponentResolver
 
     private static string StableHash(string input)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes, 0, 4); // 8 hex chars, deterministic across runtimes
+        return _stableHashCache.GetOrAdd(input, static key =>
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+            return Convert.ToHexString(bytes, 0, 4); // 8 hex chars, deterministic across runtimes
+        });
     }
 
     private static string SanitizeId(string name)
