@@ -401,6 +401,7 @@ internal sealed class TableEmitter
     private Result<Unit> EmitRegistry(ResolvedPackage resolved)
     {
         var index = 0;
+        var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
         foreach (var entry in resolved.Package.RegistryEntries)
         {
             var root = entry.Root switch
@@ -413,7 +414,7 @@ internal sealed class TableEmitter
             };
 
             var regId = $"Reg_{index++:D4}";
-            var componentId = entry.ComponentId ?? resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+            var componentId = entry.ComponentId ?? defaultComponentId;
             var valueStr = entry.Value?.ToString() ?? "";
 
             var result = _database.InsertRow(
@@ -467,6 +468,7 @@ internal sealed class TableEmitter
     private Result<Unit> EmitShortcuts(ResolvedPackage resolved)
     {
         var index = 0;
+        var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
         foreach (var shortcut in resolved.Package.Shortcuts)
         {
             foreach (var location in shortcut.Locations)
@@ -482,7 +484,7 @@ internal sealed class TableEmitter
                 };
 
                 var shortcutId = $"SC_{index++:D4}";
-                var componentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+                var componentId = defaultComponentId;
                 var target = $"[INSTALLDIR]{shortcut.TargetFile}";
 
                 var result = _database.InsertRow(
@@ -505,6 +507,12 @@ internal sealed class TableEmitter
 
     private Result<Unit> EmitServices(ResolvedPackage resolved)
     {
+        var executableToComponentId = resolved.Components
+            .SelectMany(c => c.Files.Select(f => (FileName: f.FileName, ComponentId: c.Id)))
+            .GroupBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().ComponentId, StringComparer.OrdinalIgnoreCase);
+        var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+
         foreach (var service in resolved.Package.Services)
         {
             var startType = service.StartMode switch
@@ -525,9 +533,8 @@ internal sealed class TableEmitter
                 _ => "LocalSystem"
             };
 
-            var componentId = resolved.Components.FirstOrDefault(c =>
-                c.Files.Any(f => f.FileName.Equals(service.Executable, StringComparison.OrdinalIgnoreCase)))?.Id
-                ?? resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+            var componentId = executableToComponentId.GetValueOrDefault(service.Executable ?? string.Empty)
+                ?? defaultComponentId;
 
             var svcId = $"SVC_{SanitizeId(service.Name)}";
             if (svcId.Length > 72) svcId = svcId[..72];
@@ -648,11 +655,13 @@ internal sealed class TableEmitter
         var fonts = resolved.Package.Fonts;
         if (fonts.Count == 0) return Unit.Value;
 
+        var fileNameToFileId = resolved.Files
+            .ToDictionary(f => f.FileName, f => f.FileId, StringComparer.OrdinalIgnoreCase);
+
         foreach (var font in fonts)
         {
             // Find the file ID for this font file
-            var fileId = resolved.Files.FirstOrDefault(f =>
-                f.FileName.Equals(font.FileName, StringComparison.OrdinalIgnoreCase))?.FileId;
+            var fileId = fileNameToFileId.GetValueOrDefault(font.FileName);
             if (fileId is null) continue;
 
             var result = _database.InsertRow(
@@ -800,7 +809,7 @@ internal sealed class TableEmitter
         if (result.IsFailure) return result;
 
         // If downgrades not allowed, add row to detect newer versions and a launch condition to block
-        if (!majorUpgrade.AllowDowngrades)
+        if (package.Downgrade is not { AllowDowngrades: true })
         {
             result = _database.InsertRow(
                 "SELECT `UpgradeCode`, `VersionMin`, `VersionMax`, `Language`, `Attributes`, `Remove`, `ActionProperty` FROM `Upgrade`",
@@ -831,9 +840,9 @@ internal sealed class TableEmitter
         }
 
         // Add MajorUpgrade downgrade prevention condition
-        if (package.MajorUpgrade is not null && !package.MajorUpgrade.AllowDowngrades)
+        if (package.MajorUpgrade is not null && package.Downgrade is not { AllowDowngrades: true })
         {
-            var msg = package.MajorUpgrade.DowngradeErrorMessage ?? "A newer version is already installed.";
+            var msg = package.Downgrade?.ErrorMessage ?? "A newer version is already installed.";
             var result = InsertLaunchConditionRow("NOT NEWERVERSIONFOUND", msg);
             if (result.IsFailure) return result;
         }
@@ -1449,13 +1458,17 @@ internal sealed class TableEmitter
         if (assemblies.Count == 0) return Unit.Value;
 
         var defaultFeature = resolved.Package.Features.FirstOrDefault()?.Id ?? "Complete";
+        var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+        var fileNameToComponent = resolved.Components
+            .SelectMany(c => c.Files.Select(f => (FileName: f.FileName, Component: c)))
+            .GroupBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Component, StringComparer.OrdinalIgnoreCase);
 
         foreach (var assembly in assemblies)
         {
             // Find the component that owns this file
-            var component = resolved.Components.FirstOrDefault(c =>
-                c.Files.Any(f => f.FileName.Equals(assembly.FileRef, StringComparison.OrdinalIgnoreCase)));
-            var componentId = component?.Id ?? resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+            fileNameToComponent.TryGetValue(assembly.FileRef ?? string.Empty, out var component);
+            var componentId = component?.Id ?? defaultComponentId;
             var featureId = component?.FeatureRef ?? defaultFeature;
             var attributes = (int)assembly.Type;
 
