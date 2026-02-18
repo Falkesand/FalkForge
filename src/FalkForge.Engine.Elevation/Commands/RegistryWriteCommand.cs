@@ -8,8 +8,9 @@ public sealed class RegistryWriteCommand : IElevatedCommand
 {
     private static readonly string[] DeniedSubKeyPrefixes =
     [
-        @"SOFTWARE\Microsoft\Windows NT\",
-        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+        @"SOFTWARE\Microsoft\",
+        @"SOFTWARE\Classes\",
+        @"SOFTWARE\Policies\",
         @"SYSTEM\",
         @"SECURITY\",
         @"SAM\"

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using FalkForge.Engine.Elevation.Commands;
 using Xunit;
 
@@ -66,6 +67,35 @@ public sealed class FileWriteCommandTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.True(File.Exists(targetPath));
         Assert.Empty(File.ReadAllBytes(targetPath));
+    }
+
+    [Fact]
+    public void Execute_RejectsDirectoryJunction()
+    {
+        var junctionTarget = Path.Combine(_tempDir, "junctionTarget");
+        var junctionPath = Path.Combine(_tempDir, "junction");
+        Directory.CreateDirectory(junctionTarget);
+
+        // mklink /J creates a junction without elevation on Windows
+        using var proc = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{junctionPath}\" \"{junctionTarget}\"")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true
+        })!;
+        proc.WaitForExit(5_000);
+
+        if (!Directory.Exists(junctionPath))
+            return; // Skip if junction creation failed
+
+        var targetPath = Path.Combine(junctionPath, "evil.dll");
+        var payload = BuildPayload(targetPath, new byte[] { 0x4D, 0x5A });
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("symbolic link or junction", result.Error.Message);
     }
 
     private static byte[] BuildPayload(string targetPath, byte[] content)
