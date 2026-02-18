@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Phases;
 
+using System.IO.Pipes;
 using System.Security.Cryptography;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Logging;
@@ -81,8 +82,15 @@ public sealed class ElevatingHandler : IEnginePhaseHandler
                 return EnginePhase.Failed;
             }
 
-            // Build command-line arguments for the companion
-            var args = $"--pipe {pipeName} --secret {Convert.ToBase64String(secret)} --parent-pid {Environment.ProcessId}";
+            // Create a one-shot secret-delivery pipe. The secret is written here after the
+            // companion connects, so it never appears in command-line arguments.
+            var secretPipeName = $"falkforge_init_{Guid.NewGuid():N}";
+            using var initPipe = new NamedPipeServerStream(
+                secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+
+            // Build command-line arguments for the companion (no --secret in args)
+            var args = $"--pipe {pipeName} --secret-pipe {secretPipeName} --parent-pid {Environment.ProcessId}";
 
             _logger.Debug("Elevating", $"Launching companion: {companionPath}");
 
@@ -96,7 +104,15 @@ public sealed class ElevatingHandler : IEnginePhaseHandler
             }
 
             context.ElevatedProcess = launchResult.Value;
-            _logger.Info("Elevating", $"Companion launched (PID {launchResult.Value.Id}), waiting for connection");
+            _logger.Info("Elevating", $"Companion launched (PID {launchResult.Value.Id}), delivering secret");
+
+            // Deliver the HMAC secret to the companion via the init pipe (not via CLI args)
+            using var initCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            initCts.CancelAfter(ConnectionTimeout);
+            await initPipe.WaitForConnectionAsync(initCts.Token);
+            await initPipe.WriteAsync(secret.AsMemory(), initCts.Token);
+            await initPipe.FlushAsync(initCts.Token);
+            _logger.Debug("Elevating", "Secret delivered; waiting for main pipe connection");
 
             // Wait for the companion to connect with a timeout.
             // PipeServer.StartAsync handles WaitForConnectionAsync + HMAC handshake + starts receive loop.
