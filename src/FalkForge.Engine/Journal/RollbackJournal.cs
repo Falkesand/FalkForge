@@ -24,7 +24,8 @@ public sealed class RollbackJournal : IDisposable
                 Directory.CreateDirectory(dir);
             }
 
-            _stream = new FileStream(_journalPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+            _stream = new FileStream(_journalPath, FileMode.Create, FileAccess.Write, FileShare.Read,
+                bufferSize: 4096, FileOptions.WriteThrough | FileOptions.SequentialScan);
             _writer = new BinaryWriter(_stream);
             return Unit.Value;
         }
