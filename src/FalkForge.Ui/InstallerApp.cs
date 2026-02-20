@@ -39,7 +39,7 @@ public static class InstallerApp
         if (pageFactories.Count == 0)
             return 1;
 
-        var sharedState = new InstallerState();
+        var sharedState = new InstallerState(new DpapiDataProtector());
 
         var pages = new List<InstallerPage>(pageFactories.Count);
         foreach (var factory in pageFactories)
