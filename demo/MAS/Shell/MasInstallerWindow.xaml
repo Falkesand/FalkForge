@@ -93,7 +93,7 @@
                         Style="{StaticResource InstallerButton}"/>
 
                 <Button Content="Cancel"
-                        Command="{Binding CancelCommand}"
+                        Click="Cancel_Click"
                         Style="{StaticResource InstallerButton}"/>
             </StackPanel>
         </Grid>

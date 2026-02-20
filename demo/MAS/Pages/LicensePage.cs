@@ -20,7 +20,7 @@ public sealed class LicensePage : MasPageBase<LicenseView>
     public string LicenseText => """
         LICENSE AGREEMENT
 
-        \u00a9 Copyright ASSA ABLOY OPENING SOLUTIONS SWEDEN AB. All rights reserved.
+        © Copyright ASSA ABLOY OPENING SOLUTIONS SWEDEN AB. All rights reserved.
 
         This is a legal agreement between you, the end user and ASSA ABLOY OPENING SOLUTIONS SWEDEN AB. If you do not agree to the terms of this agreement, please cancel the installation.
 

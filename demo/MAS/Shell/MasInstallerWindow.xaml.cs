@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 
 namespace MAS.Shell;
 
@@ -9,6 +10,22 @@ public partial class MasInstallerWindow : Window
     public MasInstallerWindow()
     {
         InitializeComponent();
+    }
+
+    private void Cancel_Click(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            this,
+            "Are you sure you want to cancel the installation?",
+            "Cancel Installation",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes && DataContext is { } vm)
+        {
+            var cancelCommand = vm.GetType().GetProperty("CancelCommand")?.GetValue(vm) as ICommand;
+            cancelCommand?.Execute(null);
+        }
     }
 }
 

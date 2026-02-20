@@ -180,6 +180,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         var page = CurrentPage;
         if (page is null) return;
 
+        page.PropertyChanged += OnCurrentPagePropertyChanged;
         CurrentView = page.CreateViewInternal();
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(CurrentView));
@@ -190,7 +191,16 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
     private async Task NavigateFromCurrentAsync()
     {
         if (CurrentPage is not null)
+        {
+            CurrentPage.PropertyChanged -= OnCurrentPagePropertyChanged;
             await CurrentPage.OnNavigatingFromAsync();
+        }
+    }
+
+    private void OnCurrentPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstallerPage.CanGoNext) or nameof(InstallerPage.CanGoBack))
+            RaiseAllNavigationProperties();
     }
 
     private int FindPageIndex(Type? pageType)
