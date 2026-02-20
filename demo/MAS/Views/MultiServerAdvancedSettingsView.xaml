@@ -50,7 +50,8 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <PasswordBox Grid.Column="0" FontSize="12" Padding="4,4"
-                                 BorderBrush="#AAAAAA"/>
+                                 BorderBrush="#AAAAAA"
+                                 PasswordChanged="PasswordBox_PasswordChanged"/>
                     <Button Grid.Column="1" Content="Show" Width="40"
                             Margin="4,0,0,0" ToolTip="Show password"/>
                 </Grid>

@@ -61,8 +61,8 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
 
     public override PageResult OnNext()
     {
-        SharedState.Set("DbConnectionServer", _databaseServer);
-        SharedState.Set("DbConnectionName", _databaseName);
+        SharedState.Set("DatabaseServer", _databaseServer);
+        SharedState.Set("DatabaseName", _databaseName);
         SharedState.Set("IntegratedSecurity", _integratedSecurity);
         SharedState.Set("DbUserName", _userName);
         SharedState.Set("DbPassword", _password);
