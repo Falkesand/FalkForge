@@ -17,6 +17,7 @@
     <Project Path="src/FalkForge.Extensions.Util/FalkForge.Extensions.Util.csproj" />
     <Project Path="src/FalkForge.Localization/FalkForge.Localization.csproj" />
     <Project Path="src/FalkForge.Platform/FalkForge.Platform.csproj" />
+    <Project Path="src/FalkForge.Plugins.FileSystem/FalkForge.Plugins.FileSystem.csproj" />
     <Project Path="src/FalkForge.Plugins.Odbc/FalkForge.Plugins.Odbc.csproj" />
     <Project Path="src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
     <Project Path="src/FalkForge.Platform.Windows/FalkForge.Platform.Windows.csproj" />
