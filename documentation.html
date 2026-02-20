@@ -814,6 +814,19 @@
         </div>
       </div>
 
+      <!-- Appendix A: InstallerPage Helpers -->
+      <div class="nav-section" data-section="appendix-a">
+        <a href="#appendix-a" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">A. InstallerPage Helpers</span>
+        </a>
+        <div class="nav-children">
+          <a href="#helper-setfield">SetField</a>
+          <a href="#helper-setfield-notify">SetField with alsoNotify</a>
+          <a href="#helper-onpropertychanged">OnPropertyChanged</a>
+          <a href="#helper-getpassword">GetPassword</a>
+        </div>
+      </div>
+
     </div>
   </nav>
 
@@ -6978,6 +6991,190 @@ return InstallerApp.Run(args, app => app
   ]
 }</code></pre>
 </section>
+
+  <!-- Appendix A: InstallerPage Helpers -->
+  <section id="appendix-a">
+  <h2>Appendix A: InstallerPage Helpers</h2>
+  <p>
+    <code>InstallerPage</code> provides several protected helper methods for common patterns
+    in custom UI pages. This appendix explains each one with examples.
+  </p>
+
+  <!-- SetField -->
+  <h3 id="helper-setfield">SetField&lt;T&gt;</h3>
+  <p>
+    The core property-change helper. Compares the new value with the current field value using
+    <code>EqualityComparer&lt;T&gt;.Default</code>. If different, updates the field, raises
+    <code>PropertyChanged</code>, and returns <code>true</code>. If the same, does nothing and
+    returns <code>false</code>. The property name is auto-inferred via <code>[CallerMemberName]</code>.
+  </p>
+  <pre><code class="language-csharp">protected bool SetField&lt;T&gt;(ref T field, T value, [CallerMemberName] string? name = null)</code></pre>
+
+  <h4>Usage</h4>
+  <p>Use in property setters to get automatic change notification for WPF data binding:</p>
+  <pre><code class="language-csharp">private string _serverName = "localhost";
+
+public string ServerName
+{
+    get =&gt; _serverName;
+    set =&gt; SetField(ref _serverName, value);
+}
+// When ServerName changes, PropertyChanged fires with "ServerName".
+// When the same value is assigned, nothing happens (no unnecessary UI updates).</code></pre>
+
+  <h4>Return Value</h4>
+  <p>
+    Returns <code>true</code> if the value changed, <code>false</code> if it was already equal.
+    Use the return value to trigger side effects only when the value actually changes:
+  </p>
+  <pre><code class="language-csharp">private string _dsnName = "MultiAccess";
+
+public string DsnName
+{
+    get =&gt; _dsnName;
+    set
+    {
+        if (SetField(ref _dsnName, value))
+            DsnWarning = string.Empty;  // Clear warning only when DSN actually changes
+    }
+}</code></pre>
+
+  <!-- SetField with alsoNotify -->
+  <h3 id="helper-setfield-notify">SetField&lt;T&gt; with alsoNotify</h3>
+  <p>
+    An overload that also raises <code>PropertyChanged</code> for dependent (computed) properties.
+    When a property's value affects other read-only properties that the UI binds to, list those
+    property names in <code>alsoNotify</code> to keep the UI in sync.
+  </p>
+  <pre><code class="language-csharp">protected bool SetField&lt;T&gt;(ref T field, T value, string[] alsoNotify, [CallerMemberName] string? name = null)</code></pre>
+
+  <h4>Usage</h4>
+  <p>Common pattern: a boolean property with a computed inverse:</p>
+  <pre><code class="language-csharp">private bool _isStandard = true;
+
+// When IsStandard changes, also notify that IsAdvanced changed
+public bool IsStandard
+{
+    get =&gt; _isStandard;
+    set =&gt; SetField(ref _isStandard, value, [nameof(IsAdvanced)]);
+}
+
+// Computed property — no backing field, derived from IsStandard
+public bool IsAdvanced =&gt; !_isStandard;</code></pre>
+
+  <p>Multiple dependents — fires notifications in array order:</p>
+  <pre><code class="language-csharp">private bool _accepted;
+
+// Changing Accepted also notifies CanGoNext (which the framework checks
+// to enable/disable the Next button)
+public bool Accepted
+{
+    get =&gt; _accepted;
+    set =&gt; SetField(ref _accepted, value, [nameof(CanGoNext)]);
+}
+
+public override bool CanGoNext =&gt; _accepted;</code></pre>
+
+  <h4>Before / After</h4>
+  <p>This overload replaces the verbose multi-line pattern:</p>
+  <pre><code class="language-csharp">// Before (verbose)
+public bool UseExisting
+{
+    get =&gt; _useExisting;
+    set
+    {
+        if (SetField(ref _useExisting, value))
+            OnPropertyChanged(nameof(CreateEmpty));
+    }
+}
+
+// After (concise)
+public bool UseExisting
+{
+    get =&gt; _useExisting;
+    set =&gt; SetField(ref _useExisting, value, [nameof(CreateEmpty)]);
+}</code></pre>
+
+  <!-- OnPropertyChanged -->
+  <h3 id="helper-onpropertychanged">OnPropertyChanged</h3>
+  <p>
+    Directly raises <code>PropertyChanged</code> for a given property name.
+    The name is auto-inferred via <code>[CallerMemberName]</code> when called from a property setter,
+    but you can pass an explicit name for computed properties.
+  </p>
+  <pre><code class="language-csharp">protected void OnPropertyChanged([CallerMemberName] string? name = null)</code></pre>
+
+  <h4>Usage</h4>
+  <p>Typically used in <code>SetField</code> setters when you need custom side-effect logic beyond what the <code>alsoNotify</code> overload provides:</p>
+  <pre><code class="language-csharp">private string _dsnName = "MultiAccess";
+
+public string DsnName
+{
+    get =&gt; _dsnName;
+    set
+    {
+        if (SetField(ref _dsnName, value))
+        {
+            DsnWarning = string.Empty;          // Side effect: clear warning
+            OnPropertyChanged(nameof(FullDsn));  // Notify computed property
+        }
+    }
+}
+
+public string FullDsn =&gt; $"DSN={_dsnName};Trusted_Connection=Yes;";</code></pre>
+
+  <!-- GetPassword -->
+  <h3 id="helper-getpassword">GetPassword</h3>
+  <p>
+    Reads the current password from a <code>PasswordBox</code> registered via the
+    <code>PasswordBridge.Key</code> attached property. Returns the password as UTF-8 encoded
+    bytes wrapped in <code>SensitiveBytes</code>. The password is never stored as a
+    <code>string</code> property — it is read on-demand at the moment it's needed.
+  </p>
+  <pre><code class="language-csharp">protected SensitiveBytes GetPassword(string key)</code></pre>
+
+  <h4>Setup</h4>
+  <p>In the XAML view, attach a key to the <code>PasswordBox</code>:</p>
+  <pre><code class="language-xml">&lt;UserControl xmlns:ui="clr-namespace:FalkForge.Ui;assembly=FalkForge.Ui"&gt;
+    &lt;StackPanel&gt;
+        &lt;TextBlock Text="Password:" /&gt;
+        &lt;PasswordBox ui:PasswordBridge.Key="DbPassword" /&gt;
+    &lt;/StackPanel&gt;
+&lt;/UserControl&gt;</code></pre>
+
+  <h4>Usage</h4>
+  <p>In the page, read the password only at the moment you need it:</p>
+  <pre><code class="language-csharp">public override PageResult OnNext()
+{
+    // Read password on-demand — never stored as a string property
+    using var pw = GetPassword("DbPassword");
+    if (!pw.IsEmpty)
+        SharedState.SetSensitive("DbPassword", pw.Span);
+
+    return PageResult.Next;
+}
+
+public async Task TestConnectionAsync()
+{
+    using var pw = GetPassword("DbPassword");
+    // Convert to string only at the exact moment the API needs it
+    var passwordStr = pw.IsEmpty
+        ? string.Empty
+        : Encoding.UTF8.GetString(pw.Span);
+
+    var result = await tester.TestConnectionAsync(
+        DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
+}</code></pre>
+
+  <h4>Security Notes</h4>
+  <ul>
+    <li>Always wrap in <code>using</code> — the bytes are zeroed when the <code>SensitiveBytes</code> is disposed.</li>
+    <li><code>SharedState.SetSensitive()</code> encrypts the data at rest using Windows DPAPI.</li>
+    <li>Returns an empty <code>SensitiveBytes</code> (where <code>IsEmpty == true</code>) if no PasswordBox is registered for the given key.</li>
+    <li>The password exists as a <code>string</code> inside the WPF <code>PasswordBox</code> control — that is a WPF limitation. This framework minimizes the window during which the password exists as a .NET <code>string</code> outside the control.</li>
+  </ul>
+
+  </section>
 
   </main>
 
