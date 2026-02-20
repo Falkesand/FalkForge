@@ -32,11 +32,7 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     public bool IntegratedSecurity
     {
         get => _integratedSecurity;
-        set
-        {
-            if (SetField(ref _integratedSecurity, value))
-                OnPropertyChanged(nameof(ShowCredentials));
-        }
+        set => SetField(ref _integratedSecurity, value, [nameof(ShowCredentials)]);
     }
 
     public bool ShowCredentials => !_integratedSecurity;

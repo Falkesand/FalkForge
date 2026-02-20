@@ -12,11 +12,7 @@ public sealed class InstallationTypePage : MasPageBase<InstallationTypeView>
     public bool IsStandard
     {
         get => _isStandard;
-        set
-        {
-            if (SetField(ref _isStandard, value))
-                OnPropertyChanged(nameof(IsAdvanced));
-        }
+        set => SetField(ref _isStandard, value, [nameof(IsAdvanced)]);
     }
 
     public bool IsAdvanced

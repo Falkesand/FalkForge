@@ -27,11 +27,7 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
     public bool UseExisting
     {
         get => _useExisting;
-        set
-        {
-            if (SetField(ref _useExisting, value))
-                OnPropertyChanged(nameof(CreateEmpty));
-        }
+        set => SetField(ref _useExisting, value, [nameof(CreateEmpty)]);
     }
 
     public bool CreateEmpty

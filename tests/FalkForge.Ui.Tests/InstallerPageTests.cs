@@ -25,6 +25,27 @@ public class PropertyTestPage : InstallerPage<TestView>
         get => _status;
         set => SetField(ref _status, value);
     }
+
+    private bool _flag;
+
+    public bool Flag
+    {
+        get => _flag;
+        set => SetField(ref _flag, value, [nameof(NotFlag)]);
+    }
+
+    public bool NotFlag => !_flag;
+
+    private int _count;
+
+    public int Count
+    {
+        get => _count;
+        set => SetField(ref _count, value, [nameof(IsPositive), nameof(IsEven)]);
+    }
+
+    public bool IsPositive => _count > 0;
+    public bool IsEven => _count % 2 == 0;
 }
 
 public class InstallerPageTests
@@ -150,6 +171,47 @@ public class InstallerPageTests
         page.Status = "Done";
 
         Assert.Empty(changedProperties);
+    }
+
+    [Fact]
+    public void SetField_AlsoNotify_RaisesAllPropertyChanged()
+    {
+        var page = new PropertyTestPage();
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        page.Flag = true;
+
+        Assert.Equal(2, changed.Count);
+        Assert.Equal(nameof(PropertyTestPage.Flag), changed[0]);
+        Assert.Equal(nameof(PropertyTestPage.NotFlag), changed[1]);
+    }
+
+    [Fact]
+    public void SetField_AlsoNotify_SameValue_DoesNotRaise()
+    {
+        var page = new PropertyTestPage();
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        page.Flag = false;
+
+        Assert.Empty(changed);
+    }
+
+    [Fact]
+    public void SetField_AlsoNotify_MultipleDependents_RaisesInOrder()
+    {
+        var page = new PropertyTestPage();
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        page.Count = 3;
+
+        Assert.Equal(3, changed.Count);
+        Assert.Equal(nameof(PropertyTestPage.Count), changed[0]);
+        Assert.Equal(nameof(PropertyTestPage.IsPositive), changed[1]);
+        Assert.Equal(nameof(PropertyTestPage.IsEven), changed[2]);
     }
 
     [WpfFact]

@@ -14,7 +14,7 @@ public sealed class LicensePage : MasPageBase<LicenseView>
     public bool Accepted
     {
         get => _accepted;
-        set { if (SetField(ref _accepted, value)) OnPropertyChanged(nameof(CanGoNext)); }
+        set => SetField(ref _accepted, value, [nameof(CanGoNext)]);
     }
 
     public string LicenseText => """

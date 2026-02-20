@@ -40,4 +40,13 @@ public abstract class InstallerPage : INotifyPropertyChanged
         OnPropertyChanged(name);
         return true;
     }
+
+    protected bool SetField<T>(ref T field, T value, string[] alsoNotify, [CallerMemberName] string? name = null)
+    {
+        if (!SetField(ref field, value, name))
+            return false;
+        foreach (var dependent in alsoNotify)
+            OnPropertyChanged(dependent);
+        return true;
+    }
 }
