@@ -13,4 +13,17 @@ public partial class DatabaseConnectionSettingsView : UserControl
         if (DataContext is DatabaseConnectionSettingsPage page)
             page.Password = ((PasswordBox)sender).Password;
     }
+
+    private async void TestConnection_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DataContext is DatabaseConnectionSettingsPage page)
+                await page.TestConnectionAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Test connection failed: {ex.Message}");
+        }
+    }
 }

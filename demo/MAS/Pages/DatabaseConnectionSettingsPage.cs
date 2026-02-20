@@ -1,3 +1,4 @@
+using FalkForge.Plugins.Sql;
 using FalkForge.Ui.Abstractions;
 using MAS.Views;
 
@@ -11,6 +12,7 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     private string _userName = "AUSR_AptusWeb";
     private string _password = string.Empty;
     private bool _skipTest;
+    private string _testResult = string.Empty;
 
     public override string Title => "Database Connection Settings";
     public override string? Subtitle => "Please enter SQL database information to continue";
@@ -57,7 +59,26 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         set => SetField(ref _skipTest, value);
     }
 
+    public string TestResult
+    {
+        get => _testResult;
+        set => SetField(ref _testResult, value);
+    }
+
     public string WarningText => "The user will not be created if the user don't exists. For help please see the manual for MultiAccess";
+
+    public async Task TestConnectionAsync()
+    {
+        var tester = PluginServices.GetService<IConnectionTester>();
+        if (tester is null) return;
+
+        TestResult = "Testing...";
+        var result = await tester.TestConnectionAsync(
+            DatabaseServer, DatabaseName, IntegratedSecurity, UserName, Password);
+        TestResult = result.IsSuccess
+            ? "Connection successful!"
+            : $"Failed: {result.Error.Message}";
+    }
 
     public override PageResult OnNext()
     {

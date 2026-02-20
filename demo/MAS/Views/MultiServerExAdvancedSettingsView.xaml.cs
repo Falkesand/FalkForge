@@ -13,4 +13,16 @@ public partial class MultiServerExAdvancedSettingsView : UserControl
         if (DataContext is MultiServerExAdvancedSettingsPage page)
             page.ServicePassword = ((PasswordBox)sender).Password;
     }
+
+    private void CheckDsn_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MultiServerExAdvancedSettingsPage page)
+            page.CheckDsnName();
+    }
+
+    private void OdbcAdmin_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MultiServerExAdvancedSettingsPage page)
+            page.LaunchOdbcAdmin();
+    }
 }

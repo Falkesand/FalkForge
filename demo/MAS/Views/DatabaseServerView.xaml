@@ -32,17 +32,23 @@
                     Background="White" Padding="8" Margin="0,0,0,4">
                 <StackPanel>
                     <Button Content="Search for server" HorizontalAlignment="Center"
-                            Padding="16,6" Margin="0,4,0,8"/>
-                    <TextBox Text="{Binding DatabaseServer, UpdateSourceTrigger=PropertyChanged}"
-                             FontSize="12" Padding="4,2"/>
+                            Padding="16,6" Margin="0,4,0,8"
+                            Click="SearchServer_Click"/>
+                    <ComboBox IsEditable="True"
+                              Text="{Binding DatabaseServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              ItemsSource="{Binding AvailableServers}"
+                              FontSize="12"
+                              BorderBrush="#AAAAAA"/>
                 </StackPanel>
             </Border>
 
             <TextBlock Text="Database Name" FontWeight="SemiBold"
                        FontSize="12" Margin="0,16,0,4"/>
-            <TextBox Text="{Binding DatabaseName, UpdateSourceTrigger=PropertyChanged}"
-                     FontSize="12" Padding="4,2"
-                     BorderBrush="#AAAAAA"/>
+            <ComboBox Text="{Binding DatabaseName, UpdateSourceTrigger=PropertyChanged}"
+                      ItemsSource="{Binding AvailableDatabases}"
+                      IsEditable="True" FontSize="12"
+                      BorderBrush="#AAAAAA"
+                      DropDownOpened="DatabaseCombo_DropDownOpened"/>
         </StackPanel>
     </Grid>
 </UserControl>

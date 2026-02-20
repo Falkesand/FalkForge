@@ -1,3 +1,4 @@
+using FalkForge.Plugins.Odbc;
 using FalkForge.Ui.Abstractions;
 using MAS.Views;
 
@@ -45,6 +46,24 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
     public string ServiceWarning => "If the account name is changed the new account must be of type service account to have permission to start MultiServer as a service.";
 
     public string IntegratedSecurityNote => "If integrated security is used make sure that the service account have correct permissions to the database.";
+
+    public void CheckDsnName()
+    {
+        var odbc = PluginServices.GetService<IOdbcManager>();
+        if (odbc is null) return;
+
+        var result = odbc.DsnExists(DsnName);
+        if (result.IsSuccess && result.Value)
+            DsnWarning = $"DSN name, {DsnName}, already exists. Observe if using this name the installation will not overwrite existing settings.";
+        else
+            DsnWarning = string.Empty;
+    }
+
+    public void LaunchOdbcAdmin()
+    {
+        var odbc = PluginServices.GetService<IOdbcManager>();
+        odbc?.LaunchOdbcAdministrator();
+    }
 
     public override PageResult OnNext()
     {

@@ -1,8 +1,14 @@
+using FalkForge.Plugins.FileSystem;
+using FalkForge.Plugins.Odbc;
+using FalkForge.Plugins.Sql;
 using FalkForge.Ui;
 using MAS.Pages;
 using MAS.Shell;
 
 return InstallerApp.Run(args, app => app
+    .Plugin<SqlPlugin>()
+    .Plugin<OdbcPlugin>()
+    .Plugin<FileSystemPlugin>()
     .Window(w => w.CustomWindow<MasInstallerWindow>())
     .Pages(p => p
         .Add<WelcomePage>()
