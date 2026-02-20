@@ -9,4 +9,9 @@ return InstallerApp.Run(args, app => app
         .Add<LicensePage>()
         .Add<InstallationTypePage>()
         .Add<DatabaseServerPage>()
-        .Add<ConfirmParametersPage>()));
+        .Add<ConfirmParametersPage>()
+        .Add<AdvancedInstallDirMultiServerPage>()
+        .Add<AdvancedInstallDirMultiServerExPage>()
+        .Add<DatabaseConnectionSettingsPage>()
+        .Add<MultiServerAdvancedSettingsPage>()
+        .Add<MultiServerExAdvancedSettingsPage>()));

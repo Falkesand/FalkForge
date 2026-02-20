@@ -3,14 +3,14 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
-public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerExAdvancedSettingsView>
+public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdvancedSettingsView>
 {
-    private string _dsnName = "MultiAccessx64";
+    private string _dsnName = "MultiAccess";
     private string _serviceAccount = "LocalSystem";
     private string _servicePassword = string.Empty;
     private string _dsnWarning = string.Empty;
 
-    public override string Title => "MultiServerEx Advanced Settings";
+    public override string Title => "MultiServer Advanced Settings";
 
     public string DsnName
     {
@@ -28,7 +28,7 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
         set => SetField(ref _dsnWarning, value);
     }
 
-    public string ServiceName => "MultiServerEx";
+    public string ServiceName => "MultiServer";
 
     public string ServiceAccount
     {
@@ -48,13 +48,13 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
 
     public override PageResult OnNext()
     {
-        SharedState.Set("MultiServerExDsnName", _dsnName);
-        SharedState.Set("MultiServerExServiceAccount", _serviceAccount);
-        SharedState.Set("MultiServerExServicePassword", _servicePassword);
-        SharedState.Set("MultiServerExInstallAsService", true);
-        return PageResult.GoTo<ConfirmParametersPage>();
+        SharedState.Set("MultiServerDsnName", _dsnName);
+        SharedState.Set("MultiServerServiceAccount", _serviceAccount);
+        SharedState.Set("MultiServerServicePassword", _servicePassword);
+        SharedState.Set("MultiServerInstallAsService", true);
+        return PageResult.GoTo<MultiServerExAdvancedSettingsPage>();
     }
 
     public override PageResult OnBack()
-        => PageResult.GoTo<MultiServerAdvancedSettingsPage>();
+        => PageResult.GoTo<DatabaseConnectionSettingsPage>();
 }

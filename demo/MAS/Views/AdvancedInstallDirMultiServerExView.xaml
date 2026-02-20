@@ -1,4 +1,4 @@
-<UserControl x:Class="MAS.Views.AdvancedInstallDirMultiServerView"
+<UserControl x:Class="MAS.Views.AdvancedInstallDirMultiServerExView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#F0F0F0">
