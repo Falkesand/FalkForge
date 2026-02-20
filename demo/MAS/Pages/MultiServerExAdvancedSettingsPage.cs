@@ -8,7 +8,6 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
 {
     private string _dsnName = "MultiAccessx64";
     private string _serviceAccount = "LocalSystem";
-    private string _servicePassword = string.Empty;
     private string _dsnWarning = string.Empty;
 
     public override string Title => "MultiServerEx Advanced Settings";
@@ -37,12 +36,6 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
         set => SetField(ref _serviceAccount, value);
     }
 
-    public string ServicePassword
-    {
-        get => _servicePassword;
-        set => SetField(ref _servicePassword, value);
-    }
-
     public string ServiceWarning => "If the account name is changed the new account must be of type service account to have permission to start MultiServer as a service.";
 
     public string IntegratedSecurityNote => "If integrated security is used make sure that the service account have correct permissions to the database.";
@@ -69,7 +62,9 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
     {
         SharedState.Set("MultiServerExDsnName", _dsnName);
         SharedState.Set("MultiServerExServiceAccount", _serviceAccount);
-        SharedState.Set("MultiServerExServicePassword", _servicePassword);
+        using var pw = GetPassword("MultiServerExServicePassword");
+        if (!pw.IsEmpty)
+            SharedState.SetSensitive("MultiServerExServicePassword", pw.Span);
         SharedState.Set("MultiServerExInstallAsService", true);
         return PageResult.GoTo<ConfirmParametersPage>();
     }

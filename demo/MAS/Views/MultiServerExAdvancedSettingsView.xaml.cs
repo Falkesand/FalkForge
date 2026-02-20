@@ -8,12 +8,6 @@ public partial class MultiServerExAdvancedSettingsView : UserControl
 {
     public MultiServerExAdvancedSettingsView() => InitializeComponent();
 
-    private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MultiServerExAdvancedSettingsPage page)
-            page.ServicePassword = ((PasswordBox)sender).Password;
-    }
-
     private void CheckDsn_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MultiServerExAdvancedSettingsPage page)
