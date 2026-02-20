@@ -9,6 +9,21 @@ public static class InstallerApp
 {
     public static int Run(string[] args, Action<InstallerUIBuilder> configure)
     {
+        if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+        {
+            var exitCode = 0;
+            var thread = new Thread(() => exitCode = RunCore(args, configure));
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            return exitCode;
+        }
+
+        return RunCore(args, configure);
+    }
+
+    private static int RunCore(string[] args, Action<InstallerUIBuilder> configure)
+    {
         var uiBuilder = new InstallerUIBuilder();
         configure(uiBuilder);
 
@@ -37,26 +52,29 @@ public static class InstallerApp
 
         var viewModel = new CustomShellViewModel(pages, engine, sharedState);
 
-        Window window;
-        if (config.CustomWindowType is not null)
-        {
-            window = (Window)Activator.CreateInstance(config.CustomWindowType)!;
-            window.DataContext = viewModel;
-        }
-        else
-        {
-            var customWindow = new CustomInstallerWindow();
-            customWindow.ApplyConfig(config);
-            customWindow.DataContext = viewModel;
-            window = customWindow;
-        }
-
-        viewModel.CloseRequested += (_, _) => window.Close();
-
         var app = new Application();
 
         app.Startup += async (_, _) =>
         {
+            Window window;
+            if (config.CustomWindowType is not null)
+            {
+                window = (Window)Activator.CreateInstance(config.CustomWindowType)!;
+                window.DataContext = viewModel;
+            }
+            else
+            {
+                var customWindow = new CustomInstallerWindow();
+                customWindow.ApplyConfig(config);
+                customWindow.DataContext = viewModel;
+                window = customWindow;
+            }
+
+            viewModel.CloseRequested += (_, _) => window.Close();
+
+            app.MainWindow = window;
+            window.Show();
+
             try
             {
                 await engine.DetectAsync();
@@ -71,7 +89,7 @@ public static class InstallerApp
             await viewModel.NavigateToFirstPageAsync();
         };
 
-        app.Run(window);
+        app.Run();
 
         return engine.ShutdownAsync().GetAwaiter().GetResult();
     }

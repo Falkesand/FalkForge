@@ -8,8 +8,6 @@ public partial class MasInstallerWindow : Window
 {
     public MasInstallerWindow()
     {
-        Resources.Add("NullToCollapsedConverter", new NullToCollapsedConverter());
-        Resources.Add("BoolToVisibilityConverter", new BoolToVisibilityConverter());
         InitializeComponent();
     }
 }
