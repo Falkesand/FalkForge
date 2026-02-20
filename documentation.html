@@ -827,6 +827,51 @@
         </div>
       </div>
 
+      <!-- Appendix B: Page Lifecycle & Properties -->
+      <div class="nav-section" data-section="appendix-b">
+        <a href="#appendix-b" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">B. Page Lifecycle</span>
+        </a>
+        <div class="nav-children">
+          <a href="#lifecycle-properties">Properties</a>
+          <a href="#lifecycle-hooks">Lifecycle Hooks</a>
+        </div>
+      </div>
+
+      <!-- Appendix C: Navigation with PageResult -->
+      <div class="nav-section" data-section="appendix-c">
+        <a href="#appendix-c" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">C. Navigation</span>
+        </a>
+        <div class="nav-children">
+          <a href="#pageresult-singletons">Singletons</a>
+          <a href="#pageresult-factories">Factories</a>
+        </div>
+      </div>
+
+      <!-- Appendix D: Cross-Page State -->
+      <div class="nav-section" data-section="appendix-d">
+        <a href="#appendix-d" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">D. Cross-Page State</span>
+        </a>
+        <div class="nav-children">
+          <a href="#sharedstate-methods">Methods</a>
+          <a href="#sharedstate-sensitive">Sensitive Data</a>
+        </div>
+      </div>
+
+      <!-- Appendix E: Plugin Services -->
+      <div class="nav-section" data-section="appendix-e">
+        <a href="#appendix-e" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">E. Plugin Services</span>
+        </a>
+        <div class="nav-children">
+          <a href="#plugin-methods">Methods</a>
+          <a href="#plugin-registration">Registration</a>
+          <a href="#plugin-shipped">Shipped Plugins</a>
+        </div>
+      </div>
+
     </div>
   </nav>
 
@@ -7173,6 +7218,271 @@ public async Task TestConnectionAsync()
     <li>Returns an empty <code>SensitiveBytes</code> (where <code>IsEmpty == true</code>) if no PasswordBox is registered for the given key.</li>
     <li>The password exists as a <code>string</code> inside the WPF <code>PasswordBox</code> control — that is a WPF limitation. This framework minimizes the window during which the password exists as a .NET <code>string</code> outside the control.</li>
   </ul>
+
+  </section>
+
+  <!-- Appendix B: Page Lifecycle & Properties -->
+  <section id="appendix-b">
+  <h2>Appendix B: Page Lifecycle &amp; Properties</h2>
+  <p>
+    <code>InstallerPage</code> exposes properties and lifecycle hooks that control navigation,
+    button state, and page transitions. This appendix documents each member and shows common patterns.
+  </p>
+
+  <h3 id="lifecycle-properties">Properties</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Member</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Title</code></td><td><code>string</code></td><td>(abstract)</td><td>Page title displayed in the banner area. Every page must provide this.</td></tr>
+      <tr><td><code>CanGoNext</code></td><td><code>bool</code></td><td><code>true</code></td><td>Controls whether the Next/Install button is enabled. Override to gate navigation on validation.</td></tr>
+      <tr><td><code>CanGoBack</code></td><td><code>bool</code></td><td><code>true</code></td><td>Controls whether the Back button is enabled. Override to prevent backward navigation.</td></tr>
+      <tr><td><code>DetectedState</code></td><td><code>InstallState</code></td><td>Set by framework</td><td>The current install state detected by the engine (e.g., <code>InstallState.Absent</code>, <code>InstallState.Present</code>). Use to show different pages or content for first install vs. maintenance.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="lifecycle-hooks">Lifecycle Hooks</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>When Called</th><th>Use Case</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>OnNavigatedToAsync()</code></td><td>After page becomes visible</td><td>Restore state from SharedState, refresh data, start async loading</td></tr>
+      <tr><td><code>OnNavigatingFromAsync()</code></td><td>Before page is hidden (navigating away)</td><td>Save temporary state, cancel pending operations</td></tr>
+      <tr><td><code>OnNext()</code></td><td>User clicks Next/Install</td><td>Validate, save state to SharedState, return navigation target</td></tr>
+      <tr><td><code>OnBack()</code></td><td>User clicks Back</td><td>Return navigation target for backward navigation</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Gating Next on a Checkbox</h4>
+  <pre><code class="language-csharp">public sealed class LicensePage : InstallerPage&lt;LicenseView&gt;
+{
+    private bool _accepted;
+
+    public override string Title =&gt; "License Agreement";
+    public override bool CanGoNext =&gt; _accepted;
+
+    public bool Accepted
+    {
+        get =&gt; _accepted;
+        set =&gt; SetField(ref _accepted, value, [nameof(CanGoNext)]);
+    }
+}</code></pre>
+
+  <h4>Restoring State on Navigation</h4>
+  <pre><code class="language-csharp">public override Task OnNavigatedToAsync()
+{
+    var server = SharedState.Get&lt;string&gt;("DatabaseServer");
+    if (!string.IsNullOrEmpty(server))
+        DatabaseServer = server;
+    return Task.CompletedTask;
+}</code></pre>
+
+  <h4>Branching on DetectedState</h4>
+  <pre><code class="language-csharp">public override PageResult OnNext()
+{
+    return DetectedState == InstallState.Present
+        ? PageResult.GoTo&lt;MaintenancePage&gt;()
+        : PageResult.GoTo&lt;InstallDirPage&gt;();
+}</code></pre>
+
+  </section>
+
+  <!-- Appendix C: Navigation with PageResult -->
+  <section id="appendix-c">
+  <h2>Appendix C: Navigation with PageResult</h2>
+  <p>
+    <code>PageResult</code> controls what happens when the user clicks Next, Back, or Install.
+    Return a <code>PageResult</code> from <code>OnNext()</code> or <code>OnBack()</code> to direct
+    navigation. This appendix lists all available options.
+  </p>
+
+  <h3 id="pageresult-singletons">Singletons</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Result</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>PageResult.Next</code></td><td>Move to the next registered page in sequence</td></tr>
+      <tr><td><code>PageResult.Previous</code></td><td>Move to the previous page in sequence</td></tr>
+      <tr><td><code>PageResult.Finish</code></td><td>Close the installer</td></tr>
+      <tr><td><code>PageResult.Cancel</code></td><td>Cancel and close the installer</td></tr>
+      <tr><td><code>PageResult.Install</code></td><td>Trigger the install action (transitions to progress page)</td></tr>
+      <tr><td><code>PageResult.Uninstall</code></td><td>Trigger the uninstall action</td></tr>
+      <tr><td><code>PageResult.Repair</code></td><td>Trigger the repair action</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="pageresult-factories">Factories</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Factory</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>PageResult.Stay(message?)</code></td><td>Stay on current page, optionally show a validation message</td></tr>
+      <tr><td><code>PageResult.GoTo&lt;TPage&gt;()</code></td><td>Navigate directly to a specific page type (skip sequence)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Conditional Navigation</h4>
+  <pre><code class="language-csharp">public override PageResult OnNext()
+{
+    SharedState.Set("InstallationType", _isStandard ? "Standard" : "Advanced");
+    return _isStandard
+        ? PageResult.GoTo&lt;ConfirmPage&gt;()
+        : PageResult.GoTo&lt;AdvancedSettingsPage&gt;();
+}</code></pre>
+
+  <h4>Validation with Stay</h4>
+  <pre><code class="language-csharp">public override PageResult OnNext()
+{
+    if (string.IsNullOrWhiteSpace(_serverName))
+        return PageResult.Stay("Server name is required.");
+
+    SharedState.Set("ServerName", _serverName);
+    return PageResult.Next;
+}</code></pre>
+
+  <h4>Triggering Install</h4>
+  <pre><code class="language-csharp">public override PageResult OnNext()
+{
+    // Final confirmation page — begin installation
+    return PageResult.Install;
+}</code></pre>
+
+  </section>
+
+  <!-- Appendix D: Cross-Page State -->
+  <section id="appendix-d">
+  <h2>Appendix D: Cross-Page State</h2>
+  <p>
+    <code>SharedState</code> (<code>InstallerState</code>) is a thread-safe key-value store accessible
+    from every <code>InstallerPage</code> via the <code>SharedState</code> property. Use it to pass
+    data between pages without coupling them directly.
+  </p>
+
+  <h3 id="sharedstate-methods">Methods</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>SharedState.Set&lt;T&gt;(key, value)</code></td><td>Store a value accessible from any page</td></tr>
+      <tr><td><code>SharedState.Get&lt;T&gt;(key)</code></td><td>Retrieve a value (returns <code>default(T)</code> if not found)</td></tr>
+      <tr><td><code>SharedState.ContainsKey(key)</code></td><td>Check if a key exists</td></tr>
+      <tr><td><code>SharedState.Remove(key)</code></td><td>Remove a key</td></tr>
+      <tr><td><code>SharedState.InstallDirectory</code></td><td>Convenience property for the install directory</td></tr>
+      <tr><td><code>SharedState.SetSensitive(key, data)</code></td><td>Store DPAPI-encrypted sensitive bytes</td></tr>
+      <tr><td><code>SharedState.GetSensitive(key)</code></td><td>Retrieve and decrypt sensitive data (returns <code>SensitiveBytes</code>)</td></tr>
+      <tr><td><code>SharedState.RemoveSensitive(key)</code></td><td>Zero and remove sensitive data</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Passing Data Between Pages</h4>
+  <pre><code class="language-csharp">// Page 1: Save settings in OnNext()
+public override PageResult OnNext()
+{
+    SharedState.Set("DatabaseServer", _databaseServer);
+    SharedState.Set("DatabaseName", _databaseName);
+    SharedState.Set("UseExistingDatabase", _useExisting);
+    return PageResult.Next;
+}
+
+// Page 2: Restore settings in OnNavigatedToAsync()
+public override Task OnNavigatedToAsync()
+{
+    var server = SharedState.Get&lt;string&gt;("DatabaseServer");
+    if (!string.IsNullOrEmpty(server))
+        DatabaseServer = server;
+    return Task.CompletedTask;
+}</code></pre>
+
+  <h3 id="sharedstate-sensitive">Sensitive Data</h3>
+  <pre><code class="language-csharp">public override PageResult OnNext()
+{
+    SharedState.Set("DbUserName", _userName);
+    using var pw = GetPassword("DbPassword");
+    if (!pw.IsEmpty)
+        SharedState.SetSensitive("DbPassword", pw.Span);
+    return PageResult.Next;
+}</code></pre>
+
+  <div class="note">
+    <code>SharedState</code> implements <code>IDisposable</code>. The framework disposes it
+    automatically on shutdown, zeroing all sensitive data.
+  </div>
+
+  </section>
+
+  <!-- Appendix E: Plugin Services -->
+  <section id="appendix-e">
+  <h2>Appendix E: Plugin Services</h2>
+  <p>
+    The plugin system lets pages access services registered by <code>IInstallerPlugin</code>
+    implementations. Plugins are wired at startup and their services are available to all pages
+    via the <code>PluginServices</code> property.
+  </p>
+
+  <h3 id="plugin-methods">Methods</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>PluginServices.GetService&lt;T&gt;()</code></td><td>Get a plugin service, returns <code>null</code> if not registered</td></tr>
+      <tr><td><code>PluginServices.GetRequiredService&lt;T&gt;()</code></td><td>Get a plugin service, throws if not registered</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="plugin-registration">Registration</h3>
+  <p>Plugins implement <code>IInstallerPlugin</code> and register services in <code>RegisterServices</code>:</p>
+  <pre><code class="language-csharp">public sealed class SqlPlugin : IInstallerPlugin
+{
+    public string Name =&gt; "SQL Server";
+
+    public void RegisterServices(IPluginServiceRegistry registry)
+    {
+        registry.Register&lt;ISqlServerDiscovery&gt;(new SqlServerDiscovery());
+        registry.Register&lt;IDatabaseLister&gt;(new DatabaseLister());
+        registry.Register&lt;IConnectionTester&gt;(new ConnectionTester());
+    }
+}</code></pre>
+
+  <p>Plugins are wired in the installer entry point:</p>
+  <pre><code class="language-csharp">InstallerApp.Run(args, ui =&gt; ui
+    .Plugin&lt;SqlPlugin&gt;()
+    .Plugin&lt;OdbcPlugin&gt;()
+    .Page&lt;WelcomePage&gt;()
+    // ...
+);</code></pre>
+
+  <h4>Usage from Pages</h4>
+  <pre><code class="language-csharp">public async Task SearchServersAsync()
+{
+    var discovery = PluginServices.GetService&lt;ISqlServerDiscovery&gt;();
+    if (discovery is null) return;
+
+    var result = await discovery.DiscoverServersAsync();
+    if (result.IsSuccess)
+    {
+        AvailableServers.Clear();
+        foreach (var server in result.Value)
+            AvailableServers.Add(server);
+    }
+}</code></pre>
+
+  <h3 id="plugin-shipped">Shipped Plugins</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Plugin</th><th>Services</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>SqlPlugin</code></td><td><code>ISqlServerDiscovery</code>, <code>IDatabaseLister</code>, <code>IConnectionTester</code></td><td>SQL Server instance discovery, database listing, connection testing</td></tr>
+      <tr><td><code>OdbcPlugin</code></td><td><code>IOdbcManager</code></td><td>ODBC DSN checking and admin launcher</td></tr>
+      <tr><td><code>FileSystemPlugin</code></td><td><code>IFolderBrowser</code></td><td>Folder browser dialog</td></tr>
+    </tbody>
+  </table>
 
   </section>
 
