@@ -10,7 +10,6 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     private string _databaseName = "MultiAccess";
     private bool _integratedSecurity = true;
     private string _userName = "AUSR_AptusWeb";
-    private string _password = string.Empty;
     private bool _skipTest;
     private string _testResult = string.Empty;
 
@@ -43,12 +42,6 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         set => SetField(ref _userName, value);
     }
 
-    public string Password
-    {
-        get => _password;
-        set => SetField(ref _password, value);
-    }
-
     public bool SkipTest
     {
         get => _skipTest;
@@ -69,8 +62,10 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         if (tester is null) return;
 
         TestResult = "Testing...";
+        using var pw = GetPassword("DbPassword");
+        var passwordStr = pw.IsEmpty ? string.Empty : System.Text.Encoding.UTF8.GetString(pw.Span);
         var result = await tester.TestConnectionAsync(
-            DatabaseServer, DatabaseName, IntegratedSecurity, UserName, Password);
+            DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
         TestResult = result.IsSuccess
             ? "Connection successful!"
             : $"Failed: {result.Error.Message}";
@@ -82,7 +77,9 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         SharedState.Set("DatabaseName", _databaseName);
         SharedState.Set("IntegratedSecurity", _integratedSecurity);
         SharedState.Set("DbUserName", _userName);
-        SharedState.Set("DbPassword", _password);
+        using var pw = GetPassword("DbPassword");
+        if (!pw.IsEmpty)
+            SharedState.SetSensitive("DbPassword", pw.Span);
         return PageResult.GoTo<MultiServerAdvancedSettingsPage>();
     }
 
