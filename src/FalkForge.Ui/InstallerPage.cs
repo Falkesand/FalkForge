@@ -2,7 +2,9 @@ namespace FalkForge.Ui;
 
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using FalkForge.Engine.Protocol;
 using FalkForge.Plugins;
 using FalkForge.Ui.Abstractions;
@@ -48,5 +50,20 @@ public abstract class InstallerPage : INotifyPropertyChanged
         foreach (var dependent in alsoNotify)
             OnPropertyChanged(dependent);
         return true;
+    }
+
+    private readonly Dictionary<string, PasswordBox> _passwordBoxes = new();
+
+    internal void RegisterPasswordBox(string key, PasswordBox box)
+        => _passwordBoxes[key] = box;
+
+    internal void UnregisterPasswordBox(string key)
+        => _passwordBoxes.Remove(key);
+
+    protected SensitiveBytes GetPassword(string key)
+    {
+        if (!_passwordBoxes.TryGetValue(key, out var box))
+            return default;
+        return new SensitiveBytes(Encoding.UTF8.GetBytes(box.Password));
     }
 }

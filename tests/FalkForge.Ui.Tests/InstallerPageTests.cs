@@ -48,6 +48,13 @@ public class PropertyTestPage : InstallerPage<TestView>
     public bool IsEven => _count % 2 == 0;
 }
 
+public class PasswordTestPage : InstallerPage<TestView>
+{
+    public override string Title => "Password Test";
+
+    public SensitiveBytes ReadPassword(string key) => GetPassword(key);
+}
+
 public class InstallerPageTests
 {
     [Fact]
@@ -232,5 +239,42 @@ public class InstallerPageTests
         var view = page.CreateViewInternal();
 
         Assert.Same(page, view.DataContext);
+    }
+
+    [Fact]
+    public void GetPassword_unregistered_key_returns_empty()
+    {
+        var page = new PasswordTestPage();
+
+        using var result = page.ReadPassword("Missing");
+
+        Assert.True(result.IsEmpty);
+    }
+
+    [WpfFact]
+    public void GetPassword_registered_passwordbox_returns_bytes()
+    {
+        var page = new PasswordTestPage();
+        var box = new System.Windows.Controls.PasswordBox();
+        box.Password = "secret";
+        page.RegisterPasswordBox("Test", box);
+
+        using var result = page.ReadPassword("Test");
+
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes("secret"), result.Span.ToArray());
+    }
+
+    [WpfFact]
+    public void UnregisterPasswordBox_removes_registration()
+    {
+        var page = new PasswordTestPage();
+        var box = new System.Windows.Controls.PasswordBox();
+        box.Password = "secret";
+        page.RegisterPasswordBox("Test", box);
+
+        page.UnregisterPasswordBox("Test");
+        using var result = page.ReadPassword("Test");
+
+        Assert.True(result.IsEmpty);
     }
 }
