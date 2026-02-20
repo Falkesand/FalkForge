@@ -122,10 +122,10 @@ Locations:
 Sealed class for page navigation results in custom UI. Singletons: `Next`, `Previous`, `Finish`, `Cancel`, `Install`, `Uninstall`, `Repair`. Factories: `Stay(message?)` for validation errors, `GoTo<TPage>()` for type-targeted navigation. `Kind` (PageResultKind), `Message` (string?), `TargetType` (Type?, internal).
 
 ### InstallerState -- `src/FalkForge.Ui.Abstractions/InstallerState.cs`
-Thread-safe `ConcurrentDictionary<string, object>` for cross-page data sharing. Typed `Get<T>(key)` / `Set<T>(key, value)`. Convenience `InstallDirectory` property.
+Thread-safe state store. `Get<T>(key)` / `Set<T>(key, value)` for general data. `SetSensitive(key, span)` / `GetSensitive(key)` for DPAPI-encrypted sensitive data. Implements `IDisposable` to zero all sensitive entries. Requires `ISensitiveDataProtector` via constructor for sensitive operations.
 
 ### InstallerPage / InstallerPage<TView> -- Custom UI Page Base
-`InstallerPage` (`src/FalkForge.Ui/InstallerPage.cs`): Non-generic abstract base with internal constructor. Properties: `Engine` (IInstallerEngine), `SharedState` (InstallerState), `DetectedState` (InstallState) -- all internal set. Virtual: `OnNext()` -> PageResult, `OnBack()` -> PageResult, `CanGoNext`, `CanGoBack`, lifecycle hooks. INotifyPropertyChanged with `SetField<T>` helper.
+`InstallerPage` (`src/FalkForge.Ui/InstallerPage.cs`): Non-generic abstract base with internal constructor. Properties: `Engine` (IInstallerEngine), `SharedState` (InstallerState), `DetectedState` (InstallState) -- all internal set. Virtual: `OnNext()` -> PageResult, `OnBack()` -> PageResult, `CanGoNext`, `CanGoBack`, lifecycle hooks. INotifyPropertyChanged with `SetField<T>` helper. `GetPassword(string key)` -- returns `SensitiveBytes` from registered PasswordBox. Used with `PasswordBridge.Key` attached property.
 `InstallerPage<TView>` (`src/FalkForge.Ui/InstallerPageOfT.cs`): Generic subclass where `TView : FrameworkElement, new()`. Auto-creates view and wires DataContext.
 
 ### InstallerApp -- `src/FalkForge.Ui/InstallerApp.cs`
@@ -160,6 +160,18 @@ Wired into `InstallerPage.PluginServices`, registered via `InstallerUIBuilder.Pl
 - `FalkForge.Plugins.Sql` -- `SqlPlugin` registers `ISqlServerDiscovery`, `IDatabaseLister`, `IConnectionTester`
 - `FalkForge.Plugins.Odbc` -- `OdbcPlugin` registers `IOdbcManager` (DSN check + admin launcher)
 - `FalkForge.Plugins.FileSystem` -- `FileSystemPlugin` registers `IFolderBrowser` (WPF OpenFolderDialog)
+
+### SensitiveBytes -- `src/FalkForge.Ui.Abstractions/SensitiveBytes.cs`
+Readonly struct wrapping `byte[]`. IDisposable — zeros memory via `CryptographicOperations.ZeroMemory` on dispose. Always use via `using` pattern. Do not copy — all copies share the same underlying array. For secure password and credential handling.
+
+### ISensitiveDataProtector -- `src/FalkForge.Ui.Abstractions/ISensitiveDataProtector.cs`
+Interface for encrypt/decrypt of sensitive byte arrays. Implemented by `DpapiDataProtector` in Ui project.
+
+### DpapiDataProtector -- `src/FalkForge.Ui/DpapiDataProtector.cs`
+Windows DPAPI implementation of `ISensitiveDataProtector`. Uses `DataProtectionScope.CurrentUser`. No admin required. Available on all Windows versions.
+
+### PasswordBridge -- `src/FalkForge.Ui/PasswordBridge.cs`
+WPF attached property for secure password access. XAML: `<PasswordBox ui:PasswordBridge.Key="keyName"/>`. Page reads via `GetPassword("keyName")` which returns `SensitiveBytes`. Password never stored as string property.
 
 ## Core Project Layout
 
