@@ -1,6 +1,7 @@
 namespace FalkForge.Ui;
 
 using System.Windows;
+using FalkForge.Plugins;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.ViewModels;
 using FalkForge.Ui.Views;
@@ -27,6 +28,11 @@ public static class InstallerApp
         var uiBuilder = new InstallerUIBuilder();
         configure(uiBuilder);
 
+        var pluginRegistry = new PluginServiceRegistry();
+        foreach (var plugin in uiBuilder.Plugins)
+            plugin.RegisterServices(pluginRegistry);
+        pluginRegistry.Freeze();
+
         var config = uiBuilder.WindowConfig;
         var pageFactories = uiBuilder.PageFactories;
 
@@ -47,6 +53,7 @@ public static class InstallerApp
         {
             page.Engine = engine;
             page.SharedState = sharedState;
+            page.PluginServices = pluginRegistry;
             page.DetectedState = engine.DetectedState;
         }
 

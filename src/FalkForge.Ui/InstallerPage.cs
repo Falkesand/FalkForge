@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using FalkForge.Engine.Protocol;
+using FalkForge.Plugins;
 using FalkForge.Ui.Abstractions;
 
 public abstract class InstallerPage : INotifyPropertyChanged
@@ -16,6 +17,7 @@ public abstract class InstallerPage : INotifyPropertyChanged
 
     public IInstallerEngine Engine { get; internal set; } = null!;
     public InstallerState SharedState { get; internal set; } = null!;
+    public IPluginServices PluginServices { get; internal set; } = null!;
     public InstallState DetectedState { get; internal set; }
 
     public virtual PageResult OnNext() => PageResult.Next;
