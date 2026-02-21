@@ -37,11 +37,17 @@
                         IsEnabled="{Binding CanGoBack}"
                         MinWidth="75" Margin="0,0,8,0"/>
 
-                <TextBlock Grid.Column="1"
-                           Text="{Binding StatusMessage}"
-                           VerticalAlignment="Center"
-                           Foreground="#CC0000"
-                           TextWrapping="Wrap"/>
+                <Grid Grid.Column="1">
+                    <ContentControl Content="{Binding LanguageSelector}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="8,0,0,0"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Foreground="#CC0000"
+                               TextWrapping="Wrap"/>
+                </Grid>
 
                 <Button Grid.Column="2" Content="Cancel"
                         Command="{Binding CancelCommand}"

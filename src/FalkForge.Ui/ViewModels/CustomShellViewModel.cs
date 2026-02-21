@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using FalkForge.Ui.Abstractions;
+using FalkForge.Ui.Localization;
 
 internal sealed class CustomShellViewModel : INotifyPropertyChanged
 {
@@ -40,6 +41,8 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
 
     public FrameworkElement? CurrentView { get; private set; }
 
+    public FrameworkElement? LanguageSelector { get; private set; }
+
     public bool CanGoBack => !_isApplying && _currentPageIndex > 0 && (CurrentPage?.CanGoBack ?? false);
     public bool CanGoNext => !_isApplying && (CurrentPage?.CanGoNext ?? false);
 
@@ -56,6 +59,22 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
     }
 
     public event EventHandler? CloseRequested;
+
+    internal void InitializeLocalization(UiLocalizationConfig config)
+    {
+        if (!config.AllowLanguageSelection) return;
+
+        var selector = new LanguageSelectorControl();
+        selector.Initialize(config.Resolver);
+        LanguageSelector = selector;
+        OnPropertyChanged(nameof(LanguageSelector));
+
+        config.Resolver.CultureChanged += () =>
+        {
+            foreach (var page in _pages)
+                page.NotifyCultureChanged();
+        };
+    }
 
     public async Task NavigateToFirstPageAsync()
     {

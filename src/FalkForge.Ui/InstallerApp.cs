@@ -65,6 +65,9 @@ public static class InstallerApp
 
         var viewModel = new CustomShellViewModel(pages, engine, sharedState);
 
+        if (uiBuilder.LocalizationConfig is { } locConfig2)
+            viewModel.InitializeLocalization(locConfig2);
+
         var app = new Application();
 
         app.Startup += async (_, _) =>
