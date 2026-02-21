@@ -31,7 +31,8 @@ public static class BuiltInLocalizationExtensions
         var resourceName = $"FalkForge.Compiler.Msi.Localization.{culture}.json";
         using var stream = MsiAssembly.GetManifestResourceStream(resourceName);
         if (stream is null)
-            return;
+            throw new InvalidOperationException(
+                $"Built-in localization resource '{resourceName}' not found in assembly.");
 
         using var reader = new StreamReader(stream);
         var json = reader.ReadToEnd();
