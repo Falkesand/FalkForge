@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj" />
     <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
     <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
   </ItemGroup>
