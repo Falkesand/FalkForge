@@ -1,0 +1,97 @@
+<UserControl x:Class="GlassUi.Views.InstallView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+            <!-- Title -->
+            <TextBlock Text="GlassForge"
+                       Foreground="White"
+                       FontSize="28"
+                       FontWeight="Light"
+                       HorizontalAlignment="Center">
+                <TextBlock.Effect>
+                    <DropShadowEffect Color="#00D4FF" BlurRadius="15" ShadowDepth="0" Opacity="0.3"/>
+                </TextBlock.Effect>
+            </TextBlock>
+
+            <!-- Separator -->
+            <Rectangle Width="60" Height="1" Margin="0,16,0,24" HorizontalAlignment="Center">
+                <Rectangle.Fill>
+                    <SolidColorBrush Color="#00D4FF" Opacity="0.3"/>
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <!-- Install Button -->
+            <Button x:Name="InstallButton" Click="Install_Click" Cursor="Hand">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Width="200" Height="50"
+                                CornerRadius="25"
+                                BorderThickness="2"
+                                Background="Transparent">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#00D4FF" Offset="0"/>
+                                    <GradientStop Color="#0098B3" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <TextBlock Text="I N S T A L L"
+                                       Foreground="White"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#33EEFF" Offset="0"/>
+                                            <GradientStop Color="#00D4FF" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="ButtonBorder" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect Color="#00D4FF" BlurRadius="25" ShadowDepth="0" Opacity="0.6"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+
+            <!-- Exit Button -->
+            <Button x:Name="ExitButton" Click="Exit_Click" Cursor="Hand" Margin="0,24,0,0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock x:Name="ExitText"
+                                   Text="E X I T"
+                                   FontSize="11"
+                                   FontWeight="Normal"
+                                   HorizontalAlignment="Center">
+                            <TextBlock.Foreground>
+                                <SolidColorBrush Color="White" Opacity="0.5"/>
+                            </TextBlock.Foreground>
+                        </TextBlock>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ExitText" Property="Foreground">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="White" Opacity="1.0"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>
