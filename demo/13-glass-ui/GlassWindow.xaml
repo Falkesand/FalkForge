@@ -1,0 +1,22 @@
+<Window x:Class="GlassUi.GlassWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Width="500" Height="350"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <Border CornerRadius="175" ClipToBounds="True" BorderThickness="1">
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#3300D4FF" Offset="0"/>
+                <GradientStop Color="#1A00D4FF" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.Background>
+            <SolidColorBrush Color="#1A1A2E" Opacity="0.85"/>
+        </Border.Background>
+        <ContentPresenter Content="{Binding CurrentView}"/>
+    </Border>
+</Window>
