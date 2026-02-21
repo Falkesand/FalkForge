@@ -57,7 +57,8 @@ public static class InstallerApp
             page.DetectedState = engine.DetectedState;
         }
 
-        if (uiBuilder.LocalizationConfig is { } locConfig)
+        var locConfig = uiBuilder.LocalizationConfig;
+        if (locConfig is not null)
         {
             foreach (var page in pages)
                 page._stringResolver = locConfig.Resolver;
@@ -65,8 +66,8 @@ public static class InstallerApp
 
         var viewModel = new CustomShellViewModel(pages, engine, sharedState);
 
-        if (uiBuilder.LocalizationConfig is { } locConfig2)
-            viewModel.InitializeLocalization(locConfig2);
+        if (locConfig is not null)
+            viewModel.InitializeLocalization(locConfig);
 
         var app = new Application();
 
