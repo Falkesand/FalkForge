@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.UI.Templates;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.UI;
@@ -21,6 +22,19 @@ internal sealed class DialogEmitter
 
         var template = GetTemplate(dialogSet);
         var dialogs = template.GetDialogs(package);
+
+        // Resolve !(loc.X) references in dialog control text
+        var resolverResult = BuildStringResolver(package);
+        if (resolverResult.IsFailure)
+            return Result<Unit>.Failure(resolverResult.Error);
+
+        var resolver = resolverResult.Value;
+        if (resolver is not null)
+        {
+            var resolveResult = ResolveDialogStrings(dialogs, resolver);
+            if (resolveResult.IsFailure)
+                return resolveResult;
+        }
 
         var createResult = CreateUiTables();
         if (createResult.IsFailure)
@@ -251,6 +265,61 @@ internal sealed class DialogEmitter
                     .SetInteger(3, sequence));
             if (result.IsFailure)
                 return result;
+        }
+
+        return Unit.Value;
+    }
+
+    private static Result<LocalizedStringResolver?> BuildStringResolver(PackageModel package)
+    {
+        var locData = package.LocalizationData;
+
+        if (locData.Count == 0)
+        {
+            // Auto-load built-in en-US as fallback so !(loc.X) references resolve
+            var builder = new LocalizationBuilder();
+            builder.AddBuiltInCultures();
+            builder.DefaultCulture("en-US");
+            var buildResult = builder.Build();
+            if (buildResult.IsFailure)
+                return Result<LocalizedStringResolver?>.Failure(buildResult.Error);
+
+            var models = buildResult.Value.Select(m => new LocalizationModel
+            {
+                Culture = m.Culture,
+                Strings = m.Strings
+            });
+            return new LocalizedStringResolver(models, "en-US");
+        }
+
+        // Convert PackageModel.LocalizationData to LocalizationModels
+        var locModels = locData.Select(d => new LocalizationModel
+        {
+            Culture = d.Culture,
+            Strings = d.Strings
+        }).ToList();
+
+        // Use the first culture as default (the builder already validated this)
+        var defaultCulture = locModels[0].Culture;
+        return new LocalizedStringResolver(locModels, defaultCulture);
+    }
+
+    private static Result<Unit> ResolveDialogStrings(
+        IReadOnlyList<MsiDialogModel> dialogs,
+        LocalizedStringResolver resolver)
+    {
+        foreach (var dialog in dialogs)
+        {
+            foreach (var control in dialog.Controls)
+            {
+                if (control.Text is not null && control.Text.Contains("!(loc."))
+                {
+                    var resolveResult = resolver.Resolve(control.Text);
+                    if (resolveResult.IsFailure)
+                        return Result<Unit>.Failure(resolveResult.Error);
+                    control.Text = resolveResult.Value;
+                }
+            }
         }
 
         return Unit.Value;

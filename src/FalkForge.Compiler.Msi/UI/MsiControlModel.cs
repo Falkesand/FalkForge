@@ -10,6 +10,6 @@ internal sealed class MsiControlModel
     public int Height { get; init; }
     public int Attributes { get; init; } = 3; // Visible | Enabled
     public string? Property { get; init; }
-    public string? Text { get; init; }
+    public string? Text { get; set; }
     public string? NextControl { get; init; }
 }

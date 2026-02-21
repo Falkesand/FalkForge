@@ -32,7 +32,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611, // Visible | Enabled | Transparent | NoPrefix
-                    Text = "{\\DlgFontBold8}Welcome to [ProductName]"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.Welcome.Title)"
                 },
                 new MsiControlModel
                 {
@@ -40,7 +40,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 23, Width = 280, Height = 20,
                     Attributes = 196611,
-                    Text = "Click Install to begin the installation."
+                    Text = "!(loc.Dialog.Welcome.Description)"
                 },
                 new MsiControlModel
                 {
@@ -55,7 +55,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 236, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "&Install",
+                    Text = "!(loc.Button.Install)",
                     NextControl = "Cancel"
                 },
                 new MsiControlModel
@@ -64,7 +64,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "Cancel",
+                    Text = "!(loc.Button.Cancel)",
                     NextControl = "Install"
                 }
             ],
@@ -109,7 +109,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}Installing [ProductName]"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.Progress.Title)"
                 },
                 new MsiControlModel
                 {
@@ -117,7 +117,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 55, Width = 50, Height = 10,
                     Attributes = 3,
-                    Text = "Status:"
+                    Text = "!(loc.Dialog.Progress.Status)"
                 },
                 new MsiControlModel
                 {
@@ -146,7 +146,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "Cancel"
+                    Text = "!(loc.Button.Cancel)"
                 }
             ],
             Events =
@@ -181,7 +181,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}Setup Complete"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.Complete.Title)"
                 },
                 new MsiControlModel
                 {
@@ -189,7 +189,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 23, Width = 280, Height = 20,
                     Attributes = 196611,
-                    Text = "[ProductName] has been successfully installed."
+                    Text = "!(loc.Dialog.Complete.Description)"
                 },
                 new MsiControlModel
                 {
@@ -204,7 +204,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "&Finish"
+                    Text = "!(loc.Button.Finish)"
                 }
             ],
             Events =

@@ -34,7 +34,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}Welcome to [ProductName]"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.Welcome.Title)"
                 },
                 new MsiControlModel
                 {
@@ -42,7 +42,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 23, Width = 280, Height = 40,
                     Attributes = 196611,
-                    Text = "The Setup Wizard will install [ProductName] on your computer. Click Next to continue or Cancel to exit the Setup Wizard."
+                    Text = "!(loc.Dialog.Welcome.DescriptionFull)"
                 },
                 new MsiControlModel
                 {
@@ -57,7 +57,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 236, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "&Next >",
+                    Text = "!(loc.Button.Next)",
                     NextControl = "Cancel"
                 },
                 new MsiControlModel
@@ -66,7 +66,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "Cancel",
+                    Text = "!(loc.Button.Cancel)",
                     NextControl = "Next"
                 }
             ],
@@ -110,7 +110,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}License Agreement"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.License.Title)"
                 },
                 new MsiControlModel
                 {
@@ -118,7 +118,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 23, Width = 280, Height = 15,
                     Attributes = 196611,
-                    Text = "Please read the following license agreement."
+                    Text = "!(loc.Dialog.License.Description)"
                 },
                 new MsiControlModel
                 {
@@ -136,7 +136,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     X = 20, Y = 207, Width = 330, Height = 18,
                     Attributes = 3,
                     Property = "LicenseAccepted",
-                    Text = "I &accept the terms in the License Agreement",
+                    Text = "!(loc.Dialog.License.Accept)",
                     NextControl = "Back"
                 },
                 new MsiControlModel
@@ -152,7 +152,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 180, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "< &Back",
+                    Text = "!(loc.Button.Back)",
                     NextControl = "Next"
                 },
                 new MsiControlModel
@@ -161,7 +161,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 236, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "&Next >",
+                    Text = "!(loc.Button.Next)",
                     NextControl = "Cancel"
                 },
                 new MsiControlModel
@@ -170,7 +170,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "Cancel",
+                    Text = "!(loc.Button.Cancel)",
                     NextControl = "LicenseText"
                 }
             ],
@@ -240,7 +240,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}Destination Folder"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.InstallDir.Title)"
                 },
                 new MsiControlModel
                 {
@@ -248,7 +248,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 23, Width = 280, Height = 15,
                     Attributes = 196611,
-                    Text = "Click Next to install to this folder, or click Change to install to a different folder."
+                    Text = "!(loc.Dialog.InstallDir.Description)"
                 },
                 new MsiControlModel
                 {
@@ -256,7 +256,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 20, Y = 60, Width = 290, Height = 15,
                     Attributes = 3,
-                    Text = "Install [ProductName] to:"
+                    Text = "!(loc.Dialog.InstallDir.Label)"
                 },
                 new MsiControlModel
                 {
@@ -273,7 +273,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 284, Y = 80, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "C&hange...",
+                    Text = "!(loc.Dialog.InstallDir.Change)",
                     NextControl = "Back"
                 },
                 new MsiControlModel
@@ -289,7 +289,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 180, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "< &Back",
+                    Text = "!(loc.Button.Back)",
                     NextControl = "Next"
                 },
                 new MsiControlModel
@@ -298,7 +298,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 236, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "&Next >",
+                    Text = "!(loc.Button.Next)",
                     NextControl = "Cancel"
                 },
                 new MsiControlModel
@@ -307,7 +307,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "Cancel",
+                    Text = "!(loc.Button.Cancel)",
                     NextControl = "Folder"
                 }
             ],
@@ -368,7 +368,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}Installing [ProductName]"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.Progress.Title)"
                 },
                 new MsiControlModel
                 {
@@ -376,7 +376,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 55, Width = 50, Height = 10,
                     Attributes = 3,
-                    Text = "Status:"
+                    Text = "!(loc.Dialog.Progress.Status)"
                 },
                 new MsiControlModel
                 {
@@ -405,7 +405,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "Cancel"
+                    Text = "!(loc.Button.Cancel)"
                 }
             ],
             Events =
@@ -440,7 +440,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 15, Y = 6, Width = 200, Height = 15,
                     Attributes = 196611,
-                    Text = "{\\DlgFontBold8}Setup Complete"
+                    Text = "{\\DlgFontBold8}!(loc.Dialog.Complete.Title)"
                 },
                 new MsiControlModel
                 {
@@ -448,7 +448,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "Text",
                     X = 25, Y = 23, Width = 280, Height = 20,
                     Attributes = 196611,
-                    Text = "[ProductName] has been successfully installed."
+                    Text = "!(loc.Dialog.Complete.Description)"
                 },
                 new MsiControlModel
                 {
@@ -463,7 +463,7 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                     Type = "PushButton",
                     X = 304, Y = 243, Width = 56, Height = 17,
                     Attributes = 3,
-                    Text = "&Finish"
+                    Text = "!(loc.Button.Finish)"
                 }
             ],
             Events =
