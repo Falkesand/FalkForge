@@ -70,28 +70,26 @@ public sealed class LocalizationBuilder
         }
 
         // Auto-detect default culture from system UI culture if requested
+        var resolvedDefaultCulture = _defaultCulture;
+
         if (_detectCulture)
         {
             var uiCulture = CultureInfo.CurrentUICulture;
             if (merged.ContainsKey(uiCulture.Name))
-            {
-                _defaultCulture = uiCulture.Name;
-            }
+                resolvedDefaultCulture = uiCulture.Name;
             else if (uiCulture.Parent is { Name.Length: > 0 } parent && merged.ContainsKey(parent.Name))
-            {
-                _defaultCulture = parent.Name;
-            }
+                resolvedDefaultCulture = parent.Name;
         }
 
         // Validate default culture is set
-        if (_defaultCulture is null)
+        if (resolvedDefaultCulture is null)
             return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
                 "LOC002: No default culture specified. Call DefaultCulture() to set the default culture.");
 
         // Validate default culture exists in the merged set
-        if (!merged.ContainsKey(_defaultCulture))
+        if (!merged.ContainsKey(resolvedDefaultCulture))
             return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
-                $"LOC002: Default culture '{_defaultCulture}' is not defined. Add it with AddCulture() or AddJsonFile().");
+                $"LOC002: Default culture '{resolvedDefaultCulture}' is not defined. Add it with AddCulture() or AddJsonFile().");
 
         var models = new List<LocalizationModel>(merged.Count);
         foreach (var (culture, strings) in merged)

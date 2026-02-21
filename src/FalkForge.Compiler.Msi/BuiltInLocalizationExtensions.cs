@@ -35,8 +35,18 @@ public static class BuiltInLocalizationExtensions
 
         using var reader = new StreamReader(stream);
         var json = reader.ReadToEnd();
-        var strings = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
-            ?? throw new InvalidOperationException($"Failed to deserialize built-in culture '{culture}'.");
+
+        Dictionary<string, string> strings;
+        try
+        {
+            strings = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                ?? throw new InvalidOperationException($"Built-in culture '{culture}' deserialized to null.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"Failed to parse built-in culture '{culture}': {ex.Message}", ex);
+        }
+
         builder.AddCulture(culture, strings);
     }
 }
