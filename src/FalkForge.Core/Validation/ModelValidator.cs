@@ -60,6 +60,7 @@ public static class ModelValidator
         ValidateAssemblies(package.Assemblies, result);
         ValidateSigning(package, result);
         ValidateMajorUpgrade(package, result);
+        ValidateDowngrade(package, result);
 
         return result;
     }
@@ -430,8 +431,16 @@ public static class ModelValidator
 
         if (package.UpgradeCode == Guid.Empty)
             result.AddError("MUP001", "MajorUpgrade requires UpgradeCode to be set on the package.");
+    }
 
-        if (!package.MajorUpgrade.AllowDowngrades && string.IsNullOrWhiteSpace(package.MajorUpgrade.DowngradeErrorMessage))
-            result.AddError("MUP002", "MajorUpgrade requires DowngradeErrorMessage when AllowDowngrades is false.");
+    private static void ValidateDowngrade(PackageModel package, ValidationResult result)
+    {
+        if (package.Downgrade is null) return;
+
+        if (package.MajorUpgrade is null)
+            result.AddError("DNG002", "Downgrade configuration requires MajorUpgrade to be configured.");
+
+        if (!package.Downgrade.AllowDowngrades && string.IsNullOrWhiteSpace(package.Downgrade.ErrorMessage))
+            result.AddError("DNG001", "Downgrade.Block() requires a non-empty error message.");
     }
 }

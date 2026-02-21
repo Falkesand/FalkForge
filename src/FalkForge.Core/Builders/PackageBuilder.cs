@@ -54,6 +54,7 @@ public sealed class PackageBuilder
     private MsiDialogSet _dialogSet = MsiDialogSet.None;
     private UpgradeModel? _upgrade;
     private MajorUpgradeModel? _majorUpgrade;
+    private DowngradeModel? _downgrade;
     private SigningOptions? _signing;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
@@ -151,6 +152,14 @@ public sealed class PackageBuilder
         var builder = new MajorUpgradeBuilder();
         configure(builder);
         _majorUpgrade = builder.Build();
+        return this;
+    }
+
+    public PackageBuilder Downgrade(Action<DowngradeBuilder> configure)
+    {
+        var builder = new DowngradeBuilder();
+        configure(builder);
+        _downgrade = builder.Build();
         return this;
     }
 
@@ -387,6 +396,7 @@ public sealed class PackageBuilder
             Signing = _signing,
             Upgrade = _upgrade ?? (_majorUpgrade is null ? new UpgradeModel() : null),
             MajorUpgrade = _majorUpgrade,
+            Downgrade = _downgrade,
             DialogSet = _dialogSet,
             CabinetThreadCount = CabinetThreadCount,
             LocalizationData = _localizationData

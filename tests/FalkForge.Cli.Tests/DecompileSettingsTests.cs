@@ -8,7 +8,17 @@ public sealed class DecompileSettingsTests
     [Fact]
     public void Validate_ValidMsiPath_ReturnsSuccess()
     {
-        var settings = new DecompileSettings { MsiPath = "package.msi" };
+        var settings = new DecompileSettings { FilePath = "package.msi" };
+
+        var result = settings.Validate();
+
+        Assert.True(result.Successful);
+    }
+
+    [Fact]
+    public void Validate_ValidExePath_ReturnsSuccess()
+    {
+        var settings = new DecompileSettings { FilePath = "bundle.exe" };
 
         var result = settings.Validate();
 
@@ -18,7 +28,7 @@ public sealed class DecompileSettingsTests
     [Fact]
     public void Validate_EmptyMsiPath_ReturnsError()
     {
-        var settings = new DecompileSettings { MsiPath = "" };
+        var settings = new DecompileSettings { FilePath = "" };
 
         var result = settings.Validate();
 
@@ -28,7 +38,7 @@ public sealed class DecompileSettingsTests
     [Fact]
     public void Validate_NonMsiExtension_ReturnsError()
     {
-        var settings = new DecompileSettings { MsiPath = "file.cab" };
+        var settings = new DecompileSettings { FilePath = "file.cab" };
 
         var result = settings.Validate();
 
@@ -40,7 +50,7 @@ public sealed class DecompileSettingsTests
     {
         var settings = new DecompileSettings
         {
-            MsiPath = "package.msi",
+            FilePath = "package.msi",
             OutputPath = "output.cs"
         };
 
@@ -52,7 +62,7 @@ public sealed class DecompileSettingsTests
     [Fact]
     public void OutputPath_DefaultsToNull()
     {
-        var settings = new DecompileSettings { MsiPath = "package.msi" };
+        var settings = new DecompileSettings { FilePath = "package.msi" };
 
         Assert.Null(settings.OutputPath);
     }

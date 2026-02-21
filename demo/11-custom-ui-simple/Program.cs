@@ -2,6 +2,12 @@ using FalkForge.Ui;
 using CustomUiSimple.Pages;
 
 return InstallerApp.Run(args, app => app
+    .Localization(loc => loc
+        .DefaultCulture("en-US")
+        .AddJsonResource<WelcomePage>("lang.strings.en-US.json")
+        .AddJsonResource<WelcomePage>("lang.strings.sv-SE.json")
+        .DetectCulture()
+        .AllowLanguageSelection())
     .Window(w => w
         .Size(500, 350)
         .Title("My App Setup")

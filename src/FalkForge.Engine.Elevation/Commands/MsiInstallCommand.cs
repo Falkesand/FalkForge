@@ -17,6 +17,9 @@ public sealed class MsiInstallCommand : IElevatedCommand
         var msiPath = reader.ReadString();
         var additionalArgs = reader.ReadString();
 
+        if (msiPath.StartsWith(@"\\", StringComparison.Ordinal))
+            return Result<byte[]>.Failure(ErrorKind.SecurityError, "UNC/network MSI paths are not allowed");
+
         if (!File.Exists(msiPath))
             return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
 

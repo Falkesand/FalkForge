@@ -16,7 +16,7 @@
         <!-- Left: Workload list -->
         <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="24,16">
             <StackPanel>
-                <TextBlock Text="Workloads" FontSize="16" FontWeight="SemiBold"
+                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold"
                            Foreground="#CCCCCC" Margin="0,0,0,16"/>
 
                 <ItemsControl ItemsSource="{Binding Workloads}">
@@ -57,7 +57,7 @@
                 <!-- Total size footer -->
                 <Border Background="#252526" CornerRadius="4" Padding="16,10" Margin="0,8,0,0">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <TextBlock Text="Total selected: " FontSize="13" Foreground="#969696"/>
+                        <TextBlock Text="{Binding TotalSelectedLabel}" FontSize="13" Foreground="#969696" Margin="0,0,4,0"/>
                         <TextBlock Text="{Binding TotalSelectedSize}" FontSize="13"
                                    FontWeight="SemiBold" Foreground="#CCCCCC"/>
                     </StackPanel>
@@ -71,7 +71,7 @@
         <!-- Right: Component details -->
         <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="16">
             <StackPanel>
-                <TextBlock Text="Components" FontSize="14" FontWeight="SemiBold"
+                <TextBlock Text="{Binding ComponentsLabel}" FontSize="14" FontWeight="SemiBold"
                            Foreground="#CCCCCC" Margin="0,0,0,12"/>
 
                 <ItemsControl ItemsSource="{Binding SelectedWorkload.Components}">
@@ -101,7 +101,7 @@
                                                 <Setter Property="Text" Value=""/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsRequired}" Value="True">
-                                                        <Setter Property="Text" Value=" (required)"/>
+                                                        <Setter Property="Text" Value="{Binding DataContext.RequiredLabel, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -113,7 +113,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <TextBlock Text="Select a workload to see its components"
+                <TextBlock Text="{Binding SelectPrompt}"
                            FontSize="12" Foreground="#696969" FontStyle="Italic"
                            TextWrapping="Wrap">
                     <TextBlock.Style>

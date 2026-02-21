@@ -10,11 +10,14 @@ public static class MessageDeserializer
     private const int MinHeaderSize = 8; // version(2) + type(2) + length(4)
 
     public static Result<EngineMessage> Deserialize(byte[] data)
+        => Deserialize(data, data.Length);
+
+    public static Result<EngineMessage> Deserialize(byte[] data, int length)
     {
-        if (data.Length < MinHeaderSize)
+        if (length < MinHeaderSize)
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Message too short");
 
-        using var stream = new MemoryStream(data);
+        using var stream = new MemoryStream(data, 0, length);
         using var reader = new BinaryReader(stream);
 
         var version = reader.ReadUInt16();
@@ -26,11 +29,11 @@ public static class MessageDeserializer
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Unknown message type: 0x{typeValue:X4}");
         var type = (MessageType)typeValue;
 
-        var length = reader.ReadInt32();
-        if (length < 0 || length > MaxPayloadSize)
-            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Invalid payload length: {length}");
+        var payloadLength = reader.ReadInt32();
+        if (payloadLength < 0 || payloadLength > MaxPayloadSize)
+            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Invalid payload length: {payloadLength}");
 
-        if (stream.Length - stream.Position < length)
+        if (stream.Length - stream.Position < payloadLength)
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Payload truncated");
 
         var sequenceId = reader.ReadUInt32();
@@ -78,6 +81,20 @@ public static class MessageDeserializer
                 MessageType.RequestApply => new RequestApplyMessage { SequenceId = sequenceId },
                 MessageType.ElevateExecute => ReadElevateExecute(reader, sequenceId),
                 MessageType.ElevateResult => ReadElevateResult(reader, sequenceId),
+                MessageType.UpdateAvailable => new UpdateAvailableMessage
+                {
+                    SequenceId = sequenceId,
+                    Version = reader.ReadString(),
+                    ReleaseNotes = ReadNullableString(reader),
+                    DownloadUrl = reader.ReadString(),
+                    LocalPath = ReadNullableString(reader)
+                },
+                MessageType.UpdateReady => new UpdateReadyMessage
+                {
+                    SequenceId = sequenceId,
+                    Version = reader.ReadString(),
+                    LocalPath = reader.ReadString()
+                },
                 _ => throw new InvalidOperationException($"Unhandled message type: {type}")
             };
         }
@@ -104,11 +121,15 @@ public static class MessageDeserializer
         var features = new FeatureState[featureCount];
         for (var i = 0; i < featureCount; i++)
         {
+            var featureId = reader.ReadString();
+            var title = reader.ReadString();
+            var description = ReadNullableString(reader);
+            var isSelected = reader.ReadBoolean();
+            var isRequired = reader.ReadBoolean();
+            var wasPreviouslyInstalled = reader.ReadBoolean();
+            var diskSpaceRequired = reader.ReadInt64();
             features[i] = new FeatureState(
-                reader.ReadString(),
-                reader.ReadString(),
-                reader.ReadBoolean(),
-                reader.ReadInt64());
+                featureId, title, description, isSelected, isRequired, wasPreviouslyInstalled, diskSpaceRequired);
         }
 
         return new DetectCompleteMessage

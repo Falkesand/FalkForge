@@ -1,3 +1,5 @@
+using FalkForge.Engine.Protocol.Manifest;
+
 namespace FalkForge.Compiler.Bundle.Builders;
 
 public sealed class BundleBuilder
@@ -12,7 +14,12 @@ public sealed class BundleBuilder
     private readonly List<ChainItem> _chainItems = new();
     private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<ContainerModel> _containers = new();
+    private readonly List<BundleVariableModel> _variables = new();
+    private readonly List<BundleFeatureModel> _features = new();
+    private readonly List<BundleDependencyProviderModel> _dependencyProviders = new();
+    private readonly List<BundleDependencyConsumerModel> _dependencyConsumers = new();
     private BundleUiConfig? _uiConfig;
+    private UpdateFeedConfig? _updateFeed;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
 
@@ -32,14 +39,23 @@ public sealed class BundleBuilder
         return this;
     }
 
-    public BundleBuilder UseBuiltInUI(string? licenseFile = null, string? logoFile = null, string? themeColor = null)
+    public BundleBuilder UseBuiltInUI(
+        string? licenseFile = null,
+        string? logoFile = null,
+        string? themeColor = null,
+        string? watermarkImage = null,
+        string? bannerImage = null,
+        string? bannerIcon = null)
     {
         _uiConfig = new BundleUiConfig
         {
             UiType = BundleUiType.BuiltIn,
             LicenseFile = licenseFile,
             LogoFile = logoFile,
-            ThemeColor = themeColor
+            ThemeColor = themeColor,
+            WatermarkImage = watermarkImage,
+            BannerImage = bannerImage,
+            BannerIcon = bannerIcon
         };
         return this;
     }
@@ -58,6 +74,13 @@ public sealed class BundleBuilder
             UiType = BundleUiType.Custom,
             CustomUiProjectPath = uiProjectPath
         };
+        return this;
+    }
+
+    public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(feedUrl);
+        _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy };
         return this;
     }
 
@@ -108,6 +131,47 @@ public sealed class BundleBuilder
     public BundleBuilder RelatedBundle(Guid bundleId, Action<RelatedBundleBuilder>? configure = null) =>
         RelatedBundle(bundleId.ToString("B").ToUpperInvariant(), configure);
 
+    public BundleBuilder Variable(string name, Action<BundleVariableBuilder> configure)
+    {
+        var builder = new BundleVariableBuilder(name);
+        configure(builder);
+        _variables.Add(builder.Build());
+        return this;
+    }
+
+    public BundleBuilder Feature(string id, Action<BundleFeatureBuilder> configure)
+    {
+        var builder = new BundleFeatureBuilder(id);
+        configure(builder);
+        _features.Add(builder.Build());
+        return this;
+    }
+
+    public BundleBuilder DependencyProvider(string key, string version, string? displayName = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        _dependencyProviders.Add(new BundleDependencyProviderModel
+        {
+            Key = key,
+            Version = version,
+            DisplayName = displayName
+        });
+        return this;
+    }
+
+    public BundleBuilder DependencyConsumer(string providerKey, string consumerKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerKey);
+        _dependencyConsumers.Add(new BundleDependencyConsumerModel
+        {
+            ProviderKey = providerKey,
+            ConsumerKey = consumerKey
+        });
+        return this;
+    }
+
     public BundleModel Build()
     {
         return new BundleModel
@@ -121,8 +185,13 @@ public sealed class BundleBuilder
             Packages = _packages.AsReadOnly(),
             RelatedBundles = _relatedBundles.AsReadOnly(),
             Chain = _chainItems.AsReadOnly(),
+            Variables = _variables.AsReadOnly(),
+            Features = _features.AsReadOnly(),
+            DependencyProviders = _dependencyProviders.AsReadOnly(),
+            DependencyConsumers = _dependencyConsumers.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
-            UiConfig = _uiConfig
+            UiConfig = _uiConfig,
+            UpdateFeed = _updateFeed
         };
     }
 }

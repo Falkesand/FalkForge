@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MAS</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="lang\*.json" WithCulture="false" LogicalName="MAS.lang.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/FalkForge.Ui/FalkForge.Ui.csproj" />
+    <ProjectReference Include="../../src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
+    <ProjectReference Include="../../src/FalkForge.Plugins.Odbc/FalkForge.Plugins.Odbc.csproj" />
+    <ProjectReference Include="../../src/FalkForge.Plugins.FileSystem/FalkForge.Plugins.FileSystem.csproj" />
+  </ItemGroup>
+</Project>

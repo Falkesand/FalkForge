@@ -1,4 +1,6 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 return Installer.Build(args, p =>
@@ -11,6 +13,11 @@ return Installer.Build(args, p =>
 
     // FeatureTree UI -- user picks which features to install
     p.UseDialogSet(MsiDialogSet.FeatureTree);
+
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Install directory
     p.DefaultInstallDirectory = KnownFolder.ProgramFiles / "Acme Corporation" / "ClientServer";
@@ -106,8 +113,8 @@ return Installer.Build(args, p =>
         .To(KnownFolder.ProgramFiles / "Acme Corporation" / "ClientServer" / "Docs"));
 
     // Major upgrade support
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version is already installed."));
 
     // Launch condition: Require Windows 10+ (typed Condition API)
     p.Require(Condition.IsWindows10OrLater, "This application requires Windows 10 or later.");

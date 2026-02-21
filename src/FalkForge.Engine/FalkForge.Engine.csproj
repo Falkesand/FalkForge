@@ -13,4 +13,7 @@
     <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
     <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Engine.Tests" />
+  </ItemGroup>
 </Project>

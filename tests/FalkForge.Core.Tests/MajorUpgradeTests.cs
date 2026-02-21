@@ -15,29 +15,13 @@ public sealed class MajorUpgradeTests
         {
             p.Name = "App";
             p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => mu
-                .DowngradeErrorMessage("No downgrade."));
+            p.MajorUpgrade(mu => { });
         });
 
         Assert.NotNull(package.MajorUpgrade);
-        Assert.False(package.MajorUpgrade.AllowDowngrades);
         Assert.False(package.MajorUpgrade.AllowSameVersionUpgrades);
-        Assert.Equal("No downgrade.", package.MajorUpgrade.DowngradeErrorMessage);
         Assert.Equal(RemoveExistingProductsSchedule.AfterInstallValidate, package.MajorUpgrade.Schedule);
         Assert.True(package.MajorUpgrade.MigrateFeatures);
-    }
-
-    [Fact]
-    public void AllowDowngrades_SetsFlag()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => mu.AllowDowngrades());
-        });
-
-        Assert.True(package.MajorUpgrade!.AllowDowngrades);
     }
 
     [Fact]
@@ -47,26 +31,10 @@ public sealed class MajorUpgradeTests
         {
             p.Name = "App";
             p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => mu
-                .AllowSameVersionUpgrades()
-                .DowngradeErrorMessage("No downgrade."));
+            p.MajorUpgrade(mu => mu.AllowSameVersionUpgrades());
         });
 
         Assert.True(package.MajorUpgrade!.AllowSameVersionUpgrades);
-    }
-
-    [Fact]
-    public void DowngradeErrorMessage_SetsMessage()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => mu
-                .DowngradeErrorMessage("Cannot downgrade this product."));
-        });
-
-        Assert.Equal("Cannot downgrade this product.", package.MajorUpgrade!.DowngradeErrorMessage);
     }
 
     [Fact]
@@ -77,7 +45,6 @@ public sealed class MajorUpgradeTests
             p.Name = "App";
             p.Manufacturer = "Corp";
             p.MajorUpgrade(mu => mu
-                .DowngradeErrorMessage("No downgrade.")
                 .Schedule(RemoveExistingProductsSchedule.AfterInstallFinalize));
         });
 
@@ -91,9 +58,7 @@ public sealed class MajorUpgradeTests
         {
             p.Name = "App";
             p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => mu
-                .DowngradeErrorMessage("No downgrade.")
-                .MigrateFeatures(false));
+            p.MajorUpgrade(mu => mu.MigrateFeatures(false));
         });
 
         Assert.False(package.MajorUpgrade!.MigrateFeatures);
@@ -107,17 +72,13 @@ public sealed class MajorUpgradeTests
             p.Name = "App";
             p.Manufacturer = "Corp";
             p.MajorUpgrade(mu => mu
-                .AllowDowngrades()
                 .AllowSameVersionUpgrades()
-                .DowngradeErrorMessage("Blocked")
                 .Schedule(RemoveExistingProductsSchedule.AfterInstallExecute)
                 .MigrateFeatures(false));
         });
 
         var mu = package.MajorUpgrade!;
-        Assert.True(mu.AllowDowngrades);
         Assert.True(mu.AllowSameVersionUpgrades);
-        Assert.Equal("Blocked", mu.DowngradeErrorMessage);
         Assert.Equal(RemoveExistingProductsSchedule.AfterInstallExecute, mu.Schedule);
         Assert.False(mu.MigrateFeatures);
     }
@@ -130,12 +91,10 @@ public sealed class MajorUpgradeTests
             p.Name = "App";
             p.Manufacturer = "Corp";
             p.MajorUpgrade(mu => mu
-                .DowngradeErrorMessage("No downgrade allowed.")
                 .Schedule(RemoveExistingProductsSchedule.AfterInstallInitialize));
         });
 
         Assert.NotNull(package.MajorUpgrade);
-        Assert.Equal("No downgrade allowed.", package.MajorUpgrade.DowngradeErrorMessage);
         Assert.Equal(RemoveExistingProductsSchedule.AfterInstallInitialize, package.MajorUpgrade.Schedule);
     }
 
@@ -149,10 +108,7 @@ public sealed class MajorUpgradeTests
             Version = new Version(1, 0, 0),
             UpgradeCode = Guid.Empty,
             ProductCode = Guid.NewGuid(),
-            MajorUpgrade = new MajorUpgradeModel
-            {
-                DowngradeErrorMessage = "Cannot downgrade."
-            },
+            MajorUpgrade = new MajorUpgradeModel(),
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
@@ -160,38 +116,6 @@ public sealed class MajorUpgradeTests
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.Code == "MUP001");
-    }
-
-    [Fact]
-    public void Validation_MajorUpgradeWithoutDowngradeMessage_WhenDowngradesNotAllowed_ProducesMUP002Error()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => { }); // No DowngradeErrorMessage, AllowDowngrades defaults to false
-        });
-
-        var result = ModelValidator.Validate(package);
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MUP002");
-    }
-
-    [Fact]
-    public void Validation_MajorUpgradeWithDowngradesAllowed_NoMessageRequired()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.MajorUpgrade(mu => mu.AllowDowngrades());
-        });
-
-        var result = ModelValidator.Validate(package);
-
-        // MUP002 should not be present since downgrades are allowed
-        Assert.DoesNotContain(result.Errors, e => e.Code == "MUP002");
     }
 
     [Fact]
@@ -205,10 +129,7 @@ public sealed class MajorUpgradeTests
             UpgradeCode = Guid.NewGuid(),
             ProductCode = Guid.NewGuid(),
             Upgrade = new UpgradeModel(),
-            MajorUpgrade = new MajorUpgradeModel
-            {
-                DowngradeErrorMessage = "Cannot downgrade."
-            },
+            MajorUpgrade = new MajorUpgradeModel(),
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
@@ -228,10 +149,7 @@ public sealed class MajorUpgradeTests
             Version = new Version(1, 0, 0),
             UpgradeCode = Guid.NewGuid(),
             ProductCode = Guid.NewGuid(),
-            MajorUpgrade = new MajorUpgradeModel
-            {
-                DowngradeErrorMessage = "Cannot downgrade."
-            },
+            MajorUpgrade = new MajorUpgradeModel(),
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 

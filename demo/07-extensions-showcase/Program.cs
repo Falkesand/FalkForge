@@ -1,8 +1,9 @@
 using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
-using FalkForge.Platform.Windows;
+
 using FalkForge.Extensions.Firewall;
 using FalkForge.Extensions.Iis;
 using FalkForge.Extensions.Iis.Models;
@@ -226,8 +227,13 @@ return Installer.Build(args, package =>
 
     package.UseDialogSet(MsiDialogSet.InstallDir);
 
-    package.MajorUpgrade(upgrade => upgrade
-        .DowngradeErrorMessage("A newer version of Extensions Showcase is already installed."));
+    package.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
+
+    package.MajorUpgrade(_ => { });
+    package.Downgrade(d => d.Block("A newer version of Extensions Showcase is already installed."));
 
     package.Feature("Complete", f =>
     {
@@ -242,4 +248,4 @@ return Installer.Build(args, package =>
             .To(KnownFolder.ProgramFiles / "Contoso" / "ExtensionsShowcase"));
     });
 
-}, new MsiCompiler(new WindowsFileSystem()));
+}, new MsiCompiler());

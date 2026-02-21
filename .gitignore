@@ -13,6 +13,9 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+# Claude Code
+CLAUDE.md
+
 # Mono auto generated files
 mono_crash.*
 
@@ -377,12 +380,16 @@ FodyWeavers.xsd
 # Local History for Visual Studio Code
 .history/
 
-# Windows Installer files from build outputs
+# Windows Installer files from build outputs (negations prevent matching source directories)
 *.cab
 *.msi
+!*.Msi/
 *.msix
 *.msm
 *.msp
+
+# Documentation generator fragments
+docs/gen/
 
 # JetBrains Rider
 *.sln.iml

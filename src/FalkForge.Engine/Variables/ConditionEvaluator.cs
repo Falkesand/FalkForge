@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace FalkForge.Engine.Variables;
 
 /// <summary>
@@ -14,6 +16,9 @@ namespace FalkForge.Engine.Variables;
 /// </summary>
 public static class ConditionEvaluator
 {
+    private static readonly ConcurrentDictionary<string, IReadOnlyList<ConditionToken>> _tokenCache = new();
+    private const int MaxCacheEntries = 512;
+
     public static Result<bool> Evaluate(string? condition, VariableStore variables)
     {
         // Empty/null condition is unconditionally true
@@ -22,7 +27,17 @@ public static class ConditionEvaluator
             return true;
         }
 
-        var tokenizeResult = ConditionLexer.Tokenize(condition);
+        Result<IReadOnlyList<ConditionToken>> tokenizeResult;
+        if (_tokenCache.TryGetValue(condition, out var cached))
+        {
+            tokenizeResult = Result<IReadOnlyList<ConditionToken>>.Success(cached);
+        }
+        else
+        {
+            tokenizeResult = ConditionLexer.Tokenize(condition);
+            if (tokenizeResult.IsSuccess && _tokenCache.Count < MaxCacheEntries)
+                _tokenCache.TryAdd(condition, tokenizeResult.Value);
+        }
         if (tokenizeResult.IsFailure)
         {
             return Result<bool>.Failure(tokenizeResult.Error);

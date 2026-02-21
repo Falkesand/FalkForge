@@ -1,4 +1,6 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 var payloadDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "payload"));
@@ -16,6 +18,11 @@ return Installer.Build(args, p =>
 
     // InstallDir UI -- user picks install directory
     p.UseDialogSet(MsiDialogSet.InstallDir);
+
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Install directory
     var installDir = KnownFolder.ProgramFiles / "Acme Corporation" / "AcmeApp";
@@ -57,14 +64,14 @@ return Installer.Build(args, p =>
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\Acme\AcmeApp", k => k
             .Value("Version", "2.0.0")
-            .Value("InstallPath", "[INSTALLFOLDER]")));
+            .Value("InstallPath", MsiProperty.InstallFolder)));
 
     // ──────────────────────────────────────────────────────────────────
     // Major upgrade
     // ──────────────────────────────────────────────────────────────────
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Acme Application is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version of Acme Application is already installed."));
 
     // Launch condition: Require Windows 10+
-    p.Require("VersionNT >= 603", "Acme Application requires Windows 10 or later.");
+    p.Require(Condition.IsWindows10OrLater, "Acme Application requires Windows 10 or later.");
 });

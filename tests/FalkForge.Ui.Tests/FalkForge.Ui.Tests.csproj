@@ -17,4 +17,8 @@
     <ProjectReference Include="..\..\src\FalkForge.Ui\FalkForge.Ui.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\teststrings.en-US.json" WithCulture="false" LogicalName="FalkForge.Ui.Tests.Localization.teststrings.en-US.json" />
+    <EmbeddedResource Include="Localization\teststrings.sv-SE.json" WithCulture="false" LogicalName="FalkForge.Ui.Tests.Localization.teststrings.sv-SE.json" />
+  </ItemGroup>
 </Project>

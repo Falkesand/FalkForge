@@ -81,7 +81,7 @@ public sealed class EngineLifecycleTests
             new TrackingHandler(EnginePhase.Planning, visitedPhases,
                 new PlanningHandler(planner)),
             new TrackingHandler(EnginePhase.Elevating, visitedPhases,
-                new ElevatingHandler()),
+                new StubElevatingHandler()),
             new TrackingHandler(EnginePhase.Applying, visitedPhases,
                 new SuccessApplyHandler()),
             new TrackingHandler(EnginePhase.Completing, visitedPhases,
@@ -339,6 +339,19 @@ public sealed class EngineLifecycleTests
     }
 
     /// <summary>
+    /// Stub handler for the Elevating phase that skips real elevation.
+    /// </summary>
+    private sealed class StubElevatingHandler : IEnginePhaseHandler
+    {
+        public EnginePhase Phase => EnginePhase.Elevating;
+
+        public Task<EnginePhase> ExecuteAsync(EngineContext context, CancellationToken ct)
+        {
+            return Task.FromResult(EnginePhase.Applying);
+        }
+    }
+
+    /// <summary>
     /// Stub handler for the Applying phase that simulates a successful apply.
     /// </summary>
     private sealed class SuccessApplyHandler : IEnginePhaseHandler
@@ -435,6 +448,25 @@ public sealed class EngineLifecycleTests
             }
 
             return result;
+        }
+
+        void IRegistry.SetStringValue(string rootKey, string subKey, string valueName, string value)
+        {
+            SetStringValue(rootKey, subKey, valueName, value);
+        }
+
+        public void DeleteKey(string rootKey, string subKey)
+        {
+            var fullKey = $@"{rootKey}\{subKey}";
+            var keysToRemove = _keys.Keys
+                .Where(k => k.Equals(fullKey, StringComparison.OrdinalIgnoreCase) ||
+                            k.StartsWith(fullKey + @"\", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var key in keysToRemove)
+            {
+                _keys.Remove(key);
+            }
         }
     }
 

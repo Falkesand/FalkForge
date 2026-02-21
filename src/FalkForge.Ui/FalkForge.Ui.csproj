@@ -16,5 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Ui.Abstractions\FalkForge.Ui.Abstractions.csproj" />
     <ProjectReference Include="..\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
+    <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj" />
   </ItemGroup>
 </Project>

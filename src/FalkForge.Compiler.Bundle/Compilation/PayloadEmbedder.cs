@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using FalkForge.Compiler.Bundle.Compression;
@@ -33,23 +34,38 @@ public sealed class PayloadEmbedder
             writer.Write(manifestJson.Length);
             writer.Write(manifestJson);
 
-            // Write compressed payloads and track offsets, grouped by container
-            var compressor = new GzipCompressor();
-            var tocEntries = new List<TocEntry>();
-
             // Group by container: containerless first, then by container ID
             var orderedPayloads = payloads
                 .OrderBy(p => p.ContainerId ?? string.Empty)
                 .ToList();
 
-            foreach (var payload in orderedPayloads)
-            {
-                var offset = stream.Position;
-                var compressResult = compressor.Compress(payload.Data);
-                if (compressResult.IsFailure)
-                    return Result<Unit>.Failure(compressResult.Error);
+            // Pre-compress payloads in parallel (streaming from source path)
+            var compressor = new GzipCompressor();
+            var compressedData = new byte[orderedPayloads.Count][];
+            var firstError = new ConcurrentBag<Error>();
 
-                var compressed = compressResult.Value;
+            Parallel.For(0, orderedPayloads.Count,
+                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+                i =>
+                {
+                    if (!firstError.IsEmpty) return;
+                    var result = compressor.CompressFile(orderedPayloads[i].SourcePath);
+                    if (result.IsFailure)
+                        firstError.Add(result.Error);
+                    else
+                        compressedData[i] = result.Value;
+                });
+
+            if (!firstError.IsEmpty)
+                return Result<Unit>.Failure(firstError.First());
+
+            // Write compressed payloads sequentially and track offsets
+            var tocEntries = new List<TocEntry>();
+            for (var i = 0; i < orderedPayloads.Count; i++)
+            {
+                var payload = orderedPayloads[i];
+                var compressed = compressedData[i];
+                var offset = stream.Position;
                 writer.Write(compressed);
 
                 tocEntries.Add(new TocEntry
@@ -57,7 +73,7 @@ public sealed class PayloadEmbedder
                     PackageId = payload.PackageId,
                     Offset = offset,
                     CompressedSize = compressed.Length,
-                    OriginalSize = payload.Data.Length,
+                    OriginalSize = (int)payload.OriginalSize,
                     Sha256Hash = payload.Sha256Hash
                 });
             }

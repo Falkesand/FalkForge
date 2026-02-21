@@ -21,8 +21,9 @@ public static class UpgradeTableReader
     public sealed class UpgradeReadResult
     {
         public MajorUpgradeModel? MajorUpgrade { get; init; }
+        public DowngradeModel? Downgrade { get; init; }
 
-        public static UpgradeReadResult Empty { get; } = new() { MajorUpgrade = null };
+        public static UpgradeReadResult Empty { get; } = new() { MajorUpgrade = null, Downgrade = null };
     }
 
     public static Result<UpgradeReadResult> Read(IMsiTableAccess tableAccess)
@@ -41,10 +42,10 @@ public static class UpgradeTableReader
             return UpgradeReadResult.Empty;
 
         // Analyze the upgrade rows to determine upgrade strategy
-        var allowDowngrades = false;
         var allowSameVersion = false;
         var migrateFeatures = false;
-        string? downgradeMessage = null;
+        var downgradeBlocked = false;
+        string? downgradeErrorMessage = null;
 
         foreach (var row in rowsResult.Value)
         {
@@ -59,23 +60,29 @@ public static class UpgradeTableReader
 
             if (isDetectOnly && !string.IsNullOrEmpty(row[2]))
             {
-                // Detect-only row with a max version often means "detect newer versions" for downgrade prevention
-                allowDowngrades = false;
+                // Detect-only row with a max version means "detect newer versions" for downgrade prevention
+                downgradeBlocked = true;
+                // row[6] is ActionProperty; the error message is surfaced via a LaunchCondition referencing this property
+                // Capture any associated message if present (may be null in many standard setups)
+                downgradeErrorMessage = null;
             }
 
             if (versionMaxInclusive)
                 allowSameVersion = true;
         }
 
+        var downgrade = downgradeBlocked
+            ? new DowngradeModel { AllowDowngrades = false, ErrorMessage = downgradeErrorMessage }
+            : new DowngradeModel { AllowDowngrades = true, ErrorMessage = null };
+
         return new UpgradeReadResult
         {
             MajorUpgrade = new MajorUpgradeModel
             {
-                AllowDowngrades = allowDowngrades,
                 AllowSameVersionUpgrades = allowSameVersion,
-                DowngradeErrorMessage = downgradeMessage,
                 MigrateFeatures = migrateFeatures
-            }
+            },
+            Downgrade = downgrade
         };
     }
 }

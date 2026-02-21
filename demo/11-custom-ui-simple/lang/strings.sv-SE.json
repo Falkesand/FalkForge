@@ -1,0 +1,10 @@
+{
+  "Welcome.Title": "Välkommen",
+  "Welcome.ProductName": "Min applikation",
+  "Welcome.Description": "Den här guiden installerar Min applikation på din dator.\n\nKlicka på Nästa för att fortsätta.",
+  "Progress.Title": "Installerar",
+  "Progress.StatusText": "Förbereder installation...",
+  "Progress.Installing": "Installerar...",
+  "Complete.Title": "Slutfört",
+  "Complete.Message": "Min applikation har installerats."
+}

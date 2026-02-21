@@ -6,7 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/FalkForge.Core/FalkForge.Core.csproj" />
     <ProjectReference Include="../../src/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj" />
-    <ProjectReference Include="../../src/FalkForge.Platform.Windows/FalkForge.Platform.Windows.csproj" />
     <ProjectReference Include="../../src/FalkForge.Extensibility/FalkForge.Extensibility.csproj" />
     <ProjectReference Include="../../src/FalkForge.Extensions.Firewall/FalkForge.Extensions.Firewall.csproj" />
     <ProjectReference Include="../../src/FalkForge.Extensions.Iis/FalkForge.Extensions.Iis.csproj" />

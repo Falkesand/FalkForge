@@ -9,6 +9,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="lang\*.json" WithCulture="false" LogicalName="CustomUiSimple.lang.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/FalkForge.Ui/FalkForge.Ui.csproj" />
   </ItemGroup>
 </Project>

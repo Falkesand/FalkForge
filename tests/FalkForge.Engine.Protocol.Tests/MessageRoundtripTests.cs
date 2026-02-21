@@ -30,9 +30,9 @@ public class MessageRoundtripTests
     {
         var features = new[]
         {
-            new FeatureState("core", "Core Components", true, 50_000_000L),
-            new FeatureState("docs", "Documentation", false, 10_000_000L),
-            new FeatureState("samples", "Sample Projects", true, 25_000_000L)
+            new FeatureState("core", "Core Components", "Core runtime", true, true, true, 50_000_000L),
+            new FeatureState("docs", "Documentation", null, false, false, false, 10_000_000L),
+            new FeatureState("samples", "Sample Projects", "Code samples", true, false, true, 25_000_000L)
         };
 
         var original = new DetectCompleteMessage
@@ -53,14 +53,23 @@ public class MessageRoundtripTests
 
         Assert.Equal("core", deserialized.Features[0].FeatureId);
         Assert.Equal("Core Components", deserialized.Features[0].Title);
+        Assert.Equal("Core runtime", deserialized.Features[0].Description);
         Assert.True(deserialized.Features[0].IsSelected);
+        Assert.True(deserialized.Features[0].IsRequired);
+        Assert.True(deserialized.Features[0].WasPreviouslyInstalled);
         Assert.Equal(50_000_000L, deserialized.Features[0].DiskSpaceRequired);
 
         Assert.Equal("docs", deserialized.Features[1].FeatureId);
+        Assert.Null(deserialized.Features[1].Description);
         Assert.False(deserialized.Features[1].IsSelected);
+        Assert.False(deserialized.Features[1].IsRequired);
+        Assert.False(deserialized.Features[1].WasPreviouslyInstalled);
 
         Assert.Equal("samples", deserialized.Features[2].FeatureId);
+        Assert.Equal("Code samples", deserialized.Features[2].Description);
         Assert.True(deserialized.Features[2].IsSelected);
+        Assert.False(deserialized.Features[2].IsRequired);
+        Assert.True(deserialized.Features[2].WasPreviouslyInstalled);
     }
 
     [Fact]
@@ -599,7 +608,7 @@ public class MessageRoundtripTests
         var features = new FeatureState[100];
         for (var i = 0; i < 100; i++)
         {
-            features[i] = new FeatureState($"feat-{i}", $"Feature {i}", i % 2 == 0, i * 1024L);
+            features[i] = new FeatureState($"feat-{i}", $"Feature {i}", $"Description {i}", i % 2 == 0, i % 3 == 0, i % 4 == 0, i * 1024L);
         }
 
         var original = new DetectCompleteMessage
@@ -617,7 +626,10 @@ public class MessageRoundtripTests
         {
             Assert.Equal($"feat-{i}", deserialized.Features[i].FeatureId);
             Assert.Equal($"Feature {i}", deserialized.Features[i].Title);
+            Assert.Equal($"Description {i}", deserialized.Features[i].Description);
             Assert.Equal(i % 2 == 0, deserialized.Features[i].IsSelected);
+            Assert.Equal(i % 3 == 0, deserialized.Features[i].IsRequired);
+            Assert.Equal(i % 4 == 0, deserialized.Features[i].WasPreviouslyInstalled);
             Assert.Equal(i * 1024L, deserialized.Features[i].DiskSpaceRequired);
         }
     }

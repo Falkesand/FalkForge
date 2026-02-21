@@ -47,7 +47,10 @@ public static class MessageSerializer
                 {
                     writer.Write(f.FeatureId);
                     writer.Write(f.Title);
+                    writer.Write(f.Description ?? string.Empty);
                     writer.Write(f.IsSelected);
+                    writer.Write(f.IsRequired);
+                    writer.Write(f.WasPreviouslyInstalled);
                     writer.Write(f.DiskSpaceRequired);
                 }
                 break;
@@ -137,6 +140,18 @@ public static class MessageSerializer
                     writer.Write(m.ResultPayload!.Length);
                     writer.Write(m.ResultPayload);
                 }
+                break;
+
+            case UpdateAvailableMessage m:
+                writer.Write(m.Version);
+                writer.Write(m.ReleaseNotes ?? string.Empty);
+                writer.Write(m.DownloadUrl);
+                writer.Write(m.LocalPath ?? string.Empty);
+                break;
+
+            case UpdateReadyMessage m:
+                writer.Write(m.Version);
+                writer.Write(m.LocalPath);
                 break;
 
             default:

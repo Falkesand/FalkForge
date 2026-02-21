@@ -1,5 +1,7 @@
 using FalkForge;
 using FalkForge.Builders;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 var payloadDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "payload"));
@@ -21,6 +23,12 @@ return Installer.Build(args, pkg =>
     pkg.UpdateUrl = "https://www.apexsoftware.com/updates";
 
     pkg.UseDialogSet(MsiDialogSet.Advanced);
+
+    pkg.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
+
     pkg.EnableRestartManagerSupport();
     pkg.CabinetThreads(4);
 
@@ -364,16 +372,16 @@ return Installer.Build(args, pkg =>
     pkg.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\ApexSoftware\EnterpriseSuite", k => k
             .Value("ProductVersion", "2025.1.0")
-            .Value("InstallPath", "[INSTALLFOLDER]")
+            .Value("InstallPath", MsiProperty.InstallFolder)
             .Value("EditorFont", "ApexMono")));
 
     pkg.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\ApexSoftware\MobileSDK", k => k
-            .Value("SdkPath", "[INSTALLFOLDER]Mobile")));
+            .Value("SdkPath", MsiProperty.InstallFolder / "Mobile")));
 
     pkg.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\ApexSoftware\CloudTools", k => k
-            .Value("CliPath", "[INSTALLFOLDER]Cloud")));
+            .Value("CliPath", MsiProperty.InstallFolder / "Cloud")));
 
     // ──────────────────────────────────────────────────────────────────
     // File associations
@@ -395,26 +403,26 @@ return Installer.Build(args, pkg =>
     // ──────────────────────────────────────────────────────────────────
     // Environment variables
     // ──────────────────────────────────────────────────────────────────
-    pkg.EnvironmentVariable("APEX_HOME", "[INSTALLFOLDER]", env =>
+    pkg.EnvironmentVariable("APEX_HOME", MsiProperty.InstallFolder, env =>
     {
         env.IsSystem = true;
         env.Action = EnvironmentVariableAction.Set;
     });
 
-    pkg.EnvironmentVariable("PATH", "[INSTALLFOLDER]bin", env =>
+    pkg.EnvironmentVariable("PATH", MsiProperty.InstallFolder / "bin", env =>
     {
         env.IsSystem = true;
         env.Action = EnvironmentVariableAction.Append;
         env.Separator = ";";
     });
 
-    pkg.EnvironmentVariable("APEX_MOBILE_SDK", "[INSTALLFOLDER]Mobile", env =>
+    pkg.EnvironmentVariable("APEX_MOBILE_SDK", MsiProperty.InstallFolder / "Mobile", env =>
     {
         env.IsSystem = true;
         env.Action = EnvironmentVariableAction.Set;
     });
 
-    pkg.EnvironmentVariable("PATH", "[INSTALLFOLDER]Cloud", env =>
+    pkg.EnvironmentVariable("PATH", MsiProperty.InstallFolder / "Cloud", env =>
     {
         env.IsSystem = true;
         env.Action = EnvironmentVariableAction.Append;
@@ -435,17 +443,16 @@ return Installer.Build(args, pkg =>
     // ──────────────────────────────────────────────────────────────────
     pkg.MajorUpgrade(mu =>
     {
-        mu.DowngradeErrorMessage(
-            "A newer version of Apex Enterprise Suite is already installed. Please uninstall it first.");
         mu.AllowSameVersionUpgrades();
         mu.Schedule(RemoveExistingProductsSchedule.AfterInstallValidate);
     });
+    pkg.Downgrade(d => d.Block("A newer version of Apex Enterprise Suite is already installed. Please uninstall it first."));
 
     // ──────────────────────────────────────────────────────────────────
     // Launch conditions
     // ──────────────────────────────────────────────────────────────────
-    pkg.Require("Privileged", "Administrator privileges are required to install Apex Enterprise Suite.");
-    pkg.Require("VersionNT64", "Apex Enterprise Suite requires a 64-bit operating system.");
+    pkg.Require(Condition.IsPrivileged, "Administrator privileges are required to install Apex Enterprise Suite.");
+    pkg.Require(Condition.Is64BitOS, "Apex Enterprise Suite requires a 64-bit operating system.");
 
     // ──────────────────────────────────────────────────────────────────
     // Custom table: ApexComponents

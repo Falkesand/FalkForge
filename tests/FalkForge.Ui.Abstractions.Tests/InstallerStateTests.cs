@@ -157,4 +157,122 @@ public sealed class InstallerStateTests
 
         await Task.WhenAll(tasks);
     }
+
+    [Fact]
+    public void SetSensitive_and_GetSensitive_roundtrips()
+    {
+        var protector = new FakeProtector();
+        var state = new InstallerState(protector);
+        var data = new byte[] { 0x41, 0x42, 0x43 };
+
+        state.SetSensitive("Password", data);
+        using var result = state.GetSensitive("Password");
+
+        Assert.Equal(data, result.Span.ToArray());
+    }
+
+    [Fact]
+    public void GetSensitive_missing_key_returns_empty()
+    {
+        var state = new InstallerState(new FakeProtector());
+
+        using var result = state.GetSensitive("Missing");
+
+        Assert.True(result.IsEmpty);
+    }
+
+    [Fact]
+    public void SetSensitive_overwrites_and_zeroes_old_value()
+    {
+        var protector = new TrackingProtector();
+        var state = new InstallerState(protector);
+
+        state.SetSensitive("Key", [1, 2, 3]);
+        var firstProtected = protector.LastProtected!;
+
+        state.SetSensitive("Key", [4, 5, 6]);
+
+        Assert.All(firstProtected, b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void Dispose_zeroes_all_sensitive_entries()
+    {
+        var protector = new TrackingProtector();
+        var state = new InstallerState(protector);
+        state.SetSensitive("A", [1, 2, 3]);
+        state.SetSensitive("B", [4, 5, 6]);
+        var protectedA = protector.AllProtected[0];
+        var protectedB = protector.AllProtected[1];
+
+        state.Dispose();
+
+        Assert.All(protectedA, b => Assert.Equal(0, b));
+        Assert.All(protectedB, b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void RemoveSensitive_zeroes_and_removes()
+    {
+        var protector = new TrackingProtector();
+        var state = new InstallerState(protector);
+        state.SetSensitive("Key", [1, 2, 3]);
+        var protectedValue = protector.LastProtected!;
+
+        var removed = state.RemoveSensitive("Key");
+
+        Assert.True(removed);
+        Assert.All(protectedValue, b => Assert.Equal(0, b));
+        using var afterRemove = state.GetSensitive("Key");
+        Assert.True(afterRemove.IsEmpty);
+    }
+
+    [Fact]
+    public void RemoveSensitive_returns_false_for_missing_key()
+    {
+        var state = new InstallerState(new FakeProtector());
+
+        Assert.False(state.RemoveSensitive("Missing"));
+    }
+
+    [Fact]
+    public void Parameterless_constructor_still_works()
+    {
+        var state = new InstallerState();
+
+        state.Set("Key", "Value");
+
+        Assert.Equal("Value", state.Get<string>("Key"));
+    }
+
+    [Fact]
+    public void SetSensitive_without_protector_throws()
+    {
+        var state = new InstallerState();
+
+        Assert.Throws<InvalidOperationException>(() => state.SetSensitive("Key", [1, 2]));
+    }
+
+    private sealed class FakeProtector : ISensitiveDataProtector
+    {
+        public byte[] Protect(byte[] plainData) => [.. plainData];
+        public byte[] Unprotect(byte[] protectedData) => [.. protectedData];
+    }
+
+    private sealed class TrackingProtector : ISensitiveDataProtector
+    {
+        public byte[]? LastProtected { get; private set; }
+        public List<byte[]> AllProtected { get; } = [];
+
+        public byte[] Protect(byte[] plainData)
+        {
+            var result = new byte[plainData.Length];
+            Array.Copy(plainData, result, plainData.Length);
+            LastProtected = result;
+            AllProtected.Add(result);
+            return result;
+        }
+
+        public byte[] Unprotect(byte[] protectedData) => [.. protectedData];
+    }
 }

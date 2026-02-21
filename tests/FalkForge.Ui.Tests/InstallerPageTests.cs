@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Windows.Controls;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
+using FalkForge.Ui.Localization;
 using FalkForge.Ui.Tests.ViewModels;
 using Xunit;
 
@@ -12,6 +13,8 @@ public class TestView : UserControl { }
 public class TestPage : InstallerPage<TestView>
 {
     public override string Title => "Test Page";
+
+    public string TestLocalize(string key) => Localize(key);
 }
 
 public class PropertyTestPage : InstallerPage<TestView>
@@ -25,6 +28,34 @@ public class PropertyTestPage : InstallerPage<TestView>
         get => _status;
         set => SetField(ref _status, value);
     }
+
+    private bool _flag;
+
+    public bool Flag
+    {
+        get => _flag;
+        set => SetField(ref _flag, value, [nameof(NotFlag)]);
+    }
+
+    public bool NotFlag => !_flag;
+
+    private int _count;
+
+    public int Count
+    {
+        get => _count;
+        set => SetField(ref _count, value, [nameof(IsPositive), nameof(IsEven)]);
+    }
+
+    public bool IsPositive => _count > 0;
+    public bool IsEven => _count % 2 == 0;
+}
+
+public class PasswordTestPage : InstallerPage<TestView>
+{
+    public override string Title => "Password Test";
+
+    public SensitiveBytes ReadPassword(string key) => GetPassword(key);
 }
 
 public class InstallerPageTests
@@ -152,6 +183,47 @@ public class InstallerPageTests
         Assert.Empty(changedProperties);
     }
 
+    [Fact]
+    public void SetField_AlsoNotify_RaisesAllPropertyChanged()
+    {
+        var page = new PropertyTestPage();
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        page.Flag = true;
+
+        Assert.Equal(2, changed.Count);
+        Assert.Equal(nameof(PropertyTestPage.Flag), changed[0]);
+        Assert.Equal(nameof(PropertyTestPage.NotFlag), changed[1]);
+    }
+
+    [Fact]
+    public void SetField_AlsoNotify_SameValue_DoesNotRaise()
+    {
+        var page = new PropertyTestPage();
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        page.Flag = false;
+
+        Assert.Empty(changed);
+    }
+
+    [Fact]
+    public void SetField_AlsoNotify_MultipleDependents_RaisesInOrder()
+    {
+        var page = new PropertyTestPage();
+        var changed = new List<string?>();
+        page.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        page.Count = 3;
+
+        Assert.Equal(3, changed.Count);
+        Assert.Equal(nameof(PropertyTestPage.Count), changed[0]);
+        Assert.Equal(nameof(PropertyTestPage.IsPositive), changed[1]);
+        Assert.Equal(nameof(PropertyTestPage.IsEven), changed[2]);
+    }
+
     [WpfFact]
     public void CreateViewInternal_ReturnsCorrectViewType()
     {
@@ -170,5 +242,74 @@ public class InstallerPageTests
         var view = page.CreateViewInternal();
 
         Assert.Same(page, view.DataContext);
+    }
+
+    [Fact]
+    public void GetPassword_unregistered_key_returns_empty()
+    {
+        var page = new PasswordTestPage();
+
+        using var result = page.ReadPassword("Missing");
+
+        Assert.True(result.IsEmpty);
+    }
+
+    [WpfFact]
+    public void GetPassword_registered_passwordbox_returns_bytes()
+    {
+        var page = new PasswordTestPage();
+        var box = new System.Windows.Controls.PasswordBox();
+        box.Password = "secret";
+        page.RegisterPasswordBox("Test", box);
+
+        using var result = page.ReadPassword("Test");
+
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes("secret"), result.Span.ToArray());
+    }
+
+    [WpfFact]
+    public void UnregisterPasswordBox_removes_registration()
+    {
+        var page = new PasswordTestPage();
+        var box = new System.Windows.Controls.PasswordBox();
+        box.Password = "secret";
+        page.RegisterPasswordBox("Test", box);
+
+        page.UnregisterPasswordBox("Test");
+        using var result = page.ReadPassword("Test");
+
+        Assert.True(result.IsEmpty);
+    }
+
+    [Fact]
+    public void Localize_without_resolver_returns_key()
+    {
+        var page = new TestPage();
+        Assert.Equal("Some.Key", page.TestLocalize("Some.Key"));
+    }
+
+    [Fact]
+    public void Localize_with_resolver_returns_resolved_string()
+    {
+        var page = new TestPage();
+        var cultures = new Dictionary<string, Dictionary<string, string>>
+        {
+            ["en-US"] = new() { ["Test.Title"] = "Hello" }
+        };
+        page._stringResolver = new UiStringResolver(cultures, "en-US");
+
+        Assert.Equal("Hello", page.TestLocalize("Test.Title"));
+    }
+
+    [Fact]
+    public void NotifyCultureChanged_fires_property_changed_for_all()
+    {
+        var page = new TestPage();
+        string? changedProperty = "not-fired";
+        page.PropertyChanged += (_, args) => changedProperty = args.PropertyName;
+
+        page.NotifyCultureChanged();
+
+        Assert.Equal(string.Empty, changedProperty);
     }
 }

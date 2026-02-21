@@ -14,6 +14,8 @@ public enum MessageType : ushort
     PhaseChanged = 0x0109,
     Log = 0x010A,
     ShutdownResponse = 0x010B,
+    UpdateAvailable = 0x010C,
+    UpdateReady = 0x010D,
 
     // UI -> Engine (0x02xx)
     Cancel = 0x0201,

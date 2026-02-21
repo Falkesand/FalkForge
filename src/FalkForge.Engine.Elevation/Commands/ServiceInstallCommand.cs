@@ -38,6 +38,10 @@ public sealed partial class ServiceInstallCommand : IElevatedCommand
         if (normalizedBinaryPath.Contains("..", StringComparison.Ordinal))
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "Binary path must not contain '..' segments after normalization");
 
+        if (!FileWriteCommand.IsAllowedPath(normalizedBinaryPath))
+            return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                "Binary path must be under Program Files or ProgramData");
+
         try
         {
             using var process = new Process();

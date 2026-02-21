@@ -1,3 +1,4 @@
+using FalkForge.Cli;
 using FalkForge.Cli.Commands;
 using Spectre.Console.Cli;
 
@@ -6,6 +7,8 @@ var app = new CommandApp();
 app.Configure(config =>
 {
     config.SetApplicationName("forge");
+
+    config.Settings.Registrar.Register<IConsoleOutput, SpectreConsoleOutput>();
 
     config.AddCommand<BuildCommand>("build")
         .WithDescription("Compile an installer definition (.cs or .json) into MSI/Bundle")
@@ -26,9 +29,22 @@ app.Configure(config =>
         .WithExample("inspect", "package.msi", "--verbose");
 
     config.AddCommand<DecompileCommand>("decompile")
-        .WithDescription("Decompile an MSI into C# source code")
+        .WithDescription("Decompile an MSI or bundle EXE into C# source code")
         .WithExample("decompile", "package.msi")
-        .WithExample("decompile", "package.msi", "-o", "installer.cs");
+        .WithExample("decompile", "package.msi", "-o", "installer.cs")
+        .WithExample("decompile", "bundle.exe")
+        .WithExample("decompile", "bundle.exe", "-o", "installer.cs");
+
+    config.AddBranch("bundle", bundle =>
+    {
+        bundle.SetDescription("Bundle signing operations (detach/reattach for code signing)");
+        bundle.AddCommand<BundleDetachCommand>("detach")
+            .WithDescription("Detach PE stub from bundle for external signing")
+            .WithExample("bundle", "detach", "installer.exe", "--stub", "stub.exe", "--data", "bundle.dat");
+        bundle.AddCommand<BundleReattachCommand>("reattach")
+            .WithDescription("Reattach signed PE stub to bundle data")
+            .WithExample("bundle", "reattach", "--stub", "signed.exe", "--data", "bundle.dat", "-o", "installer.exe");
+    });
 });
 
 return app.Run(args);

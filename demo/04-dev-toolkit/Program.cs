@@ -1,4 +1,6 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 return Installer.Build(args, p =>
@@ -13,6 +15,11 @@ return Installer.Build(args, p =>
 
     // Mondo UI -- Welcome, License, InstallDir, Features, Progress, Exit
     p.UseDialogSet(MsiDialogSet.Mondo);
+
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Install directory
     p.DefaultInstallDirectory = KnownFolder.ProgramFiles / "Falk Technologies" / "DevToolkit";
@@ -35,14 +42,14 @@ return Installer.Build(args, p =>
         .To(KnownFolder.ProgramFiles / "Falk Technologies" / "DevToolkit"));
 
     // FALK_HOME environment variable
-    p.EnvironmentVariable("FALK_HOME", "[INSTALLFOLDER]", ev =>
+    p.EnvironmentVariable("FALK_HOME", MsiProperty.InstallFolder, ev =>
     {
         ev.IsSystem = true;
         ev.Action = EnvironmentVariableAction.Set;
     });
 
     // PATH append
-    p.EnvironmentVariable("PATH", "[INSTALLFOLDER]bin", ev =>
+    p.EnvironmentVariable("PATH", MsiProperty.InstallFolder / "bin", ev =>
     {
         ev.IsSystem = true;
         ev.Action = EnvironmentVariableAction.Append;
@@ -131,7 +138,7 @@ return Installer.Build(args, p =>
 
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\FalkTech\Toolkit", k => k
-            .Value("CompilerPath", @"[INSTALLFOLDER]Compiler\compiler.exe")));
+            .Value("CompilerPath", MsiProperty.InstallFolder / @"Compiler\compiler.exe")));
 
     // =====================================================================
     // Feature: Debugger (not default -- user opt-in)
@@ -152,7 +159,7 @@ return Installer.Build(args, p =>
 
     p.Registry(r => r
         .Key(RegistryRoot.LocalMachine, @"Software\FalkTech\Toolkit", k => k
-            .Value("DebuggerPath", @"[INSTALLFOLDER]Debugger\debugger.exe")));
+            .Value("DebuggerPath", MsiProperty.InstallFolder / @"Debugger\debugger.exe")));
 
     // =====================================================================
     // Feature: Documentation (default)
@@ -173,8 +180,8 @@ return Installer.Build(args, p =>
         .To(KnownFolder.ProgramFiles / "Falk Technologies" / "DevToolkit" / "Docs"));
 
     // Major upgrade support
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Falk Developer Toolkit is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version of Falk Developer Toolkit is already installed."));
 
     // Custom action: SetProperty FALK_VERSION = "5.0.0" after InstallValidate
     p.CustomAction("SetFalkVersion", ca =>

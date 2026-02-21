@@ -27,8 +27,8 @@ public sealed class PayloadDownloader
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return Result<string>.Failure(ErrorKind.DownloadError, $"Invalid URL format: {url}");
 
-        if (uri.Scheme != "https" && uri.Scheme != "http")
-            return Result<string>.Failure(ErrorKind.DownloadError, $"Unsupported URL scheme: {uri.Scheme}. Only http and https are allowed.");
+        if (uri.Scheme != Uri.UriSchemeHttps)
+            return Result<string>.Failure(ErrorKind.DownloadError, $"Unsupported URL scheme '{uri.Scheme}': only https is allowed.");
 
         if (string.IsNullOrWhiteSpace(expectedSha256))
             return Result<string>.Failure(ErrorKind.DownloadError, "Expected SHA-256 hash cannot be empty.");

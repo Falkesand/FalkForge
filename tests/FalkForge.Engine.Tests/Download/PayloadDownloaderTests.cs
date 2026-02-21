@@ -164,6 +164,21 @@ public sealed class PayloadDownloaderTests : IDisposable
     }
 
     [Fact]
+    public async Task DownloadAsync_WithHttpUrl_ReturnsFailure()
+    {
+        using var client = new HttpClient();
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "payload.bin");
+
+        var result = await downloader.DownloadAsync(
+            "http://example.com/file.bin", "AABB", targetPath);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+        Assert.Contains("only https is allowed", result.Error.Message);
+    }
+
+    [Fact]
     public async Task Download_WithInvalidUrl_ReturnsFailure()
     {
         using var client = new HttpClient();

@@ -54,6 +54,39 @@ public sealed class ManifestGenerator
         var chainItems = BuildChainItems(model, packages);
         var relatedBundles = MapRelatedBundles(model.RelatedBundles);
 
+        var variables = model.Variables.Select(v => new ManifestVariable(
+            v.Name,
+            v.Type switch
+            {
+                BundleVariableType.String => "string",
+                BundleVariableType.Numeric => "numeric",
+                BundleVariableType.Version => "version",
+                _ => "string"
+            },
+            v.DefaultValue,
+            v.Persisted,
+            v.Hidden,
+            v.Secret
+        )).ToArray();
+
+        var features = model.Features.Select(f => new ManifestFeature(
+            f.Id,
+            f.Title,
+            f.Description,
+            f.IsDefault,
+            f.IsRequired,
+            f.PackageIds.ToArray())).ToArray();
+
+        var dependencyProviders = model.DependencyProviders.Select(p =>
+            new ManifestDependencyProvider(p.Key, p.Version, p.DisplayName)).ToArray();
+
+        var dependencyConsumers = model.DependencyConsumers.Select(c =>
+            new ManifestDependencyConsumer(c.ProviderKey, c.ConsumerKey)).ToArray();
+
+        ManifestUpdateFeed? updateFeed = model.UpdateFeed is not null
+            ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy)
+            : null;
+
         return new InstallerManifest
         {
             Name = model.Name,
@@ -64,7 +97,12 @@ public sealed class ManifestGenerator
             Packages = packages.ToArray(),
             RelatedBundles = relatedBundles,
             Chain = chainItems,
+            Variables = variables,
+            Features = features,
+            DependencyProviders = dependencyProviders,
+            DependencyConsumers = dependencyConsumers,
             LicenseFile = model.UiConfig?.LicenseFile,
+            UpdateFeed = updateFeed,
             Scope = model.Scope
         };
     }

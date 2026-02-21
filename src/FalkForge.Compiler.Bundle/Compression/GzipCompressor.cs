@@ -4,6 +4,25 @@ namespace FalkForge.Compiler.Bundle.Compression;
 
 public sealed class GzipCompressor
 {
+    public Result<byte[]> CompressFile(string sourcePath)
+    {
+        try
+        {
+            using var output = new MemoryStream();
+            using (var input = File.OpenRead(sourcePath))
+            using (var gzip = new GZipStream(output, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+            {
+                input.CopyTo(gzip);
+            }
+
+            return output.ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Result<byte[]>.Failure(ErrorKind.PayloadError, $"Compression failed: {ex.Message}");
+        }
+    }
+
     public Result<byte[]> Compress(byte[] data)
     {
         try

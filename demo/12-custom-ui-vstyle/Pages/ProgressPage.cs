@@ -9,9 +9,11 @@ using FalkForge.Ui.Abstractions;
 public class ProgressPage : InstallerPage<ProgressView>
 {
     private double _overallProgress;
-    private string _currentOperation = "Preparing...";
+    private string? _currentOperationOverride;
 
-    public override string Title => "Installing";
+    public override string Title => Localize("Progress.Title");
+    public string Header => Localize("Progress.Header");
+    public string OverallProgressLabel => Localize("Progress.OverallProgress");
 
     public double OverallProgress
     {
@@ -21,8 +23,8 @@ public class ProgressPage : InstallerPage<ProgressView>
 
     public string CurrentOperation
     {
-        get => _currentOperation;
-        set => SetField(ref _currentOperation, value);
+        get => _currentOperationOverride ?? Localize("Progress.Preparing");
+        set => SetField(ref _currentOperationOverride, value);
     }
 
     public ObservableCollection<Workload> InstallingWorkloads { get; } = new();

@@ -9,6 +9,7 @@
     <Project Path="src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj" />
     <Project Path="src/FalkForge.Engine.Protocol/FalkForge.Engine.Protocol.csproj" />
     <Project Path="src/FalkForge.Extensibility/FalkForge.Extensibility.csproj" />
+    <Project Path="src/FalkForge.Extensions.Dependency/FalkForge.Extensions.Dependency.csproj" />
     <Project Path="src/FalkForge.Extensions.DotNet/FalkForge.Extensions.DotNet.csproj" />
     <Project Path="src/FalkForge.Extensions.Firewall/FalkForge.Extensions.Firewall.csproj" />
     <Project Path="src/FalkForge.Extensions.Iis/FalkForge.Extensions.Iis.csproj" />
@@ -16,6 +17,9 @@
     <Project Path="src/FalkForge.Extensions.Util/FalkForge.Extensions.Util.csproj" />
     <Project Path="src/FalkForge.Localization/FalkForge.Localization.csproj" />
     <Project Path="src/FalkForge.Platform/FalkForge.Platform.csproj" />
+    <Project Path="src/FalkForge.Plugins.FileSystem/FalkForge.Plugins.FileSystem.csproj" />
+    <Project Path="src/FalkForge.Plugins.Odbc/FalkForge.Plugins.Odbc.csproj" />
+    <Project Path="src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
     <Project Path="src/FalkForge.Platform.Windows/FalkForge.Platform.Windows.csproj" />
     <Project Path="src/FalkForge.Sdk/FalkForge.Sdk.csproj" />
     <Project Path="src/FalkForge.Testing/FalkForge.Testing.csproj" />
@@ -31,10 +35,13 @@
     <Project Path="tests/FalkForge.Engine.Elevation.Tests/FalkForge.Engine.Elevation.Tests.csproj" />
     <Project Path="tests/FalkForge.Engine.Protocol.Tests/FalkForge.Engine.Protocol.Tests.csproj" />
     <Project Path="tests/FalkForge.Engine.Tests/FalkForge.Engine.Tests.csproj" />
+    <Project Path="tests/FalkForge.Extensions.Dependency.Tests/FalkForge.Extensions.Dependency.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.DotNet.Tests/FalkForge.Extensions.DotNet.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Firewall.Tests/FalkForge.Extensions.Firewall.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Iis.Tests/FalkForge.Extensions.Iis.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Sql.Tests/FalkForge.Extensions.Sql.Tests.csproj" />
+    <Project Path="tests/FalkForge.Plugins.Odbc.Tests/FalkForge.Plugins.Odbc.Tests.csproj" />
+    <Project Path="tests/FalkForge.Plugins.Sql.Tests/FalkForge.Plugins.Sql.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Util.Tests/FalkForge.Extensions.Util.Tests.csproj" />
     <Project Path="tests/FalkForge.Integration.Tests/FalkForge.Integration.Tests.csproj" />
     <Project Path="tests/FalkForge.Localization.Tests/FalkForge.Localization.Tests.csproj" />

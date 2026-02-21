@@ -1,0 +1,19 @@
+{
+  "Product.Title": "FalkForge DevTools Suite",
+  "Product.ProductName": "FalkForge DevTools Suite 2026",
+  "Product.Description": "A comprehensive suite of development tools for building modern .NET applications, web services, and cloud-native solutions.",
+  "Product.IncludedWorkloads": "Included workloads:",
+  "Workloads.Title": "Workloads",
+  "Workloads.Components": "Components",
+  "Workloads.SelectPrompt": "Select a workload to see its components",
+  "Workloads.TotalSelected": "Total selected:",
+  "Workloads.Required": "(required)",
+  "Workloads.SelectAtLeastOne": "Please select at least one workload.",
+  "Progress.Title": "Installing",
+  "Progress.Header": "Installing FalkForge DevTools Suite",
+  "Progress.Preparing": "Preparing...",
+  "Progress.OverallProgress": "Overall progress",
+  "Complete.Title": "Complete",
+  "Complete.Message": "FalkForge DevTools Suite has been successfully installed.",
+  "Complete.Details": "You can now open FalkForge DevTools from the Start menu."
+}

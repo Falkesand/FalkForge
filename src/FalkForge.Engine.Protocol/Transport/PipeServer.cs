@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Protocol.Transport;
 
+using System.Buffers;
 using System.IO.Pipes;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Serialization;
@@ -119,13 +120,20 @@ public sealed class PipeServer : IAsyncDisposable
                 if (messageLength <= 0 || messageLength > _options.MaxMessageSize)
                     break;
 
-                var messageBuffer = new byte[messageLength];
-                if (!await ReadExactAsync(_pipe, messageBuffer, ct))
-                    break;
+                var messageBuffer = ArrayPool<byte>.Shared.Rent(messageLength);
+                try
+                {
+                    if (!await ReadExactAsync(_pipe, messageBuffer, messageLength, ct))
+                        break;
 
-                var result = MessageDeserializer.Deserialize(messageBuffer);
-                if (result.IsSuccess)
-                    await _messageHandler(result.Value);
+                    var result = MessageDeserializer.Deserialize(messageBuffer, messageLength);
+                    if (result.IsSuccess)
+                        await _messageHandler(result.Value);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(messageBuffer);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -139,11 +147,14 @@ public sealed class PipeServer : IAsyncDisposable
     }
 
     private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, CancellationToken ct)
+        => await ReadExactAsync(stream, buffer, buffer.Length, ct);
+
+    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int length, CancellationToken ct)
     {
         var totalRead = 0;
-        while (totalRead < buffer.Length)
+        while (totalRead < length)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(totalRead), ct);
+            var read = await stream.ReadAsync(buffer.AsMemory(totalRead, length - totalRead), ct);
             if (read == 0) return false;
             totalRead += read;
         }

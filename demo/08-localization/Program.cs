@@ -1,5 +1,6 @@
 using FalkForge;
 using FalkForge.Builders;
+using FalkForge.Compiler.Msi;
 using FalkForge.Localization;
 using FalkForge.Models;
 
@@ -23,6 +24,7 @@ return Installer.Build(args, package =>
     // that demonstrates the fallback chain: de-AT -> de -> en-US.
     package.Localization(loc =>
     {
+        loc.AddBuiltInCultures();
         loc.AddJsonFile(Path.Combine(langDir, "strings.en-US.json"));
         loc.AddJsonFile(Path.Combine(langDir, "strings.de.json"));
         loc.AddJsonFile(Path.Combine(langDir, "strings.fr.json"));
@@ -82,6 +84,6 @@ return Installer.Build(args, package =>
         .OnStartMenu("Falk Software");
 
     // -- Major upgrade -------------------------------------------------------
-    package.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version is already installed."));
+    package.MajorUpgrade(_ => { });
+    package.Downgrade(d => d.Block("A newer version is already installed."));
 });

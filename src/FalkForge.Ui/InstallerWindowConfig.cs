@@ -13,4 +13,7 @@ internal sealed class InstallerWindowConfig
     public string? Title { get; init; }
     public string? IconPath { get; init; }
     public Type? CustomWindowType { get; init; }
+    public string? WatermarkImagePath { get; init; }
+    public string? BannerImagePath { get; init; }
+    public string? BannerIconPath { get; init; }
 }
