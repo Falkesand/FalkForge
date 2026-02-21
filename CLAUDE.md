@@ -161,6 +161,9 @@ Wired into `InstallerPage.PluginServices`, registered via `InstallerUIBuilder.Pl
 - `FalkForge.Plugins.Odbc` -- `OdbcPlugin` registers `IOdbcManager` (DSN check + admin launcher)
 - `FalkForge.Plugins.FileSystem` -- `FileSystemPlugin` registers `IFolderBrowser` (WPF OpenFolderDialog)
 
+### Localize() -- `src/FalkForge.Ui/InstallerPage.cs`
+Protected method on `InstallerPage`. O(1) dictionary lookup via `UiStringResolver`. Returns the key itself if no resolver configured. `NotifyCultureChanged()` fires `OnPropertyChanged(string.Empty)` for WPF blanket refresh on language switch.
+
 ### SensitiveBytes -- `src/FalkForge.Ui.Abstractions/SensitiveBytes.cs`
 Readonly struct wrapping `byte[]`. IDisposable — zeros memory via `CryptographicOperations.ZeroMemory` on dispose. Always use via `using` pattern. Do not copy — all copies share the same underlying array. For secure password and credential handling.
 
@@ -231,6 +234,8 @@ Additional validators: `MergeModuleValidator` (MSM001-004), `PatchValidator` (MS
 - `UI/DialogEmitter.cs` -- Emits MSI dialog tables from models
 - `UI/IDialogTemplate.cs` -- Dialog template interface
 - `UI/Templates/` -- MinimalDialogTemplate, InstallDirDialogTemplate, FeatureTreeDialogTemplate, MondoDialogTemplate, AdvancedDialogTemplate
+- `BuiltInLocalizationExtensions.cs` -- `AddBuiltInCultures()` extension on `LocalizationBuilder`. Loads built-in en-US + sv-SE dialog strings from embedded resources.
+- `Localization/en-US.json`, `Localization/sv-SE.json` -- Built-in MSI dialog template strings (36 keys each: Dialog.Welcome.*, Dialog.License.*, Button.*, etc.)
 
 ## Engine Architecture (3-process model)
 
@@ -298,6 +303,10 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `NullInstallerEngine.cs` -- Null object pattern for design-time/testing
 - `ViewModels/CustomShellViewModel.cs` -- Internal orchestrator for custom UI navigation and engine actions
 - `Views/CustomInstallerWindow.xaml` -- Default window shell for custom UI pages
+- `Localization/UiStringResolver.cs` -- Internal runtime string resolver. Holds per-culture dictionaries, resolves keys via fallback chain (sv-SE -> sv -> en-US). `SetCulture()` fires `CultureChanged` event.
+- `Localization/UiLocalizationBuilder.cs` -- Public fluent builder: `DefaultCulture()`, `AddJsonResource<T>(path)`, `DetectCulture()`, `AllowLanguageSelection()`. Loads JSON from embedded assembly resources.
+- `Localization/UiLocalizationConfig.cs` -- Internal config record holding `UiStringResolver` + `AllowLanguageSelection` flag.
+- `Localization/LanguageSelectorControl.cs` -- Internal ComboBox subclass showing cultures by native display name. Runtime language switching.
 
 ## Compiler.Bundle Layout
 
@@ -366,7 +375,8 @@ Typed ref: `SqlDatabaseRef.cs` for compile-time-safe database cross-references.
 - `CultureFallbackChain.cs` -- Builds ordered fallback: specific → parent → default (de-AT → de → en-US)
 - `LocalizedStringResolver.cs` -- Resolves `!(loc.StringId)` references with nested/circular detection
 - `LocalizationBuilder.cs` -- Fluent API: AddCulture(), DefaultCulture(), AddJsonFile(), Build()
-- `PackageBuilderExtensions.cs` -- Extension method bridging Localization → Core PackageBuilder
+- `PackageBuilderExtensions.cs` -- Extension method bridging Localization -> Core PackageBuilder
+- `LocalizationBuilder.DetectCulture()` -- Auto-sets default culture to match OS `CultureInfo.CurrentUICulture` with parent fallback
 - Error codes: LOC001-004
 
 ## Decompiler (`src/FalkForge.Decompiler/`)
@@ -512,6 +522,7 @@ FalkForge.Platform.Windows             Windows implementations
 FalkForge.Ui                           WPF UI + Custom UI types (InstallerPage, InstallerApp, builders)
 FalkForge.Ui.Abstractions             UI abstractions (IInstallerEngine, PageResult, InstallerState)
 FalkForge.Ui.ViewModels               ViewModels
+FalkForge.Ui.Localization                  UI runtime localization (UiStringResolver, UiLocalizationBuilder, LanguageSelectorControl)
 FalkForge.Extensibility               Extension system interfaces
 FalkForge.Extensions.Util              Utility extension (XmlConfig, UserManagement, etc.)
 FalkForge.Extensions.Dependency        Dependency provider/consumer extension
