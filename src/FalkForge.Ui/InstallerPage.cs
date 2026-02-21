@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using FalkForge.Engine.Protocol;
 using FalkForge.Plugins;
 using FalkForge.Ui.Abstractions;
+using FalkForge.Ui.Localization;
 
 public abstract class InstallerPage : INotifyPropertyChanged
 {
@@ -52,6 +53,8 @@ public abstract class InstallerPage : INotifyPropertyChanged
         return true;
     }
 
+    internal UiStringResolver? _stringResolver;
+
     private readonly Dictionary<string, PasswordBox> _passwordBoxes = new();
 
     internal void RegisterPasswordBox(string key, PasswordBox box)
@@ -66,4 +69,10 @@ public abstract class InstallerPage : INotifyPropertyChanged
             return default;
         return new SensitiveBytes(Encoding.UTF8.GetBytes(box.Password));
     }
+
+    protected string Localize(string key)
+        => _stringResolver?.Resolve(key) ?? key;
+
+    internal void NotifyCultureChanged()
+        => OnPropertyChanged(string.Empty);
 }

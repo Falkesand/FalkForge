@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Windows.Controls;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
+using FalkForge.Ui.Localization;
 using FalkForge.Ui.Tests.ViewModels;
 using Xunit;
 
@@ -12,6 +13,8 @@ public class TestView : UserControl { }
 public class TestPage : InstallerPage<TestView>
 {
     public override string Title => "Test Page";
+
+    public string TestLocalize(string key) => Localize(key);
 }
 
 public class PropertyTestPage : InstallerPage<TestView>
@@ -276,5 +279,37 @@ public class InstallerPageTests
         using var result = page.ReadPassword("Test");
 
         Assert.True(result.IsEmpty);
+    }
+
+    [Fact]
+    public void Localize_without_resolver_returns_key()
+    {
+        var page = new TestPage();
+        Assert.Equal("Some.Key", page.TestLocalize("Some.Key"));
+    }
+
+    [Fact]
+    public void Localize_with_resolver_returns_resolved_string()
+    {
+        var page = new TestPage();
+        var cultures = new Dictionary<string, Dictionary<string, string>>
+        {
+            ["en-US"] = new() { ["Test.Title"] = "Hello" }
+        };
+        page._stringResolver = new UiStringResolver(cultures, "en-US");
+
+        Assert.Equal("Hello", page.TestLocalize("Test.Title"));
+    }
+
+    [Fact]
+    public void NotifyCultureChanged_fires_property_changed_for_all()
+    {
+        var page = new TestPage();
+        string? changedProperty = "not-fired";
+        page.PropertyChanged += (_, args) => changedProperty = args.PropertyName;
+
+        page.NotifyCultureChanged();
+
+        Assert.Equal(string.Empty, changedProperty);
     }
 }
