@@ -11,65 +11,64 @@
 
         <!-- Standard installation -->
         <StackPanel Grid.Column="0">
-            <RadioButton Content="Standard installation"
+            <RadioButton Content="{Binding StandardRadio}"
                          IsChecked="{Binding IsStandard}"
                          FontWeight="Bold" FontSize="13" Margin="0,0,0,4"/>
-            <TextBlock Text="Select this to install a standard installation"
+            <TextBlock Text="{Binding StandardDescription}"
                        TextWrapping="Wrap" Margin="20,0,0,8" FontSize="12"
                        Foreground="#333333"/>
             <Border BorderBrush="#AAAAAA" BorderThickness="1"
                     Background="White" Padding="10" Margin="4,4,4,0">
                 <TextBlock TextWrapping="Wrap" FontSize="12">
-                    <Run FontWeight="Bold" Text="The following will be installed:"/>
+                    <Run FontWeight="Bold" Text="{Binding DataContext.StandardDetailsHeader, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="1. MultiAccess"/>
+                    <Run Text="{Binding DataContext.StandardDetail1, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="   * Sql server = .\SQLEXPRESS (asks if you want to"/>
+                    <Run Text="{Binding DataContext.StandardDetail1a, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="     install if it is missing)"/>
+                    <Run Text="{Binding DataContext.StandardDetail1b, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="   * Database = MultiAccess (Adds the database if it is"/>
+                    <Run Text="{Binding DataContext.StandardDetail1c, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="     missing)"/>
+                    <Run Text="{Binding DataContext.StandardDetail1d, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="2. MultiServer is started by MultiAccess and connects"/>
+                    <Run Text="{Binding DataContext.StandardDetail2, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="   to the same Sql server and database as MultiAccess"/>
+                    <Run Text="{Binding DataContext.StandardDetail2a, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="3. Konfigurera"/>
+                    <Run Text="{Binding DataContext.StandardDetail3, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="4. Concatenate"/>
+                    <Run Text="{Binding DataContext.StandardDetail4, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                 </TextBlock>
             </Border>
         </StackPanel>
 
         <!-- Advanced installation -->
         <StackPanel Grid.Column="2">
-            <RadioButton Content="Advanced installation"
+            <RadioButton Content="{Binding AdvancedRadio}"
                          IsChecked="{Binding IsAdvanced}"
                          FontWeight="Bold" FontSize="13" Margin="0,0,0,4"/>
-            <TextBlock TextWrapping="Wrap" Margin="20,0,0,8" FontSize="12"
-                       Foreground="#333333">
-                <Run Text="Choose this to be able to freely customize your installation. For example, if you need to do any of the following, an advanced installation should be selected."/>
-            </TextBlock>
+            <TextBlock Text="{Binding AdvancedDescription}"
+                       TextWrapping="Wrap" Margin="20,0,0,8" FontSize="12"
+                       Foreground="#333333"/>
             <Border BorderBrush="#AAAAAA" BorderThickness="1"
                     Background="White" Padding="10" Margin="4,4,4,0">
                 <TextBlock TextWrapping="Wrap" FontSize="12">
-                    <Run Text="1. Install MultiAccess only"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail1, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="2. Install MultiServer only"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail2, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="3. Install MultiServer as a service"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail3, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="4. Connect to existing SQL server, local or accessible"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail4, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="   via the network"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail4a, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="5. Freely choose installation directory"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail5, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="6. Choose whether the software should be installed"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail6, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                     <LineBreak/>
-                    <Run Text="   with Integrated security or not"/>
+                    <Run Text="{Binding DataContext.AdvancedDetail6a, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                 </TextBlock>
             </Border>
         </StackPanel>

@@ -7,24 +7,24 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
     <Grid Margin="20,8,20,8">
-        <GroupBox Header="Database" FontSize="12" Padding="12,8">
+        <GroupBox Header="{Binding GroupHeader}" FontSize="12" Padding="12,8">
             <StackPanel>
-                <TextBlock Text="Database server:" FontSize="12" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding ServerLabel}" FontSize="12" Margin="0,0,0,4"/>
                 <TextBox Text="{Binding DatabaseServer, UpdateSourceTrigger=PropertyChanged}"
                          FontSize="12" Padding="4,4" BorderBrush="#AAAAAA"
                          Margin="0,0,0,8"/>
 
-                <TextBlock Text="Name of database:" FontSize="12" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding DatabaseNameLabel}" FontSize="12" Margin="0,0,0,4"/>
                 <TextBox Text="{Binding DatabaseName, UpdateSourceTrigger=PropertyChanged}"
                          FontSize="12" Padding="4,4" BorderBrush="#AAAAAA"
                          Margin="0,0,0,8"/>
 
-                <CheckBox Content="Integrated security"
+                <CheckBox Content="{Binding IntegratedSecurityCheckbox}"
                           IsChecked="{Binding IntegratedSecurity}"
                           FontSize="12" Margin="0,0,0,8"/>
 
                 <StackPanel Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="User name:" FontSize="12" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding UserNameLabel}" FontSize="12" Margin="0,0,0,4"/>
                     <TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="12" Padding="4,4" BorderBrush="#AAAAAA"
                              Margin="0,0,0,2"/>
@@ -33,7 +33,7 @@
                                    TextWrapping="Wrap"/>
                     </Border>
 
-                    <TextBlock Text="Password:" FontSize="12" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding PasswordLabel}" FontSize="12" Margin="0,0,0,4"/>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -42,18 +42,18 @@
                         <PasswordBox Grid.Column="0" FontSize="12" Padding="4,4"
                                      BorderBrush="#AAAAAA"
                                      ui:PasswordBridge.Key="DbPassword"/>
-                        <Button Grid.Column="1" Content="Show" Width="40"
-                                Margin="4,0,0,0" ToolTip="Show password"/>
+                        <Button Grid.Column="1" Content="{Binding ShowButtonText}" Width="40"
+                                Margin="4,0,0,0" ToolTip="{Binding ShowPasswordTooltip}"/>
                     </Grid>
                 </StackPanel>
 
-                <Button Content="Test connection" HorizontalAlignment="Stretch"
+                <Button Content="{Binding TestConnectionButtonText}" HorizontalAlignment="Stretch"
                         Padding="8,6" FontSize="12" Margin="0,0,0,4"
                         Click="TestConnection_Click"/>
                 <TextBlock Text="{Binding TestResult}" FontSize="11"
                            Margin="0,0,0,4" TextWrapping="Wrap"/>
 
-                <CheckBox Content="Skip Test"
+                <CheckBox Content="{Binding SkipTestCheckbox}"
                           IsChecked="{Binding SkipTest}"
                           FontSize="12"/>
             </StackPanel>

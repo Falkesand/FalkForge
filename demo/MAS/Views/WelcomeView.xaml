@@ -4,7 +4,7 @@
              Background="#F0F0F0">
     <Grid Margin="40,60,40,20">
         <TextBlock TextWrapping="Wrap" FontSize="13" VerticalAlignment="Center">
-            <Run Text="The installation wizard installs MultiAccess (8.9.0) on your computer. Click Next to continue or Cancel to leave the installation wizard."/>
+            <Run Text="{Binding Body}"/>
         </TextBlock>
     </Grid>
 </UserControl>

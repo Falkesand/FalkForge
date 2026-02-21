@@ -12,8 +12,15 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
     private string _databaseName = "MultiAccess";
     private bool _isSearching;
 
-    public override string Title => "Choose database server";
-    public override string? Subtitle => "Select database for MultiAccess";
+    public override string Title => Localize("DatabaseServer.Title");
+    public override string? Subtitle => Localize("DatabaseServer.Subtitle");
+
+    public string UseExistingRadioText => Localize("DatabaseServer.UseExistingRadio");
+    public string CreateEmptyRadioText => Localize("DatabaseServer.CreateEmptyRadio");
+    public string InfoText => Localize("DatabaseServer.InfoText");
+    public string ServerLabel => Localize("DatabaseServer.ServerLabel");
+    public string SearchButtonText => Localize("DatabaseServer.SearchButton");
+    public string DatabaseNameLabel => Localize("DatabaseServer.DatabaseNameLabel");
 
     public bool IsSearching
     {

@@ -13,9 +13,9 @@
                 <ColumnDefinition Width="250"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="Name" FontWeight="Bold"
+            <TextBlock Grid.Column="0" Text="{Binding NameColumn}" FontWeight="Bold"
                        Padding="8,4" FontSize="12"/>
-            <TextBlock Grid.Column="1" Text="Value" FontWeight="Bold"
+            <TextBlock Grid.Column="1" Text="{Binding ValueColumn}" FontWeight="Bold"
                        Padding="8,4" FontSize="12"/>
         </Grid>
 

@@ -10,7 +10,16 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
     private string _serviceAccount = "LocalSystem";
     private string _dsnWarning = string.Empty;
 
-    public override string Title => "MultiServerEx Advanced Settings";
+    public override string Title => Localize("MSExAdvancedSettings.Title");
+
+    public string OdbcGroupHeader => Localize("MSExAdvancedSettings.OdbcGroupHeader");
+    public string DsnNameLabel => Localize("MSExAdvancedSettings.DsnNameLabel");
+    public string CheckDsnButtonText => Localize("MSExAdvancedSettings.CheckDsnButton");
+    public string OdbcAdminButtonText => Localize("MSExAdvancedSettings.OdbcAdminButton");
+    public string ServiceGroupHeader => Localize("MSExAdvancedSettings.ServiceGroupHeader");
+    public string ServiceNameLabel => Localize("MSExAdvancedSettings.ServiceNameLabel");
+    public string ServiceAccountLabel => Localize("MSExAdvancedSettings.ServiceAccountLabel");
+    public string PasswordLabel => Localize("MSExAdvancedSettings.PasswordLabel");
 
     public string DsnName
     {
@@ -36,9 +45,9 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
         set => SetField(ref _serviceAccount, value);
     }
 
-    public string ServiceWarning => "If the account name is changed the new account must be of type service account to have permission to start MultiServer as a service.";
+    public string ServiceWarning => Localize("MSExAdvancedSettings.ServiceWarning");
 
-    public string IntegratedSecurityNote => "If integrated security is used make sure that the service account have correct permissions to the database.";
+    public string IntegratedSecurityNote => Localize("MSExAdvancedSettings.IntegratedSecurityNote");
 
     public void CheckDsnName()
     {
@@ -47,7 +56,7 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
 
         var result = odbc.DsnExists(DsnName);
         if (result.IsSuccess && result.Value)
-            DsnWarning = $"DSN name, {DsnName}, already exists. Observe if using this name the installation will not overwrite existing settings.";
+            DsnWarning = string.Format(Localize("MSExAdvancedSettings.DsnWarningFormat"), DsnName);
         else
             DsnWarning = string.Empty;
     }

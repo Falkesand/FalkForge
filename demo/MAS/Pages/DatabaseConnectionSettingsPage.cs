@@ -13,8 +13,19 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     private bool _skipTest;
     private string _testResult = string.Empty;
 
-    public override string Title => "Database Connection Settings";
-    public override string? Subtitle => "Please enter SQL database information to continue";
+    public override string Title => Localize("DbConnectionSettings.Title");
+    public override string? Subtitle => Localize("DbConnectionSettings.Subtitle");
+
+    public string GroupHeader => Localize("DbConnectionSettings.GroupHeader");
+    public string ServerLabel => Localize("DbConnectionSettings.ServerLabel");
+    public string DatabaseNameLabel => Localize("DbConnectionSettings.DatabaseNameLabel");
+    public string IntegratedSecurityCheckbox => Localize("DbConnectionSettings.IntegratedSecurityCheckbox");
+    public string UserNameLabel => Localize("DbConnectionSettings.UserNameLabel");
+    public string PasswordLabel => Localize("DbConnectionSettings.PasswordLabel");
+    public string ShowButtonText => Localize("DbConnectionSettings.ShowButton");
+    public string ShowPasswordTooltip => Localize("DbConnectionSettings.ShowPasswordTooltip");
+    public string TestConnectionButtonText => Localize("DbConnectionSettings.TestConnectionButton");
+    public string SkipTestCheckbox => Localize("DbConnectionSettings.SkipTestCheckbox");
 
     public string DatabaseServer
     {
@@ -54,21 +65,21 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         set => SetField(ref _testResult, value);
     }
 
-    public string WarningText => "The user will not be created if the user don't exists. For help please see the manual for MultiAccess";
+    public string WarningText => Localize("DbConnectionSettings.WarningText");
 
     public async Task TestConnectionAsync()
     {
         var tester = PluginServices.GetService<IConnectionTester>();
         if (tester is null) return;
 
-        TestResult = "Testing...";
+        TestResult = Localize("DbConnectionSettings.TestResultTesting");
         using var pw = GetPassword("DbPassword");
         var passwordStr = pw.IsEmpty ? string.Empty : System.Text.Encoding.UTF8.GetString(pw.Span);
         var result = await tester.TestConnectionAsync(
             DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
         TestResult = result.IsSuccess
-            ? "Connection successful!"
-            : $"Failed: {result.Error.Message}";
+            ? Localize("DbConnectionSettings.TestResultSuccess")
+            : string.Format(Localize("DbConnectionSettings.TestResultFailed"), result.Error.Message);
     }
 
     public override PageResult OnNext()

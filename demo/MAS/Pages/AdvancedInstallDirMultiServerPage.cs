@@ -8,7 +8,9 @@ public sealed class AdvancedInstallDirMultiServerPage : MasPageBase<AdvancedInst
 {
     private string _installFolder = @"C:\Program Files (x86)\Aptus\MultiServer";
 
-    public override string Title => "Installation folder for MultiServer";
+    public override string Title => Localize("AdvancedInstallDirMS.Title");
+
+    public string InstallFolderLabel => Localize("AdvancedInstallDirMS.InstallFolderLabel");
 
     public string InstallFolder
     {
@@ -21,7 +23,7 @@ public sealed class AdvancedInstallDirMultiServerPage : MasPageBase<AdvancedInst
         var browser = PluginServices.GetService<IFolderBrowser>();
         if (browser is null) return;
 
-        var folder = browser.BrowseForFolder(InstallFolder, "Select installation folder");
+        var folder = browser.BrowseForFolder(InstallFolder, Localize("AdvancedInstallDirMS.BrowseDialogTitle"));
         if (folder is not null)
             InstallFolder = folder;
     }

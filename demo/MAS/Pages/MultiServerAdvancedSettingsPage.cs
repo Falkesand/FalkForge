@@ -10,7 +10,16 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
     private string _serviceAccount = "LocalSystem";
     private string _dsnWarning = string.Empty;
 
-    public override string Title => "MultiServer Advanced Settings";
+    public override string Title => Localize("MSAdvancedSettings.Title");
+
+    public string OdbcGroupHeader => Localize("MSAdvancedSettings.OdbcGroupHeader");
+    public string DsnNameLabel => Localize("MSAdvancedSettings.DsnNameLabel");
+    public string CheckDsnButtonText => Localize("MSAdvancedSettings.CheckDsnButton");
+    public string OdbcAdminButtonText => Localize("MSAdvancedSettings.OdbcAdminButton");
+    public string ServiceGroupHeader => Localize("MSAdvancedSettings.ServiceGroupHeader");
+    public string ServiceNameLabel => Localize("MSAdvancedSettings.ServiceNameLabel");
+    public string ServiceAccountLabel => Localize("MSAdvancedSettings.ServiceAccountLabel");
+    public string PasswordLabel => Localize("MSAdvancedSettings.PasswordLabel");
 
     public string DsnName
     {
@@ -36,9 +45,9 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
         set => SetField(ref _serviceAccount, value);
     }
 
-    public string ServiceWarning => "If the account name is changed the new account must be of type service account to have permission to start MultiServer as a service.";
+    public string ServiceWarning => Localize("MSAdvancedSettings.ServiceWarning");
 
-    public string IntegratedSecurityNote => "If integrated security is used make sure that the service account have correct permissions to the database.";
+    public string IntegratedSecurityNote => Localize("MSAdvancedSettings.IntegratedSecurityNote");
 
     public void CheckDsnName()
     {
@@ -47,7 +56,7 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
 
         var result = odbc.DsnExists(DsnName);
         if (result.IsSuccess && result.Value)
-            DsnWarning = $"DSN name, {DsnName}, already exists. Observe if using this name the installation will not overwrite existing settings.";
+            DsnWarning = string.Format(Localize("MSAdvancedSettings.DsnWarningFormat"), DsnName);
         else
             DsnWarning = string.Empty;
     }

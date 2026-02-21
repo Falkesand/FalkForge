@@ -10,28 +10,28 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0">
-            <RadioButton Content="Use existing database"
+            <RadioButton Content="{Binding UseExistingRadioText}"
                          IsChecked="{Binding UseExisting}"
                          FontWeight="SemiBold" FontSize="12"
                          Margin="0,0,0,4"/>
-            <RadioButton Content="Create empty database"
+            <RadioButton Content="{Binding CreateEmptyRadioText}"
                          IsChecked="{Binding CreateEmpty}"
                          FontWeight="SemiBold" FontSize="12"
                          Margin="0,0,0,12"/>
             <Border BorderBrush="#AAAAAA" BorderThickness="1"
                     Background="White" Padding="10" Margin="4,4,4,0">
                 <TextBlock TextWrapping="Wrap" FontSize="12"
-                           Text="Specify which database server the database is located at and what the database is called"/>
+                           Text="{Binding InfoText}"/>
             </Border>
         </StackPanel>
 
         <StackPanel Grid.Column="2">
-            <TextBlock Text="Database Server:" FontWeight="SemiBold"
+            <TextBlock Text="{Binding ServerLabel}" FontWeight="SemiBold"
                        FontSize="12" Margin="0,0,0,4"/>
             <Border BorderBrush="#AAAAAA" BorderThickness="1"
                     Background="White" Padding="8" Margin="0,0,0,4">
                 <StackPanel>
-                    <Button Content="Search for server" HorizontalAlignment="Center"
+                    <Button Content="{Binding SearchButtonText}" HorizontalAlignment="Center"
                             Padding="16,6" Margin="0,4,0,8"
                             Click="SearchServer_Click"/>
                     <ComboBox IsEditable="True"
@@ -42,7 +42,7 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="Database Name" FontWeight="SemiBold"
+            <TextBlock Text="{Binding DatabaseNameLabel}" FontWeight="SemiBold"
                        FontSize="12" Margin="0,16,0,4"/>
             <ComboBox Text="{Binding DatabaseName, UpdateSourceTrigger=PropertyChanged}"
                       ItemsSource="{Binding AvailableDatabases}"

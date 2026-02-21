@@ -7,8 +7,11 @@ namespace MAS.Pages;
 
 public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
 {
-    public override string Title => "Confirm Parameters";
-    public override string NextButtonText => "Install";
+    public override string Title => Localize("ConfirmParameters.Title");
+    public override string NextButtonText => Localize("Shell.InstallButton");
+
+    public string NameColumn => Localize("ConfirmParameters.NameColumn");
+    public string ValueColumn => Localize("ConfirmParameters.ValueColumn");
 
     public ObservableCollection<ParameterGroup> ParameterGroups { get; } = [];
 
@@ -21,9 +24,12 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
         var dbServer = SharedState.Get<string>("DatabaseServer") ?? @".\SQLEXPRESS";
         var dbName = SharedState.Get<string>("DatabaseName") ?? "MultiAccess";
 
+        var yes = Localize("ConfirmParameters.Yes");
+        var no = Localize("ConfirmParameters.No");
+
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "Select installation type",
+            Header = Localize("ConfirmParameters.GroupInstallationType"),
             Entries =
             [
                 new("Concatenate", "Install"),
@@ -36,62 +42,62 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "Installation folder for MultiAccess",
-            Entries = [new("Install folder", @"C:\Program Files (x86)\Aptus\MultiAccess")]
+            Header = Localize("ConfirmParameters.GroupInstallFolderMA"),
+            Entries = [new(Localize("ConfirmParameters.InstallFolder"), @"C:\Program Files (x86)\Aptus\MultiAccess")]
         });
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "Choose database server",
+            Header = Localize("ConfirmParameters.GroupDatabaseServer"),
             Entries =
             [
-                new("Create database connection", "Yes"),
-                new("Create empty database", useExisting ? "No" : "Yes"),
-                new("Database Name", dbName),
-                new("Server path", dbServer),
-                new("Use existing database", useExisting ? "Yes" : "No"),
+                new(Localize("ConfirmParameters.CreateDbConnection"), yes),
+                new(Localize("ConfirmParameters.CreateEmptyDb"), useExisting ? no : yes),
+                new(Localize("ConfirmParameters.DatabaseName"), dbName),
+                new(Localize("ConfirmParameters.ServerPath"), dbServer),
+                new(Localize("ConfirmParameters.UseExistingDb"), useExisting ? yes : no),
             ]
         });
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "Installation folder for MultiServer",
-            Entries = [new("Install folder", @"C:\Program Files (x86)\Aptus\MultiServer")]
+            Header = Localize("ConfirmParameters.GroupInstallFolderMS"),
+            Entries = [new(Localize("ConfirmParameters.InstallFolder"), @"C:\Program Files (x86)\Aptus\MultiServer")]
         });
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "Database Connection Settings",
+            Header = Localize("ConfirmParameters.GroupDbConnectionSettings"),
             Entries =
             [
-                new("Name of database:", dbName),
-                new("Database server:", dbServer),
-                new("Integrated security:", "Yes"),
-                new("User name:", ""),
-                new("Password:", ""),
+                new(Localize("ConfirmParameters.NameOfDatabase"), dbName),
+                new(Localize("ConfirmParameters.DatabaseServer"), dbServer),
+                new(Localize("ConfirmParameters.IntegratedSecurity"), yes),
+                new(Localize("ConfirmParameters.UserName"), ""),
+                new(Localize("ConfirmParameters.Password"), ""),
             ]
         });
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "MultiServer Advanced Settings",
+            Header = Localize("ConfirmParameters.GroupMSAdvancedSettings"),
             Entries =
             [
-                new("DSN Name", dbName),
-                new("Install as service", "No"),
+                new(Localize("ConfirmParameters.DsnName"), dbName),
+                new(Localize("ConfirmParameters.InstallAsService"), no),
             ]
         });
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "Installation folder for MultiServerEx",
-            Entries = [new("Install folder", @"C:\Program Files (x86)\Aptus\MultiServerEx")]
+            Header = Localize("ConfirmParameters.GroupInstallFolderMSEx"),
+            Entries = [new(Localize("ConfirmParameters.InstallFolder"), @"C:\Program Files (x86)\Aptus\MultiServerEx")]
         });
 
         ParameterGroups.Add(new ParameterGroup
         {
-            Header = "MultiServerEx Advanced Settings",
-            Entries = [new("Install as service", "No")]
+            Header = Localize("ConfirmParameters.GroupMSExAdvancedSettings"),
+            Entries = [new(Localize("ConfirmParameters.InstallAsService"), no)]
         });
 
         if (installType == "Advanced")
@@ -109,58 +115,58 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
 
             ParameterGroups[3] = new ParameterGroup
             {
-                Header = "Installation folder for MultiServer",
-                Entries = [new("Install folder", msInstallFolder)]
+                Header = Localize("ConfirmParameters.GroupInstallFolderMS"),
+                Entries = [new(Localize("ConfirmParameters.InstallFolder"), msInstallFolder)]
             };
 
             ParameterGroups[4] = new ParameterGroup
             {
-                Header = "Database Connection Settings",
+                Header = Localize("ConfirmParameters.GroupDbConnectionSettings"),
                 Entries =
                 [
-                    new("Name of database:", dbName),
-                    new("Database server:", dbServer),
-                    new("Integrated security:", intSecurity ? "Yes" : "No"),
-                    new("User name:", dbUser),
-                    new("Password:", ""),
+                    new(Localize("ConfirmParameters.NameOfDatabase"), dbName),
+                    new(Localize("ConfirmParameters.DatabaseServer"), dbServer),
+                    new(Localize("ConfirmParameters.IntegratedSecurity"), intSecurity ? yes : no),
+                    new(Localize("ConfirmParameters.UserName"), dbUser),
+                    new(Localize("ConfirmParameters.Password"), ""),
                 ]
             };
 
             ParameterGroups[5] = new ParameterGroup
             {
-                Header = "MultiServer Advanced Settings",
+                Header = Localize("ConfirmParameters.GroupMSAdvancedSettings"),
                 Entries =
                 [
-                    new("DSN Name", msDsn),
-                    new("Install as service", "Yes"),
-                    new("Service name", "MultiServer"),
-                    new("Service Account", msServiceAccount),
-                    new("Password", ""),
+                    new(Localize("ConfirmParameters.DsnName"), msDsn),
+                    new(Localize("ConfirmParameters.InstallAsService"), yes),
+                    new(Localize("ConfirmParameters.ServiceName"), "MultiServer"),
+                    new(Localize("ConfirmParameters.ServiceAccount"), msServiceAccount),
+                    new(Localize("ConfirmParameters.Password"), ""),
                 ]
             };
 
             ParameterGroups[6] = new ParameterGroup
             {
-                Header = "Installation folder for MultiServerEx",
-                Entries = [new("Install folder", msExInstallFolder)]
+                Header = Localize("ConfirmParameters.GroupInstallFolderMSEx"),
+                Entries = [new(Localize("ConfirmParameters.InstallFolder"), msExInstallFolder)]
             };
 
             ParameterGroups[7] = new ParameterGroup
             {
-                Header = "MultiServerEx Advanced Settings",
+                Header = Localize("ConfirmParameters.GroupMSExAdvancedSettings"),
                 Entries =
                 [
-                    new("DSN Name", msExDsn),
-                    new("Install as service", "Yes"),
-                    new("Service name", "MultiServerEx"),
-                    new("Service Account", msExServiceAccount),
-                    new("Password", ""),
+                    new(Localize("ConfirmParameters.DsnName"), msExDsn),
+                    new(Localize("ConfirmParameters.InstallAsService"), yes),
+                    new(Localize("ConfirmParameters.ServiceName"), "MultiServerEx"),
+                    new(Localize("ConfirmParameters.ServiceAccount"), msExServiceAccount),
+                    new(Localize("ConfirmParameters.Password"), ""),
                 ]
             };
 
             ParameterGroups.Add(new ParameterGroup
             {
-                Header = "Packages",
+                Header = Localize("ConfirmParameters.GroupPackages"),
                 Entries =
                 [
                     new("Concatenate", "Install"),

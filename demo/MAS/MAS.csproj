@@ -9,6 +9,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="lang\*.json" WithCulture="false" LogicalName="MAS.lang.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/FalkForge.Ui/FalkForge.Ui.csproj" />
     <ProjectReference Include="../../src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
     <ProjectReference Include="../../src/FalkForge.Plugins.Odbc/FalkForge.Plugins.Odbc.csproj" />

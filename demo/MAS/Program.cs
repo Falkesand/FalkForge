@@ -9,6 +9,12 @@ return InstallerApp.Run(args, app => app
     .Plugin<SqlPlugin>()
     .Plugin<OdbcPlugin>()
     .Plugin<FileSystemPlugin>()
+    .Localization(loc => loc
+        .DefaultCulture("en-US")
+        .AddJsonResource<WelcomePage>("lang.strings.en-US.json")
+        .AddJsonResource<WelcomePage>("lang.strings.sv-SE.json")
+        .DetectCulture()
+        .AllowLanguageSelection())
     .Window(w => w.CustomWindow<MasInstallerWindow>())
     .Pages(p => p
         .Add<WelcomePage>()
