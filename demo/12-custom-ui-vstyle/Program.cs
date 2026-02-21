@@ -2,6 +2,12 @@ using FalkForge.Ui;
 using CustomUiVsStyle.Pages;
 
 return InstallerApp.Run(args, app => app
+    .Localization(loc => loc
+        .DefaultCulture("en-US")
+        .AddJsonResource<ProductPage>("lang.strings.en-US.json")
+        .AddJsonResource<ProductPage>("lang.strings.sv-SE.json")
+        .DetectCulture()
+        .AllowLanguageSelection())
     .Window(w => w
         .Size(1024, 700)
         .Borderless()

@@ -10,7 +10,11 @@ public class WorkloadsPage : InstallerPage<WorkloadsView>
 {
     private Workload? _selectedWorkload;
 
-    public override string Title => "Workloads";
+    public override string Title => Localize("Workloads.Title");
+    public string ComponentsLabel => Localize("Workloads.Components");
+    public string SelectPrompt => Localize("Workloads.SelectPrompt");
+    public string TotalSelectedLabel => Localize("Workloads.TotalSelected");
+    public string RequiredLabel => Localize("Workloads.Required");
 
     public ObservableCollection<Workload> Workloads { get; } = new()
     {
@@ -97,7 +101,7 @@ public class WorkloadsPage : InstallerPage<WorkloadsView>
     public override PageResult OnNext()
     {
         if (!Workloads.Any(w => w.IsSelected))
-            return PageResult.Stay("Please select at least one workload.");
+            return PageResult.Stay(Localize("Workloads.SelectAtLeastOne"));
         return PageResult.Install;
     }
 }

@@ -37,12 +37,12 @@
             </Border>
 
             <!-- Description -->
-            <TextBlock Text="A comprehensive suite of development tools for building modern .NET applications, web services, and cloud-native solutions."
+            <TextBlock Text="{Binding Description}"
                        FontSize="14" Foreground="#969696" TextWrapping="Wrap" LineHeight="22"
                        Margin="0,0,0,24"/>
 
             <!-- Included components list -->
-            <TextBlock Text="Included workloads:" FontSize="13" Foreground="#CCCCCC" Margin="0,0,0,8"/>
+            <TextBlock Text="{Binding IncludedWorkloadsLabel}" FontSize="13" Foreground="#CCCCCC" Margin="0,0,0,8"/>
             <TextBlock Text="  &#x2022; .NET Desktop Development" FontSize="12" Foreground="#969696" Margin="0,2"/>
             <TextBlock Text="  &#x2022; Web Development Tools" FontSize="12" Foreground="#969696" Margin="0,2"/>
             <TextBlock Text="  &#x2022; Database Tooling" FontSize="12" Foreground="#969696" Margin="0,2"/>
