@@ -6,8 +6,8 @@ using FalkForge.Ui.Abstractions;
 
 public class CompletePage : InstallerPage<CompleteView>
 {
-    public override string Title => "Complete";
-    public string Message => "My Application has been successfully installed.";
+    public override string Title => Localize("Complete.Title");
+    public string Message => Localize("Complete.Message");
 
     public override PageResult OnNext() => PageResult.Finish;
     public override bool CanGoBack => false;
