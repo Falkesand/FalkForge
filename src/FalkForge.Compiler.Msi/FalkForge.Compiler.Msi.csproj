@@ -13,4 +13,7 @@
     <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
     <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\*.json" WithCulture="false" LogicalName="FalkForge.Compiler.Msi.Localization.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>
