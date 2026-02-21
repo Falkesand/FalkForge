@@ -29,6 +29,7 @@ public sealed class PackageModel
     public IReadOnlyList<EnvironmentVariableModel> EnvironmentVariables { get; init; } = [];
     public UpgradeModel? Upgrade { get; init; }
     public MajorUpgradeModel? MajorUpgrade { get; init; }
+    public DowngradeModel? Downgrade { get; init; }
     public IReadOnlyList<PropertyModel> Properties { get; init; } = [];
     public IReadOnlyList<FontModel> Fonts { get; init; } = [];
     public IReadOnlyList<LaunchConditionModel> LaunchConditions { get; init; } = [];
