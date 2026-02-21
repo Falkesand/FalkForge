@@ -691,6 +691,7 @@
           <a href="#ui-installer-state">10.9 InstallerState</a>
           <a href="#ui-secure-passwords">10.10 Secure Passwords</a>
           <a href="#ui-complete-example">10.11 Complete Example</a>
+          <a href="#ui-localization">10.12 UI Localization</a>
         </div>
       </div>
 
@@ -763,6 +764,8 @@
           <a href="#loc-integration">PackageBuilder Integration</a>
           <a href="#loc-resolution">String Resolution</a>
           <a href="#loc-errors">Error Codes</a>
+          <a href="#loc-detect-culture">Auto-Detection</a>
+          <a href="#loc-builtin-cultures">Built-in Cultures</a>
         </div>
       </div>
 
@@ -5334,6 +5337,88 @@ public class CompletePage : InstallerPage&lt;CompleteView&gt;
     framework. The <code>CustomShellViewModel</code> orchestrates navigation, engine actions, and
     window close requests internally.
   </div>
+
+<h3 id="ui-localization">10.12 UI Localization</h3>
+
+<p>Custom UI pages use <code>Localize("key")</code> to resolve strings at runtime from JSON string
+tables. Languages can be switched at runtime without page reload, enabling fully localized installer
+experiences with zero code changes to individual pages.</p>
+
+<h4>UiLocalizationBuilder API</h4>
+
+<p>Localization is configured via <code>UiLocalizationBuilder</code> on the <code>InstallerUIBuilder</code>.
+The builder lives at <code>src/FalkForge.Ui/Localization/UiLocalizationBuilder.cs</code>.</p>
+
+<pre><code class="language-csharp">ui.Localization(loc =&gt; loc
+    .DefaultCulture("en-US")
+    .AddJsonResource&lt;Program&gt;("lang/strings.en-US.json")
+    .AddJsonResource&lt;Program&gt;("lang/strings.sv-SE.json")
+    .DetectCulture()
+    .AllowLanguageSelection());</code></pre>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>DefaultCulture(string)</code></td><td>Sets the fallback culture used when no match is found for the current UI culture</td></tr>
+        <tr><td><code>AddJsonResource&lt;T&gt;(string)</code></td><td>Loads a JSON string table from an embedded assembly resource, resolved relative to the assembly containing <code>T</code></td></tr>
+        <tr><td><code>DetectCulture()</code></td><td>Auto-selects the culture matching <code>CultureInfo.CurrentUICulture</code> with parent fallback (e.g., <code>sv-SE</code> falls back to <code>sv</code>)</td></tr>
+        <tr><td><code>AllowLanguageSelection()</code></td><td>Shows a language selector ComboBox in the window header, allowing the user to switch language at runtime</td></tr>
+    </tbody>
+</table>
+
+<h4>Localize() Method</h4>
+
+<p><code>Localize(string key)</code> is a protected method on <code>InstallerPage</code>. It performs an
+O(1) dictionary lookup against the current culture's string table. If no resolver is configured (i.e.,
+the installer does not use localization), the method returns the key itself, ensuring full backward
+compatibility.</p>
+
+<pre><code class="language-csharp">public class WelcomePage : InstallerPage&lt;WelcomeView&gt;
+{
+    public override string Title =&gt; Localize("Welcome.Title");
+    public string Description =&gt; Localize("Welcome.Description");
+}</code></pre>
+
+<h4>JSON File Format</h4>
+
+<p>String tables use the same flat dictionary format as MSI localization. Each file maps string keys to
+their localized values:</p>
+
+<pre><code class="language-json">{
+  "Welcome.Title": "Welcome",
+  "Welcome.Description": "This wizard will guide you through the installation."
+}</code></pre>
+
+<p>Files must be embedded resources in the project. Add them to your <code>.csproj</code>:</p>
+
+<pre><code class="language-xml">&lt;ItemGroup&gt;
+  &lt;EmbeddedResource Include="lang\strings.en-US.json" LogicalName="lang/strings.en-US.json" WithCulture="false" /&gt;
+  &lt;EmbeddedResource Include="lang\strings.sv-SE.json" LogicalName="lang/strings.sv-SE.json" WithCulture="false" /&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+<div class="note">
+    <strong>Important:</strong> The <code>WithCulture="false"</code> attribute is required to prevent the
+    WPF SDK from routing culture-named files into satellite assemblies. Without it, files like
+    <code>strings.sv-SE.json</code> would be placed in a <code>sv-SE/</code> subdirectory and become
+    inaccessible via <code>Assembly.GetManifestResourceStream</code>.
+</div>
+
+<h4>Runtime Language Switching</h4>
+
+<p>When <code>AllowLanguageSelection()</code> is enabled, a ComboBox appears in the window header showing
+available cultures by their native display names (e.g., "English (United States)", "svenska (Sverige)").
+Selecting a different culture fires <code>OnPropertyChanged(string.Empty)</code> on all registered pages,
+causing WPF to re-read all bound properties. This triggers a complete UI refresh without any page reload
+or navigation — all visible text updates in place.</p>
+
+<div class="note">
+    <strong>Architecture note:</strong> The <code>UiStringResolver</code> holds per-culture dictionaries
+    and resolves keys using the same fallback chain as the MSI localization system
+    (<code>CultureFallbackChain</code>). The <code>LanguageSelectorControl</code> is an internal sealed
+    ComboBox subclass that communicates with the resolver via the <code>CultureChanged</code> event.
+    When the event fires, the resolver switches its active culture and notifies all pages to refresh
+    their bindings.
+</div>
 </section>
 <!-- ============================================================ -->
 <!-- Section 11: Engine Architecture                              -->
@@ -6381,6 +6466,48 @@ Result&lt;string&gt; result = resolver.Resolve("Welcome to !(loc.ProductName)", 
         <tr><td>LOC004</td><td>Invalid filename format, invalid JSON, null content, or non-string values</td></tr>
     </tbody>
 </table>
+
+<h3 id="loc-detect-culture">Auto-Detection (DetectCulture)</h3>
+
+<p>The <code>DetectCulture()</code> method on <code>LocalizationBuilder</code> enables automatic culture
+selection based on the system's UI culture at build time:</p>
+
+<pre><code class="language-csharp">package.Localization(loc =&gt; loc
+    .DefaultCulture("en-US")
+    .AddJsonFile("strings.en-US.json")
+    .AddJsonFile("strings.sv-SE.json")
+    .DetectCulture());</code></pre>
+
+<p><code>DetectCulture()</code> checks <code>CultureInfo.CurrentUICulture</code> at build time. If it
+matches an added culture exactly, that culture becomes the default. If only the parent culture matches
+(e.g., the system culture is <code>sv-SE</code> and an added culture is <code>sv</code>), the parent is
+selected. If no match is found at any level, the explicit <code>DefaultCulture()</code> value is used
+unchanged. The builder state is not mutated during detection — a local variable is used during
+<code>Build()</code> to determine the effective default culture.</p>
+
+<h3 id="loc-builtin-cultures">Built-in MSI Dialog Template Localization</h3>
+
+<p><code>AddBuiltInCultures()</code> is an extension method on <code>LocalizationBuilder</code> provided
+by <code>FalkForge.Compiler.Msi</code>. It loads built-in string tables from embedded resources,
+eliminating the need to author localization files for standard MSI dialog text:</p>
+
+<pre><code class="language-csharp">package.Localization(loc =&gt; loc
+    .AddBuiltInCultures()
+    .DefaultCulture("en-US")
+    .DetectCulture());</code></pre>
+
+<p>The built-in cultures include <strong>en-US</strong> and <strong>sv-SE</strong>, each providing
+36 keys covering all MSI dialog template strings: Welcome, License, InstallDir, Customize, SetupType,
+InstallScope, Progress, Complete, and all button labels (Install, Cancel, Back, Next, Finish, etc.).
+The MSI dialog templates use <code>!(loc.X)</code> references that are resolved at compile time by the
+<code>DialogEmitter</code>.</p>
+
+<div class="note">
+    <strong>Fallback behavior:</strong> If no localization is configured at all, the
+    <code>DialogEmitter</code> automatically loads the built-in en-US string table as a fallback. This
+    ensures that dialog templates always have valid text even when the installer author does not
+    explicitly configure localization.
+</div>
 </section>
 
 <!-- ============================================================ -->
