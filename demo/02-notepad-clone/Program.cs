@@ -1,6 +1,7 @@
 using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 // A small application installer with shortcuts, registry, major upgrade, and license.
@@ -15,6 +16,11 @@ return Installer.Build(args, package =>
     package.LicenseFile = "payload/license.rtf";
 
     package.UseDialogSet(MsiDialogSet.InstallDir);
+
+    package.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Application files
     package.Files(files => files
@@ -45,10 +51,7 @@ return Installer.Build(args, package =>
         }));
 
     // Major upgrade support -- block downgrades
-    package.MajorUpgrade(upgrade =>
-    {
-        upgrade.DowngradeErrorMessage(
-            "A newer version of FalkPad is already installed. Please uninstall it first.");
-    });
+    package.MajorUpgrade(_ => { });
+    package.Downgrade(d => d.Block("A newer version of FalkPad is already installed. Please uninstall it first."));
 
 }, new MsiCompiler());

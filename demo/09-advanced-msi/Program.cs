@@ -1,6 +1,7 @@
 using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 // Demo 09 -- Advanced MSI Features
@@ -37,6 +38,11 @@ return Installer.Build(args, p =>
 
     // Feature tree dialog -- user can select features
     p.UseDialogSet(MsiDialogSet.FeatureTree);
+
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Install directory
     var installDir = KnownFolder.ProgramFiles / "Contoso Ltd" / "ServerPlatform";
@@ -282,9 +288,9 @@ return Installer.Build(args, p =>
     // Major upgrade -- replace previous versions
     // ──────────────────────────────────────────────────────────────────
     p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Contoso Server Platform is already installed.")
         .Schedule(RemoveExistingProductsSchedule.AfterInstallInitialize)
         .MigrateFeatures(true));
+    p.Downgrade(d => d.Block("A newer version of Contoso Server Platform is already installed."));
 
     // ──────────────────────────────────────────────────────────────────
     // Launch conditions

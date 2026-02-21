@@ -1,4 +1,6 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 var payloadDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "payload"));
@@ -16,6 +18,11 @@ return Installer.Build(args, p =>
 
     // Minimal UI -- services don't need interactive directory selection
     p.UseDialogSet(MsiDialogSet.Minimal);
+
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Install directory
     var installDir = KnownFolder.ProgramFiles / "Acme Corporation" / "AcmeService";
@@ -63,6 +70,6 @@ return Installer.Build(args, p =>
     // ──────────────────────────────────────────────────────────────────
     // Major upgrade
     // ──────────────────────────────────────────────────────────────────
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Acme Background Service is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version of Acme Background Service is already installed."));
 });

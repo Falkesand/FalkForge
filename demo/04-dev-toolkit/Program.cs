@@ -1,4 +1,6 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 return Installer.Build(args, p =>
@@ -13,6 +15,11 @@ return Installer.Build(args, p =>
 
     // Mondo UI -- Welcome, License, InstallDir, Features, Progress, Exit
     p.UseDialogSet(MsiDialogSet.Mondo);
+
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Install directory
     p.DefaultInstallDirectory = KnownFolder.ProgramFiles / "Falk Technologies" / "DevToolkit";
@@ -173,8 +180,8 @@ return Installer.Build(args, p =>
         .To(KnownFolder.ProgramFiles / "Falk Technologies" / "DevToolkit" / "Docs"));
 
     // Major upgrade support
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Falk Developer Toolkit is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version of Falk Developer Toolkit is already installed."));
 
     // Custom action: SetProperty FALK_VERSION = "5.0.0" after InstallValidate
     p.CustomAction("SetFalkVersion", ca =>

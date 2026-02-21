@@ -1,5 +1,6 @@
 using FalkForge;
 using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 // Demo 10 -- Advanced Bundle: MSI Package
@@ -20,6 +21,11 @@ return Installer.Build(args, p =>
 
     p.UseDialogSet(MsiDialogSet.Minimal);
 
+    p.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
+
     var installDir = KnownFolder.ProgramFiles / "Northwind Traders" / "NorthwindApp";
     p.DefaultInstallDirectory = installDir;
 
@@ -32,8 +38,8 @@ return Installer.Build(args, p =>
             .Value("Version", "2.5.0")
             .Value("InstallPath", MsiProperty.InstallFolder)));
 
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Northwind Application is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version of Northwind Application is already installed."));
 
     p.Require(Condition.IsWindows10OrLater, "Northwind Application requires Windows 10 or later.");
 

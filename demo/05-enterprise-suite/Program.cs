@@ -1,5 +1,7 @@
 using FalkForge;
 using FalkForge.Builders;
+using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
 
 var payloadDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "payload"));
@@ -21,6 +23,12 @@ return Installer.Build(args, pkg =>
     pkg.UpdateUrl = "https://www.apexsoftware.com/updates";
 
     pkg.UseDialogSet(MsiDialogSet.Advanced);
+
+    pkg.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
+
     pkg.EnableRestartManagerSupport();
     pkg.CabinetThreads(4);
 
@@ -435,11 +443,10 @@ return Installer.Build(args, pkg =>
     // ──────────────────────────────────────────────────────────────────
     pkg.MajorUpgrade(mu =>
     {
-        mu.DowngradeErrorMessage(
-            "A newer version of Apex Enterprise Suite is already installed. Please uninstall it first.");
         mu.AllowSameVersionUpgrades();
         mu.Schedule(RemoveExistingProductsSchedule.AfterInstallValidate);
     });
+    pkg.Downgrade(d => d.Block("A newer version of Apex Enterprise Suite is already installed. Please uninstall it first."));
 
     // ──────────────────────────────────────────────────────────────────
     // Launch conditions
