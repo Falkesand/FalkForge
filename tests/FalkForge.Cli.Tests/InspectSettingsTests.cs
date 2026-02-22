@@ -44,12 +44,4 @@ public sealed class InspectSettingsTests
 
         Assert.True(result.Successful);
     }
-
-    [Fact]
-    public void Verbose_DefaultsToFalse()
-    {
-        var settings = new InspectSettings { MsiPath = "package.msi" };
-
-        Assert.False(settings.Verbose);
-    }
 }

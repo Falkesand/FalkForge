@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xunit;
 
 namespace FalkForge.Core.Tests;
@@ -6,136 +7,34 @@ public sealed class MsiPropertyTests
 {
     // ── Static property instances return correct Name ──
 
-    [Fact]
-    public void ProductName_HasCorrectName()
+    [Theory]
+    [InlineData(nameof(MsiProperty.ProductName), "ProductName")]
+    [InlineData(nameof(MsiProperty.ProductCode), "ProductCode")]
+    [InlineData(nameof(MsiProperty.ProductVersion), "ProductVersion")]
+    [InlineData(nameof(MsiProperty.ProductLanguage), "ProductLanguage")]
+    [InlineData(nameof(MsiProperty.Manufacturer), "Manufacturer")]
+    [InlineData(nameof(MsiProperty.UpgradeCode), "UpgradeCode")]
+    [InlineData(nameof(MsiProperty.InstallFolder), "INSTALLFOLDER")]
+    [InlineData(nameof(MsiProperty.InstallDir), "INSTALLDIR")]
+    [InlineData(nameof(MsiProperty.TargetDir), "TARGETDIR")]
+    [InlineData(nameof(MsiProperty.VersionNT), "VersionNT")]
+    [InlineData(nameof(MsiProperty.VersionNT64), "VersionNT64")]
+    [InlineData(nameof(MsiProperty.ServicePackLevel), "ServicePackLevel")]
+    [InlineData(nameof(MsiProperty.WindowsBuildNumber), "WindowsBuildNumber")]
+    [InlineData(nameof(MsiProperty.Privileged), "Privileged")]
+    [InlineData(nameof(MsiProperty.AdminUser), "AdminUser")]
+    [InlineData(nameof(MsiProperty.Installed), "Installed")]
+    [InlineData(nameof(MsiProperty.UILevel), "UILevel")]
+    [InlineData(nameof(MsiProperty.REMOVE), "REMOVE")]
+    [InlineData(nameof(MsiProperty.ProgramFilesFolder), "ProgramFilesFolder")]
+    [InlineData(nameof(MsiProperty.SystemFolder), "SystemFolder")]
+    [InlineData(nameof(MsiProperty.ComputerName), "ComputerName")]
+    [InlineData(nameof(MsiProperty.LogonUser), "LogonUser")]
+    public void StaticProperty_HasCorrectName(string propertyName, string expectedName)
     {
-        Assert.Equal("ProductName", MsiProperty.ProductName.Name);
-    }
-
-    [Fact]
-    public void ProductCode_HasCorrectName()
-    {
-        Assert.Equal("ProductCode", MsiProperty.ProductCode.Name);
-    }
-
-    [Fact]
-    public void ProductVersion_HasCorrectName()
-    {
-        Assert.Equal("ProductVersion", MsiProperty.ProductVersion.Name);
-    }
-
-    [Fact]
-    public void ProductLanguage_HasCorrectName()
-    {
-        Assert.Equal("ProductLanguage", MsiProperty.ProductLanguage.Name);
-    }
-
-    [Fact]
-    public void Manufacturer_HasCorrectName()
-    {
-        Assert.Equal("Manufacturer", MsiProperty.Manufacturer.Name);
-    }
-
-    [Fact]
-    public void UpgradeCode_HasCorrectName()
-    {
-        Assert.Equal("UpgradeCode", MsiProperty.UpgradeCode.Name);
-    }
-
-    [Fact]
-    public void InstallFolder_HasCorrectName()
-    {
-        Assert.Equal("INSTALLFOLDER", MsiProperty.InstallFolder.Name);
-    }
-
-    [Fact]
-    public void InstallDir_HasCorrectName()
-    {
-        Assert.Equal("INSTALLDIR", MsiProperty.InstallDir.Name);
-    }
-
-    [Fact]
-    public void TargetDir_HasCorrectName()
-    {
-        Assert.Equal("TARGETDIR", MsiProperty.TargetDir.Name);
-    }
-
-    [Fact]
-    public void VersionNT_HasCorrectName()
-    {
-        Assert.Equal("VersionNT", MsiProperty.VersionNT.Name);
-    }
-
-    [Fact]
-    public void VersionNT64_HasCorrectName()
-    {
-        Assert.Equal("VersionNT64", MsiProperty.VersionNT64.Name);
-    }
-
-    [Fact]
-    public void ServicePackLevel_HasCorrectName()
-    {
-        Assert.Equal("ServicePackLevel", MsiProperty.ServicePackLevel.Name);
-    }
-
-    [Fact]
-    public void WindowsBuildNumber_HasCorrectName()
-    {
-        Assert.Equal("WindowsBuildNumber", MsiProperty.WindowsBuildNumber.Name);
-    }
-
-    [Fact]
-    public void Privileged_HasCorrectName()
-    {
-        Assert.Equal("Privileged", MsiProperty.Privileged.Name);
-    }
-
-    [Fact]
-    public void AdminUser_HasCorrectName()
-    {
-        Assert.Equal("AdminUser", MsiProperty.AdminUser.Name);
-    }
-
-    [Fact]
-    public void Installed_HasCorrectName()
-    {
-        Assert.Equal("Installed", MsiProperty.Installed.Name);
-    }
-
-    [Fact]
-    public void UILevel_HasCorrectName()
-    {
-        Assert.Equal("UILevel", MsiProperty.UILevel.Name);
-    }
-
-    [Fact]
-    public void REMOVE_HasCorrectName()
-    {
-        Assert.Equal("REMOVE", MsiProperty.REMOVE.Name);
-    }
-
-    [Fact]
-    public void ProgramFilesFolder_HasCorrectName()
-    {
-        Assert.Equal("ProgramFilesFolder", MsiProperty.ProgramFilesFolder.Name);
-    }
-
-    [Fact]
-    public void SystemFolder_HasCorrectName()
-    {
-        Assert.Equal("SystemFolder", MsiProperty.SystemFolder.Name);
-    }
-
-    [Fact]
-    public void ComputerName_HasCorrectName()
-    {
-        Assert.Equal("ComputerName", MsiProperty.ComputerName.Name);
-    }
-
-    [Fact]
-    public void LogonUser_HasCorrectName()
-    {
-        Assert.Equal("LogonUser", MsiProperty.LogonUser.Name);
+        var prop = typeof(MsiProperty).GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static)!;
+        var value = (MsiProperty)prop.GetValue(null)!;
+        Assert.Equal(expectedName, value.Name);
     }
 
     // ── Custom factory ──

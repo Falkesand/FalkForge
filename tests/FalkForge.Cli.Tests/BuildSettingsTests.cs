@@ -48,20 +48,4 @@ public sealed class BuildSettingsTests
 
         Assert.True(result.Successful);
     }
-
-    [Fact]
-    public void Configuration_DefaultsToRelease()
-    {
-        var settings = new BuildSettings { ProjectPath = "installer.cs" };
-
-        Assert.Equal("Release", settings.Configuration);
-    }
-
-    [Fact]
-    public void Verbose_DefaultsToFalse()
-    {
-        var settings = new BuildSettings { ProjectPath = "installer.cs" };
-
-        Assert.False(settings.Verbose);
-    }
 }

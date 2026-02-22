@@ -46,18 +46,11 @@ public sealed class SensitiveBytesTests
     }
 
     [Fact]
-    public void Default_IsEmpty_is_true()
+    public void Default_IsEmptyWithZeroLength()
     {
         SensitiveBytes sensitive = default;
 
         Assert.True(sensitive.IsEmpty);
-    }
-
-    [Fact]
-    public void Default_Length_is_zero()
-    {
-        SensitiveBytes sensitive = default;
-
         Assert.Equal(0, sensitive.Length);
     }
 

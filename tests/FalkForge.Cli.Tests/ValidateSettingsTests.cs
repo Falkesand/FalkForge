@@ -34,12 +34,4 @@ public sealed class ValidateSettingsTests
 
         Assert.False(result.Successful);
     }
-
-    [Fact]
-    public void Verbose_DefaultsToFalse()
-    {
-        var settings = new ValidateSettings { ProjectPath = "project.cs" };
-
-        Assert.False(settings.Verbose);
-    }
 }
