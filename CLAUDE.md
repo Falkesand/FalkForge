@@ -5,12 +5,12 @@ C# MSI/Bundle installer framework. Fluent API, MSI compiler via P/Invoke, Native
 ## Build & Test
 ```bash
 dotnet build          # 0 warnings (TreatWarningsAsErrors)
-dotnet test           # ~2400 tests, xUnit 2.9.3
+dotnet test           # ~2484 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 .NET 10, C# latest, nullable enabled, central package mgmt. SDK 10.0.103.
 
-## Solution (25 src + 20 test projects)
+## Solution (25 src + 21 test projects)
 | Project | Purpose |
 |---------|---------|
 | Core | Domain model, fluent API, validation |
@@ -19,7 +19,7 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 | Engine | NativeAOT installer runtime (exe) |
 | Engine.Elevation | NativeAOT elevated companion (exe) |
 | Engine.Protocol | IPC messages + serialization (AOT-safe) |
-| Platform / Platform.Windows | OS abstractions / Windows P/Invoke impl (IMsiApi, WindowsMsiApi, NativeMethods.Msi) |
+| Platform / Platform.Windows | OS abstractions / Windows P/Invoke: IFileSystem, IRegistry, IMsiApi (MsiInstallProduct/MsiConfigureProduct). DefaultDllImportSearchPaths(System32) hardening. |
 | Extensibility | Extension system interfaces |
 | Extensions.Util | XmlConfig, UserMgmt, FileShare, QuietExec, RemoveFolderEx, InternetShortcut |
 | Extensions.Dependency | Provider/consumer ref-counting (WiX-compatible) |
@@ -38,7 +38,7 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 | Plugins.Odbc | ODBC DSN checking, admin launcher (Windows-only) |
 | Plugins.FileSystem | Folder browser dialog (WPF, Windows-only) |
 
-Tests mirror src: `FalkForge.{Project}.Tests/` (20 projects incl. Integration.Tests)
+Tests mirror src: `FalkForge.{Project}.Tests/` (21 projects incl. Integration.Tests, Platform.Windows.Tests)
 
 ## Dependency Graph
 ```
@@ -93,8 +93,8 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 Compilers: MsiCompiler (ICompiler), MsmCompiler, PatchCompiler, TransformCompiler
 DB: MsiDatabase, MsiRecord, FileNameSanitizer, ResolvedPackage/Component/File, ComponentResolver, SummaryInfoWriter
 Cabinets: CabinetBuilder (single-threaded), ParallelCabinetBuilder (Parallel.ForEachAsync), CabinetWorkItem, CabinetBuildResult, CabinetExtractor (FDI)
-Tables/: TableEmitter (1466L), MsiTableDefinitions, EnvironmentEncoding
-Interop/: NativeMethods.Msi (msi.dll LibraryImport), NativeMethods.Cabinet (cabinet.dll), MsiDatabaseHandle, MsiRecordHandle, MsiViewHandle, FciHandle, FdiHandle
+Tables/: TableEmitter (1466L, ValidateCustomTableIdentifiers() defense-in-depth SQL identifier validation before emission), MsiTableDefinitions, EnvironmentEncoding
+Interop/: NativeMethods.Msi (msi.dll LibraryImport), NativeMethods.Cabinet (cabinet.dll), MsiDatabaseHandle, MsiRecordHandle, MsiViewHandle, FciHandle, FdiHandle. Assembly-level DefaultDllImportSearchPaths(System32) prevents DLL hijacking.
 Signing/, Validation/IceValidator
 UI/: MsiDialogModel, MsiControlModel, MsiControlEventModel, MsiControlConditionModel, DialogEmitter, IDialogTemplate
 UI/Templates/: Minimal, InstallDir, FeatureTree, Mondo, Advanced DialogTemplates
@@ -107,26 +107,26 @@ BuiltInLocalizationExtensions (`AddBuiltInCultures()`), Localization/en-US.json 
 Phases: Initializing → Detecting → Planning → Elevating → Applying → Completing → Shutdown. Error: any → Failed → RollingBack → Shutdown.
 
 **Engine** (`src/FalkForge.Engine/`):
-- EngineHost (dispatches SetProperty/SetSecureProperty to VariableStore), EngineStateMachine, EngineContext (UserProperties, SecretPropertyNames tracking)
+- EngineHost (dispatches SetProperty/SetSecureProperty to VariableStore; property name validation: regex check, built-in variable blocking (32 names), max length enforcement), EngineStateMachine, EngineContext (UserProperties (ConcurrentDictionary), SecretPropertyNames (ConcurrentDictionary) for property tracking and built-in variable protection)
 - Phases/: IEnginePhaseHandler + 9 handlers (Initializing, Detecting, Planning, Elevating, Applying, Completing, RollingBack, Failed, Shutdown)
 - Detection/: PackageDetector, MsiDetector, DependencyDetector, DependencyBlocker
 - Planning/: Planner, InstallPlan, PlanAction
-- Execution/: PackageExecutor, MsiExecutor, MsuExecutor, MspExecutor, BundleExecutor, ExitCodeMapping, ExecutionOutcome, IProcessRunner, ProcessRunner
+- Execution/: PackageExecutor, MsiExecutor (uses IMsiApi P/Invoke InstallProduct/ConfigureProduct instead of msiexec.exe; 3-arg ctor with Func<IMsiApi?> lazy accessor; property value injection defense via ProhibitedValueChars), MsuExecutor, MspExecutor, BundleExecutor, ExitCodeMapping, ExecutionOutcome, IProcessRunner, ProcessRunner
 - Variables/: VariableStore (30+ built-ins), BuiltInVariables, SecureVariable (IDisposable, zeroed on dispose), ConditionEvaluator (recursive-descent), ConditionLexer, ConditionToken, TokenType
 - Download/: PayloadDownloader (HTTP+retry+SHA256), UpdateFeed, UpdateFeedEntry, UpdateInfo, UpdateCheckResult, UpdateFeedJsonContext (AOT), UpdateFeedParser (UPD002-003)
-- Layout/: LayoutManager, LayoutJsonContext | Cache/: PackageCache, CacheLayout
+- Layout/: LayoutManager, LayoutJsonContext | Cache/: PackageCache, CacheLayout (three-layer path traversal defense: allowlist regex, Path.GetFileName sanitization, Path.GetFullPath containment check)
 - Journal/: RollbackJournal, JournalEntry, RollbackExecutor | UndoOperations/: IUndoOperation, MsiUninstallOperation, ExeRollbackOperation, CacheCleanupOperation
 - RestartManager/: IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
-- Logging/: IEngineLogger, EngineLogger, LogEntry, NullLogger
+- Logging/: IEngineLogger, EngineLogger (per-session GUID subdirectory for unpredictable log paths), LogEntry, NullLogger
 
 **Engine.Protocol** (`src/FalkForge.Engine.Protocol/`):
-- Messages/ (25 types): Detect/Plan/Apply Begin/Complete, Request Detect/Plan/Apply, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Result, UpdateAvailable/Ready, SetProperty, SetSecureProperty
+- Messages/ (25 types): Detect/Plan/Apply Begin/Complete, Request Detect/Plan/Apply, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Result, UpdateAvailable/Ready, SetPropertyMessage (0x0208), SetSecurePropertyMessage (0x0209)
 - Serialization/: MessageSerializer, MessageDeserializer -- binary [Version:u16][Type:u16][Length:i32][Payload]
 - Transport/: PipeServer, PipeClient, PipeConnectionOptions, PipeSecurityValidator -- HMAC-SHA256 handshake
 - Manifest/: InstallerManifest, PackageInfo, PackageType, RelatedBundleEntry, RollbackBoundaryInfo, ManifestChainItem, PackageManifestChainItem, RollbackBoundaryManifestChainItem, ManifestDependencyProvider/Consumer, UpdatePolicy (NotifyOnly/DownloadAndPrompt/AutoUpdate), ManifestUpdateFeed
 
 **Engine.Elevation** (`src/FalkForge.Engine.Elevation/`):
-ElevatedHost (args, PID verify, HMAC), ElevatedCommandExecutor (whitelisted dispatch), Commands/: MsiInstall, MsiUninstall (both use IMsiApi P/Invoke, not msiexec.exe), ServiceInstall, RegistryWrite, FileWrite
+ElevatedHost (args, PID verify + PID recycling defense via parent start time capture, HMAC), ElevatedCommandExecutor (whitelisted dispatch), ElevationSecurityLog (file-based security event logger, thread-safe, NativeAOT-compatible), Commands/: MsiInstall, MsiUninstall (both use IMsiApi P/Invoke, not msiexec.exe), ServiceInstall, RegistryWrite, FileWrite
 
 **IInstallerEngine Property Passing**: `SetProperty(name, value)` sends SetPropertyMessage via pipe → EngineHost stores in VariableStore + EngineContext.UserProperties → forwarded to MsiExecutor as `PROPERTY=value`. `SetSecureProperty(name, SensitiveBytes)` sends SetSecurePropertyMessage via pipe → stored as SecureVariable (zeroed on dispose), tracked in EngineContext.SecretPropertyNames → passed to MSI via IMsiApi.SetProperty (never CLI). Use PasswordBridge + GetPassword + SetSecureProperty.
 
