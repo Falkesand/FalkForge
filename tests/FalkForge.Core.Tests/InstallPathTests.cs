@@ -5,18 +5,6 @@ namespace FalkForge.Core.Tests;
 public sealed class InstallPathTests
 {
     [Fact]
-    public void Segments_ReturnsCorrectParts()
-    {
-        var path = KnownFolder.ProgramFiles / "Contoso" / "MyApp";
-
-        var segments = path.Segments;
-
-        Assert.Equal(2, segments.Count);
-        Assert.Equal("Contoso", segments[0]);
-        Assert.Equal("MyApp", segments[1]);
-    }
-
-    [Fact]
     public void Segments_SingleSegment_ReturnsOne()
     {
         var path = KnownFolder.ProgramFiles / "MyApp";

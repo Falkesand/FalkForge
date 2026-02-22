@@ -7,64 +7,22 @@ public sealed class ConditionTests
 {
     // ── Static pre-composed conditions ──
 
-    [Fact]
-    public void Is64BitOS_ReturnsExpectedExpression()
+    [Theory]
+    [InlineData(nameof(Condition.Is64BitOS), "VersionNT64 OR Msix64")]
+    [InlineData(nameof(Condition.IsPrivileged), "Privileged")]
+    [InlineData(nameof(Condition.IsAdmin), "AdminUser")]
+    [InlineData(nameof(Condition.IsTerminalServer), "TerminalServer")]
+    [InlineData(nameof(Condition.IsWindows10OrLater), "VersionNT >= 603")]
+    [InlineData(nameof(Condition.IsWindows11OrLater), "WindowsBuildNumber >= 22000")]
+    [InlineData(nameof(Condition.IsInstalled), "Installed")]
+    [InlineData(nameof(Condition.IsInstalling), "NOT Installed")]
+    [InlineData(nameof(Condition.IsUninstalling), "REMOVE=\"ALL\"")]
+    [InlineData(nameof(Condition.IsRepairing), "REINSTALL")]
+    public void PreComposedCondition_ReturnsExpectedExpression(string propertyName, string expected)
     {
-        Assert.Equal("VersionNT64 OR Msix64", Condition.Is64BitOS.ToString());
-    }
-
-    [Fact]
-    public void IsPrivileged_ReturnsExpectedExpression()
-    {
-        Assert.Equal("Privileged", Condition.IsPrivileged.ToString());
-    }
-
-    [Fact]
-    public void IsAdmin_ReturnsExpectedExpression()
-    {
-        Assert.Equal("AdminUser", Condition.IsAdmin.ToString());
-    }
-
-    [Fact]
-    public void IsTerminalServer_ReturnsExpectedExpression()
-    {
-        Assert.Equal("TerminalServer", Condition.IsTerminalServer.ToString());
-    }
-
-    [Fact]
-    public void IsWindows10OrLater_ReturnsExpectedExpression()
-    {
-        Assert.Equal("VersionNT >= 603", Condition.IsWindows10OrLater.ToString());
-    }
-
-    [Fact]
-    public void IsWindows11OrLater_ReturnsExpectedExpression()
-    {
-        Assert.Equal("WindowsBuildNumber >= 22000", Condition.IsWindows11OrLater.ToString());
-    }
-
-    [Fact]
-    public void IsInstalled_ReturnsExpectedExpression()
-    {
-        Assert.Equal("Installed", Condition.IsInstalled.ToString());
-    }
-
-    [Fact]
-    public void IsInstalling_ReturnsExpectedExpression()
-    {
-        Assert.Equal("NOT Installed", Condition.IsInstalling.ToString());
-    }
-
-    [Fact]
-    public void IsUninstalling_ReturnsExpectedExpression()
-    {
-        Assert.Equal("REMOVE=\"ALL\"", Condition.IsUninstalling.ToString());
-    }
-
-    [Fact]
-    public void IsRepairing_ReturnsExpectedExpression()
-    {
-        Assert.Equal("REINSTALL", Condition.IsRepairing.ToString());
+        var prop = typeof(Condition).GetProperty(propertyName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!;
+        var condition = (Condition)prop.GetValue(null)!;
+        Assert.Equal(expected, condition.ToString());
     }
 
     // ── Factory methods ──

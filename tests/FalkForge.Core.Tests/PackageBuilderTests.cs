@@ -21,7 +21,7 @@ public sealed class PackageBuilderTests
     }
 
     [Fact]
-    public void Build_DefaultScope_IsPerMachine()
+    public void Build_HasCorrectDefaults()
     {
         var package = InstallerTestHost.BuildPackage(p =>
         {
@@ -30,41 +30,8 @@ public sealed class PackageBuilderTests
         });
 
         Assert.Equal(InstallScope.PerMachine, package.Scope);
-    }
-
-    [Fact]
-    public void Build_DefaultArchitecture_IsX64()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-        });
-
         Assert.Equal(ProcessorArchitecture.X64, package.Architecture);
-    }
-
-    [Fact]
-    public void Build_DefaultCompression_IsHigh()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-        });
-
         Assert.Equal(CompressionLevel.High, package.Compression);
-    }
-
-    [Fact]
-    public void Build_DefaultVersion_Is1_0_0()
-    {
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-        });
-
         Assert.Equal(new Version(1, 0, 0), package.Version);
     }
 

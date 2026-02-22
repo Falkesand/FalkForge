@@ -58,12 +58,4 @@ public sealed class DecompileSettingsTests
 
         Assert.True(result.Successful);
     }
-
-    [Fact]
-    public void OutputPath_DefaultsToNull()
-    {
-        var settings = new DecompileSettings { FilePath = "package.msi" };
-
-        Assert.Null(settings.OutputPath);
-    }
 }

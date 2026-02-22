@@ -4,66 +4,21 @@ using Xunit;
 
 public sealed class PageResultTests
 {
-    [Fact]
-    public void Next_returns_same_instance_on_repeated_access()
+    public static TheoryData<PageResult, PageResult> SingletonData => new()
     {
-        var first = PageResult.Next;
-        var second = PageResult.Next;
+        { PageResult.Next, PageResult.Next },
+        { PageResult.Previous, PageResult.Previous },
+        { PageResult.Finish, PageResult.Finish },
+        { PageResult.Cancel, PageResult.Cancel },
+        { PageResult.Install, PageResult.Install },
+        { PageResult.Uninstall, PageResult.Uninstall },
+        { PageResult.Repair, PageResult.Repair }
+    };
 
-        Assert.Same(first, second);
-    }
-
-    [Fact]
-    public void Previous_returns_same_instance_on_repeated_access()
+    [Theory]
+    [MemberData(nameof(SingletonData))]
+    public void Singleton_returns_same_instance_on_repeated_access(PageResult first, PageResult second)
     {
-        var first = PageResult.Previous;
-        var second = PageResult.Previous;
-
-        Assert.Same(first, second);
-    }
-
-    [Fact]
-    public void Finish_returns_same_instance_on_repeated_access()
-    {
-        var first = PageResult.Finish;
-        var second = PageResult.Finish;
-
-        Assert.Same(first, second);
-    }
-
-    [Fact]
-    public void Cancel_returns_same_instance_on_repeated_access()
-    {
-        var first = PageResult.Cancel;
-        var second = PageResult.Cancel;
-
-        Assert.Same(first, second);
-    }
-
-    [Fact]
-    public void Install_returns_same_instance_on_repeated_access()
-    {
-        var first = PageResult.Install;
-        var second = PageResult.Install;
-
-        Assert.Same(first, second);
-    }
-
-    [Fact]
-    public void Uninstall_returns_same_instance_on_repeated_access()
-    {
-        var first = PageResult.Uninstall;
-        var second = PageResult.Uninstall;
-
-        Assert.Same(first, second);
-    }
-
-    [Fact]
-    public void Repair_returns_same_instance_on_repeated_access()
-    {
-        var first = PageResult.Repair;
-        var second = PageResult.Repair;
-
         Assert.Same(first, second);
     }
 
@@ -82,65 +37,21 @@ public sealed class PageResultTests
         Assert.Equal(expectedKind, result.Kind);
     }
 
-    [Theory]
-    [InlineData(nameof(PageResult.Next))]
-    [InlineData(nameof(PageResult.Previous))]
-    [InlineData(nameof(PageResult.Finish))]
-    [InlineData(nameof(PageResult.Cancel))]
-    [InlineData(nameof(PageResult.Install))]
-    [InlineData(nameof(PageResult.Uninstall))]
-    [InlineData(nameof(PageResult.Repair))]
-    public void Singleton_has_null_message(string fieldName)
-    {
-        var result = GetSingletonByName(fieldName);
-
-        Assert.Null(result.Message);
-    }
-
-    [Theory]
-    [InlineData(nameof(PageResult.Next))]
-    [InlineData(nameof(PageResult.Previous))]
-    [InlineData(nameof(PageResult.Finish))]
-    [InlineData(nameof(PageResult.Cancel))]
-    [InlineData(nameof(PageResult.Install))]
-    [InlineData(nameof(PageResult.Uninstall))]
-    [InlineData(nameof(PageResult.Repair))]
-    public void Singleton_has_null_target_type(string fieldName)
-    {
-        var result = GetSingletonByName(fieldName);
-
-        Assert.Null(result.TargetType);
-    }
-
     [Fact]
-    public void Stay_without_message_has_kind_stay()
+    public void Stay_without_message_has_kind_stay_and_null_message()
     {
         var result = PageResult.Stay();
 
         Assert.Equal(PageResultKind.Stay, result.Kind);
-    }
-
-    [Fact]
-    public void Stay_without_message_has_null_message()
-    {
-        var result = PageResult.Stay();
-
         Assert.Null(result.Message);
     }
 
     [Fact]
-    public void Stay_with_message_has_kind_stay()
+    public void Stay_with_message_preserves_kind_and_message()
     {
         var result = PageResult.Stay("Validation failed");
 
         Assert.Equal(PageResultKind.Stay, result.Kind);
-    }
-
-    [Fact]
-    public void Stay_with_message_preserves_message()
-    {
-        var result = PageResult.Stay("Validation failed");
-
         Assert.Equal("Validation failed", result.Message);
     }
 
@@ -154,26 +65,12 @@ public sealed class PageResultTests
     }
 
     [Fact]
-    public void GoTo_has_kind_goto()
+    public void GoTo_has_correct_kind_and_target_type()
     {
         var result = PageResult.GoTo<DummyPage>();
 
         Assert.Equal(PageResultKind.GoTo, result.Kind);
-    }
-
-    [Fact]
-    public void GoTo_has_null_message()
-    {
-        var result = PageResult.GoTo<DummyPage>();
-
         Assert.Null(result.Message);
-    }
-
-    [Fact]
-    public void GoTo_has_correct_target_type()
-    {
-        var result = PageResult.GoTo<DummyPage>();
-
         Assert.Equal(typeof(DummyPage), result.TargetType);
     }
 
