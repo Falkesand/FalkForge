@@ -6,7 +6,7 @@
 
 ## Context
 
-FalkForge is a C# MSI/Bundle installer framework with fluent API, NativeAOT engine, WPF custom UI, and extension system. It compiles to MSI/MSM/MSP/MST/EXE bundle output types. The user has a separate CLI tool called Sigil.Sign (NuGet: `Sigil.Sign`, GitHub: `Falkesand/Sigil`) for cryptographic signing.
+FalkForge is a C# MSI/Bundle installer framework with fluent API, NativeAOT engine, WPF custom UI, and extension system. It compiles to MSI/MSM/MSP/MST/EXE bundle output types. The user has a separate .NET tool called Sigil.Sign (installed via `dotnet tool install Sigil.Sign`, GitHub: `Falkesand/Sigil`) for cryptographic signing, invoked as a CLI subprocess.
 
 No existing installer framework — WiX, InstallShield, Advanced Installer, MSIX, or Inno Setup — offers integrated supply chain security, reproducible builds, policy-as-code governance, or accessibility compliance. These 7 features collectively establish FalkForge's unique value proposition:
 
@@ -17,7 +17,7 @@ No existing installer framework — WiX, InstallShield, Advanced Installer, MSIX
 | # | Feature | Effort | Value |
 |---|---------|--------|-------|
 | 1 | SBOM Generation | Low | High visibility, foundation for signing |
-| 2 | Sigil.Sign Integration | Medium | Enables signing + attestation + SBOM signing |
+| 2 | Sigil.Sign Integration (CLI tool) | Medium | Enables signing + attestation + SBOM signing |
 | 3 | WinGet Manifest Generation | Low | Distribution story |
 | 4 | Dry-Run Planning Mode | Low | Enterprise operations |
 | 5 | Policy-as-Code Validation | Medium | Enterprise governance |
@@ -1035,11 +1035,13 @@ if (!SystemParameters.ClientAreaAnimation)
 ## 7. Sigil.Sign Integration
 
 **Effort:** Medium
-**Goal:** Integrate FalkForge with the Sigil.Sign CLI tool for code signing, SBOM signing, and supply chain attestation.
+**Goal:** Integrate FalkForge with the Sigil.Sign .NET tool for code signing, SBOM signing, and supply chain attestation via CLI-to-CLI subprocess invocation.
 
 ### Context
 
-Sigil.Sign (NuGet: `Sigil.Sign`, AGPL-3.0, GitHub: `Falkesand/Sigil`) is a .NET 10 CLI tool supporting:
+Sigil.Sign (AGPL-3.0, GitHub: `Falkesand/Sigil`) is a **.NET tool** installed via `dotnet tool install Sigil.Sign` (global or local tool manifest). It is invoked as `sigil` (global install) or `dotnet sigil` (local install). It is **not** a NuGet library — FalkForge never references any Sigil assemblies or types.
+
+Sigil.Sign capabilities:
 
 - **PE/Authenticode signing** — cross-platform (can sign Windows EXEs on Linux)
 - **5 cloud HSM backends** — Azure Key Vault, AWS KMS, GCP KMS, HashiCorp Vault, PKCS#11
@@ -1049,9 +1051,60 @@ Sigil.Sign (NuGet: `Sigil.Sign`, AGPL-3.0, GitHub: `Falkesand/Sigil`) is a .NET 
 - **Transparency logs** — Merkle tree audit trail
 - **Keyless/OIDC signing** — GitHub Actions, GitLab CI ephemeral identity keys
 
-### License Consideration
+### No AGPL Concern
 
-Sigil.Sign is AGPL-3.0. FalkForge invokes it as a subprocess via CLI — process execution is widely considered not to trigger AGPL copyleft obligations. There is no library linking, no shared address space, no dynamic loading. FalkForge remains under its own license. The integration is deliberately loose coupling via `IProcessRunner`.
+Since Sigil.Sign is a standalone tool invoked as a subprocess, there is **zero AGPL copyleft interaction**. FalkForge never links against Sigil code — no shared address space, no dynamic loading, no library reference. The integration is strictly CLI-to-CLI: `forge` spawns `sigil` via `Process.Start`. FalkForge remains under its own license.
+
+### Installation
+
+Sigil.Sign is a .NET tool, not a project dependency:
+
+```bash
+# Global install (available as `sigil` on PATH)
+dotnet tool install --global Sigil.Sign
+
+# Local install via tool manifest (recommended for CI/CD)
+dotnet new tool-manifest    # Creates .config/dotnet-tools.json if not exists
+dotnet tool install Sigil.Sign
+```
+
+FalkForge projects can include a `.config/dotnet-tools.json` tool manifest with Sigil.Sign listed, ensuring the correct version is available across team members and CI agents:
+
+```json
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "sigil.sign": {
+      "version": "1.0.0",
+      "commands": ["sigil"]
+    }
+  }
+}
+```
+
+The FalkForge SDK can auto-restore tools as part of `dotnet build` by adding a `DotNetToolRestore` target to `Sdk.targets`.
+
+### Sigil CLI Commands (Reference)
+
+All Sigil operations are performed via the `sigil` CLI:
+
+```bash
+# PE/Authenticode signing
+sigil sign-pe output.exe --vault azure --vault-key my-key
+
+# File signing (SBOM, generic files)
+sigil sign output.cdx.json --vault azure --vault-key my-key
+
+# SLSA attestation
+sigil attest output.exe --predicate-type https://slsa.dev/provenance/v1
+
+# Transparency log append
+sigil log append output.sig.json
+
+# Keyless signing (in CI/CD with OIDC)
+sigil sign-pe output.exe --keyless
+```
 
 ### Signing Provider Abstraction
 
@@ -1077,24 +1130,122 @@ public sealed class SignToolProvider : ISigningProvider
 }
 
 // src/FalkForge.Compiler.Msi/Signing/SigilSignProvider.cs
-// New Sigil.Sign integration (cross-platform)
-public sealed class SigilSignProvider : ISigningProvider
+// New Sigil.Sign integration (cross-platform, CLI-to-CLI subprocess)
+internal sealed class SigilSignProvider : ISigningProvider
 {
+    private readonly IProcessRunner _processRunner;
+
     public string Name => "sigil";
+
+    public SigilSignProvider(IProcessRunner processRunner)
+    {
+        _processRunner = processRunner;
+    }
 
     public Result<Unit> SignPe(string filePath, SigningOptions options)
     {
-        // Builds CLI args: sigil sign-pe {filePath} [--vault {provider}] [--vault-key {keyId}] ...
+        var toolPath = DiscoverSigilTool();
+        if (!toolPath.IsSuccess)
+            return Result<Unit>.Failure(toolPath.Error);
+
         var args = BuildSignPeArgs(filePath, options);
-        return _processRunner.Run("sigil", args);
+        return RunSigil(toolPath.Value, args);
     }
 
     public Result<Unit> SignFile(string filePath, SigningOptions options)
     {
-        // Builds CLI args: sigil sign {filePath} [--vault {provider}] [--vault-key {keyId}] ...
+        var toolPath = DiscoverSigilTool();
+        if (!toolPath.IsSuccess)
+            return Result<Unit>.Failure(toolPath.Error);
+
         var args = BuildSignArgs(filePath, options);
-        return _processRunner.Run("sigil", args);
+        return RunSigil(toolPath.Value, args);
     }
+}
+```
+
+### Tool Discovery
+
+`SigilSignProvider` does **not** reference any Sigil types. It discovers the `sigil` executable at runtime:
+
+```csharp
+// src/FalkForge.Compiler.Msi/Signing/SigilSignProvider.cs (discovery logic)
+private Result<string> DiscoverSigilTool()
+{
+    // 1. Check local tool manifest: run `dotnet tool list` and parse output
+    var listResult = _processRunner.Run("dotnet", "tool list");
+    if (listResult.IsSuccess && listResult.Value.Contains("sigil.sign"))
+        return Result<string>.Success("dotnet sigil");
+
+    // 2. Check global PATH for `sigil` executable
+    var whichResult = _processRunner.Run("where", "sigil");  // Windows
+    // On Linux: _processRunner.Run("which", "sigil")
+    if (whichResult.IsSuccess)
+        return Result<string>.Success("sigil");
+
+    // 3. Not found
+    return Result<string>.Failure(new Error(
+        ErrorKind.SigningError,
+        "Sigil.Sign tool not found. Install via: dotnet tool install Sigil.Sign"));
+}
+
+private Result<Unit> RunSigil(string tool, string args)
+{
+    var result = _processRunner.Run(tool, args);
+    if (!result.IsSuccess)
+    {
+        // Parse stderr for actionable error messages
+        return Result<Unit>.Failure(new Error(
+            ErrorKind.SigningError,
+            $"Sigil.Sign failed: {result.Error.Message}"));
+    }
+    return Result<Unit>.Success(Unit.Value);
+}
+```
+
+### Argument Building
+
+`SigilSignProvider` builds CLI argument strings from `SigningOptions`:
+
+```csharp
+// src/FalkForge.Compiler.Msi/Signing/SigilSignProvider.cs (argument building)
+private static string BuildSignPeArgs(string filePath, SigningOptions options)
+{
+    var sb = new StringBuilder();
+    sb.Append($"sign-pe \"{filePath}\"");
+
+    if (options.VaultProvider is not null)
+        sb.Append($" --vault {options.VaultProvider}");
+    if (options.VaultKeyId is not null)
+        sb.Append($" --vault-key {options.VaultKeyId}");
+    if (options.Algorithm is not null)
+        sb.Append($" --algorithm {options.Algorithm}");
+    if (options.UseKeyless)
+        sb.Append(" --keyless");
+    if (options.TimestampUrl is not null)
+        sb.Append($" --timestamp {options.TimestampUrl}");
+
+    return sb.ToString();
+}
+
+private static string BuildSignArgs(string filePath, SigningOptions options)
+{
+    var sb = new StringBuilder();
+    sb.Append($"sign \"{filePath}\"");
+
+    if (options.VaultProvider is not null)
+        sb.Append($" --vault {options.VaultProvider}");
+    if (options.VaultKeyId is not null)
+        sb.Append($" --vault-key {options.VaultKeyId}");
+    if (options.UseKeyless)
+        sb.Append(" --keyless");
+
+    return sb.ToString();
+}
+
+private static string BuildAttestArgs(string filePath)
+{
+    return $"attest \"{filePath}\" --predicate-type https://slsa.dev/provenance/v1";
 }
 ```
 
@@ -1112,7 +1263,7 @@ public sealed record SigningOptions
     public string? TimestampUrl { get; init; }
     public string? DigestAlgorithm { get; init; }
 
-    // New fields for Sigil.Sign
+    // New fields for Sigil.Sign tool invocation
     public string? VaultProvider { get; init; }         // "azure" | "aws" | "gcp" | "hashicorp" | "pkcs11"
     public string? VaultKeyId { get; init; }            // Key identifier in vault
     public string? Algorithm { get; init; }             // "ecdsa-p256" | "rsa-pss-3072" | "ml-dsa-65"
@@ -1133,7 +1284,13 @@ public PackageBuilder SignWith(ISigningProvider provider);
 
 ### Build Pipeline Integration
 
-After MSI/Bundle compilation, the signing pipeline executes in order:
+The `forge` CLI orchestrates the entire pipeline. After MSI/Bundle compilation, signing steps execute in order:
+
+```
+forge build installer.csx --sign sigil --vault azure --vault-key my-key
+```
+
+Internally this runs: **compile → sigil sign-pe → sigil sign (SBOM) → sigil attest**
 
 ```
 Compilation Complete
@@ -1142,11 +1299,11 @@ Compilation Complete
   │     → {output}.cdx.json
   │
   ├─ [2] Code Signing (if signing configured)
-  │     ├─ MSI: sigil sign {output.msi}
-  │     └─ Bundle: sigil sign-pe {output.exe}
+  │     ├─ MSI: sigil sign {output.msi} --vault azure --vault-key my-key
+  │     └─ Bundle: sigil sign-pe {output.exe} --vault azure --vault-key my-key
   │
   ├─ [3] SBOM Signing (if SignSbom)
-  │     → sigil sign {output.cdx.json}
+  │     → sigil sign {output.cdx.json} --vault azure --vault-key my-key
   │     → {output}.cdx.json.sig
   │
   ├─ [4] Attestation (if GenerateAttestation)
@@ -1168,15 +1325,16 @@ Output artifacts:
 
 ### Bundle Detach/Reattach with Sigil
 
-For HSM signing, the PE stub must be signed separately from the payload data. The existing `BundleDetacher` workflow integrates:
+For HSM signing, the PE stub must be signed separately from the payload data. The existing `BundleDetacher` workflow integrates with Sigil via direct `sigil` CLI invocation:
 
-```
-1. forge bundle detach output.exe → stub.exe + data.bin
-2. sigil sign-pe stub.exe --vault azure --vault-key my-signing-key
-3. forge bundle reattach stub.exe data.bin output-signed.exe
+```bash
+# Manual three-step workflow
+forge bundle detach output.exe --stub stub.exe --data data.bin
+sigil sign-pe stub.exe --vault azure --vault-key my-signing-key
+forge bundle reattach stub.exe data.bin output-signed.exe
 ```
 
-The CLI provides a shortcut that automates all three steps:
+The `forge` CLI provides a shortcut that automates all three steps:
 
 ```bash
 forge build installer.csx --sign sigil --vault azure --vault-key my-key
@@ -1185,7 +1343,7 @@ forge build installer.csx --sign sigil --vault azure --vault-key my-key
 Internally:
 1. Compile bundle → `output.exe`
 2. `BundleDetacher.Detach("output.exe", "stub.exe", "data.bin")`
-3. `SigilSignProvider.SignPe("stub.exe", options)`
+3. `SigilSignProvider.SignPe("stub.exe", options)` — invokes `sigil sign-pe stub.exe ...` via `Process.Start`
 4. `BundleDetacher.Reattach("stub.exe", "data.bin", "output-signed.exe")`
 
 ### CLI Usage
@@ -1210,6 +1368,11 @@ forge build installer.csx --sbom --sign sigil --attest --transparency-log
 
 # Legacy signtool (Windows only)
 forge build installer.csx --sign signtool --certificate-thumbprint ABC123
+
+# Using Sigil directly (outside of forge orchestration)
+sigil sign-pe output.exe --vault azure --vault-key my-key
+sigil sign output.cdx.json
+sigil attest output.exe --predicate-type https://slsa.dev/provenance/v1
 ```
 
 ### Fluent API
@@ -1238,12 +1401,22 @@ Installer.Build(p => p
     .Feature("Main", f => f.File("MyApp.exe")));
 ```
 
+### Error Handling
+
+If the `sigil` tool is not installed or not discoverable, `SigilSignProvider` returns a `Result.Failure` with a clear installation instruction:
+
+```csharp
+Result<Unit>.Failure(new Error(
+    ErrorKind.SigningError,
+    "Sigil.Sign tool not found. Install via: dotnet tool install Sigil.Sign"));
+```
+
 ### Error Codes
 
 | Code | Description |
 |------|-------------|
-| SGN001 | Sigil.Sign CLI tool not found on PATH |
-| SGN002 | Sigil.Sign returned non-zero exit code |
+| SGN001 | Sigil.Sign tool not found (not installed or not on PATH). Install via: `dotnet tool install Sigil.Sign` |
+| SGN002 | Sigil.Sign returned non-zero exit code (stderr included in error message) |
 | SGN003 | Vault provider not recognized |
 | SGN004 | Vault key ID required when vault provider is specified |
 | SGN005 | Keyless signing requires OIDC environment (CI/CD) |
@@ -1266,7 +1439,7 @@ Source Code
   │
   ├─ SBOM Generation ──── CycloneDX 1.6 bill of materials
   │
-  ├─ Sigil.Sign ──────── HSM signing + SLSA attestation + transparency log
+  ├─ Sigil.Sign ──────── CLI tool: HSM signing + SLSA attestation + transparency log
   │
   ├─ WinGet Manifest ──── One-command distribution
   │
