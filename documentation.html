@@ -690,9 +690,10 @@
           <a href="#ui-page-result">10.8 PageResult</a>
           <a href="#ui-installer-state">10.9 InstallerState</a>
           <a href="#ui-secure-passwords">10.10 Secure Passwords</a>
-          <a href="#ui-complete-example">10.11 Complete Example</a>
-          <a href="#ui-localization">10.12 UI Localization</a>
-          <a href="#ui-lifecycle-hooks">10.13 Lifecycle Hooks</a>
+          <a href="#property-passing" class="nav-child">10.11 Property Passing</a>
+          <a href="#ui-complete-example">10.12 Complete Example</a>
+          <a href="#ui-localization">10.13 UI Localization</a>
+          <a href="#ui-lifecycle-hooks">10.14 Lifecycle Hooks</a>
         </div>
       </div>
 
@@ -942,7 +943,7 @@
       <tr><td>Package Management</td><td>Central Package Management (Directory.Packages.props)</td></tr>
       <tr><td>Engine/Elevation</td><td>NativeAOT (~3-5 MB), no reflection, no dynamic</td></tr>
       <tr><td>UI Framework</td><td>WPF + ReactiveUI</td></tr>
-      <tr><td>Testing</td><td>xUnit 2.9.3 (~1900 tests)</td></tr>
+      <tr><td>Testing</td><td>xUnit 2.9.3 (~2500 tests)</td></tr>
       <tr><td>Build Policy</td><td><code>TreatWarningsAsErrors</code> &mdash; 0 warnings required</td></tr>
     </tbody>
   </table>
@@ -995,7 +996,7 @@ return Installer.Build(args, package =>
   <pre><code class="language-bash"># Build all projects (0 warnings required &mdash; TreatWarningsAsErrors is on)
 dotnet build
 
-# Run the full test suite (~1900 tests, xUnit 2.9.3)
+# Run the full test suite (~2500 tests, xUnit 2.9.3)
 dotnet test
 
 # Publish NativeAOT binaries for Engine and Elevation
@@ -1061,7 +1062,7 @@ dotnet publish -c Release</code></pre>
   <h2>Solution Structure</h2>
 
   <p>
-    FalkForge is organized into 21 source projects and 17 test projects, each with a single
+    FalkForge is organized into 21 source projects and 21 test projects, each with a single
     responsibility.
   </p>
 
@@ -1078,7 +1079,7 @@ dotnet publish -c Release</code></pre>
       <tr><td><code>FalkForge.Engine.Elevation</code></td><td>NativeAOT elevated companion process for privileged operations</td></tr>
       <tr><td><code>FalkForge.Engine.Protocol</code></td><td>IPC message types, binary serialization, named pipe transport with HMAC-SHA256 handshake</td></tr>
       <tr><td><code>FalkForge.Platform</code></td><td>OS abstractions (IFileSystem, IRegistry)</td></tr>
-      <tr><td><code>FalkForge.Platform.Windows</code></td><td>Windows P/Invoke implementations of platform abstractions</td></tr>
+      <tr><td><code>FalkForge.Platform.Windows</code></td><td>Windows P/Invoke implementations: IFileSystem, IRegistry, IMsiApi (MsiInstallProduct/MsiConfigureProduct)</td></tr>
       <tr><td><code>FalkForge.Extensibility</code></td><td>Extension system interfaces (IFalkForgeExtension, IComponentContributor, IMsiTableContributor)</td></tr>
       <tr><td><code>FalkForge.Extensions.Util</code></td><td>XmlConfig, UserManagement, FileShare, QuietExec, RemoveFolderEx, InternetShortcut</td></tr>
       <tr><td><code>FalkForge.Extensions.Firewall</code></td><td>Windows Firewall rule definitions and validation</td></tr>
@@ -1095,7 +1096,7 @@ dotnet publish -c Release</code></pre>
     </tbody>
   </table>
 
-  <h3>Test Projects (17)</h3>
+  <h3>Test Projects (21)</h3>
   <table class="api-table">
     <thead>
       <tr><th>Project</th><th>Tests For</th></tr>
@@ -1118,6 +1119,10 @@ dotnet publish -c Release</code></pre>
       <tr><td><code>FalkForge.Localization.Tests</code></td><td>Localization loading, fallback, resolution</td></tr>
       <tr><td><code>FalkForge.Decompiler.Tests</code></td><td>MSI decompilation and C# emission</td></tr>
       <tr><td><code>FalkForge.Cli.Tests</code></td><td>CLI commands, JSON config loading</td></tr>
+    <tr><td><code>FalkForge.Extensions.Dependency.Tests</code></td><td>Dependency provider/consumer validation</td></tr>
+    <tr><td><code>FalkForge.Platform.Windows.Tests</code></td><td>IMsiApi contract, P/Invoke bindings</td></tr>
+    <tr><td><code>FalkForge.Plugins.Odbc.Tests</code></td><td>ODBC DSN management</td></tr>
+    <tr><td><code>FalkForge.Plugins.Sql.Tests</code></td><td>SQL Server discovery, connection testing</td></tr>
     </tbody>
   </table>
 
@@ -5114,6 +5119,8 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
       <tr><td><code>InstallDirectory</code></td><td><code>string</code></td><td>Gets or sets the installation directory.</td></tr>
       <tr><td><code>Cancel()</code></td><td><code>void</code></td><td>Cancels the current operation.</td></tr>
       <tr><td><code>ShutdownAsync()</code></td><td><code>Task&lt;int&gt;</code></td><td>Shuts down the engine and returns the process exit code.</td></tr>
+    <tr><td><code>SetProperty(string name, string value)</code></td><td><code>void</code></td><td>Sets an MSI property to pass to packages during installation. Only accepted during Initializing, Detecting, or Planning phases. Property names must match <code>^[A-Z_][A-Z0-9_.]*$</code>.</td></tr>
+    <tr><td><code>SetSecureProperty(string name, SensitiveBytes value)</code></td><td><code>void</code></td><td>Sets a secure property transported via named pipe &mdash; never appears on the command line or in logs. The engine consumes the bytes synchronously; the caller disposes after return.</td></tr>
     </tbody>
   </table>
 
@@ -5277,8 +5284,54 @@ public override PageResult OnNext()
     Located in <code>src/FalkForge.Ui/DpapiDataProtector.cs</code>.
   </p>
 
-  <!-- 10.11 Complete Example -->
-  <h3 id="ui-complete-example">10.11 Complete Custom UI Example</h3>
+<!-- 10.11 Property Passing -->
+<h3 id="property-passing">10.11 Property Passing</h3>
+<p>
+    Custom pages can send properties to MSI packages via the engine. Regular properties use
+    <code>SetProperty</code>; credentials and secrets use <code>SetSecureProperty</code> with
+    <code>PasswordBridge</code> for secure WPF password collection. Properties are transported
+    over HMAC-SHA256 authenticated named pipes and never appear on the command line.
+</p>
+
+<h4>PasswordBridge</h4>
+<p><code>src/FalkForge.Ui/PasswordBridge.cs</code></p>
+<p>
+    WPF attached property that registers <code>PasswordBox</code> controls with the parent
+    <code>InstallerPage</code>. Pages retrieve passwords as <code>SensitiveBytes</code> via
+    <code>GetPassword(key)</code>, which returns UTF-8 encoded bytes that are zeroed on dispose.
+</p>
+<pre><code class="language-csharp">&lt;!-- XAML --&gt;
+&lt;PasswordBox ui:PasswordBridge.Key="dbPassword" /&gt;
+
+// Page code
+using var password = GetPassword("dbPassword");
+Engine.SetSecureProperty("DB_PASSWORD", password);</code></pre>
+
+<h4>SensitiveBytes</h4>
+<p><code>src/FalkForge.Ui.Abstractions/SensitiveBytes.cs</code></p>
+<p>
+    Readonly struct wrapping a <code>byte[]</code>. Implements <code>IDisposable</code> &mdash;
+    zeros memory via <code>CryptographicOperations.ZeroMemory</code> on dispose. Always use via
+    <code>using</code> pattern. All copies share the same underlying array.
+</p>
+<table class="api-table">
+    <thead><tr><th>Member</th><th>Type</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>Span</code></td><td><code>ReadOnlySpan&lt;byte&gt;</code></td><td>Read-only view of the byte data</td></tr>
+        <tr><td><code>Length</code></td><td><code>int</code></td><td>Number of bytes</td></tr>
+        <tr><td><code>IsEmpty</code></td><td><code>bool</code></td><td>True if null or zero-length</td></tr>
+        <tr><td><code>Dispose()</code></td><td><code>void</code></td><td>Zeros the underlying byte array</td></tr>
+    </tbody>
+</table>
+
+<div class="note">
+    <strong>Security:</strong> Never convert <code>SensitiveBytes</code> to a string &mdash; strings are
+    immutable and cannot be zeroed from memory. Use <code>SetSecureProperty</code> to pass credentials
+    directly as bytes through the named pipe protocol.
+</div>
+
+  <!-- 10.12 Complete Example -->
+  <h3 id="ui-complete-example">10.12 Complete Custom UI Example</h3>
   <p>
     A full example demonstrating the custom UI framework with three pages: Welcome, Install, and Complete.
   </p>
@@ -5342,7 +5395,7 @@ public class CompletePage : InstallerPage&lt;CompleteView&gt;
     window close requests internally.
   </div>
 
-<h3 id="ui-localization">10.12 UI Localization</h3>
+<h3 id="ui-localization">10.13 UI Localization</h3>
 
 <p>Custom UI pages use <code>Localize("key")</code> to resolve strings at runtime from JSON string
 tables. Languages can be switched at runtime without page reload, enabling fully localized installer
@@ -5424,7 +5477,7 @@ or navigation — all visible text updates in place.</p>
     their bindings.
 </div>
 
-<h3 id="ui-lifecycle-hooks">10.13 Engine Lifecycle Hooks</h3>
+<h3 id="ui-lifecycle-hooks">10.14 Engine Lifecycle Hooks</h3>
 
 <p>Custom UI pages can hook into the engine's three phases — Detect, Plan, and Apply — to inject
 custom logic, validate state, pass MSI properties, or cancel execution.</p>
@@ -5730,7 +5783,7 @@ is zeroed immediately after use.</p>
 <table class="api-table">
     <thead><tr><th>Executor</th><th>Package Type</th><th>Tool</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>MsiExecutor</td><td>MsiPackage</td><td>msiexec.exe</td><td>Installs/uninstalls/repairs MSI packages. Supports elevation via IElevationClient. Validates MSI property keys against <code>^[A-Z_][A-Z0-9_.]*$</code> and blocks injection characters.</td></tr>
+        <tr><td>MsiExecutor</td><td>MsiPackage</td><td>IMsiApi (P/Invoke)</td><td>Installs/uninstalls/repairs MSI packages via in-process <code>MsiInstallProduct</code>/<code>MsiConfigureProduct</code> P/Invoke. Properties and secrets flow through named pipes, never on the command line. Supports elevation via IElevationClient.</td></tr>
         <tr><td>MsuExecutor</td><td>MsuPackage</td><td>wusa.exe</td><td>Installs/uninstalls Windows Update packages. Uninstall requires KbArticle. Recognizes exit codes 0, 3010 (reboot required), and 2359302 (already installed).</td></tr>
         <tr><td>MspExecutor</td><td>MspPackage</td><td>msiexec.exe</td><td>Applies/removes MSI patches. Uninstall requires TargetProductCode and PatchCode (validated as GUIDs).</td></tr>
         <tr><td>BundleExecutor</td><td>BundlePackage</td><td>(EXE path)</td><td>Executes nested bundle EXEs with /quiet /norestart flags. Supports cancellation via process tree kill.</td></tr>
@@ -5771,6 +5824,7 @@ is zeroed immediately after use.</p>
         <tr><td><code>GetInt(string name)</code></td><td>Get as long (parses strings)</td></tr>
         <tr><td><code>GetVersion(string name)</code></td><td>Get as Version (parses strings)</td></tr>
         <tr><td><code>SetSecret(string name, string value)</code></td><td>Store a secret (pinned memory)</td></tr>
+        <tr><td><code>SetSecret(string name, byte[] value)</code></td><td>Store a secret from raw bytes (no string intermediate)</td></tr>
         <tr><td><code>GetSecret(string name)</code></td><td>Retrieve a secret value</td></tr>
         <tr><td><code>IsSecret(string name)</code></td><td>Check if variable is a secret</td></tr>
         <tr><td><code>GetNames()</code></td><td>List all variable names</td></tr>
@@ -5825,6 +5879,41 @@ is zeroed immediately after use.</p>
         <tr><td>RebootPending</td><td>long</td><td>1 if a reboot is pending from prior installations</td><td>0</td></tr>
     </tbody>
 </table>
+
+<h4>SecureVariable</h4>
+<p><code>src/FalkForge.Engine/Variables/SecureVariable.cs</code></p>
+<p>
+    Internal sealed class for storing sensitive values in memory. The underlying <code>byte[]</code>
+    is GC-pinned via <code>GCHandle.Alloc(Pinned)</code> to prevent relocation, and zeroed via
+    <code>CryptographicOperations.ZeroMemory</code> on dispose. Includes a finalizer as a safety net.
+</p>
+<table class="api-table">
+    <thead><tr><th>Constructor</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>SecureVariable(string value)</code></td><td>Converts string to UTF-8 bytes, pins in memory</td></tr>
+        <tr><td><code>SecureVariable(byte[] data)</code></td><td>Takes ownership of byte array directly (no copy, no string intermediate)</td></tr>
+    </tbody>
+</table>
+<div class="note">
+    <strong>Ownership:</strong> The <code>byte[]</code> constructor takes ownership of the caller&rsquo;s array.
+    The caller must not use the array after passing it. On <code>Dispose()</code>, the original array is zeroed.
+</div>
+
+<h4>Property Flow</h4>
+<p>
+    User-defined properties flow from the UI process through the engine to MSI execution:
+</p>
+<ol>
+    <li><strong>UI Process:</strong> <code>InstallerPage</code> calls <code>Engine.SetProperty()</code> or <code>Engine.SetSecureProperty()</code></li>
+    <li><strong>EngineClient:</strong> Serializes to <code>SetPropertyMessage</code> (0x0208) or <code>SetSecurePropertyMessage</code> (0x0209) over named pipe</li>
+    <li><strong>EngineHost:</strong> Validates property name, stores in <code>EngineContext.UserProperties</code>; secrets stored as <code>SecureVariable</code> in <code>VariableStore</code></li>
+    <li><strong>Planner:</strong> Copies user properties to <code>PlanAction.Properties</code>; secrets use bracket references (<code>[DB_PASSWORD]</code>) resolved at execution time</li>
+    <li><strong>MsiExecutor:</strong> Resolves bracket references from <code>VariableStore</code>, builds property string, calls <code>IMsiApi.InstallProduct(packagePath, properties)</code></li>
+</ol>
+<div class="note">
+    <strong>Phase gating:</strong> Properties are only accepted during Initializing, Detecting, or Planning phases.
+    Attempts to set properties during Apply or later are rejected by the engine.
+</div>
 
 <h4>ConditionEvaluator</h4>
 <p><code>src/FalkForge.Engine/Variables/ConditionEvaluator.cs</code></p>
@@ -6062,6 +6151,8 @@ Transport framing (length-prefix):
         <tr><td>0x0205</td><td>RequestDetect</td><td>UI &rarr; Engine</td><td>(none)</td><td>UI requests detection to begin</td></tr>
         <tr><td>0x0206</td><td>RequestPlan</td><td>UI &rarr; Engine</td><td>Action (InstallAction)</td><td>UI requests planning for a specific action</td></tr>
         <tr><td>0x0207</td><td>RequestApply</td><td>UI &rarr; Engine</td><td>(none)</td><td>UI confirms readiness to apply</td></tr>
+        <tr><td>0x0208</td><td>SetProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), Value (string)</td><td>Sets an MSI property for package execution. Phase-gated: only accepted during Initializing, Detecting, or Planning.</td></tr>
+        <tr><td>0x0209</td><td>SetSecureProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), SecureValue (byte[])</td><td>Sets a secret property via named pipe. Value stored in pinned, zeroed-on-dispose memory. Never appears on command line.</td></tr>
         <tr><td>0x0301</td><td>ElevateExecute</td><td>Engine &rarr; Elevated</td><td>CommandName, CommandPayload (byte[])</td><td>Execute an elevated command</td></tr>
         <tr><td>0x0401</td><td>ElevateResult</td><td>Elevated &rarr; Engine</td><td>Success, ErrorMessage?, ResultPayload?</td><td>Result of an elevated command execution</td></tr>
     </tbody>
