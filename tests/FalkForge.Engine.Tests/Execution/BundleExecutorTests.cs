@@ -130,4 +130,82 @@ public sealed class BundleExecutorTests
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => executor.ExecuteAsync(action, cts.Token));
     }
+
+    [Fact]
+    public async Task SourcePath_NonExeExtension_ReturnsFailure()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner);
+        var action = CreateAction(sourcePath: @"C:\bundles\malicious.bat");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
+        Assert.Contains(".exe", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task SourcePath_Empty_ReturnsFailure()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner);
+        var action = CreateAction(sourcePath: "");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
+    }
+
+    [Fact]
+    public async Task SourcePath_OutsideCacheDirectory_ReturnsFailure()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner, @"C:\ProgramData\FalkForge\Cache");
+        var action = CreateAction(sourcePath: @"C:\Windows\System32\cmd.exe");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
+        Assert.Contains("outside the allowed cache directory", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task SourcePath_TraversalAttempt_ReturnsFailure()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner, @"C:\ProgramData\FalkForge\Cache");
+        var action = CreateAction(sourcePath: @"C:\ProgramData\FalkForge\Cache\..\..\..\Windows\System32\cmd.exe");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
+        Assert.Contains("outside the allowed cache directory", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task SourcePath_InsideCacheDirectory_Succeeds()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner, @"C:\bundles");
+        var action = CreateAction(sourcePath: @"C:\bundles\nested-setup.exe");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void ValidateSourcePath_NullBasePath_SkipsContainmentCheck()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner);
+
+        var result = executor.ValidateSourcePath(@"C:\anywhere\setup.exe");
+
+        Assert.True(result.IsSuccess);
+    }
 }

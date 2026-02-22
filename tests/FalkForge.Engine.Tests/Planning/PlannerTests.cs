@@ -139,4 +139,115 @@ public sealed class PlannerTests
         Assert.True(result.IsSuccess);
         Assert.Same(package, result.Value.Actions[0].Package);
     }
+
+    [Fact]
+    public void CreatePlan_CopiesUserPropertiesToPlanActions()
+    {
+        var planner = new Planner();
+        var manifest = TestManifestFactory.CreateSimple(
+            packages:
+            [
+                TestManifestFactory.CreateMsiPackage(id: "Pkg1"),
+                TestManifestFactory.CreateMsiPackage(id: "Pkg2")
+            ]);
+
+        var userProperties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["INSTALLFOLDER"] = @"D:\Custom",
+            ["MY_SETTING"] = "Value1"
+        };
+
+        var result = planner.CreatePlan(
+            manifest, NotInstalledDetection, InstallAction.Install,
+            userProperties: userProperties);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Actions.Count);
+
+        foreach (var action in result.Value.Actions)
+        {
+            Assert.Equal(@"D:\Custom", action.Properties["INSTALLFOLDER"]);
+            Assert.Equal("Value1", action.Properties["MY_SETTING"]);
+        }
+    }
+
+    [Fact]
+    public void CreatePlan_IncludesSecretPropertyReferences()
+    {
+        var planner = new Planner();
+        var manifest = TestManifestFactory.CreateSimple(
+            packages: [TestManifestFactory.CreateMsiPackage(id: "Pkg1")]);
+
+        var secretPropertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "DB_PASSWORD",
+            "API_KEY"
+        };
+
+        var result = planner.CreatePlan(
+            manifest, NotInstalledDetection, InstallAction.Install,
+            secretPropertyNames: secretPropertyNames);
+
+        Assert.True(result.IsSuccess);
+        var action = Assert.Single(result.Value.Actions);
+        Assert.Equal("[DB_PASSWORD]", action.Properties["DB_PASSWORD"]);
+        Assert.Equal("[API_KEY]", action.Properties["API_KEY"]);
+    }
+
+    [Fact]
+    public void CreatePlan_UserPropertiesAndSecrets_CombinedOnActions()
+    {
+        var planner = new Planner();
+        var manifest = TestManifestFactory.CreateSimple(
+            packages: [TestManifestFactory.CreateMsiPackage(id: "Pkg1")]);
+
+        var userProperties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["INSTALLFOLDER"] = @"C:\App"
+        };
+        var secretPropertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SECRET_KEY"
+        };
+
+        var result = planner.CreatePlan(
+            manifest, NotInstalledDetection, InstallAction.Install,
+            userProperties: userProperties,
+            secretPropertyNames: secretPropertyNames);
+
+        Assert.True(result.IsSuccess);
+        var action = Assert.Single(result.Value.Actions);
+        Assert.Equal(@"C:\App", action.Properties["INSTALLFOLDER"]);
+        Assert.Equal("[SECRET_KEY]", action.Properties["SECRET_KEY"]);
+    }
+
+    [Fact]
+    public void CreatePlan_UninstallAction_CopiesUserPropertiesToPlanActions()
+    {
+        var planner = new Planner();
+        var manifest = TestManifestFactory.CreateSimple(
+            packages:
+            [
+                TestManifestFactory.CreateMsiPackage(id: "Pkg1"),
+                TestManifestFactory.CreateMsiPackage(id: "Pkg2")
+            ]);
+
+        var userProperties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["REMOVE_DATA"] = "1"
+        };
+
+        var detection = new DetectionResult(InstallState.Installed, "1.0.0", []);
+        var result = planner.CreatePlan(
+            manifest, detection, InstallAction.Uninstall,
+            userProperties: userProperties);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Actions.Count);
+
+        foreach (var action in result.Value.Actions)
+        {
+            Assert.Equal("1", action.Properties["REMOVE_DATA"]);
+        }
+    }
 }

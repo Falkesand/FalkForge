@@ -1,11 +1,20 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
-using System.Diagnostics;
+using FalkForge.Platform.Windows;
 
 public sealed class MsiInstallCommand : IElevatedCommand
 {
-    private const int ProcessTimeoutMs = 600_000;
+    private const int InstallUILevelNone = 2;
+    private const uint ErrorSuccess = 0;
+    private const uint ErrorSuccessRebootRequired = 3010;
     private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}'];
+
+    private readonly IMsiApi _msiApi;
+
+    public MsiInstallCommand(IMsiApi msiApi)
+    {
+        _msiApi = msiApi;
+    }
 
     public string Name => "MsiInstall";
 
@@ -28,30 +37,27 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
         try
         {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
-            {
-                FileName = "msiexec.exe",
-                Arguments = $"/i \"{msiPath}\" /qn /norestart {additionalArgs}",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            process.Start();
+            _msiApi.SetInternalUI(InstallUILevelNone, IntPtr.Zero);
 
-            if (!process.WaitForExit(ProcessTimeoutMs))
-            {
-                process.Kill(entireProcessTree: true);
-                return Result<byte[]>.Failure(ErrorKind.ExecutionError, "msiexec timed out and was terminated");
-            }
+            var commandLine = string.IsNullOrEmpty(additionalArgs) ? null : additionalArgs;
+            var exitCode = _msiApi.InstallProduct(msiPath, commandLine);
 
-            if (process.ExitCode != 0)
-                return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"msiexec exited with code {process.ExitCode}");
+            if (exitCode != ErrorSuccess && exitCode != ErrorSuccessRebootRequired)
+                return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI installation failed with exit code {exitCode}");
 
-            return Array.Empty<byte>();
+            return EncodeExitCode(exitCode);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI install failed: {ex.Message}");
         }
+    }
+
+    private static byte[] EncodeExitCode(uint exitCode)
+    {
+        using var stream = new MemoryStream(4);
+        using var writer = new BinaryWriter(stream);
+        writer.Write(exitCode);
+        return stream.ToArray();
     }
 }

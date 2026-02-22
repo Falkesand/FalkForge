@@ -419,6 +419,10 @@ public static class ModelValidator
         if (!string.IsNullOrEmpty(signing.CertificatePath) &&
             signing.CertificatePath.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase))
             result.AddWarning("SGN001", "Using a PFX certificate file embeds the private key. Consider using a certificate thumbprint from the certificate store instead.");
+
+        if (!string.IsNullOrEmpty(signing.DigestAlgorithm) &&
+            signing.DigestAlgorithm is not ("sha256" or "sha384" or "sha512"))
+            result.AddError("SGN003", $"DigestAlgorithm '{signing.DigestAlgorithm}' is not allowed. Must be one of: sha256, sha384, sha512.");
     }
 
     private static void ValidateMajorUpgrade(PackageModel package, ValidationResult result)

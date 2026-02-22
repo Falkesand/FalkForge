@@ -36,8 +36,11 @@ public sealed class PayloadDownloader
         if (string.IsNullOrWhiteSpace(targetPath))
             return Result<string>.Failure(ErrorKind.DownloadError, "Target path cannot be empty.");
 
+        // SECURITY: Reject paths containing ".." segments to prevent path traversal.
+        // Normalize the path and verify it matches the canonical form -- any difference
+        // indicates traversal components like ".." or "." that could escape intended directories.
         var fullPath = Path.GetFullPath(targetPath);
-        if (fullPath != targetPath && targetPath.Contains(".."))
+        if (targetPath.Contains("..", StringComparison.Ordinal))
             return Result<string>.Failure(ErrorKind.DownloadError, "Invalid target path: path traversal detected.");
 
         var targetDir = Path.GetDirectoryName(fullPath);

@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Tests;
 
+using FalkForge.Engine.Logging;
 using FalkForge.Engine.Phases;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
@@ -283,6 +284,321 @@ public sealed class EngineHostMessageTests
             context, sm);
 
         Assert.False(context.FeatureSelections["FeatureA"]);
+    }
+
+    [Fact]
+    public void SetProperty_StoresInVariableStore_WhenInConfigurationPhase()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "MY_PROP", Value = "Hello" },
+            context, sm);
+
+        var result = context.Variables.GetString("MY_PROP");
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Hello", result.Value);
+    }
+
+    [Fact]
+    public async Task SetProperty_IgnoredWhenNotInConfigurationPhase()
+    {
+        var context = CreateContext();
+        var tcs = new TaskCompletionSource<EnginePhase>();
+        var handlers = new IEnginePhaseHandler[]
+        {
+            new StubPhaseHandler(EnginePhase.Initializing, EnginePhase.Detecting),
+            new StubPhaseHandler(EnginePhase.Detecting, EnginePhase.Planning),
+            new StubPhaseHandler(EnginePhase.Planning, EnginePhase.Applying),
+            new StubPhaseHandler(EnginePhase.Applying, async (ctx, ct) =>
+            {
+                tcs.SetResult(EnginePhase.Applying);
+                await Task.Delay(200, ct);
+                return EnginePhase.Completing;
+            }),
+            new StubPhaseHandler(EnginePhase.Completing, EnginePhase.Shutdown),
+            new StubPhaseHandler(EnginePhase.Failed, EnginePhase.Shutdown),
+        };
+
+        var sm = new EngineStateMachine(handlers);
+        var runTask = sm.RunAsync(context, CancellationToken.None);
+
+        await tcs.Task;
+
+        await EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "BLOCKED_PROP", Value = "ShouldNotStore" },
+            context, sm);
+
+        Assert.False(context.Variables.Contains("BLOCKED_PROP"));
+
+        await runTask;
+    }
+
+    [Fact]
+    public void SetSecureProperty_StoresSecretInVariableStore()
+    {
+        var context = CreateContext();
+        // Initializing is a valid configuration phase (simulating Planning-equivalent)
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        var secretBytes = System.Text.Encoding.UTF8.GetBytes("s3cret!");
+
+        EngineHost.HandleUiMessageAsync(
+            new SetSecurePropertyMessage { PropertyName = "DB_PASSWORD", SecureValue = secretBytes },
+            context, sm);
+
+        var result = context.Variables.GetSecret("DB_PASSWORD");
+        Assert.True(result.IsSuccess);
+        Assert.Equal("s3cret!", result.Value);
+    }
+
+    [Fact]
+    public async Task SetSecureProperty_IgnoredWhenNotInConfigurationPhase()
+    {
+        var context = CreateContext();
+        var tcs = new TaskCompletionSource<EnginePhase>();
+        var handlers = new IEnginePhaseHandler[]
+        {
+            new StubPhaseHandler(EnginePhase.Initializing, EnginePhase.Detecting),
+            new StubPhaseHandler(EnginePhase.Detecting, EnginePhase.Planning),
+            new StubPhaseHandler(EnginePhase.Planning, EnginePhase.Applying),
+            new StubPhaseHandler(EnginePhase.Applying, async (ctx, ct) =>
+            {
+                tcs.SetResult(EnginePhase.Applying);
+                await Task.Delay(200, ct);
+                return EnginePhase.Completing;
+            }),
+            new StubPhaseHandler(EnginePhase.Completing, EnginePhase.Shutdown),
+            new StubPhaseHandler(EnginePhase.Failed, EnginePhase.Shutdown),
+        };
+
+        var sm = new EngineStateMachine(handlers);
+        var runTask = sm.RunAsync(context, CancellationToken.None);
+
+        await tcs.Task;
+
+        var secretBytes = System.Text.Encoding.UTF8.GetBytes("forbidden");
+
+        await EngineHost.HandleUiMessageAsync(
+            new SetSecurePropertyMessage { PropertyName = "SECRET_BLOCKED", SecureValue = secretBytes },
+            context, sm);
+
+        Assert.False(context.Variables.IsSecret("SECRET_BLOCKED"));
+
+        await runTask;
+    }
+
+    [Fact]
+    public void SetProperty_NullContextIgnored()
+    {
+        var task = EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "X", Value = "Y" },
+            null, null);
+
+        Assert.True(task.IsCompleted);
+    }
+
+    [Fact]
+    public void SetSecureProperty_NullContextIgnored()
+    {
+        var task = EngineHost.HandleUiMessageAsync(
+            new SetSecurePropertyMessage { PropertyName = "X", SecureValue = [0x41] },
+            null, null);
+
+        Assert.True(task.IsCompleted);
+    }
+
+    [Fact]
+    public void SetProperty_AlsoStoresInUserProperties()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "MY_PROP", Value = "Hello" },
+            context, sm);
+
+        Assert.True(context.UserProperties.ContainsKey("MY_PROP"));
+        Assert.Equal("Hello", context.UserProperties["MY_PROP"]);
+    }
+
+    [Fact]
+    public void SetSecureProperty_AlsoStoresInSecretPropertyNames()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        var secretBytes = System.Text.Encoding.UTF8.GetBytes("s3cret!");
+
+        EngineHost.HandleUiMessageAsync(
+            new SetSecurePropertyMessage { PropertyName = "DB_PASSWORD", SecureValue = secretBytes },
+            context, sm);
+
+        Assert.Contains("DB_PASSWORD", context.SecretPropertyNames);
+    }
+
+    [Fact]
+    public void SetProperty_RejectsLowercaseName()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "lowercase", Value = "val" },
+            context, sm);
+
+        Assert.False(context.Variables.Contains("lowercase"));
+    }
+
+    [Fact]
+    public void SetProperty_RejectsBuiltInVariable()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "VersionNT", Value = "hacked" },
+            context, sm);
+
+        // VersionNT should retain its original value (populated by BuiltInVariables), not be overwritten
+        Assert.False(context.UserProperties.ContainsKey("VersionNT"));
+    }
+
+    [Fact]
+    public void SetProperty_RejectsNameExceedingMaxLength()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        var longName = new string('A', 256);
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = longName, Value = "val" },
+            context, sm);
+
+        Assert.False(context.Variables.Contains(longName));
+    }
+
+    [Fact]
+    public void SetProperty_RejectsValueExceedingMaxLength()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        var longValue = new string('X', 32768);
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "MY_PROP", Value = longValue },
+            context, sm);
+
+        Assert.False(context.Variables.Contains("MY_PROP"));
+    }
+
+    [Fact]
+    public void SetProperty_AcceptsValidUppercaseName()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "MY_CUSTOM_PROP", Value = "works" },
+            context, sm);
+
+        var result = context.Variables.GetString("MY_CUSTOM_PROP");
+        Assert.True(result.IsSuccess);
+        Assert.Equal("works", result.Value);
+    }
+
+    [Fact]
+    public void SetProperty_AcceptsNameWithDotsAndUnderscores()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "_MY.PROP_2", Value = "ok" },
+            context, sm);
+
+        Assert.True(context.Variables.Contains("_MY.PROP_2"));
+    }
+
+    [Fact]
+    public void SetProperty_RejectsEmptyName()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "", Value = "val" },
+            context, sm);
+
+        Assert.Empty(context.UserProperties);
+    }
+
+    [Fact]
+    public void SetProperty_RejectsNameWithSpaces()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(
+            new SetPropertyMessage { PropertyName = "MY PROP", Value = "val" },
+            context, sm);
+
+        Assert.False(context.Variables.Contains("MY PROP"));
+    }
+
+    [Fact]
+    public void SetSecureProperty_RejectsBuiltInVariable()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        var secretBytes = System.Text.Encoding.UTF8.GetBytes("hacked");
+
+        EngineHost.HandleUiMessageAsync(
+            new SetSecurePropertyMessage { PropertyName = "ComputerName", SecureValue = secretBytes },
+            context, sm);
+
+        Assert.False(context.SecretPropertyNames.ContainsKey("ComputerName"));
+    }
+
+    [Fact]
+    public void SetSecureProperty_RejectsInvalidName()
+    {
+        var context = CreateContext();
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        var secretBytes = System.Text.Encoding.UTF8.GetBytes("value");
+
+        EngineHost.HandleUiMessageAsync(
+            new SetSecurePropertyMessage { PropertyName = "invalid-name!", SecureValue = secretBytes },
+            context, sm);
+
+        Assert.False(context.Variables.IsSecret("invalid-name!"));
+    }
+
+    [Fact]
+    public void ValidatePropertyName_ReturnsNull_ForValidName()
+    {
+        using var logger = new NullLogger();
+        Assert.Null(EngineHost.ValidatePropertyName("VALID_NAME", logger));
+    }
+
+    [Fact]
+    public void ValidatePropertyName_ReturnsError_ForBuiltIn()
+    {
+        using var logger = new NullLogger();
+        Assert.Equal("built-in", EngineHost.ValidatePropertyName("VersionNT", logger));
+    }
+
+    [Fact]
+    public void ValidatePropertyName_ReturnsError_ForBuiltIn_CaseInsensitive()
+    {
+        using var logger = new NullLogger();
+        // Built-in check is case-insensitive
+        Assert.Equal("built-in", EngineHost.ValidatePropertyName("VERSIONNT", logger));
     }
 
     private sealed class TestUnknownMessage : EngineMessage

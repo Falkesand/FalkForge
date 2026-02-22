@@ -80,6 +80,19 @@ public sealed class EngineContext
     public string? UserInstallDirectory { get; set; }
 
     /// <summary>
+    /// User-defined MSI properties set via SetProperty messages from the UI.
+    /// Thread-safe: uses ConcurrentDictionary for safe cross-thread access.
+    /// </summary>
+    public ConcurrentDictionary<string, string> UserProperties { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Names of secret properties set via SetSecureProperty messages.
+    /// Values are stored in VariableStore as secrets.
+    /// Thread-safe: uses ConcurrentDictionary as concurrent hash set for safe cross-thread access.
+    /// </summary>
+    public ConcurrentDictionary<string, byte> SecretPropertyNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// CancellationTokenSource that can be triggered by user cancellation.
     /// </summary>
     public CancellationTokenSource? UserCancellationSource { get; set; }

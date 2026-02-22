@@ -12,7 +12,9 @@ public sealed class Planner
         InstallAction action,
         VariableStore? variables = null,
         IReadOnlyList<RelatedBundleInfo>? detectedRelatedBundles = null,
-        IReadOnlyDictionary<string, bool>? featureSelections = null)
+        IReadOnlyDictionary<string, bool>? featureSelections = null,
+        IReadOnlyDictionary<string, string>? userProperties = null,
+        IReadOnlySet<string>? secretPropertyNames = null)
     {
         var actions = new List<PlanAction>();
 
@@ -60,6 +62,9 @@ public sealed class Planner
             default:
                 return Result<InstallPlan>.Failure(ErrorKind.PlanningError, $"Unknown action: {action}");
         }
+
+        // Propagate user-set properties and secret references to all planned actions
+        ApplyUserProperties(actions, userProperties, secretPropertyNames);
 
         var segments = BuildSegments(manifest.Chain, actions);
 
@@ -304,6 +309,42 @@ public sealed class Planner
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Copies user-defined properties and secret property bracket references to each PlanAction.
+    /// Secret properties use the <c>[PropertyName]</c> bracket reference pattern so that
+    /// MsiExecutor resolves them from VariableStore at execution time without exposing values in the plan.
+    /// </summary>
+    private static void ApplyUserProperties(
+        List<PlanAction> actions,
+        IReadOnlyDictionary<string, string>? userProperties,
+        IReadOnlySet<string>? secretPropertyNames)
+    {
+        var hasUserProps = userProperties is not null && userProperties.Count > 0;
+        var hasSecrets = secretPropertyNames is not null && secretPropertyNames.Count > 0;
+
+        if (!hasUserProps && !hasSecrets)
+            return;
+
+        foreach (var action in actions)
+        {
+            if (hasUserProps)
+            {
+                foreach (var (key, value) in userProperties!)
+                {
+                    action.Properties[key] = value;
+                }
+            }
+
+            if (hasSecrets)
+            {
+                foreach (var name in secretPropertyNames!)
+                {
+                    action.Properties[name] = $"[{name}]";
+                }
+            }
+        }
     }
 
     private static Result<bool> EvaluateCondition(PackageInfo package, VariableStore? variables)

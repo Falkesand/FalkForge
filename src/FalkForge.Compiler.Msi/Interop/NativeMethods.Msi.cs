@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+
 namespace FalkForge.Compiler.Msi.Interop;
 
 [SupportedOSPlatform("windows")]

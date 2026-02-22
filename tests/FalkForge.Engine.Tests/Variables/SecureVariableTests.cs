@@ -66,4 +66,50 @@ public sealed class SecureVariableTests
 
         Assert.Equal(string.Empty, secure.GetValue());
     }
+
+    [Fact]
+    public void GetValue_FromByteArray_ReturnsUtf8String()
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes("my-secret-password");
+        using var secure = new SecureVariable(bytes);
+
+        Assert.Equal("my-secret-password", secure.GetValue());
+    }
+
+    [Fact]
+    public void Dispose_FromByteArray_ZerosMemory()
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes("secret");
+        var secure = new SecureVariable(bytes);
+
+        // Before dispose, data should contain the UTF-8 bytes
+        Assert.Contains(bytes, b => b != 0);
+
+        secure.Dispose();
+
+        // After dispose, all bytes should be zero (same array is pinned directly)
+        Assert.All(bytes, b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void Constructor_FromByteArray_EmptyArray_Works()
+    {
+        using var secure = new SecureVariable(Array.Empty<byte>());
+
+        Assert.Equal(string.Empty, secure.GetValue());
+    }
+
+    [Fact]
+    public void Constructor_FromByteArray_PinsOriginalArray()
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes("pinned");
+        using var secure = new SecureVariable(bytes);
+
+        // Verify it uses the same array (not a copy) by checking GetValue matches
+        Assert.Equal("pinned", secure.GetValue());
+
+        // Mutate the original array to prove same reference
+        bytes[0] = (byte)'z';
+        Assert.Equal("zinned", secure.GetValue());
+    }
 }

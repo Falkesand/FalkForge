@@ -603,6 +603,112 @@ public class MessageRoundtripTests
     }
 
     [Fact]
+    public void RoundTrip_SetPropertyMessage()
+    {
+        var original = new SetPropertyMessage
+        {
+            SequenceId = 40,
+            PropertyName = "INSTALLFOLDER",
+            Value = @"C:\Program Files\MyApp"
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.SetProperty, deserialized.Type);
+        Assert.Equal(40u, deserialized.SequenceId);
+        Assert.Equal("INSTALLFOLDER", deserialized.PropertyName);
+        Assert.Equal(@"C:\Program Files\MyApp", deserialized.Value);
+    }
+
+    [Fact]
+    public void RoundTrip_SetPropertyMessage_EmptyValue()
+    {
+        var original = new SetPropertyMessage
+        {
+            SequenceId = 41,
+            PropertyName = "MYPROP",
+            Value = ""
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("MYPROP", deserialized.PropertyName);
+        Assert.Equal("", deserialized.Value);
+    }
+
+    [Fact]
+    public void RoundTrip_SetPropertyMessage_UnicodePropertyName()
+    {
+        var original = new SetPropertyMessage
+        {
+            SequenceId = 42,
+            PropertyName = "PROP_\u00e4\u00f6\u00fc_\u4e2d\u6587",
+            Value = "\u00c9l\u00e8ve"
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("PROP_\u00e4\u00f6\u00fc_\u4e2d\u6587", deserialized.PropertyName);
+        Assert.Equal("\u00c9l\u00e8ve", deserialized.Value);
+    }
+
+    [Fact]
+    public void RoundTrip_SetSecurePropertyMessage()
+    {
+        var secureValue = new byte[] { 0x53, 0x65, 0x63, 0x72, 0x65, 0x74 };
+        var original = new SetSecurePropertyMessage
+        {
+            SequenceId = 43,
+            PropertyName = "DB_PASSWORD",
+            SecureValue = secureValue
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.SetSecureProperty, deserialized.Type);
+        Assert.Equal(43u, deserialized.SequenceId);
+        Assert.Equal("DB_PASSWORD", deserialized.PropertyName);
+        Assert.Equal(secureValue, deserialized.SecureValue);
+    }
+
+    [Fact]
+    public void RoundTrip_SetSecurePropertyMessage_EmptyPayload()
+    {
+        var original = new SetSecurePropertyMessage
+        {
+            SequenceId = 44,
+            PropertyName = "EMPTY_SECRET",
+            SecureValue = []
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("EMPTY_SECRET", deserialized.PropertyName);
+        Assert.Empty(deserialized.SecureValue);
+    }
+
+    [Fact]
+    public void RoundTrip_SetSecurePropertyMessage_LargePayload()
+    {
+        var largePayload = new byte[1024];
+        for (var i = 0; i < largePayload.Length; i++)
+            largePayload[i] = (byte)(i % 256);
+
+        var original = new SetSecurePropertyMessage
+        {
+            SequenceId = 45,
+            PropertyName = "LARGE_SECRET",
+            SecureValue = largePayload
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("LARGE_SECRET", deserialized.PropertyName);
+        Assert.Equal(1024, deserialized.SecureValue.Length);
+        Assert.Equal(largePayload, deserialized.SecureValue);
+    }
+
+    [Fact]
     public void RoundTrip_LargeFeatureArray()
     {
         var features = new FeatureState[100];

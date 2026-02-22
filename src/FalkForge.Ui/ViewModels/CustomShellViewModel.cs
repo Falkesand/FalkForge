@@ -206,7 +206,8 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
+            System.Diagnostics.Trace.TraceError($"Engine action failed: {ex}");
+            StatusMessage = "An unexpected error occurred. See logs for details.";
         }
         finally
         {

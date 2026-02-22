@@ -1,7 +1,9 @@
-namespace FalkForge.Engine.RestartManager;
-
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+
+namespace FalkForge.Engine.RestartManager;
 
 /// <summary>
 /// P/Invoke declarations for the Windows Restart Manager API (rstrtmgr.dll).

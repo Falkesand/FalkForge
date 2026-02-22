@@ -88,4 +88,61 @@ public sealed class VariableStoreSecretTests
         Assert.NotNull(raw);
         Assert.Equal("Server=db;Password=p@ss", raw);
     }
+
+    [Fact]
+    public void SetSecretBytes_GetSecret_ReturnsValue()
+    {
+        using var store = new VariableStore();
+        var bytes = System.Text.Encoding.UTF8.GetBytes("s3cret!");
+        store.SetSecret("Password", bytes);
+
+        var result = store.GetSecret("Password");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("s3cret!", result.Value);
+    }
+
+    [Fact]
+    public void SetSecretBytes_OverwritesPrevious_DisposesPrevious()
+    {
+        using var store = new VariableStore();
+
+        // Set initial secret via byte[]
+        var oldBytes = System.Text.Encoding.UTF8.GetBytes("old-value");
+        store.SetSecret("Token", oldBytes);
+
+        // Capture the internal SecureVariable to verify disposal
+        var secretsField = typeof(VariableStore).GetField("_secrets",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var secrets = (System.Collections.Concurrent.ConcurrentDictionary<string, SecureVariable>)secretsField.GetValue(store)!;
+        var oldSecure = secrets["Token"];
+
+        // Overwrite with new byte[]
+        var newBytes = System.Text.Encoding.UTF8.GetBytes("new-value");
+        store.SetSecret("Token", newBytes);
+
+        // Old SecureVariable should be disposed (GetValue throws)
+        Assert.Throws<ObjectDisposedException>(() => oldSecure.GetValue());
+
+        // Old bytes should be zeroed
+        Assert.All(oldBytes, b => Assert.Equal(0, b));
+
+        // New value should be retrievable
+        var result = store.GetSecret("Token");
+        Assert.True(result.IsSuccess);
+        Assert.Equal("new-value", result.Value);
+    }
+
+    [Fact]
+    public void SetSecretBytes_GetRaw_ReturnsStringValue()
+    {
+        using var store = new VariableStore();
+        var bytes = System.Text.Encoding.UTF8.GetBytes("Server=db;Password=p@ss");
+        store.SetSecret("ConnectionString", bytes);
+
+        var raw = store.GetRaw("ConnectionString");
+
+        Assert.NotNull(raw);
+        Assert.Equal("Server=db;Password=p@ss", raw);
+    }
 }

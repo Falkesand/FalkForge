@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using FalkForge.Compiler.Msi.UI;
 using FalkForge.Models;
 
@@ -9,6 +10,9 @@ namespace FalkForge.Compiler.Msi.Tables;
 [SupportedOSPlatform("windows")]
 internal sealed class TableEmitter
 {
+    private static readonly Regex SafeIdentifierRegex =
+        new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
     private readonly MsiDatabase _database;
 
     internal TableEmitter(MsiDatabase database)
@@ -1390,10 +1394,40 @@ internal sealed class TableEmitter
         return Unit.Value;
     }
 
+    /// <summary>
+    /// Defense-in-depth: validates custom table and column names are safe SQL identifiers
+    /// before they are interpolated into CREATE TABLE / SELECT statements.
+    /// ModelValidator checks upstream, but we must not trust unvalidated input this close
+    /// to SQL emission — a crafted name could escape backtick quoting.
+    /// </summary>
+    internal static Result<Unit> ValidateCustomTableIdentifiers(IReadOnlyList<CustomTableModel> customTables)
+    {
+        foreach (var table in customTables)
+        {
+            if (string.IsNullOrWhiteSpace(table.Name) || !SafeIdentifierRegex.IsMatch(table.Name))
+                return Result<Unit>.Failure(ErrorKind.CompilationError,
+                    $"Custom table name '{table.Name}' contains invalid characters. " +
+                    "Table names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
+
+            foreach (var col in table.Columns)
+            {
+                if (string.IsNullOrWhiteSpace(col.Name) || !SafeIdentifierRegex.IsMatch(col.Name))
+                    return Result<Unit>.Failure(ErrorKind.CompilationError,
+                        $"Custom table '{table.Name}' column name '{col.Name}' contains invalid characters. " +
+                        "Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
+            }
+        }
+
+        return Unit.Value;
+    }
+
     private Result<Unit> EmitCustomTables(ResolvedPackage resolved)
     {
         var customTables = resolved.Package.CustomTables;
         if (customTables.Count == 0) return Unit.Value;
+
+        var identifierCheck = ValidateCustomTableIdentifiers(customTables);
+        if (identifierCheck.IsFailure) return identifierCheck;
 
         foreach (var table in customTables)
         {

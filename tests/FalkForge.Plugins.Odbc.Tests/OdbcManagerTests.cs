@@ -22,6 +22,37 @@ public sealed class OdbcManagerTests
         Assert.False(result.Value);
     }
 
+    [Theory]
+    [InlineData(@"..\..\..\Windows\System32\config\SAM")]
+    [InlineData("test;DROP TABLE")]
+    [InlineData("test/path")]
+    [InlineData("test\\path")]
+    [InlineData("test\0name")]
+    [InlineData("test%00name")]
+    public void DsnExists_invalid_characters_returns_validation_failure(string dsnName)
+    {
+        var manager = new OdbcManager();
+        var result = manager.DsnExists(dsnName);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("invalid characters", result.Error.Message);
+    }
+
+    [Theory]
+    [InlineData("MyDSN")]
+    [InlineData("My DSN Name")]
+    [InlineData("DSN-With-Hyphens")]
+    [InlineData("DSN_With_Underscores")]
+    [InlineData("DSN 123")]
+    public void DsnExists_valid_names_pass_validation(string dsnName)
+    {
+        var manager = new OdbcManager();
+        var result = manager.DsnExists(dsnName);
+        // Should not fail with validation error — may succeed or fail with PluginError
+        if (result.IsFailure)
+            Assert.NotEqual(ErrorKind.Validation, result.Error.Kind);
+    }
+
     [Fact]
     public void Plugin_registers_IOdbcManager()
     {

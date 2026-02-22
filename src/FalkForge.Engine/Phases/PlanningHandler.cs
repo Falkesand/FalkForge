@@ -65,7 +65,9 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             context.RequestedAction,
             context.Variables,
             context.DetectedRelatedBundles,
-            featureSnapshot);
+            featureSnapshot,
+            context.UserProperties,
+            context.SecretPropertyNames.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase));
         if (planResult.IsFailure)
         {
             context.ErrorMessage = planResult.Error.Message;

@@ -99,10 +99,15 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     }
 
     public void SetProperty(string name, string value)
-        => throw new NotSupportedException("Property passing via protocol is not yet implemented.");
+    {
+        _ = SendSetPropertyAsync(name, value);
+    }
 
     public void SetSecureProperty(string name, SensitiveBytes value)
-        => throw new NotSupportedException("Secure property passing via protocol is not yet implemented.");
+    {
+        var copy = value.Span.ToArray();
+        _ = SendSetSecurePropertyAsync(name, copy);
+    }
 
     public async Task<int> ShutdownAsync()
     {
@@ -175,6 +180,30 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         if (_pipe.IsConnected)
         {
             await _pipe.SendAsync(new SetInstallDirectoryMessage { Directory = directory });
+        }
+    }
+
+    private async Task SendSetPropertyAsync(string name, string value)
+    {
+        if (_pipe.IsConnected)
+        {
+            await _pipe.SendAsync(new SetPropertyMessage { PropertyName = name, Value = value });
+        }
+    }
+
+    private async Task SendSetSecurePropertyAsync(string name, byte[] secureValue)
+    {
+        try
+        {
+            if (_pipe.IsConnected)
+            {
+                await _pipe.SendAsync(new SetSecurePropertyMessage
+                    { PropertyName = name, SecureValue = secureValue });
+            }
+        }
+        finally
+        {
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(secureValue);
         }
     }
 

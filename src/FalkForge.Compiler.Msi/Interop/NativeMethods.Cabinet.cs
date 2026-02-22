@@ -6,6 +6,10 @@ namespace FalkForge.Compiler.Msi.Interop;
 [SupportedOSPlatform("windows")]
 internal static partial class NativeMethods
 {
+    // NOTE: The assembly-level [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    // attribute in NativeMethods.Msi.cs applies to this entire assembly, so cabinet.dll
+    // is also loaded exclusively from System32 — no untrusted DLL search path risk.
+
     // FCI (File Compression Interface) - Cabinet creation API
     // All callbacks use Cdecl calling convention.
     // FCI uses ANSI strings, so we use DllImport with CharSet.Ansi.

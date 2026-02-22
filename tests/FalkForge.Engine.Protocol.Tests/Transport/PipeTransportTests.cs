@@ -54,6 +54,55 @@ public class PipeTransportTests
     }
 
     [Fact]
+    public async Task Handshake_failure_invokes_security_event_callback()
+    {
+        var pipeName = $"test-{Guid.NewGuid()}";
+        string? securityEvent = null;
+        var serverOptions = new PipeConnectionOptions
+        {
+            PipeName = pipeName,
+            SharedSecret = RandomNumberGenerator.GetBytes(32),
+            ConnectionTimeout = TimeSpan.FromSeconds(5),
+            OnSecurityEvent = msg => securityEvent = msg
+        };
+        var clientOptions = CreateOptions(pipeName, RandomNumberGenerator.GetBytes(32));
+
+        await using var server = new PipeServer(serverOptions, _ => Task.CompletedTask);
+        var serverTask = server.StartAsync();
+
+        await using var client = new PipeClient(clientOptions, _ => Task.CompletedTask);
+        await client.ConnectAsync();
+        await serverTask;
+
+        Assert.NotNull(securityEvent);
+        Assert.Contains("HMAC validation failed", securityEvent);
+    }
+
+    [Fact]
+    public async Task Successful_handshake_does_not_invoke_security_event_callback()
+    {
+        var pipeName = $"test-{Guid.NewGuid()}";
+        string? securityEvent = null;
+        var options = new PipeConnectionOptions
+        {
+            PipeName = pipeName,
+            SharedSecret = RandomNumberGenerator.GetBytes(32),
+            ConnectionTimeout = TimeSpan.FromSeconds(5),
+            OnSecurityEvent = msg => securityEvent = msg
+        };
+
+        await using var server = new PipeServer(options, _ => Task.CompletedTask);
+        var serverTask = server.StartAsync();
+
+        await using var client = new PipeClient(options, _ => Task.CompletedTask);
+        await client.ConnectAsync();
+        var serverResult = await serverTask;
+
+        Assert.True(serverResult.IsSuccess);
+        Assert.Null(securityEvent);
+    }
+
+    [Fact]
     public async Task Client_sends_message_server_receives_it()
     {
         var options = CreateOptions();

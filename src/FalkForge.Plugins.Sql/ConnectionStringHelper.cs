@@ -5,15 +5,18 @@ using Microsoft.Data.SqlClient;
 internal static class ConnectionStringHelper
 {
     public static string Build(string server, string? database, bool integratedSecurity,
-        string? userName, string? password, int timeoutSeconds = 5)
+        string? userName, string? password, int timeoutSeconds = 5,
+        bool encrypt = true, bool trustServerCertificate = false)
     {
         var builder = new SqlConnectionStringBuilder
         {
             DataSource = server,
             IntegratedSecurity = integratedSecurity,
             ConnectTimeout = timeoutSeconds,
-            TrustServerCertificate = true,
-            Encrypt = SqlConnectionEncryptOption.Optional,
+            TrustServerCertificate = trustServerCertificate,
+            Encrypt = encrypt
+                ? SqlConnectionEncryptOption.Mandatory
+                : SqlConnectionEncryptOption.Optional,
         };
         if (!string.IsNullOrEmpty(database))
             builder.InitialCatalog = database;

@@ -1,11 +1,22 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
-using System.Diagnostics;
 using System.Text.RegularExpressions;
+using FalkForge.Platform.Windows;
 
 public sealed partial class MsiUninstallCommand : IElevatedCommand
 {
-    private const int ProcessTimeoutMs = 600_000;
+    private const int InstallUILevelNone = 2;
+    private const int InstallLevelDefault = 0;
+    private const int InstallStateAbsent = 2;
+    private const uint ErrorSuccess = 0;
+    private const uint ErrorSuccessRebootRequired = 3010;
+
+    private readonly IMsiApi _msiApi;
+
+    public MsiUninstallCommand(IMsiApi msiApi)
+    {
+        _msiApi = msiApi;
+    }
 
     public string Name => "MsiUninstall";
 
@@ -20,31 +31,27 @@ public sealed partial class MsiUninstallCommand : IElevatedCommand
 
         try
         {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
-            {
-                FileName = "msiexec.exe",
-                Arguments = $"/x \"{productCode}\" /qn /norestart",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            process.Start();
+            _msiApi.SetInternalUI(InstallUILevelNone, IntPtr.Zero);
 
-            if (!process.WaitForExit(ProcessTimeoutMs))
-            {
-                process.Kill(entireProcessTree: true);
-                return Result<byte[]>.Failure(ErrorKind.ExecutionError, "msiexec uninstall timed out and was terminated");
-            }
+            var exitCode = _msiApi.ConfigureProduct(productCode, InstallLevelDefault, InstallStateAbsent);
 
-            if (process.ExitCode != 0)
-                return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"msiexec uninstall exited with code {process.ExitCode}");
+            if (exitCode != ErrorSuccess && exitCode != ErrorSuccessRebootRequired)
+                return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI uninstall failed with exit code {exitCode}");
 
-            return Array.Empty<byte>();
+            return EncodeExitCode(exitCode);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI uninstall failed: {ex.Message}");
         }
+    }
+
+    private static byte[] EncodeExitCode(uint exitCode)
+    {
+        using var stream = new MemoryStream(4);
+        using var writer = new BinaryWriter(stream);
+        writer.Write(exitCode);
+        return stream.ToArray();
     }
 
     [GeneratedRegex(@"^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$")]

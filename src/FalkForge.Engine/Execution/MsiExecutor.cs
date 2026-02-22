@@ -1,11 +1,11 @@
 namespace FalkForge.Engine.Execution;
 
-using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Variables;
+using FalkForge.Platform.Windows;
 
 public sealed partial class MsiExecutor
 {
@@ -13,23 +13,31 @@ public sealed partial class MsiExecutor
 
     private readonly Func<IElevationClient?> _elevationClientAccessor;
     private readonly Func<VariableStore?> _variableStoreAccessor;
+    private readonly Func<IMsiApi?> _msiApiAccessor;
 
     public MsiExecutor()
+        : this(static () => null, static () => null, static () => null)
     {
-        _elevationClientAccessor = static () => null;
-        _variableStoreAccessor = static () => null;
     }
 
     public MsiExecutor(Func<IElevationClient?> elevationClientAccessor)
+        : this(elevationClientAccessor, static () => null, static () => null)
     {
-        _elevationClientAccessor = elevationClientAccessor;
-        _variableStoreAccessor = static () => null;
     }
 
     public MsiExecutor(Func<IElevationClient?> elevationClientAccessor, Func<VariableStore?> variableStoreAccessor)
+        : this(elevationClientAccessor, variableStoreAccessor, static () => null)
+    {
+    }
+
+    public MsiExecutor(
+        Func<IElevationClient?> elevationClientAccessor,
+        Func<VariableStore?> variableStoreAccessor,
+        Func<IMsiApi?> msiApiAccessor)
     {
         _elevationClientAccessor = elevationClientAccessor;
         _variableStoreAccessor = variableStoreAccessor;
+        _msiApiAccessor = msiApiAccessor;
     }
 
     public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
@@ -45,7 +53,7 @@ public sealed partial class MsiExecutor
             return await ExecuteElevatedAsync(action, propsResult.Value, elevationClient, ct);
         }
 
-        return await ExecuteDirectAsync(action, propsResult.Value, ct);
+        return ExecuteDirect(action, propsResult.Value);
     }
 
     private static Result<string> ValidateAndBuildPropertyArgs(PlanAction action, VariableStore? variableStore)
@@ -152,47 +160,43 @@ public sealed partial class MsiExecutor
         }
     }
 
-    private static async Task<Result<int>> ExecuteDirectAsync(
-        PlanAction action,
-        string additionalArgs,
-        CancellationToken ct)
+    private Result<int> ExecuteDirect(PlanAction action, string additionalArgs)
     {
-        var args = action.ActionType switch
-        {
-            PlanActionType.Install => $"/i \"{action.Package.SourcePath}\" /qn /norestart",
-            PlanActionType.Uninstall => $"/x \"{action.Package.SourcePath}\" /qn /norestart",
-            PlanActionType.Repair => $"/fa \"{action.Package.SourcePath}\" /qn /norestart",
-            _ => (string?)null
-        };
-
-        if (args is null)
-        {
-            return Result<int>.Failure(
-                ErrorKind.ExecutionError, $"Unknown action type: {action.ActionType}");
-        }
-
-        args += additionalArgs;
+        var msiApi = _msiApiAccessor();
+        if (msiApi is null)
+            return Result<int>.Failure(ErrorKind.ExecutionError, "MSI API not available");
 
         try
         {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
+            msiApi.SetInternalUI(2, IntPtr.Zero); // INSTALLUILEVEL_NONE
+
+            uint exitCode = action.ActionType switch
             {
-                FileName = "msiexec.exe",
-                Arguments = args,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                PlanActionType.Install => msiApi.InstallProduct(
+                    action.Package.SourcePath,
+                    string.IsNullOrEmpty(additionalArgs) ? null : additionalArgs.TrimStart()),
+
+                PlanActionType.Uninstall => msiApi.ConfigureProduct(
+                    action.Package.Properties.GetValueOrDefault("ProductCode")
+                        ?? action.Package.SourcePath,
+                    0,  // INSTALLLEVEL_DEFAULT
+                    2), // INSTALLSTATE_ABSENT
+
+                PlanActionType.Repair => msiApi.InstallProduct(
+                    action.Package.SourcePath,
+                    string.IsNullOrEmpty(additionalArgs)
+                        ? "REINSTALL=ALL REINSTALLMODE=vomus"
+                        : $"REINSTALL=ALL REINSTALLMODE=vomus{additionalArgs}"),
+
+                _ => throw new InvalidOperationException($"Unknown action type: {action.ActionType}")
             };
 
-            process.Start();
-            await process.WaitForExitAsync(ct);
-
-            return process.ExitCode;
+            return (int)exitCode;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return Result<int>.Failure(
-                ErrorKind.ExecutionError, $"Failed to execute MSI: {ex.Message}");
+                ErrorKind.ExecutionError, $"MSI execution failed: {ex.Message}");
         }
     }
 

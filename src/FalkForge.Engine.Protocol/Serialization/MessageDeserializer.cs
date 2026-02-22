@@ -79,6 +79,9 @@ public static class MessageDeserializer
                 MessageType.RequestPlan => new RequestPlanMessage
                     { SequenceId = sequenceId, Action = (InstallAction)reader.ReadInt32() },
                 MessageType.RequestApply => new RequestApplyMessage { SequenceId = sequenceId },
+                MessageType.SetProperty => new SetPropertyMessage
+                    { SequenceId = sequenceId, PropertyName = reader.ReadString(), Value = reader.ReadString() },
+                MessageType.SetSecureProperty => ReadSetSecureProperty(reader, sequenceId),
                 MessageType.ElevateExecute => ReadElevateExecute(reader, sequenceId),
                 MessageType.ElevateResult => ReadElevateResult(reader, sequenceId),
                 MessageType.UpdateAvailable => new UpdateAvailableMessage
@@ -157,6 +160,23 @@ public static class MessageDeserializer
             SequenceId = sequenceId,
             TotalDiskSpaceRequired = diskSpace,
             PackageIds = packageIds
+        };
+    }
+
+    private static Result<EngineMessage> ReadSetSecureProperty(BinaryReader reader, uint sequenceId)
+    {
+        var propertyName = reader.ReadString();
+        var payloadLength = reader.ReadInt32();
+        if (payloadLength < 0 || payloadLength > MaxPayloadSize)
+            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Secure property payload length out of range: {payloadLength}");
+
+        var secureValue = reader.ReadBytes(payloadLength);
+
+        return new SetSecurePropertyMessage
+        {
+            SequenceId = sequenceId,
+            PropertyName = propertyName,
+            SecureValue = secureValue
         };
     }
 

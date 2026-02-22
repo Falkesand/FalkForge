@@ -338,7 +338,7 @@ public sealed class CabinetBuilder : IDisposable
     {
         try
         {
-            var tempPath = Path.GetTempFileName();
+            var tempPath = Path.Combine(Path.GetTempPath(), $"falkforge_{Guid.NewGuid():N}.tmp");
             var bytes = System.Text.Encoding.ASCII.GetBytes(tempPath + '\0');
             if (bytes.Length > cbTempName)
                 return 0; // FALSE - buffer too small

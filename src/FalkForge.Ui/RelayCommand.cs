@@ -25,10 +25,11 @@ internal sealed class RelayCommand : ICommand
         {
             // Cancellation is expected during shutdown
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Prevent unhandled exceptions from crashing the application.
             // Engine errors are surfaced via StatusMessage on the ViewModel.
+            System.Diagnostics.Trace.TraceError($"RelayCommand: {ex}");
         }
     }
 

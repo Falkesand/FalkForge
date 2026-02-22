@@ -17,9 +17,6 @@ public sealed class SigningOptions
     /// <summary>Digest algorithm (default: sha256).</summary>
     public string DigestAlgorithm { get; init; } = "sha256";
 
-    /// <summary>Additional signtool.exe arguments.</summary>
-    public string? AdditionalArguments { get; init; }
-
     /// <summary>Description shown in UAC prompt.</summary>
     public string? Description { get; init; }
 

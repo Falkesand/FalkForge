@@ -146,6 +146,24 @@ public sealed class VariableStore : IDisposable
     }
 
     /// <summary>
+    /// Stores a secret variable from raw bytes with pinned, zeroed-on-dispose memory.
+    /// Avoids creating an intermediate string on the managed heap.
+    /// </summary>
+    public void SetSecret(string name, byte[] value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(value);
+
+        var secure = new SecureVariable(value);
+        SecureVariable? displaced = null;
+        _secrets.AddOrUpdate(
+            name,
+            addValueFactory: _ => secure,
+            updateValueFactory: (_, previous) => { displaced = previous; return secure; });
+        displaced?.Dispose();
+    }
+
+    /// <summary>
     /// Retrieves a secret variable value.
     /// </summary>
     public Result<string> GetSecret(string name)
