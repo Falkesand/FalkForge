@@ -4,6 +4,7 @@ using System.Diagnostics;
 using FalkForge.Engine.Elevation.Commands;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
+using FalkForge.Platform.Windows;
 
 public sealed class ElevatedHost : IAsyncDisposable
 {
@@ -19,10 +20,11 @@ public sealed class ElevatedHost : IAsyncDisposable
         _pipeOptions = pipeOptions;
         _parentPid = parentPid;
 
+        var msiApi = new WindowsMsiApi();
         _executor = new ElevatedCommandExecutor(new IElevatedCommand[]
         {
-            new MsiInstallCommand(),
-            new MsiUninstallCommand(),
+            new MsiInstallCommand(msiApi),
+            new MsiUninstallCommand(msiApi),
             new ServiceInstallCommand(),
             new RegistryWriteCommand(),
             new FileWriteCommand()

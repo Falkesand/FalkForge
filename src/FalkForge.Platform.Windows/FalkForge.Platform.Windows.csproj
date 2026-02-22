@@ -7,4 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Platform.Windows.Tests" />
+  </ItemGroup>
 </Project>

@@ -16,6 +16,7 @@ using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.RestartManager;
 using FalkForge.Platform;
+using FalkForge.Platform.Windows;
 
 public sealed class EngineHost : IAsyncDisposable
 {
@@ -76,7 +77,10 @@ public sealed class EngineHost : IAsyncDisposable
         var updateChecker = new UpdateChecker(_httpClient, _logger);
         var planner = new Planner();
         var processRunner = new ProcessRunner();
-        var msiExecutor = new MsiExecutor(() => _context.ElevationClient, () => _context.Variables);
+        var msiExecutor = new MsiExecutor(
+            () => _context.ElevationClient,
+            () => _context.Variables,
+            static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
         var bundleExecutor = new BundleExecutor(processRunner);
@@ -212,6 +216,24 @@ public sealed class EngineHost : IAsyncDisposable
             case RequestApplyMessage:
                 // Apply is triggered by the state machine after planning completes;
                 // this message is a UI acknowledgement that the user is ready.
+                break;
+
+            case SetPropertyMessage propMsg:
+                if (IsInPhaseForConfiguration(stateMachine.CurrentPhase))
+                {
+                    context.Variables.Set(propMsg.PropertyName, propMsg.Value);
+                    context.UserProperties[propMsg.PropertyName] = propMsg.Value;
+                }
+                break;
+
+            case SetSecurePropertyMessage securePropMsg:
+                if (IsInPhaseForConfiguration(stateMachine.CurrentPhase))
+                {
+                    context.Variables.SetSecret(
+                        securePropMsg.PropertyName,
+                        System.Text.Encoding.UTF8.GetString(securePropMsg.SecureValue));
+                    context.SecretPropertyNames.TryAdd(securePropMsg.PropertyName, 0);
+                }
                 break;
 
             case ShutdownRequestMessage:

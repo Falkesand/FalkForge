@@ -25,6 +25,8 @@ public enum MessageType : ushort
     RequestDetect = 0x0205,
     RequestPlan = 0x0206,
     RequestApply = 0x0207,
+    SetProperty = 0x0208,
+    SetSecureProperty = 0x0209,
 
     // Engine -> Elevated (0x03xx)
     ElevateExecute = 0x0301,

@@ -124,6 +124,17 @@ public static class MessageSerializer
             case RequestApplyMessage:
                 break;
 
+            case SetPropertyMessage m:
+                writer.Write(m.PropertyName);
+                writer.Write(m.Value);
+                break;
+
+            case SetSecurePropertyMessage m:
+                writer.Write(m.PropertyName);
+                writer.Write(m.SecureValue.Length);
+                writer.Write(m.SecureValue);
+                break;
+
             case ElevateExecuteMessage m:
                 writer.Write(m.CommandName);
                 writer.Write(m.CommandPayload.Length);

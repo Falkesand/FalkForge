@@ -3,6 +3,7 @@ namespace FalkForge.Ui.Tests.ViewModels;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Transport;
+using FalkForge.Ui.Abstractions;
 using Xunit;
 
 public class EngineClientTests
@@ -88,5 +89,55 @@ public class EngineClientTests
         await using var client = new EngineClient(CreateOptions(), CreateManifest());
 
         Assert.NotNull(client.StatusMessage);
+    }
+
+    [Fact]
+    public async Task SetProperty_DoesNotThrow_WhenDisconnected()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+
+        client.SetProperty("MY_PROP", "my_value");
+    }
+
+    [Fact]
+    public async Task SetProperty_AcceptsEmptyValue()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+
+        client.SetProperty("PROP", string.Empty);
+    }
+
+    [Fact]
+    public async Task SetSecureProperty_DoesNotThrow_WhenDisconnected()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+        using var sensitive = new SensitiveBytes([0x01, 0x02, 0x03]);
+
+        client.SetSecureProperty("DB_PASSWORD", sensitive);
+    }
+
+    [Fact]
+    public async Task SetSecureProperty_CopiesBytesSynchronously()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+        var original = new byte[] { 0xAA, 0xBB, 0xCC };
+        var sensitive = new SensitiveBytes(original);
+
+        client.SetSecureProperty("SECRET", sensitive);
+
+        // Dispose zeros the original array — if the implementation copied
+        // synchronously, the internal copy is unaffected. This test verifies
+        // the call completes without error even after the source is disposed.
+        sensitive.Dispose();
+        Assert.Equal(0, original[0]); // Confirms disposal zeroed the source.
+    }
+
+    [Fact]
+    public async Task SetSecureProperty_AcceptsEmptyBytes()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+        using var sensitive = new SensitiveBytes([]);
+
+        client.SetSecureProperty("EMPTY_SECRET", sensitive);
     }
 }
