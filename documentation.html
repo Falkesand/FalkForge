@@ -833,6 +833,9 @@
           <a href="#demo-06">06 — Product Suite</a>
           <a href="#demo-07">07 — Extensions</a>
           <a href="#demo-11">11 — Custom UI</a>
+          <a href="#demo-12">12 — Custom UI (VS Style)</a>
+          <a href="#demo-13">13 — Glass UI</a>
+          <a href="#demo-14">14 — Lifecycle Hooks</a>
           <a href="#demo-json">JSON — Minimal</a>
         </div>
       </div>
@@ -7223,6 +7226,86 @@ return InstallerApp.Run(args, app => app
         .Add&lt;WelcomePage&gt;()
         .Add&lt;ProgressPage&gt;()
         .Add&lt;CompletePage&gt;()));</code></pre>
+
+<h3 id="demo-12">12 - Custom UI (VS Installer Style)</h3>
+<p><code>demo/12-custom-ui-vstyle/Program.cs</code></p>
+<p>
+  A Visual Studio Installer-style dark theme UI for a fictional "FalkForge DevTools Suite 2026".
+  Borderless window, workload selection with component details, per-workload progress bars.
+</p>
+<p><strong>Key concepts:</strong> <code>.Borderless()</code>, dark theme (<code>#1E1E1E</code>),
+  purple accent (<code>#7B68EE</code>), 4 pages (Product, Workloads, Progress, Complete),
+  <code>DataTemplate</code> bindings with <code>RelativeSource</code>, localization.</p>
+<pre><code class="language-csharp">return InstallerApp.Run(args, app =&gt; app
+    .Localization(loc =&gt; loc
+        .DefaultCulture("en-US")
+        .AddJsonResource&lt;ProductPage&gt;("lang.strings.en-US.json")
+        .AddJsonResource&lt;ProductPage&gt;("lang.strings.sv-SE.json")
+        .DetectCulture()
+        .AllowLanguageSelection())
+    .Window(w =&gt; w
+        .Size(1024, 700)
+        .Borderless()
+        .Background("#1E1E1E")
+        .Accent("#7B68EE")
+        .Title("FalkForge DevTools Suite Installer"))
+    .Pages(p =&gt; p
+        .Add&lt;ProductPage&gt;()
+        .Add&lt;WorkloadsPage&gt;()
+        .Add&lt;ProgressPage&gt;()
+        .Add&lt;CompletePage&gt;()));</code></pre>
+
+<h3 id="demo-13">13 - Glassmorphism UI</h3>
+<p><code>demo/13-glass-ui/Program.cs</code></p>
+<p>
+  A pill-shaped semi-transparent dark glass window showcasing extreme UI customization.
+  Demonstrates that installers can look like anything — not just standard wizard dialogs.
+</p>
+<p><strong>Key concepts:</strong> <code>.CustomWindow&lt;GlassUi.GlassWindow&gt;()</code>,
+  <code>AllowsTransparency</code>, <code>CornerRadius="175"</code> (pill shape),
+  <code>DropShadowEffect</code> glow on Install button hover, <code>DragMove()</code> on borderless window.</p>
+<pre><code class="language-csharp">return InstallerApp.Run(args, app =&gt; app
+    .Window(w =&gt; w
+        .CustomWindow&lt;GlassUi.GlassWindow&gt;()
+        .Size(500, 350)
+        .Borderless()
+        .Title("GlassForge"))
+    .Pages(p =&gt; p
+        .Add&lt;InstallPage&gt;()));</code></pre>
+<div class="note">
+  <strong>Design note:</strong> The <code>GlassWindow</code> is a custom <code>Window</code> subclass
+  with <code>WindowStyle=None</code>, <code>AllowsTransparency=True</code>, and
+  <code>Background=Transparent</code>. The visual pill shape comes from a <code>Border</code>
+  with <code>CornerRadius="175"</code> (half the window height) and a semi-transparent
+  dark background (<code>#1A1A2E</code> at 85% opacity). The outer pill border uses a
+  semi-transparent <code>LinearGradientBrush</code> with no hover animation at the window level.
+  The <code>DropShadowEffect</code> hover glow is on the Install button in <code>InstallView.xaml</code>.
+</div>
+
+<h3 id="demo-14">14 - Engine Lifecycle Hooks</h3>
+<p><code>demo/14-lifecycle-hooks/Program.cs</code></p>
+<p>
+  A practical "Contoso DataHub" installer demonstrating engine lifecycle hooks and
+  secure property passing. Shows how to inject custom logic into Detect, Plan, and Apply phases.
+</p>
+<p><strong>Key concepts:</strong> <code>OnDetectBeginAsync()</code> / <code>OnDetectCompleteAsync()</code>,
+  <code>OnPlanBeginAsync()</code> with <code>Engine.SetProperty()</code>,
+  <code>Engine.SetSecureProperty()</code> for passwords via named pipe,
+  <code>PasswordBridge</code> attached property, cancellation (return <code>false</code> to abort).</p>
+<pre><code class="language-csharp">// ProgressPage.cs — Setting MSI properties in OnPlanBeginAsync
+protected override Task&lt;bool&gt; OnPlanBeginAsync(InstallAction action)
+{
+    Engine.SetProperty("DBSERVER", SharedState.Get&lt;string&gt;("DbServer") ?? "");
+    Engine.SetProperty("DBNAME", SharedState.Get&lt;string&gt;("DbName") ?? "");
+
+    // Only send credentials when not using integrated security
+    // Secure property — password via named pipe, never on command line
+    using var pw = SharedState.GetSensitive("DbPassword");
+    if (!pw.IsEmpty)
+        Engine.SetSecureProperty("DBPASSWORD", pw);
+
+    return Task.FromResult(true); // return false to cancel
+}</code></pre>
 
 <h3 id="demo-json">JSON - Minimal Configuration</h3>
 <p><code>demo/json/01-minimal.json</code></p>
