@@ -126,6 +126,7 @@ Thread-safe state store. `Get<T>(key)` / `Set<T>(key, value)` for general data. 
 
 ### InstallerPage / InstallerPage<TView> -- Custom UI Page Base
 `InstallerPage` (`src/FalkForge.Ui/InstallerPage.cs`): Non-generic abstract base with internal constructor. Properties: `Engine` (IInstallerEngine), `SharedState` (InstallerState), `DetectedState` (InstallState) -- all internal set. Virtual: `OnNext()` -> PageResult, `OnBack()` -> PageResult, `CanGoNext`, `CanGoBack`, lifecycle hooks. INotifyPropertyChanged with `SetField<T>` helper. `GetPassword(string key)` -- returns `SensitiveBytes` from registered PasswordBox. Used with `PasswordBridge.Key` attached property.
+Lifecycle hooks: `OnDetectBeginAsync()`, `OnDetectCompleteAsync(DetectResult)`, `OnPlanBeginAsync(InstallAction)`, `OnPlanCompleteAsync(PlanResult)`, `OnApplyBeginAsync()`, `OnApplyCompleteAsync(ApplyResult)`. Begin hooks return `Task<bool>` (false cancels). Called by `CustomShellViewModel.ExecuteEngineActionAsync`.
 `InstallerPage<TView>` (`src/FalkForge.Ui/InstallerPageOfT.cs`): Generic subclass where `TView : FrameworkElement, new()`. Auto-creates view and wires DataContext.
 
 ### InstallerApp -- `src/FalkForge.Ui/InstallerApp.cs`
@@ -284,6 +285,9 @@ Error: any -> Failed -> RollingBack -> Shutdown
 - `ElevatedHost.cs` -- Parse args, verify parent PID, HMAC handshake
 - `ElevatedCommandExecutor.cs` -- Whitelisted command dispatch
 - `Commands/` -- MsiInstallCommand, MsiUninstallCommand, ServiceInstallCommand, RegistryWriteCommand, FileWriteCommand
+
+### IInstallerEngine -- Property Passing
+`SetProperty(name, value)` sends a regular MSI property to the engine via named pipe. `SetSecureProperty(name, SensitiveBytes)` sends secrets via named pipe — never on the command line. Use `PasswordBridge` + `GetPassword()` + `SetSecureProperty()` for credential collection pages.
 
 ### UI (`src/FalkForge.Ui/`)
 - `EngineClient.cs` -- IInstallerEngine over PipeClient
@@ -462,6 +466,7 @@ MSBuild SDK (netstandard2.0) with source generation for referenced project outpu
 - `10-advanced-bundle/` -- Multi-project bundle with rollback boundaries, related bundles, MSU/MSP packages
 - `11-custom-ui-simple/` -- Minimal custom UI: Welcome -> Install -> Complete. Standard window with blue accent. Demonstrates InstallerPage<TView> + InstallerApp.Run() entry point.
 - `12-custom-ui-vstyle/` -- VS Installer-style dark theme UI for fictional "FalkForge DevTools Suite 2026". Borderless window, workload selection with component details, per-workload progress bars. 4 pages: Product, Workloads, Progress, Complete. Dark theme (#1E1E1E) with purple accent (#7B68EE).
+- `14-lifecycle-hooks/` -- Engine lifecycle hooks showcase: detect/plan/apply hooks, SetProperty, SetSecureProperty with PasswordBridge.
 
 ### JSON Config Demos (`demo/json/`, 7 files)
 - `01-minimal.json` -- Minimal JSON-driven MSI

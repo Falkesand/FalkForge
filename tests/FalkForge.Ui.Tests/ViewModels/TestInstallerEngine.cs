@@ -45,6 +45,10 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public void Cancel() => CancelCalled = true;
 
+    public void SetProperty(string name, string value) { }
+
+    public void SetSecureProperty(string name, SensitiveBytes value) { }
+
     public Task<int> ShutdownAsync() => Task.FromResult(0);
 
     private sealed class EmptyObservable<T> : IObservable<T>

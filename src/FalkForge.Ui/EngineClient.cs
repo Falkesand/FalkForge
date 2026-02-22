@@ -98,6 +98,12 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         _ = _pipe.SendAsync(new CancelMessage());
     }
 
+    public void SetProperty(string name, string value)
+        => throw new NotSupportedException("Property passing via protocol is not yet implemented.");
+
+    public void SetSecureProperty(string name, SensitiveBytes value)
+        => throw new NotSupportedException("Secure property passing via protocol is not yet implemented.");
+
     public async Task<int> ShutdownAsync()
     {
         _shutdownTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);

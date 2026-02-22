@@ -169,8 +169,28 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         IsApplying = true;
         try
         {
-            await _engine.PlanAsync(action);
-            await _engine.ApplyAsync();
+            var page = CurrentPage;
+
+            // Detect phase
+            if (page is not null && !await page.OnDetectBeginAsync())
+                return;
+            var detectResult = await _engine.DetectAsync();
+            if (page is not null)
+                await page.OnDetectCompleteAsync(detectResult);
+
+            // Plan phase
+            if (page is not null && !await page.OnPlanBeginAsync(action))
+                return;
+            var planResult = await _engine.PlanAsync(action);
+            if (page is not null)
+                await page.OnPlanCompleteAsync(planResult);
+
+            // Apply phase
+            if (page is not null && !await page.OnApplyBeginAsync())
+                return;
+            var applyResult = await _engine.ApplyAsync();
+            if (page is not null)
+                await page.OnApplyCompleteAsync(applyResult);
 
             // Auto-advance to next page after successful apply
             if (_currentPageIndex < _pages.Count - 1)

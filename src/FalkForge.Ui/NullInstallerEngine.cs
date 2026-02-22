@@ -6,6 +6,9 @@ using FalkForge.Ui.Abstractions;
 
 internal sealed class NullInstallerEngine : IInstallerEngine
 {
+    private readonly Dictionary<string, string> _properties = [];
+    private readonly Dictionary<string, SensitiveBytes> _secureProperties = [];
+
     public InstallerManifest Manifest { get; } = new()
     {
         Name = "Standalone",
@@ -36,7 +39,23 @@ internal sealed class NullInstallerEngine : IInstallerEngine
 
     public void Cancel() { }
 
-    public Task<int> ShutdownAsync() => Task.FromResult(0);
+    public void SetProperty(string name, string value)
+        => _properties[name] = value;
+
+    public void SetSecureProperty(string name, SensitiveBytes value)
+    {
+        if (_secureProperties.TryGetValue(name, out var existing))
+            existing.Dispose();
+        _secureProperties[name] = value;
+    }
+
+    public Task<int> ShutdownAsync()
+    {
+        foreach (var sp in _secureProperties.Values)
+            sp.Dispose();
+        _secureProperties.Clear();
+        return Task.FromResult(0);
+    }
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {

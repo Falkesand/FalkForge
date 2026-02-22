@@ -17,4 +17,19 @@ public interface IInstallerEngine
     string InstallDirectory { get; set; }
     void Cancel();
     Task<int> ShutdownAsync();
+
+    /// <summary>
+    /// Sets a property value to pass to MSI packages during installation.
+    /// </summary>
+    void SetProperty(string name, string value);
+
+    /// <summary>
+    /// Sets a secure property value transported via named pipe to the MSI session.
+    /// Never appears on the command line or in logs.
+    /// </summary>
+    /// <remarks>
+    /// Implementations must consume the bytes synchronously before returning.
+    /// The caller will dispose the <paramref name="value"/> after this method returns.
+    /// </remarks>
+    void SetSecureProperty(string name, SensitiveBytes value);
 }

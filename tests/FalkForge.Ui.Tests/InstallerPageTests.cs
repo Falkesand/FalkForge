@@ -312,4 +312,94 @@ public class InstallerPageTests
 
         Assert.Equal(string.Empty, changedProperty);
     }
+
+    // --- NullInstallerEngine Property Tests ---
+
+    [Fact]
+    public void SetProperty_StoresValue()
+    {
+        var engine = new NullInstallerEngine();
+
+        engine.SetProperty("DBSERVER", "sql01");
+        engine.SetProperty("DBSERVER", "sql02"); // overwrite succeeds without throwing
+    }
+
+    [Fact]
+    public async Task SetSecureProperty_StoresAndDisposesOnShutdown()
+    {
+        var engine = new NullInstallerEngine();
+        var data = System.Text.Encoding.UTF8.GetBytes("secret");
+        var bytes = new SensitiveBytes(data);
+
+        engine.SetSecureProperty("DBPASSWORD", bytes);
+        await engine.ShutdownAsync();
+
+        // After shutdown, the SensitiveBytes should be disposed (zeroed)
+        Assert.All(data, b => Assert.Equal(0, b));
+    }
+
+    // --- Lifecycle Hook Defaults ---
+
+    [Fact]
+    public async Task OnDetectBeginAsync_DefaultBehavior_ReturnsTrue()
+    {
+        var page = new TestPage();
+
+        var result = await page.OnDetectBeginAsync();
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task OnDetectCompleteAsync_DefaultBehavior_ReturnsCompletedTask()
+    {
+        var page = new TestPage();
+
+        var task = page.OnDetectCompleteAsync(new DetectResult(InstallState.NotInstalled, null, []));
+
+        Assert.True(task.IsCompleted);
+        await task;
+    }
+
+    [Fact]
+    public async Task OnPlanBeginAsync_DefaultBehavior_ReturnsTrue()
+    {
+        var page = new TestPage();
+
+        var result = await page.OnPlanBeginAsync(InstallAction.Install);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task OnPlanCompleteAsync_DefaultBehavior_ReturnsCompletedTask()
+    {
+        var page = new TestPage();
+
+        var task = page.OnPlanCompleteAsync(new PlanResult([], 0L));
+
+        Assert.True(task.IsCompleted);
+        await task;
+    }
+
+    [Fact]
+    public async Task OnApplyBeginAsync_DefaultBehavior_ReturnsTrue()
+    {
+        var page = new TestPage();
+
+        var result = await page.OnApplyBeginAsync();
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task OnApplyCompleteAsync_DefaultBehavior_ReturnsCompletedTask()
+    {
+        var page = new TestPage();
+
+        var task = page.OnApplyCompleteAsync(new ApplyResult(0, null));
+
+        Assert.True(task.IsCompleted);
+        await task;
+    }
 }

@@ -27,6 +27,37 @@ public abstract class InstallerPage : INotifyPropertyChanged
     public virtual PageResult OnBack() => PageResult.Previous;
     public virtual Task OnNavigatedToAsync() => Task.CompletedTask;
     public virtual Task OnNavigatingFromAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Called before the engine begins detection. Return false to cancel.
+    /// </summary>
+    protected internal virtual Task<bool> OnDetectBeginAsync() => Task.FromResult(true);
+
+    /// <summary>
+    /// Called after detection completes with the result.
+    /// </summary>
+    protected internal virtual Task OnDetectCompleteAsync(DetectResult result) => Task.CompletedTask;
+
+    /// <summary>
+    /// Called before the engine begins planning. Return false to cancel.
+    /// </summary>
+    protected internal virtual Task<bool> OnPlanBeginAsync(InstallAction action) => Task.FromResult(true);
+
+    /// <summary>
+    /// Called after planning completes with the result.
+    /// </summary>
+    protected internal virtual Task OnPlanCompleteAsync(PlanResult result) => Task.CompletedTask;
+
+    /// <summary>
+    /// Called before the engine begins applying changes. Return false to cancel.
+    /// </summary>
+    protected internal virtual Task<bool> OnApplyBeginAsync() => Task.FromResult(true);
+
+    /// <summary>
+    /// Called after apply completes with the result.
+    /// </summary>
+    protected internal virtual Task OnApplyCompleteAsync(ApplyResult result) => Task.CompletedTask;
+
     public virtual bool CanGoNext => true;
     public virtual bool CanGoBack => true;
 

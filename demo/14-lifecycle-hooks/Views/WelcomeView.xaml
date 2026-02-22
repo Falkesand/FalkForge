@@ -1,0 +1,8 @@
+<UserControl x:Class="LifecycleDemo.Views.WelcomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Margin="20" VerticalAlignment="Center">
+        <TextBlock Text="{Binding ProductName}" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="14" Foreground="#555"/>
+    </StackPanel>
+</UserControl>
