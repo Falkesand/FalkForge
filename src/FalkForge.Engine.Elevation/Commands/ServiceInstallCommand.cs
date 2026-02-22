@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 public sealed partial class ServiceInstallCommand : IElevatedCommand
 {
     private const int ProcessTimeoutMs = 600_000;
-    private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}'];
+    private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}', '"'];
 
     public string Name => "ServiceInstall";
 

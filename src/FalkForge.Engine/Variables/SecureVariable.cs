@@ -16,6 +16,13 @@ internal sealed class SecureVariable : IDisposable
         _pin = GCHandle.Alloc(_data, GCHandleType.Pinned);
     }
 
+    public SecureVariable(byte[] data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        _data = data;
+        _pin = GCHandle.Alloc(_data, GCHandleType.Pinned);
+    }
+
     public string GetValue()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

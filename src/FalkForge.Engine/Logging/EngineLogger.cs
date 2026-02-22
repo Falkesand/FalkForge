@@ -29,6 +29,13 @@ public sealed class EngineLogger : IEngineLogger
             Directory.CreateDirectory(directory);
         }
 
+        // SECURITY: Log file is created with FileShare.Read (not ReadWrite) to prevent
+        // concurrent writes from other processes. The log directory under %TEMP% inherits
+        // default ACLs from the user's temp folder, which on standard Windows configurations
+        // restricts access to the current user + SYSTEM + Administrators. Per-session unique
+        // directory names (see GetDefaultLogPath) further reduce predictability.
+        // Full ACL restriction via DirectorySecurity is not used because the
+        // System.IO.FileSystem.AccessControl APIs are not NativeAOT-compatible.
         var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
         _writer = new StreamWriter(fileStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
         {
@@ -76,12 +83,15 @@ public sealed class EngineLogger : IEngineLogger
         Log(LogLevel.Error, category, message);
 
     /// <summary>
-    /// Generates a default log file path under %TEMP%\FalkForge.
+    /// Generates a default log file path under %TEMP%\FalkForge\{session}.
+    /// Uses a per-session GUID to prevent cross-process log file conflicts
+    /// and reduce predictability of log file paths.
     /// </summary>
     public static string GetDefaultLogPath()
     {
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
-        return Path.Combine(Path.GetTempPath(), "FalkForge", $"install_{timestamp}.log");
+        var sessionId = Guid.NewGuid().ToString("N");
+        return Path.Combine(Path.GetTempPath(), "FalkForge", sessionId, $"install_{timestamp}.log");
     }
 
     private void Flush()

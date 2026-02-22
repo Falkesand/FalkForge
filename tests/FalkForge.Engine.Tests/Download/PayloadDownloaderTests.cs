@@ -134,6 +134,26 @@ public sealed class PayloadDownloaderTests : IDisposable
     }
 
     [Fact]
+    public async Task Download_WithAbsolutePathTraversal_ReturnsFailure()
+    {
+        // This test verifies the canonical-path containment check catches traversal
+        // even when the path doesn't literally contain ".." (the old check was bypassable).
+        using var client = new HttpClient();
+        var downloader = new PayloadDownloader(client);
+
+        // Construct an absolute path that resolves outside the intended directory
+        var basePath = Path.Combine(_tempDir, "downloads");
+        var traversalPath = Path.Combine(basePath, "..", "..", "malicious.exe");
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/file.bin", "AABB", traversalPath);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+        Assert.Contains("path traversal", result.Error.Message);
+    }
+
+    [Fact]
     public async Task Download_WithFileSchemeUrl_ReturnsFailure()
     {
         using var client = new HttpClient();

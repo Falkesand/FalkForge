@@ -41,7 +41,10 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { }
+            catch (Exception ex) when (ex is SqlException or InvalidOperationException or System.Security.SecurityException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"SQL Server network discovery failed: {ex.Message}");
+            }
 
             return Result<IReadOnlyList<string>>.Success(servers.Order().ToList());
         }, ct);
@@ -65,6 +68,9 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
                 }
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or System.IO.IOException)
+        {
+            System.Diagnostics.Trace.TraceWarning($"SQL Server registry discovery failed: {ex.Message}");
+        }
     }
 }

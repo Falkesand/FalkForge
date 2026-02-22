@@ -2,6 +2,7 @@
   <PropertyGroup>
     <RootNamespace>FalkForge.Platform.Windows</RootNamespace>
     <Description>Windows P/Invoke implementations</Description>
+    <!-- Required for P/Invoke interop with Windows registry and MSI APIs -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>

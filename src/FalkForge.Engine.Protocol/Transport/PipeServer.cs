@@ -1,3 +1,9 @@
+// SECURITY: Pipe traffic is authenticated via HMAC-SHA256 handshake but is NOT encrypted.
+// An attacker with admin or kernel-level access could read named pipe buffers in transit.
+// This is an accepted risk: such an attacker already has the ability to read process memory
+// directly, attach a debugger, or inject code — making pipe encryption ineffective as a
+// mitigation. The HMAC handshake prevents unauthorized (non-admin) processes from connecting.
+
 namespace FalkForge.Engine.Protocol.Transport;
 
 using System.Buffers;
@@ -69,12 +75,18 @@ public sealed class PipeServer : IAsyncDisposable
         {
             var read = await _pipe.ReadAsync(clientHmac.AsMemory(bytesRead), ct);
             if (read == 0)
+            {
+                _options.OnSecurityEvent?.Invoke("Client disconnected during HMAC handshake before completing response");
                 return Result<Unit>.Failure(ErrorKind.HandshakeError, "Client disconnected during handshake");
+            }
             bytesRead += read;
         }
 
         if (!PipeSecurityValidator.ValidateHmac(_options.SharedSecret, nonce, clientHmac))
+        {
+            _options.OnSecurityEvent?.Invoke("HMAC validation failed: client presented invalid credentials during handshake");
             return Result<Unit>.Failure(ErrorKind.HandshakeError, "HMAC validation failed");
+        }
 
         return Unit.Value;
     }
@@ -129,6 +141,9 @@ public sealed class PipeServer : IAsyncDisposable
                     var result = MessageDeserializer.Deserialize(messageBuffer, messageLength);
                     if (result.IsSuccess)
                         await _messageHandler(result.Value);
+                    else
+                        _options.OnSecurityEvent?.Invoke(
+                            $"Message deserialization failed ({messageLength} bytes): {result.Error.Message}");
                 }
                 finally
                 {

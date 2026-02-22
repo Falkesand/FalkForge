@@ -22,7 +22,6 @@ public sealed class SigningTests
                 s.StoreName = "Root";
                 s.TimestampUrl = "http://timestamp.example.com";
                 s.DigestAlgorithm = "sha384";
-                s.AdditionalArguments = "/v";
                 s.Description = "My App";
                 s.DescriptionUrl = "https://example.com";
             });
@@ -34,7 +33,6 @@ public sealed class SigningTests
         Assert.Equal("Root", options.StoreName);
         Assert.Equal("http://timestamp.example.com", options.TimestampUrl);
         Assert.Equal("sha384", options.DigestAlgorithm);
-        Assert.Equal("/v", options.AdditionalArguments);
         Assert.Equal("My App", options.Description);
         Assert.Equal("https://example.com", options.DescriptionUrl);
     }

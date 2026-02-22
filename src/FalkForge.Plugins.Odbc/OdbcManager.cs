@@ -1,14 +1,21 @@
 namespace FalkForge.Plugins.Odbc;
 
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
-internal sealed class OdbcManager : IOdbcManager
+internal sealed partial class OdbcManager : IOdbcManager
 {
+    private static readonly Regex ValidDsnNamePattern = GetValidDsnNameRegex();
+
     public Result<bool> DsnExists(string dsnName)
     {
         if (string.IsNullOrWhiteSpace(dsnName))
             return Result<bool>.Failure(new Error(ErrorKind.Validation, "DSN name cannot be empty."));
+
+        if (!ValidDsnNamePattern.IsMatch(dsnName))
+            return Result<bool>.Failure(new Error(ErrorKind.Validation,
+                "DSN name contains invalid characters. Only alphanumeric characters, spaces, hyphens, and underscores are allowed."));
 
         try
         {
@@ -21,6 +28,9 @@ internal sealed class OdbcManager : IOdbcManager
             return Result<bool>.Failure(new Error(ErrorKind.PluginError, $"Failed to check DSN: {ex.Message}"));
         }
     }
+
+    [GeneratedRegex(@"^[A-Za-z0-9_ \-]+$")]
+    private static partial Regex GetValidDsnNameRegex();
 
     public void LaunchOdbcAdministrator()
     {

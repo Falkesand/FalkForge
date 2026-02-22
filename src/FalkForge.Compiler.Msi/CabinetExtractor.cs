@@ -178,7 +178,7 @@ internal sealed class CabinetExtractor : IDisposable
         try
         {
             var (mode, access) = MapOpenFlags(oflag);
-            var stream = new FileStream(pszFile, mode, access, FileShare.ReadWrite);
+            var stream = new FileStream(pszFile, mode, access, FileShare.Read);
             var handle = (nint)_nextInputHandle++;
             _openStreams[handle] = stream;
             return handle;

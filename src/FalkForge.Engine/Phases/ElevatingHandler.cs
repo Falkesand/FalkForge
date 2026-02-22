@@ -87,7 +87,7 @@ public sealed class ElevatingHandler : IEnginePhaseHandler
             var secretPipeName = $"falkforge_init_{Guid.NewGuid():N}";
             using var initPipe = new NamedPipeServerStream(
                 secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
-                PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
             // Build command-line arguments for the companion (no --secret in args)
             var args = $"--pipe {pipeName} --secret-pipe {secretPipeName} --parent-pid {Environment.ProcessId}";

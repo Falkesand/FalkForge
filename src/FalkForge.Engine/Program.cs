@@ -5,7 +5,6 @@ internal static class Program
     private static int Main(string[] args)
     {
         string? pipeName = null;
-        string? sharedSecret = null;
         string? manifestPath = null;
 
         for (var i = 0; i < args.Length - 1; i++)
@@ -15,8 +14,12 @@ internal static class Program
                 case "--pipe":
                     pipeName = args[++i];
                     break;
+                // SECURITY: DEPRECATED — --secret is accepted for backward compatibility but the
+                // value is discarded. The engine uses the init-pipe pattern (like Engine.Elevation)
+                // to receive secrets over a short-lived pipe instead of command-line arguments,
+                // which are visible in process listings and event logs.
                 case "--secret":
-                    sharedSecret = args[++i];
+                    _ = args[++i]; // consume and discard
                     break;
                 case "--manifest":
                     manifestPath = args[++i];
@@ -27,7 +30,7 @@ internal static class Program
         // For now, exit with error if no manifest
         if (manifestPath is null)
         {
-            Console.Error.WriteLine("Usage: FalkForge.Engine --manifest <path> [--pipe <name> --secret <base64>]");
+            Console.Error.WriteLine("Usage: FalkForge.Engine --manifest <path> [--pipe <name>]");
             return 1;
         }
 

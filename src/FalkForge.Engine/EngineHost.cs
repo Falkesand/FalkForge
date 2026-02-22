@@ -1,5 +1,6 @@
 namespace FalkForge.Engine;
 
+using System.Text.RegularExpressions;
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Detection;
 using FalkForge.Engine.Download;
@@ -18,8 +19,34 @@ using FalkForge.Engine.RestartManager;
 using FalkForge.Platform;
 using FalkForge.Platform.Windows;
 
-public sealed class EngineHost : IAsyncDisposable
+public sealed partial class EngineHost : IAsyncDisposable
 {
+    private const int MaxPropertyNameLength = 255;
+    private const int MaxPropertyValueLength = 32767;
+
+    /// <summary>
+    /// Valid MSI public property name: starts with uppercase letter or underscore,
+    /// followed by uppercase letters, digits, underscores, or periods.
+    /// </summary>
+    [GeneratedRegex(@"^[A-Z_][A-Z0-9_.]*$", RegexOptions.CultureInvariant)]
+    private static partial Regex PropertyNameRegex();
+
+    /// <summary>
+    /// Built-in variable names populated by the engine. These cannot be overwritten
+    /// by UI SetProperty/SetSecureProperty messages.
+    /// </summary>
+    private static readonly HashSet<string> BuiltInVariableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "VersionNT", "VersionNTMajor", "VersionNTMinor", "ServicePackLevel", "WindowsBuildNumber",
+        "NativeMachine", "ProcessorArchitecture", "ProcessArchitecture", "Is64BitOperatingSystem",
+        "SystemFolder", "WindowsFolder", "ProgramFilesFolder", "CommonFilesFolder", "TempFolder",
+        "DesktopFolder", "AdminToolsFolder", "LocalAppDataFolder", "AppDataFolder",
+        "StartMenuFolder", "StartupFolder", "PersonalFolder", "FontsFolder", "ProgramFiles64Folder",
+        "Privileged", "TerminalServer", "RemoteSession", "ComputerName", "LogonUser",
+        "InstalledCulture", "UserLanguageID", "SystemLanguageID", "VersionMsi",
+        "Date", "Time", "RebootPending"
+    };
+
     private readonly InstallerManifest _manifest;
     private readonly IPlatformServices _platform;
     private readonly PipeConnectionOptions? _pipeOptions;
@@ -46,7 +73,16 @@ public sealed class EngineHost : IAsyncDisposable
         // Create pipe server if options provided
         if (_pipeOptions is not null)
         {
-            _uiPipe = new PipeServer(_pipeOptions, HandleUiMessageAsync);
+            // Wire security event callback to structured logger
+            var pipeOptionsWithLogging = new PipeConnectionOptions
+            {
+                PipeName = _pipeOptions.PipeName,
+                SharedSecret = _pipeOptions.SharedSecret,
+                MaxMessageSize = _pipeOptions.MaxMessageSize,
+                ConnectionTimeout = _pipeOptions.ConnectionTimeout,
+                OnSecurityEvent = msg => _logger!.Warning("Security", msg)
+            };
+            _uiPipe = new PipeServer(pipeOptionsWithLogging, HandleUiMessageAsync);
             var connectResult = await _uiPipe.StartAsync(ct);
             if (connectResult.IsFailure)
             {
@@ -83,9 +119,9 @@ public sealed class EngineHost : IAsyncDisposable
             static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
-        var bundleExecutor = new BundleExecutor(processRunner);
-        var packageExecutor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor);
         var cacheLayout = new CacheLayout(_manifest.Scope);
+        var bundleExecutor = new BundleExecutor(processRunner, cacheLayout.BasePath);
+        var packageExecutor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor);
         var cache = new PackageCache(cacheLayout);
 
         // Create and open rollback journal
@@ -221,17 +257,34 @@ public sealed class EngineHost : IAsyncDisposable
             case SetPropertyMessage propMsg:
                 if (IsInPhaseForConfiguration(stateMachine.CurrentPhase))
                 {
-                    context.Variables.Set(propMsg.PropertyName, propMsg.Value);
-                    context.UserProperties[propMsg.PropertyName] = propMsg.Value;
+                    var propValidation = ValidatePropertyName(propMsg.PropertyName, context.Logger);
+                    if (propValidation is not null)
+                        break;
+
+                    var propValue = propMsg.Value ?? string.Empty;
+                    if (propValue.Length > MaxPropertyValueLength)
+                    {
+                        context.Logger.Warning("EngineHost",
+                            string.Concat("SetProperty rejected: value exceeds max length (",
+                                MaxPropertyValueLength.ToString(), " chars) for '", propMsg.PropertyName, "'"));
+                        break;
+                    }
+
+                    context.Variables.Set(propMsg.PropertyName, propValue);
+                    context.UserProperties[propMsg.PropertyName] = propValue;
                 }
                 break;
 
             case SetSecurePropertyMessage securePropMsg:
                 if (IsInPhaseForConfiguration(stateMachine.CurrentPhase))
                 {
+                    var secPropValidation = ValidatePropertyName(securePropMsg.PropertyName, context.Logger);
+                    if (secPropValidation is not null)
+                        break;
+
                     context.Variables.SetSecret(
                         securePropMsg.PropertyName,
-                        System.Text.Encoding.UTF8.GetString(securePropMsg.SecureValue));
+                        securePropMsg.SecureValue);
                     context.SecretPropertyNames.TryAdd(securePropMsg.PropertyName, 0);
                 }
                 break;
@@ -249,6 +302,45 @@ public sealed class EngineHost : IAsyncDisposable
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Validates a property name from an incoming UI message.
+    /// Returns null if valid, or an error message string if invalid.
+    /// </summary>
+    internal static string? ValidatePropertyName(string propertyName, IEngineLogger logger)
+    {
+        if (string.IsNullOrEmpty(propertyName))
+        {
+            logger.Warning("EngineHost", "SetProperty rejected: property name is empty");
+            return "empty";
+        }
+
+        if (propertyName.Length > MaxPropertyNameLength)
+        {
+            logger.Warning("EngineHost",
+                string.Concat("SetProperty rejected: name exceeds max length (", MaxPropertyNameLength.ToString(), " chars)"));
+            return "too long";
+        }
+
+        // Check built-in names before format validation because built-in names
+        // (e.g. "VersionNT") use mixed case and would fail the public property regex.
+        if (BuiltInVariableNames.Contains(propertyName))
+        {
+            logger.Warning("EngineHost",
+                string.Concat("SetProperty rejected: '", propertyName, "' is a built-in variable and cannot be overwritten"));
+            return "built-in";
+        }
+
+        if (!PropertyNameRegex().IsMatch(propertyName))
+        {
+            logger.Warning("EngineHost",
+                string.Concat("SetProperty rejected: invalid name format '", propertyName,
+                    "' (must match ^[A-Z_][A-Z0-9_.]*$)"));
+            return "invalid format";
+        }
+
+        return null;
     }
 
     private static bool IsInPhaseForConfiguration(EnginePhase phase)

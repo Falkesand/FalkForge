@@ -9,7 +9,6 @@ public sealed class SigningOptionsBuilder
     public string StoreName { get; set; } = "My";
     public string? TimestampUrl { get; set; }
     public string DigestAlgorithm { get; set; } = "sha256";
-    public string? AdditionalArguments { get; set; }
     public string? Description { get; set; }
     public string? DescriptionUrl { get; set; }
 
@@ -37,8 +36,15 @@ public sealed class SigningOptionsBuilder
         return this;
     }
 
+    private static readonly string[] AllowedDigestAlgorithms = ["sha256", "sha384", "sha512"];
+
     public SigningOptionsBuilder Algorithm(string algorithm)
     {
+        ArgumentException.ThrowIfNullOrEmpty(algorithm);
+        if (Array.IndexOf(AllowedDigestAlgorithms, algorithm) < 0)
+            throw new ArgumentException(
+                $"DigestAlgorithm '{algorithm}' is not allowed. Must be one of: sha256, sha384, sha512.",
+                nameof(algorithm));
         DigestAlgorithm = algorithm;
         return this;
     }
@@ -57,7 +63,6 @@ public sealed class SigningOptionsBuilder
         StoreName = StoreName,
         TimestampUrl = TimestampUrl,
         DigestAlgorithm = DigestAlgorithm,
-        AdditionalArguments = AdditionalArguments,
         Description = Description,
         DescriptionUrl = DescriptionUrl
     };
