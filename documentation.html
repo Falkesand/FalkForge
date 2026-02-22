@@ -692,6 +692,7 @@
           <a href="#ui-secure-passwords">10.10 Secure Passwords</a>
           <a href="#ui-complete-example">10.11 Complete Example</a>
           <a href="#ui-localization">10.12 UI Localization</a>
+          <a href="#ui-lifecycle-hooks">10.13 Lifecycle Hooks</a>
         </div>
       </div>
 
@@ -5418,6 +5419,69 @@ or navigation — all visible text updates in place.</p>
     ComboBox subclass that communicates with the resolver via the <code>CultureChanged</code> event.
     When the event fires, the resolver switches its active culture and notifies all pages to refresh
     their bindings.
+</div>
+
+<h3 id="ui-lifecycle-hooks">10.13 Engine Lifecycle Hooks</h3>
+
+<p>Custom UI pages can hook into the engine's three phases — Detect, Plan, and Apply — to inject
+custom logic, validate state, pass MSI properties, or cancel execution.</p>
+
+<h4>Six Virtual Methods on InstallerPage</h4>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>Returns</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>OnDetectBeginAsync()</code></td><td><code>Task&lt;bool&gt;</code></td><td>Called before detection. Return <code>false</code> to cancel.</td></tr>
+        <tr><td><code>OnDetectCompleteAsync(DetectResult)</code></td><td><code>Task</code></td><td>Called after detection with results.</td></tr>
+        <tr><td><code>OnPlanBeginAsync(InstallAction)</code></td><td><code>Task&lt;bool&gt;</code></td><td>Called before planning. Return <code>false</code> to cancel. Ideal for setting MSI properties.</td></tr>
+        <tr><td><code>OnPlanCompleteAsync(PlanResult)</code></td><td><code>Task</code></td><td>Called after planning with package count and size.</td></tr>
+        <tr><td><code>OnApplyBeginAsync()</code></td><td><code>Task&lt;bool&gt;</code></td><td>Called before applying. Return <code>false</code> for last-minute abort.</td></tr>
+        <tr><td><code>OnApplyCompleteAsync(ApplyResult)</code></td><td><code>Task</code></td><td>Called after apply with exit code and error message.</td></tr>
+    </tbody>
+</table>
+
+<h4>Execution Flow</h4>
+
+<pre><code class="language-text">OnDetectBegin → DetectAsync → OnDetectComplete →
+OnPlanBegin → PlanAsync → OnPlanComplete →
+OnApplyBegin → ApplyAsync → OnApplyComplete</code></pre>
+
+<p>If any Begin hook returns <code>false</code>, execution stops and the user stays on the current page.</p>
+
+<h4>Example: Setting MSI Properties in OnPlanBeginAsync</h4>
+
+<pre><code class="language-csharp">protected override Task&lt;bool&gt; OnPlanBeginAsync(InstallAction action)
+{
+    Engine.SetProperty("DBSERVER", SharedState.Get&lt;string&gt;("DbServer") ?? "");
+    Engine.SetProperty("DBNAME", SharedState.Get&lt;string&gt;("DbName") ?? "");
+
+    // Secure properties via named pipe — never on command line
+    using var pw = SharedState.GetSensitive("DbPassword");
+    if (!pw.IsEmpty)
+        Engine.SetSecureProperty("DBPASSWORD", pw);
+
+    return Task.FromResult(true);
+}</code></pre>
+
+<h4>Property Passing API</h4>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>Transport</th><th>Use For</th></tr></thead>
+    <tbody>
+        <tr><td><code>Engine.SetProperty(name, value)</code></td><td>MSI command line</td><td>Non-sensitive values (server names, paths, flags)</td></tr>
+        <tr><td><code>Engine.SetSecureProperty(name, bytes)</code></td><td>HMAC-authenticated named pipe</td><td>Passwords, tokens, secrets — never logged</td></tr>
+    </tbody>
+</table>
+
+<p>Secure properties are DPAPI-encrypted in memory, sent via the engine's existing named pipe to the
+elevated process, which calls <code>MsiSetProperty()</code> directly on the MSI session handle. The memory
+is zeroed immediately after use.</p>
+
+<div class="note">
+    <strong>Security note:</strong> Never use <code>SetProperty()</code> for passwords or secrets.
+    Command-line properties are visible via process monitoring tools. Use <code>SetSecureProperty()</code>
+    which transports values through the HMAC-authenticated named pipe and calls <code>MsiSetProperty()</code>
+    directly on the MSI session — the value never appears on the command line or in logs.
 </div>
 </section>
 <!-- ============================================================ -->

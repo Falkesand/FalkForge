@@ -131,6 +131,23 @@ public class IInstallerEngineTests
         Assert.True(completed);
     }
 
+    [Fact]
+    public void SetProperty_DoesNotThrow()
+    {
+        IInstallerEngine engine = new TestInstallerEngine();
+
+        engine.SetProperty("DBSERVER", "sql01");
+    }
+
+    [Fact]
+    public void SetSecureProperty_DoesNotThrow()
+    {
+        IInstallerEngine engine = new TestInstallerEngine();
+        using var bytes = new SensitiveBytes(System.Text.Encoding.UTF8.GetBytes("secret"));
+
+        engine.SetSecureProperty("DBPASSWORD", bytes);
+    }
+
     private sealed class TestObserver<T> : IObserver<T>
     {
         private readonly Action? _onCompleted;
