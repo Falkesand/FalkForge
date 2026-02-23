@@ -365,7 +365,11 @@ public sealed class PackageBuilder
     public PackageModel Build()
     {
         var upgradeCode = UpgradeCode ?? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{Name}::{Manufacturer}");
-        var productCode = ProductCode ?? Guid.NewGuid();
+        var productCode = ProductCode ?? (_reproducibleOptions is not null
+            ? GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"{Name}::{Manufacturer}::{Version}")
+            : Guid.NewGuid());
         var defaultInstallDir = DefaultInstallDirectory ?? KnownFolder.ProgramFiles / Manufacturer / Name;
 
         // If no features defined, create implicit "Complete" feature
