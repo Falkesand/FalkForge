@@ -394,3 +394,6 @@ docs/gen/
 # JetBrains Rider
 *.sln.iml
 .idea/
+
+# Git worktrees
+.worktrees/
