@@ -1,4 +1,4 @@
-namespace FalkForge.Models;
+namespace FalkForge.Builders;
 
 public sealed record ReproducibleBuildOptions
 {

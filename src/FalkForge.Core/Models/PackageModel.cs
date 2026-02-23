@@ -1,5 +1,7 @@
 namespace FalkForge.Models;
 
+using FalkForge.Builders;
+
 public sealed class PackageModel
 {
     public required string Name { get; init; }

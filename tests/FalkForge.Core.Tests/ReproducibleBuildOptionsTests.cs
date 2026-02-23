@@ -1,6 +1,6 @@
 namespace FalkForge.Core.Tests;
 
-using FalkForge.Models;
+using FalkForge.Builders;
 using FalkForge.Testing;
 using Xunit;
 
@@ -65,15 +65,22 @@ public sealed class ReproducibleBuildOptionsTests
     [Fact]
     public void Reproducible_NoEpochAndNoEnvVar_ThrowsRpr002()
     {
+        var prior = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
         Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            InstallerTestHost.BuildPackage(p =>
-            {
-                p.Name = "App";
-                p.Manufacturer = "Corp";
-                p.Reproducible();
-            }));
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+                InstallerTestHost.BuildPackage(p =>
+                {
+                    p.Name = "App";
+                    p.Manufacturer = "Corp";
+                    p.Reproducible();
+                }));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", prior);
+        }
     }
 
     [Fact]
