@@ -72,7 +72,7 @@ public sealed class MsiCompiler : ICompiler
             Directory.CreateDirectory(tempCabPath);
             try
             {
-                var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
+                using var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
                 var cabResult = cabBuilder.BuildCabinet(resolved.Files, tempCabPath, package.Compression);
                 if (cabResult.IsFailure)
                     return Result<string>.Failure(cabResult.Error);

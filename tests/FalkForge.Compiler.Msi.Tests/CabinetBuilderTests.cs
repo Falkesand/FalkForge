@@ -366,6 +366,8 @@ public sealed class CabinetBuilderTests : IDisposable
 
         var bytes1 = File.ReadAllBytes(cab1.Value);
         var bytes2 = File.ReadAllBytes(cab2.Value);
+        // Timestamps are chosen to produce different DOS date/time values after 2-second rounding:
+        // 2020-01-01 00:00:00 → DOS date 0x5021 time 0x0000, 2024-06-15 14:30:22 → DOS date 0x58CF time 0x73CB. They cannot collide.
         Assert.NotEqual(bytes1, bytes2);
     }
 
