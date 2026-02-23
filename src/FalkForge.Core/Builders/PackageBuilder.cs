@@ -368,7 +368,7 @@ public sealed class PackageBuilder
         var productCode = ProductCode ?? (_reproducibleOptions is not null
             ? GuidUtility.CreateDeterministicGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"{Name}::{Manufacturer}::{Version}")
+                $"{Name}::{Manufacturer}::{Version}") // Version.ToString(): 2-component → "1.0", 3-component → "1.0.0"
             : Guid.NewGuid());
         var defaultInstallDir = DefaultInstallDirectory ?? KnownFolder.ProgramFiles / Manufacturer / Name;
 
