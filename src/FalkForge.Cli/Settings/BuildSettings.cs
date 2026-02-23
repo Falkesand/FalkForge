@@ -25,6 +25,11 @@ public sealed class BuildSettings : CommandSettings
     [DefaultValue(false)]
     public bool Verbose { get; init; }
 
+    [Description("Enable reproducible output. Reads SOURCE_DATE_EPOCH env var or falls back to git HEAD timestamp.")]
+    [CommandOption("--reproducible")]
+    [DefaultValue(false)]
+    public bool Reproducible { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
