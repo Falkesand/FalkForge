@@ -90,30 +90,35 @@ public sealed class ReproducibleBuildCommandTests
     [Fact]
     public void Execute_ReproducibleNoEnvVarNoGit_WritesRpr002Error()
     {
-        // Ensure SOURCE_DATE_EPOCH is absent
-        Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
-
-        var console = new TestConsoleOutput();
-        var command = new BuildCommand(console, gitWorkingDirectory: Path.GetTempPath());
-        var settings = new Settings.BuildSettings
+        // Create an isolated directory with no .git ancestor to guarantee git log fails
+        var isolatedDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(isolatedDir);
+        try
         {
-            ProjectPath = "installer.cs",
-            Reproducible = true
-        };
+            var prior = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
+            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
+            try
+            {
+                var console = new TestConsoleOutput();
+                var command = new BuildCommand(console, gitWorkingDirectory: isolatedDir);
+                var settings = new Settings.BuildSettings
+                {
+                    ProjectPath = "installer.cs",
+                    Reproducible = true
+                };
+                var result = command.Execute(CreateContext(), settings);
 
-        // Run from a temp directory that is not a git repo so git fallback fails.
-        var result = command.Execute(CreateContext(), settings);
-
-        // If git happened to succeed (e.g., temp dir is inside a git repo on the
-        // test machine), skip the assertion — we can't control the CI environment.
-        if (console.Errors.Any(e => e.Contains("RPR002")))
-        {
-            Assert.Equal(ExitCodes.RuntimeError, result);
+                Assert.Contains(console.Errors, e => e.Contains("RPR002"));
+                Assert.Equal(ExitCodes.RuntimeError, result);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", prior);
+            }
         }
-        else
+        finally
         {
-            // git succeeded (temp dir inside a repo) — test is vacuously satisfied.
-            Assert.True(true);
+            Directory.Delete(isolatedDir, recursive: false);
         }
     }
 }

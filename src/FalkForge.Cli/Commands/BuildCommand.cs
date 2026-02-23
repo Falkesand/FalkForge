@@ -101,10 +101,16 @@ public sealed class BuildCommand : Command<BuildSettings>
             };
             using var proc = Process.Start(psi)!;
             var output = proc.StandardOutput.ReadToEnd().Trim();
-            proc.WaitForExit();
 
-            if (proc.ExitCode == 0 && long.TryParse(output, out var gitEpoch))
+            if (!proc.WaitForExit(10_000))
+            {
+                proc.Kill();
+                // fall through to RPR002
+            }
+            else if (proc.ExitCode == 0 && long.TryParse(output, out var gitEpoch))
+            {
                 return gitEpoch;
+            }
         }
         catch
         {
