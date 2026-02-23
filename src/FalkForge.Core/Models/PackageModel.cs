@@ -52,4 +52,5 @@ public sealed class PackageModel
     public MsiDialogSet DialogSet { get; init; } = MsiDialogSet.None;
     public int CabinetThreadCount { get; init; }
     public IReadOnlyList<LocalizationData> LocalizationData { get; init; } = [];
+    public ReproducibleBuildOptions? ReproducibleOptions { get; init; }
 }
