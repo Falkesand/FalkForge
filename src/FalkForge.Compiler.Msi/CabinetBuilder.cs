@@ -10,6 +10,8 @@ public sealed class CabinetBuilder : IDisposable
 {
     private const string CabinetFileName = "Data.cab";
 
+    private readonly DateTime? _normalizedTimestamp;
+
     // File handle tracking: maps pseudo-handles to FileStream instances.
     // FCI callbacks use these to perform file I/O through managed streams.
     private readonly Dictionary<nint, FileStream> _openStreams = new();
@@ -29,6 +31,11 @@ public sealed class CabinetBuilder : IDisposable
     private NativeMethods.FnFciGetNextCabinet? _getNextCabinetCallback;
     private NativeMethods.FnFciStatus? _statusCallback;
     private NativeMethods.FnFciGetOpenInfo? _getOpenInfoCallback;
+
+    public CabinetBuilder(DateTime? normalizedTimestamp = null)
+    {
+        _normalizedTimestamp = normalizedTimestamp;
+    }
 
     public Result<string> BuildCabinet(
         IReadOnlyList<ResolvedFile> files,
@@ -385,8 +392,10 @@ public sealed class CabinetBuilder : IDisposable
                 return (nint)(-1);
             }
 
-            // Convert to DOS date/time format
-            var dt = info.LastWriteTime;
+            // Convert to DOS date/time format.
+            // When a normalized timestamp is set (reproducible builds), use it for all
+            // entries so cabinet bytes are identical regardless of source file mtimes.
+            var dt = _normalizedTimestamp ?? info.LastWriteTime;
             pdate = ToDosDate(dt);
             ptime = ToDosTime(dt);
             pattribs = (ushort)(info.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System | FileAttributes.Archive));

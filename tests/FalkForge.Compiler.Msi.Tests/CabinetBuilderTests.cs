@@ -291,6 +291,84 @@ public sealed class CabinetBuilderTests : IDisposable
         Assert.Equal((ushort)0, dosTime);
     }
 
+    // ── Reproducible build / timestamp normalization ────────────────────
+
+    [Fact]
+    public void BuildCabinet_WithNormalizedTimestamp_IdenticalContentProducesIdenticalBytes()
+    {
+        // Two source files with the same content but deliberately different LastWriteTime.
+        // When the same normalizedTimestamp is supplied, the resulting cabinets must be
+        // byte-identical — proving that file mtime is no longer baked into the output.
+        var epoch = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var dir1 = Path.Combine(_tempDir, "src1");
+        var dir2 = Path.Combine(_tempDir, "src2");
+        Directory.CreateDirectory(dir1);
+        Directory.CreateDirectory(dir2);
+
+        var src1 = Path.Combine(dir1, "payload.txt");
+        var src2 = Path.Combine(dir2, "payload.txt");
+        File.WriteAllText(src1, "reproducible content");
+        File.WriteAllText(src2, "reproducible content");
+
+        // Force different LastWriteTime values
+        File.SetLastWriteTime(src1, new DateTime(2020, 3, 15, 12, 0, 0));
+        File.SetLastWriteTime(src2, new DateTime(2023, 11, 30, 23, 59, 58));
+
+        var files1 = new[] { MakeResolvedFile(src1, "payload.txt", "C_p1", "F_p1") };
+        var files2 = new[] { MakeResolvedFile(src2, "payload.txt", "C_p2", "F_p2") };
+
+        var out1 = Path.Combine(_tempDir, "out1");
+        var out2 = Path.Combine(_tempDir, "out2");
+
+        var cab1 = new CabinetBuilder(epoch).BuildCabinet(files1, out1, CompressionLevel.None);
+        var cab2 = new CabinetBuilder(epoch).BuildCabinet(files2, out2, CompressionLevel.None);
+
+        Assert.True(cab1.IsSuccess, cab1.IsFailure ? cab1.Error.Message : "");
+        Assert.True(cab2.IsSuccess, cab2.IsFailure ? cab2.Error.Message : "");
+
+        var bytes1 = File.ReadAllBytes(cab1.Value);
+        var bytes2 = File.ReadAllBytes(cab2.Value);
+        Assert.Equal(bytes1, bytes2);
+    }
+
+    [Fact]
+    public void BuildCabinet_WithoutNormalizedTimestamp_DifferentMtimeProducesDifferentBytes()
+    {
+        // Negative test: without normalization, different LastWriteTime values produce
+        // different cabinet bytes. This validates that LastWriteTime actually affects output.
+        var dir1 = Path.Combine(_tempDir, "neg1");
+        var dir2 = Path.Combine(_tempDir, "neg2");
+        Directory.CreateDirectory(dir1);
+        Directory.CreateDirectory(dir2);
+
+        var src1 = Path.Combine(dir1, "data.txt");
+        var src2 = Path.Combine(dir2, "data.txt");
+        File.WriteAllText(src1, "same content");
+        File.WriteAllText(src2, "same content");
+
+        // Force distinct timestamps separated by > 2s (DOS time has 2-second resolution)
+        File.SetLastWriteTime(src1, new DateTime(2020, 1, 1, 0, 0, 0));
+        File.SetLastWriteTime(src2, new DateTime(2024, 6, 15, 14, 30, 22));
+
+        var files1 = new[] { MakeResolvedFile(src1, "data.txt", "C_n1", "F_n1") };
+        var files2 = new[] { MakeResolvedFile(src2, "data.txt", "C_n2", "F_n2") };
+
+        var out1 = Path.Combine(_tempDir, "neg_out1");
+        var out2 = Path.Combine(_tempDir, "neg_out2");
+
+        // No normalizedTimestamp supplied
+        var cab1 = new CabinetBuilder().BuildCabinet(files1, out1, CompressionLevel.None);
+        var cab2 = new CabinetBuilder().BuildCabinet(files2, out2, CompressionLevel.None);
+
+        Assert.True(cab1.IsSuccess, cab1.IsFailure ? cab1.Error.Message : "");
+        Assert.True(cab2.IsSuccess, cab2.IsFailure ? cab2.Error.Message : "");
+
+        var bytes1 = File.ReadAllBytes(cab1.Value);
+        var bytes2 = File.ReadAllBytes(cab2.Value);
+        Assert.NotEqual(bytes1, bytes2);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────
 
     private string CreateTempFile(string name, string content)
