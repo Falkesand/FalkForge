@@ -102,4 +102,20 @@ public sealed class BundleBuilderReproducibleTests
 
         Assert.Equal(explicitId, model.BundleId);
     }
+
+    [Fact]
+    public void ExplicitUpgradeCode_TakesPrecedenceOverDeterministic()
+    {
+        var explicitCode = Guid.NewGuid();
+
+        var model = new BundleBuilder()
+            .Name("MyBundle")
+            .Manufacturer("Acme Corp")
+            .Version("1.0.0")
+            .UpgradeCode(explicitCode)
+            .Reproducible(1_700_000_000L)
+            .Build();
+
+        Assert.Equal(explicitCode, model.UpgradeCode);
+    }
 }
