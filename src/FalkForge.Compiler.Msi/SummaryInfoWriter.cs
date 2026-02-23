@@ -46,4 +46,5 @@ public sealed class SummaryInfoWriter
             throw new InvalidOperationException($"MsiSummaryInfoSetProperty failed for property {propertyId} (int). Error code: {result}");
         return this;
     }
+
 }

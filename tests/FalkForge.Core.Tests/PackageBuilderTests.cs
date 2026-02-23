@@ -363,4 +363,48 @@ public sealed class PackageBuilderTests
 
         Assert.Equal(code, package.ProductCode);
     }
+
+    [Fact]
+    public void Reproducible_ProductCode_IsDeterministicAcrossBuilds()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Reproducible(1708600000L);
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Reproducible(1708600000L);
+        });
+
+        Assert.Equal(p1.ProductCode, p2.ProductCode);
+        Assert.NotEqual(Guid.Empty, p1.ProductCode);
+    }
+
+    [Fact]
+    public void Reproducible_ProductCode_DiffersForDifferentVersion()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Reproducible(1708600000L);
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(2, 0, 0);
+            p.Reproducible(1708600000L);
+        });
+
+        Assert.NotEqual(p1.ProductCode, p2.ProductCode);
+    }
+
+    [Fact]
+    public void NonReproducible_ProductCode_VariesAcrossBuilds()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p => { p.Name = "App"; p.Manufacturer = "Corp"; });
+        var p2 = InstallerTestHost.BuildPackage(p => { p.Name = "App"; p.Manufacturer = "Corp"; });
+
+        Assert.NotEqual(p1.ProductCode, p2.ProductCode);
+    }
 }

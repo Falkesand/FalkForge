@@ -1,3 +1,4 @@
+using FalkForge.Builders;
 using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Builders;
@@ -7,9 +8,10 @@ public sealed class BundleBuilder
     private string _name = string.Empty;
     private string _manufacturer = string.Empty;
     private string _version = "1.0.0";
-    private Guid _bundleId = Guid.NewGuid();
-    private Guid _upgradeCode = Guid.NewGuid();
+    private Guid? _bundleId;
+    private Guid? _upgradeCode;
     private InstallScope _scope = InstallScope.PerMachine;
+    private ReproducibleBuildOptions? _reproducibleOptions;
     private readonly List<BundlePackageModel> _packages = new();
     private readonly List<ChainItem> _chainItems = new();
     private readonly List<RelatedBundleModel> _relatedBundles = new();
@@ -29,6 +31,27 @@ public sealed class BundleBuilder
     public BundleBuilder BundleId(Guid id) { _bundleId = id; return this; }
     public BundleBuilder UpgradeCode(Guid code) { _upgradeCode = code; return this; }
     public BundleBuilder Scope(InstallScope scope) { _scope = scope; return this; }
+
+    public BundleBuilder Reproducible(long? epochOverride = null)
+    {
+        long epoch;
+        if (epochOverride.HasValue)
+        {
+            epoch = epochOverride.Value;
+        }
+        else if (Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH") is { } envValue)
+        {
+            if (!long.TryParse(envValue, out epoch))
+                throw new ArgumentException($"RPR001: SOURCE_DATE_EPOCH '{envValue}' is not a valid Unix timestamp.");
+        }
+        else
+        {
+            throw new InvalidOperationException("RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
+        }
+
+        _reproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch };
+        return this;
+    }
 
     public BundleBuilder Chain(Action<ChainBuilder> configure)
     {
@@ -174,13 +197,21 @@ public sealed class BundleBuilder
 
     public BundleModel Build()
     {
+        var upgradeCode = _upgradeCode ?? (_reproducibleOptions is not null
+            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{_name}::{_manufacturer}")
+            : Guid.NewGuid());
+
+        var bundleId = _bundleId ?? (_reproducibleOptions is not null
+            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{_name}::{_manufacturer}::{_version}")
+            : Guid.NewGuid());
+
         return new BundleModel
         {
             Name = _name,
             Manufacturer = _manufacturer,
             Version = _version,
-            BundleId = _bundleId,
-            UpgradeCode = _upgradeCode,
+            BundleId = bundleId,
+            UpgradeCode = upgradeCode,
             Scope = _scope,
             Packages = _packages.AsReadOnly(),
             RelatedBundles = _relatedBundles.AsReadOnly(),

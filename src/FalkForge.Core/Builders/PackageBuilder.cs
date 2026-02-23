@@ -56,6 +56,7 @@ public sealed class PackageBuilder
     private MajorUpgradeModel? _majorUpgrade;
     private DowngradeModel? _downgrade;
     private SigningOptions? _signing;
+    private ReproducibleBuildOptions? _reproducibleOptions;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -338,12 +339,37 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder Reproducible(long? epochOverride = null)
+    {
+        long epoch;
+        if (epochOverride.HasValue)
+        {
+            epoch = epochOverride.Value;
+        }
+        else if (Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH") is { } envValue)
+        {
+            if (!long.TryParse(envValue, out epoch))
+                throw new ArgumentException($"RPR001: SOURCE_DATE_EPOCH '{envValue}' is not a valid Unix timestamp.");
+        }
+        else
+        {
+            throw new InvalidOperationException("RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
+        }
+
+        _reproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch };
+        return this;
+    }
+
     internal void AddShortcut(ShortcutModel shortcut) => _shortcuts.Add(shortcut);
 
     public PackageModel Build()
     {
         var upgradeCode = UpgradeCode ?? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{Name}::{Manufacturer}");
-        var productCode = ProductCode ?? Guid.NewGuid();
+        var productCode = ProductCode ?? (_reproducibleOptions is not null
+            ? GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"{Name}::{Manufacturer}::{Version}") // Version.ToString(): 2-component → "1.0", 3-component → "1.0.0"
+            : Guid.NewGuid());
         var defaultInstallDir = DefaultInstallDirectory ?? KnownFolder.ProgramFiles / Manufacturer / Name;
 
         // If no features defined, create implicit "Complete" feature
@@ -399,7 +425,8 @@ public sealed class PackageBuilder
             Downgrade = _downgrade,
             DialogSet = _dialogSet,
             CabinetThreadCount = CabinetThreadCount,
-            LocalizationData = _localizationData
+            LocalizationData = _localizationData,
+            ReproducibleOptions = _reproducibleOptions
         };
     }
 }

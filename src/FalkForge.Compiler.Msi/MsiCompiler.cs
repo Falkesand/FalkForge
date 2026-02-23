@@ -57,61 +57,75 @@ public sealed class MsiCompiler : ICompiler
         if (dbResult.IsFailure)
             return Result<string>.Failure(dbResult.Error);
 
-        using var database = dbResult.Value;
-
-        // Step 5: Emit tables
-        var tableEmitter = new TableEmitter(database);
-        var emitResult = tableEmitter.EmitAllTables(resolved);
-        if (emitResult.IsFailure)
-            return Result<string>.Failure(emitResult.Error);
-
-        // Step 5.5: Build cabinet and embed into MSI
-        if (resolved.Files.Count > 0)
+        // Steps 5-7: all database work inside a nested block
         {
-            var tempCabPath = Path.Combine(Path.GetTempPath(), $"FalkForge_{Guid.NewGuid():N}");
-            Directory.CreateDirectory(tempCabPath);
-            try
-            {
-                var cabBuilder = new CabinetBuilder();
-                var cabResult = cabBuilder.BuildCabinet(resolved.Files, tempCabPath, package.Compression);
-                if (cabResult.IsFailure)
-                    return Result<string>.Failure(cabResult.Error);
+            using var database = dbResult.Value;
 
-                var embedResult = EmbedCabinet(database, cabResult.Value);
-                if (embedResult.IsFailure)
-                    return Result<string>.Failure(embedResult.Error);
-            }
-            finally
+            // Step 5: Emit tables
+            var tableEmitter = new TableEmitter(database);
+            var emitResult = tableEmitter.EmitAllTables(resolved);
+            if (emitResult.IsFailure)
+                return Result<string>.Failure(emitResult.Error);
+
+            // Step 5.5: Build cabinet and embed into MSI
+            if (resolved.Files.Count > 0)
             {
-                if (Directory.Exists(tempCabPath))
-                    Directory.Delete(tempCabPath, true);
+                var tempCabPath = Path.Combine(Path.GetTempPath(), $"FalkForge_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(tempCabPath);
+                try
+                {
+                    using var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
+                    var cabResult = cabBuilder.BuildCabinet(resolved.Files, tempCabPath, package.Compression);
+                    if (cabResult.IsFailure)
+                        return Result<string>.Failure(cabResult.Error);
+
+                    var embedResult = EmbedCabinet(database, cabResult.Value);
+                    if (embedResult.IsFailure)
+                        return Result<string>.Failure(embedResult.Error);
+                }
+                finally
+                {
+                    if (Directory.Exists(tempCabPath))
+                        Directory.Delete(tempCabPath, true);
+                }
             }
+
+            // Step 6: Set summary information
+            var summaryResult = database.SetSummaryInfo(summary =>
+            {
+                summary
+                    .Title("Installation Database")
+                    .Subject(package.Name)
+                    .Author(package.Manufacturer)
+                    .Keywords("Installer")
+                    .Comments(package.Description ?? $"This installer database contains the logic and data required to install {package.Name}.")
+                    .Template(GetPlatformTemplate(package.Architecture))
+                    .RevisionNumber(package.ProductCode.ToString("B").ToUpperInvariant())
+                    .CreatingApplication("FalkForge")
+                    .WordCount(2) // Compressed, LongFileNames
+                    .PageCount(200) // Minimum installer version
+                    .Security(2) // Read-only recommended
+                    .Codepage(1252);
+            });
+            if (summaryResult.IsFailure)
+                return Result<string>.Failure(summaryResult.Error);
+
+            // Step 7: Commit
+            var commitResult = database.Commit();
+            if (commitResult.IsFailure)
+                return Result<string>.Failure(commitResult.Error);
+        } // database disposed here — file handle released
+
+        // Step 7.5: Patch SummaryInfo timestamps in the output file when building reproducibly.
+        // Windows MsiSummaryInfoPersist always updates PID_LASTSAVE_DTM to the current system
+        // time on every call, making it impossible to pin the timestamp via the MSI API alone.
+        // The patcher walks the OLE2 compound document and overwrites the FILETIME values in place.
+        if (package.ReproducibleOptions is { } reproducibleOpts)
+        {
+            var patchResult = SummaryInfoPatcher.PatchTimestamps(msiPath, reproducibleOpts.Timestamp);
+            if (patchResult.IsFailure)
+                return Result<string>.Failure(patchResult.Error);
         }
-
-        // Step 6: Set summary information
-        var summaryResult = database.SetSummaryInfo(summary =>
-        {
-            summary
-                .Title("Installation Database")
-                .Subject(package.Name)
-                .Author(package.Manufacturer)
-                .Keywords("Installer")
-                .Comments(package.Description ?? $"This installer database contains the logic and data required to install {package.Name}.")
-                .Template(GetPlatformTemplate(package.Architecture))
-                .RevisionNumber(package.ProductCode.ToString("B").ToUpperInvariant())
-                .CreatingApplication("FalkForge")
-                .WordCount(2) // Compressed, LongFileNames
-                .PageCount(200) // Minimum installer version
-                .Security(2) // Read-only recommended
-                .Codepage(1252);
-        });
-        if (summaryResult.IsFailure)
-            return Result<string>.Failure(summaryResult.Error);
-
-        // Step 7: Commit
-        var commitResult = database.Commit();
-        if (commitResult.IsFailure)
-            return Result<string>.Failure(commitResult.Error);
 
         // Step 8: Code signing (if configured)
         if (package.Signing is not null)
@@ -123,20 +137,23 @@ public sealed class MsiCompiler : ICompiler
         }
 
         // Step 9: ICE validation (opt-in, requires Windows SDK)
-        var iceValidator = new IceValidator();
-        var iceResult = iceValidator.Validate(msiPath);
-        if (iceResult.IsFailure)
+        // Skipped for reproducible builds: ICE merges darice.cub tables into the MSI
+        // which would break byte-identity between builds.
+        if (package.ReproducibleOptions is null)
         {
-            // ICE validation failure is non-fatal - just log
-            // The MSI is still valid even if ICE checks can't run
-        }
-        else if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
-        {
-            // ICE errors found - return failure with details
-            var iceErrors = string.Join("; ", iceResult.Value.Messages
-                .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
-                .Select(m => $"{m.IceName}: {m.Description}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
+            var iceValidator = new IceValidator();
+            var iceResult = iceValidator.Validate(msiPath);
+            if (iceResult.IsFailure)
+            {
+                // ICE validation failure is non-fatal - just log
+            }
+            else if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
+            {
+                var iceErrors = string.Join("; ", iceResult.Value.Messages
+                    .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
+                    .Select(m => $"{m.IceName}: {m.Description}"));
+                return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
+            }
         }
 
         return msiPath;
