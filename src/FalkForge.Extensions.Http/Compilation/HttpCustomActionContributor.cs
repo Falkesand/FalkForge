@@ -9,7 +9,7 @@ internal sealed class HttpCustomActionContributor(
 {
     // ExeFile-in-directory (34) + deferred in-script (0x400) + no-impersonate/elevated (0x800)
     private const int TypeDeferred = 3106;
-    // ExeFile-in-directory (34) + rollback (0x100) + deferred in-script (0x400) + no-impersonate (0x800)
+    // ExeFile-in-directory (34) + rollback (0x100) + deferred in-script (0x400) + no-impersonate/elevated (0x800)
     private const int TypeRollback = 3362;
 
     public string TableName => "CustomAction";
@@ -33,7 +33,8 @@ internal sealed class HttpCustomActionContributor(
         {
             var b = bindings[i];
             var hostnamePort = $"{b.Hostname}:{b.Port}";
-            var addTarget = $"netsh.exe http add sslcert hostnameport=\"{hostnamePort}\" certhash={b.CertificateThumbprint} appid={{{b.AppId}}} certstorename={b.CertStoreName}";
+            var appIdFormatted = $"{{{b.AppId}}}"; // e.g. {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+            var addTarget = $"netsh.exe http add sslcert hostnameport=\"{hostnamePort}\" certhash={b.CertificateThumbprint} appid={appIdFormatted} certstorename=\"{b.CertStoreName}\"";
             var delTarget = $"netsh.exe http delete sslcert hostnameport=\"{hostnamePort}\"";
 
             rows.Add(MakeRow($"HttpAddSslCert_{i}",      TypeDeferred, addTarget));

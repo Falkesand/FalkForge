@@ -152,6 +152,7 @@ public sealed class HttpCustomActionContributorTests
         Assert.Contains("api.example.com:443", target);
         Assert.Contains(ValidThumbprint, target);
         Assert.Contains(appId.ToString(), target);
+        Assert.Contains("certstorename=\"MY\"", target);
     }
 
     [Fact]
@@ -168,5 +169,38 @@ public sealed class HttpCustomActionContributorTests
         Assert.Equal(6, rows.Count);
         var names = rows.Select(r => (string)r.Get("Action")!).ToHashSet();
         Assert.Equal(6, names.Count); // All distinct
+    }
+
+    [Fact]
+    public void SniBinding_RollbackRow_UsesDeleteCommand()
+    {
+        var appId = Guid.NewGuid();
+        var bindings = new List<SniSslBindingModel>
+        {
+            new() { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = appId }
+        };
+        var contributor = new HttpCustomActionContributor([], bindings);
+        var rows = contributor.GetRows(EmptyContext);
+
+        var rollbackRow = rows.Single(r => r.Get("Action") is string a && a.StartsWith("HttpRollbackSslCert_"));
+        var target = (string)rollbackRow.Get("Target")!;
+        Assert.Contains("netsh.exe http delete sslcert", target);
+        Assert.Contains("api.example.com:443", target);
+    }
+
+    [Fact]
+    public void SniBinding_CustomCertStoreName_IsInCommand()
+    {
+        var appId = Guid.NewGuid();
+        var bindings = new List<SniSslBindingModel>
+        {
+            new() { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = appId, CertStoreName = "WebHosting" }
+        };
+        var contributor = new HttpCustomActionContributor([], bindings);
+        var rows = contributor.GetRows(EmptyContext);
+
+        var addRow = rows.Single(r => r.Get("Action") is string a && a.StartsWith("HttpAddSslCert_"));
+        var target = (string)addRow.Get("Target")!;
+        Assert.Contains("certstorename=\"WebHosting\"", target);
     }
 }
