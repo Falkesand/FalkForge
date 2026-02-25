@@ -31,6 +31,12 @@ internal static class HttpValidator
         if (string.IsNullOrWhiteSpace(r.User))
             return Result<Unit>.Failure(ErrorKind.Validation, "HTTP004: URL reservation User/SDDL string must not be empty.");
 
+        if (ContainsShellInjectionChars(r.Url))
+            return Result<Unit>.Failure(ErrorKind.Validation, $"HTTP010: URL reservation URL '{r.Url}' contains characters not permitted in netsh commands.");
+
+        if (ContainsShellInjectionChars(r.User))
+            return Result<Unit>.Failure(ErrorKind.Validation, "HTTP010: URL reservation User/SDDL string contains characters not permitted in netsh commands.");
+
         return Unit.Value;
     }
 
@@ -63,8 +69,17 @@ internal static class HttpValidator
         if (b.AppId == Guid.Empty)
             return Result<Unit>.Failure(ErrorKind.Validation, "HTTP009: SNI SSL binding AppId must not be an empty GUID.");
 
+        if (ContainsShellInjectionChars(b.Hostname))
+            return Result<Unit>.Failure(ErrorKind.Validation, $"HTTP010: SNI SSL binding Hostname '{b.Hostname}' contains characters not permitted in netsh commands.");
+
+        if (b.CertStoreName is not null && ContainsShellInjectionChars(b.CertStoreName))
+            return Result<Unit>.Failure(ErrorKind.Validation, $"HTTP010: SNI SSL binding CertStoreName '{b.CertStoreName}' contains characters not permitted in netsh commands.");
+
         return Unit.Value;
     }
+
+    private static bool ContainsShellInjectionChars(string value)
+        => value.IndexOfAny(['"', '\r', '\n']) >= 0;
 
     private static bool IsAllHex(string s)
     {

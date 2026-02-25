@@ -114,4 +114,38 @@ public sealed class HttpValidatorTests
         var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() });
         Assert.True(result.IsSuccess);
     }
+
+    // --- HTTP010: Shell injection character checks ---
+
+    [Fact]
+    public void HTTP010_UrlContainsQuote_ReturnsError()
+    {
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "http://+:8080/svc\"/", User = ValidSddl });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP010", result.Error.Message);
+    }
+
+    [Fact]
+    public void HTTP010_UserContainsQuote_ReturnsError()
+    {
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "http://+:8080/svc/", User = "D:(A;;GX;;;NS)\"inject" });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP010", result.Error.Message);
+    }
+
+    [Fact]
+    public void HTTP010_HostnameContainsQuote_ReturnsError()
+    {
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host\"inject", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP010", result.Error.Message);
+    }
+
+    [Fact]
+    public void HTTP010_CertStoreNameContainsQuote_ReturnsError()
+    {
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid(), CertStoreName = "MY\"inject" });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP010", result.Error.Message);
+    }
 }
