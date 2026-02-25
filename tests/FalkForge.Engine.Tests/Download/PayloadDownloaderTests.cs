@@ -269,7 +269,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         var dest = Path.Combine(_tempDir, "chunk-progress.bin");
 
         var result = await downloader.DownloadAsync(
-            "https://example.com/update.exe", sha256, dest, progress, CancellationToken.None);
+            "https://example.com/update.exe", sha256, dest, progress, ct: CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotEmpty(progressReports);
@@ -292,7 +292,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         var dest = Path.Combine(_tempDir, "unknown-length.bin");
 
         await downloader.DownloadAsync(
-            "https://example.com/update.exe", sha256, dest, progress, CancellationToken.None);
+            "https://example.com/update.exe", sha256, dest, progress, ct: CancellationToken.None);
 
         Assert.All(progressReports, r => Assert.Equal(-1, r.total));
     }
@@ -383,5 +383,244 @@ public sealed class PayloadDownloaderTests : IDisposable
                 Content = new ByteArrayContent(_content)
             };
         }
+    }
+
+    private sealed class FakeRangeHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly byte[] _content;
+        private readonly bool _supportsRanges;
+
+        public bool RangeRequestReceived { get; private set; }
+
+        public FakeRangeHttpMessageHandler(byte[] content, bool supportsRanges)
+        {
+            _content = content;
+            _supportsRanges = supportsRanges;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (request.Method == HttpMethod.Head)
+            {
+                var headResponse = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent([])
+                };
+                if (_supportsRanges)
+                    headResponse.Headers.Add("Accept-Ranges", "bytes");
+                return Task.FromResult(headResponse);
+            }
+
+            var rangeHeader = request.Headers.Range;
+            if (_supportsRanges && rangeHeader?.Ranges.Count > 0)
+            {
+                RangeRequestReceived = true;
+                var offset = (int)(rangeHeader.Ranges.First().From ?? 0);
+                var slice = _content[offset..];
+                var partialResponse = new HttpResponseMessage(HttpStatusCode.PartialContent)
+                {
+                    Content = new ByteArrayContent(slice)
+                };
+                partialResponse.Content.Headers.ContentLength = slice.Length;
+                return Task.FromResult(partialResponse);
+            }
+
+            var fullResponse = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(_content)
+            };
+            fullResponse.Content.Headers.ContentLength = _content.Length;
+            return Task.FromResult(fullResponse);
+        }
+    }
+
+    private sealed class SlowHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly byte[] _content;
+        private readonly CancellationTokenSource _cts;
+        private readonly int _cancelAfterBytes;
+
+        public SlowHttpMessageHandler(byte[] content, CancellationTokenSource cts, int cancelAfterBytes)
+        {
+            _content = content;
+            _cts = cts;
+            _cancelAfterBytes = cancelAfterBytes;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var stream = new CancelAfterBytesStream(_content, _cts, _cancelAfterBytes);
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream)
+            };
+            response.Content.Headers.ContentLength = _content.Length;
+            return Task.FromResult(response);
+        }
+
+        private sealed class CancelAfterBytesStream : Stream
+        {
+            private readonly byte[] _data;
+            private readonly CancellationTokenSource _cts;
+            private readonly int _cancelAfterBytes;
+            private int _position;
+            private int _totalWritten;
+
+            public CancelAfterBytesStream(byte[] data, CancellationTokenSource cts, int cancelAfterBytes)
+            {
+                _data = data;
+                _cts = cts;
+                _cancelAfterBytes = cancelAfterBytes;
+            }
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => _data.Length;
+            public override long Position { get => _position; set => throw new NotSupportedException(); }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                if (_position >= _data.Length) return 0;
+                var toRead = Math.Min(count, _data.Length - _position);
+                Array.Copy(_data, _position, buffer, offset, toRead);
+                _position += toRead;
+                _totalWritten += toRead;
+                if (_totalWritten >= _cancelAfterBytes)
+                    _cts.Cancel();
+                return toRead;
+            }
+
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+    }
+
+    private static string ComputeSha256(byte[] data) =>
+        Convert.ToHexString(SHA256.HashData(data));
+
+    [Fact]
+    public async Task DownloadAsync_WithPartialFile_ServerSupportsRanges_ResumesFromOffset()
+    {
+        var fullContent = new byte[200_000];
+        Random.Shared.NextBytes(fullContent);
+        var sha256 = ComputeSha256(fullContent);
+
+        var destPath = Path.GetTempFileName();
+        var partialPath = destPath + ".partial";
+        await File.WriteAllBytesAsync(partialPath, fullContent[..50_000]);
+
+        var handler = new FakeRangeHttpMessageHandler(fullContent, supportsRanges: true);
+        var downloader = new PayloadDownloader(new HttpClient(handler));
+
+        try
+        {
+            var result = await downloader.DownloadAsync(
+                "https://example.com/update.exe", sha256, destPath,
+                progress: null, allowResume: true, CancellationToken.None);
+
+            Assert.True(result.IsSuccess);
+            Assert.False(File.Exists(partialPath));
+            Assert.Equal(fullContent, await File.ReadAllBytesAsync(destPath));
+            Assert.True(handler.RangeRequestReceived);
+        }
+        finally
+        {
+            if (File.Exists(destPath)) File.Delete(destPath);
+            if (File.Exists(partialPath)) File.Delete(partialPath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAsync_WithPartialFile_ServerNoRanges_StartsFromScratch()
+    {
+        var fullContent = new byte[100_000];
+        Random.Shared.NextBytes(fullContent);
+        var sha256 = ComputeSha256(fullContent);
+
+        var destPath = Path.GetTempFileName();
+        var partialPath = destPath + ".partial";
+        await File.WriteAllBytesAsync(partialPath, new byte[30_000]);
+
+        var handler = new FakeRangeHttpMessageHandler(fullContent, supportsRanges: false);
+        var downloader = new PayloadDownloader(new HttpClient(handler));
+
+        try
+        {
+            var result = await downloader.DownloadAsync(
+                "https://example.com/update.exe", sha256, destPath,
+                progress: null, allowResume: true, CancellationToken.None);
+
+            Assert.True(result.IsSuccess);
+            Assert.False(File.Exists(partialPath));
+        }
+        finally
+        {
+            if (File.Exists(destPath)) File.Delete(destPath);
+            if (File.Exists(partialPath)) File.Delete(partialPath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAsync_OnCancel_AllowResume_KeepsPartialFile()
+    {
+        var content = new byte[500_000];
+        Random.Shared.NextBytes(content);
+        var sha256 = ComputeSha256(content);
+        var destPath = Path.GetTempFileName();
+        var partialPath = destPath + ".partial";
+        var cts = new CancellationTokenSource();
+
+        var handler = new SlowHttpMessageHandler(content, cts, cancelAfterBytes: 100_000);
+        var downloader = new PayloadDownloader(new HttpClient(handler));
+
+        try
+        {
+            await downloader.DownloadAsync(
+                "https://example.com/update.exe", sha256, destPath,
+                progress: null, allowResume: true, cts.Token);
+        }
+        catch { /* cancellation expected */ }
+
+        try
+        {
+            Assert.True(File.Exists(partialPath));
+        }
+        finally
+        {
+            if (File.Exists(partialPath)) File.Delete(partialPath);
+            if (File.Exists(destPath)) File.Delete(destPath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAsync_OnCancel_AllowResumeFalse_DeletesPartialFile()
+    {
+        var content = new byte[500_000];
+        Random.Shared.NextBytes(content);
+        var sha256 = ComputeSha256(content);
+        var destPath = Path.GetTempFileName();
+        var partialPath = destPath + ".partial";
+        var cts = new CancellationTokenSource();
+
+        var handler = new SlowHttpMessageHandler(content, cts, cancelAfterBytes: 100_000);
+        var downloader = new PayloadDownloader(new HttpClient(handler));
+
+        try
+        {
+            await downloader.DownloadAsync(
+                "https://example.com/update.exe", sha256, destPath,
+                progress: null, allowResume: false, cts.Token);
+        }
+        catch { /* cancellation expected */ }
+
+        Assert.False(File.Exists(partialPath));
+
+        if (File.Exists(destPath)) File.Delete(destPath);
     }
 }

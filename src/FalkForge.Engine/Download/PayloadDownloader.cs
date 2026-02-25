@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Download;
 
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 
 public sealed class PayloadDownloader
@@ -19,6 +20,7 @@ public sealed class PayloadDownloader
         string expectedSha256,
         string targetPath,
         IProgress<(long BytesReceived, long TotalBytes)>? progress = null,
+        bool allowResume = false,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -47,6 +49,27 @@ public sealed class PayloadDownloader
         if (!string.IsNullOrEmpty(targetDir))
             Directory.CreateDirectory(targetDir);
 
+        var partialPath = fullPath + ".partial";
+
+        // Determine whether we can resume an interrupted download.
+        var isResuming = false;
+        var existingSize = 0L;
+
+        if (allowResume && File.Exists(partialPath))
+        {
+            // Probe server for range support before entering the retry loop.
+            isResuming = await ProbeRangeSupportAsync(url, ct);
+            if (isResuming)
+            {
+                existingSize = new FileInfo(partialPath).Length;
+            }
+            else
+            {
+                // Server does not support ranges — discard the stale partial file.
+                TryDeleteFile(partialPath);
+            }
+        }
+
         Exception? lastException = null;
 
         for (var attempt = 0; attempt < MaxRetries; attempt++)
@@ -64,7 +87,12 @@ public sealed class PayloadDownloader
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeoutCts.CancelAfter(_timeoutPerAttempt);
 
-                using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                if (isResuming && existingSize > 0)
+                    request.Headers.Range = new RangeHeaderValue(existingSize, null);
+
+                using var response = await _httpClient.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -72,12 +100,20 @@ public sealed class PayloadDownloader
                     continue;
                 }
 
-                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+                var responseContentLength = response.Content.Headers.ContentLength ?? -1L;
+                var totalBytes = isResuming && responseContentLength >= 0
+                    ? responseContentLength + existingSize
+                    : responseContentLength;
+
                 await using var contentStream = await response.Content.ReadAsStreamAsync(timeoutCts.Token);
-                await using var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true);
+
+                // Append when resuming; overwrite from scratch otherwise.
+                var fileMode = isResuming ? FileMode.Append : FileMode.Create;
+                await using var fileStream = new FileStream(
+                    partialPath, fileMode, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true);
 
                 var buffer = new byte[81920];
-                long totalRead = 0;
+                long totalRead = existingSize; // progress bar starts from where we left off
                 int bytesRead;
 
                 while ((bytesRead = await contentStream.ReadAsync(buffer.AsMemory(0, buffer.Length), timeoutCts.Token)) > 0)
@@ -89,6 +125,9 @@ public sealed class PayloadDownloader
 
                 await fileStream.FlushAsync(timeoutCts.Token);
                 fileStream.Close();
+
+                // Atomically promote the partial file to the final destination.
+                File.Move(partialPath, fullPath, overwrite: true);
 
                 var hashResult = ComputeSha256(fullPath);
                 if (!string.Equals(hashResult, expectedSha256, StringComparison.OrdinalIgnoreCase))
@@ -103,12 +142,18 @@ public sealed class PayloadDownloader
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+                // Keep the partial file if the caller wants resume capability.
+                if (!allowResume)
+                    TryDeleteFile(partialPath);
+
+                // The final destination should never exist at this point, but clean up defensively.
                 TryDeleteFile(fullPath);
                 throw;
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
             {
                 lastException = ex;
+                TryDeleteFile(partialPath);
                 TryDeleteFile(fullPath);
             }
         }
@@ -116,6 +161,29 @@ public sealed class PayloadDownloader
         return Result<string>.Failure(
             ErrorKind.DownloadError,
             $"Failed to download {url} after {MaxRetries} attempts: {lastException?.Message}");
+    }
+
+    /// <summary>
+    /// Sends a HEAD request and returns true if the server advertises <c>Accept-Ranges: bytes</c>.
+    /// Returns false on any network error (fail-open: fall back to full download).
+    /// </summary>
+    private async Task<bool> ProbeRangeSupportAsync(string url, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Head, url);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            if (!response.IsSuccessStatusCode)
+                return false;
+
+            return response.Headers.TryGetValues("Accept-Ranges", out var values)
+                && values.Any(v => string.Equals(v, "bytes", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string ComputeSha256(string filePath)
