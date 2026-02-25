@@ -1,4 +1,5 @@
 using FalkForge.Extensions.Http.Models;
+using Xunit;
 
 namespace FalkForge.Extensions.Http.Tests.Models;
 
