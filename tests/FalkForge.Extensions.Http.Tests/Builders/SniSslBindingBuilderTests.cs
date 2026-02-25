@@ -48,6 +48,16 @@ public sealed class SniSslBindingBuilderTests
     }
 
     [Fact]
+    public void Thumbprint_IsStored()
+    {
+        var model = new SniSslBindingBuilder("host", 443)
+            .Thumbprint(ValidThumbprint)
+            .Build();
+
+        Assert.Equal(ValidThumbprint, model.CertificateThumbprint);
+    }
+
+    [Fact]
     public void CertStoreName_DefaultIsMY()
     {
         var model = new SniSslBindingBuilder("host", 443).Thumbprint(ValidThumbprint).Build();
