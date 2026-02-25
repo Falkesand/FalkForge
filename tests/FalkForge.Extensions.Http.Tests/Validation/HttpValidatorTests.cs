@@ -21,8 +21,9 @@ public sealed class HttpValidatorTests
     [Fact]
     public void HTTP002_UrlWithoutHttpPrefix_ReturnsError()
     {
-        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "ftp://+:21/", User = ValidSddl }]);
+        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "ftp://+:21", User = ValidSddl }]);
         Assert.Contains(errors, e => e.Message.StartsWith("HTTP002"));
+        Assert.DoesNotContain(errors, e => e.Message.StartsWith("HTTP003")); // continue prevents cascading
     }
 
     [Fact]

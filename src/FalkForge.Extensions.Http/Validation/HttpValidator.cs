@@ -18,7 +18,10 @@ internal static class HttpValidator
 
             if (!r.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !r.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
                 errors.Add(new Error(ErrorKind.Validation, $"HTTP002: URL reservation URL '{r.Url}' must start with http:// or https://."));
+                continue;
+            }
 
             if (!r.Url.EndsWith('/'))
                 errors.Add(new Error(ErrorKind.Validation, $"HTTP003: URL reservation URL '{r.Url}' must end with '/'."));
