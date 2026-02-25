@@ -165,6 +165,15 @@ public static class MessageSerializer
                 writer.Write(m.LocalPath);
                 break;
 
+            case UpdateDownloadProgressMessage m:
+                writer.Write(m.BytesReceived);
+                writer.Write(m.TotalBytes);
+                writer.Write(m.PercentComplete);
+                break;
+
+            case LaunchUpdateMessage:
+                break;
+
             default:
                 throw new InvalidOperationException($"Unknown message type: {message.GetType().Name}");
         }

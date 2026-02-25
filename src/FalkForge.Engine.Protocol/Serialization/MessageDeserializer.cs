@@ -98,6 +98,14 @@ public static class MessageDeserializer
                     Version = reader.ReadString(),
                     LocalPath = reader.ReadString()
                 },
+                MessageType.UpdateDownloadProgress => new UpdateDownloadProgressMessage
+                {
+                    SequenceId = sequenceId,
+                    BytesReceived = reader.ReadInt64(),
+                    TotalBytes = reader.ReadInt64(),
+                    PercentComplete = reader.ReadInt32()
+                },
+                MessageType.LaunchUpdate => new LaunchUpdateMessage { SequenceId = sequenceId },
                 _ => throw new InvalidOperationException($"Unhandled message type: {type}")
             };
         }

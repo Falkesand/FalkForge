@@ -293,4 +293,53 @@ public class MessageSerializerTests
         var remainingBytes = bytes.Length - 8; // 8 = header size (version + type + length)
         Assert.Equal(remainingBytes, length);
     }
+
+    [Fact]
+    public void RoundTrip_UpdateDownloadProgressMessage_PreservesAllFields()
+    {
+        var msg = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 42,
+            BytesReceived = 500_000,
+            TotalBytes = 2_000_000,
+            PercentComplete = 25
+        };
+        var bytes = MessageSerializer.Serialize(msg);
+        var result = MessageDeserializer.Deserialize(bytes);
+        Assert.True(result.IsSuccess);
+        var deserialized = Assert.IsType<UpdateDownloadProgressMessage>(result.Value);
+        Assert.Equal(42u, deserialized.SequenceId);
+        Assert.Equal(500_000, deserialized.BytesReceived);
+        Assert.Equal(2_000_000, deserialized.TotalBytes);
+        Assert.Equal(25, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void RoundTrip_UpdateDownloadProgressMessage_UnknownSize_TotalBytesIsNegativeOne()
+    {
+        var msg = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 1,
+            BytesReceived = 81_920,
+            TotalBytes = -1,
+            PercentComplete = 0
+        };
+        var bytes = MessageSerializer.Serialize(msg);
+        var result = MessageDeserializer.Deserialize(bytes);
+        Assert.True(result.IsSuccess);
+        var deserialized = Assert.IsType<UpdateDownloadProgressMessage>(result.Value);
+        Assert.Equal(-1, deserialized.TotalBytes);
+        Assert.Equal(0, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void RoundTrip_LaunchUpdateMessage_PreservesSequenceId()
+    {
+        var msg = new LaunchUpdateMessage { SequenceId = 99 };
+        var bytes = MessageSerializer.Serialize(msg);
+        var result = MessageDeserializer.Deserialize(bytes);
+        Assert.True(result.IsSuccess);
+        var deserialized = Assert.IsType<LaunchUpdateMessage>(result.Value);
+        Assert.Equal(99u, deserialized.SequenceId);
+    }
 }

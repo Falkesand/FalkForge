@@ -16,6 +16,8 @@ public enum MessageType : ushort
     ShutdownResponse = 0x010B,
     UpdateAvailable = 0x010C,
     UpdateReady = 0x010D,
+    UpdateDownloadProgress = 0x010E,
+    LaunchUpdate = 0x010F,
 
     // UI -> Engine (0x02xx)
     Cancel = 0x0201,
