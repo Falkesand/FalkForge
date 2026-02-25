@@ -159,4 +159,10 @@ public sealed class EngineContext
     /// download task after a successful download. Null until the download completes.
     /// </summary>
     internal string? PendingUpdatePath { get; set; }
+
+    /// <summary>
+    /// Launcher used to start the downloaded update installer.
+    /// Injected by EngineHost; can be overridden in tests.
+    /// </summary>
+    internal IUpdateLauncher? UpdateLauncher { get; set; }
 }

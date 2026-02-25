@@ -601,8 +601,50 @@ public sealed class EngineHostMessageTests
         Assert.Equal("built-in", EngineHost.ValidatePropertyName("VERSIONNT", logger));
     }
 
+    [Fact]
+    public void LaunchUpdateMessage_WithPendingUpdatePath_CallsLauncher()
+    {
+        var context = CreateContext();
+        var launcher = new RecordingUpdateLauncher();
+        context.PendingUpdatePath = @"C:\cache\update.exe";
+        context.UpdateLauncher = launcher;
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(new LaunchUpdateMessage(), context, sm);
+
+        Assert.True(launcher.WasLaunched, "Expected IUpdateLauncher.Launch to be called");
+        Assert.Equal(@"C:\cache\update.exe", launcher.LaunchedPath);
+    }
+
+    [Fact]
+    public void LaunchUpdateMessage_WithNoPendingUpdatePath_DoesNotCallLauncher()
+    {
+        var context = CreateContext();
+        var launcher = new RecordingUpdateLauncher();
+        context.PendingUpdatePath = null;
+        context.UpdateLauncher = launcher;
+        var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
+
+        EngineHost.HandleUiMessageAsync(new LaunchUpdateMessage(), context, sm);
+
+        Assert.False(launcher.WasLaunched, "Expected IUpdateLauncher.Launch NOT to be called when no update is ready");
+    }
+
     private sealed class TestUnknownMessage : EngineMessage
     {
         public override MessageType Type => (MessageType)0xFFFF;
+    }
+
+    private sealed class RecordingUpdateLauncher : IUpdateLauncher
+    {
+        public bool WasLaunched { get; private set; }
+        public string? LaunchedPath { get; private set; }
+
+        public Result<Unit> Launch(string updatePath)
+        {
+            WasLaunched = true;
+            LaunchedPath = updatePath;
+            return Result<Unit>.Success(Unit.Value);
+        }
     }
 }

@@ -103,7 +103,8 @@ public sealed partial class EngineHost : IAsyncDisposable
             UiPipe = _uiPipe,
             ShutdownToken = ct,
             UserCancellationSource = userCts,
-            Logger = _logger
+            Logger = _logger,
+            UpdateLauncher = new DefaultUpdateLauncher(cacheRoot: null)
         };
 
         // Create dependencies (manual DI for NativeAOT)
@@ -289,6 +290,26 @@ public sealed partial class EngineHost : IAsyncDisposable
                 }
                 break;
 
+            case LaunchUpdateMessage:
+                if (context.PendingUpdatePath is null)
+                {
+                    context.Logger.Warning("EngineHost", "LaunchUpdate received but no update is ready — ignoring.");
+                }
+                else
+                {
+                    var launchResult = context.UpdateLauncher?.Launch(context.PendingUpdatePath);
+                    if (launchResult is { IsSuccess: false })
+                    {
+                        context.Logger.Warning("EngineHost",
+                            string.Concat("LaunchUpdate failed: ", launchResult.Value.Error.Message));
+                    }
+
+                    // Trigger shutdown regardless of launch result — UI is done
+                    context.UserCancelled = true;
+                    context.UserCancellationSource?.Cancel();
+                }
+                break;
+
             case ShutdownRequestMessage:
                 context.UserCancelled = true;
                 context.UserCancellationSource?.Cancel();
@@ -364,6 +385,18 @@ public sealed partial class EngineHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Cancel any background update download before tearing down
+        _context?.UpdateDownloadCts?.Cancel();
+        if (_context?.UpdateDownloadTask is not null)
+        {
+            try
+            {
+                await _context.UpdateDownloadTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { /* expected — download was cancelled */ }
+            catch (TimeoutException) { /* download timed out — partial file kept per policy */ }
+        }
+
         _httpClient?.Dispose();
         _logger?.Dispose();
 
