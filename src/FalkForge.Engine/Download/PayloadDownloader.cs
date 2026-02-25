@@ -18,7 +18,7 @@ public sealed class PayloadDownloader
         string url,
         string expectedSha256,
         string targetPath,
-        Action<long, long>? onProgress = null,
+        IProgress<(long BytesReceived, long TotalBytes)>? progress = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -84,7 +84,7 @@ public sealed class PayloadDownloader
                 {
                     await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), timeoutCts.Token);
                     totalRead += bytesRead;
-                    onProgress?.Invoke(totalRead, totalBytes);
+                    progress?.Report((totalRead, totalBytes));
                 }
 
                 await fileStream.FlushAsync(timeoutCts.Token);

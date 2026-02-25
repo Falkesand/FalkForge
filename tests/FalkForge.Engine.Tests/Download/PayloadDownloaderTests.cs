@@ -241,16 +241,60 @@ public sealed class PayloadDownloaderTests : IDisposable
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "progress.bin");
         var progressReports = new List<(long downloaded, long total)>();
+        var progress = new Progress<(long bytes, long total)>(p => progressReports.Add((p.bytes, p.total)));
 
         var result = await downloader.DownloadAsync(
             "https://example.com/file.bin",
             hash,
             targetPath,
-            onProgress: (downloaded, total) => progressReports.Add((downloaded, total)));
+            progress: progress);
 
         Assert.True(result.IsSuccess);
         Assert.NotEmpty(progressReports);
         Assert.Equal(content.Length, progressReports[^1].downloaded);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_ReportsProgressPerChunk()
+    {
+        // 200KB payload produces 2+ progress reports with 81KB chunks
+        var content = new byte[200_000];
+        Random.Shared.NextBytes(content);
+        var sha256 = Convert.ToHexString(SHA256.HashData(content));
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK, contentLength: content.Length);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var progressReports = new List<(long bytes, long total)>();
+        var progress = new Progress<(long bytes, long total)>(p => progressReports.Add(p));
+        var dest = Path.Combine(_tempDir, "chunk-progress.bin");
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/update.exe", sha256, dest, progress, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(progressReports);
+        Assert.Equal(content.Length, progressReports[^1].bytes);
+        Assert.Equal(content.Length, progressReports[^1].total);
+        Assert.All(progressReports, r => Assert.True(r.bytes <= r.total));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_UnknownContentLength_ReportsTotalAsNegativeOne()
+    {
+        var content = new byte[100_000];
+        var sha256 = Convert.ToHexString(SHA256.HashData(content));
+        // No contentLength supplied — Content-Length header will be absent
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var progressReports = new List<(long bytes, long total)>();
+        var progress = new Progress<(long bytes, long total)>(p => progressReports.Add(p));
+        var dest = Path.Combine(_tempDir, "unknown-length.bin");
+
+        await downloader.DownloadAsync(
+            "https://example.com/update.exe", sha256, dest, progress, CancellationToken.None);
+
+        Assert.All(progressReports, r => Assert.Equal(-1, r.total));
     }
 
     private sealed class MockHttpHandler : HttpMessageHandler
@@ -269,14 +313,22 @@ public sealed class PayloadDownloaderTests : IDisposable
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var response = new HttpResponseMessage(_statusCode)
-            {
-                Content = new ByteArrayContent(_content)
-            };
+            HttpContent httpContent;
             if (_contentLength.HasValue)
             {
-                response.Content.Headers.ContentLength = _contentLength.Value;
+                // ByteArrayContent sets Content-Length automatically from the buffer length.
+                httpContent = new ByteArrayContent(_content);
+                httpContent.Headers.ContentLength = _contentLength.Value;
             }
+            else
+            {
+                // StreamContent with TransferEncodingChunked omits the Content-Length header,
+                // simulating a chunked / unknown-length response.
+                httpContent = new StreamContent(new MemoryStream(_content));
+                httpContent.Headers.ContentLength = null;
+            }
+
+            var response = new HttpResponseMessage(_statusCode) { Content = httpContent };
             return Task.FromResult(response);
         }
     }
