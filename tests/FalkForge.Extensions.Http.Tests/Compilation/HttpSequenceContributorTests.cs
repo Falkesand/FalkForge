@@ -135,4 +135,59 @@ public sealed class HttpSequenceContributorTests
         var sequences = rows.Select(r => (int)r.Get("Sequence")!).ToList();
         Assert.Equal(sequences.Count, sequences.Distinct().Count()); // All unique
     }
+
+    [Fact]
+    public void SniBinding_AddRow_HasCondition_NOT_Installed()
+    {
+        var bindings = new List<SniSslBindingModel>
+        {
+            new() { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }
+        };
+        var contributor = new HttpSequenceContributor([], bindings);
+        var rows = contributor.GetRows(EmptyContext);
+
+        var addRow = rows.Single(r => r.Get("Action") is string a && a.StartsWith("HttpAddSslCert_"));
+        Assert.Equal("NOT Installed", addRow.Get("Condition"));
+    }
+
+    [Fact]
+    public void SniBinding_RemoveRow_HasCondition_Installed()
+    {
+        var bindings = new List<SniSslBindingModel>
+        {
+            new() { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }
+        };
+        var contributor = new HttpSequenceContributor([], bindings);
+        var rows = contributor.GetRows(EmptyContext);
+
+        var removeRow = rows.Single(r => r.Get("Action") is string a && a.StartsWith("HttpRemoveSslCert_"));
+        Assert.Equal("Installed", removeRow.Get("Condition"));
+    }
+
+    [Fact]
+    public void SniBinding_RollbackRow_SequencedBeforeAddRow()
+    {
+        var bindings = new List<SniSslBindingModel>
+        {
+            new() { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }
+        };
+        var contributor = new HttpSequenceContributor([], bindings);
+        var rows = contributor.GetRows(EmptyContext);
+
+        var rollbackSeq = (int)rows.Single(r => r.Get("Action") is string a && a.StartsWith("HttpRollbackSslCert_")).Get("Sequence")!;
+        var addSeq      = (int)rows.Single(r => r.Get("Action") is string a && a.StartsWith("HttpAddSslCert_")).Get("Sequence")!;
+
+        Assert.True(rollbackSeq < addSeq, $"Rollback seq {rollbackSeq} should be before Add seq {addSeq}");
+    }
+
+    [Fact]
+    public void TooManyItems_Throws()
+    {
+        var reservations = Enumerable.Range(0, 41)
+            .Select(i => new UrlReservationModel { Url = $"http://+:{8000 + i}/svc/", User = "D:(A;;GX;;;NS)" })
+            .ToList();
+        var contributor = new HttpSequenceContributor(reservations, []);
+
+        Assert.Throws<InvalidOperationException>(() => contributor.GetRows(EmptyContext));
+    }
 }

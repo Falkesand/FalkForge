@@ -13,11 +13,19 @@ internal sealed class HttpSequenceContributor(
     private const int RollbackBase = 4050;
     // Remove CAs run just before RemoveFiles (sequence ~3700)
     private const int RemoveBase   = 3650;
+    // Max items to prevent sequence number collisions near RemoveFiles ~3700
+    private const int MaxItems     = 40;
 
     public string TableName => "InstallExecuteSequence";
 
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
+        var totalItems = reservations.Count + bindings.Count;
+        if (totalItems > MaxItems)
+            throw new InvalidOperationException(
+                $"HttpExtension supports at most {MaxItems} combined URL reservations and SNI SSL bindings (got {totalItems}). " +
+                "This limit prevents MSI sequence number collisions near RemoveFiles.");
+
         var rows = new List<MsiTableRow>();
         var offset = 0;
 
