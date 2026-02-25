@@ -141,4 +141,22 @@ public sealed class EngineContext
     /// The elevated companion process, if launched.
     /// </summary>
     public Process? ElevatedProcess { get; set; }
+
+    /// <summary>
+    /// Background Task running the update download, or null when not downloading.
+    /// Started during detection when the update policy is not NotifyOnly.
+    /// </summary>
+    internal Task? UpdateDownloadTask { get; set; }
+
+    /// <summary>
+    /// CancellationTokenSource linked to the engine's main token used to cancel
+    /// the background update download on shutdown.
+    /// </summary>
+    internal CancellationTokenSource? UpdateDownloadCts { get; set; }
+
+    /// <summary>
+    /// Local file path of the downloaded update installer, set by the background
+    /// download task after a successful download. Null until the download completes.
+    /// </summary>
+    internal string? PendingUpdatePath { get; set; }
 }
