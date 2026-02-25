@@ -58,6 +58,33 @@ public abstract class InstallerPage : INotifyPropertyChanged
     /// </summary>
     protected internal virtual Task OnApplyCompleteAsync(ApplyResult result) => Task.CompletedTask;
 
+    /// <summary>Called when an update is detected and background download is starting.</summary>
+    protected virtual Task OnUpdateAvailableAsync(string version, string? releaseNotes)
+        => Task.CompletedTask;
+
+    /// <summary>
+    /// Called on each download progress tick.
+    /// When totalBytes is -1, size is unknown — show an indeterminate (Knight Rider) progress bar.
+    /// </summary>
+    protected virtual Task OnUpdateProgressAsync(int percent, long bytesReceived, long totalBytes)
+        => Task.CompletedTask;
+
+    /// <summary>
+    /// Called when download is complete and update is ready to install (DownloadAndPrompt only).
+    /// Call Engine.LaunchUpdate() when the user confirms.
+    /// </summary>
+    protected virtual Task OnUpdateReadyAsync(string version)
+        => Task.CompletedTask;
+
+    internal Task DispatchUpdateAvailableAsync(string version, string? releaseNotes)
+        => OnUpdateAvailableAsync(version, releaseNotes);
+
+    internal Task DispatchUpdateProgressAsync(int percent, long bytesReceived, long totalBytes)
+        => OnUpdateProgressAsync(percent, bytesReceived, totalBytes);
+
+    internal Task DispatchUpdateReadyAsync(string version)
+        => OnUpdateReadyAsync(version);
+
     public virtual bool CanGoNext => true;
     public virtual bool CanGoBack => true;
 

@@ -28,6 +28,25 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         NextCommand = new RelayCommand(OnNextAsync);
         BackCommand = new RelayCommand(OnBackAsync);
         CancelCommand = new RelayCommand(OnCancelAsync);
+
+        if (engine is EngineClient engineClient)
+        {
+            engineClient.UpdateAvailable += async (version, notes) =>
+            {
+                if (CurrentPage is InstallerPage page)
+                    await page.DispatchUpdateAvailableAsync(version, notes);
+            };
+            engineClient.UpdateDownloadProgress += async (pct, bytes, total) =>
+            {
+                if (CurrentPage is InstallerPage page)
+                    await page.DispatchUpdateProgressAsync(pct, bytes, total);
+            };
+            engineClient.UpdateReady += async version =>
+            {
+                if (CurrentPage is InstallerPage page)
+                    await page.DispatchUpdateReadyAsync(version);
+            };
+        }
     }
 
     public ICommand NextCommand { get; }

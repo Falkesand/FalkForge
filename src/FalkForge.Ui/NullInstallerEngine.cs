@@ -39,6 +39,8 @@ internal sealed class NullInstallerEngine : IInstallerEngine
 
     public void Cancel() { }
 
+    public void LaunchUpdate() { /* no-op — design-time / test use */ }
+
     public void SetProperty(string name, string value)
         => _properties[name] = value;
 

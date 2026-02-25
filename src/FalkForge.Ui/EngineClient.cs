@@ -48,6 +48,10 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public IObservable<InstallProgress> Progress => _progress;
     public IObservable<string> StatusMessage => _statusMessage;
 
+    public event Action<string, string?>? UpdateAvailable;
+    public event Action<int, long, long>? UpdateDownloadProgress;
+    public event Action<string>? UpdateReady;
+
     public Task<Result<Unit>> ConnectAsync(CancellationToken ct = default)
         => _pipe.ConnectAsync(ct);
 
@@ -96,6 +100,11 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public void Cancel()
     {
         _ = _pipe.SendAsync(new CancelMessage());
+    }
+
+    public void LaunchUpdate()
+    {
+        _ = _pipe.SendAsync(new LaunchUpdateMessage());
     }
 
     public void SetProperty(string name, string value)
@@ -157,6 +166,18 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
                 _shutdownTcs?.TrySetResult(shutdown.ExitCode);
                 break;
 
+            case UpdateAvailableMessage m:
+                UpdateAvailable?.Invoke(m.Version, m.ReleaseNotes);
+                break;
+
+            case UpdateDownloadProgressMessage m:
+                UpdateDownloadProgress?.Invoke(m.PercentComplete, m.BytesReceived, m.TotalBytes);
+                break;
+
+            case UpdateReadyMessage m:
+                UpdateReady?.Invoke(m.Version);
+                break;
+
             case ErrorMessage error:
                 HandleError(error);
                 break;
@@ -164,6 +185,11 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Exposes the message handler for testing without requiring a real pipe connection.
+    /// </summary>
+    internal Task SimulateMessageAsync(EngineMessage message) => OnMessageReceivedAsync(message);
 
     private void HandleError(ErrorMessage error)
     {

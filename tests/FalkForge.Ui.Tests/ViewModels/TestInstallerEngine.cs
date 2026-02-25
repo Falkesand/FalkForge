@@ -45,6 +45,8 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public void Cancel() => CancelCalled = true;
 
+    public void LaunchUpdate() { }
+
     public void SetProperty(string name, string value) { }
 
     public void SetSecureProperty(string name, SensitiveBytes value) { }

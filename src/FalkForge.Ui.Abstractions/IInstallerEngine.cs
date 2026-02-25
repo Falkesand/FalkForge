@@ -32,4 +32,10 @@ public interface IInstallerEngine
     /// The caller will dispose the <paramref name="value"/> after this method returns.
     /// </remarks>
     void SetSecureProperty(string name, SensitiveBytes value);
+
+    /// <summary>
+    /// Requests the engine to launch the downloaded update and shut down.
+    /// Only valid after receiving UpdateReadyMessage (DownloadAndPrompt policy).
+    /// </summary>
+    void LaunchUpdate();
 }
