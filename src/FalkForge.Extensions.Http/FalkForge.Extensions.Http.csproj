@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FalkForge.Extensions.Http</RootNamespace>
+    <Description>HTTP extension for FalkForge — manages URL ACL reservations and SNI SSL bindings during installation via netsh custom actions</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Extensions.Http.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
+  </ItemGroup>
+</Project>
