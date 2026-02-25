@@ -34,12 +34,15 @@ public sealed class HttpExtension : IFalkForgeExtension
         return this;
     }
 
-    public IReadOnlyList<Error> Validate()
+    public Result<Unit> Validate()
     {
         var errors = new List<Error>();
         errors.AddRange(HttpValidator.ValidateReservations(_reservations));
         errors.AddRange(HttpValidator.ValidateBindings(_bindings));
-        return errors;
+
+        return errors.Count > 0
+            ? Result<Unit>.Failure(errors[0])
+            : Result<Unit>.Success(Unit.Value);
     }
 
     public void Register(IExtensionRegistry registry)

@@ -19,8 +19,8 @@ public sealed class HttpExtensionTests
         var ext = new HttpExtension();
         ext.AddUrlReservation("http://+:8080/svc/", b => b.AllowNetworkService());
 
-        var errors = ext.Validate();
-        Assert.Empty(errors);
+        var result = ext.Validate();
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
@@ -39,8 +39,32 @@ public sealed class HttpExtensionTests
         var ext = new HttpExtension();
         ext.AddSniSslBinding("api.example.com", 443, b => b.Thumbprint(thumbprint));
 
-        var errors = ext.Validate();
-        Assert.Empty(errors);
+        var result = ext.Validate();
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void AddSniSslBinding_ReturnsExtensionForChaining()
+    {
+        const string thumbprint = "ABCDEF1234567890ABCDEF1234567890ABCDEF12";
+        var ext = new HttpExtension();
+        var result = ext.AddSniSslBinding("api.example.com", 443, b => b.Thumbprint(thumbprint));
+
+        Assert.Same(ext, result);
+    }
+
+    [Fact]
+    public void AddUrlReservation_NullUrl_Throws()
+    {
+        var ext = new HttpExtension();
+        Assert.Throws<ArgumentNullException>(() => ext.AddUrlReservation(null!, b => b.AllowNetworkService()));
+    }
+
+    [Fact]
+    public void AddSniSslBinding_NullHostname_Throws()
+    {
+        var ext = new HttpExtension();
+        Assert.Throws<ArgumentNullException>(() => ext.AddSniSslBinding(null!, 443, b => b.Thumbprint("ABCDEF1234567890ABCDEF1234567890ABCDEF12")));
     }
 
     [Fact]
@@ -49,8 +73,18 @@ public sealed class HttpExtensionTests
         var ext = new HttpExtension();
         ext.AddUrlReservation("ftp://invalid", b => b.AllowNetworkService());
 
-        var errors = ext.Validate();
-        Assert.NotEmpty(errors);
+        var result = ext.Validate();
+        Assert.True(result.IsFailure);
+    }
+
+    [Fact]
+    public void Validate_InvalidBinding_ReturnsErrors()
+    {
+        var ext = new HttpExtension();
+        ext.AddSniSslBinding("api.example.com", 443, b => b.Thumbprint("too-short"));
+
+        var result = ext.Validate();
+        Assert.True(result.IsFailure);
     }
 
     [Fact]
