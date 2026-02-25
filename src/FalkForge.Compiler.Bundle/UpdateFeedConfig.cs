@@ -6,4 +6,5 @@ public sealed class UpdateFeedConfig
 {
     public required string FeedUrl { get; init; }
     public UpdatePolicy Policy { get; init; } = UpdatePolicy.NotifyOnly;
+    public bool AllowResumeDownload { get; init; } = true;
 }

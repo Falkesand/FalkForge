@@ -84,7 +84,7 @@ public sealed class ManifestGenerator
             new ManifestDependencyConsumer(c.ProviderKey, c.ConsumerKey)).ToArray();
 
         ManifestUpdateFeed? updateFeed = model.UpdateFeed is not null
-            ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy)
+            ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy, model.UpdateFeed.AllowResumeDownload)
             : null;
 
         return new InstallerManifest

@@ -14,7 +14,7 @@ public sealed class UpdateCheckerTests
     private const string FeedUrl = "https://updates.example.com/feed.json";
 
     private static ManifestUpdateFeed MakeConfig(string? url = null) =>
-        new(url ?? FeedUrl, UpdatePolicy.NotifyOnly);
+        new(url ?? FeedUrl, UpdatePolicy.NotifyOnly, AllowResumeDownload: true);
 
     private static byte[] MakeFeedJson(Guid bundleId, params (string version, string url, string sha256)[] entries)
     {

@@ -291,4 +291,22 @@ public sealed class BundleBuilderTests
         Assert.Null(model.UiConfig.BannerImage);
         Assert.Null(model.UiConfig.BannerIcon);
     }
+
+    [Fact]
+    public void UpdateFeed_DefaultAllowResume_IsTrue()
+    {
+        var model = new BundleBuilder()
+            .UpdateFeed("https://example.com/feed.json")
+            .Build();
+        Assert.True(model.UpdateFeed!.AllowResumeDownload);
+    }
+
+    [Fact]
+    public void UpdateFeed_AllowResumeDisabled_StoredOnModel()
+    {
+        var model = new BundleBuilder()
+            .UpdateFeed("https://example.com/feed.json", allowResume: false)
+            .Build();
+        Assert.False(model.UpdateFeed!.AllowResumeDownload);
+    }
 }

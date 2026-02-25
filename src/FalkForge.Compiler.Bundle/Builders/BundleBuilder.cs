@@ -100,10 +100,10 @@ public sealed class BundleBuilder
         return this;
     }
 
-    public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly)
+    public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly, bool allowResume = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(feedUrl);
-        _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy };
+        _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy, AllowResumeDownload = allowResume };
         return this;
     }
 
