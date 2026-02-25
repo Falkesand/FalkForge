@@ -12,96 +12,106 @@ public sealed class HttpValidatorTests
     // --- URL Reservation ---
 
     [Fact]
-    public void HTTP001_EmptyUrl_ReturnsError()
+    public void HTTP001_EmptyUrl_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "", User = ValidSddl }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP001"));
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "", User = ValidSddl });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP001", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP002_UrlWithoutHttpPrefix_ReturnsError()
+    public void HTTP002_UrlWithoutHttpPrefix_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "ftp://+:21", User = ValidSddl }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP002"));
-        Assert.DoesNotContain(errors, e => e.Message.StartsWith("HTTP003")); // continue prevents cascading
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "ftp://+:21", User = ValidSddl });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP002", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP003_UrlWithoutTrailingSlash_ReturnsError()
+    public void HTTP003_UrlWithoutTrailingSlash_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "http://+:8080/svc", User = ValidSddl }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP003"));
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "http://+:8080/svc", User = ValidSddl });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP003", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP004_EmptyUser_ReturnsError()
+    public void HTTP004_EmptyUser_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "http://+:8080/svc/", User = "" }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP004"));
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "http://+:8080/svc/", User = "" });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP004", result.Error.Message);
     }
 
     [Fact]
-    public void ValidReservation_ReturnsNoErrors()
+    public void ValidReservation_ReturnsSuccess()
     {
-        var errors = HttpValidator.ValidateReservations([new UrlReservationModel { Url = "https://+:443/api/", User = ValidSddl }]);
-        Assert.Empty(errors);
+        var result = HttpValidator.ValidateReservation(new UrlReservationModel { Url = "https://+:443/api/", User = ValidSddl });
+        Assert.True(result.IsSuccess);
     }
 
     // --- SNI SSL Binding ---
 
     [Fact]
-    public void HTTP005_EmptyHostname_ReturnsError()
+    public void HTTP005_EmptyHostname_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP005"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP005", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP006_PortZero_ReturnsError()
+    public void HTTP006_PortZero_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "host", Port = 0, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP006"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 0, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP006", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP006_Port65536_ReturnsError()
+    public void HTTP006_Port65536_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "host", Port = 65536, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP006"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 65536, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP006", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP007_EmptyThumbprint_ReturnsError()
+    public void HTTP007_EmptyThumbprint_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = "", AppId = Guid.NewGuid() }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP007"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = "", AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP007", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP008_ThumbprintNot40Chars_ReturnsError()
+    public void HTTP008_ThumbprintNot40Chars_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = "ABCDEF12", AppId = Guid.NewGuid() }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP008"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = "ABCDEF12", AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP008", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP008_ThumbprintWithNonHex_ReturnsError()
+    public void HTTP008_ThumbprintWithNonHex_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ", AppId = Guid.NewGuid() }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP008"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ", AppId = Guid.NewGuid() });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP008", result.Error.Message);
     }
 
     [Fact]
-    public void HTTP009_EmptyGuidAppId_ReturnsError()
+    public void HTTP009_EmptyGuidAppId_ReturnsFailure()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.Empty }]);
-        Assert.Contains(errors, e => e.Message.StartsWith("HTTP009"));
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "host", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.Empty });
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("HTTP009", result.Error.Message);
     }
 
     [Fact]
-    public void ValidBinding_ReturnsNoErrors()
+    public void ValidBinding_ReturnsSuccess()
     {
-        var errors = HttpValidator.ValidateBindings([new SniSslBindingModel { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() }]);
-        Assert.Empty(errors);
+        var result = HttpValidator.ValidateBinding(new SniSslBindingModel { Hostname = "api.example.com", Port = 443, CertificateThumbprint = ValidThumbprint, AppId = Guid.NewGuid() });
+        Assert.True(result.IsSuccess);
     }
 }

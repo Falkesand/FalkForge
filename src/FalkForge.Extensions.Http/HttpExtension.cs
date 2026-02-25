@@ -36,13 +36,11 @@ public sealed class HttpExtension : IFalkForgeExtension
 
     public Result<Unit> Validate()
     {
-        var errors = new List<Error>();
-        errors.AddRange(HttpValidator.ValidateReservations(_reservations));
-        errors.AddRange(HttpValidator.ValidateBindings(_bindings));
+        var reservationResult = HttpValidator.ValidateReservations(_reservations);
+        if (reservationResult.IsFailure)
+            return reservationResult;
 
-        return errors.Count > 0
-            ? Result<Unit>.Failure(errors[0])
-            : Result<Unit>.Success(Unit.Value);
+        return HttpValidator.ValidateBindings(_bindings);
     }
 
     public void Register(IExtensionRegistry registry)

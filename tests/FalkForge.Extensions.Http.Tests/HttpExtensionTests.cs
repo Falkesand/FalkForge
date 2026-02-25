@@ -1,4 +1,3 @@
-using FalkForge.Extensibility;
 using FalkForge.Extensions.Http.Compilation;
 using Xunit;
 
@@ -68,7 +67,7 @@ public sealed class HttpExtensionTests
     }
 
     [Fact]
-    public void Validate_InvalidReservation_ReturnsErrors()
+    public void Validate_InvalidReservation_ReturnsFailure()
     {
         var ext = new HttpExtension();
         ext.AddUrlReservation("ftp://invalid", b => b.AllowNetworkService());
@@ -78,7 +77,7 @@ public sealed class HttpExtensionTests
     }
 
     [Fact]
-    public void Validate_InvalidBinding_ReturnsErrors()
+    public void Validate_InvalidBinding_ReturnsFailure()
     {
         var ext = new HttpExtension();
         ext.AddSniSslBinding("api.example.com", 443, b => b.Thumbprint("too-short"));
@@ -109,16 +108,4 @@ public sealed class HttpExtensionTests
         Assert.Contains(registry.TableContributors, c => c.TableName == "CustomAction");
         Assert.Contains(registry.TableContributors, c => c.TableName == "InstallExecuteSequence");
     }
-}
-
-// Test double — spy implementation of IExtensionRegistry
-internal sealed class SpyExtensionRegistry : IExtensionRegistry
-{
-    public List<IMsiTableContributor> TableContributors { get; } = [];
-
-    public void RegisterTableContributor(IMsiTableContributor contributor)
-        => TableContributors.Add(contributor);
-
-    public void RegisterComponentContributor(IComponentContributor contributor) { }
-    public void RegisterValidator(IExtensionValidator validator) { }
 }
