@@ -1,5 +1,4 @@
 using FalkForge.Extensions.Http.Models;
-using Xunit;
 
 namespace FalkForge.Extensions.Http.Tests.Models;
 
@@ -11,7 +10,13 @@ public sealed class SniSslBindingModelTests
     public void SniSslBindingModel_StoresAllProperties()
     {
         var appId = Guid.NewGuid();
-        var model = new SniSslBindingModel("api.example.com", 443, ValidThumbprint, appId);
+        var model = new SniSslBindingModel
+        {
+            Hostname = "api.example.com",
+            Port = 443,
+            CertificateThumbprint = ValidThumbprint,
+            AppId = appId
+        };
 
         Assert.Equal("api.example.com", model.Hostname);
         Assert.Equal(443, model.Port);
@@ -23,7 +28,14 @@ public sealed class SniSslBindingModelTests
     [Fact]
     public void SniSslBindingModel_CustomCertStoreName_IsStored()
     {
-        var model = new SniSslBindingModel("host", 443, ValidThumbprint, Guid.NewGuid(), "TrustedPeople");
+        var model = new SniSslBindingModel
+        {
+            Hostname = "host",
+            Port = 443,
+            CertificateThumbprint = ValidThumbprint,
+            AppId = Guid.NewGuid(),
+            CertStoreName = "TrustedPeople"
+        };
 
         Assert.Equal("TrustedPeople", model.CertStoreName);
     }
