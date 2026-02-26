@@ -1,5 +1,6 @@
 using FalkForge.Builders;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Bundle.Builders;
 
@@ -22,6 +23,7 @@ public sealed class BundleBuilder
     private readonly List<BundleDependencyConsumerModel> _dependencyConsumers = new();
     private BundleUiConfig? _uiConfig;
     private UpdateFeedConfig? _updateFeed;
+    private SbomOptions? _sbomOptions;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
 
@@ -195,6 +197,13 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder Sbom(Action<SbomOptions>? configure = null)
+    {
+        _sbomOptions = new SbomOptions();
+        configure?.Invoke(_sbomOptions);
+        return this;
+    }
+
     public BundleModel Build()
     {
         var upgradeCode = _upgradeCode ?? (_reproducibleOptions is not null
@@ -222,7 +231,8 @@ public sealed class BundleBuilder
             DependencyConsumers = _dependencyConsumers.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig,
-            UpdateFeed = _updateFeed
+            UpdateFeed = _updateFeed,
+            SbomOptions = _sbomOptions
         };
     }
 }

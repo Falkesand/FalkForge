@@ -1,5 +1,7 @@
 namespace FalkForge.Compiler.Bundle;
 
+using FalkForge.Sbom;
+
 public sealed class BundleModel
 {
     public required string Name { get; init; }
@@ -18,4 +20,5 @@ public sealed class BundleModel
     public IReadOnlyList<BundleDependencyConsumerModel> DependencyConsumers { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
     public UpdateFeedConfig? UpdateFeed { get; init; }
+    public SbomOptions? SbomOptions { get; init; }
 }
