@@ -17,4 +17,7 @@ public sealed class InstallerManifest
     public string? LicenseFile { get; init; }
     public ManifestUpdateFeed? UpdateFeed { get; init; }
     public required InstallScope Scope { get; init; }
+    public bool IsDryRun { get; init; }
+    public ManifestDryRunAction[] DryRunActions { get; init; } = [];
+    public string[] UnsupportedExtensions { get; init; } = [];
 }

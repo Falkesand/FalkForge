@@ -36,6 +36,15 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             context.Variables.Set($"Feature_{featureId}", isSelected ? "1" : "0");
         }
 
+        // PLN004: Block dry-run if any extension does not support it
+        if (context.Manifest.IsDryRun && context.Manifest.UnsupportedExtensions.Length > 0)
+        {
+            var names = string.Join(", ", context.Manifest.UnsupportedExtensions);
+            context.ErrorMessage = $"PLN004: Dry-run mode is not supported by the following extension(s): {names}. All extensions must implement IDryRunContributor to use dry-run.";
+            context.Logger.Error("Planning", context.ErrorMessage);
+            return EnginePhase.Failed;
+        }
+
         // Block uninstall if dependencies exist (before notifying UI of plan begin)
         if (context.RequestedAction == InstallAction.Uninstall && context.DependencyBlockers.Count > 0)
         {

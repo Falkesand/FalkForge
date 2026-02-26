@@ -27,5 +27,6 @@ public enum ErrorKind
     ExecutionError,
     DownloadError,
     LayoutError,
-    PluginError
+    PluginError,
+    DryRunNotSupported
 }
