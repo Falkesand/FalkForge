@@ -41,6 +41,7 @@ public sealed class PlanningHandler : IEnginePhaseHandler
         {
             var names = string.Join(", ", context.Manifest.UnsupportedExtensions);
             context.ErrorMessage = $"PLN004: Dry-run mode is not supported by the following extension(s): {names}. All extensions must implement IDryRunContributor to use dry-run.";
+            context.LastErrorKind = ErrorKind.DryRunNotSupported;
             context.Logger.Error("Planning", context.ErrorMessage);
             return EnginePhase.Failed;
         }

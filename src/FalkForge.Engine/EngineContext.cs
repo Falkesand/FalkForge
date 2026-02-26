@@ -53,6 +53,12 @@ public sealed class EngineContext
     public string? ErrorMessage { get; set; }
 
     /// <summary>
+    /// Structured error kind set by phase handlers when transitioning to Failed.
+    /// Used by FailedHandler to report the precise error category to the UI.
+    /// </summary>
+    internal ErrorKind? LastErrorKind { get; set; }
+
+    /// <summary>
     /// Index of the segment that failed during apply. -1 means no segment-level failure tracking.
     /// Used by RollingBackHandler to determine which segment to roll back.
     /// </summary>
