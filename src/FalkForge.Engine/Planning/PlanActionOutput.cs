@@ -1,6 +1,6 @@
 namespace FalkForge.Engine.Planning;
 
-internal sealed class PlanActionOutput
+internal sealed record PlanActionOutput
 {
     public required string PackageId { get; init; }
     public required string Action { get; init; }  // "Install", "Uninstall", "Repair"

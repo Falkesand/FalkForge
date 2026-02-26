@@ -42,7 +42,7 @@ internal static class PlanExporter
         return new PlanOutput
         {
             PlanVersion = "1",
-            GeneratedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            GeneratedAt = DateTimeOffset.UtcNow.ToString("o"),
             Packages = packages
         };
     }
