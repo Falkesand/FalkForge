@@ -22,8 +22,22 @@ public sealed class PackageExecutor
         _bundleExecutor = bundleExecutor;
     }
 
-    public async Task<Result<ExecutionOutcome>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    /// <summary>
+    /// Executes a package action. When <paramref name="isDryRun"/> is true, simulates the
+    /// execution (returns success) and appends a log entry to <paramref name="dryRunLogPath"/>
+    /// instead of invoking the real installer.
+    /// </summary>
+    public async Task<Result<ExecutionOutcome>> ExecuteAsync(
+        PlanAction action,
+        bool isDryRun,
+        string? dryRunLogPath,
+        CancellationToken ct)
     {
+        if (isDryRun)
+        {
+            return await SimulateDryRunAsync(action, dryRunLogPath, ct);
+        }
+
         var innerResult = action.Package.Type switch
         {
             PackageType.MsiPackage => await _msiExecutor.ExecuteAsync(action, ct),
@@ -44,6 +58,38 @@ public sealed class PackageExecutor
         }
 
         return MapExitCode(action, innerResult.Value);
+    }
+
+    /// <summary>
+    /// Overload kept for backwards-compatibility; defaults to no dry-run.
+    /// </summary>
+    public Task<Result<ExecutionOutcome>> ExecuteAsync(PlanAction action, CancellationToken ct) =>
+        ExecuteAsync(action, isDryRun: false, dryRunLogPath: null, ct);
+
+    private static async Task<Result<ExecutionOutcome>> SimulateDryRunAsync(
+        PlanAction action,
+        string? logPath,
+        CancellationToken ct)
+    {
+        var logLine = string.Concat(
+            "[", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), "] ",
+            "DRY RUN: Would ", action.ActionType.ToString().ToUpperInvariant(),
+            " ", action.Package.Type, " package '", action.PackageId, "'",
+            " (", action.Package.DisplayName ?? action.PackageId, ")");
+
+        if (!string.IsNullOrEmpty(logPath))
+        {
+            try
+            {
+                await File.AppendAllTextAsync(logPath, logLine + Environment.NewLine, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Log write failure is non-fatal for dry-run; continue simulating
+            }
+        }
+
+        return ExecutionOutcome.Success;
     }
 
     public Result<ExecutionOutcome> MapExitCode(PlanAction action, int processExitCode)

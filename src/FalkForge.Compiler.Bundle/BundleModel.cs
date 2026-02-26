@@ -21,4 +21,10 @@ public sealed class BundleModel
     public BundleUiConfig? UiConfig { get; init; }
     public UpdateFeedConfig? UpdateFeed { get; init; }
     public SbomOptions? SbomOptions { get; init; }
+
+    /// <summary>
+    /// When true, the engine Apply phase simulates package execution
+    /// instead of running installers.
+    /// </summary>
+    public bool IsDryRun { get; init; }
 }

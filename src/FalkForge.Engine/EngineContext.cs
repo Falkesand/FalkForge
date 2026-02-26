@@ -183,4 +183,17 @@ public sealed class EngineContext
     /// When null, the plan JSON is written to stdout. Only consulted when IsPlanOnly is true.
     /// </summary>
     internal string? PlanOnlyOutputPath { get; set; }
+
+    /// <summary>
+    /// When true, the Apply phase simulates package execution instead of running it.
+    /// No MSI/EXE/MSU/MSP installs are performed; execution is logged to DryRunLogPath.
+    /// Set from InstallerManifest.IsDryRun during Initializing phase.
+    /// </summary>
+    internal bool IsDryRun { get; set; }
+
+    /// <summary>
+    /// Path of the dry-run simulation log file. Only used when IsDryRun is true.
+    /// Set during Initializing phase when IsDryRun is detected.
+    /// </summary>
+    internal string? DryRunLogPath { get; set; }
 }

@@ -24,6 +24,7 @@ public sealed class BundleBuilder
     private BundleUiConfig? _uiConfig;
     private UpdateFeedConfig? _updateFeed;
     private SbomOptions? _sbomOptions;
+    private bool _isDryRun;
     private int _containerCounter;
     private int _rollbackBoundaryCounter;
 
@@ -204,6 +205,16 @@ public sealed class BundleBuilder
         return this;
     }
 
+    /// <summary>
+    /// Marks this bundle as a dry-run installer. The engine Apply phase will
+    /// simulate package execution instead of running real installers.
+    /// </summary>
+    public BundleBuilder DryRun()
+    {
+        _isDryRun = true;
+        return this;
+    }
+
     public BundleModel Build()
     {
         var upgradeCode = _upgradeCode ?? (_reproducibleOptions is not null
@@ -232,7 +243,8 @@ public sealed class BundleBuilder
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig,
             UpdateFeed = _updateFeed,
-            SbomOptions = _sbomOptions
+            SbomOptions = _sbomOptions,
+            IsDryRun = _isDryRun
         };
     }
 }

@@ -103,7 +103,8 @@ public sealed class ManifestGenerator
             DependencyConsumers = dependencyConsumers,
             LicenseFile = model.UiConfig?.LicenseFile,
             UpdateFeed = updateFeed,
-            Scope = model.Scope
+            Scope = model.Scope,
+            IsDryRun = model.IsDryRun
         };
     }
 
