@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using FalkForge.Cli.Settings;
 using Spectre.Console;
@@ -33,19 +32,13 @@ public sealed class PlanCommand : Command<PlanSettings>
             return ExitCodes.RuntimeError;
         }
 
-        // Build the engine args for --plan-only mode
-        var engineArgs = BuildEngineArgs(projectPath, settings.OutputPath);
-
-        _output.MarkupLine($"[grey]Running plan-only for: {Markup.Escape(projectPath)}[/]");
-        _output.MarkupLine($"[grey]Engine args: {Markup.Escape(string.Join(" ", engineArgs))}[/]");
-
-        // Note: Full engine integration requires the engine binary built with NativeAOT.
+        // Full engine integration requires the engine binary built with NativeAOT.
         // The engine is launched as a subprocess, passing --plan-only so it outputs the plan
-        // JSON and exits without installing.
-        _output.MarkupLine("[yellow]Note:[/] --plan-only engine integration requires the compiled engine binary.");
-        _output.MarkupLine($"[green]Plan command registered successfully for: {Markup.Escape(settings.ProjectPath)}[/]");
+        // JSON and exits without installing. Return an error until the binary is available.
+        _output.WriteError("The 'forge plan' command requires the engine binary to be compiled first.");
+        _output.WriteError($"Project: {Markup.Escape(settings.ProjectPath)}");
 
-        return ExitCodes.Success;
+        return ExitCodes.RuntimeError;
     }
 
     /// <summary>

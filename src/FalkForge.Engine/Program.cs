@@ -42,6 +42,12 @@ internal static class Program
             return 1;
         }
 
+        if (planOnly && manifestPath is null)
+        {
+            Console.Error.WriteLine("--plan-only requires --manifest. Specify the manifest path.");
+            return 1;
+        }
+
         // Manifest loading and EngineHost wiring will be implemented with bundle compiler.
         // The planOnly / planOutputPath values are parsed above and will be forwarded to
         // EngineHost.IsPlanOnly / EngineHost.PlanOnlyOutputPath once manifest loading lands.
