@@ -171,4 +171,16 @@ public sealed class EngineContext
     /// Injected by EngineHost; can be overridden in tests.
     /// </summary>
     internal IUpdateLauncher? UpdateLauncher { get; set; }
+
+    /// <summary>
+    /// When true, the engine exits after the Planning phase and writes the plan JSON to stdout
+    /// instead of proceeding to Elevating/Applying. Set by the --plan-only command-line flag.
+    /// </summary>
+    internal bool IsPlanOnly { get; set; }
+
+    /// <summary>
+    /// Output file path for plan JSON when running in plan-only mode.
+    /// When null, the plan JSON is written to stdout. Only consulted when IsPlanOnly is true.
+    /// </summary>
+    internal string? PlanOnlyOutputPath { get; set; }
 }

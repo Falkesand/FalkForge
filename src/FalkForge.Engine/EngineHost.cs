@@ -56,6 +56,18 @@ public sealed partial class EngineHost : IAsyncDisposable
     private EngineStateMachine? _stateMachine;
     private IEngineLogger? _logger;
 
+    /// <summary>
+    /// When true, the engine exits after the Planning phase and outputs the plan JSON
+    /// without proceeding to Elevating/Applying. Corresponds to the --plan-only CLI flag.
+    /// </summary>
+    public bool IsPlanOnly { get; set; }
+
+    /// <summary>
+    /// Output file path for plan JSON in plan-only mode.
+    /// When null, the plan JSON is written to stdout.
+    /// </summary>
+    public string? PlanOnlyOutputPath { get; set; }
+
     public EngineHost(InstallerManifest manifest, IPlatformServices platform, PipeConnectionOptions? pipeOptions = null)
     {
         _manifest = manifest;
@@ -104,7 +116,9 @@ public sealed partial class EngineHost : IAsyncDisposable
             ShutdownToken = ct,
             UserCancellationSource = userCts,
             Logger = _logger,
-            UpdateLauncher = new DefaultUpdateLauncher(cacheRoot: null)
+            UpdateLauncher = new DefaultUpdateLauncher(cacheRoot: null),
+            IsPlanOnly = IsPlanOnly,
+            PlanOnlyOutputPath = PlanOnlyOutputPath
         };
 
         // Create dependencies (manual DI for NativeAOT)

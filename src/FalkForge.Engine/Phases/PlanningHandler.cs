@@ -100,6 +100,27 @@ public sealed class PlanningHandler : IEnginePhaseHandler
             }, ct);
         }
 
+        // In plan-only mode, export the plan and shut down without installing
+        if (context.IsPlanOnly)
+        {
+            if (context.PlanOnlyOutputPath is not null)
+            {
+                var writeResult = PlanExporter.WriteToFile(planResult.Value, context.PlanOnlyOutputPath);
+                if (writeResult.IsFailure)
+                {
+                    context.ErrorMessage = writeResult.Error.Message;
+                    return EnginePhase.Failed;
+                }
+            }
+            else
+            {
+                var json = PlanExporter.ToJson(planResult.Value);
+                Console.WriteLine(json);
+            }
+
+            return EnginePhase.Shutdown;
+        }
+
         // PerUser installs don't need elevation
         return context.Manifest.Scope == InstallScope.PerUser
             ? EnginePhase.Applying
