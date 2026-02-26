@@ -1,7 +1,7 @@
 using FalkForge.Sbom;
 using Xunit;
 
-namespace FalkForge.Tests.Sbom;
+namespace FalkForge.Core.Tests.Sbom;
 
 public sealed class SbomDocumentTests
 {
@@ -13,7 +13,7 @@ public sealed class SbomDocumentTests
             Name = "MyApp",
             Version = "1.0.0",
             Manufacturer = "Contoso",
-            Timestamp = DateTimeOffset.UtcNow
+            Timestamp = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
         };
         var component = new SbomComponent
         {
@@ -24,7 +24,7 @@ public sealed class SbomDocumentTests
         };
         var doc = new SbomDocument
         {
-            SerialNumber = "urn:uuid:" + Guid.NewGuid(),
+            SerialNumber = "urn:uuid:00000000-0000-0000-0000-000000000001",
             Metadata = metadata,
             Components = [component],
             Dependencies = []
