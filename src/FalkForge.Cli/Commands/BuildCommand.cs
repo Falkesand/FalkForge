@@ -34,6 +34,9 @@ public sealed class BuildCommand : Command<BuildSettings>
             Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", epoch.Value.ToString());
         }
 
+        if (settings.GenerateSbom)
+            Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", "1");
+
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 
         if (!File.Exists(projectPath))

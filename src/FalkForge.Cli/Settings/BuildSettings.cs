@@ -30,6 +30,11 @@ public sealed class BuildSettings : CommandSettings
     [DefaultValue(false)]
     public bool Reproducible { get; init; }
 
+    [Description("Generate a CycloneDX SBOM sidecar file alongside the output")]
+    [CommandOption("--sbom")]
+    [DefaultValue(false)]
+    public bool GenerateSbom { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
