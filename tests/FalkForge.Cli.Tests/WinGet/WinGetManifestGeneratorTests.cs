@@ -25,10 +25,10 @@ public sealed class WinGetManifestGeneratorTests
 
         Assert.True(result.IsSuccess);
         var yaml = result.Value;
-        Assert.Contains("PackageIdentifier: Contoso.MyApp", yaml);
-        Assert.Contains("PackageVersion: 1.0.0", yaml);
-        Assert.Contains("Publisher: Contoso", yaml);
-        Assert.Contains("InstallerUrl: https://example.com/MyApp-1.0.0.msi", yaml);
+        Assert.Contains("PackageIdentifier: \"Contoso.MyApp\"", yaml);
+        Assert.Contains("PackageVersion: \"1.0.0\"", yaml);
+        Assert.Contains("Publisher: \"Contoso\"", yaml);
+        Assert.Contains("InstallerUrl: \"https://example.com/MyApp-1.0.0.msi\"", yaml);
         Assert.Contains("ManifestType: singleton", yaml);
         Assert.Contains("ManifestVersion: 1.6.0", yaml);
     }
@@ -38,6 +38,13 @@ public sealed class WinGetManifestGeneratorTests
     {
         var result = WinGetManifestGenerator.SanitizePackageIdentifier("My Company.My App!");
         Assert.Equal("MyCompany.MyApp", result);
+    }
+
+    [Fact]
+    public void SanitizePackageIdentifier_PreservesValidChars()
+    {
+        var result = WinGetManifestGenerator.SanitizePackageIdentifier("My_Company.My-App123");
+        Assert.Equal("My_Company.My-App123", result);
     }
 
     [Fact]
@@ -65,6 +72,11 @@ public sealed class WinGetManifestGeneratorTests
             Assert.True(File.Exists(tempPath));
             var content = File.ReadAllText(tempPath);
             Assert.Contains("Contoso.TestApp", content);
+
+            // Verify BOM-free
+            var bytes = File.ReadAllBytes(tempPath);
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+                "File must not start with a UTF-8 BOM");
         }
         finally
         {

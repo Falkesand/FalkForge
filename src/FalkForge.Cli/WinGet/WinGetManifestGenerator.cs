@@ -5,38 +5,36 @@ namespace FalkForge.Cli.WinGet;
 
 public static partial class WinGetManifestGenerator
 {
-    [GeneratedRegex(@"[^A-Za-z0-9.\-]")]
+    [GeneratedRegex(@"[^A-Za-z0-9.\-_]")]
     private static partial Regex InvalidIdentifierChars();
 
     public static string SanitizePackageIdentifier(string raw)
         => InvalidIdentifierChars().Replace(raw, string.Empty);
 
+    private static string EscapeYaml(string value)
+        => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
     public static Result<string> Generate(WinGetManifestOptions options)
     {
-        try
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json");
-            sb.AppendLine($"PackageIdentifier: {options.PackageIdentifier}");
-            sb.AppendLine($"PackageVersion: {options.PackageVersion}");
-            sb.AppendLine($"PackageLocale: {options.PackageLocale}");
-            sb.AppendLine($"Publisher: {options.Publisher}");
-            sb.AppendLine($"PackageName: {options.PackageName}");
-            sb.AppendLine($"License: {options.License}");
-            sb.AppendLine($"ShortDescription: {options.ShortDescription}");
-            sb.AppendLine("Installers:");
-            sb.AppendLine($"- Architecture: {options.Architecture}");
-            sb.AppendLine($"  InstallerType: {options.InstallerType}");
-            sb.AppendLine($"  InstallerUrl: {options.InstallerUrl}");
-            sb.AppendLine($"  InstallerSha256: {options.InstallerSha256}");
-            sb.AppendLine("ManifestType: singleton");
-            sb.AppendLine("ManifestVersion: 1.6.0");
-            return Result<string>.Success(sb.ToString());
-        }
-        catch (Exception ex)
-        {
-            return Result<string>.Failure(ErrorKind.IoError, $"WinGet manifest generation failed: {ex.Message}");
-        }
+        ArgumentNullException.ThrowIfNull(options);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json");
+        sb.AppendLine($"PackageIdentifier: \"{EscapeYaml(options.PackageIdentifier)}\"");
+        sb.AppendLine($"PackageVersion: \"{EscapeYaml(options.PackageVersion)}\"");
+        sb.AppendLine($"PackageLocale: \"{EscapeYaml(options.PackageLocale)}\"");
+        sb.AppendLine($"Publisher: \"{EscapeYaml(options.Publisher)}\"");
+        sb.AppendLine($"PackageName: \"{EscapeYaml(options.PackageName)}\"");
+        sb.AppendLine($"License: \"{EscapeYaml(options.License)}\"");
+        sb.AppendLine($"ShortDescription: \"{EscapeYaml(options.ShortDescription)}\"");
+        sb.AppendLine("Installers:");
+        sb.AppendLine($"- Architecture: \"{EscapeYaml(options.Architecture)}\"");
+        sb.AppendLine($"  InstallerType: \"{EscapeYaml(options.InstallerType)}\"");
+        sb.AppendLine($"  InstallerUrl: \"{EscapeYaml(options.InstallerUrl)}\"");
+        sb.AppendLine($"  InstallerSha256: \"{EscapeYaml(options.InstallerSha256)}\"");
+        sb.AppendLine("ManifestType: singleton");
+        sb.AppendLine("ManifestVersion: 1.6.0");
+        return Result<string>.Success(sb.ToString());
     }
 
     public static Result<Unit> GenerateToFile(WinGetManifestOptions options, string filePath)
