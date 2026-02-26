@@ -30,7 +30,7 @@ public sealed class CycloneDxSbomGenerator : ISbomGenerator
             // metadata
             writer.WritePropertyName("metadata");
             writer.WriteStartObject();
-            writer.WriteString("timestamp", document.Metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+            writer.WriteString("timestamp", document.Metadata.Timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"));
             writer.WritePropertyName("component");
             writer.WriteStartObject();
             writer.WriteString("type", "application");

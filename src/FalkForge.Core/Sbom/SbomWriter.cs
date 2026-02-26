@@ -10,7 +10,7 @@ public static class SbomWriter
     {
         try
         {
-            using var stream = File.OpenWrite(filePath);
+            using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
             return Generator.Generate(document, stream);
         }
         catch (Exception ex)
