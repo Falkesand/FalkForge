@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using FalkForge.Cli.Settings;
+using FalkForge.Cli.WinGet;
+using FalkForge.Models;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -65,6 +67,13 @@ public sealed class BuildCommand : Command<BuildSettings>
             return ExitCodes.Success;
         }
 
+        var packageResult = ScriptLoader.LoadPackageModel(projectPath);
+        if (packageResult.IsFailure)
+        {
+            _console.WriteError(packageResult.Error.Message);
+            return ExitCodes.FromErrorKind(packageResult.Error.Kind);
+        }
+
         var loadResult = ScriptLoader.LoadAndBuild(projectPath, outputPath, settings.Configuration);
         if (loadResult.IsFailure)
         {
@@ -73,7 +82,53 @@ public sealed class BuildCommand : Command<BuildSettings>
         }
 
         _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(loadResult.Value)}");
+
+        if (settings.GenerateWinGet)
+        {
+            var wingetResult = GenerateWinGetManifest(loadResult.Value, packageResult.Value, settings);
+            if (wingetResult.IsFailure)
+                _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
+            else
+                _console.MarkupLine("[green]WinGet manifest written alongside installer[/]");
+        }
+
         return ExitCodes.Success;
+    }
+
+    private static Result<Unit> GenerateWinGetManifest(
+        string installerPath,
+        PackageModel package,
+        BuildSettings settings)
+    {
+        try
+        {
+            using var fs = File.OpenRead(installerPath);
+            var sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(fs));
+
+            var installerUrl = settings.WinGetInstallerUrl
+                ?? $"https://example.com/{Path.GetFileName(installerPath)}";
+
+            var identifier = WinGetManifestGenerator.SanitizePackageIdentifier(
+                $"{package.Manufacturer}.{package.Name}");
+
+            var options = new WinGetManifestOptions
+            {
+                PackageIdentifier = identifier,
+                PackageVersion = package.Version.ToString(),
+                Publisher = package.Manufacturer,
+                PackageName = package.Name,
+                ShortDescription = $"{package.Name} installer",
+                InstallerUrl = installerUrl,
+                InstallerSha256 = sha256
+            };
+
+            var yamlPath = installerPath + ".winget.yaml";
+            return WinGetManifestGenerator.GenerateToFile(options, yamlPath);
+        }
+        catch (Exception ex)
+        {
+            return Result<Unit>.Failure(ErrorKind.IoError, $"WinGet: {ex.Message}");
+        }
     }
 
     /// <summary>

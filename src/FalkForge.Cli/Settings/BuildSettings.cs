@@ -35,6 +35,15 @@ public sealed class BuildSettings : CommandSettings
     [DefaultValue(false)]
     public bool GenerateSbom { get; init; }
 
+    [CommandOption("--winget")]
+    [Description("Generate a WinGet singleton manifest alongside the output")]
+    [DefaultValue(false)]
+    public bool GenerateWinGet { get; init; }
+
+    [CommandOption("--winget-url <URL>")]
+    [Description("Public download URL for the WinGet manifest InstallerUrl field")]
+    public string? WinGetInstallerUrl { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
