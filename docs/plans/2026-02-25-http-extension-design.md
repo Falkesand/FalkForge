@@ -186,4 +186,4 @@ Unlike `IisExtension` (which is model-only at compile time; DLL CA runs at insta
 | HTTP007 | Certificate thumbprint is null or empty            |
 | HTTP008 | Certificate thumbprint is not 40 hex characters    |
 | HTTP009 | AppId is not a valid GUID                          |
-| HTTP010 | (reserved for future use)                          |
+| HTTP010 | Shell injection characters (") detected in URL, User/SDDL, Hostname, or CertStoreName |
