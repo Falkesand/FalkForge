@@ -9,7 +9,11 @@ public sealed class SbomIntegrationTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
 
-    public SbomIntegrationTests() => Directory.CreateDirectory(_tempDir);
+    public SbomIntegrationTests()
+    {
+        Directory.CreateDirectory(_tempDir);
+        Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", null);
+    }
 
     public void Dispose()
     {
