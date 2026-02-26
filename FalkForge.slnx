@@ -49,6 +49,7 @@
     <Project Path="tests/FalkForge.Localization.Tests/FalkForge.Localization.Tests.csproj" />
     <Project Path="tests/FalkForge.Ui.Abstractions.Tests/FalkForge.Ui.Abstractions.Tests.csproj" />
     <Project Path="tests/FalkForge.Ui.Tests/FalkForge.Ui.Tests.csproj" />
+    <Project Path="tests/FalkForge.Extensibility.Tests/FalkForge.Extensibility.Tests.csproj" />
     <Project Path="tests/FalkForge.Platform.Windows.Tests/FalkForge.Platform.Windows.Tests.csproj" />
   </Folder>
 </Solution>
