@@ -2,7 +2,7 @@ using FalkForge.Extensibility;
 
 namespace FalkForge.Extensions.Firewall;
 
-public sealed class FirewallExtension : IFalkForgeExtension
+public sealed class FirewallExtension : IFalkForgeExtension, IDryRunContributor
 {
     private readonly FirewallTableContributor _tableContributor = new();
 
@@ -19,6 +19,14 @@ public sealed class FirewallExtension : IFalkForgeExtension
 
     public IReadOnlyList<FirewallValidationError> ValidateRules() =>
         FirewallValidator.Validate(_tableContributor.Rules);
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install => [new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would create Windows Firewall rule(s)" }],
+            DryRunIntent.Uninstall => [new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove Windows Firewall rule(s)" }],
+            _ => []
+        };
 
     public void Register(IExtensionRegistry registry)
     {

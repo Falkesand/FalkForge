@@ -4,7 +4,7 @@ using FalkForge.Extensions.Sql.Models;
 
 namespace FalkForge.Extensions.Sql;
 
-public sealed class SqlExtension : IFalkForgeExtension
+public sealed class SqlExtension : IFalkForgeExtension, IDryRunContributor
 {
     private readonly SqlDatabaseTableContributor _databaseContributor = new();
     private readonly SqlScriptTableContributor _scriptContributor = new();
@@ -27,6 +27,18 @@ public sealed class SqlExtension : IFalkForgeExtension
         _databaseContributor.Add(result.Value);
         return new SqlDatabaseRef(result.Value.Id);
     }
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Database, Description = "Would create SQL Server database(s)" },
+                new DryRunAction { Kind = DryRunActionKind.Database, Description = "Would execute SQL script(s)" }
+            ],
+            DryRunIntent.Uninstall => [new DryRunAction { Kind = DryRunActionKind.Database, Description = "Would drop SQL Server database(s)" }],
+            _ => []
+        };
 
     public void Register(IExtensionRegistry registry)
     {

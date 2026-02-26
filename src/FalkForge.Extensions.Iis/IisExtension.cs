@@ -6,7 +6,7 @@ using FalkForge.Extensions.Iis.Models;
 namespace FalkForge.Extensions.Iis;
 
 [SupportedOSPlatform("windows")]
-public sealed class IisExtension : IFalkForgeExtension
+public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
 {
     private readonly List<WebSiteModel> _webSites = [];
     private readonly List<AppPoolModel> _appPools = [];
@@ -62,6 +62,22 @@ public sealed class IisExtension : IFalkForgeExtension
 
     public Result<Unit> Validate() =>
         IisValidator.ValidateAll(_webSites, _appPools, _certificates);
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would create IIS application pool(s)" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would create IIS web site(s) with binding(s)" }
+            ],
+            DryRunIntent.Uninstall =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove IIS application pool(s)" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove IIS web site(s)" }
+            ],
+            _ => []
+        };
 
     public void Register(IExtensionRegistry registry)
     {
