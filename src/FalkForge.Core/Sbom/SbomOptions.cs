@@ -9,6 +9,9 @@ public sealed class SbomOptions
     public SbomOptions AddComponent(string name, string version, SbomComponentType type, string sha256,
         string? publisher = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
         _additionalComponents.Add(new SbomComponent
         {
             Name = name,

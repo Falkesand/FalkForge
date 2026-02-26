@@ -199,7 +199,7 @@ public sealed class BundleBuilder
 
     public BundleBuilder Sbom(Action<SbomOptions>? configure = null)
     {
-        _sbomOptions = new SbomOptions();
+        _sbomOptions ??= new SbomOptions();
         configure?.Invoke(_sbomOptions);
         return this;
     }
