@@ -188,4 +188,11 @@ public sealed class ConnectionStringHelperTests
         var parsed = new SqlConnectionStringBuilder(cs);
         Assert.True(parsed.TrustServerCertificate);
     }
+
+    [Fact]
+    public void Build_DefaultTrustServerCertificate_IsFalse()
+    {
+        var cs = ConnectionStringHelper.Build("server", null, true, null, null);
+        Assert.False(new SqlConnectionStringBuilder(cs).TrustServerCertificate);
+    }
 }

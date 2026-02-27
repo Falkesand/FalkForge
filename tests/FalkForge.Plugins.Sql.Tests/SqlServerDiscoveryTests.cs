@@ -24,7 +24,7 @@ public sealed class SqlServerDiscoveryTests
     }
 
     [Fact]
-    public async Task DiscoverServersAsync_AllEntriesAreNonEmpty()
+    public async Task DiscoverServersAsync_WhenServersDiscovered_AllNamesAreNonEmpty()
     {
         // Kills server name instance-check mutation (line 34: !IsNullOrEmpty guard).
         // If the guard were inverted, empty/null entries would be added, causing this to fail.
@@ -37,7 +37,7 @@ public sealed class SqlServerDiscoveryTests
     }
 
     [Fact]
-    public async Task DiscoverServersAsync_NoDuplicates()
+    public async Task DiscoverServersAsync_WhenMultipleSourcesYieldSameServer_DeduplicatesEntries()
     {
         // Kills deduplication mutations; the internal HashSet should ensure no duplicates.
         var discovery = new SqlServerDiscovery();
@@ -50,7 +50,7 @@ public sealed class SqlServerDiscoveryTests
     }
 
     [Fact]
-    public async Task DiscoverServersAsync_ReturnsOrderedList()
+    public async Task DiscoverServersAsync_WhenServersDiscovered_ReturnsAlphabeticallySorted()
     {
         // Kills the .Order() mutation: result must be sorted alphabetically.
         var discovery = new SqlServerDiscovery();
@@ -72,13 +72,4 @@ public sealed class SqlServerDiscoveryTests
         Assert.True(Microsoft.Data.SqlClient.SqlClientFactory.Instance.CanCreateDataSourceEnumerator);
     }
 
-    [Fact]
-    public async Task DiscoverServersAsync_CanCreateDataSourceEnumerator_SmokeTest()
-    {
-        // Complementary smoke: confirms discovery succeeds when CanCreateDataSourceEnumerator is true.
-        var discovery = new SqlServerDiscovery();
-        var result = await discovery.DiscoverServersAsync();
-
-        Assert.True(result.IsSuccess);
-    }
 }

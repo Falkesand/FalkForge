@@ -33,18 +33,22 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
                         var instanceName = row["InstanceName"]?.ToString();
                         if (!string.IsNullOrEmpty(serverName))
                         {
+                            // Stryker disable all : untestable DataRow field access — network-dependent external data
                             servers.Add(string.IsNullOrEmpty(instanceName)
                                 ? serverName
                                 : $@"{serverName}\{instanceName}");
+                            // Stryker restore
                         }
                     }
                 }
             }
             catch (OperationCanceledException) { throw; }
+            // Stryker disable all : untestable catch branch — requires live network to trigger SqlException/InvalidOperationException
             catch (Exception ex) when (ex is SqlException or InvalidOperationException or System.Security.SecurityException)
             {
                 System.Diagnostics.Trace.TraceWarning($"SQL Server network discovery failed: {ex.Message}");
             }
+            // Stryker restore
 
             return Result<IReadOnlyList<string>>.Success(servers.Order().ToList());
         }, ct);
