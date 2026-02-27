@@ -173,4 +173,124 @@ public sealed class ConditionLexerTests
         Assert.Equal(TokenType.Variable, result.Value[0].Type);
         Assert.Equal("System.Feature", result.Value[0].Value);
     }
+
+    // --- String literal boundary ---
+
+    [Fact]
+    public void Tokenize_UnterminatedStringLiteral_ErrorMessageContainsUnterminated()
+    {
+        var result = ConditionLexer.Tokenize("\"unterminated");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("Unterminated", result.Error.Message);
+    }
+
+    [Fact]
+    public void Tokenize_EmptyStringLiteral_ReturnsStringToken()
+    {
+        var result = ConditionLexer.Tokenize("\"\"");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.StringLiteral, result.Value[0].Type);
+        Assert.Equal("", result.Value[0].Value);
+    }
+
+    // --- Version vs integer disambiguation ---
+
+    [Fact]
+    public void Tokenize_NumberWithDot_ParsedAsVersion()
+    {
+        var result = ConditionLexer.Tokenize("6.1");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.VersionLiteral, result.Value[0].Type);
+        Assert.Equal("6.1", result.Value[0].Value);
+    }
+
+    [Fact]
+    public void Tokenize_PlainInteger_ParsedAsInt()
+    {
+        var result = ConditionLexer.Tokenize("603");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.IntLiteral, result.Value[0].Type);
+        Assert.Equal("603", result.Value[0].Value);
+    }
+
+    [Fact]
+    public void Tokenize_VersionWithVPrefix_ReturnsVersionToken()
+    {
+        var result = ConditionLexer.Tokenize("v10.0");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.VersionLiteral, result.Value[0].Type);
+        Assert.Equal("10.0", result.Value[0].Value);
+    }
+
+    [Fact]
+    public void Tokenize_FourPartVersion_ParsedAsVersion()
+    {
+        var result = ConditionLexer.Tokenize("6.1.7601.0");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.VersionLiteral, result.Value[0].Type);
+        Assert.Equal("6.1.7601.0", result.Value[0].Value);
+    }
+
+    // --- Operator lookahead boundary ---
+
+    [Fact]
+    public void Tokenize_TildeAtEnd_ReturnsUnexpectedChar()
+    {
+        var result = ConditionLexer.Tokenize("~");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("Unexpected character", result.Error.Message);
+    }
+
+    [Fact]
+    public void Tokenize_LessThanAtEndOfExpression_ParsedAsLessThan()
+    {
+        var result = ConditionLexer.Tokenize("A <");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.LessThan, result.Value[1].Type);
+    }
+
+    [Fact]
+    public void Tokenize_GreaterThanAtEndOfExpression_ParsedAsGreaterThan()
+    {
+        var result = ConditionLexer.Tokenize("A >");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.GreaterThan, result.Value[1].Type);
+    }
+
+    // --- End token always present ---
+
+    [Fact]
+    public void Tokenize_AllExpressionTypes_AlwaysEndsWithEndToken()
+    {
+        var expressions = new[] { "A", "A = B", "NOT A", "(A OR B)", "\"str\"", "42" };
+        foreach (var expr in expressions)
+        {
+            var result = ConditionLexer.Tokenize(expr);
+            Assert.True(result.IsSuccess, $"Failed for: {expr}");
+            Assert.Equal(TokenType.End, result.Value[^1].Type);
+        }
+    }
+
+    // --- AND keyword case variants ---
+
+    [Theory]
+    [InlineData("AND")]
+    [InlineData("and")]
+    [InlineData("And")]
+    public void Tokenize_AndKeywordCaseVariants_ReturnAndToken(string keyword)
+    {
+        var result = ConditionLexer.Tokenize(keyword);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(TokenType.And, result.Value[0].Type);
+    }
 }
