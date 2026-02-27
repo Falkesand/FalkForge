@@ -4,6 +4,7 @@ using Xunit;
 
 namespace FalkForge.Cli.Tests;
 
+[Collection("SourceDateEpoch")]
 public sealed class BuildCommandTests
 {
     private static CommandContext CreateContext() =>
@@ -40,6 +41,7 @@ public sealed class BuildCommandTests
     [Fact]
     public void ResolveSourceDateEpoch_ValidEnvVar_ReturnsValue()
     {
+        var prior = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
         Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", "1700000000");
         try
         {
@@ -52,7 +54,7 @@ public sealed class BuildCommandTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
+            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", prior);
         }
     }
 

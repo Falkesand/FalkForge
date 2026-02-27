@@ -29,4 +29,20 @@ public sealed class ExitCodesTests
 
         Assert.Equal(0, ExitCodes.FromResult(result));
     }
+
+    [Fact]
+    public void FromResult_FailedResult_ReturnsNonZero()
+    {
+        var result = Result<string>.Failure(new Error(ErrorKind.Validation, "Error"));
+
+        Assert.Equal(ExitCodes.ValidationFailure, ExitCodes.FromResult(result));
+    }
+
+    [Fact]
+    public void FromResult_FileNotFoundResult_ReturnsRuntimeError()
+    {
+        var result = Result<string>.Failure(new Error(ErrorKind.FileNotFound, "Not found"));
+
+        Assert.Equal(ExitCodes.RuntimeError, ExitCodes.FromResult(result));
+    }
 }

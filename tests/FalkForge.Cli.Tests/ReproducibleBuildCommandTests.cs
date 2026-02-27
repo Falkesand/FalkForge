@@ -7,6 +7,7 @@ namespace FalkForge.Cli.Tests;
 /// <summary>
 /// Tests for the --reproducible flag error paths in BuildCommand.
 /// </summary>
+[Collection("SourceDateEpoch")]
 public sealed class ReproducibleBuildCommandTests
 {
     private static CommandContext CreateContext() =>

@@ -62,21 +62,33 @@ public sealed class BuildSettingsTests
     }
 
     [Fact]
-    public void Validate_WhitespaceOnlyProjectPath_ReturnsError()
+    public void Validate_WhitespaceOnlyProjectPath_ReturnsRequiredError()
     {
         var settings = new BuildSettings { ProjectPath = "   " };
 
         var result = settings.Validate();
 
         Assert.False(result.Successful);
+        Assert.Contains("required", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Invalid path characters (kills IndexOfAny >= 0 → > 0 mutation) ──
 
     [Fact]
-    public void Validate_ProjectPathWithInvalidChars_ReturnsError()
+    public void Validate_ProjectPathWithInvalidCharAtStart_ReturnsError()
     {
-        // Use a character that is in Path.GetInvalidPathChars() on all platforms
+        // Invalid char at index 0 — kills IndexOfAny >= 0 → > 0 mutation
+        var settings = new BuildSettings { ProjectPath = "\0installer.cs" };
+
+        var result = settings.Validate();
+
+        Assert.False(result.Successful);
+        Assert.Contains("invalid", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_ProjectPathWithInvalidCharMidString_ReturnsError()
+    {
         var settings = new BuildSettings { ProjectPath = "install\0er.cs" };
 
         var result = settings.Validate();
@@ -86,7 +98,23 @@ public sealed class BuildSettingsTests
     }
 
     [Fact]
-    public void Validate_OutputPathWithInvalidChars_ReturnsError()
+    public void Validate_OutputPathWithInvalidCharAtStart_ReturnsError()
+    {
+        // Invalid char at index 0 — kills IndexOfAny >= 0 → > 0 mutation
+        var settings = new BuildSettings
+        {
+            ProjectPath = "installer.cs",
+            OutputPath = "\0output"
+        };
+
+        var result = settings.Validate();
+
+        Assert.False(result.Successful);
+        Assert.Contains("invalid", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_OutputPathWithInvalidCharMidString_ReturnsError()
     {
         var settings = new BuildSettings
         {
