@@ -259,7 +259,7 @@ public sealed class CSharpEmitterTests
     [Fact]
     public void Emit_WithUpgradeCode_EmitsGuid()
     {
-        var guid = Guid.NewGuid();
+        var guid = new Guid("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
         var model = new PackageModel
         {
             Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
