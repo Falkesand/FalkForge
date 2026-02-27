@@ -1,0 +1,10 @@
+{
+  "stryker-config": {
+    "mutate": [],
+    "threshold": {
+      "high": 0,
+      "low": 0,
+      "break": 0
+    }
+  }
+}
