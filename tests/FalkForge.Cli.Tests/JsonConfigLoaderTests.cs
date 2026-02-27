@@ -1110,6 +1110,41 @@ public sealed class JsonConfigLoaderTests
     }
 
     [Fact]
+    public void LoadFromString_FirewallMissingBothPortAndProgram_ReturnsJSN011()
+    {
+        var json = """
+        {
+            "product": {"name": "App", "manufacturer": "Corp"},
+            "extensions": {
+                "firewall": [{"id": "r1", "name": "Rule"}]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN011", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_FirewallWithPortOnly_IsValid()
+    {
+        var json = """
+        {
+            "product": {"name": "App", "manufacturer": "Corp"},
+            "extensions": {
+                "firewall": [{"id": "r1", "name": "Rule", "port": "80"}]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
     public void LoadFromString_SqlMissingServer_ReturnsJSN013()
     {
         var json = """

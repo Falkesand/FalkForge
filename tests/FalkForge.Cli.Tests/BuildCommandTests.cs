@@ -100,16 +100,23 @@ public sealed class BuildCommandTests
     [Fact]
     public void ResolveSourceDateEpoch_NoEnvVar_NoGitRepo_ReturnsNullAndWritesRPR002()
     {
+        var prior = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
         Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
+        try
+        {
+            var console = new TestConsoleOutput();
 
-        var console = new TestConsoleOutput();
+            // Pass a non-git directory so git fails deterministically
+            var result = BuildCommand.ResolveSourceDateEpoch(console, Path.GetTempPath());
 
-        // Pass a non-git directory so git fails deterministically
-        var result = BuildCommand.ResolveSourceDateEpoch(console, Path.GetTempPath());
-
-        Assert.Null(result);
-        Assert.Single(console.Errors);
-        Assert.Contains("RPR002", console.Errors[0]);
+            Assert.Null(result);
+            Assert.Single(console.Errors);
+            Assert.Contains("RPR002", console.Errors[0]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", prior);
+        }
     }
 
     [Fact]

@@ -23,6 +23,7 @@ public sealed class ValidateSettingsTests
         var result = settings.Validate();
 
         Assert.False(result.Successful);
+        Assert.Contains("required", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -33,6 +34,7 @@ public sealed class ValidateSettingsTests
         var result = settings.Validate();
 
         Assert.False(result.Successful);
+        Assert.Contains(".cs", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

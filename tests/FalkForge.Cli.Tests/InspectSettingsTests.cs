@@ -23,6 +23,7 @@ public sealed class InspectSettingsTests
         var result = settings.Validate();
 
         Assert.False(result.Successful);
+        Assert.Contains("required", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -33,6 +34,7 @@ public sealed class InspectSettingsTests
         var result = settings.Validate();
 
         Assert.False(result.Successful);
+        Assert.Contains(".msi", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
