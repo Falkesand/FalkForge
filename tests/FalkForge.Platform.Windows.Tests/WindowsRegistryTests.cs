@@ -18,7 +18,7 @@ public sealed class WindowsRegistryTests : IDisposable
 
     public void Dispose()
     {
-        try { Registry.CurrentUser.DeleteSubKeyTree(@"Software\FalkForgeTest", throwOnMissingSubKey: false); }
+        try { Registry.CurrentUser.DeleteSubKeyTree(_subKey, throwOnMissingSubKey: false); }
         catch { /* best-effort */ }
     }
 
