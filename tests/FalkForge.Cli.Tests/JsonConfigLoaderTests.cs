@@ -912,4 +912,252 @@ public sealed class JsonConfigLoaderTests
 
         Assert.True(result.IsSuccess);
     }
+
+    // ── Whitespace-only values (kills IsNullOrWhiteSpace → != "" mutations) ──
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyName_ReturnsJSN002()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "   ",
+                "manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN002", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyManufacturer_ReturnsJSN003()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "\t"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN003", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyVersion_TreatedAsAbsent()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "version": "  "
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new Version(1, 0, 0), result.Value.Version);
+    }
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyUpgradeCode_TreatedAsAbsent()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "upgradeCode": "   "
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEqual(Guid.Empty, result.Value.UpgradeCode);
+    }
+
+    // ── Compound && → || mutations (launch conditions) ──
+
+    [Fact]
+    public void LoadFromString_LaunchConditionEmptyCondition_IsSkipped()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "launchConditions": [
+                {
+                    "condition": "",
+                    "message": "Some requirement"
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.LaunchConditions);
+    }
+
+    [Fact]
+    public void LoadFromString_LaunchConditionEmptyMessage_IsSkipped()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "launchConditions": [
+                {
+                    "condition": "VersionNT >= 603",
+                    "message": ""
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.LaunchConditions);
+    }
+
+    // ── Path resolution (kills Path.IsPathRooted mutation) ──
+
+    [Fact]
+    public void LoadFromString_AbsoluteLicensePath_NotCombinedWithBaseDir()
+    {
+        var absolutePath = @"C:\licenses\License.rtf";
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "license": "{{absolutePath.Replace("\\", "\\\\")}}"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(absolutePath, result.Value.LicenseFile);
+    }
+
+    [Fact]
+    public void LoadFromString_RelativeLicensePath_CombinedWithBaseDir()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "license": "License.rtf"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.StartsWith(BaseDir, result.Value.LicenseFile);
+        Assert.EndsWith("License.rtf", result.Value.LicenseFile);
+    }
+
+    // ── Extension validation && mutations ──
+
+    [Fact]
+    public void LoadFromString_FirewallMissingName_ReturnsJSN011()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "extensions": {
+                "firewall": [
+                    {
+                        "id": "HttpRule",
+                        "port": "80"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN011", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_SqlMissingServer_ReturnsJSN013()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "extensions": {
+                "sql": [
+                    {
+                        "id": "AppDb",
+                        "database": "TestDb"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN013", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_SqlMissingDatabase_ReturnsJSN013()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "extensions": {
+                "sql": [
+                    {
+                        "id": "AppDb",
+                        "server": "localhost"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN013", result.Error.Message);
+    }
 }
