@@ -108,12 +108,11 @@ public class MessageDeserializerTests
         // payloadLength == MaxPayloadSize + 1 = 1_048_577:
         // (> MaxPayloadSize) is true → must fail.
         // Kills the `>` → `>=` mutation from a different angle (combined with the == test below).
-        const int maxPayloadSize = 1 * 1024 * 1024; // 1MB as defined in MessageDeserializer
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
         bw.Write((ushort)MessageType.DetectBegin);
-        bw.Write(maxPayloadSize + 1);
+        bw.Write(MessageDeserializer.MaxPayloadSize + 1);
         bw.Write(0u);
         var data = ms.ToArray();
 
@@ -131,12 +130,11 @@ public class MessageDeserializerTests
         // (> MaxPayloadSize) is false → must NOT fail on the size check.
         // Kills the `>` → `>=` mutation: with >=, exactly MaxPayloadSize would be rejected.
         // We only check that the failure is NOT "Invalid payload length".
-        const int maxPayloadSize = 1 * 1024 * 1024;
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
         bw.Write((ushort)MessageType.DetectBegin);
-        bw.Write(maxPayloadSize);  // exactly at the limit
+        bw.Write(MessageDeserializer.MaxPayloadSize);  // exactly at the limit
         bw.Write(0u);              // sequenceId (4 bytes), but payload claims 1MB beyond this
         var data = ms.ToArray();
 

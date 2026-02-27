@@ -5,7 +5,7 @@ namespace FalkForge.Engine.Protocol.Serialization;
 public static class MessageDeserializer
 {
     private const ushort ProtocolVersion = 1;
-    private const int MaxPayloadSize = 1 * 1024 * 1024; // 1MB
+    internal const int MaxPayloadSize = 1 * 1024 * 1024; // 1MB
     private const int MaxCollectionCount = 10_000;
     private const int MinHeaderSize = 8; // version(2) + type(2) + length(4)
 
