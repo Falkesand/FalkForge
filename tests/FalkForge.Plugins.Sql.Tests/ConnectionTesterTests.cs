@@ -13,4 +13,18 @@ public sealed class ConnectionTesterTests
         Assert.True(result.IsFailure);
         Assert.Contains("Connection failed", result.Error.Message);
     }
+
+    [Fact]
+    public async Task TestConnectionAsync_cancelled_token_throws()
+    {
+        // Kills the L19 statement mutation (removes `throw` in catch OperationCanceledException).
+        // When the mutant removes `throw`, the method returns Failure instead of throwing,
+        // causing this assertion to fail.
+        var tester = new ConnectionTester();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => tester.TestConnectionAsync("localhost", "master", true, ct: cts.Token));
+    }
 }

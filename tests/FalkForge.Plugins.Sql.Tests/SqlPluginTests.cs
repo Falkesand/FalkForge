@@ -17,4 +17,12 @@ public sealed class SqlPluginTests
         Assert.NotNull(services.GetService<IDatabaseLister>());
         Assert.NotNull(services.GetService<IConnectionTester>());
     }
+
+    [Fact]
+    public void Name_is_SQL_Server()
+    {
+        // Kills the L7 string mutation ("SQL Server" → "").
+        var plugin = new SqlPlugin();
+        Assert.Equal("SQL Server", plugin.Name);
+    }
 }

@@ -1,0 +1,12 @@
+{
+  "stryker-config": {
+    "project": "FalkForge.Plugins.Sql.csproj",
+    "additional-timeout": 300000,
+    "mutate": [
+      "**/*.cs",
+      "!**/SqlServerDiscovery.cs{995..1865}",
+      "!**/SqlServerDiscovery.cs{2700..2958}",
+      "!**/DatabaseLister.cs{639..919}"
+    ]
+  }
+}
