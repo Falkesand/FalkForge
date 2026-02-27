@@ -421,6 +421,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var result = new CabinetBuilder().BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
+        Assert.True(Directory.Exists(outputDir), "Output directory should have been created.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
