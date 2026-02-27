@@ -23,7 +23,7 @@ public sealed class CabinetBuilderTests : IDisposable
     [Fact]
     public void BuildCabinet_EmptyFileList_ReturnsFailure()
     {
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var outputDir = Path.Combine(_tempDir, "output");
 
         var result = builder.BuildCabinet([], outputDir, CompressionLevel.High);
@@ -50,7 +50,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess, $"BuildCabinet failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -75,7 +75,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -106,7 +106,7 @@ public sealed class CabinetBuilderTests : IDisposable
             MakeResolvedFile(file3, "readme.txt", "C_readme", "F_readme"),
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess, $"BuildCabinet failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -126,7 +126,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "uncompressed.dat", "C_unc", "F_unc") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.None);
 
         Assert.True(result.IsSuccess);
@@ -140,7 +140,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "low.dat", "C_low", "F_low") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.Low);
 
         Assert.True(result.IsSuccess);
@@ -154,7 +154,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "med.dat", "C_med", "F_med") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.Medium);
 
         Assert.True(result.IsSuccess);
@@ -168,7 +168,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "high.dat", "C_high", "F_high") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -182,7 +182,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "deeply", "nested", "output");
         var files = new[] { MakeResolvedFile(sourceFile, "auto.txt", "C_auto", "F_auto") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -207,7 +207,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsFailure);
@@ -220,7 +220,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "size.txt", "C_size", "F_size") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -242,7 +242,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "large.dat", "C_large", "F_large") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -358,8 +358,10 @@ public sealed class CabinetBuilderTests : IDisposable
         var out2 = Path.Combine(_tempDir, "neg_out2");
 
         // No normalizedTimestamp supplied
-        var cab1 = new CabinetBuilder().BuildCabinet(files1, out1, CompressionLevel.None);
-        var cab2 = new CabinetBuilder().BuildCabinet(files2, out2, CompressionLevel.None);
+        using var builder1 = new CabinetBuilder();
+        var cab1 = builder1.BuildCabinet(files1, out1, CompressionLevel.None);
+        using var builder2 = new CabinetBuilder();
+        var cab2 = builder2.BuildCabinet(files2, out2, CompressionLevel.None);
 
         Assert.True(cab1.IsSuccess, cab1.IsFailure ? cab1.Error.Message : "");
         Assert.True(cab2.IsSuccess, cab2.IsFailure ? cab2.Error.Message : "");
@@ -393,7 +395,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, level);
 
         Assert.True(result.IsSuccess, $"BuildCabinet failed for {level}: {(result.IsFailure ? result.Error.Message : "")}");
@@ -418,7 +420,8 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var result = new CabinetBuilder().BuildCabinet(files, outputDir, CompressionLevel.High);
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
         Assert.True(Directory.Exists(outputDir), "Output directory should have been created.");

@@ -137,12 +137,13 @@ public sealed class ConditionLexerTests
     }
 
     [Fact]
-    public void Tokenize_UnterminatedString_ReturnsFailure()
+    public void Tokenize_UnterminatedStringLiteral_ReturnsValidationError()
     {
         var result = ConditionLexer.Tokenize("\"unterminated");
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Unterminated", result.Error.Message);
     }
 
     [Fact]
@@ -177,15 +178,6 @@ public sealed class ConditionLexerTests
     }
 
     // --- String literal boundary ---
-
-    [Fact]
-    public void Tokenize_UnterminatedStringLiteral_ErrorMessageContainsUnterminated()
-    {
-        var result = ConditionLexer.Tokenize("\"unterminated");
-
-        Assert.True(result.IsFailure);
-        Assert.Contains("Unterminated", result.Error.Message);
-    }
 
     [Fact]
     public void Tokenize_EmptyStringLiteral_ReturnsStringToken()
@@ -285,10 +277,8 @@ public sealed class ConditionLexerTests
     // --- AND keyword case variants ---
 
     [Theory]
-    [InlineData("AND")]
-    [InlineData("and")]
     [InlineData("And")]
-    public void Tokenize_AndKeywordCaseVariants_ReturnAndToken(string keyword)
+    public void Tokenize_AndKeywordMixedCase_ReturnsAndToken(string keyword)
     {
         var result = ConditionLexer.Tokenize(keyword);
 
