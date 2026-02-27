@@ -1,0 +1,9 @@
+{
+  "stryker-config": {
+    "project": "FalkForge.Compiler.Msi.csproj",
+    "mutate": [
+      "src/**/*.cs",
+      "!src/**/UI/Templates/**/*.cs"
+    ]
+  }
+}
