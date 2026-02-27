@@ -152,14 +152,6 @@ public sealed class ConditionLexerTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
-    }
-
-    [Fact]
-    public void Tokenize_UnknownCharacter_MessageContainsUnexpectedCharAndSymbol()
-    {
-        var result = ConditionLexer.Tokenize("A @ B");
-
-        Assert.True(result.IsFailure);
         Assert.Contains("Unexpected character", result.Error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("@", result.Error.Message);
     }
