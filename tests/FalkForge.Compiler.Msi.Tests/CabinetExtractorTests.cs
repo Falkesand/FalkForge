@@ -211,6 +211,31 @@ public sealed class CabinetExtractorTests : IDisposable
         Assert.Equal(binaryContent, result.Value["binary.bin"]);
     }
 
+    [Fact]
+    public void Extract_NonReadableStream_ReturnsInvalidOperation()
+    {
+        // The guard: if (!cabinetStream.CanRead) — killed by inverting CanRead check
+        using var nonReadable = new FileStream(
+            Path.Combine(_tempDir, "nonread.bin"),
+            FileMode.Create, FileAccess.Write); // write-only = not readable
+
+        var result = CabinetExtractor.Extract(nonReadable);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.InvalidOperation, result.Error.Kind);
+        Assert.Contains("readable", result.Error.Message);
+    }
+
+    [Fact]
+    public void Extract_WriteOnlyStream_ReturnsInvalidOperation()
+    {
+        using var nonReadableMs = new NonReadableStream();
+        var result = CabinetExtractor.Extract(nonReadableMs);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.InvalidOperation, result.Error.Kind);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────
 
     private string BuildCabinet(params (string name, string content)[] files) =>
@@ -245,4 +270,18 @@ public sealed class CabinetExtractorTests : IDisposable
 
     private static string FailureMessage<T>(Result<T> result) =>
         result.IsFailure ? result.Error.Message : "";
+
+    private sealed class NonReadableStream : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) { }
+    }
 }
