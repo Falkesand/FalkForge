@@ -83,6 +83,7 @@ public sealed class FeatureTableReaderTests
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value);
         Assert.True(result.Value[0].IsRequired);
+        Assert.False(result.Value[0].IsDefault, "Level 0 should not be default-installed");
     }
 
     [Fact]
@@ -99,22 +100,6 @@ public sealed class FeatureTableReaderTests
         Assert.True(result.IsSuccess);
         Assert.False(result.Value[0].IsRequired);
         Assert.True(result.Value[0].IsDefault); // level >= 1
-    }
-
-    [Fact]
-    public void Read_LevelZero_IsRequired_AndIsNotDefault()
-    {
-        using var access = new MockMsiTableAccess()
-            .WithTable("Feature",
-            [
-                ["Core", null, "Core", null, "0", "0", null, "0"]
-            ]);
-
-        var result = FeatureTableReader.Read(access);
-
-        Assert.True(result.IsSuccess);
-        Assert.True(result.Value[0].IsRequired);  // level == 0 → required
-        Assert.False(result.Value[0].IsDefault);  // level < 1 → not default
     }
 
     [Fact]
