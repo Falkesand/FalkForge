@@ -32,7 +32,7 @@ public class MessageDeserializerTests
     }
 
     [Fact]
-    public void Deserialize_ExactlyMinHeaderSize_DoesNotFailOnLength()
+    public void Deserialize_ExactlyMinHeaderSize_ProceedsToBodyParsing()
     {
         // 8 bytes = exactly MinHeaderSize — the "too short" guard must NOT fire.
         // Kills the `< MinHeaderSize` → `<= MinHeaderSize` mutation:
