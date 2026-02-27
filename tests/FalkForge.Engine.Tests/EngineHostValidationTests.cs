@@ -52,6 +52,7 @@ public sealed class EngineHostValidationTests
     [InlineData("MYPROP")]
     [InlineData("MY_PROP_123")]
     [InlineData("A")]
+    [InlineData("_UNDERSCORE_START")]   // covers ^[A-Z_] first-char alternative branch
     public void ValidatePropertyName_ValidFormat_ReturnsNull(string name)
     {
         var result = EngineHost.ValidatePropertyName(name, _logger);
@@ -62,6 +63,7 @@ public sealed class EngineHostValidationTests
     [InlineData("1INVALID")]    // starts with digit
     [InlineData("-BAD")]        // starts with dash
     [InlineData(" SPACE")]      // starts with space
+    [InlineData("lowercase")]   // covers [A-Z] upper-only constraint
     public void ValidatePropertyName_InvalidFormat_ReturnsFormatError(string name)
     {
         var result = EngineHost.ValidatePropertyName(name, _logger);
