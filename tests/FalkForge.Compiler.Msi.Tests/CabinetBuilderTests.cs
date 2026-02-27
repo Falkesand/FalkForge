@@ -371,6 +371,58 @@ public sealed class CabinetBuilderTests : IDisposable
         Assert.NotEqual(bytes1, bytes2);
     }
 
+    [Theory]
+    [InlineData(CompressionLevel.None)]
+    [InlineData(CompressionLevel.Low)]
+    [InlineData(CompressionLevel.Medium)]
+    [InlineData(CompressionLevel.High)]
+    public void BuildCabinet_AllCompressionLevels_Succeed(CompressionLevel level)
+    {
+        var sourceFile = CreateTempFile("test.txt", $"Content for {level}");
+        var outputDir = Path.Combine(_tempDir, $"output_{level}");
+        var files = new[]
+        {
+            new ResolvedFile
+            {
+                SourcePath = sourceFile,
+                TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
+                FileName = "test.txt",
+                FileSize = new FileInfo(sourceFile).Length,
+                ComponentId = $"C_test_{level}",
+                FileId = $"F_test_{level}",
+            },
+        };
+
+        var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, level);
+
+        Assert.True(result.IsSuccess, $"BuildCabinet failed for {level}: {(result.IsFailure ? result.Error.Message : "")}");
+        Assert.True(File.Exists(result.Value));
+    }
+
+    [Fact]
+    public void BuildCabinet_OutputDirectoryCreatedIfMissing()
+    {
+        var sourceFile = CreateTempFile("file.txt", "content");
+        var outputDir = Path.Combine(_tempDir, "new_dir", "subdir"); // doesn't exist yet
+        var files = new[]
+        {
+            new ResolvedFile
+            {
+                SourcePath = sourceFile,
+                TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
+                FileName = "file.txt",
+                FileSize = new FileInfo(sourceFile).Length,
+                ComponentId = "C_f",
+                FileId = "F_f",
+            },
+        };
+
+        var result = new CabinetBuilder().BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────
 
     private string CreateTempFile(string name, string content)
