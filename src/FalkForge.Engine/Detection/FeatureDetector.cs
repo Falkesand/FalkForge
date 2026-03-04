@@ -12,7 +12,8 @@ public static class FeatureDetector
         IRegistry registry,
         Guid bundleId,
         InstallScope scope,
-        Dictionary<string, InstallState> packageResults)
+        Dictionary<string, InstallState> packageResults,
+        IReadOnlyList<RelatedBundleInfo>? relatedBundles = null)
     {
         if (features.Length == 0)
             return [];
@@ -20,6 +21,29 @@ public static class FeatureDetector
         // Phase 1: Delegate registry reading to FeaturePersistence
         var registrySelections = FeaturePersistence.LoadFeatureSelections(registry, bundleId, scope, features);
         var anyFoundInRegistry = registrySelections.Count > 0;
+
+        // Phase 1b: If no current selections, try migrating from a related bundle with Upgrade relation
+        if (!anyFoundInRegistry && relatedBundles is { Count: > 0 })
+        {
+            foreach (var related in relatedBundles)
+            {
+                if (related.Relation != RelatedBundleRelation.Upgrade)
+                    continue;
+
+                if (!Guid.TryParse(related.BundleId, out var relatedGuid))
+                    continue;
+
+                var relatedSelections = FeaturePersistence.LoadFromRelatedBundle(
+                    registry, relatedGuid, scope, features);
+
+                if (relatedSelections.Count > 0)
+                {
+                    registrySelections = relatedSelections;
+                    anyFoundInRegistry = true;
+                    break;
+                }
+            }
+        }
 
         // Phase 2: If no registry entries found, fall back to MSI detection
         var msiInferredSelections = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);

@@ -83,6 +83,9 @@ public sealed class ManifestGenerator
         var dependencyConsumers = model.DependencyConsumers.Select(c =>
             new ManifestDependencyConsumer(c.ProviderKey, c.ConsumerKey)).ToArray();
 
+        var dependencyRequirements = model.DependencyRequirements.Select(r =>
+            new ManifestDependencyRequirement(r.ProviderKey, r.MinVersion, r.MaxVersion, r.MinInclusive, r.MaxInclusive)).ToArray();
+
         ManifestUpdateFeed? updateFeed = model.UpdateFeed is not null
             ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy, model.UpdateFeed.AllowResumeDownload)
             : null;
@@ -101,6 +104,7 @@ public sealed class ManifestGenerator
             Features = features,
             DependencyProviders = dependencyProviders,
             DependencyConsumers = dependencyConsumers,
+            DependencyRequirements = dependencyRequirements,
             LicenseFile = model.UiConfig?.LicenseFile,
             UpdateFeed = updateFeed,
             Scope = model.Scope

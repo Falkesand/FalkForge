@@ -131,4 +131,106 @@ public sealed class DependencyDetectorTests
 
         Assert.Empty(result);
     }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_NoRequirements_ReturnsEmpty()
+    {
+        var registry = new MockRegistry();
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders([], registry);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_ProviderMissing_ReturnsUnsatisfied()
+    {
+        var registry = new MockRegistry();
+        var requirements = new[]
+        {
+            new ManifestDependencyRequirement("MissingLib", "1.0.0", null, true, false)
+        };
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
+
+        Assert.Single(result);
+        Assert.Equal("MissingLib", result[0].ProviderKey);
+        Assert.True(result[0].IsMissing);
+        Assert.Null(result[0].InstalledVersion);
+    }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_VersionTooLow_ReturnsUnsatisfied()
+    {
+        var registry = new MockRegistry();
+        registry.SetStringValue("HKLM",
+            @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
+            "Version", "1.0.0");
+
+        var requirements = new[]
+        {
+            new ManifestDependencyRequirement("SharedLib", "2.0.0", null, true, false)
+        };
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
+
+        Assert.Single(result);
+        Assert.Equal("SharedLib", result[0].ProviderKey);
+        Assert.False(result[0].IsMissing);
+        Assert.Equal("1.0.0", result[0].InstalledVersion);
+    }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_VersionSatisfied_ReturnsEmpty()
+    {
+        var registry = new MockRegistry();
+        registry.SetStringValue("HKLM",
+            @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
+            "Version", "2.5.0");
+
+        var requirements = new[]
+        {
+            new ManifestDependencyRequirement("SharedLib", "2.0.0", "3.0.0", true, false)
+        };
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_VersionAtMaxExclusive_ReturnsUnsatisfied()
+    {
+        var registry = new MockRegistry();
+        registry.SetStringValue("HKLM",
+            @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
+            "Version", "3.0.0");
+
+        var requirements = new[]
+        {
+            new ManifestDependencyRequirement("SharedLib", "2.0.0", "3.0.0", true, false)
+        };
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_VersionAtMaxInclusive_ReturnsEmpty()
+    {
+        var registry = new MockRegistry();
+        registry.SetStringValue("HKLM",
+            @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
+            "Version", "3.0.0");
+
+        var requirements = new[]
+        {
+            new ManifestDependencyRequirement("SharedLib", "2.0.0", "3.0.0", true, true)
+        };
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
+
+        Assert.Empty(result);
+    }
 }

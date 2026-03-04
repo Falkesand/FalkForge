@@ -574,6 +574,129 @@ public sealed class ManifestGeneratorTests : IDisposable
         Assert.False(result.Value.UpdateFeed.AllowResumeDownload);
     }
 
+    [Fact]
+    public void Generate_MapsDependencyRequirements()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            DependencyRequirements =
+            [
+                new BundleDependencyRequirementModel
+                {
+                    ProviderKey = "SharedLib",
+                    MinVersion = "2.0.0",
+                    MaxVersion = "3.0.0",
+                    MinInclusive = true,
+                    MaxInclusive = false
+                },
+                new BundleDependencyRequirementModel
+                {
+                    ProviderKey = "Runtime",
+                    MinVersion = "5.0.0"
+                }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.DependencyRequirements.Length);
+
+        Assert.Equal("SharedLib", result.Value.DependencyRequirements[0].ProviderKey);
+        Assert.Equal("2.0.0", result.Value.DependencyRequirements[0].MinVersion);
+        Assert.Equal("3.0.0", result.Value.DependencyRequirements[0].MaxVersion);
+        Assert.True(result.Value.DependencyRequirements[0].MinInclusive);
+        Assert.False(result.Value.DependencyRequirements[0].MaxInclusive);
+
+        Assert.Equal("Runtime", result.Value.DependencyRequirements[1].ProviderKey);
+        Assert.Equal("5.0.0", result.Value.DependencyRequirements[1].MinVersion);
+        Assert.Null(result.Value.DependencyRequirements[1].MaxVersion);
+        Assert.True(result.Value.DependencyRequirements[1].MinInclusive);
+        Assert.False(result.Value.DependencyRequirements[1].MaxInclusive);
+    }
+
+    [Fact]
+    public void Generate_NoDependencyRequirements_ReturnsEmptyArray()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ]
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.DependencyRequirements);
+    }
+
+    [Fact]
+    public void BundleBuilder_RequiresDependency_RoundTrip()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var builder = new FalkForge.Compiler.Bundle.Builders.BundleBuilder()
+            .Name("TestApp")
+            .Manufacturer("TestCo")
+            .Version("1.0.0")
+            .BundleId(Guid.NewGuid())
+            .UpgradeCode(Guid.NewGuid())
+            .RequiresDependency("SharedLib", minVersion: "2.0.0", maxVersion: "3.0.0", minInclusive: true, maxInclusive: false)
+            .RequiresDependency("Runtime", minVersion: "5.0.0")
+            .Chain(chain => chain.MsiPackage(sourceFile, pkg => pkg.Id("AppMsi").DisplayName("App")));
+
+        var model = builder.Build();
+        Assert.Equal(2, model.DependencyRequirements.Count);
+
+        var result = _generator.Generate(model);
+        Assert.True(result.IsSuccess);
+
+        Assert.Equal(2, result.Value.DependencyRequirements.Length);
+        Assert.Equal("SharedLib", result.Value.DependencyRequirements[0].ProviderKey);
+        Assert.Equal("2.0.0", result.Value.DependencyRequirements[0].MinVersion);
+        Assert.Equal("3.0.0", result.Value.DependencyRequirements[0].MaxVersion);
+        Assert.True(result.Value.DependencyRequirements[0].MinInclusive);
+        Assert.False(result.Value.DependencyRequirements[0].MaxInclusive);
+
+        Assert.Equal("Runtime", result.Value.DependencyRequirements[1].ProviderKey);
+        Assert.Equal("5.0.0", result.Value.DependencyRequirements[1].MinVersion);
+        Assert.Null(result.Value.DependencyRequirements[1].MaxVersion);
+    }
+
     private string CreateTempFile(string name, string content)
     {
         var path = Path.Combine(_tempDir, name);

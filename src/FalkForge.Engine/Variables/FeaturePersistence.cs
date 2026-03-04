@@ -44,6 +44,13 @@ internal static class FeaturePersistence
         return result;
     }
 
+    public static Dictionary<string, bool> LoadFromRelatedBundle(
+        IRegistry registry,
+        Guid relatedBundleId,
+        InstallScope scope,
+        IReadOnlyList<ManifestFeature> features) =>
+        LoadFeatureSelections(registry, relatedBundleId, scope, features);
+
     public static void ClearFeatureSelections(
         IRegistry registry,
         Guid bundleId,

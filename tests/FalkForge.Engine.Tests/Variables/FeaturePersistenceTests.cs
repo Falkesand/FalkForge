@@ -113,4 +113,40 @@ public sealed class FeaturePersistenceTests
         Assert.Equal("1", registry.GetStringValue("HKCU", keyPath, "core"));
         Assert.Null(registry.GetStringValue("HKLM", keyPath, "core"));
     }
+
+    [Fact]
+    public void LoadFromRelatedBundle_ReturnsSelections()
+    {
+        var registry = new MockRegistry();
+        var relatedBundleId = new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
+        var keyPath = $@"SOFTWARE\FalkForge\Burn\{relatedBundleId:B}\Features";
+        registry.SetStringValue("HKCU", keyPath, "core", "1");
+        registry.SetStringValue("HKCU", keyPath, "extras", "0");
+
+        var features = new ManifestFeature[]
+        {
+            MakeFeature("core"),
+            MakeFeature("extras")
+        };
+
+        var result = FeaturePersistence.LoadFromRelatedBundle(
+            registry, relatedBundleId, InstallScope.PerUser, features);
+
+        Assert.Equal(2, result.Count);
+        Assert.True(result["core"]);
+        Assert.False(result["extras"]);
+    }
+
+    [Fact]
+    public void LoadFromRelatedBundle_ReturnsEmpty_WhenNothingSaved()
+    {
+        var registry = new MockRegistry();
+        var relatedBundleId = new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
+        var features = new ManifestFeature[] { MakeFeature("core") };
+
+        var result = FeaturePersistence.LoadFromRelatedBundle(
+            registry, relatedBundleId, InstallScope.PerUser, features);
+
+        Assert.Empty(result);
+    }
 }

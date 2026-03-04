@@ -60,14 +60,22 @@ public sealed class DetectingHandler : IEnginePhaseHandler
         context.DetectedState = result.State;
         context.DetectedVersion = result.CurrentVersion;
 
-        // Detect features using registry + MSI fallback
+        // Detect related bundles (before features, so upgrade migration can use them)
+        var relatedResult = _detector.DetectRelatedBundles(context.Manifest);
+        if (relatedResult.IsSuccess)
+        {
+            context.DetectedRelatedBundles = relatedResult.Value;
+        }
+
+        // Detect features using registry + MSI fallback + related bundle migration
         var perPackageStates = _detector.DetectPerPackage(context.Manifest);
         var features = FeatureDetector.Detect(
             context.Manifest.Features,
             context.Platform.Registry,
             context.Manifest.BundleId,
             context.Manifest.Scope,
-            perPackageStates);
+            perPackageStates,
+            context.DetectedRelatedBundles);
         context.DetectedFeatures = features;
 
         // Detect dependency blockers
@@ -75,11 +83,23 @@ public sealed class DetectingHandler : IEnginePhaseHandler
             context.Manifest.DependencyProviders,
             context.Platform.Registry);
 
-        // Detect related bundles
-        var relatedResult = _detector.DetectRelatedBundles(context.Manifest);
-        if (relatedResult.IsSuccess)
+        // Detect unsatisfied dependency providers
+        context.UnsatisfiedProviders = DependencyDetector.DetectUnsatisfiedProviders(
+            context.Manifest.DependencyRequirements,
+            context.Platform.Registry);
+
+        foreach (var unsatisfied in context.UnsatisfiedProviders)
         {
-            context.DetectedRelatedBundles = relatedResult.Value;
+            if (unsatisfied.IsMissing)
+            {
+                context.Logger.Warning("DependencyCheck",
+                    $"Required dependency provider '{unsatisfied.ProviderKey}' is not installed.");
+            }
+            else
+            {
+                context.Logger.Warning("DependencyCheck",
+                    $"Dependency provider '{unsatisfied.ProviderKey}' version '{unsatisfied.InstalledVersion}' does not satisfy requirements.");
+            }
         }
 
         // Check for updates (non-blocking — failures are logged and ignored)
