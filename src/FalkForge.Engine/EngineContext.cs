@@ -38,6 +38,7 @@ public sealed class EngineContext
     public FeatureState[] DetectedFeatures { get; set; } = [];
     public IReadOnlyList<RelatedBundleInfo> DetectedRelatedBundles { get; set; } = [];
     internal IReadOnlyList<DependencyBlocker> DependencyBlockers { get; set; } = [];
+    internal IReadOnlyList<UnsatisfiedProviderInfo> UnsatisfiedProviders { get; set; } = [];
     internal UpdateCheckResult? AvailableUpdate { get; set; }
     public InstallAction RequestedAction { get; set; }
     public InstallPlan? CurrentPlan { get; set; }
