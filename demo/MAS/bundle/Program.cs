@@ -45,5 +45,11 @@ return Installer.BuildBundle(args, outputPath =>
         .Build();
 
     var compiler = new BundleCompiler();
+
+    // Use pre-published NativeAOT engine binary as the bootstrapper stub
+    var enginePath = Environment.GetEnvironmentVariable("FALKFORGE_ENGINE_PATH");
+    if (enginePath is not null)
+        compiler.EngineStubPath = enginePath;
+
     return compiler.Compile(bundle, outputPath);
 });

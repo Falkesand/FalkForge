@@ -8,6 +8,8 @@ public sealed class BundleCompiler
     private readonly ManifestGenerator _manifestGenerator = new();
     private readonly BundleValidator _validator = new();
 
+    public string? EngineStubPath { get; set; }
+
     public Result<string> Compile(BundleModel model, string outputPath)
     {
         // Step 1: Validate
@@ -76,11 +78,20 @@ public sealed class BundleCompiler
         return outputFilePath;
     }
 
-    private static string CreateStub(string outputDir)
+    private string CreateStub(string outputDir)
     {
-        var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
         Directory.CreateDirectory(outputDir);
-        File.WriteAllBytes(stubPath, []);
-        return stubPath;
+
+        if (EngineStubPath is not null && File.Exists(EngineStubPath))
+        {
+            var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
+            File.Copy(EngineStubPath, stubPath, overwrite: true);
+            return stubPath;
+        }
+
+        // Fallback: empty placeholder (design-time / test)
+        var fallbackPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
+        File.WriteAllBytes(fallbackPath, []);
+        return fallbackPath;
     }
 }
