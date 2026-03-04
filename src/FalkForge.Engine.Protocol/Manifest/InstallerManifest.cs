@@ -14,6 +14,7 @@ public sealed class InstallerManifest
     public ManifestFeature[] Features { get; init; } = [];
     public ManifestDependencyProvider[] DependencyProviders { get; init; } = [];
     public ManifestDependencyConsumer[] DependencyConsumers { get; init; } = [];
+    public ManifestDependencyRequirement[] DependencyRequirements { get; init; } = [];
     public string? LicenseFile { get; init; }
     public ManifestUpdateFeed? UpdateFeed { get; init; }
     public required InstallScope Scope { get; init; }
