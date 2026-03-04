@@ -14,4 +14,6 @@ return Installer.BuildMergeModule(args, module =>
     // A merge module must include at least one component
     module.Component("SharedRuntime");
 
+    module.Dependency("SharedRuntime_1.0");
+
 }, (model, outputPath) => new MsmCompiler().Compile(model, outputPath));

@@ -1,4 +1,5 @@
 using FalkForge;
+using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -29,5 +30,14 @@ return Installer.Build(args, p =>
 
     p.MajorUpgrade(_ => { });
     p.Downgrade(d => d.Block("A newer version is already installed."));
+
+    p.Signing(s =>
+    {
+        s.Thumbprint("ABC123DEF456");
+        s.Store("My");
+        s.Timestamp("http://timestamp.digicert.com");
+        s.Algorithm("sha256");
+        s.WithDescription("FalkForge Demo Installer", "https://example.com");
+    });
 
 }, new MsiCompiler());

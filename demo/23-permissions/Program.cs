@@ -21,4 +21,11 @@ return Installer.Build(args, package =>
         perm.Permission = 0x001301BF; // FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE
     });
 
+    // Permission via SDDL string — fine-grained access control
+    package.Permission("DataFolder", p =>
+    {
+        p.Sddl = "D:(A;;FA;;;BA)(A;;FR;;;BU)";
+        p.ForTable("CreateFolder");
+    });
+
 }, new MsiCompiler());

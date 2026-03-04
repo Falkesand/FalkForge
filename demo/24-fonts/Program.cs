@@ -16,4 +16,9 @@ return Installer.Build(args, package =>
 
     package.Font("demofont.ttf");
 
+    package.Font("payload/DemoSans.ttf", f =>
+    {
+        f.Title = "Demo Sans Regular";
+    });
+
 }, new MsiCompiler());

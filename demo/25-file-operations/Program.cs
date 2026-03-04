@@ -31,4 +31,10 @@ return Installer.Build(args, package =>
         .FileName("*.log")
         .OnUninstall());
 
+    // Conditional file installation — only installs when property is set
+    package.Files(files => files
+        .Add("payload/debug-tools.exe")
+        .To(KnownFolder.ProgramFiles / "Demo" / "FileOpsDemo" / "Debug")
+        .ComponentCondition("INSTALL_DEBUG_TOOLS"));
+
 }, new MsiCompiler());

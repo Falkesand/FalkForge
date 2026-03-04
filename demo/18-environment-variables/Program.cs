@@ -29,4 +29,11 @@ return Installer.Build(args, package =>
         env.Separator = ";";
     });
 
+    // User-scoped variable (not system-wide)
+    package.EnvironmentVariable("DEMO_USER_PREF", "enabled", ev =>
+    {
+        ev.IsSystem = false;
+        ev.Action = EnvironmentVariableAction.Set;
+    });
+
 }, new MsiCompiler());

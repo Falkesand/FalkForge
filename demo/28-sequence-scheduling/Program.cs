@@ -25,4 +25,10 @@ return Installer.Build(args, package =>
         .After("InstallFinalize")
         .Condition(Condition.IsInstalling));
 
+    // Schedule an action in the UI sequence (runs during user interaction phase)
+    package.UISequence(seq => seq
+        .Action("PostInstallCleanup")
+        .After("ExecuteAction")
+        .Condition(Condition.IsInstalling));
+
 }, new MsiCompiler());
