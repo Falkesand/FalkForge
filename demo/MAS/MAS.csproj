@@ -9,6 +9,13 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
     <ItemGroup>
+        <!-- Exclude MSI package and bundle sub-projects from WPF temp project -->
+        <Compile Remove="packages\**\*.cs" />
+        <Compile Remove="bundle\**\*.cs" />
+        <None Remove="packages\**\*" />
+        <None Remove="bundle\**\*" />
+    </ItemGroup>
+    <ItemGroup>
         <EmbeddedResource Include="lang\*.json" WithCulture="false" LogicalName="MAS.lang.%(Filename)%(Extension)"/>
     </ItemGroup>
     <ItemGroup>
