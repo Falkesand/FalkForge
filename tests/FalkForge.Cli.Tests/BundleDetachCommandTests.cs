@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Cli.Commands;
 using FalkForge.Compiler.Bundle.Compilation;
+using FalkForge.Engine.Protocol.Bundle;
 using Spectre.Console.Cli;
 using Xunit;
 

@@ -1,4 +1,4 @@
-using FalkForge.Compiler.Bundle.Compilation;
+using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Decompiler.Tests;

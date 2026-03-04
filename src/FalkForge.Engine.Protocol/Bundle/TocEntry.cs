@@ -1,4 +1,4 @@
-namespace FalkForge.Compiler.Bundle.Compilation;
+namespace FalkForge.Engine.Protocol.Bundle;
 
 public sealed class TocEntry
 {

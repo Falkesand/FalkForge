@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
+using FalkForge.Engine.Protocol.Bundle;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
