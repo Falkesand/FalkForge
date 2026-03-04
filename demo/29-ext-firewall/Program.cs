@@ -27,6 +27,9 @@ if (errors.Count > 0)
 
 Console.WriteLine($"Firewall: {errors.Count} errors, 1 rule configured.");
 
+// In production, extensions register automatically via the FalkForge SDK extension
+// pipeline during compilation. The package below shows the MSI structure; extension
+// tables are emitted by the SDK at build time.
 return Installer.Build(args, package =>
 {
     package.Name = "Firewall Demo";

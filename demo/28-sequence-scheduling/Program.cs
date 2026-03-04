@@ -14,12 +14,6 @@ return Installer.Build(args, package =>
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "SequenceDemo"));
 
-    // Configure cabinet compression
-    package.MediaTemplate(mt => mt
-        .CabinetTemplate("data{0}.cab")
-        .MaxCabinetSizeMB(200)
-        .CompressionLevel(CompressionLevel.High));
-
     // Schedule a custom action after InstallFinalize
     package.CustomAction("PostInstallCleanup", ca =>
     {

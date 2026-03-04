@@ -32,6 +32,9 @@ if (validation.IsFailure)
 
 Console.WriteLine($"IIS: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site(s).");
 
+// In production, extensions register automatically via the FalkForge SDK extension
+// pipeline during compilation. The package below shows the MSI structure; extension
+// tables are emitted by the SDK at build time.
 return Installer.Build(args, package =>
 {
     package.Name = "IIS Demo";

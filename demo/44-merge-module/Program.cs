@@ -11,4 +11,7 @@ return Installer.BuildMergeModule(args, module =>
     module.Language(1033);
     module.Description("Shared components merge module");
 
+    // A merge module must include at least one component
+    module.Component("SharedRuntime");
+
 }, (model, outputPath) => new MsmCompiler().Compile(model, outputPath));

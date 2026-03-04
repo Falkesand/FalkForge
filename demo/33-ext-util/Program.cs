@@ -26,6 +26,9 @@ if (config.IsFailure)
 util.XmlConfig.Add(config.Value);
 Console.WriteLine($"Util: 1 XmlConfig entry configured.");
 
+// In production, extensions register automatically via the FalkForge SDK extension
+// pipeline during compilation. The package below shows the MSI structure; extension
+// tables are emitted by the SDK at build time.
 return Installer.Build(args, package =>
 {
     package.Name = "Util Extension Demo";

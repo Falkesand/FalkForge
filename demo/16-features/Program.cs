@@ -40,9 +40,6 @@ return Installer.Build(args, package =>
         docs.Description = "User guide and README";
         docs.IsDefault = false;
 
-        // Condition: only show this feature on 64-bit OS
-        docs.Condition(Condition.Is64BitOS, 1);
-
         docs.Files(f => f
             .Add("payload/docs/readme.txt")
             .To(KnownFolder.ProgramFiles / "Demo" / "FeatureDemo" / "Docs"));
