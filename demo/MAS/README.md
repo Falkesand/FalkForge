@@ -75,3 +75,72 @@ dotnet build demo/MAS/MAS.csproj
   previously collected SharedState values.
 - The custom `MasInstallerWindow` includes a cancel confirmation dialog and value converters for null-to-collapsed and
   bool-to-visibility binding.
+
+## MSI Package Projects
+
+The `packages/` subdirectory contains five standalone MSI package projects, each producing a real MSI with a dummy
+payload executable:
+
+| Package         | Description                       |
+|-----------------|-----------------------------------|
+| MultiAccess     | Main client application           |
+| MultiServer     | Server component                  |
+| MultiServerEx   | Extended server component         |
+| Konfigurera     | Configuration tool                |
+| Concatenate     | Data concatenation utility        |
+
+Each package uses `Installer.Build()` with `MsiCompiler`, sets `MsiDialogSet.None` (silent install, UI handled by the
+bundle), and installs to `%ProgramFiles%\ASSA ABLOY\<Name>`. A shared `stub/` project provides the dummy executable
+used as the payload for all five MSIs.
+
+```
+dotnet run --project demo/MAS/packages/MultiAccess/MultiAccess.csproj -- -o MultiAccess-8.9.0.msi
+```
+
+## Bundle Project
+
+The `bundle/MASBundle.csproj` project chains all five MSI packages into a single bundle using `BundleBuilder`:
+
+```csharp
+new BundleBuilder()
+    .Name("MultiAccess Suite")
+    .Manufacturer("ASSA ABLOY")
+    .Version("8.9.0")
+    .Scope(InstallScope.PerMachine)
+    .UseCustomUI("../MAS.csproj")
+    .Chain(chain => chain
+        .MsiPackage(MsiPath("MultiAccess"), p => p.Id("MultiAccess").DisplayName("MultiAccess").Version("8.9.0").Vital(true))
+        .MsiPackage(MsiPath("MultiServer"), ...)
+        .MsiPackage(MsiPath("MultiServerEx"), ...)
+        .MsiPackage(MsiPath("Konfigurera"), ...)
+        .MsiPackage(MsiPath("Concatenate"), ...))
+    .Build();
+```
+
+The bundle is compiled with `BundleCompiler`, which can optionally use a pre-published NativeAOT engine binary as the
+bootstrapper stub via the `FALKFORGE_ENGINE_PATH` environment variable.
+
+## Engine Integration
+
+The UI connects to the FalkForge engine at runtime. When the bootstrapper launches the custom UI with `--manifest` and
+`--pipe` arguments, `ResolveEngine()` creates an `EngineClient` and connects via named pipe. In design-time mode
+(no arguments), the UI runs standalone for development without an engine connection.
+
+## Self-Extraction Bootstrapper
+
+The compiled bundle produces a single executable with embedded FALKBUNDLE data. At runtime, the engine extracts the
+bundled MSI payloads to a temporary directory, loads the manifest, and launches the custom WPF UI. The extraction logic
+lives in `FalkForge.Engine.Protocol` for shared use between the engine and compiler.
+
+## Install Progress Page
+
+`InstallProgressPage` subscribes to `Engine.Progress` and `Engine.StatusMessage` observables to show real-time
+installation state. The view displays a progress bar (`ProgressPercent`, 0-100), a status label (`StatusText`), and a
+detail line (`ProgressDetail`) showing the current package name. The page triggers `PageResult.Install` on entry, which
+starts the engine apply sequence.
+
+## Completion Page
+
+`CompletionPage` reads `SharedState.Get<bool>("InstallSuccess")` to display either a success or failure message. On
+failure, the error detail from `SharedState.Get<string>("InstallError")` is shown. Back navigation is disabled on this
+page.
