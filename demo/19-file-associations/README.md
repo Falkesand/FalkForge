@@ -1,6 +1,7 @@
 # Demo 19: File Associations
 
-Registers a file extension (`.demo`) with the Windows shell so double-clicking a `.demo` file opens the installed application.
+Registers a file extension (`.demo`) with the Windows shell so double-clicking a `.demo` file opens the installed
+application.
 
 ## What This Demonstrates
 
@@ -36,6 +37,7 @@ dotnet build demo/19-file-associations
 
 ## Notes
 
-- The `Verb` method's second parameter is the command-line argument template. `"%1"` passes the double-clicked file path to the application.
+- The `Verb` method's second parameter is the command-line argument template. `"%1"` passes the double-clicked file path
+  to the application.
 - `IconIndex = 0` uses the first icon resource from the executable.
 - On uninstall, MSI automatically removes the file association from the registry.

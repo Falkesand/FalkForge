@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Control installation sequence ordering and cabinet compression settings.
 return Installer.Build(args, package =>
@@ -15,10 +13,7 @@ return Installer.Build(args, package =>
         .To(KnownFolder.ProgramFiles / "Demo" / "SequenceDemo"));
 
     // Schedule a custom action after InstallFinalize
-    package.CustomAction("PostInstallCleanup", ca =>
-    {
-        ca.SetProperty("CLEANUP_FLAG", "1");
-    });
+    package.CustomAction("PostInstallCleanup", ca => { ca.SetProperty("CLEANUP_FLAG", "1"); });
 
     package.ExecuteSequence(seq => seq
         .Action("PostInstallCleanup")
@@ -30,5 +25,4 @@ return Installer.Build(args, package =>
         .Action("PostInstallCleanup")
         .After("ExecuteAction")
         .Condition(Condition.IsInstalling));
-
 }, new MsiCompiler());

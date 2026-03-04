@@ -1,6 +1,7 @@
 # Demo 15: Bundle Signing -- Bundle
 
-The bundle project that compiles a self-extracting EXE from the MSI package, then performs the detach/sign/reattach workflow to produce a signed bundle.
+The bundle project that compiles a self-extracting EXE from the MSI package, then performs the detach/sign/reattach
+workflow to produce a signed bundle.
 
 ## What This Demonstrates
 

@@ -1,6 +1,7 @@
 # Demo 11: Custom UI Simple
 
-A minimal custom UI installer using the FalkForge.Ui framework. This demo shows the simplest possible page-based installer with localization support, a welcome screen, progress tracking, and a completion page.
+A minimal custom UI installer using the FalkForge.Ui framework. This demo shows the simplest possible page-based
+installer with localization support, a welcome screen, progress tracking, and a completion page.
 
 ## What This Demonstrates
 
@@ -47,7 +48,9 @@ dotnet build demo/11-custom-ui-simple/11-custom-ui-simple.csproj
 
 ## Notes
 
-- Localization files are embedded as assembly resources via `<EmbeddedResource>` in the csproj, not loaded from disk at runtime.
+- Localization files are embedded as assembly resources via `<EmbeddedResource>` in the csproj, not loaded from disk at
+  runtime.
 - `AddJsonResource<T>` resolves the resource relative to the assembly containing type `T`.
-- Each page is a view-model (`InstallerPage<TView>`) paired with a WPF `UserControl` view. The view is specified as the generic type parameter.
+- Each page is a view-model (`InstallerPage<TView>`) paired with a WPF `UserControl` view. The view is specified as the
+  generic type parameter.
 - `CanGoBack` is set to `false` on all pages in this demo to enforce a forward-only wizard flow.

@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Custom actions: SetProperty, DllFromBinary, ExeFromBinary, deferred, rollback, commit.
 return Installer.Build(args, package =>
@@ -76,5 +74,4 @@ return Installer.Build(args, package =>
         ca.ContinueOnError();
         ca.After = "NotifySuccess";
     });
-
 }, new MsiCompiler());

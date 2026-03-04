@@ -1,31 +1,42 @@
-namespace FalkForge.Ui;
-
 using System.Reactive.Subjects;
+using System.Security.Cryptography;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Ui.Abstractions;
 
+namespace FalkForge.Ui;
+
 public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 {
-    private readonly PipeClient _pipe;
+    private readonly List<FeatureState> _features = [];
     private readonly Subject<EnginePhase> _phase = new();
+    private readonly PipeClient _pipe;
     private readonly Subject<InstallProgress> _progress = new();
     private readonly Subject<string> _statusMessage = new();
+    private TaskCompletionSource<ApplyResult>? _applyTcs;
 
     private TaskCompletionSource<DetectResult>? _detectTcs;
-    private TaskCompletionSource<PlanResult>? _planTcs;
-    private TaskCompletionSource<ApplyResult>? _applyTcs;
-    private TaskCompletionSource<int>? _shutdownTcs;
-
-    private readonly List<FeatureState> _features = [];
     private string _installDirectory = string.Empty;
+    private TaskCompletionSource<PlanResult>? _planTcs;
+    private TaskCompletionSource<int>? _shutdownTcs;
 
     public EngineClient(PipeConnectionOptions options, InstallerManifest manifest)
     {
         Manifest = manifest;
         _pipe = new PipeClient(options, OnMessageReceivedAsync);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _phase.OnCompleted();
+        _progress.OnCompleted();
+        _statusMessage.OnCompleted();
+        await _pipe.DisposeAsync();
+        _phase.Dispose();
+        _progress.Dispose();
+        _statusMessage.Dispose();
     }
 
     public InstallerManifest Manifest { get; }
@@ -48,23 +59,13 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public IObservable<InstallProgress> Progress => _progress;
     public IObservable<string> StatusMessage => _statusMessage;
 
-    public event Action<string, string?>? UpdateAvailable;
-    public event Action<int, long, long>? UpdateDownloadProgress;
-    public event Action<string>? UpdateReady;
-
-    public Task<Result<Unit>> ConnectAsync(CancellationToken ct = default)
-        => _pipe.ConnectAsync(ct);
-
     public async Task<DetectResult> DetectAsync(CancellationToken ct = default)
     {
         _detectTcs = new TaskCompletionSource<DetectResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var registration = ct.Register(() => _detectTcs.TrySetCanceled(ct));
 
         var sendResult = await _pipe.SendAsync(new RequestDetectMessage(), ct);
-        if (sendResult.IsFailure)
-        {
-            _detectTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
-        }
+        if (sendResult.IsFailure) _detectTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
 
         return await _detectTcs.Task;
     }
@@ -75,10 +76,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         using var registration = ct.Register(() => _planTcs.TrySetCanceled(ct));
 
         var sendResult = await _pipe.SendAsync(new RequestPlanMessage { Action = action }, ct);
-        if (sendResult.IsFailure)
-        {
-            _planTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
-        }
+        if (sendResult.IsFailure) _planTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
 
         return await _planTcs.Task;
     }
@@ -89,10 +87,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         using var registration = ct.Register(() => _applyTcs.TrySetCanceled(ct));
 
         var sendResult = await _pipe.SendAsync(new RequestApplyMessage(), ct);
-        if (sendResult.IsFailure)
-        {
-            _applyTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
-        }
+        if (sendResult.IsFailure) _applyTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
 
         return await _applyTcs.Task;
     }
@@ -123,12 +118,18 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         _shutdownTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var sendResult = await _pipe.SendAsync(new ShutdownRequestMessage());
-        if (sendResult.IsFailure)
-        {
-            _shutdownTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
-        }
+        if (sendResult.IsFailure) _shutdownTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
 
         return await _shutdownTcs.Task;
+    }
+
+    public event Action<string, string?>? UpdateAvailable;
+    public event Action<int, long, long>? UpdateDownloadProgress;
+    public event Action<string>? UpdateReady;
+
+    public Task<Result<Unit>> ConnectAsync(CancellationToken ct = default)
+    {
+        return _pipe.ConnectAsync(ct);
     }
 
     private Task OnMessageReceivedAsync(EngineMessage message)
@@ -187,9 +188,12 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     }
 
     /// <summary>
-    /// Exposes the message handler for testing without requiring a real pipe connection.
+    ///     Exposes the message handler for testing without requiring a real pipe connection.
     /// </summary>
-    internal Task SimulateMessageAsync(EngineMessage message) => OnMessageReceivedAsync(message);
+    internal Task SimulateMessageAsync(EngineMessage message)
+    {
+        return OnMessageReceivedAsync(message);
+    }
 
     private void HandleError(ErrorMessage error)
     {
@@ -203,18 +207,12 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 
     private async Task SendSetInstallDirectoryAsync(string directory)
     {
-        if (_pipe.IsConnected)
-        {
-            await _pipe.SendAsync(new SetInstallDirectoryMessage { Directory = directory });
-        }
+        if (_pipe.IsConnected) await _pipe.SendAsync(new SetInstallDirectoryMessage { Directory = directory });
     }
 
     private async Task SendSetPropertyAsync(string name, string value)
     {
-        if (_pipe.IsConnected)
-        {
-            await _pipe.SendAsync(new SetPropertyMessage { PropertyName = name, Value = value });
-        }
+        if (_pipe.IsConnected) await _pipe.SendAsync(new SetPropertyMessage { PropertyName = name, Value = value });
     }
 
     private async Task SendSetSecurePropertyAsync(string name, byte[] secureValue)
@@ -222,25 +220,12 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         try
         {
             if (_pipe.IsConnected)
-            {
                 await _pipe.SendAsync(new SetSecurePropertyMessage
                     { PropertyName = name, SecureValue = secureValue });
-            }
         }
         finally
         {
-            System.Security.Cryptography.CryptographicOperations.ZeroMemory(secureValue);
+            CryptographicOperations.ZeroMemory(secureValue);
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _phase.OnCompleted();
-        _progress.OnCompleted();
-        _statusMessage.OnCompleted();
-        await _pipe.DisposeAsync();
-        _phase.Dispose();
-        _progress.Dispose();
-        _statusMessage.Dispose();
     }
 }

@@ -1,9 +1,11 @@
-namespace CustomUiVsStyle.Pages;
-
 using CustomUiVsStyle.Views;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
+
+#pragma warning disable CA1822 // UI-bound properties must remain instance members
+
+namespace CustomUiVsStyle.Pages;
 
 public class ProductPage : InstallerPage<ProductView>
 {
@@ -18,6 +20,10 @@ public class ProductPage : InstallerPage<ProductView>
     public bool IsInstalled => DetectedState == InstallState.Installed;
     public bool IsNotInstalled => DetectedState == InstallState.NotInstalled;
 
-    public override PageResult OnNext() => PageResult.Next;
     public override bool CanGoBack => false;
+
+    public override PageResult OnNext()
+    {
+        return PageResult.Next;
+    }
 }

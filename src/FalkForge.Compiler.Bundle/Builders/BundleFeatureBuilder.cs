@@ -3,20 +3,34 @@ namespace FalkForge.Compiler.Bundle.Builders;
 public sealed class BundleFeatureBuilder
 {
     private readonly string _id;
-    private string? _title;
+    private readonly List<string> _packageIds = new();
     private string? _description;
     private bool _isDefault = true;
     private bool _isRequired;
-    private readonly List<string> _packageIds = new();
+    private string? _title;
 
     internal BundleFeatureBuilder(string id)
     {
         _id = id;
     }
 
-    public BundleFeatureBuilder Title(string title) { _title = title; return this; }
-    public BundleFeatureBuilder Description(string description) { _description = description; return this; }
-    public BundleFeatureBuilder Default(bool isDefault) { _isDefault = isDefault; return this; }
+    public BundleFeatureBuilder Title(string title)
+    {
+        _title = title;
+        return this;
+    }
+
+    public BundleFeatureBuilder Description(string description)
+    {
+        _description = description;
+        return this;
+    }
+
+    public BundleFeatureBuilder Default(bool isDefault)
+    {
+        _isDefault = isDefault;
+        return this;
+    }
 
     public BundleFeatureBuilder Required()
     {

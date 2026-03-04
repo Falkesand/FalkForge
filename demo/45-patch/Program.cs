@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -11,6 +10,5 @@ return Installer.BuildPatch(args, patch =>
     patch.TargetMsi("payload/app-v1.msi");
     patch.UpdatedMsi("payload/app-v2.msi");
     patch.Classification(PatchClassification.Hotfix);
-    patch.AllowRemoval(true);
-
+    patch.AllowRemoval();
 }, (model, outputPath) => new PatchCompiler().Compile(model, outputPath));

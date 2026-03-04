@@ -62,11 +62,9 @@ public sealed class LocalizationBuilder
             }
 
             foreach (var (key, value) in strings)
-            {
                 if (!existing.TryAdd(key, value))
                     return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
                         $"LOC001: Duplicate string ID '{key}' in culture '{culture}'.");
-            }
         }
 
         // Auto-detect default culture from system UI culture if requested
@@ -93,13 +91,11 @@ public sealed class LocalizationBuilder
 
         var models = new List<LocalizationModel>(merged.Count);
         foreach (var (culture, strings) in merged)
-        {
             models.Add(new LocalizationModel
             {
                 Culture = culture,
                 Strings = strings
             });
-        }
 
         return Result<IReadOnlyList<LocalizationModel>>.Success(models);
     }

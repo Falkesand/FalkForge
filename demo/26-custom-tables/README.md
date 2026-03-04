@@ -1,6 +1,7 @@
 # Demo 26: Custom Tables
 
-Defines a custom table inside the MSI database with typed columns and data rows. Useful for storing application configuration or metadata that custom actions can read at install time.
+Defines a custom table inside the MSI database with typed columns and data rows. Useful for storing application
+configuration or metadata that custom actions can read at install time.
 
 ## What This Demonstrates
 
@@ -28,6 +29,7 @@ dotnet build demo/26-custom-tables
 
 ## Notes
 
-- Custom tables are embedded in the MSI database and can be queried by custom actions using the MSI API (`MsiOpenDatabase`, `MsiDatabaseOpenView`).
+- Custom tables are embedded in the MSI database and can be queried by custom actions using the MSI API (
+  `MsiOpenDatabase`, `MsiDatabaseOpenView`).
 - `PrimaryKey()` marks a column as part of the table's primary key. At least one column should be a primary key.
 - `Width()` sets the maximum character length for string columns. This maps to the MSI column definition width.

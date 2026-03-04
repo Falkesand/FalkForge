@@ -1,8 +1,8 @@
-namespace CustomUiVsStyle.Pages;
-
 using CustomUiVsStyle.Views;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
+
+namespace CustomUiVsStyle.Pages;
 
 public class CompletePage : InstallerPage<CompleteView>
 {
@@ -10,6 +10,10 @@ public class CompletePage : InstallerPage<CompleteView>
     public string Message => Localize("Complete.Message");
     public string Details => Localize("Complete.Details");
 
-    public override PageResult OnNext() => PageResult.Finish;
     public override bool CanGoBack => false;
+
+    public override PageResult OnNext()
+    {
+        return PageResult.Finish;
+    }
 }

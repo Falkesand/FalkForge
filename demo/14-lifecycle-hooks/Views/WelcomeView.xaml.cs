@@ -4,5 +4,8 @@ namespace LifecycleDemo.Views;
 
 public partial class WelcomeView : UserControl
 {
-    public WelcomeView() => InitializeComponent();
+    public WelcomeView()
+    {
+        InitializeComponent();
+    }
 }

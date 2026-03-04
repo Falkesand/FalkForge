@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 using FalkForge.Extensions.DotNet;
 
 // Detect whether .NET 8.0+ runtime is installed and block install if missing.
@@ -35,5 +33,4 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "DotNetDemo"));
-
 }, new MsiCompiler());

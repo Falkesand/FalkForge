@@ -1,6 +1,8 @@
 # Demo MAS: MultiAccess Suite Installer
 
-A production-grade, multi-page installer for a complex enterprise application suite (MultiAccess). This demo showcases the full capabilities of the FalkForge.Ui framework: plugin integration, custom window shell, conditional page navigation, SQL Server discovery, ODBC configuration, and a rich confirmation summary.
+A production-grade, multi-page installer for a complex enterprise application suite (MultiAccess). This demo showcases
+the full capabilities of the FalkForge.Ui framework: plugin integration, custom window shell, conditional page
+navigation, SQL Server discovery, ODBC configuration, and a rich confirmation summary.
 
 ## What This Demonstrates
 
@@ -63,8 +65,13 @@ dotnet build demo/MAS/MAS.csproj
 
 ## Notes
 
-- The `MasPageBase<TView>` abstract class adds shared properties like `Subtitle`, `NextButtonText`, `ShowPrintButton`, and `ShowPreviousButton` that the custom window shell reads to adapt the UI per page.
-- `PageResult.GoTo<T>()` enables non-linear wizard flows. The Standard path skips advanced configuration pages, while the Advanced path navigates through additional directory and service configuration pages.
-- `PluginServices.GetService<T>()` retrieves plugin-provided services. The SQL plugin provides `ISqlServerDiscovery` for network-based SQL Server detection and `IDatabaseLister` for enumerating databases on a server.
-- The `ConfirmParametersPage` dynamically rebuilds its parameter groups based on the selected installation type and all previously collected SharedState values.
-- The custom `MasInstallerWindow` includes a cancel confirmation dialog and value converters for null-to-collapsed and bool-to-visibility binding.
+- The `MasPageBase<TView>` abstract class adds shared properties like `Subtitle`, `NextButtonText`, `ShowPrintButton`,
+  and `ShowPreviousButton` that the custom window shell reads to adapt the UI per page.
+- `PageResult.GoTo<T>()` enables non-linear wizard flows. The Standard path skips advanced configuration pages, while
+  the Advanced path navigates through additional directory and service configuration pages.
+- `PluginServices.GetService<T>()` retrieves plugin-provided services. The SQL plugin provides `ISqlServerDiscovery` for
+  network-based SQL Server detection and `IDatabaseLister` for enumerating databases on a server.
+- The `ConfirmParametersPage` dynamically rebuilds its parameter groups based on the selected installation type and all
+  previously collected SharedState values.
+- The custom `MasInstallerWindow` includes a cancel confirmation dialog and value converters for null-to-collapsed and
+  bool-to-visibility binding.

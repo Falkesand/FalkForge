@@ -1,6 +1,7 @@
 # Demo 18: Environment Variables
 
-Sets system-level environment variables during installation, including creating a new variable and appending to the system PATH.
+Sets system-level environment variables during installation, including creating a new variable and appending to the
+system PATH.
 
 ## What This Demonstrates
 
@@ -44,7 +45,10 @@ dotnet build demo/18-environment-variables
 
 ## Notes
 
-- `EnvironmentVariableAction.Set` replaces the variable value entirely. `Append` adds to the existing value using the specified separator.
-- MSI directory properties like `[ProgramFilesFolder]` are resolved at install time. The environment variable will contain the actual resolved path.
+- `EnvironmentVariableAction.Set` replaces the variable value entirely. `Append` adds to the existing value using the
+  specified separator.
+- MSI directory properties like `[ProgramFilesFolder]` are resolved at install time. The environment variable will
+  contain the actual resolved path.
 - On uninstall, MSI automatically removes the variables it created and restores any values it appended to.
-- Setting `IsSystem = false` writes the variable to the current user's environment (`HKCU\Environment`) instead of the machine-wide location (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`).
+- Setting `IsSystem = false` writes the variable to the current user's environment (`HKCU\Environment`) instead of the
+  machine-wide location (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`).

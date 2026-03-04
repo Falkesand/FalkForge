@@ -7,10 +7,10 @@ namespace MAS.Pages;
 
 public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
 {
-    private bool _useExisting = true;
-    private string _databaseServer = @".\SQLEXPRESS";
     private string _databaseName = "MultiAccess";
+    private string _databaseServer = @".\SQLEXPRESS";
     private bool _isSearching;
+    private bool _useExisting = true;
 
     public override string Title => Localize("DatabaseServer.Title");
     public override string? Subtitle => Localize("DatabaseServer.Subtitle");
@@ -106,5 +106,7 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
     }
 
     public override PageResult OnBack()
-        => PageResult.GoTo<InstallationTypePage>();
+    {
+        return PageResult.GoTo<InstallationTypePage>();
+    }
 }

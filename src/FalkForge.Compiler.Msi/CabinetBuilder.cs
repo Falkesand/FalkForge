@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
 using FalkForge.Compiler.Msi.Interop;
 
 namespace FalkForge.Compiler.Msi;
@@ -15,26 +16,31 @@ public sealed class CabinetBuilder : IDisposable
     // File handle tracking: maps pseudo-handles to FileStream instances.
     // FCI callbacks use these to perform file I/O through managed streams.
     private readonly Dictionary<nint, FileStream> _openStreams = new();
-    private int _nextHandle = 1;
 
     // Pinned callback delegates - must survive until FCIDestroy completes
     private NativeMethods.FnFciAlloc? _allocCallback;
-    private NativeMethods.FnFciFree? _freeCallback;
-    private NativeMethods.FnFciOpen? _openCallback;
-    private NativeMethods.FnFciRead? _readCallback;
-    private NativeMethods.FnFciWrite? _writeCallback;
     private NativeMethods.FnFciClose? _closeCallback;
-    private NativeMethods.FnFciSeek? _seekCallback;
     private NativeMethods.FnFciDelete? _deleteCallback;
     private NativeMethods.FnFciFilePlaced? _filePlacedCallback;
-    private NativeMethods.FnFciGetTempFile? _getTempFileCallback;
+    private NativeMethods.FnFciFree? _freeCallback;
     private NativeMethods.FnFciGetNextCabinet? _getNextCabinetCallback;
-    private NativeMethods.FnFciStatus? _statusCallback;
     private NativeMethods.FnFciGetOpenInfo? _getOpenInfoCallback;
+    private NativeMethods.FnFciGetTempFile? _getTempFileCallback;
+    private int _nextHandle = 1;
+    private NativeMethods.FnFciOpen? _openCallback;
+    private NativeMethods.FnFciRead? _readCallback;
+    private NativeMethods.FnFciSeek? _seekCallback;
+    private NativeMethods.FnFciStatus? _statusCallback;
+    private NativeMethods.FnFciWrite? _writeCallback;
 
     public CabinetBuilder(DateTime? normalizedTimestamp = null)
     {
         _normalizedTimestamp = normalizedTimestamp;
+    }
+
+    public void Dispose()
+    {
+        CleanupOpenStreams();
     }
 
     public Result<string> BuildCabinet(
@@ -64,7 +70,7 @@ public sealed class CabinetBuilder : IDisposable
             setID = 0,
             szDisk = "",
             szCab = CabinetFileName,
-            szCabPath = cabPath,
+            szCabPath = cabPath
         };
 
         InitializeCallbacks();
@@ -136,14 +142,17 @@ public sealed class CabinetBuilder : IDisposable
         return resultPath;
     }
 
-    private static ushort MapCompressionLevel(CompressionLevel level) => level switch
+    private static ushort MapCompressionLevel(CompressionLevel level)
     {
-        CompressionLevel.None => NativeMethods.TcompTypeNone,
-        CompressionLevel.Low => NativeMethods.TcompTypeMszip,
-        CompressionLevel.Medium => NativeMethods.TcompLzxWindow(NativeMethods.TcompLzxWindowLo),
-        CompressionLevel.High => NativeMethods.TcompLzxWindow(NativeMethods.TcompLzxWindowHi),
-        _ => NativeMethods.TcompLzxWindow(NativeMethods.TcompLzxWindowHi),
-    };
+        return level switch
+        {
+            CompressionLevel.None => NativeMethods.TcompTypeNone,
+            CompressionLevel.Low => NativeMethods.TcompTypeMszip,
+            CompressionLevel.Medium => NativeMethods.TcompLzxWindow(NativeMethods.TcompLzxWindowLo),
+            CompressionLevel.High => NativeMethods.TcompLzxWindow(NativeMethods.TcompLzxWindowHi),
+            _ => NativeMethods.TcompLzxWindow(NativeMethods.TcompLzxWindowHi)
+        };
+    }
 
     private static string EnsureTrailingBackslash(string path)
     {
@@ -169,17 +178,9 @@ public sealed class CabinetBuilder : IDisposable
         _getOpenInfoCallback = CbGetOpenInfo;
     }
 
-    public void Dispose()
-    {
-        CleanupOpenStreams();
-    }
-
     private void CleanupOpenStreams()
     {
-        foreach (var stream in _openStreams.Values)
-        {
-            stream.Dispose();
-        }
+        foreach (var stream in _openStreams.Values) stream.Dispose();
         _openStreams.Clear();
     }
 
@@ -210,7 +211,7 @@ public sealed class CabinetBuilder : IDisposable
         catch
         {
             err = 1;
-            return (nint)(-1);
+            return -1;
         }
     }
 
@@ -279,10 +280,7 @@ public sealed class CabinetBuilder : IDisposable
         err = 0;
         try
         {
-            if (_openStreams.Remove(hf, out var stream))
-            {
-                stream.Dispose();
-            }
+            if (_openStreams.Remove(hf, out var stream)) stream.Dispose();
             return 0;
         }
         catch
@@ -308,7 +306,7 @@ public sealed class CabinetBuilder : IDisposable
                 0 => SeekOrigin.Begin,
                 1 => SeekOrigin.Current,
                 2 => SeekOrigin.End,
-                _ => SeekOrigin.Begin,
+                _ => SeekOrigin.Begin
             };
 
             var newPos = stream.Seek(dist, origin);
@@ -336,7 +334,8 @@ public sealed class CabinetBuilder : IDisposable
         }
     }
 
-    private static int CbFilePlaced(ref NativeMethods.CCAB pccab, string pszFile, long cbFile, int fContinuation, nint pv)
+    private static int CbFilePlaced(ref NativeMethods.CCAB pccab, string pszFile, long cbFile, int fContinuation,
+        nint pv)
     {
         return 0; // Success
     }
@@ -346,7 +345,7 @@ public sealed class CabinetBuilder : IDisposable
         try
         {
             var tempPath = Path.Combine(Path.GetTempPath(), $"falkforge_{Guid.NewGuid():N}.tmp");
-            var bytes = System.Text.Encoding.ASCII.GetBytes(tempPath + '\0');
+            var bytes = Encoding.ASCII.GetBytes(tempPath + '\0');
             if (bytes.Length > cbTempName)
                 return 0; // FALSE - buffer too small
 
@@ -389,7 +388,7 @@ public sealed class CabinetBuilder : IDisposable
             if (!info.Exists)
             {
                 err = 1;
-                return (nint)(-1);
+                return -1;
             }
 
             // Convert to DOS date/time format.
@@ -398,7 +397,8 @@ public sealed class CabinetBuilder : IDisposable
             var dt = _normalizedTimestamp ?? info.LastWriteTime;
             pdate = ToDosDate(dt);
             ptime = ToDosTime(dt);
-            pattribs = (ushort)(info.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System | FileAttributes.Archive));
+            pattribs = (ushort)(info.Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden |
+                                                   FileAttributes.System | FileAttributes.Archive));
 
             // Open the file and return a handle
             var stream = new FileStream(pszName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -409,15 +409,15 @@ public sealed class CabinetBuilder : IDisposable
         catch
         {
             err = 1;
-            return (nint)(-1);
+            return -1;
         }
     }
 
     // ── DOS date/time helpers ───────────────────────────────────────────
 
     /// <summary>
-    /// Converts a DateTime to DOS date format.
-    /// Bits 15-9: year offset from 1980 (0-127), bits 8-5: month (1-12), bits 4-0: day (1-31).
+    ///     Converts a DateTime to DOS date format.
+    ///     Bits 15-9: year offset from 1980 (0-127), bits 8-5: month (1-12), bits 4-0: day (1-31).
     /// </summary>
     internal static ushort ToDosDate(DateTime dt)
     {
@@ -425,8 +425,8 @@ public sealed class CabinetBuilder : IDisposable
     }
 
     /// <summary>
-    /// Converts a DateTime to DOS time format.
-    /// Bits 15-11: hour (0-23), bits 10-5: minute (0-59), bits 4-0: seconds/2 (0-29).
+    ///     Converts a DateTime to DOS time format.
+    ///     Bits 15-11: hour (0-23), bits 10-5: minute (0-59), bits 4-0: seconds/2 (0-29).
     /// </summary>
     internal static ushort ToDosTime(DateTime dt)
     {
@@ -451,7 +451,7 @@ public sealed class CabinetBuilder : IDisposable
             oRdonly => FileAccess.Read,
             oWronly => FileAccess.Write,
             oRdwr => FileAccess.ReadWrite,
-            _ => FileAccess.ReadWrite,
+            _ => FileAccess.ReadWrite
         };
 
         FileMode mode;

@@ -1,6 +1,6 @@
-namespace FalkForge.Plugins.Sql;
-
 using Microsoft.Data.SqlClient;
+
+namespace FalkForge.Plugins.Sql;
 
 internal sealed class DatabaseLister : IDatabaseLister
 {
@@ -25,7 +25,6 @@ internal sealed class DatabaseLister : IDatabaseLister
 
             return Result<IReadOnlyList<string>>.Success(databases);
         }
-        catch (OperationCanceledException) { throw; }
         catch (SqlException ex)
         {
             return Result<IReadOnlyList<string>>.Failure(

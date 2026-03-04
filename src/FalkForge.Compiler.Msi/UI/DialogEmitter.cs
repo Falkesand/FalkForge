@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.UI.Templates;
 using FalkForge.Localization;
 using FalkForge.Models;
@@ -63,27 +64,30 @@ internal sealed class DialogEmitter
         return Unit.Value;
     }
 
-    private static IDialogTemplate GetTemplate(MsiDialogSet dialogSet) => dialogSet switch
+    private static IDialogTemplate GetTemplate(MsiDialogSet dialogSet)
     {
-        MsiDialogSet.Minimal => new MinimalDialogTemplate(),
-        MsiDialogSet.InstallDir => new InstallDirDialogTemplate(),
-        MsiDialogSet.FeatureTree => new FeatureTreeDialogTemplate(),
-        MsiDialogSet.Mondo => new MondoDialogTemplate(),
-        MsiDialogSet.Advanced => new AdvancedDialogTemplate(),
-        _ => new MinimalDialogTemplate()
-    };
+        return dialogSet switch
+        {
+            MsiDialogSet.Minimal => new MinimalDialogTemplate(),
+            MsiDialogSet.InstallDir => new InstallDirDialogTemplate(),
+            MsiDialogSet.FeatureTree => new FeatureTreeDialogTemplate(),
+            MsiDialogSet.Mondo => new MondoDialogTemplate(),
+            MsiDialogSet.Advanced => new AdvancedDialogTemplate(),
+            _ => new MinimalDialogTemplate()
+        };
+    }
 
     private Result<Unit> CreateUiTables()
     {
         var tableStatements = new[]
         {
-            Tables.MsiTableDefinitions.CreateDialogTable,
-            Tables.MsiTableDefinitions.CreateControlTable,
-            Tables.MsiTableDefinitions.CreateControlEventTable,
-            Tables.MsiTableDefinitions.CreateControlConditionTable,
-            Tables.MsiTableDefinitions.CreateEventMappingTable,
-            Tables.MsiTableDefinitions.CreateTextStyleTable,
-            Tables.MsiTableDefinitions.CreateUITextTable
+            MsiTableDefinitions.CreateDialogTable,
+            MsiTableDefinitions.CreateControlTable,
+            MsiTableDefinitions.CreateControlEventTable,
+            MsiTableDefinitions.CreateControlConditionTable,
+            MsiTableDefinitions.CreateEventMappingTable,
+            MsiTableDefinitions.CreateTextStyleTable,
+            MsiTableDefinitions.CreateUITextTable
         };
 
         foreach (var sql in tableStatements)
@@ -141,10 +145,14 @@ internal sealed class DialogEmitter
             ("SelChildCostNeg", "This feature frees [1] on your hard drive."),
             ("SelChildCostPos", "This feature requires [1] on your hard drive."),
             ("SelCostPending", "Compiling cost for this feature..."),
-            ("SelParentCostNegNeg", "This feature frees [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures free [4] on your hard drive."),
-            ("SelParentCostNegPos", "This feature frees [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures require [4] on your hard drive."),
-            ("SelParentCostPosNeg", "This feature requires [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures free [4] on your hard drive."),
-            ("SelParentCostPosPos", "This feature requires [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures require [4] on your hard drive."),
+            ("SelParentCostNegNeg",
+                "This feature frees [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures free [4] on your hard drive."),
+            ("SelParentCostNegPos",
+                "This feature frees [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures require [4] on your hard drive."),
+            ("SelParentCostPosNeg",
+                "This feature requires [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures free [4] on your hard drive."),
+            ("SelParentCostPosPos",
+                "This feature requires [1] on your hard drive. It has [2] of [3] subfeatures selected. The subfeatures require [4] on your hard drive."),
             ("TimeRemaining", "Time remaining: {[1] minutes }{[2] seconds}"),
             ("VolumeCostAvailable", "Available"),
             ("VolumeCostDifference", "Difference"),
@@ -309,18 +317,14 @@ internal sealed class DialogEmitter
         LocalizedStringResolver resolver)
     {
         foreach (var dialog in dialogs)
-        {
-            foreach (var control in dialog.Controls)
+        foreach (var control in dialog.Controls)
+            if (control.Text is not null && control.Text.Contains("!(loc."))
             {
-                if (control.Text is not null && control.Text.Contains("!(loc."))
-                {
-                    var resolveResult = resolver.Resolve(control.Text);
-                    if (resolveResult.IsFailure)
-                        return Result<Unit>.Failure(resolveResult.Error);
-                    control.Text = resolveResult.Value;
-                }
+                var resolveResult = resolver.Resolve(control.Text);
+                if (resolveResult.IsFailure)
+                    return Result<Unit>.Failure(resolveResult.Error);
+                control.Text = resolveResult.Value;
             }
-        }
 
         return Unit.Value;
     }

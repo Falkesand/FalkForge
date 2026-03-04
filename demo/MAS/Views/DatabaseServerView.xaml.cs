@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using MAS.Pages;
@@ -6,7 +7,10 @@ namespace MAS.Views;
 
 public partial class DatabaseServerView : UserControl
 {
-    public DatabaseServerView() => InitializeComponent();
+    public DatabaseServerView()
+    {
+        InitializeComponent();
+    }
 
     private async void SearchServer_Click(object sender, RoutedEventArgs e)
     {
@@ -17,7 +21,7 @@ public partial class DatabaseServerView : UserControl
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Search failed: {ex.Message}");
+            Debug.WriteLine($"Search failed: {ex.Message}");
         }
     }
 
@@ -30,7 +34,7 @@ public partial class DatabaseServerView : UserControl
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Load databases failed: {ex.Message}");
+            Debug.WriteLine($"Load databases failed: {ex.Message}");
         }
     }
 }

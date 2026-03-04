@@ -1,6 +1,7 @@
 # Demo 23: Permissions
 
-Sets NTFS file system permissions on the installation directory, granting the BUILTIN\Users group read, write, and execute access.
+Sets NTFS file system permissions on the installation directory, granting the BUILTIN\Users group read, write, and
+execute access.
 
 ## What This Demonstrates
 
@@ -36,8 +37,12 @@ dotnet build demo/23-permissions
 
 ## Notes
 
-- The permission value `0x001301BF` combines `FILE_GENERIC_READ`, `FILE_GENERIC_WRITE`, and `FILE_GENERIC_EXECUTE`. These are standard Win32 access mask constants.
+- The permission value `0x001301BF` combines `FILE_GENERIC_READ`, `FILE_GENERIC_WRITE`, and `FILE_GENERIC_EXECUTE`.
+  These are standard Win32 access mask constants.
 - Permissions are applied during the install sequence and removed on uninstall when the directory is deleted.
-- Use well-known group names like `BUILTIN\Users` or `BUILTIN\Administrators` for portability across localized Windows installations.
-- `Sddl` allows expressing permissions as a Security Descriptor Definition Language string, which provides full control over DACLs and SACLs in a compact format.
-- `ForTable("CreateFolder")` specifies which MSI table the permission applies to. This is necessary when the target identifier could exist in multiple tables (e.g., `CreateFolder`, `File`, `Registry`).
+- Use well-known group names like `BUILTIN\Users` or `BUILTIN\Administrators` for portability across localized Windows
+  installations.
+- `Sddl` allows expressing permissions as a Security Descriptor Definition Language string, which provides full control
+  over DACLs and SACLs in a compact format.
+- `ForTable("CreateFolder")` specifies which MSI table the permission applies to. This is necessary when the target
+  identifier could exist in multiple tables (e.g., `CreateFolder`, `File`, `Registry`).

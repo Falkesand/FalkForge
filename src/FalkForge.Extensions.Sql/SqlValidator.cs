@@ -1,6 +1,6 @@
-namespace FalkForge.Extensions.Sql;
-
 using FalkForge.Extensions.Sql.Models;
+
+namespace FalkForge.Extensions.Sql;
 
 public static class SqlValidator
 {
@@ -15,7 +15,8 @@ public static class SqlValidator
             return Result<Unit>.Failure(ErrorKind.Validation, "SQL004: Database name is required.");
 
         if (string.IsNullOrWhiteSpace(model.Server) && string.IsNullOrWhiteSpace(model.ConnectionString))
-            return Result<Unit>.Failure(ErrorKind.Validation, "SQL001: Database requires either Server or ConnectionString.");
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL001: Database requires either Server or ConnectionString.");
 
         return Unit.Value;
     }
@@ -32,13 +33,16 @@ public static class SqlValidator
         var hasSqlContent = !string.IsNullOrWhiteSpace(model.SqlContent);
 
         if (!hasSourceFile && !hasSqlContent)
-            return Result<Unit>.Failure(ErrorKind.Validation, "SQL003: Script requires either SourceFile or SqlContent.");
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL003: Script requires either SourceFile or SqlContent.");
 
         if (hasSourceFile && hasSqlContent)
-            return Result<Unit>.Failure(ErrorKind.Validation, "SQL003: Script must specify either SourceFile or SqlContent, not both.");
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL003: Script must specify either SourceFile or SqlContent, not both.");
 
         if (hasSqlContent && model.SqlContent!.Length > MaxCustomActionDataLength)
-            return Result<Unit>.Failure(ErrorKind.Validation, $"SQL009: Script SqlContent exceeds maximum length of {MaxCustomActionDataLength} characters.");
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"SQL009: Script SqlContent exceeds maximum length of {MaxCustomActionDataLength} characters.");
 
         return Unit.Value;
     }
@@ -55,7 +59,8 @@ public static class SqlValidator
             return Result<Unit>.Failure(ErrorKind.Validation, "SQL005: SqlString requires a Sql statement.");
 
         if (model.Sql.Length > MaxCustomActionDataLength)
-            return Result<Unit>.Failure(ErrorKind.Validation, $"SQL010: SqlString Sql exceeds maximum length of {MaxCustomActionDataLength} characters.");
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"SQL010: SqlString Sql exceeds maximum length of {MaxCustomActionDataLength} characters.");
 
         return Unit.Value;
     }

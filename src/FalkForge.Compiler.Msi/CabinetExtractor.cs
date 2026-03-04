@@ -6,39 +6,44 @@ using FalkForge.Compiler.Msi.Interop;
 namespace FalkForge.Compiler.Msi;
 
 /// <summary>
-/// Extracts files from a Windows cabinet (.cab) archive using the FDI (File Decompression Interface) API.
+///     Extracts files from a Windows cabinet (.cab) archive using the FDI (File Decompression Interface) API.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class CabinetExtractor : IDisposable
 {
+    // Extracted file data collected during FDICopy via notifications.
+    private readonly Dictionary<string, byte[]> _extractedFiles = new();
+
     // File handle tracking: maps pseudo-handles to Stream instances.
     // Input handles start from 1, output handles start from 10000 to avoid collisions.
     // FDI reserves 0 (skip) and -1 (abort) as special return values in notifications.
     private readonly Dictionary<nint, Stream> _openStreams = new();
-    private int _nextInputHandle = 1;
-    private int _nextOutputHandle = 10_000;
-
-    // Extracted file data collected during FDICopy via notifications.
-    private readonly Dictionary<string, byte[]> _extractedFiles = new();
-
-    // Pinned callback delegates - prevent GC collection during P/Invoke
-    private NativeMethods.FnFciAlloc? _allocCallback;
-    private NativeMethods.FnFciFree? _freeCallback;
-    private NativeMethods.FnFdiOpen? _openCallback;
-    private NativeMethods.FnFdiRead? _readCallback;
-    private NativeMethods.FnFdiWrite? _writeCallback;
-    private NativeMethods.FnFdiClose? _closeCallback;
-    private NativeMethods.FnFdiSeek? _seekCallback;
-    private NativeMethods.FnFdiNotify? _notifyCallback;
 
     // Maps output handles to their file names for collection in CloseFileInfo.
     private readonly Dictionary<nint, string> _outputHandleNames = new();
 
+    // Pinned callback delegates - prevent GC collection during P/Invoke
+    private NativeMethods.FnFciAlloc? _allocCallback;
+    private NativeMethods.FnFdiClose? _closeCallback;
+    private NativeMethods.FnFciFree? _freeCallback;
+
     // Tracks the last callback error for diagnostic messages on failure.
     private string? _lastCallbackError;
+    private int _nextInputHandle = 1;
+    private int _nextOutputHandle = 10_000;
+    private NativeMethods.FnFdiNotify? _notifyCallback;
+    private NativeMethods.FnFdiOpen? _openCallback;
+    private NativeMethods.FnFdiRead? _readCallback;
+    private NativeMethods.FnFdiSeek? _seekCallback;
+    private NativeMethods.FnFdiWrite? _writeCallback;
+
+    public void Dispose()
+    {
+        CleanupOpenStreams();
+    }
 
     /// <summary>
-    /// Extracts all files from a cabinet stream into memory.
+    ///     Extracts all files from a cabinet stream into memory.
     /// </summary>
     /// <param name="cabinetStream">The cabinet data stream. Must be readable.</param>
     /// <returns>A dictionary mapping file names to their extracted byte contents.</returns>
@@ -120,10 +125,14 @@ internal sealed class CabinetExtractor : IDisposable
         finally
         {
             if (tempFile is not null && File.Exists(tempFile))
-            {
-                try { File.Delete(tempFile); }
-                catch { /* Best-effort cleanup */ }
-            }
+                try
+                {
+                    File.Delete(tempFile);
+                }
+                catch
+                {
+                    /* Best-effort cleanup */
+                }
         }
     }
 
@@ -146,17 +155,9 @@ internal sealed class CabinetExtractor : IDisposable
         _notifyCallback = CbNotify;
     }
 
-    public void Dispose()
-    {
-        CleanupOpenStreams();
-    }
-
     private void CleanupOpenStreams()
     {
-        foreach (var stream in _openStreams.Values)
-        {
-            stream.Dispose();
-        }
+        foreach (var stream in _openStreams.Values) stream.Dispose();
         _openStreams.Clear();
         _outputHandleNames.Clear();
     }
@@ -186,7 +187,7 @@ internal sealed class CabinetExtractor : IDisposable
         catch (Exception ex)
         {
             _lastCallbackError = $"Open failed for '{pszFile}': {ex.Message}";
-            return (nint)(-1);
+            return -1;
         }
     }
 
@@ -252,10 +253,7 @@ internal sealed class CabinetExtractor : IDisposable
     {
         try
         {
-            if (_openStreams.Remove(hf, out var stream))
-            {
-                stream.Dispose();
-            }
+            if (_openStreams.Remove(hf, out var stream)) stream.Dispose();
             return 0;
         }
         catch
@@ -279,7 +277,7 @@ internal sealed class CabinetExtractor : IDisposable
                 0 => SeekOrigin.Begin,
                 1 => SeekOrigin.Current,
                 2 => SeekOrigin.End,
-                _ => SeekOrigin.Begin,
+                _ => SeekOrigin.Begin
             };
 
             var newPos = stream.Seek(dist, origin);
@@ -324,12 +322,13 @@ internal sealed class CabinetExtractor : IDisposable
                         _extractedFiles[name] = ms.ToArray();
                         _outputHandleNames.Remove(handle);
                     }
+
                     ms.Dispose();
                     _openStreams.Remove(handle);
                 }
 
                 // Return TRUE (non-zero) to indicate success.
-                return (nint)1;
+                return 1;
             }
 
             case NativeMethods.FdintCabinetInfo:
@@ -338,7 +337,7 @@ internal sealed class CabinetExtractor : IDisposable
                 return nint.Zero; // Continue
 
             case NativeMethods.FdintNextCabinet:
-                return (nint)(-1); // Cabinet spanning not supported
+                return -1; // Cabinet spanning not supported
 
             default:
                 return nint.Zero;
@@ -361,7 +360,7 @@ internal sealed class CabinetExtractor : IDisposable
             oRdonly => FileAccess.Read,
             oWronly => FileAccess.Write,
             oRdwr => FileAccess.ReadWrite,
-            _ => FileAccess.ReadWrite,
+            _ => FileAccess.ReadWrite
         };
 
         FileMode mode;

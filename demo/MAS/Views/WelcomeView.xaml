@@ -4,7 +4,7 @@
              Background="#F0F0F0">
     <Grid Margin="40,60,40,20">
         <TextBlock TextWrapping="Wrap" FontSize="13" VerticalAlignment="Center">
-            <Run Text="{Binding Body}"/>
+            <Run Text="{Binding Body}" />
         </TextBlock>
     </Grid>
 </UserControl>

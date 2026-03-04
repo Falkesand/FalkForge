@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>FalkForge.Extensibility</RootNamespace>
-    <Description>Extension point interfaces for FalkForge</Description>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
-  </ItemGroup>
+    <PropertyGroup>
+        <RootNamespace>FalkForge.Extensibility</RootNamespace>
+        <Description>Extension point interfaces for FalkForge</Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj"/>
+    </ItemGroup>
 </Project>

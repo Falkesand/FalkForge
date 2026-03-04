@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>FalkForge</RootNamespace>
-    <Description>Domain model and fluent API for FalkForge</Description>
-  </PropertyGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="FalkForge.Core.Tests" />
-  </ItemGroup>
+    <PropertyGroup>
+        <RootNamespace>FalkForge</RootNamespace>
+        <Description>Domain model and fluent API for FalkForge</Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Core.Tests"/>
+    </ItemGroup>
 </Project>

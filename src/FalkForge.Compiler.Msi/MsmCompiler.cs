@@ -7,6 +7,7 @@ using FalkForge.Validation;
 namespace FalkForge.Compiler.Msi;
 
 [SupportedOSPlatform("windows")]
+#pragma warning disable CA1822 // Stateless compiler; instance method for future extensibility
 public sealed class MsmCompiler
 {
     public Result<string> Compile(MergeModuleModel module, string outputPath)
@@ -95,7 +96,7 @@ public sealed class MsmCompiler
             "CREATE TABLE `Directory` (`Directory` CHAR(72) NOT NULL, `Directory_Parent` CHAR(72), `DefaultDir` CHAR(255) NOT NULL LOCALIZABLE PRIMARY KEY `Directory`)",
             "CREATE TABLE `Component` (`Component` CHAR(72) NOT NULL, `ComponentId` CHAR(38), `Directory_` CHAR(72) NOT NULL, `Attributes` SHORT NOT NULL, `Condition` CHAR(255), `KeyPath` CHAR(72) PRIMARY KEY `Component`)",
             "CREATE TABLE `ModuleSignature` (`ModuleID` CHAR(72) NOT NULL, `Language` SHORT NOT NULL, `Version` CHAR(32) NOT NULL PRIMARY KEY `ModuleID`, `Language`)",
-            "CREATE TABLE `ModuleComponents` (`Component` CHAR(72) NOT NULL, `ModuleID` CHAR(72) NOT NULL, `Language` SHORT NOT NULL PRIMARY KEY `Component`, `ModuleID`, `Language`)",
+            "CREATE TABLE `ModuleComponents` (`Component` CHAR(72) NOT NULL, `ModuleID` CHAR(72) NOT NULL, `Language` SHORT NOT NULL PRIMARY KEY `Component`, `ModuleID`, `Language`)"
         };
 
         foreach (var sql in tables)
@@ -163,8 +164,8 @@ public sealed class MsmCompiler
     }
 
     /// <summary>
-    /// Generates a deterministic GUID from a module GUID and component ID using SHA-256.
-    /// This ensures stable component GUIDs across builds, which is required for MSI upgrade scenarios.
+    ///     Generates a deterministic GUID from a module GUID and component ID using SHA-256.
+    ///     This ensures stable component GUIDs across builds, which is required for MSI upgrade scenarios.
     /// </summary>
     internal static Guid DeterministicComponentGuid(Guid moduleGuid, string componentId)
     {
@@ -179,9 +180,9 @@ public sealed class MsmCompiler
     }
 
     /// <summary>
-    /// Prefixes a component ID with the module GUID to avoid collisions when merged.
-    /// If the prefixed ID exceeds 72 chars, generates a deterministic short ID from a hash
-    /// to prevent truncation collisions.
+    ///     Prefixes a component ID with the module GUID to avoid collisions when merged.
+    ///     If the prefixed ID exceeds 72 chars, generates a deterministic short ID from a hash
+    ///     to prevent truncation collisions.
     /// </summary>
     internal static string PrefixComponentId(string moduleGuid, string componentId)
     {

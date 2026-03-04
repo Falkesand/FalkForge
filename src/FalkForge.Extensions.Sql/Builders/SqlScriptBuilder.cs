@@ -1,20 +1,20 @@
-namespace FalkForge.Extensions.Sql.Builders;
-
 using FalkForge.Extensions.Sql.Models;
+
+namespace FalkForge.Extensions.Sql.Builders;
 
 public sealed class SqlScriptBuilder
 {
-    private string _id = string.Empty;
+    private string? _componentRef;
+    private bool _continueOnError;
     private string _databaseRef = string.Empty;
-    private string? _sourceFile;
-    private string? _sqlContent;
     private bool _executeOnInstall;
     private bool _executeOnReinstall;
     private bool _executeOnUninstall;
+    private string _id = string.Empty;
     private string? _rollbackSourceFile;
     private int _sequence;
-    private bool _continueOnError;
-    private string? _componentRef;
+    private string? _sourceFile;
+    private string? _sqlContent;
 
     public SqlScriptBuilder Id(string id)
     {
@@ -28,7 +28,10 @@ public sealed class SqlScriptBuilder
         return this;
     }
 
-    public SqlScriptBuilder Database(SqlDatabaseRef databaseRef) => Database(databaseRef.Id);
+    public SqlScriptBuilder Database(SqlDatabaseRef databaseRef)
+    {
+        return Database(databaseRef.Id);
+    }
 
     public SqlScriptBuilder SourceFile(string sourceFile)
     {

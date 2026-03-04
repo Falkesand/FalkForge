@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 using FalkForge.Extensions.Util;
 using FalkForge.Extensions.Util.XmlConfig;
 
@@ -24,7 +22,7 @@ if (config.IsFailure)
 }
 
 util.XmlConfig.Add(config.Value);
-Console.WriteLine($"Util: 1 XmlConfig entry configured.");
+Console.WriteLine("Util: 1 XmlConfig entry configured.");
 
 // In production, extensions register automatically via the FalkForge SDK extension
 // pipeline during compilation. The package below shows the MSI structure; extension
@@ -39,5 +37,4 @@ return Installer.Build(args, package =>
         .Add("payload/app.exe")
         .Add("payload/app.config")
         .To(KnownFolder.ProgramFiles / "Demo" / "UtilDemo"));
-
 }, new MsiCompiler());

@@ -1,6 +1,7 @@
 # Demo 12: Custom UI Visual Studio Style
 
-A Visual Studio-inspired installer UI with a dark theme, borderless window, workload selection, and per-component progress tracking. This demo recreates the familiar VS Installer experience using the FalkForge.Ui framework.
+A Visual Studio-inspired installer UI with a dark theme, borderless window, workload selection, and per-component
+progress tracking. This demo recreates the familiar VS Installer experience using the FalkForge.Ui framework.
 
 ## What This Demonstrates
 
@@ -49,7 +50,9 @@ dotnet build demo/12-custom-ui-vstyle/12-custom-ui-vstyle.csproj
 
 ## Notes
 
-- The borderless window relies on `Borderless()` which removes the standard Windows title bar. Custom drag/close/minimize controls must be provided in the XAML views.
-- Workload data is hardcoded in the `WorkloadsPage` view-model for demonstration. In a real installer, this could be loaded from a manifest or the bundle chain.
+- The borderless window relies on `Borderless()` which removes the standard Windows title bar. Custom
+  drag/close/minimize controls must be provided in the XAML views.
+- Workload data is hardcoded in the `WorkloadsPage` view-model for demonstration. In a real installer, this could be
+  loaded from a manifest or the bundle chain.
 - `PageResult.Stay(message)` prevents navigation and can display a validation error to the user.
 - The `ProgressPage` sets both `CanGoBack` and `CanGoNext` to `false`, locking the user on the page during installation.

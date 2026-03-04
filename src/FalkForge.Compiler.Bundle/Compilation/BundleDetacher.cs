@@ -1,24 +1,24 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Text;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
 /// <summary>
-/// Splits a FALKBUNDLE EXE into a bare PE stub and a data file for code signing,
-/// then reattaches the signed stub with offset-patched TOC.
+///     Splits a FALKBUNDLE EXE into a bare PE stub and a data file for code signing,
+///     then reattaches the signed stub with offset-patched TOC.
 /// </summary>
 public static class BundleDetacher
 {
-    private static ReadOnlySpan<byte> Magic => PayloadEmbedder.BundleMagic;
-
     private const int MagicLength = 16;
     private const int FooterLength = 24; // 16 (magic) + 8 (tocOffset)
     private const int CopyBufferSize = 64 * 1024;
     private const int MaxManifestScanSize = 16 * 1024 * 1024 + 20; // 16MB manifest + magic + length
+    private static ReadOnlySpan<byte> Magic => PayloadEmbedder.BundleMagic;
 
     /// <summary>
-    /// Detaches a FALKBUNDLE into a bare PE stub and a data file.
-    /// The data file contains: [int64: originalStubSize][magic + manifest + payloads + TOC + footer].
+    ///     Detaches a FALKBUNDLE into a bare PE stub and a data file.
+    ///     The data file contains: [int64: originalStubSize][magic + manifest + payloads + TOC + footer].
     /// </summary>
     public static Result<Unit> Detach(string bundlePath, string stubPath, string dataPath)
     {
@@ -60,10 +60,9 @@ public static class BundleDetacher
 
             // Read TOC entries using BinaryReader for string reads
             bundleStream.Seek(tocOffset + 4, SeekOrigin.Begin);
-            using var tocReader = new BinaryReader(bundleStream, System.Text.Encoding.UTF8, leaveOpen: true);
+            using var tocReader = new BinaryReader(bundleStream, Encoding.UTF8, true);
             var entries = new TocEntry[entryCount];
             for (var i = 0; i < entryCount; i++)
-            {
                 entries[i] = new TocEntry
                 {
                     PackageId = tocReader.ReadString(),
@@ -72,7 +71,6 @@ public static class BundleDetacher
                     OriginalSize = tocReader.ReadInt32(),
                     Sha256Hash = tocReader.ReadString()
                 };
-            }
 
             // Find stub size using footer-based backward scan
             var stubSize = FindStubSize(bundleStream, tocOffset, entries);
@@ -92,15 +90,15 @@ public static class BundleDetacher
             var dataLength = bundleStream.Length - stubSize;
 
             using (var dataStream = new FileStream(dataTmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (var writer = new BinaryWriter(dataStream, System.Text.Encoding.UTF8, leaveOpen: true))
+            using (var writer = new BinaryWriter(dataStream, Encoding.UTF8, true))
             {
                 writer.Write(stubSize);
                 CopyBytes(bundleStream, dataStream, dataLength);
             }
 
             // Atomic rename on success
-            File.Move(stubTmpPath, stubPath, overwrite: true);
-            File.Move(dataTmpPath, dataPath, overwrite: true);
+            File.Move(stubTmpPath, stubPath, true);
+            File.Move(dataTmpPath, dataPath, true);
 
             return Unit.Value;
         }
@@ -114,8 +112,8 @@ public static class BundleDetacher
     }
 
     /// <summary>
-    /// Reattaches a signed PE stub with a detached data file, patching TOC offsets
-    /// to account for stub size changes from code signing.
+    ///     Reattaches a signed PE stub with a detached data file, patching TOC offsets
+    ///     to account for stub size changes from code signing.
     /// </summary>
     public static Result<Unit> Reattach(string signedStubPath, string dataPath, string outputPath)
     {
@@ -132,7 +130,7 @@ public static class BundleDetacher
         try
         {
             using var dataStream = new FileStream(dataPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            using var dataReader = new BinaryReader(dataStream, System.Text.Encoding.UTF8, leaveOpen: true);
+            using var dataReader = new BinaryReader(dataStream, Encoding.UTF8, true);
 
             // Read original stub size from data header
             var originalStubSize = dataReader.ReadInt64();
@@ -182,7 +180,6 @@ public static class BundleDetacher
 
             var entries = new TocEntry[entryCount];
             for (var i = 0; i < entryCount; i++)
-            {
                 entries[i] = new TocEntry
                 {
                     PackageId = dataReader.ReadString(),
@@ -191,7 +188,6 @@ public static class BundleDetacher
                     OriginalSize = dataReader.ReadInt32(),
                     Sha256Hash = dataReader.ReadString()
                 };
-            }
 
             // Determine signed stub size and offset delta
             var newStubSize = new FileInfo(signedStubPath).Length;
@@ -223,7 +219,7 @@ public static class BundleDetacher
 
                 // 3. Write patched TOC
                 var newTocOffset = outputStream.Position;
-                using var outputWriter = new BinaryWriter(outputStream, System.Text.Encoding.UTF8, leaveOpen: true);
+                using var outputWriter = new BinaryWriter(outputStream, Encoding.UTF8, true);
                 outputWriter.Write(entryCount);
                 foreach (var entry in entries)
                 {
@@ -256,7 +252,7 @@ public static class BundleDetacher
             }
 
             // Atomic rename on success
-            File.Move(outputTmpPath, outputPath, overwrite: true);
+            File.Move(outputTmpPath, outputPath, true);
 
             return Unit.Value;
         }
@@ -269,9 +265,9 @@ public static class BundleDetacher
     }
 
     /// <summary>
-    /// Finds the stub size by scanning backward from the first data point after the manifest
-    /// for the 16-byte FALKBUNDLE magic marker. Validates by checking that the manifest length
-    /// field following the magic is consistent with the known data layout.
+    ///     Finds the stub size by scanning backward from the first data point after the manifest
+    ///     for the 16-byte FALKBUNDLE magic marker. Validates by checking that the manifest length
+    ///     field following the magic is consistent with the known data layout.
     /// </summary>
     private static long FindStubSize(Stream stream, long tocOffset, TocEntry[] entries)
     {
@@ -295,20 +291,16 @@ public static class BundleDetacher
 
             // Scan backward for magic
             for (var i = scanSize - MagicLength; i >= 0; i--)
-            {
                 if (buffer.AsSpan(i, MagicLength).SequenceEqual(magicBytes))
-                {
                     // Validate: next 4 bytes = manifestLength, and offset + 20 + manifestLength == dataStart
                     if (i + 20 <= scanSize)
                     {
                         var manifestLen = BinaryPrimitives.ReadInt32LittleEndian(
                             buffer.AsSpan(i + MagicLength, 4));
-                        var expectedDataStart = (scanStart + i) + 20 + manifestLen;
+                        var expectedDataStart = scanStart + i + 20 + manifestLen;
                         if (manifestLen >= 0 && expectedDataStart == dataStart)
                             return scanStart + i; // This is stubSize
                     }
-                }
-            }
 
             return -1;
         }
@@ -319,7 +311,7 @@ public static class BundleDetacher
     }
 
     /// <summary>
-    /// Copies exactly <paramref name="count"/> bytes from source to destination using pooled buffered I/O.
+    ///     Copies exactly <paramref name="count" /> bytes from source to destination using pooled buffered I/O.
     /// </summary>
     private static void CopyBytes(Stream source, Stream destination, long count)
     {
@@ -345,7 +337,7 @@ public static class BundleDetacher
     }
 
     /// <summary>
-    /// Attempts to delete a temporary file, suppressing any exceptions.
+    ///     Attempts to delete a temporary file, suppressing any exceptions.
     /// </summary>
     private static void CleanupTempFile(string path)
     {

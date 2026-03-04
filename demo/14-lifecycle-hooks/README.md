@@ -1,6 +1,8 @@
 # Demo 14: Lifecycle Hooks
 
-A teaching example that demonstrates all engine lifecycle hooks available in the FalkForge.Ui framework. The installer collects database configuration from the user, passes properties to MSI packages (including secure password transport), and logs every lifecycle phase to a visible status log.
+A teaching example that demonstrates all engine lifecycle hooks available in the FalkForge.Ui framework. The installer
+collects database configuration from the user, passes properties to MSI packages (including secure password transport),
+and logs every lifecycle phase to a visible status log.
 
 ## What This Demonstrates
 
@@ -53,9 +55,12 @@ dotnet build demo/14-lifecycle-hooks/14-lifecycle-hooks.csproj
 
 ## Notes
 
-- The `OnDetectBeginAsync`, `OnPlanBeginAsync`, and `OnApplyBeginAsync` hooks return `Task<bool>`. Returning `false` cancels that phase.
+- The `OnDetectBeginAsync`, `OnPlanBeginAsync`, and `OnApplyBeginAsync` hooks return `Task<bool>`. Returning `false`
+  cancels that phase.
 - `DetectResult.State` reports `Installed`, `OlderVersion`, `NewerVersion`, or `NotInstalled`, allowing the UI to adapt.
 - `PlanResult.PackageActions` and `PlanResult.TotalDiskSpaceRequired` provide pre-install summary data.
 - `ApplyResult.ExitCode` and `ApplyResult.ErrorMessage` provide post-install diagnostics.
-- `Engine.SetSecureProperty` uses named pipe transport so passwords never appear in process command lines or logs. This is critical for passing credentials to MSI custom actions.
-- `SharedState.SetSensitive` stores data in protected memory. The corresponding `GetSensitive` returns a `ReadOnlyMemory<char>` that should be disposed after use.
+- `Engine.SetSecureProperty` uses named pipe transport so passwords never appear in process command lines or logs. This
+  is critical for passing credentials to MSI custom actions.
+- `SharedState.SetSensitive` stores data in protected memory. The corresponding `GetSensitive` returns a
+  `ReadOnlyMemory<char>` that should be disposed after use.

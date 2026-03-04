@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 using FalkForge.Extensions.Iis;
 using FalkForge.Extensions.Iis.Models;
 
@@ -20,7 +18,7 @@ iis.AddWebSite(site => site
     .Description("Demo Web Site")
     .Directory("[INSTALLDIR]wwwroot")
     .AppPool(appPool)
-    .Binding(8080, "http")
+    .Binding(8080)
     .AutoStart(true));
 
 var validation = iis.Validate();
@@ -44,5 +42,4 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/webapp.dll")
         .To(KnownFolder.ProgramFiles / "Demo" / "IisDemo" / "wwwroot"));
-
 }, new MsiCompiler());

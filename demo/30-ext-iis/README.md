@@ -1,6 +1,7 @@
 # Demo 30: IIS Extension
 
-Configures an IIS application pool and web site as part of an MSI installer. This demo creates an integrated-pipeline app pool running under `ApplicationPoolIdentity` and binds a web site to port 8080 with auto-start enabled.
+Configures an IIS application pool and web site as part of an MSI installer. This demo creates an integrated-pipeline
+app pool running under `ApplicationPoolIdentity` and binds a web site to port 8080 with auto-start enabled.
 
 ## What This Demonstrates
 
@@ -41,7 +42,9 @@ dotnet build demo/30-ext-iis/30-ext-iis.csproj
 
 ## Notes
 
-- `NoManagedCode()` configures the app pool with no CLR version, suitable for hosting reverse-proxy or static-file scenarios.
+- `NoManagedCode()` configures the app pool with no CLR version, suitable for hosting reverse-proxy or static-file
+  scenarios.
 - The `Directory` value uses the `[INSTALLDIR]` MSI property to resolve the physical path at install time.
-- `DefineAppPool` returns a reference object that can be passed to `AppPool()` on the web site builder, ensuring referential integrity.
+- `DefineAppPool` returns a reference object that can be passed to `AppPool()` on the web site builder, ensuring
+  referential integrity.
 - In production, extensions register automatically via the FalkForge SDK extension pipeline during compilation.

@@ -1,6 +1,8 @@
 # Demo 32: .NET Runtime Detection Extension
 
-Detects whether a specific .NET runtime version is installed on the target machine using a factory pattern. This demo searches for the .NET 8.0+ x64 runtime, stores the result in a custom MSI property, and uses it as a launch condition to block installation when the prerequisite is missing.
+Detects whether a specific .NET runtime version is installed on the target machine using a factory pattern. This demo
+searches for the .NET 8.0+ x64 runtime, stores the result in a custom MSI property, and uses it as a launch condition to
+block installation when the prerequisite is missing.
 
 ## What This Demonstrates
 
@@ -36,9 +38,12 @@ dotnet build demo/32-ext-dotnet/32-ext-dotnet.csproj
 
 ## Notes
 
-- The `SearchForRuntime()` factory method on `DotNetExtension` replaces the standalone `DotNetCoreSearchBuilder` constructor, keeping the search tied to its extension context.
+- The `SearchForRuntime()` factory method on `DotNetExtension` replaces the standalone `DotNetCoreSearchBuilder`
+  constructor, keeping the search tied to its extension context.
 - `RuntimeType` distinguishes between `Runtime` (base), `AspNetCore`, and `WindowsDesktop` runtimes.
-- `Variable("DOTNET8_FOUND")` sets an MSI property that can be referenced in launch conditions or UI to block installation when the prerequisite is missing.
-- `package.Require()` adds a launch condition. If the named property is not set (i.e., the runtime was not found), the installer displays the error message and exits before any files are installed.
+- `Variable("DOTNET8_FOUND")` sets an MSI property that can be referenced in launch conditions or UI to block
+  installation when the prerequisite is missing.
+- `package.Require()` adds a launch condition. If the named property is not set (i.e., the runtime was not found), the
+  installer displays the error message and exits before any files are installed.
 - The search runs during the MSI `AppSearch` phase, before file installation begins.
 - In production, extensions register automatically via the FalkForge SDK extension pipeline during compilation.

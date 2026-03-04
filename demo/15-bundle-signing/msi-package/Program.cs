@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -39,5 +38,4 @@ return Installer.Build(args, p =>
         s.Algorithm("sha256");
         s.WithDescription("FalkForge Demo Installer", "https://example.com");
     });
-
 }, new MsiCompiler());

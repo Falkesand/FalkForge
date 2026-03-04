@@ -5,13 +5,14 @@ using FalkForge.Models;
 namespace FalkForge.Compiler.Msi.Signing;
 
 [SupportedOSPlatform("windows")]
+#pragma warning disable CA1822 // Stateless service; instance method for future extensibility
 public sealed class CodeSigner
 {
     private static readonly string[] SignToolSearchPaths =
     [
         @"C:\Program Files (x86)\Windows Kits\10\bin",
         @"C:\Program Files\Windows Kits\10\bin",
-        @"C:\Program Files (x86)\Microsoft SDKs\ClickOnce\SignTool",
+        @"C:\Program Files (x86)\Microsoft SDKs\ClickOnce\SignTool"
     ];
 
     public Result<Unit> Sign(string filePath, SigningOptions options)

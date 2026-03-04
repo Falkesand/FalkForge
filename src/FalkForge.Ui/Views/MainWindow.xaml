@@ -17,19 +17,19 @@
                 <Button Content="&lt; Back"
                         Style="{StaticResource WizardButton}"
                         IsEnabled="{Binding CanGoBack}"
-                        Click="OnBackClick"/>
+                        Click="OnBackClick" />
                 <Button Content="Next &gt;"
                         Style="{StaticResource WizardButton}"
                         IsEnabled="{Binding CanGoNext}"
-                        Click="OnNextClick"/>
+                        Click="OnNextClick" />
                 <Button Content="Cancel"
                         Style="{StaticResource WizardButton}"
                         Margin="12,0,0,0"
-                        Click="OnCancelClick"/>
+                        Click="OnCancelClick" />
             </StackPanel>
         </Border>
 
         <!-- Page content fills remaining space -->
-        <ContentPresenter Content="{Binding CurrentPage}"/>
+        <ContentPresenter Content="{Binding CurrentPage}" />
     </DockPanel>
 </Window>

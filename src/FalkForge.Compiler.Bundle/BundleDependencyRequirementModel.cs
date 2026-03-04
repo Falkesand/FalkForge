@@ -1,8 +1,8 @@
 namespace FalkForge.Compiler.Bundle;
 
 /// <summary>
-/// A dependency requirement that the bundle needs satisfied at runtime.
-/// Specifies a provider key and an optional version range.
+///     A dependency requirement that the bundle needs satisfied at runtime.
+///     Specifies a provider key and an optional version range.
 /// </summary>
 public sealed class BundleDependencyRequirementModel
 {

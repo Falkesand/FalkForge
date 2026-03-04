@@ -4,5 +4,8 @@ namespace LifecycleDemo.Views;
 
 public partial class ProgressView : UserControl
 {
-    public ProgressView() => InitializeComponent();
+    public ProgressView()
+    {
+        InitializeComponent();
+    }
 }

@@ -1,11 +1,12 @@
-namespace FalkForge.Ui;
-
+using System.Diagnostics;
 using System.Windows.Input;
+
+namespace FalkForge.Ui;
 
 internal sealed class RelayCommand : ICommand
 {
-    private readonly Func<Task> _execute;
     private readonly Func<bool>? _canExecute;
+    private readonly Func<Task> _execute;
 
     public RelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
     {
@@ -13,7 +14,10 @@ internal sealed class RelayCommand : ICommand
         _canExecute = canExecute;
     }
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
+    public bool CanExecute(object? parameter)
+    {
+        return _canExecute?.Invoke() ?? true;
+    }
 
     public async void Execute(object? parameter)
     {
@@ -29,7 +33,7 @@ internal sealed class RelayCommand : ICommand
         {
             // Prevent unhandled exceptions from crashing the application.
             // Engine errors are surfaced via StatusMessage on the ViewModel.
-            System.Diagnostics.Trace.TraceError($"RelayCommand: {ex}");
+            Trace.TraceError($"RelayCommand: {ex}");
         }
     }
 

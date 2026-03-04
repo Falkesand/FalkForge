@@ -1,6 +1,7 @@
 # Demo 06: Product Suite -- App Installer
 
-The desktop application MSI package for the Acme Product Suite. Installs application binaries, creates desktop and Start Menu shortcuts, writes registry entries, and supports localized UI with user-selectable install directory.
+The desktop application MSI package for the Acme Product Suite. Installs application binaries, creates desktop and Start
+Menu shortcuts, writes registry entries, and supports localized UI with user-selectable install directory.
 
 ## What This Demonstrates
 

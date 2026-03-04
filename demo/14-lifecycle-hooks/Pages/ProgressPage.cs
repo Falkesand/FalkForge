@@ -31,7 +31,10 @@ public sealed class ProgressPage : InstallerPage<ProgressView>
         return Task.CompletedTask;
     }
 
-    public override PageResult OnNext() => PageResult.Install;
+    public override PageResult OnNext()
+    {
+        return PageResult.Install;
+    }
 
     // -----------------------------------------------
     // LIFECYCLE HOOKS -- This is the teaching example
@@ -49,9 +52,9 @@ public sealed class ProgressPage : InstallerPage<ProgressView>
         {
             InstallState.Installed => "Upgrade from existing installation",
             InstallState.OlderVersion => "Upgrade from older version" +
-                (result.CurrentVersion is not null ? $" ({result.CurrentVersion})" : ""),
+                                         (result.CurrentVersion is not null ? $" ({result.CurrentVersion})" : ""),
             InstallState.NewerVersion => "Downgrade from newer version" +
-                (result.CurrentVersion is not null ? $" ({result.CurrentVersion})" : ""),
+                                         (result.CurrentVersion is not null ? $" ({result.CurrentVersion})" : ""),
             _ => "Fresh installation"
         };
         AddStatus($"   Detection complete: {description}");

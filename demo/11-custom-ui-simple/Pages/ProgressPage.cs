@@ -1,8 +1,8 @@
-namespace CustomUiSimple.Pages;
-
 using CustomUiSimple.Views;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
+
+namespace CustomUiSimple.Pages;
 
 public class ProgressPage : InstallerPage<ProgressView>
 {
@@ -18,6 +18,10 @@ public class ProgressPage : InstallerPage<ProgressView>
 
     public string StatusText => Localize("Progress.StatusText");
 
-    public override PageResult OnNext() => PageResult.Install;
     public override bool CanGoBack => false;
+
+    public override PageResult OnNext()
+    {
+        return PageResult.Install;
+    }
 }

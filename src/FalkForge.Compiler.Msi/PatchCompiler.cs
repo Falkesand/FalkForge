@@ -6,13 +6,14 @@ using FalkForge.Validation;
 namespace FalkForge.Compiler.Msi;
 
 /// <summary>
-/// Creates MSP patch files by generating a transform between two MSI databases
-/// and packaging it into a patch cabinet.
-/// Note: Full MSP creation requires MsiCreatePatchFileEx which is part of PatchWiz / patchwiz.dll.
-/// This implementation creates the transform (.mst) that forms the core of a patch.
-/// For production MSP files, the transform should be fed into a patch creation package (PCP).
+///     Creates MSP patch files by generating a transform between two MSI databases
+///     and packaging it into a patch cabinet.
+///     Note: Full MSP creation requires MsiCreatePatchFileEx which is part of PatchWiz / patchwiz.dll.
+///     This implementation creates the transform (.mst) that forms the core of a patch.
+///     For production MSP files, the transform should be fed into a patch creation package (PCP).
 /// </summary>
 [SupportedOSPlatform("windows")]
+#pragma warning disable CA1822 // Stateless compiler; instance method for future extensibility
 public sealed class PatchCompiler
 {
     public Result<string> Compile(PatchModel patch, string outputPath)
@@ -27,10 +28,12 @@ public sealed class PatchCompiler
 
         // Step 1b: Verify source files exist (not in validator to keep it pure)
         if (!File.Exists(patch.TargetMsiPath))
-            return Result<string>.Failure(ErrorKind.FileNotFound, $"Patch TargetMsiPath '{patch.TargetMsiPath}' does not exist.");
+            return Result<string>.Failure(ErrorKind.FileNotFound,
+                $"Patch TargetMsiPath '{patch.TargetMsiPath}' does not exist.");
 
         if (!File.Exists(patch.UpdatedMsiPath))
-            return Result<string>.Failure(ErrorKind.FileNotFound, $"Patch UpdatedMsiPath '{patch.UpdatedMsiPath}' does not exist.");
+            return Result<string>.Failure(ErrorKind.FileNotFound,
+                $"Patch UpdatedMsiPath '{patch.UpdatedMsiPath}' does not exist.");
 
         // Step 2: Determine output file name
         var mspFileName = $"Patch_{patch.Id:N}.msp";
@@ -46,13 +49,13 @@ public sealed class PatchCompiler
             File.Delete(mspPath);
 
         // Step 3: Open target (old) and updated (new) MSI databases
-        var targetResult = MsiDatabase.Open(patch.TargetMsiPath, readOnly: true);
+        var targetResult = MsiDatabase.Open(patch.TargetMsiPath, true);
         if (targetResult.IsFailure)
             return Result<string>.Failure(targetResult.Error);
 
         using var targetDb = targetResult.Value;
 
-        var updatedResult = MsiDatabase.Open(patch.UpdatedMsiPath, readOnly: true);
+        var updatedResult = MsiDatabase.Open(patch.UpdatedMsiPath, true);
         if (updatedResult.IsFailure)
             return Result<string>.Failure(updatedResult.Error);
 
@@ -70,7 +73,8 @@ public sealed class PatchCompiler
                 0,
                 0);
             if (genResult != NativeMethods.ERROR_SUCCESS)
-                return Result<string>.Failure(ErrorKind.CompilationError, $"Failed to generate patch transform. Error code: {genResult}");
+                return Result<string>.Failure(ErrorKind.CompilationError,
+                    $"Failed to generate patch transform. Error code: {genResult}");
 
             // Step 5: Create transform summary info
             var summaryResult = NativeMethods.MsiCreateTransformSummaryInfo(
@@ -80,7 +84,8 @@ public sealed class PatchCompiler
                 0,
                 0);
             if (summaryResult != NativeMethods.ERROR_SUCCESS)
-                return Result<string>.Failure(ErrorKind.CompilationError, $"Failed to create patch transform summary info. Error code: {summaryResult}");
+                return Result<string>.Failure(ErrorKind.CompilationError,
+                    $"Failed to create patch transform summary info. Error code: {summaryResult}");
 
             // Step 6: Create patch database (.msp) that wraps the transform
             var patchDbResult = CreatePatchDatabase(patch, mspPath, transformPath);
@@ -124,7 +129,7 @@ public sealed class PatchCompiler
             ["Classification"] = classStr,
             ["AllowRemoval"] = patch.AllowRemoval ? "1" : "0",
             ["ManufacturerName"] = patch.Manufacturer ?? string.Empty,
-            ["Description"] = patch.Description ?? string.Empty,
+            ["Description"] = patch.Description ?? string.Empty
         };
 
         if (patch.TargetVersion is not null)

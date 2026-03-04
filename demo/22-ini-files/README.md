@@ -1,6 +1,7 @@
 # Demo 22: INI Files
 
-Writes configuration entries to an INI file during installation. Demonstrates creating key-value pairs in specific sections of an INI file.
+Writes configuration entries to an INI file during installation. Demonstrates creating key-value pairs in specific
+sections of an INI file.
 
 ## What This Demonstrates
 
@@ -39,6 +40,7 @@ dotnet build demo/22-ini-files
 
 ## Notes
 
-- `IniFileAction.CreateEntry` creates the key if it does not exist but does not overwrite an existing value. Other action types are available for overwriting or removing entries.
+- `IniFileAction.CreateEntry` creates the key if it does not exist but does not overwrite an existing value. Other
+  action types are available for overwriting or removing entries.
 - The INI file must be included in the `Files()` section so it exists on disk before entries are written.
 - MSI property references like `[ProgramFilesFolder]` are resolved to actual paths at install time.

@@ -1,8 +1,8 @@
-namespace FalkForge.Ui;
-
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Ui.Abstractions;
+
+namespace FalkForge.Ui;
 
 internal sealed class NullInstallerEngine : IInstallerEngine
 {
@@ -29,20 +29,33 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     public IObservable<string> StatusMessage => EmptyObservable<string>.Instance;
 
     public Task<DetectResult> DetectAsync(CancellationToken ct = default)
-        => Task.FromResult(new DetectResult(InstallState.NotInstalled, null, []));
+    {
+        return Task.FromResult(new DetectResult(InstallState.NotInstalled, null, []));
+    }
 
     public Task<PlanResult> PlanAsync(InstallAction action, CancellationToken ct = default)
-        => Task.FromResult(new PlanResult([], 0L));
+    {
+        return Task.FromResult(new PlanResult([], 0L));
+    }
 
     public Task<ApplyResult> ApplyAsync(CancellationToken ct = default)
-        => Task.FromResult(new ApplyResult(0, null));
+    {
+        return Task.FromResult(new ApplyResult(0, null));
+    }
 
-    public void Cancel() { }
+    public void Cancel()
+    {
+    }
 
-    public void LaunchUpdate() { /* no-op — design-time / test use */ }
+    public void LaunchUpdate()
+    {
+        /* no-op — design-time / test use */
+    }
 
     public void SetProperty(string name, string value)
-        => _properties[name] = value;
+    {
+        _properties[name] = value;
+    }
 
     public void SetSecureProperty(string name, SensitiveBytes value)
     {
@@ -73,6 +86,9 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     private sealed class EmptyDisposable : IDisposable
     {
         public static readonly EmptyDisposable Instance = new();
-        public void Dispose() { }
+
+        public void Dispose()
+        {
+        }
     }
 }

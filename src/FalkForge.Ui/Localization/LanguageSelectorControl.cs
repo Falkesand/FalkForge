@@ -1,12 +1,12 @@
-namespace FalkForge.Ui.Localization;
-
 using System.Globalization;
 using System.Windows.Controls;
 
+namespace FalkForge.Ui.Localization;
+
 internal sealed class LanguageSelectorControl : ComboBox
 {
-    private UiStringResolver? _resolver;
     private bool _initializing;
+    private UiStringResolver? _resolver;
 
     public LanguageSelectorControl()
     {
@@ -22,7 +22,6 @@ internal sealed class LanguageSelectorControl : ComboBox
             Items.Clear();
 
             foreach (var culture in resolver.AvailableCultures.OrderBy(c => c))
-            {
                 try
                 {
                     var info = CultureInfo.GetCultureInfo(culture);
@@ -32,7 +31,6 @@ internal sealed class LanguageSelectorControl : ComboBox
                 {
                     Items.Add(new CultureItem(culture, culture));
                 }
-            }
 
             SelectedItem = Items.Cast<CultureItem>()
                 .FirstOrDefault(c => c.Code.Equals(resolver.CurrentCulture, StringComparison.OrdinalIgnoreCase));
@@ -51,6 +49,9 @@ internal sealed class LanguageSelectorControl : ComboBox
 
     internal sealed record CultureItem(string Code, string DisplayName)
     {
-        public override string ToString() => DisplayName;
+        public override string ToString()
+        {
+            return DisplayName;
+        }
     }
 }

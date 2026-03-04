@@ -35,5 +35,7 @@ public sealed class AdvancedInstallDirMultiServerPage : MasPageBase<AdvancedInst
     }
 
     public override PageResult OnBack()
-        => PageResult.GoTo<DatabaseServerPage>();
+    {
+        return PageResult.GoTo<DatabaseServerPage>();
+    }
 }

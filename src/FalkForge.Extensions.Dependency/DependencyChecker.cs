@@ -1,12 +1,12 @@
 namespace FalkForge.Extensions.Dependency;
 
 /// <summary>
-/// Checks dependency consumers against available providers to find unsatisfied dependencies at runtime.
+///     Checks dependency consumers against available providers to find unsatisfied dependencies at runtime.
 /// </summary>
 public static class DependencyChecker
 {
     /// <summary>
-    /// Evaluates each consumer against the available providers and returns any unsatisfied dependencies.
+    ///     Evaluates each consumer against the available providers and returns any unsatisfied dependencies.
     /// </summary>
     public static IReadOnlyList<UnsatisfiedDependency> Check(
         IReadOnlyList<DependencyProviderModel> providers,
@@ -16,10 +16,7 @@ public static class DependencyChecker
             return [];
 
         var providerLookup = new Dictionary<string, DependencyProviderModel>(StringComparer.Ordinal);
-        foreach (var provider in providers)
-        {
-            providerLookup.TryAdd(provider.Key, provider);
-        }
+        foreach (var provider in providers) providerLookup.TryAdd(provider.Key, provider);
 
         var unsatisfied = new List<UnsatisfiedDependency>();
 
@@ -30,8 +27,8 @@ public static class DependencyChecker
                 unsatisfied.Add(new UnsatisfiedDependency(
                     consumer.ProviderKey,
                     consumer.ConsumerKey,
-                    InstalledVersion: null,
-                    IsMissing: true));
+                    null,
+                    true));
                 continue;
             }
 
@@ -40,13 +37,11 @@ public static class DependencyChecker
 
             var range = BuildRange(consumer);
             if (!range.IsSatisfiedBy(installedVersion))
-            {
                 unsatisfied.Add(new UnsatisfiedDependency(
                     consumer.ProviderKey,
                     consumer.ConsumerKey,
-                    InstalledVersion: provider.Version,
-                    IsMissing: false));
-            }
+                    provider.Version,
+                    false));
         }
 
         return unsatisfied;
@@ -54,11 +49,11 @@ public static class DependencyChecker
 
     private static VersionRange BuildRange(DependencyConsumerModel consumer)
     {
-        Version? min = consumer.MinVersion is not null && Version.TryParse(consumer.MinVersion, out var parsedMin)
+        var min = consumer.MinVersion is not null && Version.TryParse(consumer.MinVersion, out var parsedMin)
             ? parsedMin
             : null;
 
-        Version? max = consumer.MaxVersion is not null && Version.TryParse(consumer.MaxVersion, out var parsedMax)
+        var max = consumer.MaxVersion is not null && Version.TryParse(consumer.MaxVersion, out var parsedMax)
             ? parsedMax
             : null;
 

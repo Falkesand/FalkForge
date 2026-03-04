@@ -1,6 +1,6 @@
-namespace FalkForge.Validation;
-
 using FalkForge.Models;
+
+namespace FalkForge.Validation;
 
 public static class MergeModuleValidator
 {

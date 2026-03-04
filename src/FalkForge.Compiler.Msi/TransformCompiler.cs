@@ -6,6 +6,7 @@ using FalkForge.Validation;
 namespace FalkForge.Compiler.Msi;
 
 [SupportedOSPlatform("windows")]
+#pragma warning disable CA1822 // Stateless compiler; instance method for future extensibility
 public sealed class TransformCompiler
 {
     public Result<string> Compile(TransformModel transform, string outputPath)
@@ -41,13 +42,13 @@ public sealed class TransformCompiler
             File.Delete(mstPath);
 
         // Step 4: Open both databases
-        var targetResult = MsiDatabase.Open(transform.TargetMsiPath, readOnly: true);
+        var targetResult = MsiDatabase.Open(transform.TargetMsiPath, true);
         if (targetResult.IsFailure)
             return Result<string>.Failure(targetResult.Error);
 
         using var targetDb = targetResult.Value;
 
-        var baseResult = MsiDatabase.Open(transform.BaseMsiPath, readOnly: true);
+        var baseResult = MsiDatabase.Open(transform.BaseMsiPath, true);
         if (baseResult.IsFailure)
             return Result<string>.Failure(baseResult.Error);
 
@@ -61,7 +62,8 @@ public sealed class TransformCompiler
             0,
             0);
         if (genResult != NativeMethods.ERROR_SUCCESS)
-            return Result<string>.Failure(ErrorKind.CompilationError, $"Failed to generate transform. Error code: {genResult}");
+            return Result<string>.Failure(ErrorKind.CompilationError,
+                $"Failed to generate transform. Error code: {genResult}");
 
         // Step 6: Create transform summary info
         var summaryResult = NativeMethods.MsiCreateTransformSummaryInfo(
@@ -71,7 +73,8 @@ public sealed class TransformCompiler
             0,
             0);
         if (summaryResult != NativeMethods.ERROR_SUCCESS)
-            return Result<string>.Failure(ErrorKind.CompilationError, $"Failed to create transform summary info. Error code: {summaryResult}");
+            return Result<string>.Failure(ErrorKind.CompilationError,
+                $"Failed to create transform summary info. Error code: {summaryResult}");
 
         return mstPath;
     }

@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 using FalkForge.Extensions.Firewall;
 
 // Configure a Windows Firewall rule to allow inbound HTTP traffic.
@@ -39,5 +37,4 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/webapp.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "FirewallDemo"));
-
 }, new MsiCompiler());

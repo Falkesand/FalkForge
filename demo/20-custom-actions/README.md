@@ -1,6 +1,7 @@
 # Demo 20: Custom Actions
 
-Demonstrates multiple types of MSI custom actions: DLL-based, EXE-based, property-setting, deferred, rollback, commit, and error-tolerant actions.
+Demonstrates multiple types of MSI custom actions: DLL-based, EXE-based, property-setting, deferred, rollback, commit,
+and error-tolerant actions.
 
 ## What This Demonstrates
 
@@ -91,11 +92,18 @@ dotnet build demo/20-custom-actions
 
 ## Notes
 
-- `package.Binary()` embeds a file (DLL, EXE) into the MSI's `Binary` table. The embedded binary is referenced by name in `DllFromBinary` and `ExeFromBinary`.
+- `package.Binary()` embeds a file (DLL, EXE) into the MSI's `Binary` table. The embedded binary is referenced by name
+  in `DllFromBinary` and `ExeFromBinary`.
 - `DllFromBinary()` calls a named C export function in an embedded DLL. This is the MSI Type 1 custom action.
-- `ExeFromBinary()` runs an embedded executable. Command-line arguments are passed via the `Target` property. This is the MSI Type 2 custom action.
-- Deferred actions cannot read MSI properties directly. Use `SetProperty` to pass data into the deferred action's `CustomActionData`.
-- Rollback actions must be scheduled **before** the action they undo. MSI executes them in reverse order during rollback.
-- `Commit()` actions only execute after the entire install sequence completes successfully. If any action fails and triggers rollback, commit actions are skipped.
-- `ContinueOnError()` marks an action as non-critical. If it fails, the installer logs the error but continues instead of aborting.
-- `NoImpersonate()` is required when the custom action needs elevated privileges (e.g., writing to protected directories).
+- `ExeFromBinary()` runs an embedded executable. Command-line arguments are passed via the `Target` property. This is
+  the MSI Type 2 custom action.
+- Deferred actions cannot read MSI properties directly. Use `SetProperty` to pass data into the deferred action's
+  `CustomActionData`.
+- Rollback actions must be scheduled **before** the action they undo. MSI executes them in reverse order during
+  rollback.
+- `Commit()` actions only execute after the entire install sequence completes successfully. If any action fails and
+  triggers rollback, commit actions are skipped.
+- `ContinueOnError()` marks an action as non-critical. If it fails, the installer logs the error but continues instead
+  of aborting.
+- `NoImpersonate()` is required when the custom action needs elevated privileges (e.g., writing to protected
+  directories).

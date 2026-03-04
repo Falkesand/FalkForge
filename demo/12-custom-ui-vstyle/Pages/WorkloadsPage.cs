@@ -1,10 +1,10 @@
-namespace CustomUiVsStyle.Pages;
-
 using System.Collections.ObjectModel;
 using CustomUiVsStyle.Models;
 using CustomUiVsStyle.Views;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
+
+namespace CustomUiVsStyle.Pages;
 
 public class WorkloadsPage : InstallerPage<WorkloadsView>
 {
@@ -96,7 +96,10 @@ public class WorkloadsPage : InstallerPage<WorkloadsView>
         return 0;
     }
 
-    public void RefreshTotalSize() => OnPropertyChanged(nameof(TotalSelectedSize));
+    public void RefreshTotalSize()
+    {
+        OnPropertyChanged(nameof(TotalSelectedSize));
+    }
 
     public override PageResult OnNext()
     {

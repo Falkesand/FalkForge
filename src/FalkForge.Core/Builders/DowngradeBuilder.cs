@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class DowngradeBuilder
 {
@@ -20,9 +20,12 @@ public sealed class DowngradeBuilder
         return this;
     }
 
-    internal DowngradeModel Build() => new()
+    internal DowngradeModel Build()
     {
-        AllowDowngrades = _allowDowngrades,
-        ErrorMessage = _errorMessage
-    };
+        return new DowngradeModel
+        {
+            AllowDowngrades = _allowDowngrades,
+            ErrorMessage = _errorMessage
+        };
+    }
 }

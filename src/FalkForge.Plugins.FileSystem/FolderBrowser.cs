@@ -1,6 +1,7 @@
-namespace FalkForge.Plugins.FileSystem;
-
+using System.IO;
 using Microsoft.Win32;
+
+namespace FalkForge.Plugins.FileSystem;
 
 internal sealed class FolderBrowser : IFolderBrowser
 {
@@ -9,10 +10,10 @@ internal sealed class FolderBrowser : IFolderBrowser
         var dialog = new OpenFolderDialog
         {
             Title = description ?? "Select folder",
-            Multiselect = false,
+            Multiselect = false
         };
 
-        if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
+        if (!string.IsNullOrEmpty(initialDirectory) && Directory.Exists(initialDirectory))
             dialog.InitialDirectory = initialDirectory;
 
         return dialog.ShowDialog() == true ? dialog.FolderName : null;

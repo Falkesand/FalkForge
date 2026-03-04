@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Compiler.Bundle;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 

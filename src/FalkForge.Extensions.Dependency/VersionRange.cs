@@ -1,7 +1,7 @@
 namespace FalkForge.Extensions.Dependency;
 
 /// <summary>
-/// Represents a version range with optional inclusive/exclusive lower and upper bounds.
+///     Represents a version range with optional inclusive/exclusive lower and upper bounds.
 /// </summary>
 public readonly record struct VersionRange(
     Version? MinVersion,
@@ -10,7 +10,7 @@ public readonly record struct VersionRange(
     bool MaxInclusive)
 {
     /// <summary>
-    /// Determines whether the specified version falls within this range.
+    ///     Determines whether the specified version falls within this range.
     /// </summary>
     public bool IsSatisfiedBy(Version version)
     {

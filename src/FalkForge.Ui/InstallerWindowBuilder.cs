@@ -1,22 +1,22 @@
-namespace FalkForge.Ui;
-
 using System.Windows;
 using System.Windows.Media;
 
+namespace FalkForge.Ui;
+
 public sealed class InstallerWindowBuilder
 {
-    private double _width = 600;
-    private double _height = 400;
-    private bool _isBorderless;
-    private double _cornerRadius;
-    private Color? _backgroundColor;
     private Color? _accentColor;
-    private string? _title;
-    private string? _iconPath;
-    private Type? _customWindowType;
-    private string? _watermarkImagePath;
-    private string? _bannerImagePath;
+    private Color? _backgroundColor;
     private string? _bannerIconPath;
+    private string? _bannerImagePath;
+    private double _cornerRadius;
+    private Type? _customWindowType;
+    private double _height = 400;
+    private string? _iconPath;
+    private bool _isBorderless;
+    private string? _title;
+    private string? _watermarkImagePath;
+    private double _width = 600;
 
     public InstallerWindowBuilder Size(double width, double height)
     {
@@ -88,19 +88,22 @@ public sealed class InstallerWindowBuilder
         return this;
     }
 
-    internal InstallerWindowConfig Build() => new()
+    internal InstallerWindowConfig Build()
     {
-        Width = _width,
-        Height = _height,
-        IsBorderless = _isBorderless,
-        CornerRadius = _cornerRadius,
-        BackgroundColor = _backgroundColor,
-        AccentColor = _accentColor,
-        Title = _title,
-        IconPath = _iconPath,
-        CustomWindowType = _customWindowType,
-        WatermarkImagePath = _watermarkImagePath,
-        BannerImagePath = _bannerImagePath,
-        BannerIconPath = _bannerIconPath,
-    };
+        return new InstallerWindowConfig
+        {
+            Width = _width,
+            Height = _height,
+            IsBorderless = _isBorderless,
+            CornerRadius = _cornerRadius,
+            BackgroundColor = _backgroundColor,
+            AccentColor = _accentColor,
+            Title = _title,
+            IconPath = _iconPath,
+            CustomWindowType = _customWindowType,
+            WatermarkImagePath = _watermarkImagePath,
+            BannerImagePath = _bannerImagePath,
+            BannerIconPath = _bannerIconPath
+        };
+    }
 }

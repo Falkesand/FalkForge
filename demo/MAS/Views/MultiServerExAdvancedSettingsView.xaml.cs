@@ -6,7 +6,10 @@ namespace MAS.Views;
 
 public partial class MultiServerExAdvancedSettingsView : UserControl
 {
-    public MultiServerExAdvancedSettingsView() => InitializeComponent();
+    public MultiServerExAdvancedSettingsView()
+    {
+        InitializeComponent();
+    }
 
     private void CheckDsn_Click(object sender, RoutedEventArgs e)
     {

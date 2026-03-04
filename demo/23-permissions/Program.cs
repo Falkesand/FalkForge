@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Set NTFS permissions on the install directory.
 return Installer.Build(args, package =>
@@ -27,5 +25,4 @@ return Installer.Build(args, package =>
         p.Sddl = "D:(A;;FA;;;BA)(A;;FR;;;BU)";
         p.ForTable("CreateFolder");
     });
-
 }, new MsiCompiler());

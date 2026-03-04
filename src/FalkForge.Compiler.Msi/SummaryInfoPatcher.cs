@@ -7,16 +7,16 @@ namespace FalkForge.Compiler.Msi;
 internal static class SummaryInfoPatcher
 {
     private const int CfbHeaderBytes = 512;
-    private const int OffSectorShift = 0x1E;       // uint16: log2(sectorSize)
-    private const int OffFirstDirSector = 0x30;    // int32: first directory sector index
-    private const int OffFatArray = 0x4C;          // 109 int32 FAT sector indices
+    private const int OffSectorShift = 0x1E; // uint16: log2(sectorSize)
+    private const int OffFirstDirSector = 0x30; // int32: first directory sector index
+    private const int OffFatArray = 0x4C; // 109 int32 FAT sector indices
     private const int DirEntrySizeBytes = 128;
-    private const int OffDirNameLen = 0x40;        // uint16 name length (includes NUL)
-    private const int OffDirEntryType = 0x42;      // byte: 0=empty, 1=storage, 2=stream, 5=root
-    private const int OffDirCreatedTime = 0x64;    // FILETIME (8 bytes)
-    private const int OffDirModifiedTime = 0x6C;   // FILETIME (8 bytes)
-    private const int OffDirStartSector = 0x74;    // int32 start sector of stream data
-    private const int EndOfChain = -2;             // 0xFFFFFFFE
+    private const int OffDirNameLen = 0x40; // uint16 name length (includes NUL)
+    private const int OffDirEntryType = 0x42; // byte: 0=empty, 1=storage, 2=stream, 5=root
+    private const int OffDirCreatedTime = 0x64; // FILETIME (8 bytes)
+    private const int OffDirModifiedTime = 0x6C; // FILETIME (8 bytes)
+    private const int OffDirStartSector = 0x74; // int32 start sector of stream data
+    private const int EndOfChain = -2; // 0xFFFFFFFE
     private const uint VtFiletime = 64;
     private const uint PidCreateDtm = 12;
     private const uint PidLastsaveDtm = 13;
@@ -29,7 +29,7 @@ internal static class SummaryInfoPatcher
         try
         {
             using var fs = new FileStream(msiPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            using var rw = new BinaryReader(fs, Encoding.UTF8, leaveOpen: true);
+            using var rw = new BinaryReader(fs, Encoding.UTF8, true);
             if (fs.Length < CfbHeaderBytes)
                 return Result<Unit>.Failure(ErrorKind.CompilationError,
                     "MSI file is too small to be a valid OLE2 compound file.");
@@ -52,6 +52,7 @@ internal static class SummaryInfoPatcher
                 if (s < 0) break;
                 fatSectors.Add(s);
             }
+
             var fat = new int[fatSectors.Count * entriesPerFatSector];
             for (var i = 0; i < fatSectors.Count; i++)
             {
@@ -136,10 +137,13 @@ internal static class SummaryInfoPatcher
     }
 
     /// <summary>
-    /// Per [MS-CFB]: sector N begins at byte offset (N+1)*sectorSize.
-    /// Sector 0 immediately follows the 512-byte header, regardless of sectorSize.
+    ///     Per [MS-CFB]: sector N begins at byte offset (N+1)*sectorSize.
+    ///     Sector 0 immediately follows the 512-byte header, regardless of sectorSize.
     /// </summary>
-    private static long SectorOffset(int sector, int sectorSize) => (long)(sector + 1) * sectorSize;
+    private static long SectorOffset(int sector, int sectorSize)
+    {
+        return (long)(sector + 1) * sectorSize;
+    }
 
     private static byte[] ReadSectorChain(FileStream fs, BinaryReader rw, int[] fat,
         int startSector, int size, int sectorSize)
@@ -155,6 +159,7 @@ internal static class SummaryInfoPatcher
             written += read;
             sector = sector < fat.Length ? fat[sector] : EndOfChain;
         }
+
         return data;
     }
 

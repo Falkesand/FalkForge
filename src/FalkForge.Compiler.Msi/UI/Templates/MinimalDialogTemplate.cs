@@ -20,7 +20,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
         return new MsiDialogModel
         {
             Name = dlg,
-            Title = $"[ProductName] Setup",
+            Title = "[ProductName] Setup",
             FirstControl = "Install",
             DefaultControl = "Install",
             CancelControl = "Cancel",
@@ -96,7 +96,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
         return new MsiDialogModel
         {
             Name = dlg,
-            Title = $"[ProductName] Setup",
+            Title = "[ProductName] Setup",
             Attributes = 5, // Visible | Minimize (not Modal — modeless during install)
             FirstControl = "Cancel",
             DefaultControl = "Cancel",
@@ -169,7 +169,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
         return new MsiDialogModel
         {
             Name = dlg,
-            Title = $"[ProductName] Setup",
+            Title = "[ProductName] Setup",
             FirstControl = "Finish",
             DefaultControl = "Finish",
             CancelControl = "Finish",

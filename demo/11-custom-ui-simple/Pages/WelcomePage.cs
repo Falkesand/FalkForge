@@ -1,8 +1,8 @@
-namespace CustomUiSimple.Pages;
-
 using CustomUiSimple.Views;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
+
+namespace CustomUiSimple.Pages;
 
 public class WelcomePage : InstallerPage<WelcomeView>
 {
@@ -11,6 +11,10 @@ public class WelcomePage : InstallerPage<WelcomeView>
     public string ProductName => Localize("Welcome.ProductName");
     public string Description => Localize("Welcome.Description");
 
-    public override PageResult OnNext() => PageResult.Next;
     public override bool CanGoBack => false;
+
+    public override PageResult OnNext()
+    {
+        return PageResult.Next;
+    }
 }

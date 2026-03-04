@@ -14,6 +14,7 @@ public sealed class DotNetExtension : IFalkForgeExtension
         // via DotNetDetector during the detect phase.
     }
 
+#pragma warning disable CA1822 // Factory method intentionally instance-based
     public DotNetCoreSearchBuilder SearchForRuntime()
     {
         return new DotNetCoreSearchBuilder();

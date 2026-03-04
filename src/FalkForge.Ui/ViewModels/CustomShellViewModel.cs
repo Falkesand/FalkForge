@@ -1,16 +1,17 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Localization;
 
+namespace FalkForge.Ui.ViewModels;
+
 internal sealed class CustomShellViewModel : INotifyPropertyChanged
 {
-    private readonly List<InstallerPage> _pages;
     private readonly IInstallerEngine _engine;
+    private readonly List<InstallerPage> _pages;
     private readonly InstallerState _sharedState;
     private int _currentPageIndex = -1;
     private bool _isApplying;
@@ -68,14 +69,24 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
     public bool IsApplying
     {
         get => _isApplying;
-        private set { _isApplying = value; RaiseAllNavigationProperties(); }
+        private set
+        {
+            _isApplying = value;
+            RaiseAllNavigationProperties();
+        }
     }
 
     public string? StatusMessage
     {
         get => _statusMessage;
-        private set { _statusMessage = value; OnPropertyChanged(); }
+        private set
+        {
+            _statusMessage = value;
+            OnPropertyChanged();
+        }
     }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     public event EventHandler? CloseRequested;
 
@@ -136,6 +147,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     _currentPageIndex++;
                     await ActivateCurrentPageAsync();
                 }
+
                 break;
 
             case PageResultKind.Previous:
@@ -145,6 +157,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     _currentPageIndex--;
                     await ActivateCurrentPageAsync();
                 }
+
                 break;
 
             case PageResultKind.Stay:
@@ -159,6 +172,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     _currentPageIndex = targetIndex;
                     await ActivateCurrentPageAsync();
                 }
+
                 break;
 
             case PageResultKind.Install:
@@ -225,7 +239,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Trace.TraceError($"Engine action failed: {ex}");
+            Trace.TraceError($"Engine action failed: {ex}");
             StatusMessage = "An unexpected error occurred. See logs for details.";
         }
         finally
@@ -266,10 +280,8 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
     {
         if (pageType is null) return -1;
         for (var i = 0; i < _pages.Count; i++)
-        {
             if (_pages[i].GetType() == pageType)
                 return i;
-        }
         return -1;
     }
 
@@ -280,8 +292,8 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsApplying));
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
     private void OnPropertyChanged([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
 }

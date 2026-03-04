@@ -1,9 +1,10 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class SigningOptionsBuilder
 {
+    private static readonly string[] AllowedDigestAlgorithms = ["sha256", "sha384", "sha512"];
     public string? CertificatePath { get; set; }
     public string? CertificateThumbprint { get; set; }
     public string StoreName { get; set; } = "My";
@@ -36,8 +37,6 @@ public sealed class SigningOptionsBuilder
         return this;
     }
 
-    private static readonly string[] AllowedDigestAlgorithms = ["sha256", "sha384", "sha512"];
-
     public SigningOptionsBuilder Algorithm(string algorithm)
     {
         ArgumentException.ThrowIfNullOrEmpty(algorithm);
@@ -56,14 +55,17 @@ public sealed class SigningOptionsBuilder
         return this;
     }
 
-    internal SigningOptions Build() => new()
+    internal SigningOptions Build()
     {
-        CertificatePath = CertificatePath,
-        CertificateThumbprint = CertificateThumbprint,
-        StoreName = StoreName,
-        TimestampUrl = TimestampUrl,
-        DigestAlgorithm = DigestAlgorithm,
-        Description = Description,
-        DescriptionUrl = DescriptionUrl
-    };
+        return new SigningOptions
+        {
+            CertificatePath = CertificatePath,
+            CertificateThumbprint = CertificateThumbprint,
+            StoreName = StoreName,
+            TimestampUrl = TimestampUrl,
+            DigestAlgorithm = DigestAlgorithm,
+            Description = Description,
+            DescriptionUrl = DescriptionUrl
+        };
+    }
 }

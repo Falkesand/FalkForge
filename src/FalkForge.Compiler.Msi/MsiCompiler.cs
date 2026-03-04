@@ -14,7 +14,9 @@ public sealed class MsiCompiler : ICompiler
 {
     private readonly IFileSystem _fileSystem;
 
-    public MsiCompiler() : this(new WindowsFileSystem()) { }
+    public MsiCompiler() : this(new WindowsFileSystem())
+    {
+    }
 
     public MsiCompiler(IFileSystem fileSystem)
     {
@@ -98,7 +100,8 @@ public sealed class MsiCompiler : ICompiler
                     .Subject(package.Name)
                     .Author(package.Manufacturer)
                     .Keywords("Installer")
-                    .Comments(package.Description ?? $"This installer database contains the logic and data required to install {package.Name}.")
+                    .Comments(package.Description ??
+                              $"This installer database contains the logic and data required to install {package.Name}.")
                     .Template(GetPlatformTemplate(package.Architecture))
                     .RevisionNumber(package.ProductCode.ToString("B").ToUpperInvariant())
                     .CreatingApplication("FalkForge")
@@ -159,13 +162,16 @@ public sealed class MsiCompiler : ICompiler
         return msiPath;
     }
 
-    private static string GetPlatformTemplate(ProcessorArchitecture architecture) => architecture switch
+    private static string GetPlatformTemplate(ProcessorArchitecture architecture)
     {
-        ProcessorArchitecture.X86 => "Intel;1033",
-        ProcessorArchitecture.X64 => "x64;1033",
-        ProcessorArchitecture.Arm64 => "Arm64;1033",
-        _ => "x64;1033"
-    };
+        return architecture switch
+        {
+            ProcessorArchitecture.X86 => "Intel;1033",
+            ProcessorArchitecture.X64 => "x64;1033",
+            ProcessorArchitecture.Arm64 => "Arm64;1033",
+            _ => "x64;1033"
+        };
+    }
 
     private static Result<Unit> EmbedCabinet(MsiDatabase database, string cabPath)
     {
@@ -180,5 +186,4 @@ public sealed class MsiCompiler : ICompiler
                 .SetString(1, "Data.cab")
                 .SetStream(2, cabPath));
     }
-
 }

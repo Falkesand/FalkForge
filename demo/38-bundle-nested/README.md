@@ -1,6 +1,7 @@
 # Demo 38: Nested Bundle
 
-Nests a child bundle (another bootstrapper executable) inside a parent bundle. This allows a parent installer to orchestrate the installation of an entire child product suite as a single step in its chain.
+Nests a child bundle (another bootstrapper executable) inside a parent bundle. This allows a parent installer to
+orchestrate the installation of an entire child product suite as a single step in its chain.
 
 ## What This Demonstrates
 
@@ -10,12 +11,12 @@ Nests a child bundle (another bootstrapper executable) inside a parent bundle. T
 
 ## Key API Calls
 
-| Method | Purpose |
-|--------|---------|
-| `chain.BundlePackage(path, config)` | Add another bundle (.exe) as a chained package |
-| `.Id(string)` | Unique identifier for the nested bundle within the parent chain |
-| `.DisplayName(string)` | Name shown in the parent bootstrapper UI |
-| `.Vital(true)` | Failure of the child bundle aborts the parent install |
+| Method                              | Purpose                                                         |
+|-------------------------------------|-----------------------------------------------------------------|
+| `chain.BundlePackage(path, config)` | Add another bundle (.exe) as a chained package                  |
+| `.Id(string)`                       | Unique identifier for the nested bundle within the parent chain |
+| `.DisplayName(string)`              | Name shown in the parent bootstrapper UI                        |
+| `.Vital(true)`                      | Failure of the child bundle aborts the parent install           |
 
 ## How to Build
 

@@ -1,3 +1,7 @@
 namespace FalkForge.Validation;
 
-public enum ValidationSeverity { Warning, Error }
+public enum ValidationSeverity
+{
+    Warning,
+    Error
+}

@@ -1,6 +1,7 @@
 # Demo 37: MSU Package in Bundle
 
-Bundles a Windows Update standalone package (.msu) as a prerequisite before the main MSI application. This is useful when your application requires a specific Windows hotfix or servicing update.
+Bundles a Windows Update standalone package (.msu) as a prerequisite before the main MSI application. This is useful
+when your application requires a specific Windows hotfix or servicing update.
 
 ## What This Demonstrates
 
@@ -10,12 +11,12 @@ Bundles a Windows Update standalone package (.msu) as a prerequisite before the 
 
 ## Key API Calls
 
-| Method | Purpose |
-|--------|---------|
-| `chain.MsuPackage(path, config)` | Add a Windows Update standalone package to the chain |
-| `.Id(string)` | Assign a unique identifier to the package within the bundle |
-| `.DisplayName(string)` | Human-readable name shown in progress UI |
-| `chain.MsiPackage(path, config)` | Add the main application MSI after the hotfix |
+| Method                           | Purpose                                                     |
+|----------------------------------|-------------------------------------------------------------|
+| `chain.MsuPackage(path, config)` | Add a Windows Update standalone package to the chain        |
+| `.Id(string)`                    | Assign a unique identifier to the package within the bundle |
+| `.DisplayName(string)`           | Human-readable name shown in progress UI                    |
+| `chain.MsiPackage(path, config)` | Add the main application MSI after the hotfix               |
 
 ## How to Build
 

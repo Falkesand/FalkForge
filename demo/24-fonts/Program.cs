@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Register a TrueType font during installation.
 return Installer.Build(args, package =>
@@ -16,9 +14,5 @@ return Installer.Build(args, package =>
 
     package.Font("demofont.ttf");
 
-    package.Font("payload/DemoSans.ttf", f =>
-    {
-        f.Title = "Demo Sans Regular";
-    });
-
+    package.Font("payload/DemoSans.ttf", f => { f.Title = "Demo Sans Regular"; });
 }, new MsiCompiler());

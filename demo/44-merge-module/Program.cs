@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Create a merge module (.msm) — a reusable component package.
 return Installer.BuildMergeModule(args, module =>
@@ -15,5 +13,4 @@ return Installer.BuildMergeModule(args, module =>
     module.Component("SharedRuntime");
 
     module.Dependency("SharedRuntime_1.0");
-
 }, (model, outputPath) => new MsmCompiler().Compile(model, outputPath));

@@ -1,6 +1,6 @@
-namespace FalkForge.Ui.Localization;
-
 using FalkForge.Localization;
+
+namespace FalkForge.Ui.Localization;
 
 internal sealed class UiStringResolver
 {
@@ -36,11 +36,9 @@ internal sealed class UiStringResolver
     public string Resolve(string key)
     {
         foreach (var culture in _fallbackChain)
-        {
             if (_cultures.TryGetValue(culture, out var strings) &&
                 strings.TryGetValue(key, out var value))
                 return value;
-        }
         return key;
     }
 }

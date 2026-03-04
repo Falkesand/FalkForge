@@ -7,15 +7,12 @@
   "Shell.NextButton": "N\u00e4sta",
   "Shell.CancelButton": "Avbryt",
   "Shell.InstallButton": "Installera",
-
   "Welcome.Title": "V\u00e4lkommen till MultiAccess-installationen",
   "Welcome.Body": "Installationsguiden installerar MultiAccess (8.9.0) p\u00e5 din dator. Klicka p\u00e5 N\u00e4sta f\u00f6r att forts\u00e4tta eller Avbryt f\u00f6r att l\u00e4mna installationsguiden.",
-
   "License.Title": "Licensavtal f\u00f6r slutanv\u00e4ndare",
   "License.Subtitle": "L\u00e4s f\u00f6ljande licensavtal noggrant",
   "License.AcceptCheckbox": "Jag accepterar villkoren i licensavtalet",
   "License.Text": "LICENSAVTAL\n\n\u00a9 Copyright ASSA ABLOY OPENING SOLUTIONS SWEDEN AB. Alla r\u00e4ttigheter f\u00f6rbeh\u00e5llna.\n\nDetta \u00e4r ett juridiskt avtal mellan dig, slutanv\u00e4ndaren, och ASSA ABLOY OPENING SOLUTIONS SWEDEN AB. Om du inte accepterar villkoren i detta avtal, avbryt installationen.\n\n1. LICENSBEVILJANDE\nASSA ABLOY OPENING SOLUTIONS SWEDEN AB till\u00e5ter dig att anv\u00e4nda kopior av programvaran p\u00e5 enskilda datorer eller p\u00e5 en enskild h\u00e5rddisk f\u00f6r eget bruk.\n\n2. UPPHOVSR\u00c4TT\nPROGRAMVARAN \u00e4gs av ASSA ABLOY OPENING SOLUTIONS SWEDEN AB och skyddas av svenska upphovsr\u00e4ttslagar, internationella f\u00f6rdragsbest\u00e4mmelser och andra till\u00e4mpliga lagar.\n\n3. \u00d6VRIGA BEGR\u00c4NSNINGAR\nDu f\u00e5r inte \u00e5terkonstruera, dekompilera eller demontera programvaran utom i den utstr\u00e4ckning som \u00e4r till\u00e5ten enligt tvingande lagstiftning. Du f\u00e5r inte \u00e4ndra eller g\u00f6ra \u00e4ndringar i programvaran.",
-
   "InstallationType.Title": "V\u00e4lj installationstyp",
   "InstallationType.StandardRadio": "Standardinstallation",
   "InstallationType.StandardDescription": "V\u00e4lj detta f\u00f6r att installera en standardinstallation",
@@ -39,7 +36,6 @@
   "InstallationType.AdvancedDetail5": "5. V\u00e4lj installationskatalog fritt",
   "InstallationType.AdvancedDetail6": "6. V\u00e4lj om programvaran ska installeras",
   "InstallationType.AdvancedDetail6a": "   med integrerad s\u00e4kerhet eller inte",
-
   "DatabaseServer.Title": "V\u00e4lj databasserver",
   "DatabaseServer.Subtitle": "V\u00e4lj databas f\u00f6r MultiAccess",
   "DatabaseServer.UseExistingRadio": "Anv\u00e4nd befintlig databas",
@@ -48,7 +44,6 @@
   "DatabaseServer.ServerLabel": "Databasserver:",
   "DatabaseServer.SearchButton": "S\u00f6k efter server",
   "DatabaseServer.DatabaseNameLabel": "Databasnamn",
-
   "ConfirmParameters.Title": "Bekr\u00e4fta parametrar",
   "ConfirmParameters.NameColumn": "Namn",
   "ConfirmParameters.ValueColumn": "V\u00e4rde",
@@ -78,15 +73,12 @@
   "ConfirmParameters.ServiceAccount": "Tj\u00e4nstkonto",
   "ConfirmParameters.Yes": "Ja",
   "ConfirmParameters.No": "Nej",
-
   "AdvancedInstallDirMS.Title": "Installationsmapp f\u00f6r MultiServer",
   "AdvancedInstallDirMS.InstallFolderLabel": "Installationsmapp",
   "AdvancedInstallDirMS.BrowseDialogTitle": "V\u00e4lj installationsmapp",
-
   "AdvancedInstallDirMSEx.Title": "Installationsmapp f\u00f6r MultiServerEx",
   "AdvancedInstallDirMSEx.InstallFolderLabel": "Installationsmapp",
   "AdvancedInstallDirMSEx.BrowseDialogTitle": "V\u00e4lj installationsmapp",
-
   "DbConnectionSettings.Title": "Databasanslutningsinst\u00e4llningar",
   "DbConnectionSettings.Subtitle": "Ange SQL-databasinformation f\u00f6r att forts\u00e4tta",
   "DbConnectionSettings.GroupHeader": "Databas",
@@ -103,7 +95,6 @@
   "DbConnectionSettings.TestResultTesting": "Testar...",
   "DbConnectionSettings.TestResultSuccess": "Anslutningen lyckades!",
   "DbConnectionSettings.TestResultFailed": "Misslyckades: {0}",
-
   "MSAdvancedSettings.Title": "Avancerade inst\u00e4llningar f\u00f6r MultiServer",
   "MSAdvancedSettings.OdbcGroupHeader": "ODBC",
   "MSAdvancedSettings.DsnNameLabel": "DSN-namn",
@@ -116,7 +107,6 @@
   "MSAdvancedSettings.ServiceWarning": "Om kontots namn \u00e4ndras m\u00e5ste det nya kontot vara av typen tj\u00e4nstkonto f\u00f6r att ha beh\u00f6righet att starta MultiServer som en tj\u00e4nst.",
   "MSAdvancedSettings.IntegratedSecurityNote": "Om integrerad s\u00e4kerhet anv\u00e4nds, se till att tj\u00e4nstkontot har korrekta beh\u00f6righeter till databasen.",
   "MSAdvancedSettings.PasswordLabel": "L\u00f6senord",
-
   "MSExAdvancedSettings.Title": "Avancerade inst\u00e4llningar f\u00f6r MultiServerEx",
   "MSExAdvancedSettings.OdbcGroupHeader": "ODBC",
   "MSExAdvancedSettings.DsnNameLabel": "DSN-namn",

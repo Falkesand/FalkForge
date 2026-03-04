@@ -1,6 +1,7 @@
 # Demo 02: Notepad Clone
 
-A realistic application installer for a text editor called "FalkPad." Demonstrates shortcuts, registry entries, major upgrade support, and license agreement display.
+A realistic application installer for a text editor called "FalkPad." Demonstrates shortcuts, registry entries, major
+upgrade support, and license agreement display.
 
 ## What This Demonstrates
 
@@ -78,8 +79,11 @@ dotnet build demo/02-notepad-clone
 
 - `MsiProperty.InstallDir` resolves at install time to the user's chosen directory, making registry values dynamic.
 - `DWord()` writes a REG_DWORD (32-bit integer) value. `DefaultValue()` sets the `(Default)` value of the registry key.
-- `RemoveRegistry` ensures the specified registry key is cleaned up on uninstall. Without it, registry entries created by `package.Registry()` may be left behind.
+- `RemoveRegistry` ensures the specified registry key is cleaned up on uninstall. Without it, registry entries created
+  by `package.Registry()` may be left behind.
 - `OnStartup()` places a shortcut in the Windows Startup folder so the application launches automatically at login.
-- `WithArguments()` passes command-line arguments to the shortcut target. `WithWorkingDirectory()` sets the working directory for the launched process.
-- `MajorUpgrade` with default options removes older versions before installing. `Downgrade.Block` prevents installing an older version over a newer one.
+- `WithArguments()` passes command-line arguments to the shortcut target. `WithWorkingDirectory()` sets the working
+  directory for the launched process.
+- `MajorUpgrade` with default options removes older versions before installing. `Downgrade.Block` prevents installing an
+  older version over a newer one.
 - Start menu shortcuts use a subfolder via `.OnStartMenu("Falk Software")`.

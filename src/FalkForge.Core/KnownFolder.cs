@@ -2,14 +2,14 @@ namespace FalkForge;
 
 public sealed class KnownFolder
 {
-    public string Token { get; }
-    public string DisplayName { get; }
-
     private KnownFolder(string token, string displayName)
     {
         Token = token;
         DisplayName = displayName;
     }
+
+    public string Token { get; }
+    public string DisplayName { get; }
 
     // Standard MSI directory tokens
     public static KnownFolder ProgramFiles { get; } = new("ProgramFilesFolder", "Program Files");
@@ -31,8 +31,13 @@ public sealed class KnownFolder
 
     public InstallPath this[string subPath] => new(this, subPath);
 
-    public static InstallPath operator /(KnownFolder folder, string subPath) =>
-        new(folder, subPath);
+    public static InstallPath operator /(KnownFolder folder, string subPath)
+    {
+        return new InstallPath(folder, subPath);
+    }
 
-    public override string ToString() => $"[{Token}]";
+    public override string ToString()
+    {
+        return $"[{Token}]";
+    }
 }

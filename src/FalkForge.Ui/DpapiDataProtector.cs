@@ -1,13 +1,17 @@
-namespace FalkForge.Ui;
-
 using System.Security.Cryptography;
 using FalkForge.Ui.Abstractions;
+
+namespace FalkForge.Ui;
 
 public sealed class DpapiDataProtector : ISensitiveDataProtector
 {
     public byte[] Protect(byte[] plainData)
-        => ProtectedData.Protect(plainData, null, DataProtectionScope.CurrentUser);
+    {
+        return ProtectedData.Protect(plainData, null, DataProtectionScope.CurrentUser);
+    }
 
     public byte[] Unprotect(byte[] protectedData)
-        => ProtectedData.Unprotect(protectedData, null, DataProtectionScope.CurrentUser);
+    {
+        return ProtectedData.Unprotect(protectedData, null, DataProtectionScope.CurrentUser);
+    }
 }

@@ -1,10 +1,10 @@
-namespace FalkForge.Ui;
-
 using System.Windows;
 using FalkForge.Plugins;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.ViewModels;
 using FalkForge.Ui.Views;
+
+namespace FalkForge.Ui;
 
 public static class InstallerApp
 {
@@ -42,10 +42,7 @@ public static class InstallerApp
         var sharedState = new InstallerState(new DpapiDataProtector());
 
         var pages = new List<InstallerPage>(pageFactories.Count);
-        foreach (var factory in pageFactories)
-        {
-            pages.Add(factory());
-        }
+        foreach (var factory in pageFactories) pages.Add(factory());
 
         var engine = ResolveEngine(args) ?? new NullInstallerEngine();
 
@@ -59,10 +56,8 @@ public static class InstallerApp
 
         var locConfig = uiBuilder.LocalizationConfig;
         if (locConfig is not null)
-        {
             foreach (var page in pages)
                 page._stringResolver = locConfig.Resolver;
-        }
 
         var viewModel = new CustomShellViewModel(pages, engine, sharedState);
 
@@ -117,7 +112,6 @@ public static class InstallerApp
         string? manifestPath = null;
 
         for (var i = 0; i < args.Length - 1; i++)
-        {
             switch (args[i].ToLowerInvariant())
             {
                 case "--pipe":
@@ -127,7 +121,6 @@ public static class InstallerApp
                     manifestPath = args[i + 1];
                     break;
             }
-        }
 
         _ = pipeName;
         _ = manifestPath;

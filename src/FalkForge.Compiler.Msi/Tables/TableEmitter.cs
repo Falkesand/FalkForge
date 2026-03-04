@@ -1,3 +1,6 @@
+#pragma warning disable CA1826 // FirstOrDefault is idiomatic for fallback patterns
+#pragma warning disable SYSLIB1045 // Regex is compiled; GeneratedRegex requires partial class restructuring
+
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -12,6 +15,12 @@ internal sealed class TableEmitter
 {
     private static readonly Regex SafeIdentifierRegex =
         new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    private static readonly HashSet<string> AllowedSequenceTables = new(StringComparer.Ordinal)
+    {
+        "InstallExecuteSequence",
+        "InstallUISequence"
+    };
 
     private readonly MsiDatabase _database;
 
@@ -59,10 +68,8 @@ internal sealed class TableEmitter
         };
 
         foreach (var result in results)
-        {
             if (result.IsFailure)
                 return result;
-        }
 
         return Unit.Value;
     }
@@ -115,7 +122,7 @@ internal sealed class TableEmitter
             MsiTableDefinitions.CreateDuplicateFileTable,
             MsiTableDefinitions.CreateMsiAssemblyTable,
             MsiTableDefinitions.CreateMsiAssemblyNameTable,
-            MsiTableDefinitions.CreateConditionTable,
+            MsiTableDefinitions.CreateConditionTable
         };
 
         foreach (var sql in tableStatements)
@@ -187,6 +194,7 @@ internal sealed class TableEmitter
                     result = InsertDirectoryRow(segDirId, currentParent, segments[i]);
                     if (result.IsFailure) return result;
                 }
+
                 currentParent = segDirId;
             }
         }
@@ -200,7 +208,9 @@ internal sealed class TableEmitter
         {
             var dirId = GetDirectoryId(component.Directory);
             var guidStr = component.Guid.ToString("B").ToUpperInvariant();
-            var attributes = resolved.Package.Architecture is ProcessorArchitecture.X64 or ProcessorArchitecture.Arm64 ? 256 : 0; // msidbComponentAttributes64bit
+            var attributes = resolved.Package.Architecture is ProcessorArchitecture.X64 or ProcessorArchitecture.Arm64
+                ? 256
+                : 0; // msidbComponentAttributes64bit
 
             var result = _database.InsertRow(
                 "SELECT `Component`, `ComponentId`, `Directory_`, `Attributes`, `Condition`, `KeyPath` FROM `Component`",
@@ -213,6 +223,7 @@ internal sealed class TableEmitter
                     .SetString(6, component.KeyPath));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -238,6 +249,7 @@ internal sealed class TableEmitter
                     .SetInteger(8, seq));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -248,13 +260,14 @@ internal sealed class TableEmitter
             var result = EmitFeature(feature, null);
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
     private Result<Unit> EmitFeature(FeatureModel feature, string? parentId)
     {
         var display = feature.IsDefault ? 1 : 2;
-        var level = feature.IsRequired ? 1 : (feature.IsDefault ? 1 : 1000);
+        var level = feature.IsRequired ? 1 : feature.IsDefault ? 1 : 1000;
         var attributes = feature.IsRequired ? 16 : 0; // UIDisallowAbsent
 
         var result = _database.InsertRow(
@@ -293,6 +306,7 @@ internal sealed class TableEmitter
                     .SetString(2, component.Id));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -302,10 +316,7 @@ internal sealed class TableEmitter
         if (lastSequence == 0) lastSequence = 1;
 
         var mediaTemplate = resolved.Package.MediaTemplate;
-        if (mediaTemplate is not null)
-        {
-            return EmitMediaFromTemplate(resolved, mediaTemplate, lastSequence);
-        }
+        if (mediaTemplate is not null) return EmitMediaFromTemplate(resolved, mediaTemplate, lastSequence);
 
         return _database.InsertRow(
             "SELECT `DiskId`, `LastSequence`, `DiskPrompt`, `Cabinet`, `VolumeLabel`, `Source` FROM `Media`",
@@ -330,13 +341,9 @@ internal sealed class TableEmitter
         // Determine how many cabinets we need
         int cabinetCount;
         if (maxCabSizeBytes > 0 && totalSize > maxCabSizeBytes)
-        {
             cabinetCount = (int)Math.Ceiling((double)totalSize / maxCabSizeBytes);
-        }
         else
-        {
             cabinetCount = 1;
-        }
 
         var filesPerCabinet = lastSequence > 0
             ? (int)Math.Ceiling((double)lastSequence / cabinetCount)
@@ -349,10 +356,7 @@ internal sealed class TableEmitter
             var cabinetName = string.Format(template.CabinetTemplate, diskId);
 
             // Prefix with # for embedded cabinets
-            if (template.EmbedCabinet)
-            {
-                cabinetName = $"#{cabinetName}";
-            }
+            if (template.EmbedCabinet) cabinetName = $"#{cabinetName}";
 
             var result = _database.InsertRow(
                 "SELECT `DiskId`, `LastSequence`, `DiskPrompt`, `Cabinet`, `VolumeLabel`, `Source` FROM `Media`",
@@ -380,18 +384,12 @@ internal sealed class TableEmitter
             ["ProductCode"] = package.ProductCode.ToString("B").ToUpperInvariant(),
             ["UpgradeCode"] = package.UpgradeCode.ToString("B").ToUpperInvariant(),
             ["ProductLanguage"] = "1033",
-            ["ALLUSERS"] = package.Scope == InstallScope.PerMachine ? "1" : "",
+            ["ALLUSERS"] = package.Scope == InstallScope.PerMachine ? "1" : ""
         };
 
-        if (package.EnableRestartManager)
-        {
-            props["MSIRMSHUTDOWN"] = "2";
-        }
+        if (package.EnableRestartManager) props["MSIRMSHUTDOWN"] = "2";
 
-        foreach (var prop in package.Properties)
-        {
-            props[prop.Name] = prop.Value;
-        }
+        foreach (var prop in package.Properties) props[prop.Name] = prop.Value;
 
         foreach (var (name, value) in props)
         {
@@ -399,6 +397,7 @@ internal sealed class TableEmitter
             var result = InsertPropertyRow(name, value);
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -432,6 +431,7 @@ internal sealed class TableEmitter
                     .SetString(6, componentId));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -466,6 +466,7 @@ internal sealed class TableEmitter
                     .SetString(5, entryComponentId));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -474,45 +475,44 @@ internal sealed class TableEmitter
         var index = 0;
         var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
         foreach (var shortcut in resolved.Package.Shortcuts)
+        foreach (var location in shortcut.Locations)
         {
-            foreach (var location in shortcut.Locations)
+            var dirId = location switch
             {
-                var dirId = location switch
-                {
-                    ShortcutLocation.Desktop => "DesktopFolder",
-                    ShortcutLocation.StartMenu => shortcut.StartMenuSubfolder is not null
-                        ? $"SM_{SanitizeId(shortcut.StartMenuSubfolder)}"
-                        : "ProgramMenuFolder",
-                    ShortcutLocation.Startup => "StartupFolder",
-                    _ => "DesktopFolder"
-                };
+                ShortcutLocation.Desktop => "DesktopFolder",
+                ShortcutLocation.StartMenu => shortcut.StartMenuSubfolder is not null
+                    ? $"SM_{SanitizeId(shortcut.StartMenuSubfolder)}"
+                    : "ProgramMenuFolder",
+                ShortcutLocation.Startup => "StartupFolder",
+                _ => "DesktopFolder"
+            };
 
-                var shortcutId = $"SC_{index++:D4}";
-                var componentId = defaultComponentId;
-                var target = $"[INSTALLDIR]{shortcut.TargetFile}";
+            var shortcutId = $"SC_{index++:D4}";
+            var componentId = defaultComponentId;
+            var target = $"[INSTALLDIR]{shortcut.TargetFile}";
 
-                var result = _database.InsertRow(
-                    "SELECT `Shortcut`, `Directory_`, `Name`, `Component_`, `Target`, `Arguments`, `Description`, `Hotkey`, `Icon_`, `IconIndex`, `ShowCmd`, `WkDir` FROM `Shortcut`",
-                    record => record
-                        .SetString(1, shortcutId)
-                        .SetString(2, dirId)
-                        .SetString(3, shortcut.Name)
-                        .SetString(4, componentId)
-                        .SetString(5, target)
-                        .SetString(6, shortcut.Arguments)
-                        .SetString(7, shortcut.Description)
-                        // Fields 8 (Hotkey), 9 (Icon_), 10 (IconIndex), 11 (ShowCmd) left unset (null)
-                        .SetString(12, "INSTALLDIR"));
-                if (result.IsFailure) return result;
-            }
+            var result = _database.InsertRow(
+                "SELECT `Shortcut`, `Directory_`, `Name`, `Component_`, `Target`, `Arguments`, `Description`, `Hotkey`, `Icon_`, `IconIndex`, `ShowCmd`, `WkDir` FROM `Shortcut`",
+                record => record
+                    .SetString(1, shortcutId)
+                    .SetString(2, dirId)
+                    .SetString(3, shortcut.Name)
+                    .SetString(4, componentId)
+                    .SetString(5, target)
+                    .SetString(6, shortcut.Arguments)
+                    .SetString(7, shortcut.Description)
+                    // Fields 8 (Hotkey), 9 (Icon_), 10 (IconIndex), 11 (ShowCmd) left unset (null)
+                    .SetString(12, "INSTALLDIR"));
+            if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
     private Result<Unit> EmitServices(ResolvedPackage resolved)
     {
         var executableToComponentId = resolved.Components
-            .SelectMany(c => c.Files.Select(f => (FileName: f.FileName, ComponentId: c.Id)))
+            .SelectMany(c => c.Files.Select(f => (f.FileName, ComponentId: c.Id)))
             .GroupBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().ComponentId, StringComparer.OrdinalIgnoreCase);
         var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
@@ -538,7 +538,7 @@ internal sealed class TableEmitter
             };
 
             var componentId = executableToComponentId.GetValueOrDefault(service.Executable ?? string.Empty)
-                ?? defaultComponentId;
+                              ?? defaultComponentId;
 
             var svcId = $"SVC_{SanitizeId(service.Name)}";
             if (svcId.Length > 72) svcId = svcId[..72];
@@ -597,6 +597,7 @@ internal sealed class TableEmitter
                     .SetString(6, componentId));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -624,6 +625,7 @@ internal sealed class TableEmitter
                     .SetString(6, ctrlComponentId));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -675,6 +677,7 @@ internal sealed class TableEmitter
                     .SetString(2, font.FontTitle));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -704,6 +707,7 @@ internal sealed class TableEmitter
                     .SetString(8, componentId));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -742,6 +746,7 @@ internal sealed class TableEmitter
                 if (result.IsFailure) return result;
             }
         }
+
         return Unit.Value;
     }
 
@@ -856,6 +861,7 @@ internal sealed class TableEmitter
             var result = InsertLaunchConditionRow(condition.Condition, condition.Message);
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -886,7 +892,7 @@ internal sealed class TableEmitter
             ("RegisterProduct", 6100, ""),
             ("PublishFeatures", 6300, ""),
             ("PublishProduct", 6400, ""),
-            ("InstallFinalize", 6600, ""),
+            ("InstallFinalize", 6600, "")
         };
 
         // Conditional: Font actions
@@ -911,10 +917,7 @@ internal sealed class TableEmitter
         }
 
         // Conditional: Upgrade actions
-        if (package.Upgrade is not null)
-        {
-            actions.Add(("RemoveExistingProducts", 1450, ""));
-        }
+        if (package.Upgrade is not null) actions.Add(("RemoveExistingProducts", 1450, ""));
 
         // Conditional: MajorUpgrade actions
         if (package.MajorUpgrade is not null)
@@ -922,10 +925,7 @@ internal sealed class TableEmitter
             var removeSeq = GetRemoveExistingProductsSequence(package.MajorUpgrade.Schedule);
             actions.Add(("RemoveExistingProducts", removeSeq, ""));
 
-            if (package.MajorUpgrade.MigrateFeatures)
-            {
-                actions.Add(("MigrateFeatureStates", 1401, ""));
-            }
+            if (package.MajorUpgrade.MigrateFeatures) actions.Add(("MigrateFeatureStates", 1401, ""));
         }
 
         // Conditional: Environment variable actions
@@ -952,10 +952,7 @@ internal sealed class TableEmitter
         }
 
         // Conditional: MoveFiles action
-        if (package.MoveFiles.Count > 0)
-        {
-            actions.Add(("MoveFiles", 3800, ""));
-        }
+        if (package.MoveFiles.Count > 0) actions.Add(("MoveFiles", 3800, ""));
 
         // Conditional: DuplicateFiles action
         if (package.DuplicateFiles.Count > 0)
@@ -1003,7 +1000,7 @@ internal sealed class TableEmitter
                 ("CostInitialize", 800, ""),
                 ("FileCost", 900, ""),
                 ("CostFinalize", 1000, ""),
-                ("ExecuteAction", 1300, ""),
+                ("ExecuteAction", 1300, "")
             };
 
             var baselineNames = new HashSet<string>(baseline.Select(a => a.Action));
@@ -1032,7 +1029,7 @@ internal sealed class TableEmitter
             ("CostInitialize", 800, ""),
             ("FileCost", 900, ""),
             ("CostFinalize", 1000, ""),
-            ("ExecuteAction", 1300, ""),
+            ("ExecuteAction", 1300, "")
         };
 
         MergeCustomSequenceActions(actions, package.UISequenceActions);
@@ -1078,10 +1075,8 @@ internal sealed class TableEmitter
         List<(string Action, int Sequence, string Condition)> actions)
     {
         foreach (var (action, sequence, _) in actions)
-        {
             if (string.Equals(action, referenceAction, StringComparison.Ordinal))
                 return sequence;
-        }
 
         // Fallback: check well-known action names
         return referenceAction switch
@@ -1113,12 +1108,10 @@ internal sealed class TableEmitter
             candidate++;
             iterations++;
             if (iterations >= maxIterations)
-            {
                 // Safety limit reached -- sequences are too densely packed.
                 // Return current candidate and accept the risk of a collision warning
                 // rather than looping indefinitely.
                 break;
-            }
         }
 
         return candidate;
@@ -1131,6 +1124,7 @@ internal sealed class TableEmitter
             var result = EmitFeatureConditions(feature);
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -1161,20 +1155,12 @@ internal sealed class TableEmitter
         return InsertSequenceRow("InstallExecuteSequence", action, sequence, "");
     }
 
-    private static readonly HashSet<string> AllowedSequenceTables = new(StringComparer.Ordinal)
-    {
-        "InstallExecuteSequence",
-        "InstallUISequence"
-    };
-
     private Result<Unit> InsertSequenceRow(string tableName, string action, int sequence, string condition)
     {
         if (!AllowedSequenceTables.Contains(tableName))
-        {
             return Result<Unit>.Failure(ErrorKind.Validation,
                 $"Table name '{tableName}' is not an allowed sequence table. " +
                 $"Only {string.Join(", ", AllowedSequenceTables)} are permitted.");
-        }
 
         return _database.InsertRow(
             $"SELECT `Action`, `Condition`, `Sequence` FROM `{tableName}`",
@@ -1245,6 +1231,7 @@ internal sealed class TableEmitter
                 if (verbResult.IsFailure) return verbResult;
             }
         }
+
         return Unit.Value;
     }
 
@@ -1262,6 +1249,7 @@ internal sealed class TableEmitter
                     .SetStream(2, binary.SourcePath));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -1295,6 +1283,7 @@ internal sealed class TableEmitter
                 if (seqResult.IsFailure) return seqResult;
             }
         }
+
         return Unit.Value;
     }
 
@@ -1320,6 +1309,7 @@ internal sealed class TableEmitter
                     .SetInteger(5, installMode));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -1341,6 +1331,7 @@ internal sealed class TableEmitter
                     .SetString(2, entryComponentId));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -1367,6 +1358,7 @@ internal sealed class TableEmitter
                     .SetInteger(7, mf.Options));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
@@ -1391,14 +1383,15 @@ internal sealed class TableEmitter
                     .SetString(5, df.DestFileName));
             if (result.IsFailure) return result;
         }
+
         return Unit.Value;
     }
 
     /// <summary>
-    /// Defense-in-depth: validates custom table and column names are safe SQL identifiers
-    /// before they are interpolated into CREATE TABLE / SELECT statements.
-    /// ModelValidator checks upstream, but we must not trust unvalidated input this close
-    /// to SQL emission — a crafted name could escape backtick quoting.
+    ///     Defense-in-depth: validates custom table and column names are safe SQL identifiers
+    ///     before they are interpolated into CREATE TABLE / SELECT statements.
+    ///     ModelValidator checks upstream, but we must not trust unvalidated input this close
+    ///     to SQL emission — a crafted name could escape backtick quoting.
     /// </summary>
     internal static Result<Unit> ValidateCustomTableIdentifiers(IReadOnlyList<CustomTableModel> customTables)
     {
@@ -1410,12 +1403,10 @@ internal sealed class TableEmitter
                     "Table names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
 
             foreach (var col in table.Columns)
-            {
                 if (string.IsNullOrWhiteSpace(col.Name) || !SafeIdentifierRegex.IsMatch(col.Name))
                     return Result<Unit>.Failure(ErrorKind.CompilationError,
                         $"Custom table '{table.Name}' column name '{col.Name}' contains invalid characters. " +
                         "Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
-            }
         }
 
         return Unit.Value;
@@ -1477,12 +1468,14 @@ internal sealed class TableEmitter
                         {
                             record.SetString(colIndex, null);
                         }
+
                         colIndex++;
                     }
                 });
                 if (result.IsFailure) return result;
             }
         }
+
         return Unit.Value;
     }
 
@@ -1494,7 +1487,7 @@ internal sealed class TableEmitter
         var defaultFeature = resolved.Package.Features.FirstOrDefault()?.Id ?? "Complete";
         var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
         var fileNameToComponent = resolved.Components
-            .SelectMany(c => c.Files.Select(f => (FileName: f.FileName, Component: c)))
+            .SelectMany(c => c.Files.Select(f => (f.FileName, Component: c)))
             .GroupBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Component, StringComparer.OrdinalIgnoreCase);
 
@@ -1548,6 +1541,7 @@ internal sealed class TableEmitter
                 if (result.IsFailure) return result;
             }
         }
+
         return Unit.Value;
     }
 
@@ -1571,7 +1565,7 @@ internal sealed class TableEmitter
             ["InstallFinalize"] = 6600,
             ["WriteRegistryValues"] = 5000,
             ["CreateShortcuts"] = 4500,
-            ["RemoveFiles"] = 3500,
+            ["RemoveFiles"] = 3500
         };
 
         if (after is not null && knownActions.TryGetValue(after, out var afterSeq))
@@ -1634,6 +1628,7 @@ internal sealed class TableEmitter
             parentId = $"D_{SanitizeId(segments[i])}_{StableHash(parentId)}";
             if (parentId.Length > 72) parentId = parentId[..72];
         }
+
         return parentId;
     }
 
@@ -1645,6 +1640,7 @@ internal sealed class TableEmitter
             var c = name[i];
             sanitized[i] = char.IsLetterOrDigit(c) || c == '_' || c == '.' ? c : '_';
         }
+
         return new string(sanitized);
     }
 

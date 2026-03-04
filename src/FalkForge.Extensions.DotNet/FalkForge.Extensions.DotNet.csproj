@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>FalkForge.Extensions.DotNet</RootNamespace>
-    <Description>.NET runtime detection extension for FalkForge</Description>
-  </PropertyGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="FalkForge.Extensions.DotNet.Tests" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
-    <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
-    <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
-  </ItemGroup>
+    <PropertyGroup>
+        <RootNamespace>FalkForge.Extensions.DotNet</RootNamespace>
+        <Description>.NET runtime detection extension for FalkForge</Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Extensions.DotNet.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj"/>
+        <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj"/>
+    </ItemGroup>
 </Project>

@@ -1,6 +1,7 @@
 # Demo 08: Localization
 
-A multi-language MSI installer demonstrating the FalkForge localization system with JSON-based string files, culture fallback chains, inline culture overrides, and localized string references in package metadata.
+A multi-language MSI installer demonstrating the FalkForge localization system with JSON-based string files, culture
+fallback chains, inline culture overrides, and localized string references in package metadata.
 
 ## What This Demonstrates
 
@@ -55,8 +56,13 @@ dotnet build demo/08-localization/08-localization.csproj
 
 ## Notes
 
-- JSON localization files follow the naming convention `name.culture.json` (e.g., `strings.en-US.json`, `strings.de.json`).
-- The `!(loc.StringId)` syntax is resolved at compile time when generating the MSI. The MSI contains separate transform tables for each culture.
-- Culture fallback is hierarchical: `de-AT` first checks its own strings, then falls back to `de`, then to `en-US`. This means you only need to override the strings that differ in regional variants.
-- `AddBuiltInCultures()` loads the standard FalkForge translations for MSI dialog elements (buttons, labels). Your JSON files only need to contain your application-specific strings.
-- `DetectCulture()` is not used in this demo (unlike the UI demos), because MSI culture selection happens at compile time, not at runtime.
+- JSON localization files follow the naming convention `name.culture.json` (e.g., `strings.en-US.json`,
+  `strings.de.json`).
+- The `!(loc.StringId)` syntax is resolved at compile time when generating the MSI. The MSI contains separate transform
+  tables for each culture.
+- Culture fallback is hierarchical: `de-AT` first checks its own strings, then falls back to `de`, then to `en-US`. This
+  means you only need to override the strings that differ in regional variants.
+- `AddBuiltInCultures()` loads the standard FalkForge translations for MSI dialog elements (buttons, labels). Your JSON
+  files only need to contain your application-specific strings.
+- `DetectCulture()` is not used in this demo (unlike the UI demos), because MSI culture selection happens at compile
+  time, not at runtime.

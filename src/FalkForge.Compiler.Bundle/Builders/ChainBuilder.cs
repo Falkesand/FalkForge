@@ -2,8 +2,8 @@ namespace FalkForge.Compiler.Bundle.Builders;
 
 public sealed class ChainBuilder
 {
-    private readonly List<BundlePackageModel> _packages = new();
     private readonly List<ChainItem> _chainItems = new();
+    private readonly List<BundlePackageModel> _packages = new();
 
     public ChainBuilder MsiPackage(string sourcePath, Action<BundlePackageBuilder> configure)
     {
@@ -73,10 +73,19 @@ public sealed class ChainBuilder
         return this;
     }
 
-    public ChainBuilder RollbackBoundary(RollbackBoundaryRef boundaryRef, Action<RollbackBoundaryBuilder>? configure = null) =>
-        RollbackBoundary(boundaryRef.Id, configure);
+    public ChainBuilder RollbackBoundary(RollbackBoundaryRef boundaryRef,
+        Action<RollbackBoundaryBuilder>? configure = null)
+    {
+        return RollbackBoundary(boundaryRef.Id, configure);
+    }
 
-    internal IReadOnlyList<BundlePackageModel> Build() => _packages.AsReadOnly();
+    internal IReadOnlyList<BundlePackageModel> Build()
+    {
+        return _packages.AsReadOnly();
+    }
 
-    internal IReadOnlyList<ChainItem> BuildChain() => _chainItems.AsReadOnly();
+    internal IReadOnlyList<ChainItem> BuildChain()
+    {
+        return _chainItems.AsReadOnly();
+    }
 }

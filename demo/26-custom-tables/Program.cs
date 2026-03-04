@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -21,5 +20,4 @@ return Installer.Build(args, package =>
         .Column("Priority", CustomTableColumnType.Int32)
         .Row(row => row.Set("Key", "Theme").Set("Value", "Dark").Set("Priority", 1))
         .Row(row => row.Set("Key", "Language").Set("Value", "en-US").Set("Priority", 2)));
-
 }, new MsiCompiler());

@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Install a Windows service with startup dependencies, failure recovery, and service control.
 return Installer.Build(args, package =>
@@ -79,5 +77,4 @@ return Installer.Build(args, package =>
         sc.Arguments("--config=[INSTALLDIR]config.json");
         sc.DeleteOnUninstall();
     });
-
 }, new MsiCompiler());

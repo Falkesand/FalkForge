@@ -1,8 +1,8 @@
-namespace FalkForge.Plugins.Odbc;
-
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
+
+namespace FalkForge.Plugins.Odbc;
 
 internal sealed partial class OdbcManager : IOdbcManager
 {
@@ -20,7 +20,7 @@ internal sealed partial class OdbcManager : IOdbcManager
         try
         {
             var exists = CheckRegistry(@"SOFTWARE\ODBC\ODBC.INI", dsnName)
-                      || CheckRegistry(@"SOFTWARE\WOW6432Node\ODBC\ODBC.INI", dsnName);
+                         || CheckRegistry(@"SOFTWARE\WOW6432Node\ODBC\ODBC.INI", dsnName);
             return Result<bool>.Success(exists);
         }
         catch (Exception ex)
@@ -29,14 +29,14 @@ internal sealed partial class OdbcManager : IOdbcManager
         }
     }
 
-    [GeneratedRegex(@"^[A-Za-z0-9_ \-]+$")]
-    private static partial Regex GetValidDsnNameRegex();
-
     public void LaunchOdbcAdministrator()
     {
         var path = Path.Combine(Environment.SystemDirectory, "odbcad32.exe");
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
+
+    [GeneratedRegex(@"^[A-Za-z0-9_ \-]+$")]
+    private static partial Regex GetValidDsnNameRegex();
 
     private static bool CheckRegistry(string basePath, string dsnName)
     {

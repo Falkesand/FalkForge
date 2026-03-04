@@ -17,12 +17,19 @@ public sealed class PluginServiceRegistry : IPluginServiceRegistry, IPluginServi
         _factories.TryAdd(typeof(TService), () => factory());
     }
 
-    public void Freeze() => _frozen = true;
-
     public TService? GetService<TService>() where TService : class
-        => _factories.TryGetValue(typeof(TService), out var factory) ? (TService)factory() : null;
+    {
+        return _factories.TryGetValue(typeof(TService), out var factory) ? (TService)factory() : null;
+    }
 
     public TService GetRequiredService<TService>() where TService : class
-        => GetService<TService>() ?? throw new InvalidOperationException(
+    {
+        return GetService<TService>() ?? throw new InvalidOperationException(
             $"No plugin service registered for {typeof(TService).Name}. Ensure the required plugin is registered via Plugin<T>().");
+    }
+
+    public void Freeze()
+    {
+        _frozen = true;
+    }
 }

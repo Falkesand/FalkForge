@@ -4,19 +4,19 @@
              Background="#F0F0F0">
     <Grid Margin="16,12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Background="#E8E8E8">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="{Binding NameColumn}" FontWeight="Bold"
-                       Padding="8,4" FontSize="12"/>
+                       Padding="8,4" FontSize="12" />
             <TextBlock Grid.Column="1" Text="{Binding ValueColumn}" FontWeight="Bold"
-                       Padding="8,4" FontSize="12"/>
+                       Padding="8,4" FontSize="12" />
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
@@ -28,23 +28,23 @@
                         <StackPanel>
                             <TextBlock Text="{Binding Header}"
                                        FontWeight="Bold" Foreground="#333399"
-                                       Padding="8,6,8,2" FontSize="12"/>
+                                       Padding="8,6,8,2" FontSize="12" />
                             <ItemsControl ItemsSource="{Binding Entries}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="250"/>
-                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="250" />
+                                                <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="{Binding Name}"
                                                        Padding="24,2,8,2"
-                                                       FontSize="12"/>
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Value}"
                                                        Padding="8,2"
-                                                       FontSize="12"/>
+                                                       FontSize="12" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

@@ -1,7 +1,5 @@
 namespace FalkForge.Plugins.Sql;
 
-using FalkForge.Plugins;
-
 public sealed class SqlPlugin : IInstallerPlugin
 {
     public string Name => "SQL Server";

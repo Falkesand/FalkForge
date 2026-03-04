@@ -1,6 +1,6 @@
-namespace FalkForge.Plugins.Sql;
-
 using Microsoft.Data.SqlClient;
+
+namespace FalkForge.Plugins.Sql;
 
 internal sealed class ConnectionTester : IConnectionTester
 {
@@ -16,7 +16,6 @@ internal sealed class ConnectionTester : IConnectionTester
             await connection.OpenAsync(ct);
             return Result<Unit>.Success(Unit.Value);
         }
-        catch (OperationCanceledException) { throw; }
         catch (SqlException ex)
         {
             return Result<Unit>.Failure(

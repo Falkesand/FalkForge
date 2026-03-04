@@ -1,10 +1,10 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
 using System.IO;
-using ReactiveUI;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+using ReactiveUI;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveObject
 {
@@ -29,6 +29,19 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
         }
     }
 
+    public event PropertyChangingEventHandler? PropertyChanging;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void RaisePropertyChanging(PropertyChangingEventArgs args)
+    {
+        PropertyChanging?.Invoke(this, args);
+    }
+
+    public void RaisePropertyChanged(PropertyChangedEventArgs args)
+    {
+        PropertyChanged?.Invoke(this, args);
+    }
+
     public override bool CanNavigateNext()
     {
         if (string.IsNullOrWhiteSpace(InstallDirectory))
@@ -47,20 +60,8 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
 
     public override Task OnNavigatedToAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(_installDirectory))
-        {
-            InstallDirectory = Engine.InstallDirectory;
-        }
+        if (string.IsNullOrEmpty(_installDirectory)) InstallDirectory = Engine.InstallDirectory;
 
         return Task.CompletedTask;
     }
-
-    public event PropertyChangingEventHandler? PropertyChanging;
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public void RaisePropertyChanging(PropertyChangingEventArgs args)
-        => PropertyChanging?.Invoke(this, args);
-
-    public void RaisePropertyChanged(PropertyChangedEventArgs args)
-        => PropertyChanged?.Invoke(this, args);
 }

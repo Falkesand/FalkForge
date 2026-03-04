@@ -34,7 +34,9 @@ dotnet build demo/24-fonts
 
 ## Notes
 
-- `package.Font()` registers the font in the MSI Font table. Windows will enumerate it and make it available system-wide after installation.
+- `package.Font()` registers the font in the MSI Font table. Windows will enumerate it and make it available system-wide
+  after installation.
 - The font file must also be included via `package.Files()`. `Font()` references the file by name.
 - On uninstall, the font is unregistered and the file is removed.
-- `f.Title` overrides the font's display name in the Windows Fonts folder. By default, the title is read from the font file's metadata. Use this when the embedded name is missing or needs to be customized.
+- `f.Title` overrides the font's display name in the Windows Fonts folder. By default, the title is read from the font
+  file's metadata. Use this when the embedded name is missing or needs to be customized.

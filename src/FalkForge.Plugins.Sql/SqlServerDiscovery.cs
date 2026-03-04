@@ -1,9 +1,11 @@
-namespace FalkForge.Plugins.Sql;
-
 using System.Data;
-using System.Data.Common;
+using System.Diagnostics;
+using System.Runtime.Versioning;
+using System.Security;
 using Microsoft.Data.SqlClient;
 using Microsoft.Win32;
+
+namespace FalkForge.Plugins.Sql;
 
 internal sealed class SqlServerDiscovery : ISqlServerDiscovery
 {
@@ -32,21 +34,22 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
                         var serverName = row["ServerName"]?.ToString();
                         var instanceName = row["InstanceName"]?.ToString();
                         if (!string.IsNullOrEmpty(serverName))
-                        {
                             // Stryker disable all : untestable DataRow field access — network-dependent external data
                             servers.Add(string.IsNullOrEmpty(instanceName)
                                 ? serverName
                                 : $@"{serverName}\{instanceName}");
-                            // Stryker restore
-                        }
+                        // Stryker restore
                     }
                 }
             }
-            catch (OperationCanceledException) { throw; }
-            // Stryker disable all : untestable catch branch — requires live network to trigger SqlException/InvalidOperationException
-            catch (Exception ex) when (ex is SqlException or InvalidOperationException or System.Security.SecurityException)
+            catch (OperationCanceledException)
             {
-                System.Diagnostics.Trace.TraceWarning($"SQL Server network discovery failed: {ex.Message}");
+                throw;
+            }
+            // Stryker disable all : untestable catch branch — requires live network to trigger SqlException/InvalidOperationException
+            catch (Exception ex) when (ex is SqlException or InvalidOperationException or SecurityException)
+            {
+                Trace.TraceWarning($"SQL Server network discovery failed: {ex.Message}");
             }
             // Stryker restore
 
@@ -54,7 +57,7 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
         }, ct);
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [SupportedOSPlatform("windows")]
     private static void DiscoverFromRegistry(HashSet<string> servers)
     {
         try
@@ -65,16 +68,14 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
             {
                 var machineName = Environment.MachineName;
                 foreach (var name in key.GetValueNames())
-                {
                     servers.Add(name.Equals("MSSQLSERVER", StringComparison.OrdinalIgnoreCase)
                         ? machineName
                         : $@"{machineName}\{name}");
-                }
             }
         }
-        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or System.IO.IOException)
+        catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException)
         {
-            System.Diagnostics.Trace.TraceWarning($"SQL Server registry discovery failed: {ex.Message}");
+            Trace.TraceWarning($"SQL Server registry discovery failed: {ex.Message}");
         }
     }
 }

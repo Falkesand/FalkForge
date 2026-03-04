@@ -6,30 +6,30 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Themes/InstallerTheme.xaml"/>
+                <ResourceDictionary Source="Themes/InstallerTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- ViewModel → View DataTemplates for ContentPresenter in MainWindow -->
             <DataTemplate DataType="{x:Type vm:WelcomePageViewModel}">
-                <views:WelcomePage/>
+                <views:WelcomePage />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:LicensePageViewModel}">
-                <views:LicensePage/>
+                <views:LicensePage />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:InstallDirPageViewModel}">
-                <views:InstallDirPage/>
+                <views:InstallDirPage />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:FeaturesPageViewModel}">
-                <views:FeaturesPage/>
+                <views:FeaturesPage />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:MaintenancePageViewModel}">
-                <views:MaintenancePage/>
+                <views:MaintenancePage />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:ProgressPageViewModel}">
-                <views:ProgressPage/>
+                <views:ProgressPage />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:CompletePageViewModel}">
-                <views:CompletePage/>
+                <views:CompletePage />
             </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>

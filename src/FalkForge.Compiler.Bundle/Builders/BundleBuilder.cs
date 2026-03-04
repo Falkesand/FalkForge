@@ -5,33 +5,62 @@ namespace FalkForge.Compiler.Bundle.Builders;
 
 public sealed class BundleBuilder
 {
-    private string _name = string.Empty;
-    private string _manufacturer = string.Empty;
-    private string _version = "1.0.0";
-    private Guid? _bundleId;
-    private Guid? _upgradeCode;
-    private InstallScope _scope = InstallScope.PerMachine;
-    private ReproducibleBuildOptions? _reproducibleOptions;
-    private readonly List<BundlePackageModel> _packages = new();
     private readonly List<ChainItem> _chainItems = new();
-    private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<ContainerModel> _containers = new();
-    private readonly List<BundleVariableModel> _variables = new();
-    private readonly List<BundleFeatureModel> _features = new();
-    private readonly List<BundleDependencyProviderModel> _dependencyProviders = new();
     private readonly List<BundleDependencyConsumerModel> _dependencyConsumers = new();
+    private readonly List<BundleDependencyProviderModel> _dependencyProviders = new();
     private readonly List<BundleDependencyRequirementModel> _dependencyRequirements = new();
+    private readonly List<BundleFeatureModel> _features = new();
+    private readonly List<BundlePackageModel> _packages = new();
+    private readonly List<RelatedBundleModel> _relatedBundles = new();
+    private readonly List<BundleVariableModel> _variables = new();
+    private Guid? _bundleId;
+    private int _containerCounter;
+    private string _manufacturer = string.Empty;
+    private string _name = string.Empty;
+    private ReproducibleBuildOptions? _reproducibleOptions;
+    private int _rollbackBoundaryCounter;
+    private InstallScope _scope = InstallScope.PerMachine;
     private BundleUiConfig? _uiConfig;
     private UpdateFeedConfig? _updateFeed;
-    private int _containerCounter;
-    private int _rollbackBoundaryCounter;
+    private Guid? _upgradeCode;
+    private string _version = "1.0.0";
 
-    public BundleBuilder Name(string name) { _name = name; return this; }
-    public BundleBuilder Manufacturer(string manufacturer) { _manufacturer = manufacturer; return this; }
-    public BundleBuilder Version(string version) { _version = version; return this; }
-    public BundleBuilder BundleId(Guid id) { _bundleId = id; return this; }
-    public BundleBuilder UpgradeCode(Guid code) { _upgradeCode = code; return this; }
-    public BundleBuilder Scope(InstallScope scope) { _scope = scope; return this; }
+    public BundleBuilder Name(string name)
+    {
+        _name = name;
+        return this;
+    }
+
+    public BundleBuilder Manufacturer(string manufacturer)
+    {
+        _manufacturer = manufacturer;
+        return this;
+    }
+
+    public BundleBuilder Version(string version)
+    {
+        _version = version;
+        return this;
+    }
+
+    public BundleBuilder BundleId(Guid id)
+    {
+        _bundleId = id;
+        return this;
+    }
+
+    public BundleBuilder UpgradeCode(Guid code)
+    {
+        _upgradeCode = code;
+        return this;
+    }
+
+    public BundleBuilder Scope(InstallScope scope)
+    {
+        _scope = scope;
+        return this;
+    }
 
     public BundleBuilder Reproducible(long? epochOverride = null)
     {
@@ -47,7 +76,8 @@ public sealed class BundleBuilder
         }
         else
         {
-            throw new InvalidOperationException("RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
+            throw new InvalidOperationException(
+                "RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
         }
 
         _reproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch };
@@ -101,7 +131,8 @@ public sealed class BundleBuilder
         return this;
     }
 
-    public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly, bool allowResume = true)
+    public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly,
+        bool allowResume = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(feedUrl);
         _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy, AllowResumeDownload = allowResume };
@@ -138,22 +169,28 @@ public sealed class BundleBuilder
     }
 
     /// <summary>
-    /// Creates a rollback boundary reference with the specified id. Unlike <see cref="DefineContainer"/>,
-    /// rollback boundaries are positional chain items registered when passed to
-    /// <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)"/>.
+    ///     Creates a rollback boundary reference with the specified id. Unlike <see cref="DefineContainer" />,
+    ///     rollback boundaries are positional chain items registered when passed to
+    ///     <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)" />.
     /// </summary>
+#pragma warning disable CA1822 // Intentional instance method for API consistency
     public RollbackBoundaryRef DefineRollbackBoundary(string id) => new(id);
+#pragma warning restore CA1822
 
     /// <summary>
-    /// Creates a rollback boundary reference with an auto-generated id. Unlike <see cref="DefineContainer()"/>,
-    /// rollback boundaries are positional chain items registered when passed to
-    /// <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)"/>.
+    ///     Creates a rollback boundary reference with an auto-generated id. Unlike <see cref="DefineContainer()" />,
+    ///     rollback boundaries are positional chain items registered when passed to
+    ///     <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)" />.
     /// </summary>
-    public RollbackBoundaryRef DefineRollbackBoundary() =>
-        new($"RollbackBoundary_{++_rollbackBoundaryCounter}");
+    public RollbackBoundaryRef DefineRollbackBoundary()
+    {
+        return new RollbackBoundaryRef($"RollbackBoundary_{++_rollbackBoundaryCounter}");
+    }
 
-    public BundleBuilder RelatedBundle(Guid bundleId, Action<RelatedBundleBuilder>? configure = null) =>
-        RelatedBundle(bundleId.ToString("B").ToUpperInvariant(), configure);
+    public BundleBuilder RelatedBundle(Guid bundleId, Action<RelatedBundleBuilder>? configure = null)
+    {
+        return RelatedBundle(bundleId.ToString("B").ToUpperInvariant(), configure);
+    }
 
     public BundleBuilder Variable(string name, Action<BundleVariableBuilder> configure)
     {
@@ -222,7 +259,8 @@ public sealed class BundleBuilder
             : Guid.NewGuid());
 
         var bundleId = _bundleId ?? (_reproducibleOptions is not null
-            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{_name}::{_manufacturer}::{_version}")
+            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
+                $"{_name}::{_manufacturer}::{_version}")
             : Guid.NewGuid());
 
         return new BundleModel

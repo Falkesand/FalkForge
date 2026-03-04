@@ -3,9 +3,9 @@ namespace FalkForge.Extensions.Dependency;
 public sealed class DependencyProviderBuilder
 {
     private readonly string _key;
-    private string _version = string.Empty;
-    private string? _displayName;
     private string? _componentRef;
+    private string? _displayName;
+    private string _version = string.Empty;
 
     internal DependencyProviderBuilder(string key)
     {
@@ -33,11 +33,14 @@ public sealed class DependencyProviderBuilder
         return this;
     }
 
-    internal DependencyProviderModel Build() => new()
+    internal DependencyProviderModel Build()
     {
-        Key = _key,
-        Version = _version,
-        DisplayName = _displayName,
-        ComponentRef = _componentRef
-    };
+        return new DependencyProviderModel
+        {
+            Key = _key,
+            Version = _version,
+            DisplayName = _displayName,
+            ComponentRef = _componentRef
+        };
+    }
 }

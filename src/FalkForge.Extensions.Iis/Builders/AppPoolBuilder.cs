@@ -4,17 +4,17 @@ namespace FalkForge.Extensions.Iis.Builders;
 
 public sealed class AppPoolBuilder
 {
-    private string _id = string.Empty;
-    private string _name = string.Empty;
-    private string _managedRuntimeVersion = "v4.0";
-    private ManagedPipelineMode _pipelineMode = ManagedPipelineMode.Integrated;
     private bool _enable32Bit;
+    private string _id = string.Empty;
     private AppPoolIdentityType _identityType = AppPoolIdentityType.ApplicationPoolIdentity;
-    private string? _userName;
-    private string? _password;
-    private int _maxProcesses = 1;
-    private int _recycleMinutes = 1740;
     private int _idleTimeoutMinutes = 20;
+    private string _managedRuntimeVersion = "v4.0";
+    private int _maxProcesses = 1;
+    private string _name = string.Empty;
+    private string? _password;
+    private ManagedPipelineMode _pipelineMode = ManagedPipelineMode.Integrated;
+    private int _recycleMinutes = 1740;
+    private string? _userName;
 
     public AppPoolBuilder Id(string id)
     {
@@ -84,18 +84,21 @@ public sealed class AppPoolBuilder
         return this;
     }
 
-    internal AppPoolModel Build() => new()
+    internal AppPoolModel Build()
     {
-        Id = string.IsNullOrEmpty(_id) ? _name : _id,
-        Name = _name,
-        ManagedRuntimeVersion = _managedRuntimeVersion,
-        ManagedPipelineMode = _pipelineMode,
-        Enable32BitAppOnWin64 = _enable32Bit,
-        IdentityType = _identityType,
-        UserName = _userName,
-        Password = _password,
-        MaxProcesses = _maxProcesses,
-        RecycleMinutes = _recycleMinutes,
-        IdleTimeoutMinutes = _idleTimeoutMinutes
-    };
+        return new AppPoolModel
+        {
+            Id = string.IsNullOrEmpty(_id) ? _name : _id,
+            Name = _name,
+            ManagedRuntimeVersion = _managedRuntimeVersion,
+            ManagedPipelineMode = _pipelineMode,
+            Enable32BitAppOnWin64 = _enable32Bit,
+            IdentityType = _identityType,
+            UserName = _userName,
+            Password = _password,
+            MaxProcesses = _maxProcesses,
+            RecycleMinutes = _recycleMinutes,
+            IdleTimeoutMinutes = _idleTimeoutMinutes
+        };
+    }
 }

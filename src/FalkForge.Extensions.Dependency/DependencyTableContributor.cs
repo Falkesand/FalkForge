@@ -1,11 +1,13 @@
+#pragma warning disable CA1826 // FirstOrDefault is idiomatic for fallback patterns
+
 using FalkForge.Extensibility;
 
 namespace FalkForge.Extensions.Dependency;
 
 public sealed class DependencyTableContributor : IMsiTableContributor
 {
-    private readonly IReadOnlyList<DependencyProviderModel> _providers;
     private readonly IReadOnlyList<DependencyConsumerModel> _consumers;
+    private readonly IReadOnlyList<DependencyProviderModel> _providers;
 
     public DependencyTableContributor(
         IReadOnlyList<DependencyProviderModel> providers,
@@ -44,7 +46,6 @@ public sealed class DependencyTableContributor : IMsiTableContributor
                 .Set("Component_", component));
 
             if (provider.DisplayName is not null)
-            {
                 rows.Add(new MsiTableRow()
                     .Set("Registry", $"dep_prov_{provider.Key}_name")
                     .Set("Root", 2)
@@ -52,13 +53,13 @@ public sealed class DependencyTableContributor : IMsiTableContributor
                     .Set("Name", "DisplayName")
                     .Set("Value", provider.DisplayName)
                     .Set("Component_", component));
-            }
         }
 
         foreach (var consumer in _consumers)
         {
             var component = consumer.ComponentRef ?? defaultComponent;
-            var keyPath = @$"SOFTWARE\Classes\Installer\Dependencies\{consumer.ProviderKey}\Dependents\{consumer.ConsumerKey}";
+            var keyPath =
+                @$"SOFTWARE\Classes\Installer\Dependencies\{consumer.ProviderKey}\Dependents\{consumer.ConsumerKey}";
 
             rows.Add(new MsiTableRow()
                 .Set("Registry", $"dep_cons_{consumer.ProviderKey}_{consumer.ConsumerKey}")
@@ -75,12 +76,12 @@ public sealed class DependencyTableContributor : IMsiTableContributor
     private static string ResolveDefaultComponent(ExtensionContext context)
     {
         var firstFile = context.Package.Files.FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                "No files in package to resolve default component. " +
-                "Specify ComponentRef on each DependencyProvider and DependencyConsumer.");
+                        ?? throw new InvalidOperationException(
+                            "No files in package to resolve default component. " +
+                            "Specify ComponentRef on each DependencyProvider and DependencyConsumer.");
         return firstFile.ComponentId
-            ?? throw new InvalidOperationException(
-                "First file in package has no ComponentId. " +
-                "Specify ComponentRef on each DependencyProvider and DependencyConsumer.");
+               ?? throw new InvalidOperationException(
+                   "First file in package has no ComponentId. " +
+                   "Specify ComponentRef on each DependencyProvider and DependencyConsumer.");
     }
 }

@@ -8,16 +8,6 @@ public sealed class XmlConfigTableContributor : IMsiTableContributor
 
     public string TableName => "XmlConfig";
 
-    public void Add(XmlConfigModel entry)
-    {
-        _entries.Add(entry);
-    }
-
-    public void AddRange(IEnumerable<XmlConfigModel> entries)
-    {
-        _entries.AddRange(entries);
-    }
-
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);
@@ -39,5 +29,15 @@ public sealed class XmlConfigTableContributor : IMsiTableContributor
         }
 
         return rows;
+    }
+
+    public void Add(XmlConfigModel entry)
+    {
+        _entries.Add(entry);
+    }
+
+    public void AddRange(IEnumerable<XmlConfigModel> entries)
+    {
+        _entries.AddRange(entries);
     }
 }

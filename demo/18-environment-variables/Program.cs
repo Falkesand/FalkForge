@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -35,5 +34,4 @@ return Installer.Build(args, package =>
         ev.IsSystem = false;
         ev.Action = EnvironmentVariableAction.Set;
     });
-
 }, new MsiCompiler());

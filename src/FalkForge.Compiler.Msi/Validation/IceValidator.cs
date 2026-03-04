@@ -4,6 +4,7 @@ using FalkForge.Compiler.Msi.Interop;
 namespace FalkForge.Compiler.Msi.Validation;
 
 [SupportedOSPlatform("windows")]
+#pragma warning disable CA1822 // Stateless validator; instance method for future extensibility
 public sealed class IceValidator
 {
     private static readonly string[] CubSearchPaths =
@@ -11,13 +12,13 @@ public sealed class IceValidator
         // Windows SDK locations
         @"C:\Program Files (x86)\Windows Kits\10\bin",
         @"C:\Program Files\Windows Kits\10\bin",
-        @"C:\Program Files (x86)\MSI\darice.cub",
+        @"C:\Program Files (x86)\MSI\darice.cub"
     ];
 
     /// <summary>
-    /// Validates an MSI file using ICE (Internal Consistency Evaluators).
-    /// Requires Windows SDK to be installed for darice.cub.
-    /// Returns success with empty messages if darice.cub is not found.
+    ///     Validates an MSI file using ICE (Internal Consistency Evaluators).
+    ///     Requires Windows SDK to be installed for darice.cub.
+    ///     Returns success with empty messages if darice.cub is not found.
     /// </summary>
     public Result<IceValidationResult> Validate(string msiPath)
     {
@@ -26,16 +27,14 @@ public sealed class IceValidator
 
         var cubPath = FindDariceCub();
         if (cubPath is null)
-        {
             // Graceful fallback - ICE validation is opt-in, not mandatory
             return IceValidationResult.Success();
-        }
 
         return ValidateWithCub(msiPath, cubPath);
     }
 
     /// <summary>
-    /// Validates an MSI using a specific .cub file path.
+    ///     Validates an MSI using a specific .cub file path.
     /// </summary>
     public Result<IceValidationResult> Validate(string msiPath, string cubPath)
     {
@@ -47,12 +46,13 @@ public sealed class IceValidator
         return ValidateWithCub(msiPath, cubPath);
     }
 
-    private Result<IceValidationResult> ValidateWithCub(string msiPath, string cubPath)
+    private static Result<IceValidationResult> ValidateWithCub(string msiPath, string cubPath)
     {
         // Open target MSI
         var error = NativeMethods.MsiOpenDatabase(msiPath, NativeMethods.MSIDBOPEN_DIRECT, out var hDatabase);
         if (error != NativeMethods.ERROR_SUCCESS)
-            return Result<IceValidationResult>.Failure(ErrorKind.CompilationError, $"Failed to open MSI for validation: error {error}");
+            return Result<IceValidationResult>.Failure(ErrorKind.CompilationError,
+                $"Failed to open MSI for validation: error {error}");
 
         try
         {
@@ -60,8 +60,9 @@ public sealed class IceValidator
             error = NativeMethods.MsiOpenDatabase(cubPath, NativeMethods.MSIDBOPEN_READONLY, out var hCub);
             if (error != NativeMethods.ERROR_SUCCESS)
             {
-                NativeMethods.MsiCloseHandle(hDatabase);
-                return Result<IceValidationResult>.Failure(ErrorKind.CompilationError, $"Failed to open CUB file: error {error}");
+                _ = NativeMethods.MsiCloseHandle(hDatabase);
+                return Result<IceValidationResult>.Failure(ErrorKind.CompilationError,
+                    $"Failed to open CUB file: error {error}");
             }
 
             try
@@ -72,7 +73,7 @@ public sealed class IceValidator
                 // The merge brings in the _ICESequence table and ICE custom actions
 
                 // Commit after merge so ICE CAs can see merged data
-                NativeMethods.MsiDatabaseCommit(hDatabase);
+                _ = NativeMethods.MsiDatabaseCommit(hDatabase);
 
                 // Execute ICE sequence and collect messages
                 var messages = ExecuteIceSequence(hDatabase);
@@ -80,12 +81,12 @@ public sealed class IceValidator
             }
             finally
             {
-                NativeMethods.MsiCloseHandle(hCub);
+                _ = NativeMethods.MsiCloseHandle(hCub);
             }
         }
         finally
         {
-            NativeMethods.MsiCloseHandle(hDatabase);
+            _ = NativeMethods.MsiCloseHandle(hDatabase);
         }
     }
 
@@ -123,20 +124,17 @@ public sealed class IceValidator
                 }
                 finally
                 {
-                    NativeMethods.MsiCloseHandle(hRecord);
+                    _ = NativeMethods.MsiCloseHandle(hRecord);
                 }
             }
 
             // For each ICE, check if it left results in the _Validation table
             // ICE custom actions typically write to the _ICEnn table
-            foreach (var iceName in iceNames)
-            {
-                CollectIceResults(hDatabase, iceName, messages);
-            }
+            foreach (var iceName in iceNames) CollectIceResults(hDatabase, iceName, messages);
         }
         finally
         {
-            NativeMethods.MsiCloseHandle(hView);
+            _ = NativeMethods.MsiCloseHandle(hView);
         }
 
         return messages;
@@ -187,13 +185,13 @@ public sealed class IceValidator
                 }
                 finally
                 {
-                    NativeMethods.MsiCloseHandle(hRecord);
+                    _ = NativeMethods.MsiCloseHandle(hRecord);
                 }
             }
         }
         finally
         {
-            NativeMethods.MsiCloseHandle(hView);
+            _ = NativeMethods.MsiCloseHandle(hView);
         }
     }
 
@@ -208,6 +206,7 @@ public sealed class IceValidator
             buffer = new char[size + 1];
             error = NativeMethods.MsiRecordGetString(hRecord, field, buffer, ref size);
         }
+
         return error == NativeMethods.ERROR_SUCCESS ? new string(buffer, 0, (int)size) : null;
     }
 
@@ -226,10 +225,8 @@ public sealed class IceValidator
             {
                 var cubFiles = Directory.GetFiles(basePath, "darice.cub", SearchOption.AllDirectories);
                 if (cubFiles.Length > 0)
-                {
                     // Return the newest version
                     return cubFiles.OrderByDescending(f => f).First();
-                }
             }
             catch (UnauthorizedAccessException)
             {

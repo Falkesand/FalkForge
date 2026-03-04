@@ -13,19 +13,65 @@ public sealed class SummaryInfoWriter
         _handle = handle;
     }
 
-    public SummaryInfoWriter Title(string value) => SetStringProperty(NativeMethods.PID_TITLE, value);
-    public SummaryInfoWriter Subject(string value) => SetStringProperty(NativeMethods.PID_SUBJECT, value);
-    public SummaryInfoWriter Author(string value) => SetStringProperty(NativeMethods.PID_AUTHOR, value);
-    public SummaryInfoWriter Keywords(string value) => SetStringProperty(NativeMethods.PID_KEYWORDS, value);
-    public SummaryInfoWriter Comments(string value) => SetStringProperty(NativeMethods.PID_COMMENTS, value);
-    public SummaryInfoWriter Template(string value) => SetStringProperty(NativeMethods.PID_TEMPLATE, value);
-    public SummaryInfoWriter RevisionNumber(string value) => SetStringProperty(NativeMethods.PID_REVNUMBER, value);
-    public SummaryInfoWriter CreatingApplication(string value) => SetStringProperty(NativeMethods.PID_APPNAME, value);
+    public SummaryInfoWriter Title(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_TITLE, value);
+    }
 
-    public SummaryInfoWriter WordCount(int value) => SetIntProperty(NativeMethods.PID_WORDCOUNT, value);
-    public SummaryInfoWriter PageCount(int value) => SetIntProperty(NativeMethods.PID_PAGECOUNT, value);
-    public SummaryInfoWriter Security(int value) => SetIntProperty(NativeMethods.PID_SECURITY, value);
-    public SummaryInfoWriter Codepage(int value) => SetIntProperty(NativeMethods.PID_CODEPAGE, value);
+    public SummaryInfoWriter Subject(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_SUBJECT, value);
+    }
+
+    public SummaryInfoWriter Author(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_AUTHOR, value);
+    }
+
+    public SummaryInfoWriter Keywords(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_KEYWORDS, value);
+    }
+
+    public SummaryInfoWriter Comments(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_COMMENTS, value);
+    }
+
+    public SummaryInfoWriter Template(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_TEMPLATE, value);
+    }
+
+    public SummaryInfoWriter RevisionNumber(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_REVNUMBER, value);
+    }
+
+    public SummaryInfoWriter CreatingApplication(string value)
+    {
+        return SetStringProperty(NativeMethods.PID_APPNAME, value);
+    }
+
+    public SummaryInfoWriter WordCount(int value)
+    {
+        return SetIntProperty(NativeMethods.PID_WORDCOUNT, value);
+    }
+
+    public SummaryInfoWriter PageCount(int value)
+    {
+        return SetIntProperty(NativeMethods.PID_PAGECOUNT, value);
+    }
+
+    public SummaryInfoWriter Security(int value)
+    {
+        return SetIntProperty(NativeMethods.PID_SECURITY, value);
+    }
+
+    public SummaryInfoWriter Codepage(int value)
+    {
+        return SetIntProperty(NativeMethods.PID_CODEPAGE, value);
+    }
 
     private SummaryInfoWriter SetStringProperty(uint propertyId, string value)
     {
@@ -33,7 +79,8 @@ public sealed class SummaryInfoWriter
         var result = NativeMethods.MsiSummaryInfoSetProperty(
             _handle.DangerousGetHandle(), propertyId, NativeMethods.VT_LPSTR, 0, ref ft, value);
         if (result != NativeMethods.ERROR_SUCCESS)
-            throw new InvalidOperationException($"MsiSummaryInfoSetProperty failed for property {propertyId} (string). Error code: {result}");
+            throw new InvalidOperationException(
+                $"MsiSummaryInfoSetProperty failed for property {propertyId} (string). Error code: {result}");
         return this;
     }
 
@@ -43,8 +90,8 @@ public sealed class SummaryInfoWriter
         var result = NativeMethods.MsiSummaryInfoSetProperty(
             _handle.DangerousGetHandle(), propertyId, NativeMethods.VT_I4, value, ref ft, null);
         if (result != NativeMethods.ERROR_SUCCESS)
-            throw new InvalidOperationException($"MsiSummaryInfoSetProperty failed for property {propertyId} (int). Error code: {result}");
+            throw new InvalidOperationException(
+                $"MsiSummaryInfoSetProperty failed for property {propertyId} (int). Error code: {result}");
         return this;
     }
-
 }

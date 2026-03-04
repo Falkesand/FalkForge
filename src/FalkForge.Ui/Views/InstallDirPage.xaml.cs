@@ -1,8 +1,9 @@
-namespace FalkForge.Ui.Views;
-
+using System.Windows;
 using System.Windows.Controls;
 using FalkForge.Ui.ViewModels;
 using Microsoft.Win32;
+
+namespace FalkForge.Ui.Views;
 
 public partial class InstallDirPage : UserControl
 {
@@ -11,7 +12,7 @@ public partial class InstallDirPage : UserControl
         InitializeComponent();
     }
 
-    private void OnBrowseClick(object sender, System.Windows.RoutedEventArgs e)
+    private void OnBrowseClick(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog
         {
@@ -19,8 +20,6 @@ public partial class InstallDirPage : UserControl
         };
 
         if (dialog.ShowDialog() == true && DataContext is InstallDirPageViewModel vm)
-        {
             vm.InstallDirectory = dialog.FolderName;
-        }
     }
 }

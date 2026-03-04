@@ -2,6 +2,7 @@ using System.IO.Compression;
 
 namespace FalkForge.Compiler.Bundle.Compression;
 
+#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class GzipCompressor
 {
     public Result<byte[]> CompressFile(string sourcePath)
@@ -10,7 +11,7 @@ public sealed class GzipCompressor
         {
             using var output = new MemoryStream();
             using (var input = File.OpenRead(sourcePath))
-            using (var gzip = new GZipStream(output, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+            using (var gzip = new GZipStream(output, System.IO.Compression.CompressionLevel.Optimal, true))
             {
                 input.CopyTo(gzip);
             }

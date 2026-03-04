@@ -1,6 +1,8 @@
 # Demo 34: Dependency Extension (Provides/Requires)
 
-Declares inter-package dependency relationships using the Windows Installer dependency provider/consumer model. This demo registers the current package as a provider of a shared runtime component and simultaneously declares a requirement on another package, enabling safe uninstall and upgrade ordering.
+Declares inter-package dependency relationships using the Windows Installer dependency provider/consumer model. This
+demo registers the current package as a provider of a shared runtime component and simultaneously declares a requirement
+on another package, enabling safe uninstall and upgrade ordering.
 
 ## What This Demonstrates
 
@@ -37,7 +39,10 @@ dotnet build demo/34-ext-dependency/34-ext-dependency.csproj
 
 ## Notes
 
-- The provider key (e.g., `"Demo.SharedRuntime"`) is a stable identifier shared across packages. Other installers reference this key in their `Requires` declarations.
-- `MinInclusive()` means version `2.0.0` itself satisfies the requirement. Without it, only versions strictly greater than `2.0.0` would match.
-- The dependency system prevents uninstalling a provider package while any consumer still references it, avoiding broken installations.
+- The provider key (e.g., `"Demo.SharedRuntime"`) is a stable identifier shared across packages. Other installers
+  reference this key in their `Requires` declarations.
+- `MinInclusive()` means version `2.0.0` itself satisfies the requirement. Without it, only versions strictly greater
+  than `2.0.0` would match.
+- The dependency system prevents uninstalling a provider package while any consumer still references it, avoiding broken
+  installations.
 - In production, extensions register automatically via the FalkForge SDK extension pipeline during compilation.

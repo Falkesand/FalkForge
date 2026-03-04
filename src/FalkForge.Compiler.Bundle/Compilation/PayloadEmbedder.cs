@@ -8,6 +8,7 @@ using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
+#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class PayloadEmbedder
 {
     private static readonly byte[] Magic = Encoding.ASCII.GetBytes("FALKBUNDLE\0\0\0\0\0\0");
@@ -22,7 +23,7 @@ public sealed class PayloadEmbedder
     {
         try
         {
-            File.Copy(stubPath, outputPath, overwrite: true);
+            File.Copy(stubPath, outputPath, true);
 
             using var stream = new FileStream(outputPath, FileMode.Append, FileAccess.Write);
             using var writer = new BinaryWriter(stream);
@@ -177,7 +178,7 @@ public sealed class PayloadEmbedder
             return new BundleContent { TocEntries = entries, BundlePath = bundlePath };
         }
         catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException
-                                      or ArgumentOutOfRangeException or OutOfMemoryException)
+                                       or ArgumentOutOfRangeException or OutOfMemoryException)
         {
             return Result<BundleContent>.Failure(ErrorKind.PayloadError, $"Failed to read bundle: {ex.Message}");
         }

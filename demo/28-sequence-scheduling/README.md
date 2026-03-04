@@ -1,6 +1,7 @@
 # Demo 28: Sequence Scheduling
 
-Controls the ordering of actions in the MSI execute sequence. Demonstrates scheduling a custom action to run after a specific standard action with a conditional guard.
+Controls the ordering of actions in the MSI execute sequence. Demonstrates scheduling a custom action to run after a
+specific standard action with a conditional guard.
 
 ## What This Demonstrates
 
@@ -40,7 +41,10 @@ dotnet build demo/28-sequence-scheduling
 ## Notes
 
 - `After("InstallFinalize")` places the action at the very end of the execute sequence, after all files are committed.
-- `Condition.IsInstalling` ensures the action only runs during a first install or upgrade, not during repair or uninstall.
-- The execute sequence is the elevated phase of MSI installation. Actions here run with system privileges if the installer is elevated.
-- `package.UISequence()` schedules actions in the UI sequence, which runs during the user interaction phase before the execute sequence begins. The UI sequence runs with the invoking user's privileges, not elevated.
+- `Condition.IsInstalling` ensures the action only runs during a first install or upgrade, not during repair or
+  uninstall.
+- The execute sequence is the elevated phase of MSI installation. Actions here run with system privileges if the
+  installer is elevated.
+- `package.UISequence()` schedules actions in the UI sequence, which runs during the user interaction phase before the
+  execute sequence begins. The UI sequence runs with the invoking user's privileges, not elevated.
 - The same action can be scheduled in both the execute and UI sequences with different positioning and conditions.

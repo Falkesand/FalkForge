@@ -1,6 +1,7 @@
 # Demo 06: Product Suite -- Service Installer
 
-The background service MSI package for the Acme Product Suite. Installs a Windows Service with automatic start, sets a system environment variable, and uses minimal UI since services do not require interactive directory selection.
+The background service MSI package for the Acme Product Suite. Installs a Windows Service with automatic start, sets a
+system environment variable, and uses minimal UI since services do not require interactive directory selection.
 
 ## What This Demonstrates
 

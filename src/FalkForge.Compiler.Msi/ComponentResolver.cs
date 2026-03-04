@@ -25,11 +25,10 @@ public sealed class ComponentResolver
         var fileEntries = new List<ResolvedFile>();
 
         foreach (var file in package.Files)
-        {
             if (file.FileName == "*" && _fileSystem.DirectoryExists(file.SourcePath))
             {
                 // Directory harvest
-                var files = _fileSystem.GetFiles(file.SourcePath, "*", recursive: true);
+                var files = _fileSystem.GetFiles(file.SourcePath, "*", true);
                 foreach (var filePath in files)
                 {
                     var relativePath = _fileSystem.GetRelativePath(file.SourcePath, filePath);
@@ -100,7 +99,6 @@ public sealed class ComponentResolver
                     Condition = file.ComponentCondition
                 });
             }
-        }
 
         return new ResolvedPackage
         {
@@ -139,6 +137,7 @@ public sealed class ComponentResolver
             var c = name[i];
             sanitized[i] = char.IsLetterOrDigit(c) || c == '_' || c == '.' ? c : '_';
         }
+
         return new string(sanitized);
     }
 }

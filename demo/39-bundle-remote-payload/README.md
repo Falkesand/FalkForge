@@ -1,6 +1,7 @@
 # Demo 39: Remote Payload
 
-Configures an MSI package to be downloaded from a remote URL at install time instead of being embedded in the bundle. This significantly reduces the bundle's file size when packages are large or hosted on a CDN.
+Configures an MSI package to be downloaded from a remote URL at install time instead of being embedded in the bundle.
+This significantly reduces the bundle's file size when packages are large or hosted on a CDN.
 
 ## What This Demonstrates
 
@@ -10,12 +11,12 @@ Configures an MSI package to be downloaded from a remote URL at install time ins
 
 ## Key API Calls
 
-| Method | Purpose |
-|--------|---------|
+| Method                              | Purpose                                                        |
+|-------------------------------------|----------------------------------------------------------------|
 | `.RemotePayload(url, sha256, size)` | Specify that this package should be downloaded at install time |
-| First parameter: `string url` | The HTTPS URL where the MSI is hosted |
-| Second parameter: `string sha256` | SHA-256 hash of the file for integrity verification |
-| Third parameter: `long size` | Expected file size in bytes (10485760 = 10 MB) |
+| First parameter: `string url`       | The HTTPS URL where the MSI is hosted                          |
+| Second parameter: `string sha256`   | SHA-256 hash of the file for integrity verification            |
+| Third parameter: `long size`        | Expected file size in bytes (10485760 = 10 MB)                 |
 
 ## How to Build
 

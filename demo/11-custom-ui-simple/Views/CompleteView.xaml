@@ -4,9 +4,9 @@
              Padding="32">
     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
         <TextBlock Text="&#x2714;" FontSize="48" Foreground="#22C55E"
-                   HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                   HorizontalAlignment="Center" Margin="0,0,0,16" />
         <TextBlock Text="{Binding Message}"
                    FontSize="16" TextWrapping="Wrap"
-                   TextAlignment="Center"/>
+                   TextAlignment="Center" />
     </StackPanel>
 </UserControl>

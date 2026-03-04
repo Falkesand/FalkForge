@@ -3,9 +3,9 @@ namespace FalkForge.Extensions.Util.UserManagement;
 public static class UserValidator
 {
     /// <summary>
-    /// Validates user creation parameters.
-    /// USR001: Name is required.
-    /// USR002: Password is required for new user creation (when UpdateIfExists is false).
+    ///     Validates user creation parameters.
+    ///     USR001: Name is required.
+    ///     USR002: Password is required for new user creation (when UpdateIfExists is false).
     /// </summary>
     public static Result<bool> Validate(string name, string? password, bool updateIfExists)
     {

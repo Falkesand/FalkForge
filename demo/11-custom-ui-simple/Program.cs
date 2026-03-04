@@ -1,5 +1,5 @@
-using FalkForge.Ui;
 using CustomUiSimple.Pages;
+using FalkForge.Ui;
 
 return InstallerApp.Run(args, app => app
     .Localization(loc => loc

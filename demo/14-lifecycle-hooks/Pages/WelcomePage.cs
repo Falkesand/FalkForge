@@ -1,3 +1,5 @@
+#pragma warning disable CA1822 // UI-bound properties must remain instance members
+
 using FalkForge.Ui;
 using LifecycleDemo.Views;
 

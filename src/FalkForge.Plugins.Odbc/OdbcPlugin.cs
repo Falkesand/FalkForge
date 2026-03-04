@@ -1,7 +1,5 @@
 namespace FalkForge.Plugins.Odbc;
 
-using FalkForge.Plugins;
-
 public sealed class OdbcPlugin : IInstallerPlugin
 {
     public string Name => "ODBC";

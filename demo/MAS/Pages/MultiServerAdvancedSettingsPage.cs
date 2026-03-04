@@ -1,3 +1,5 @@
+#pragma warning disable CA1822 // UI-bound properties must remain instance members
+
 using FalkForge.Plugins.Odbc;
 using FalkForge.Ui.Abstractions;
 using MAS.Views;
@@ -7,8 +9,8 @@ namespace MAS.Pages;
 public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdvancedSettingsView>
 {
     private string _dsnName = "MultiAccess";
-    private string _serviceAccount = "LocalSystem";
     private string _dsnWarning = string.Empty;
+    private string _serviceAccount = "LocalSystem";
 
     public override string Title => Localize("MSAdvancedSettings.Title");
 
@@ -79,5 +81,7 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
     }
 
     public override PageResult OnBack()
-        => PageResult.GoTo<DatabaseConnectionSettingsPage>();
+    {
+        return PageResult.GoTo<DatabaseConnectionSettingsPage>();
+    }
 }

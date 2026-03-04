@@ -1,9 +1,10 @@
-namespace FalkForge.Ui.Views;
-
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+
+namespace FalkForge.Ui.Views;
 
 internal partial class CustomInstallerWindow : Window
 {
@@ -54,10 +55,9 @@ internal partial class CustomInstallerWindow : Window
         }
 
         if (config.IconPath is not null)
-        {
             try
             {
-                var icon = new System.Windows.Media.Imaging.BitmapImage(
+                var icon = new BitmapImage(
                     new Uri(config.IconPath, UriKind.RelativeOrAbsolute));
                 Icon = icon;
             }
@@ -65,7 +65,6 @@ internal partial class CustomInstallerWindow : Window
             {
                 // Icon loading is best-effort
             }
-        }
 
         ApplyImageResource(config.WatermarkImagePath, "WatermarkImage");
         ApplyImageResource(config.BannerImagePath, "BannerImage");
@@ -79,7 +78,7 @@ internal partial class CustomInstallerWindow : Window
 
         try
         {
-            var image = new System.Windows.Media.Imaging.BitmapImage(
+            var image = new BitmapImage(
                 new Uri(path, UriKind.RelativeOrAbsolute));
             Resources[resourceKey] = image;
         }

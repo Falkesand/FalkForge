@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -52,5 +51,4 @@ return Installer.Build(args, package =>
         mu.Schedule(RemoveExistingProductsSchedule.AfterInstallExecute);
         mu.MigrateFeatures(true);
     });
-
 }, new MsiCompiler());

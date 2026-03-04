@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // Block installation unless conditions are met: admin rights and Windows 10+.
 return Installer.Build(args, package =>
@@ -19,5 +17,4 @@ return Installer.Build(args, package =>
 
     // Require Windows 10 or later
     package.Require(Condition.IsWindows10OrLater, "This application requires Windows 10 or later.");
-
 }, new MsiCompiler());

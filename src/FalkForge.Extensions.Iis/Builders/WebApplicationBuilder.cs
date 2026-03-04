@@ -4,10 +4,10 @@ namespace FalkForge.Extensions.Iis.Builders;
 
 public sealed class WebApplicationBuilder
 {
-    private string _id = string.Empty;
     private string _alias = string.Empty;
-    private string _directory = string.Empty;
     private string? _appPool;
+    private string _directory = string.Empty;
+    private string _id = string.Empty;
 
     public WebApplicationBuilder Id(string id)
     {
@@ -33,13 +33,19 @@ public sealed class WebApplicationBuilder
         return this;
     }
 
-    public WebApplicationBuilder AppPool(AppPoolRef appPoolRef) => AppPool(appPoolRef.Id);
-
-    internal WebApplicationModel Build() => new()
+    public WebApplicationBuilder AppPool(AppPoolRef appPoolRef)
     {
-        Id = string.IsNullOrEmpty(_id) ? _alias : _id,
-        Alias = _alias,
-        Directory = _directory,
-        AppPool = _appPool
-    };
+        return AppPool(appPoolRef.Id);
+    }
+
+    internal WebApplicationModel Build()
+    {
+        return new WebApplicationModel
+        {
+            Id = string.IsNullOrEmpty(_id) ? _alias : _id,
+            Alias = _alias,
+            Directory = _directory,
+            AppPool = _appPool
+        };
+    }
 }

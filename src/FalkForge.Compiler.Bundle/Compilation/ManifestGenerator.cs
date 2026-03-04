@@ -3,6 +3,7 @@ using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
+#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class ManifestGenerator
 {
     public Result<InstallerManifest> Generate(BundleModel model)
@@ -20,7 +21,8 @@ public sealed class ManifestGenerator
             else
             {
                 if (!File.Exists(pkg.SourcePath))
-                    return Result<InstallerManifest>.Failure(ErrorKind.PayloadError, $"Package source not found: {pkg.SourcePath}");
+                    return Result<InstallerManifest>.Failure(ErrorKind.PayloadError,
+                        $"Package source not found: {pkg.SourcePath}");
 
                 hash = ComputeSha256(pkg.SourcePath);
             }
@@ -84,10 +86,12 @@ public sealed class ManifestGenerator
             new ManifestDependencyConsumer(c.ProviderKey, c.ConsumerKey)).ToArray();
 
         var dependencyRequirements = model.DependencyRequirements.Select(r =>
-            new ManifestDependencyRequirement(r.ProviderKey, r.MinVersion, r.MaxVersion, r.MinInclusive, r.MaxInclusive)).ToArray();
+            new ManifestDependencyRequirement(r.ProviderKey, r.MinVersion, r.MaxVersion, r.MinInclusive,
+                r.MaxInclusive)).ToArray();
 
-        ManifestUpdateFeed? updateFeed = model.UpdateFeed is not null
-            ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy, model.UpdateFeed.AllowResumeDownload)
+        var updateFeed = model.UpdateFeed is not null
+            ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy,
+                model.UpdateFeed.AllowResumeDownload)
             : null;
 
         return new InstallerManifest
@@ -117,21 +121,15 @@ public sealed class ManifestGenerator
             return [];
 
         var packageLookup = new Dictionary<string, PackageInfo>();
-        foreach (var pkg in packages)
-        {
-            packageLookup[pkg.Id] = pkg;
-        }
+        foreach (var pkg in packages) packageLookup[pkg.Id] = pkg;
 
         var items = new List<ManifestChainItem>();
         foreach (var item in model.Chain)
-        {
             switch (item)
             {
                 case PackageChainItem packageItem:
                     if (packageLookup.TryGetValue(packageItem.Package.Id, out var pkgInfo))
-                    {
                         items.Add(new PackageManifestChainItem(pkgInfo));
-                    }
                     break;
 
                 case RollbackBoundaryChainItem boundaryItem:
@@ -142,42 +140,39 @@ public sealed class ManifestGenerator
                     }));
                     break;
             }
-        }
 
         return items.ToArray();
     }
 
     private static RelatedBundleEntry[] MapRelatedBundles(IReadOnlyList<RelatedBundleModel> relatedBundles)
     {
-        if (relatedBundles.Count == 0)
-        {
-            return [];
-        }
+        if (relatedBundles.Count == 0) return [];
 
         var entries = new RelatedBundleEntry[relatedBundles.Count];
         for (var i = 0; i < relatedBundles.Count; i++)
-        {
             entries[i] = new RelatedBundleEntry
             {
                 BundleId = relatedBundles[i].BundleId,
                 Relation = relatedBundles[i].Relation
             };
-        }
 
         return entries;
     }
 
-    private static Result<PackageType> MapPackageType(BundlePackageType type) => type switch
+    private static Result<PackageType> MapPackageType(BundlePackageType type)
     {
-        BundlePackageType.MsiPackage => PackageType.MsiPackage,
-        BundlePackageType.ExePackage => PackageType.ExePackage,
-        BundlePackageType.NetRuntime => PackageType.NetRuntime,
-        BundlePackageType.MsuPackage => PackageType.MsuPackage,
-        BundlePackageType.MspPackage => PackageType.MspPackage,
-        BundlePackageType.BundlePackage => PackageType.BundlePackage,
-        _ => Result<PackageType>.Failure(
-            ErrorKind.CompilationError, $"Unknown package type: {type}")
-    };
+        return type switch
+        {
+            BundlePackageType.MsiPackage => PackageType.MsiPackage,
+            BundlePackageType.ExePackage => PackageType.ExePackage,
+            BundlePackageType.NetRuntime => PackageType.NetRuntime,
+            BundlePackageType.MsuPackage => PackageType.MsuPackage,
+            BundlePackageType.MspPackage => PackageType.MspPackage,
+            BundlePackageType.BundlePackage => PackageType.BundlePackage,
+            _ => Result<PackageType>.Failure(
+                ErrorKind.CompilationError, $"Unknown package type: {type}")
+        };
+    }
 
     private static string ComputeSha256(string filePath)
     {

@@ -1,21 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>FalkForge.Compiler.Msi</RootNamespace>
-    <Description>MSI generation via msi.dll P/Invoke</Description>
-    <!-- Required for P/Invoke interop with msi.dll and cabinet.dll (FCI/FDI callbacks use raw pointers) -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="FalkForge.Compiler.Msi.Tests" />
-    <InternalsVisibleTo Include="FalkForge.Decompiler" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
-    <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj" />
-    <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
-    <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Localization\*.json" WithCulture="false" LogicalName="FalkForge.Compiler.Msi.Localization.%(Filename)%(Extension)" />
-  </ItemGroup>
+    <PropertyGroup>
+        <RootNamespace>FalkForge.Compiler.Msi</RootNamespace>
+        <Description>MSI generation via msi.dll P/Invoke</Description>
+        <!-- Required for P/Invoke interop with msi.dll and cabinet.dll (FCI/FDI callbacks use raw pointers) -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Compiler.Msi.Tests"/>
+        <InternalsVisibleTo Include="FalkForge.Decompiler"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj"/>
+        <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj"/>
+        <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Localization\*.json" WithCulture="false" LogicalName="FalkForge.Compiler.Msi.Localization.%(Filename)%(Extension)"/>
+    </ItemGroup>
 </Project>

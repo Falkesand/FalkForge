@@ -7,16 +7,16 @@
                 Background="White" BorderThickness="0,0,0,1" BorderBrush="#A0A0A0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Title}" Style="{StaticResource BannerTitle}"/>
-                    <TextBlock Text="{Binding Description}" Style="{StaticResource BannerSubtitle}"/>
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource BannerTitle}" />
+                    <TextBlock Text="{Binding Description}" Style="{StaticResource BannerSubtitle}" />
                 </StackPanel>
                 <Grid Grid.Column="1" Width="49" Height="49" Margin="0,0,8,0">
-                    <Rectangle Fill="{DynamicResource BannerIconBrush}"/>
-                    <Image Source="{DynamicResource BannerIconImage}" Stretch="Fill"/>
+                    <Rectangle Fill="{DynamicResource BannerIconBrush}" />
+                    <Image Source="{DynamicResource BannerIconImage}" Stretch="Fill" />
                 </Grid>
             </Grid>
         </Border>
@@ -28,10 +28,10 @@
                      VerticalScrollBarVisibility="Auto"
                      TextWrapping="Wrap"
                      Height="200"
-                     Margin="0,0,0,10"/>
+                     Margin="0,0,0,10" />
 
             <CheckBox Content="I accept the license agreement"
-                      IsChecked="{Binding IsAccepted}"/>
+                      IsChecked="{Binding IsAccepted}" />
         </StackPanel>
     </DockPanel>
 </UserControl>

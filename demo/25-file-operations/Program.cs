@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 
 // File operations: move, duplicate, remove, and create folders.
 return Installer.Build(args, package =>
@@ -36,5 +34,4 @@ return Installer.Build(args, package =>
         .Add("payload/debug-tools.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "FileOpsDemo" / "Debug")
         .ComponentCondition("INSTALL_DEBUG_TOOLS"));
-
 }, new MsiCompiler());

@@ -1,6 +1,6 @@
-namespace FalkForge.Ui;
-
 using System.Windows.Media;
+
+namespace FalkForge.Ui;
 
 internal sealed class InstallerWindowConfig
 {

@@ -1,6 +1,7 @@
 # Demo 17: Services
 
-Installs Windows services with automatic startup, service accounts, dependencies, failure recovery actions, and lifecycle control. Demonstrates both service group dependencies and custom credentials.
+Installs Windows services with automatic startup, service accounts, dependencies, failure recovery actions, and
+lifecycle control. Demonstrates both service group dependencies and custom credentials.
 
 ## What This Demonstrates
 
@@ -9,7 +10,8 @@ Installs Windows services with automatic startup, service accounts, dependencies
 - Declaring service dependencies on individual services (`DependsOn`) and service groups (`DependsOnGroup`)
 - Configuring failure recovery actions (`FailureActions`) with restart, run-command, and reboot strategies
 - Running a service under a custom user account with `UserName` and `Password`
-- Controlling service lifecycle with `package.ServiceControl()` (start on install, stop on install/uninstall, delete on uninstall)
+- Controlling service lifecycle with `package.ServiceControl()` (start on install, stop on install/uninstall, delete on
+  uninstall)
 - Waiting for service state changes with `Wait(true)`
 - Stopping a service during install with `StopOnInstall()`
 - Passing startup arguments to a service with `Arguments()`
@@ -93,12 +95,19 @@ dotnet build demo/17-services
 ## Notes
 
 - The `Executable` path uses MSI directory properties (e.g., `[ProgramFilesFolder]`) which resolve at install time.
-- `DependsOn("Tcpip")` maps to the MSI `ServiceDependency` table. The service will not start until the specified dependency is running.
-- `DependsOnGroup("NetworkProvider")` depends on an entire service group rather than a single service. The service waits until all group members have started.
-- `FailureActions` configures the Windows Service Control Manager (SCM) recovery behavior. Actions escalate across first, second, and subsequent failures.
-- `FailureAction.RunCommand` executes an arbitrary command on failure (e.g., a diagnostic tool). `RebootMessage` is displayed before a `FailureAction.Reboot`.
+- `DependsOn("Tcpip")` maps to the MSI `ServiceDependency` table. The service will not start until the specified
+  dependency is running.
+- `DependsOnGroup("NetworkProvider")` depends on an entire service group rather than a single service. The service waits
+  until all group members have started.
+- `FailureActions` configures the Windows Service Control Manager (SCM) recovery behavior. Actions escalate across
+  first, second, and subsequent failures.
+- `FailureAction.RunCommand` executes an arbitrary command on failure (e.g., a diagnostic tool). `RebootMessage` is
+  displayed before a `FailureAction.Reboot`.
 - `UserName` and `Password` run the service under a specific user account instead of a built-in service account.
-- `ServiceControl` is separate from `Service` because it controls the service during install/uninstall transitions, not just its definition.
-- `Wait(true)` tells MSI to wait for the service to reach the desired state (started/stopped) before continuing the install sequence.
-- `StopOnInstall()` stops a running service during installation, useful for updating service binaries that are locked by a running process.
+- `ServiceControl` is separate from `Service` because it controls the service during install/uninstall transitions, not
+  just its definition.
+- `Wait(true)` tells MSI to wait for the service to reach the desired state (started/stopped) before continuing the
+  install sequence.
+- `StopOnInstall()` stops a running service during installation, useful for updating service binaries that are locked by
+  a running process.
 - `Arguments()` passes command-line arguments to the service when it is started by `ServiceControl`.

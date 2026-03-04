@@ -1,12 +1,12 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class MajorUpgradeBuilder
 {
     private bool _allowSameVersionUpgrades;
-    private RemoveExistingProductsSchedule _schedule = RemoveExistingProductsSchedule.AfterInstallValidate;
     private bool _migrateFeatures = true;
+    private RemoveExistingProductsSchedule _schedule = RemoveExistingProductsSchedule.AfterInstallValidate;
 
     public MajorUpgradeBuilder AllowSameVersionUpgrades()
     {
@@ -26,10 +26,13 @@ public sealed class MajorUpgradeBuilder
         return this;
     }
 
-    internal MajorUpgradeModel Build() => new()
+    internal MajorUpgradeModel Build()
     {
-        AllowSameVersionUpgrades = _allowSameVersionUpgrades,
-        Schedule = _schedule,
-        MigrateFeatures = _migrateFeatures
-    };
+        return new MajorUpgradeModel
+        {
+            AllowSameVersionUpgrades = _allowSameVersionUpgrades,
+            Schedule = _schedule,
+            MigrateFeatures = _migrateFeatures
+        };
+    }
 }

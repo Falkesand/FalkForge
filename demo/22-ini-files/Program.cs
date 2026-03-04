@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
@@ -31,5 +30,4 @@ return Installer.Build(args, package =>
         ini.Value("1.0.0");
         ini.Action(IniFileAction.CreateEntry);
     });
-
 }, new MsiCompiler());

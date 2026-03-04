@@ -1,3 +1,4 @@
+using System.Text;
 using FalkForge.Plugins.Sql;
 using FalkForge.Ui.Abstractions;
 using MAS.Views;
@@ -6,12 +7,12 @@ namespace MAS.Pages;
 
 public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnectionSettingsView>
 {
-    private string _databaseServer = @".\SQLEXPRESS";
     private string _databaseName = "MultiAccess";
+    private string _databaseServer = @".\SQLEXPRESS";
     private bool _integratedSecurity = true;
-    private string _userName = "AUSR_AptusWeb";
     private bool _skipTest;
     private string _testResult = string.Empty;
+    private string _userName = "AUSR_AptusWeb";
 
     public override string Title => Localize("DbConnectionSettings.Title");
     public override string? Subtitle => Localize("DbConnectionSettings.Subtitle");
@@ -74,7 +75,7 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
 
         TestResult = Localize("DbConnectionSettings.TestResultTesting");
         using var pw = GetPassword("DbPassword");
-        var passwordStr = pw.IsEmpty ? string.Empty : System.Text.Encoding.UTF8.GetString(pw.Span);
+        var passwordStr = pw.IsEmpty ? string.Empty : Encoding.UTF8.GetString(pw.Span);
         var result = await tester.TestConnectionAsync(
             DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
         TestResult = result.IsSuccess
@@ -95,7 +96,9 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     }
 
     public override PageResult OnBack()
-        => PageResult.GoTo<AdvancedInstallDirMultiServerExPage>();
+    {
+        return PageResult.GoTo<AdvancedInstallDirMultiServerExPage>();
+    }
 
     public override Task OnNavigatedToAsync()
     {

@@ -1,17 +1,16 @@
-namespace FalkForge.Ui.Localization;
-
 using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
-using FalkForge.Localization;
+
+namespace FalkForge.Ui.Localization;
 
 public sealed class UiLocalizationBuilder
 {
     private readonly List<(Assembly Assembly, string ResourcePath)> _resources = [];
+    private bool _allowLanguageSelection;
     private string _defaultCulture = "en-US";
     private bool _detectCulture = true;
-    private bool _allowLanguageSelection;
 
     public UiLocalizationBuilder DefaultCulture(string culture)
     {
@@ -56,6 +55,7 @@ public sealed class UiLocalizationBuilder
                 existing = new Dictionary<string, string>(StringComparer.Ordinal);
                 cultures[culture] = existing;
             }
+
             foreach (var (key, value) in strings)
                 existing[key] = value;
         }
@@ -105,13 +105,13 @@ public sealed class UiLocalizationBuilder
         var json = reader.ReadToEnd();
 
         var culture = ExtractCultureFromPath(path)
-            ?? throw new InvalidOperationException(
-                $"Cannot extract culture from resource path '{path}'. " +
-                $"Expected format: name.culture.json (e.g., strings.en-US.json)");
+                      ?? throw new InvalidOperationException(
+                          $"Cannot extract culture from resource path '{path}'. " +
+                          $"Expected format: name.culture.json (e.g., strings.en-US.json)");
 
         var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
-            ?? throw new InvalidOperationException(
-                $"Localization resource '{path}' contains null or invalid JSON.");
+                  ?? throw new InvalidOperationException(
+                      $"Localization resource '{path}' contains null or invalid JSON.");
 
         return (culture, raw);
     }

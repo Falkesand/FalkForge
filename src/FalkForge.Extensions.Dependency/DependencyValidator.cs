@@ -9,15 +9,9 @@ public static class DependencyValidator
         var errors = new List<DependencyValidationError>();
 
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var provider in providers)
-        {
-            ValidateProvider(provider, seenKeys, errors);
-        }
+        foreach (var provider in providers) ValidateProvider(provider, seenKeys, errors);
 
-        foreach (var consumer in consumers)
-        {
-            ValidateConsumer(consumer, errors);
-        }
+        foreach (var consumer in consumers) ValidateConsumer(consumer, errors);
 
         return errors;
     }
@@ -34,20 +28,17 @@ public static class DependencyValidator
         else
         {
             if (!seenKeys.Add(provider.Key))
-            {
-                errors.Add(new DependencyValidationError("DEP005", $"Duplicate dependency provider key '{provider.Key}'."));
-            }
+                errors.Add(new DependencyValidationError("DEP005",
+                    $"Duplicate dependency provider key '{provider.Key}'."));
 
             if (ContainsInvalidPathChars(provider.Key))
-            {
-                errors.Add(new DependencyValidationError("DEP006", $"Dependency key '{provider.Key}' contains invalid characters (backslash, forward slash, or null)."));
-            }
+                errors.Add(new DependencyValidationError("DEP006",
+                    $"Dependency key '{provider.Key}' contains invalid characters (backslash, forward slash, or null)."));
         }
 
-        if (!System.Version.TryParse(provider.Version, out _))
-        {
-            errors.Add(new DependencyValidationError("DEP002", $"Dependency provider '{provider.Key}' has invalid version '{provider.Version}'. Must be a valid System.Version."));
-        }
+        if (!Version.TryParse(provider.Version, out _))
+            errors.Add(new DependencyValidationError("DEP002",
+                $"Dependency provider '{provider.Key}' has invalid version '{provider.Version}'. Must be a valid System.Version."));
     }
 
     private static void ValidateConsumer(
@@ -55,33 +46,29 @@ public static class DependencyValidator
         List<DependencyValidationError> errors)
     {
         if (string.IsNullOrWhiteSpace(consumer.ProviderKey))
-        {
-            errors.Add(new DependencyValidationError("DEP003", "Dependency consumer must reference a non-empty provider key."));
-        }
+            errors.Add(new DependencyValidationError("DEP003",
+                "Dependency consumer must reference a non-empty provider key."));
         else if (ContainsInvalidPathChars(consumer.ProviderKey))
-        {
-            errors.Add(new DependencyValidationError("DEP006", $"Dependency key '{consumer.ProviderKey}' contains invalid characters (backslash, forward slash, or null)."));
-        }
+            errors.Add(new DependencyValidationError("DEP006",
+                $"Dependency key '{consumer.ProviderKey}' contains invalid characters (backslash, forward slash, or null)."));
 
         if (string.IsNullOrWhiteSpace(consumer.ConsumerKey))
-        {
             errors.Add(new DependencyValidationError("DEP007", "Dependency consumer key must not be empty."));
-        }
         else if (ContainsInvalidPathChars(consumer.ConsumerKey))
-        {
-            errors.Add(new DependencyValidationError("DEP006", $"Dependency key '{consumer.ConsumerKey}' contains invalid characters (backslash, forward slash, or null)."));
-        }
+            errors.Add(new DependencyValidationError("DEP006",
+                $"Dependency key '{consumer.ConsumerKey}' contains invalid characters (backslash, forward slash, or null)."));
 
         if (consumer.MinVersion is not null
             && consumer.MaxVersion is not null
-            && System.Version.TryParse(consumer.MinVersion, out var min)
-            && System.Version.TryParse(consumer.MaxVersion, out var max)
+            && Version.TryParse(consumer.MinVersion, out var min)
+            && Version.TryParse(consumer.MaxVersion, out var max)
             && min > max)
-        {
-            errors.Add(new DependencyValidationError("DEP004", $"Dependency consumer for provider '{consumer.ProviderKey}' has MinVersion '{consumer.MinVersion}' greater than MaxVersion '{consumer.MaxVersion}'."));
-        }
+            errors.Add(new DependencyValidationError("DEP004",
+                $"Dependency consumer for provider '{consumer.ProviderKey}' has MinVersion '{consumer.MinVersion}' greater than MaxVersion '{consumer.MaxVersion}'."));
     }
 
-    private static bool ContainsInvalidPathChars(string value) =>
-        value.Contains('\\') || value.Contains('/') || value.Contains('\0');
+    private static bool ContainsInvalidPathChars(string value)
+    {
+        return value.Contains('\\') || value.Contains('/') || value.Contains('\0');
+    }
 }

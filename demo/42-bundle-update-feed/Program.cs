@@ -1,7 +1,6 @@
 using FalkForge;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
-using FalkForge.Engine.Protocol.Manifest;
 
 // Configure automatic update checking from a feed URL.
 return Installer.BuildBundle(args, outputPath =>
@@ -14,7 +13,7 @@ return Installer.BuildBundle(args, outputPath =>
         .UpgradeCode(new Guid("44556677-8899-4AA0-BBCC-DDEEFF001122"))
         .Scope(InstallScope.PerMachine)
         .UseBuiltInUI()
-        .UpdateFeed("https://updates.example.com/myapp/feed.json", UpdatePolicy.NotifyOnly)
+        .UpdateFeed("https://updates.example.com/myapp/feed.json")
         .Chain(chain => chain
             .MsiPackage("MyApp.msi", p => p
                 .Id("MyApp")

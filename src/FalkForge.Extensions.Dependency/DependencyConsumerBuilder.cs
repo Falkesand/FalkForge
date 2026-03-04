@@ -3,12 +3,12 @@ namespace FalkForge.Extensions.Dependency;
 public sealed class DependencyConsumerBuilder
 {
     private readonly string _providerKey;
+    private string? _componentRef;
     private string _consumerKey = string.Empty;
-    private string? _minVersion;
+    private bool _maxInclusive;
     private string? _maxVersion;
     private bool _minInclusive = true;
-    private bool _maxInclusive;
-    private string? _componentRef;
+    private string? _minVersion;
 
     internal DependencyConsumerBuilder(string providerKey)
     {
@@ -66,14 +66,17 @@ public sealed class DependencyConsumerBuilder
         return this;
     }
 
-    internal DependencyConsumerModel Build() => new()
+    internal DependencyConsumerModel Build()
     {
-        ProviderKey = _providerKey,
-        ConsumerKey = _consumerKey,
-        MinVersion = _minVersion,
-        MaxVersion = _maxVersion,
-        MinInclusive = _minInclusive,
-        MaxInclusive = _maxInclusive,
-        ComponentRef = _componentRef
-    };
+        return new DependencyConsumerModel
+        {
+            ProviderKey = _providerKey,
+            ConsumerKey = _consumerKey,
+            MinVersion = _minVersion,
+            MaxVersion = _maxVersion,
+            MinInclusive = _minInclusive,
+            MaxInclusive = _maxInclusive,
+            ComponentRef = _componentRef
+        };
+    }
 }

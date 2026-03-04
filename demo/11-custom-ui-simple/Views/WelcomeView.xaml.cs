@@ -1,6 +1,6 @@
-namespace CustomUiSimple.Views;
-
 using System.Windows.Controls;
+
+namespace CustomUiSimple.Views;
 
 public partial class WelcomeView : UserControl
 {

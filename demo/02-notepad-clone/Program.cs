@@ -1,5 +1,4 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Localization;
 using FalkForge.Models;
@@ -67,5 +66,4 @@ return Installer.Build(args, package =>
     // Major upgrade support -- block downgrades
     package.MajorUpgrade(_ => { });
     package.Downgrade(d => d.Block("A newer version of FalkPad is already installed. Please uninstall it first."));
-
 }, new MsiCompiler());

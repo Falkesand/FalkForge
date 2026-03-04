@@ -4,5 +4,8 @@ namespace LifecycleDemo.Views;
 
 public partial class CompleteView : UserControl
 {
-    public CompleteView() => InitializeComponent();
+    public CompleteView()
+    {
+        InitializeComponent();
+    }
 }

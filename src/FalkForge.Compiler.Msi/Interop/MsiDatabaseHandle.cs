@@ -6,8 +6,14 @@ namespace FalkForge.Compiler.Msi.Interop;
 [SupportedOSPlatform("windows")]
 internal sealed class MsiDatabaseHandle : SafeHandle
 {
-    public MsiDatabaseHandle() : base(nint.Zero, ownsHandle: true) { }
-    public MsiDatabaseHandle(nint handle) : base(nint.Zero, ownsHandle: true) => SetHandle(handle);
+    public MsiDatabaseHandle() : base(nint.Zero, true)
+    {
+    }
+
+    public MsiDatabaseHandle(nint handle) : base(nint.Zero, true)
+    {
+        SetHandle(handle);
+    }
 
     public override bool IsInvalid => handle == nint.Zero;
 

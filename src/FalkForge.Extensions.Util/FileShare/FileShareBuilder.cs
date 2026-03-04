@@ -2,11 +2,11 @@ namespace FalkForge.Extensions.Util.FileShare;
 
 public sealed class FileShareBuilder
 {
-    private string _id = string.Empty;
-    private string _name = string.Empty;
+    private readonly List<FileSharePermission> _permissions = [];
     private string? _description;
     private string _directory = string.Empty;
-    private readonly List<FileSharePermission> _permissions = [];
+    private string _id = string.Empty;
+    private string _name = string.Empty;
 
     public FileShareBuilder Id(string id)
     {

@@ -1,3 +1,5 @@
+#pragma warning disable CA1822 // UI-bound properties must remain instance members
+
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
 using LifecycleDemo.Views;
@@ -6,8 +8,8 @@ namespace LifecycleDemo.Pages;
 
 public sealed class ConfigPage : InstallerPage<ConfigView>
 {
-    private string _dbServer = @".\SQLEXPRESS";
     private string _dbName = "ContosoDataHub";
+    private string _dbServer = @".\SQLEXPRESS";
     private bool _integratedSecurity = true;
     private string _userName = "sa";
 

@@ -1,10 +1,11 @@
 # Demo 01: Hello World
 
-The simplest possible FalkForge installer. Installs a single text file into Program Files using the minimal dialog set and built-in localization support.
+A minimal FalkForge installer that installs a single text file into Program Files. Covers the core setup every installer
+needs: metadata, dialogs, localization, cabinet configuration, and build reproducibility.
 
 ## What This Demonstrates
 
-- Minimal `Installer.Build` setup with name, manufacturer, and version
+- `Installer.Build` setup with name, manufacturer, and version
 - Using `MsiDialogSet.Minimal` for a streamlined install experience
 - Adding built-in culture support with automatic culture detection
 - Deploying a single file to a `KnownFolder.ProgramFiles` subdirectory
@@ -57,8 +58,12 @@ dotnet build demo/01-hello-world
 
 ## Notes
 
-- The `KnownFolder.ProgramFiles / "Demo" / "HelloWorld"` syntax builds the install directory path using the `/` operator for readability.
+- The `KnownFolder.ProgramFiles / "Demo" / "HelloWorld"` syntax builds the install directory path using the `/` operator
+  for readability.
 - `DetectCulture()` automatically selects the MSI language matching the user's OS locale.
-- `MediaTemplate` controls how payload files are packaged into cabinet (.cab) files. `EmbedCabinet(true)` stores cabinets inside the MSI itself.
-- `Reproducible()` ensures that building the same source twice produces a byte-identical MSI, useful for build verification and supply-chain integrity.
-- `EnableRestartManagerSupport()` allows Windows to gracefully close and restart applications that have files in use during installation, avoiding forced reboots.
+- `MediaTemplate` controls how payload files are packaged into cabinet (.cab) files. `EmbedCabinet(true)` stores
+  cabinets inside the MSI itself.
+- `Reproducible()` ensures that building the same source twice produces a byte-identical MSI, useful for build
+  verification and supply-chain integrity.
+- `EnableRestartManagerSupport()` allows Windows to gracefully close and restart applications that have files in use
+  during installation, avoiding forced reboots.

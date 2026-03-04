@@ -3,52 +3,52 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:FalkForge.Ui.Converters">
     <UserControl.Resources>
-        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
     </UserControl.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="164"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="164" />
+            <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- Watermark panel -->
         <Grid Grid.Column="0" Background="{DynamicResource WatermarkBrush}">
-            <Image Source="{DynamicResource WatermarkImage}" Stretch="Fill"/>
+            <Image Source="{DynamicResource WatermarkImage}" Stretch="Fill" />
         </Grid>
 
         <!-- Content panel -->
         <DockPanel Grid.Column="1" Margin="20,16,16,16" LastChildFill="False">
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Title}"
-                       Style="{StaticResource ExteriorTitle}"/>
+                       Style="{StaticResource ExteriorTitle}" />
 
             <TextBlock DockPanel.Dock="Top"
                        Text="Installation completed successfully."
                        FontSize="10" Foreground="Green"
                        Visibility="{Binding IsSuccess, Converter={StaticResource BoolToVisibility}}"
-                       Margin="0,0,0,8"/>
+                       Margin="0,0,0,8" />
             <TextBlock DockPanel.Dock="Top"
                        Text="Installation failed."
                        FontSize="10" Foreground="Red"
                        Visibility="{Binding IsSuccess, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
-                       Margin="0,0,0,8"/>
+                       Margin="0,0,0,8" />
 
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Message}"
-                       Style="{StaticResource ExteriorDescription}"/>
+                       Style="{StaticResource ExteriorDescription}" />
 
             <CheckBox DockPanel.Dock="Top"
                       Content="Launch application when closing"
                       IsChecked="{Binding LaunchOnClose}"
                       Visibility="{Binding IsSuccess, Converter={StaticResource BoolToVisibility}}"
-                      Margin="0,8,0,0"/>
+                      Margin="0,8,0,0" />
 
             <Button DockPanel.Dock="Bottom"
                     Content="Close"
                     Style="{StaticResource WizardButton}"
                     HorizontalAlignment="Right"
-                    Click="OnCloseClick"/>
+                    Click="OnCloseClick" />
         </DockPanel>
     </Grid>
 </UserControl>

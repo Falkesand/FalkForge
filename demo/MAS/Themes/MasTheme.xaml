@@ -3,25 +3,25 @@
 
     <!-- Banner -->
     <LinearGradientBrush x:Key="BannerBackground" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#E8E8E8" Offset="0"/>
-        <GradientStop Color="#D0D0D0" Offset="1"/>
+        <GradientStop Color="#E8E8E8" Offset="0" />
+        <GradientStop Color="#D0D0D0" Offset="1" />
     </LinearGradientBrush>
-    <SolidColorBrush x:Key="BannerSeparator" Color="#A0A0A0"/>
-    <SolidColorBrush x:Key="IconBrush" Color="#CC3300"/>
+    <SolidColorBrush x:Key="BannerSeparator" Color="#A0A0A0" />
+    <SolidColorBrush x:Key="IconBrush" Color="#CC3300" />
 
     <!-- Content -->
-    <SolidColorBrush x:Key="ContentBackground" Color="#F0F0F0"/>
+    <SolidColorBrush x:Key="ContentBackground" Color="#F0F0F0" />
 
     <!-- Button bar -->
-    <SolidColorBrush x:Key="ButtonBarBackground" Color="#F0F0F0"/>
-    <SolidColorBrush x:Key="ButtonBarSeparator" Color="#D0D0D0"/>
-    <SolidColorBrush x:Key="VersionForeground" Color="#808080"/>
+    <SolidColorBrush x:Key="ButtonBarBackground" Color="#F0F0F0" />
+    <SolidColorBrush x:Key="ButtonBarSeparator" Color="#D0D0D0" />
+    <SolidColorBrush x:Key="VersionForeground" Color="#808080" />
 
     <!-- Standard button style -->
     <Style x:Key="InstallerButton" TargetType="Button">
-        <Setter Property="MinWidth" Value="75"/>
-        <Setter Property="Height" Value="23"/>
-        <Setter Property="Margin" Value="4,0,0,0"/>
-        <Setter Property="Padding" Value="8,1"/>
+        <Setter Property="MinWidth" Value="75" />
+        <Setter Property="Height" Value="23" />
+        <Setter Property="Margin" Value="4,0,0,0" />
+        <Setter Property="Padding" Value="8,1" />
     </Style>
 </ResourceDictionary>

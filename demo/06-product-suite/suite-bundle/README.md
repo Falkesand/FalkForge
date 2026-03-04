@@ -1,6 +1,7 @@
 # Demo 06: Product Suite -- Suite Bundle
 
-The EXE bootstrapper that wraps the application and service MSI packages into a single installable bundle. Demonstrates the `BundleBuilder` and `BundleCompiler` workflow with rollback boundaries, built-in UI, and chained MSI packages.
+The EXE bootstrapper that wraps the application and service MSI packages into a single installable bundle. Demonstrates
+the `BundleBuilder` and `BundleCompiler` workflow with rollback boundaries, built-in UI, and chained MSI packages.
 
 ## What This Demonstrates
 
@@ -55,5 +56,7 @@ dotnet build demo/06-product-suite/suite-bundle/suite-bundle.csproj
 ## Notes
 
 - `Vital(true)` means the bundle will fail and trigger rollback if that package fails to install.
-- Rollback boundaries define isolation groups. If a package fails after a boundary, only packages within that boundary's group are rolled back.
-- The bundle references MSI outputs by relative path (`../app-installer/app-installer.msi`). In production, use the FalkForge SDK source generator (`ProjectOutputs.AppInstaller`) for compile-safe references.
+- Rollback boundaries define isolation groups. If a package fails after a boundary, only packages within that boundary's
+  group are rolled back.
+- The bundle references MSI outputs by relative path (`../app-installer/app-installer.msi`). In production, use the
+  FalkForge SDK source generator (`ProjectOutputs.AppInstaller`) for compile-safe references.

@@ -1,6 +1,6 @@
-namespace FalkForge.Plugins.Sql;
-
 using Microsoft.Data.SqlClient;
+
+namespace FalkForge.Plugins.Sql;
 
 internal static class ConnectionStringHelper
 {
@@ -16,7 +16,7 @@ internal static class ConnectionStringHelper
             TrustServerCertificate = trustServerCertificate,
             Encrypt = encrypt
                 ? SqlConnectionEncryptOption.Mandatory
-                : SqlConnectionEncryptOption.Optional,
+                : SqlConnectionEncryptOption.Optional
         };
         if (!string.IsNullOrEmpty(database))
             builder.InitialCatalog = database;
@@ -25,6 +25,7 @@ internal static class ConnectionStringHelper
             builder.UserID = userName ?? string.Empty;
             builder.Password = password ?? string.Empty;
         }
+
         return builder.ConnectionString;
     }
 }

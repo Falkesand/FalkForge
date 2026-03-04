@@ -1,7 +1,7 @@
-namespace FalkForge.Ui.Converters;
-
 using System.Globalization;
 using System.Windows.Data;
+
+namespace FalkForge.Ui.Converters;
 
 [ValueConversion(typeof(double), typeof(double))]
 public sealed class ProgressToWidthConverter : IMultiValueConverter

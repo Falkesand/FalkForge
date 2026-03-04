@@ -3,55 +3,55 @@
 
     <!-- Watermark gradient for exterior pages (Welcome, Complete) - left panel 164px -->
     <LinearGradientBrush x:Key="WatermarkBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#1B2A4A" Offset="0"/>
-        <GradientStop Color="#3B7DD8" Offset="1"/>
+        <GradientStop Color="#1B2A4A" Offset="0" />
+        <GradientStop Color="#3B7DD8" Offset="1" />
     </LinearGradientBrush>
 
     <!-- Banner icon gradient for interior pages - 49x49 placeholder -->
     <LinearGradientBrush x:Key="BannerIconBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#3B7DD8" Offset="0"/>
-        <GradientStop Color="#1B2A4A" Offset="1"/>
+        <GradientStop Color="#3B7DD8" Offset="0" />
+        <GradientStop Color="#1B2A4A" Offset="1" />
     </LinearGradientBrush>
 
     <!-- Wizard button style - classic 75x23 -->
     <Style x:Key="WizardButton" TargetType="Button">
-        <Setter Property="MinWidth" Value="75"/>
-        <Setter Property="Height" Value="23"/>
-        <Setter Property="Margin" Value="6,0,0,0"/>
-        <Setter Property="Padding" Value="8,1"/>
+        <Setter Property="MinWidth" Value="75" />
+        <Setter Property="Height" Value="23" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Padding" Value="8,1" />
     </Style>
 
     <!-- Banner title - interior pages -->
     <Style x:Key="BannerTitle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Margin" Value="16,8,0,0"/>
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Margin" Value="16,8,0,0" />
     </Style>
 
     <!-- Banner subtitle - interior pages -->
     <Style x:Key="BannerSubtitle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="9"/>
-        <Setter Property="Margin" Value="28,2,0,0"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="Margin" Value="28,2,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <!-- Exterior page title - Welcome, Complete -->
     <Style x:Key="ExteriorTitle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="18"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Margin" Value="0,0,0,8"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <!-- Exterior page description -->
     <Style x:Key="ExteriorDescription" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Segoe UI"/>
-        <Setter Property="FontSize" Value="9.5"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
-        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
 
 </ResourceDictionary>

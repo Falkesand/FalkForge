@@ -32,17 +32,25 @@ public partial class MasInstallerWindow : Window
 internal sealed class NullToCollapsedConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is string s && !string.IsNullOrEmpty(s) ? Visibility.Visible : Visibility.Collapsed;
+    {
+        return value is string s && !string.IsNullOrEmpty(s) ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotSupportedException();
+    {
+        throw new NotSupportedException();
+    }
 }
 
 internal sealed class BoolToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true ? Visibility.Visible : Visibility.Collapsed;
+    {
+        return value is true ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotSupportedException();
+    {
+        throw new NotSupportedException();
+    }
 }

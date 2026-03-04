@@ -1,6 +1,7 @@
 # Demo 16: Features
 
-Builds an installer with a nested feature tree, allowing users to selectively install components. Uses the `FeatureTree` dialog set to present the selection UI.
+Builds an installer with a nested feature tree, allowing users to selectively install components. Uses the `FeatureTree`
+dialog set to present the selection UI.
 
 ## What This Demonstrates
 
@@ -70,9 +71,12 @@ dotnet build demo/16-features
 
 ## Notes
 
-- Files are assigned to features by calling `.Files()` inside the feature lambda. Files outside any feature belong to the default feature.
+- Files are assigned to features by calling `.Files()` inside the feature lambda. Files outside any feature belong to
+  the default feature.
 - Nesting `app.Feature(...)` inside another feature creates a parent-child relationship in the feature tree UI.
 - `IsRequired = true` grays out the checkbox so the user cannot deselect the feature.
 - `AllowSameVersionUpgrades()` permits reinstalling the same version (useful for repair/patch scenarios).
-- `Schedule(AfterInstallExecute)` controls when the old product is removed. `AfterInstallExecute` installs new files first, then removes the old version, allowing file coexistence during the transition.
-- `MigrateFeatures(true)` preserves the user's feature selections from the previous installation, so upgrades do not reset optional components.
+- `Schedule(AfterInstallExecute)` controls when the old product is removed. `AfterInstallExecute` installs new files
+  first, then removes the old version, allowing file coexistence during the transition.
+- `MigrateFeatures(true)` preserves the user's feature selections from the previous installation, so upgrades do not
+  reset optional components.

@@ -1,7 +1,7 @@
-namespace FalkForge.Ui;
-
 using System.Windows;
 using System.Windows.Controls;
+
+namespace FalkForge.Ui;
 
 public static class PasswordBridge
 {
@@ -13,10 +13,14 @@ public static class PasswordBridge
             new PropertyMetadata(null, OnKeyChanged));
 
     public static string? GetKey(DependencyObject obj)
-        => (string?)obj.GetValue(KeyProperty);
+    {
+        return (string?)obj.GetValue(KeyProperty);
+    }
 
     public static void SetKey(DependencyObject obj, string? value)
-        => obj.SetValue(KeyProperty, value);
+    {
+        obj.SetValue(KeyProperty, value);
+    }
 
     private static void OnKeyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -71,5 +75,7 @@ public static class PasswordBridge
     }
 
     private static InstallerPage? FindInstallerPage(FrameworkElement element)
-        => element.DataContext as InstallerPage;
+    {
+        return element.DataContext as InstallerPage;
+    }
 }

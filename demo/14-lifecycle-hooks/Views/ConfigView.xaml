@@ -3,26 +3,26 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="clr-namespace:FalkForge.Ui;assembly=FalkForge.Ui">
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </UserControl.Resources>
     <StackPanel Margin="20">
-        <TextBlock Text="Database Connection" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,16"/>
+        <TextBlock Text="Database Connection" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,16" />
 
-        <TextBlock Text="{Binding ServerLabel}" Margin="0,0,0,4"/>
-        <TextBox Text="{Binding DbServer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+        <TextBlock Text="{Binding ServerLabel}" Margin="0,0,0,4" />
+        <TextBox Text="{Binding DbServer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
 
-        <TextBlock Text="{Binding DatabaseLabel}" Margin="0,0,0,4"/>
-        <TextBox Text="{Binding DbName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+        <TextBlock Text="{Binding DatabaseLabel}" Margin="0,0,0,4" />
+        <TextBox Text="{Binding DbName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
 
         <CheckBox Content="{Binding IntegratedSecurityLabel}"
-                  IsChecked="{Binding IntegratedSecurity}" Margin="0,0,0,12"/>
+                  IsChecked="{Binding IntegratedSecurity}" Margin="0,0,0,12" />
 
         <StackPanel Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisibility}}">
-            <TextBlock Text="{Binding UserNameLabel}" Margin="0,0,0,4"/>
-            <TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"/>
+            <TextBlock Text="{Binding UserNameLabel}" Margin="0,0,0,4" />
+            <TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
 
-            <TextBlock Text="{Binding PasswordLabel}" Margin="0,0,0,4"/>
-            <PasswordBox ui:PasswordBridge.Key="DbPassword" Margin="0,0,0,12"/>
+            <TextBlock Text="{Binding PasswordLabel}" Margin="0,0,0,4" />
+            <PasswordBox ui:PasswordBridge.Key="DbPassword" Margin="0,0,0,12" />
         </StackPanel>
     </StackPanel>
 </UserControl>

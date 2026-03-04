@@ -4,5 +4,8 @@ namespace MAS.Views;
 
 public partial class ConfirmParametersView : UserControl
 {
-    public ConfirmParametersView() => InitializeComponent();
+    public ConfirmParametersView()
+    {
+        InitializeComponent();
+    }
 }

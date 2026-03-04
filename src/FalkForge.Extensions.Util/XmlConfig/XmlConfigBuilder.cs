@@ -2,15 +2,15 @@ namespace FalkForge.Extensions.Util.XmlConfig;
 
 public sealed class XmlConfigBuilder
 {
-    private string _id = string.Empty;
-    private string _filePath = string.Empty;
-    private string _xPath = string.Empty;
     private XmlConfigAction _action;
-    private string? _elementName;
     private string? _attributeName;
-    private string? _value;
-    private int _sequence;
     private string? _componentRef;
+    private string? _elementName;
+    private string _filePath = string.Empty;
+    private string _id = string.Empty;
+    private int _sequence;
+    private string? _value;
+    private string _xPath = string.Empty;
 
     public XmlConfigBuilder Id(string id)
     {

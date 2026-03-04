@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 using FalkForge.Extensions.Sql;
 using FalkForge.Extensions.Sql.Builders;
 
@@ -36,7 +34,7 @@ if (script.IsFailure)
 }
 
 sql.Scripts.Add(script.Value);
-Console.WriteLine($"SQL: 1 database, 1 script configured.");
+Console.WriteLine("SQL: 1 database, 1 script configured.");
 
 // In production, extensions register automatically via the FalkForge SDK extension
 // pipeline during compilation. The package below shows the MSI structure; extension
@@ -51,5 +49,4 @@ return Installer.Build(args, package =>
         .Add("payload/app.exe")
         .Add("payload/schema.sql")
         .To(KnownFolder.ProgramFiles / "Demo" / "SqlDemo"));
-
 }, new MsiCompiler());

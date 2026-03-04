@@ -1,6 +1,7 @@
 # Demo 13: Glass UI
 
-A fully custom installer window with a translucent, rounded-corner "glass" aesthetic. This demo shows how to replace the default FalkForge window shell with a custom WPF `Window` subclass while still using the page navigation framework.
+A fully custom installer window with a translucent, rounded-corner "glass" aesthetic. This demo shows how to replace the
+default FalkForge window shell with a custom WPF `Window` subclass while still using the page navigation framework.
 
 ## What This Demonstrates
 
@@ -52,7 +53,11 @@ dotnet build demo/13-glass-ui/13-glass-ui.csproj
 
 ## Notes
 
-- `CustomWindow<T>()` tells the framework to instantiate your WPF Window class instead of the default shell. The window must contain a `ContentPresenter` bound to `{Binding CurrentView}` so pages render inside it.
-- The `GlassWindow` code-behind wires `DragMove()` on `MouseLeftButtonDown`, but excludes `Button` and `TextBlock` elements to avoid interfering with click interactions.
-- This demo has a single `InstallPage` with no Next/Back buttons -- the install is triggered programmatically, making it suitable for minimal or splash-screen style installers.
-- `Engine.PlanAsync` and `Engine.ApplyAsync` are the low-level engine methods. Most demos use `PageResult.Install` which calls these internally, but direct access is available when you need custom orchestration.
+- `CustomWindow<T>()` tells the framework to instantiate your WPF Window class instead of the default shell. The window
+  must contain a `ContentPresenter` bound to `{Binding CurrentView}` so pages render inside it.
+- The `GlassWindow` code-behind wires `DragMove()` on `MouseLeftButtonDown`, but excludes `Button` and `TextBlock`
+  elements to avoid interfering with click interactions.
+- This demo has a single `InstallPage` with no Next/Back buttons -- the install is triggered programmatically, making it
+  suitable for minimal or splash-screen style installers.
+- `Engine.PlanAsync` and `Engine.ApplyAsync` are the low-level engine methods. Most demos use `PageResult.Install` which
+  calls these internally, but direct access is available when you need custom orchestration.

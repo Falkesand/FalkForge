@@ -2,16 +2,16 @@ namespace FalkForge.Extensions.Util.UserManagement;
 
 public sealed class UserBuilder
 {
+    private bool _canNotChangePassword;
+    private string? _componentRef;
+    private bool _disabled;
+    private string? _domain;
     private string _name = string.Empty;
     private string? _password;
-    private string? _domain;
-    private bool _canNotChangePassword;
-    private bool _disabled;
     private bool _passwordExpired;
     private bool _passwordNeverExpires;
     private bool _removeOnUninstall;
     private bool _updateIfExists;
-    private string? _componentRef;
 
     public UserBuilder Name(string name)
     {

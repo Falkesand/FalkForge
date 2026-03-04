@@ -1,7 +1,5 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
-using FalkForge.Models;
 using FalkForge.Extensions.Dependency;
 
 // Register as a dependency provider and declare a dependency requirement.
@@ -26,7 +24,7 @@ if (errors.Count > 0)
     return 1;
 }
 
-Console.WriteLine($"Dependency: 1 provider, 1 consumer configured.");
+Console.WriteLine("Dependency: 1 provider, 1 consumer configured.");
 
 // In production, extensions register automatically via the FalkForge SDK extension
 // pipeline during compilation. The package below shows the MSI structure; extension
@@ -40,5 +38,4 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "DependencyDemo"));
-
 }, new MsiCompiler());

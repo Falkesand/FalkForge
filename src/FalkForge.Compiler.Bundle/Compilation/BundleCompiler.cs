@@ -5,8 +5,8 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 
 public sealed class BundleCompiler
 {
-    private readonly BundleValidator _validator = new();
     private readonly ManifestGenerator _manifestGenerator = new();
+    private readonly BundleValidator _validator = new();
 
     public Result<string> Compile(BundleModel model, string outputPath)
     {
@@ -31,7 +31,8 @@ public sealed class BundleCompiler
                 continue;
 
             if (!File.Exists(package.SourcePath))
-                return Result<string>.Failure(ErrorKind.PayloadError, $"Package source not found: {package.SourcePath}");
+                return Result<string>.Failure(ErrorKind.PayloadError,
+                    $"Package source not found: {package.SourcePath}");
 
             long originalSize;
             string hash;
@@ -60,8 +61,14 @@ public sealed class BundleCompiler
         var embedResult = embedder.Embed(stubPath, outputFilePath, manifest, payloads);
 
         // Clean up stub
-        try { File.Delete(stubPath); }
-        catch (IOException) { /* best effort cleanup */ }
+        try
+        {
+            File.Delete(stubPath);
+        }
+        catch (IOException)
+        {
+            /* best effort cleanup */
+        }
 
         if (embedResult.IsFailure)
             return Result<string>.Failure(embedResult.Error);

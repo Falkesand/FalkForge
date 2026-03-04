@@ -1,6 +1,6 @@
-namespace FalkForge.Models;
-
 using FalkForge.Builders;
+
+namespace FalkForge.Models;
 
 public sealed class PackageModel
 {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using GlassUi.Pages;
@@ -6,7 +7,10 @@ namespace GlassUi.Views;
 
 public partial class InstallView : UserControl
 {
-    public InstallView() => InitializeComponent();
+    public InstallView()
+    {
+        InitializeComponent();
+    }
 
     private async void Install_Click(object sender, RoutedEventArgs e)
     {
@@ -17,7 +21,7 @@ public partial class InstallView : UserControl
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Install failed: {ex.Message}");
+            Debug.WriteLine($"Install failed: {ex.Message}");
         }
     }
 

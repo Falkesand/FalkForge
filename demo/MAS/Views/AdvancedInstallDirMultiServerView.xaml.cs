@@ -6,7 +6,10 @@ namespace MAS.Views;
 
 public partial class AdvancedInstallDirMultiServerView : UserControl
 {
-    public AdvancedInstallDirMultiServerView() => InitializeComponent();
+    public AdvancedInstallDirMultiServerView()
+    {
+        InitializeComponent();
+    }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
