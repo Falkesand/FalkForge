@@ -21,6 +21,9 @@
         <Project Path="02-notepad-clone/02-notepad-clone.csproj" />
     </Folder>
     <Folder Name="/MAS/" />
+    <Folder Name="/MAS/bundle/">
+        <Project Path="MAS/bundle/MASBundle.csproj" />
+    </Folder>
     <Folder Name="/MAS/packages/">
         <Project Path="MAS/packages/Concatenate/Concatenate.csproj" />
         <Project Path="MAS/packages/Konfigurera/Konfigurera.csproj" />
