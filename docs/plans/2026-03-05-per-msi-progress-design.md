@@ -8,7 +8,6 @@ The FalkForge engine currently reports progress at package-level granularity onl
 
 - Smooth progress bar: continuous 0–100% across all packages
 - Developer controls display text per package (one string for entire package install)
-- Backwards compatible: existing UIs and executors unaffected if they don't opt in
 
 ## Architecture
 
@@ -21,7 +20,7 @@ public readonly record struct InstallProgress(
     int Current,           // package index (1-based)
     int Total,             // total packages
     string CurrentPackage, // package ID
-    int PackagePercent);   // 0-100 within current package (NEW, default 0)
+    int PackagePercent);   // 0-100 within current package
 ```
 
 UI calculates overall percent as:
@@ -64,16 +63,16 @@ Filter for `CYCLEINSTALLACTIONPROGRESS` messages (message type flags) that conta
 
 ### Executor Interface
 
-Add optional progress parameter:
+Add required progress parameter:
 
 ```csharp
 Task<Result<int>> ExecuteAsync(
     PlanAction action,
     CancellationToken ct,
-    IProgress<int>? packageProgress = null);
+    IProgress<int> packageProgress);
 ```
 
-Only `MsiExecutor` reports ticks. Other executors (`ExeExecutor`, `MsuExecutor`, `BundleExecutor`) ignore the parameter. Backwards compatible — default null means no per-package progress.
+Only `MsiExecutor` reports ticks. Other executors (`ExeExecutor`, `MsuExecutor`, `BundleExecutor`) ignore the parameter.
 
 ### ApplyingHandler
 
@@ -110,12 +109,6 @@ ProgressPercent = Math.Clamp(overall, 0, 100);
 
 Status text unchanged — uses localized per-package string mapped from package ID.
 
-### Backwards Compatibility
-
-- `PackagePercent` defaults to 0. Old engines or executors that don't report it still work — the UI falls back to package-level granularity
-- Executor interface has default `null` for progress parameter
-- Existing pipe protocol: `ProgressMessage` already carries `InstallProgress` — adding a field to the record struct is wire-compatible if using source-generated JSON with default values
-
 ## Components Changed
 
 | Component | File | Change |
@@ -135,4 +128,3 @@ Status text unchanged — uses localized per-package string mapped from package 
 2. `dotnet test D:/Git/FalkInstaller/FalkForge.slnx` — all pass
 3. Manual: install a multi-package bundle and observe smooth progress bar
 4. Manual: verify display text stays constant per package (no flickering action names)
-5. Backwards compat: old UI still works with new engine (ignores PackagePercent)
