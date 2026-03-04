@@ -1,3 +1,4 @@
+using FalkForge;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using MAS.Views;
@@ -34,6 +35,54 @@ public sealed class InstallProgressPage : MasPageBase<InstallProgressView>
     {
         get => _progressDetail;
         private set => SetField(ref _progressDetail, value);
+    }
+
+    protected override Task<bool> OnPlanBeginAsync(InstallAction action)
+    {
+        SetStringProperty("DBSERVER", "DatabaseServer");
+        SetStringProperty("DBNAME", "DatabaseName");
+        SetBoolProperty("INTEGRATEDSECURITY", "IntegratedSecurity");
+        SetBoolProperty("TRUSTSERVERCERTIFICATE", "TrustServerCertificate");
+        SetStringProperty("DBUSERNAME", "DbUserName");
+        SetStringProperty("INSTALLATIONTYPE", "InstallationType");
+
+        SetStringProperty("MSDSNNAME", "MultiServerDsnName");
+        SetStringProperty("MSSERVICENAME", "MultiServerServiceName");
+        SetStringProperty("MSSERVICEACCOUNT", "MultiServerServiceAccount");
+        SetBoolProperty("MSINSTALLASSERVICE", "MultiServerInstallAsService");
+        SetStringProperty("MSINSTALLFOLDER", "MultiServerInstallFolder");
+
+        SetStringProperty("MSEXDSNNAME", "MultiServerExDsnName");
+        SetStringProperty("MSEXSERVICENAME", "MultiServerExServiceName");
+        SetStringProperty("MSEXSERVICEACCOUNT", "MultiServerExServiceAccount");
+        SetBoolProperty("MSEXINSTALLASSERVICE", "MultiServerExInstallAsService");
+        SetStringProperty("MSEXINSTALLFOLDER", "MultiServerExInstallFolder");
+
+        SetSecureProperty("DBPASSWORD", "DbPassword");
+        SetSecureProperty("MSSERVICEPASSWORD", "MultiServerServicePassword");
+        SetSecureProperty("MSEXSERVICEPASSWORD", "MultiServerExServicePassword");
+
+        return Task.FromResult(true);
+    }
+
+    private void SetStringProperty(string msiProperty, string stateKey)
+    {
+        var value = SharedState.Get<string>(stateKey);
+        if (!string.IsNullOrEmpty(value))
+            Engine.SetProperty(msiProperty, value);
+    }
+
+    private void SetBoolProperty(string msiProperty, string stateKey)
+    {
+        var value = SharedState.Get<bool>(stateKey);
+        Engine.SetProperty(msiProperty, value ? "1" : "0");
+    }
+
+    private void SetSecureProperty(string msiProperty, string stateKey)
+    {
+        using var sensitive = SharedState.GetSensitive(stateKey);
+        if (!sensitive.IsEmpty)
+            Engine.SetSecureProperty(msiProperty, sensitive);
     }
 
     public override Task OnNavigatedToAsync()
