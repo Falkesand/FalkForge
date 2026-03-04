@@ -149,7 +149,9 @@ public sealed class InstallProgressPage : MasPageBase<InstallProgressView>
             : 0;
 
         ProgressPercent = percent;
-        ProgressDetail = progress.CurrentPackage;
+        var locKey = $"InstallProgress.Package.{progress.CurrentPackage}";
+        var localized = Localize(locKey);
+        ProgressDetail = localized != locKey ? localized : progress.CurrentPackage;
     }
 
     private void OnStatusMessage(string message)
