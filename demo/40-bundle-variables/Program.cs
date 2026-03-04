@@ -2,7 +2,7 @@ using FalkForge;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 
-// Define variables and conditional package installation.
+// Define variables with visibility controls and conditional package installation.
 return Installer.BuildBundle(args, outputPath =>
 {
     var bundle = new BundleBuilder()
@@ -16,6 +16,19 @@ return Installer.BuildBundle(args, outputPath =>
         .Variable("InstallOptionalTools", v => v
             .Numeric()
             .Default("0"))
+        // Persisted variable — survives bundle repair/modify sessions
+        .Variable("InstallPath", v => v
+            .String()
+            .Default(@"C:\Program Files\Demo")
+            .Persisted())
+        // Hidden variable — excluded from install logs
+        .Variable("LicenseKey", v => v
+            .String()
+            .Hidden())
+        // Secret variable — excluded from logs AND persisted state (implies Hidden)
+        .Variable("DatabasePassword", v => v
+            .String()
+            .Secret())
         .Chain(chain => chain
             .MsiPackage("CoreApp.msi", p => p
                 .Id("CoreApp")

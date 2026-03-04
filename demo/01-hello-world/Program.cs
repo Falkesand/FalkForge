@@ -18,6 +18,20 @@ return Installer.Build(args, package =>
         .DefaultCulture("en-US")
         .DetectCulture());
 
+    // Cabinet file settings — naming template, compression level, embedding
+    package.MediaTemplate(mt =>
+    {
+        mt.CabinetTemplate("data{0}.cab");
+        mt.CompressionLevel(CompressionLevel.High);
+        mt.EmbedCabinet(true);
+    });
+
+    // Enable deterministic builds (same source → identical MSI output)
+    package.Reproducible();
+
+    // Enable Windows Restart Manager — gracefully close files-in-use during install
+    package.EnableRestartManagerSupport();
+
     package.Files(files => files
         .Add("payload/hello.txt")
         .To(KnownFolder.ProgramFiles / "Demo" / "HelloWorld"));

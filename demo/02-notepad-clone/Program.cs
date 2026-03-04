@@ -42,13 +42,27 @@ return Installer.Build(args, package =>
         .WithDescription("Launch FalkPad text editor")
         .OnStartMenu("Falk Software");
 
+    // Startup shortcut — launches on Windows login
+    package.Shortcut("FalkPad Startup", "falkpad.exe")
+        .WithArguments("--minimized")
+        .WithWorkingDirectory(@"[ProgramFilesFolder]Falk Software\FalkPad")
+        .OnStartup();
+
     // Registry entries
     package.Registry(reg => reg
         .Key(RegistryRoot.LocalMachine, @"Software\FalkSoftware\FalkPad", key =>
         {
             key.Value("Version", "2.1.0");
             key.Value("InstallPath", MsiProperty.InstallDir);
+            key.DWord("EditorFlags", 3);
+            key.DefaultValue("FalkPad Text Editor");
         }));
+
+    // Remove registry entries on uninstall
+    package.RemoveRegistry(rr => rr
+        .Root(RegistryRoot.LocalMachine)
+        .Key(@"Software\FalkSoftware\FalkPad")
+        .RemoveKey());
 
     // Major upgrade support -- block downgrades
     package.MajorUpgrade(_ => { });

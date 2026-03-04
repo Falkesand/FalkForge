@@ -3,7 +3,7 @@ using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
-// Install a Windows service with startup dependencies and failure recovery.
+// Install a Windows service with startup dependencies, failure recovery, and service control.
 return Installer.Build(args, package =>
 {
     package.Name = "Service Demo";
@@ -23,16 +23,60 @@ return Installer.Build(args, package =>
         svc.StartMode = ServiceStartMode.Automatic;
         svc.Account = ServiceAccount.LocalService;
 
-        // Depend on another service (won't start until Tcpip is running)
+        // Depend on a specific service (won't start until Tcpip is running)
         svc.DependsOn("Tcpip");
+
+        // Depend on a service group (waits for all services in the network group)
+        svc.DependsOnGroup("NetworkProvider");
+
+        // Configure failure recovery actions
+        svc.FailureActions(fa =>
+        {
+            fa.OnFirstFailure = FailureAction.Restart;
+            fa.OnSecondFailure = FailureAction.Restart;
+            fa.OnSubsequentFailures = FailureAction.None;
+            fa.ResetPeriod = TimeSpan.FromDays(1);
+            fa.RestartDelay = TimeSpan.FromSeconds(30);
+        });
     });
 
-    // Stop the service before uninstall, start after install
+    // A second service running under a domain account
+    package.Service("DemoWorker", svc =>
+    {
+        svc.DisplayName = "Demo Worker Service";
+        svc.Executable = @"[ProgramFilesFolder]Demo\ServiceDemo\myservice.exe";
+        svc.StartMode = ServiceStartMode.Manual;
+        svc.UserName = @".\DemoUser";
+        svc.Password = "[DEMO_PASSWORD]";
+
+        // Run a diagnostic command on failure
+        svc.FailureActions(fa =>
+        {
+            fa.OnFirstFailure = FailureAction.RunCommand;
+            fa.Command = @"[ProgramFilesFolder]Demo\ServiceDemo\myservice.exe --diagnose";
+            fa.OnSecondFailure = FailureAction.Restart;
+            fa.OnSubsequentFailures = FailureAction.Reboot;
+            fa.RebootMessage = "Demo Worker service has failed repeatedly. Rebooting.";
+        });
+    });
+
+    // Service control — stop before uninstall, start after install
     package.ServiceControl(sc =>
     {
         sc.ServiceName("DemoService");
         sc.StopOnUninstall();
         sc.StartOnInstall();
+        sc.DeleteOnUninstall();
+        sc.Wait(true);
+    });
+
+    // Control an existing service — stop during install, pass arguments on start
+    package.ServiceControl(sc =>
+    {
+        sc.ServiceName("DemoWorker");
+        sc.StopOnInstall();
+        sc.StartOnInstall();
+        sc.Arguments("--config=[INSTALLDIR]config.json");
         sc.DeleteOnUninstall();
     });
 

@@ -45,4 +45,12 @@ return Installer.Build(args, package =>
             .To(KnownFolder.ProgramFiles / "Demo" / "FeatureDemo" / "Docs"));
     });
 
+    // Major upgrade — migrate user's feature selections from the old version
+    package.MajorUpgrade(mu =>
+    {
+        mu.AllowSameVersionUpgrades();
+        mu.Schedule(RemoveExistingProductsSchedule.AfterInstallExecute);
+        mu.MigrateFeatures(true);
+    });
+
 }, new MsiCompiler());
