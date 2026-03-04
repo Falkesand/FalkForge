@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>MAS.Packages.MultiServerEx</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../src/FalkForge.Core/FalkForge.Core.csproj" />
+    <ProjectReference Include="../../../../src/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/MultiServerEx.exe" />
+  </ItemGroup>
+</Project>
