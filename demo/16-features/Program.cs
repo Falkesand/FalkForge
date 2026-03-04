@@ -1,0 +1,51 @@
+using FalkForge;
+using FalkForge.Builders;
+using FalkForge.Compiler.Msi;
+using FalkForge.Models;
+
+// Nested feature tree: users can select which components to install.
+return Installer.Build(args, package =>
+{
+    package.Name = "Feature Tree Demo";
+    package.Manufacturer = "Demo";
+    package.Version = new Version(1, 0, 0);
+    package.UseDialogSet(MsiDialogSet.FeatureTree);
+
+    package.Feature("Application", app =>
+    {
+        app.Title = "Application";
+        app.Description = "Core application files";
+        app.IsRequired = true;
+
+        app.Files(f => f
+            .Add("payload/app.exe")
+            .To(KnownFolder.ProgramFiles / "Demo" / "FeatureDemo"));
+
+        // Nested optional feature
+        app.Feature("Plugins", plugins =>
+        {
+            plugins.Title = "Plugins";
+            plugins.Description = "Optional editor plugins";
+            plugins.IsDefault = true;
+
+            plugins.Files(f => f
+                .Add("payload/plugins/editor.dll")
+                .To(KnownFolder.ProgramFiles / "Demo" / "FeatureDemo" / "Plugins"));
+        });
+    });
+
+    package.Feature("Documentation", docs =>
+    {
+        docs.Title = "Documentation";
+        docs.Description = "User guide and README";
+        docs.IsDefault = false;
+
+        // Condition: only show this feature on 64-bit OS
+        docs.Condition(Condition.Is64BitOS, 1);
+
+        docs.Files(f => f
+            .Add("payload/docs/readme.txt")
+            .To(KnownFolder.ProgramFiles / "Demo" / "FeatureDemo" / "Docs"));
+    });
+
+}, new MsiCompiler());
