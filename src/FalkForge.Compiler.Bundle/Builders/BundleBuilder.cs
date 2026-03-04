@@ -20,6 +20,7 @@ public sealed class BundleBuilder
     private readonly List<BundleFeatureModel> _features = new();
     private readonly List<BundleDependencyProviderModel> _dependencyProviders = new();
     private readonly List<BundleDependencyConsumerModel> _dependencyConsumers = new();
+    private readonly List<BundleDependencyRequirementModel> _dependencyRequirements = new();
     private BundleUiConfig? _uiConfig;
     private UpdateFeedConfig? _updateFeed;
     private int _containerCounter;
@@ -195,6 +196,25 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder RequiresDependency(
+        string providerKey,
+        string? minVersion = null,
+        string? maxVersion = null,
+        bool minInclusive = true,
+        bool maxInclusive = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
+        _dependencyRequirements.Add(new BundleDependencyRequirementModel
+        {
+            ProviderKey = providerKey,
+            MinVersion = minVersion,
+            MaxVersion = maxVersion,
+            MinInclusive = minInclusive,
+            MaxInclusive = maxInclusive
+        });
+        return this;
+    }
+
     public BundleModel Build()
     {
         var upgradeCode = _upgradeCode ?? (_reproducibleOptions is not null
@@ -220,6 +240,7 @@ public sealed class BundleBuilder
             Features = _features.AsReadOnly(),
             DependencyProviders = _dependencyProviders.AsReadOnly(),
             DependencyConsumers = _dependencyConsumers.AsReadOnly(),
+            DependencyRequirements = _dependencyRequirements.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig,
             UpdateFeed = _updateFeed
