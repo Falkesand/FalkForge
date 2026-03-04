@@ -22,6 +22,8 @@ return InstallerApp.Run(args, app => app
         .Add<InstallationTypePage>()
         .Add<DatabaseServerPage>()
         .Add<ConfirmParametersPage>()
+        .Add<InstallProgressPage>()
+        .Add<CompletionPage>()
         .Add<AdvancedInstallDirMultiServerPage>()
         .Add<AdvancedInstallDirMultiServerExPage>()
         .Add<DatabaseConnectionSettingsPage>()

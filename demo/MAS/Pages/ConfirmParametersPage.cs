@@ -195,7 +195,7 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
 
     public override PageResult OnNext()
     {
-        return PageResult.Install;
+        return PageResult.GoTo<InstallProgressPage>();
     }
 
     public override PageResult OnBack()
