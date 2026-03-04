@@ -13,4 +13,9 @@ public sealed class DotNetExtension : IFalkForgeExtension
         // Detection results are populated as variables by the engine
         // via DotNetDetector during the detect phase.
     }
+
+    public DotNetCoreSearchBuilder SearchForRuntime()
+    {
+        return new DotNetCoreSearchBuilder();
+    }
 }
