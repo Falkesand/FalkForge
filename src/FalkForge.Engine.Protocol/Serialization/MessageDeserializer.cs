@@ -59,7 +59,7 @@ public static class MessageDeserializer
                 MessageType.Progress => new ProgressMessage
                 {
                     SequenceId = sequenceId,
-                    Progress = new InstallProgress(reader.ReadInt32(), reader.ReadInt32(), reader.ReadString())
+                    Progress = new InstallProgress(reader.ReadInt32(), reader.ReadInt32(), reader.ReadString(), reader.ReadInt32())
                 },
                 MessageType.Error => new ErrorMessage
                     { SequenceId = sequenceId, Message = reader.ReadString(), Kind = (ErrorKind)reader.ReadInt32() },
@@ -83,6 +83,11 @@ public static class MessageDeserializer
                     { SequenceId = sequenceId, PropertyName = reader.ReadString(), Value = reader.ReadString() },
                 MessageType.SetSecureProperty => ReadSetSecureProperty(reader, sequenceId),
                 MessageType.ElevateExecute => ReadElevateExecute(reader, sequenceId),
+                MessageType.ElevateProgress => new ElevateProgressMessage
+                {
+                    SequenceId = sequenceId,
+                    Percent = reader.ReadInt32()
+                },
                 MessageType.ElevateResult => ReadElevateResult(reader, sequenceId),
                 MessageType.UpdateAvailable => new UpdateAvailableMessage
                 {

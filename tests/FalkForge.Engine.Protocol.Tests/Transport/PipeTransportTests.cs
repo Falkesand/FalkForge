@@ -159,7 +159,7 @@ public class PipeTransportTests
         var message = new ProgressMessage
         {
             SequenceId = 42,
-            Progress = new InstallProgress(5, 10, "TestPackage")
+            Progress = new InstallProgress(5, 10, "TestPackage", 75)
         };
         var sendResult = await server.SendAsync(message);
 
@@ -174,6 +174,7 @@ public class PipeTransportTests
         Assert.Equal(5, progressMsg.Progress.Current);
         Assert.Equal(10, progressMsg.Progress.Total);
         Assert.Equal("TestPackage", progressMsg.Progress.CurrentPackage);
+        Assert.Equal(75, progressMsg.Progress.PackagePercent);
     }
 
     [Fact]

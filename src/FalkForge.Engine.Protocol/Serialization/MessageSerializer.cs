@@ -79,6 +79,7 @@ public static class MessageSerializer
                 writer.Write(m.Progress.Current);
                 writer.Write(m.Progress.Total);
                 writer.Write(m.Progress.CurrentPackage);
+                writer.Write(m.Progress.PackagePercent);
                 break;
 
             case ErrorMessage m:
@@ -139,6 +140,10 @@ public static class MessageSerializer
                 writer.Write(m.CommandName);
                 writer.Write(m.CommandPayload.Length);
                 writer.Write(m.CommandPayload);
+                break;
+
+            case ElevateProgressMessage m:
+                writer.Write(m.Percent);
                 break;
 
             case ElevateResultMessage m:

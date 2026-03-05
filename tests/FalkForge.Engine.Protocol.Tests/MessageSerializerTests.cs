@@ -78,7 +78,7 @@ public class MessageSerializerTests
         var message = new ProgressMessage
         {
             SequenceId = 10,
-            Progress = new InstallProgress(5, 20, "package-a")
+            Progress = new InstallProgress(5, 20, "package-a", 42)
         };
 
         var bytes = MessageSerializer.Serialize(message);
@@ -93,10 +93,12 @@ public class MessageSerializerTests
         var current = reader.ReadInt32();
         var total = reader.ReadInt32();
         var packageName = reader.ReadString();
+        var packagePercent = reader.ReadInt32();
 
         Assert.Equal(5, current);
         Assert.Equal(20, total);
         Assert.Equal("package-a", packageName);
+        Assert.Equal(42, packagePercent);
     }
 
     [Fact]

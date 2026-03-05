@@ -185,7 +185,7 @@ public class MessageRoundtripTests
         var original = new ProgressMessage
         {
             SequenceId = 10,
-            Progress = new InstallProgress(7, 25, "Microsoft.NETCore.App.Runtime")
+            Progress = new InstallProgress(7, 25, "Microsoft.NETCore.App.Runtime", 63)
         };
 
         var deserialized = RoundTrip(original);
@@ -194,6 +194,7 @@ public class MessageRoundtripTests
         Assert.Equal(7, deserialized.Progress.Current);
         Assert.Equal(25, deserialized.Progress.Total);
         Assert.Equal("Microsoft.NETCore.App.Runtime", deserialized.Progress.CurrentPackage);
+        Assert.Equal(63, deserialized.Progress.PackagePercent);
     }
 
     [Theory]
