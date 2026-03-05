@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Planning;
 
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
 
@@ -14,8 +15,10 @@ public sealed class Planner
         IReadOnlyList<RelatedBundleInfo>? detectedRelatedBundles = null,
         IReadOnlyDictionary<string, bool>? featureSelections = null,
         IReadOnlyDictionary<string, string>? userProperties = null,
-        IReadOnlySet<string>? secretPropertyNames = null)
+        IReadOnlySet<string>? secretPropertyNames = null,
+        IReadOnlyDictionary<string, InstallState>? detectedPackageStates = null)
     {
+        var orderedPackages = OrderWithPrerequisites(manifest.Packages, detectedPackageStates);
         var actions = new List<PlanAction>();
 
         // Build feature-to-package lookup: packageId -> set of featureIds that reference it
@@ -28,7 +31,7 @@ public sealed class Planner
                 // Plan uninstall of upgrade-related bundles before installing new packages
                 AddRelatedBundleUninstalls(detectedRelatedBundles, actions);
 
-                var result = AddPackagesForward(manifest.Packages, PlanActionType.Install, variables, actions, packageFeatureMap, featureSelections);
+                var result = AddPackagesForward(orderedPackages, PlanActionType.Install, variables, actions, packageFeatureMap, featureSelections);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -45,7 +48,7 @@ public sealed class Planner
 
             case InstallAction.Repair:
             {
-                var result = AddPackagesForward(manifest.Packages, PlanActionType.Repair, variables, actions, packageFeatureMap, featureSelections);
+                var result = AddPackagesForward(orderedPackages, PlanActionType.Repair, variables, actions, packageFeatureMap, featureSelections);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -53,7 +56,7 @@ public sealed class Planner
 
             case InstallAction.Modify:
             {
-                var result = AddPackagesForward(manifest.Packages, PlanActionType.Install, variables, actions, packageFeatureMap, featureSelections);
+                var result = AddPackagesForward(orderedPackages, PlanActionType.Install, variables, actions, packageFeatureMap, featureSelections);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -74,6 +77,78 @@ public sealed class Planner
             Segments = segments,
             TotalDiskSpaceRequired = 0 // Would calculate from package sizes
         };
+    }
+
+    private static PackageInfo[] OrderWithPrerequisites(
+        PackageInfo[] packages,
+        IReadOnlyDictionary<string, InstallState>? detectedPackageStates)
+    {
+        var hasPrereqs = false;
+        foreach (var pkg in packages)
+        {
+            if (pkg.IsPrerequisite)
+            {
+                hasPrereqs = true;
+                break;
+            }
+        }
+
+        if (!hasPrereqs)
+            return packages;
+
+        var prereqs = new List<PackageInfo>();
+        var main = new List<PackageInfo>();
+
+        foreach (var pkg in packages)
+        {
+            if (pkg.IsPrerequisite)
+            {
+                // Skip prerequisites that are already installed
+                if (detectedPackageStates is not null &&
+                    detectedPackageStates.TryGetValue(pkg.Id, out var state) &&
+                    state == InstallState.Installed)
+                {
+                    continue;
+                }
+
+                // Force Vital=true on prerequisites
+                if (pkg.Vital)
+                {
+                    prereqs.Add(pkg);
+                }
+                else
+                {
+                    prereqs.Add(new PackageInfo
+                    {
+                        Id = pkg.Id,
+                        Type = pkg.Type,
+                        DisplayName = pkg.DisplayName,
+                        Version = pkg.Version,
+                        Vital = true,
+                        SourcePath = pkg.SourcePath,
+                        Sha256Hash = pkg.Sha256Hash,
+                        Properties = pkg.Properties,
+                        InstallCondition = pkg.InstallCondition,
+                        ExitCodes = pkg.ExitCodes,
+                        KbArticle = pkg.KbArticle,
+                        PatchCode = pkg.PatchCode,
+                        TargetProductCode = pkg.TargetProductCode,
+                        DownloadUrl = pkg.DownloadUrl,
+                        ContainerId = pkg.ContainerId,
+                        IsPrerequisite = pkg.IsPrerequisite
+                    });
+                }
+            }
+            else
+            {
+                main.Add(pkg);
+            }
+        }
+
+        var result = new PackageInfo[prereqs.Count + main.Count];
+        prereqs.CopyTo(result, 0);
+        main.CopyTo(result, prereqs.Count);
+        return result;
     }
 
     private static List<RollbackSegment> BuildSegments(
