@@ -51,6 +51,15 @@ public sealed class StudioViewModel : ViewModelBase
         TreeNodes.Add(new TreeNodeViewModel("Build Settings", "build"));
     }
 
+    public void Build(string baseDirectory)
+    {
+        OutputText = "Building...\n";
+        var result = StudioBuildService.Compile(_project, baseDirectory);
+        OutputText += result.IsSuccess
+            ? $"Build succeeded: {result.Value}\n"
+            : $"Build failed: {result.Error.Message}\n";
+    }
+
     public void NavigateTo(string nodeKey)
     {
         OutputText = $"Selected: {nodeKey}";

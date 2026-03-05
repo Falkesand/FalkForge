@@ -25,6 +25,10 @@ public partial class StudioWindow : Window
 
     private void OpenProject_Click(object sender, RoutedEventArgs e) { }
     private void SaveProject_Click(object sender, RoutedEventArgs e) { }
-    private void Build_Click(object sender, RoutedEventArgs e) { }
+    private void Build_Click(object sender, RoutedEventArgs e)
+    {
+        var baseDir = Environment.CurrentDirectory;
+        ViewModel.Build(baseDir);
+    }
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 }
