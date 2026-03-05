@@ -85,7 +85,7 @@ public sealed class ElevationClientTests
         // ElevationClient uses Interlocked.Increment for SequenceId starting at 0, so first = 1.
         var pendingRequests = GetPendingRequests(client);
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingRequests[1u] = tcs;
+        pendingRequests[1u] = (tcs, null);
 
         // Act: Deliver a success result with matching SequenceId
         var resultMessage = new ElevateResultMessage
@@ -115,7 +115,7 @@ public sealed class ElevationClientTests
 
         var pendingRequests = GetPendingRequests(client);
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingRequests[5u] = tcs;
+        pendingRequests[5u] = (tcs, null);
 
         // Act: Deliver a failure result
         var resultMessage = new ElevateResultMessage
@@ -209,7 +209,7 @@ public sealed class ElevationClientTests
 
         var pendingRequests = GetPendingRequests(client);
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingRequests[10u] = tcs;
+        pendingRequests[10u] = (tcs, null);
 
         // Act: Dispose the client
         await client.DisposeAsync();
@@ -229,7 +229,7 @@ public sealed class ElevationClientTests
 
         var pendingRequests = GetPendingRequests(client);
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingRequests[1u] = tcs;
+        pendingRequests[1u] = (tcs, null);
 
         // Act: Deliver a result with a different SequenceId
         var resultMessage = new ElevateResultMessage
@@ -257,7 +257,7 @@ public sealed class ElevationClientTests
 
         var pendingRequests = GetPendingRequests(client);
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingRequests[7u] = tcs;
+        pendingRequests[7u] = (tcs, null);
 
         var expectedPayload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03 };
 
@@ -307,7 +307,7 @@ public sealed class ElevationClientTests
 
         var pendingRequests = GetPendingRequests(client);
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pendingRequests[1u] = tcs;
+        pendingRequests[1u] = (tcs, null);
 
         // Act: Send a different message type (not ElevateResultMessage)
         var otherMessage = new ElevateExecuteMessage
@@ -327,12 +327,12 @@ public sealed class ElevationClientTests
 
     #region Reflection helpers for accessing internal state
 
-    private static System.Collections.Concurrent.ConcurrentDictionary<uint, TaskCompletionSource<ElevateResultMessage>> GetPendingRequests(ElevationClient client)
+    private static System.Collections.Concurrent.ConcurrentDictionary<uint, (TaskCompletionSource<ElevateResultMessage> Tcs, IProgress<int>? Progress)> GetPendingRequests(ElevationClient client)
     {
         var field = typeof(ElevationClient).GetField("_pendingRequests",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
             ?? throw new InvalidOperationException("Cannot find _pendingRequests field");
-        return (System.Collections.Concurrent.ConcurrentDictionary<uint, TaskCompletionSource<ElevateResultMessage>>)field.GetValue(client)!;
+        return (System.Collections.Concurrent.ConcurrentDictionary<uint, (TaskCompletionSource<ElevateResultMessage> Tcs, IProgress<int>? Progress)>)field.GetValue(client)!;
     }
 
     private static uint GetNextSequenceId(ElevationClient client)

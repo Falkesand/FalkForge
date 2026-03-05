@@ -79,7 +79,19 @@ public sealed class ElevatedHost : IAsyncDisposable
     {
         if (message is ElevateExecuteMessage executeMsg)
         {
-            var result = _executor.Execute(executeMsg);
+            Action<int> onProgress = percent =>
+            {
+                if (_pipe is not null)
+                {
+                    _ = _pipe.SendAsync(new ElevateProgressMessage
+                    {
+                        SequenceId = executeMsg.SequenceId,
+                        Percent = percent
+                    });
+                }
+            };
+
+            var result = _executor.Execute(executeMsg, onProgress);
             if (_pipe is not null)
                 await _pipe.SendAsync(result);
         }

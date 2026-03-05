@@ -254,7 +254,7 @@ internal sealed class MockElevationClient : IElevationClient
     public byte[]? LastPayload { get; private set; }
     public Result<byte[]> ResultToReturn { get; set; } = Result<byte[]>.Success([]);
 
-    public Task<Result<byte[]>> SendCommandAsync(string commandName, byte[] payload, CancellationToken cancellationToken = default)
+    public Task<Result<byte[]>> SendCommandAsync(string commandName, byte[] payload, CancellationToken cancellationToken = default, IProgress<int>? progress = null)
     {
         CallCount++;
         LastCommandName = commandName;

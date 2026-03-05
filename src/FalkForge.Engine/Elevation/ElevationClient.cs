@@ -14,7 +14,7 @@ internal sealed class ElevationClient : IElevationClient
 
     private readonly PipeServer _pipe;
     private readonly TimeSpan _commandTimeout;
-    private readonly ConcurrentDictionary<uint, TaskCompletionSource<ElevateResultMessage>> _pendingRequests = new();
+    private readonly ConcurrentDictionary<uint, (TaskCompletionSource<ElevateResultMessage> Tcs, IProgress<int>? Progress)> _pendingRequests = new();
     private uint _nextSequenceId;
     private volatile bool _disposed;
 
@@ -36,10 +36,17 @@ internal sealed class ElevationClient : IElevationClient
     /// </summary>
     public Task HandleMessageAsync(EngineMessage message)
     {
-        if (message is ElevateResultMessage result
-            && _pendingRequests.TryRemove(result.SequenceId, out var tcs))
+        switch (message)
         {
-            tcs.TrySetResult(result);
+            case ElevateResultMessage result
+                when _pendingRequests.TryRemove(result.SequenceId, out var entry):
+                entry.Tcs.TrySetResult(result);
+                break;
+
+            case ElevateProgressMessage progress
+                when _pendingRequests.TryGetValue(progress.SequenceId, out var progressEntry):
+                progressEntry.Progress?.Report(progress.Percent);
+                break;
         }
 
         return Task.CompletedTask;
@@ -48,7 +55,8 @@ internal sealed class ElevationClient : IElevationClient
     public async Task<Result<byte[]>> SendCommandAsync(
         string commandName,
         byte[] payload,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         if (_disposed)
             return Result<byte[]>.Failure(ErrorKind.ElevationError, "Elevation client has been disposed");
@@ -56,7 +64,7 @@ internal sealed class ElevationClient : IElevationClient
         var sequenceId = Interlocked.Increment(ref _nextSequenceId);
 
         var tcs = new TaskCompletionSource<ElevateResultMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pendingRequests[sequenceId] = tcs;
+        _pendingRequests[sequenceId] = (tcs, progress);
 
         var message = new ElevateExecuteMessage
         {
@@ -125,9 +133,9 @@ internal sealed class ElevationClient : IElevationClient
         // Complete all pending requests with cancellation so callers don't hang
         foreach (var kvp in _pendingRequests)
         {
-            if (_pendingRequests.TryRemove(kvp.Key, out var tcs))
+            if (_pendingRequests.TryRemove(kvp.Key, out var entry))
             {
-                tcs.TrySetCanceled();
+                entry.Tcs.TrySetCanceled();
             }
         }
 

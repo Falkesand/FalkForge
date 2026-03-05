@@ -5,5 +5,5 @@ namespace FalkForge.Engine.Elevation;
 /// </summary>
 public interface IElevationClient : IAsyncDisposable
 {
-    Task<Result<byte[]>> SendCommandAsync(string commandName, byte[] payload, CancellationToken cancellationToken = default);
+    Task<Result<byte[]>> SendCommandAsync(string commandName, byte[] payload, CancellationToken cancellationToken = default, IProgress<int>? progress = null);
 }

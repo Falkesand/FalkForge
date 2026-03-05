@@ -51,7 +51,7 @@ public sealed partial class MsiExecutor
         var elevationClient = _elevationClientAccessor();
         if (elevationClient is not null)
         {
-            return await ExecuteElevatedAsync(action, propsResult.Value, elevationClient, ct);
+            return await ExecuteElevatedAsync(action, propsResult.Value, elevationClient, ct, packageProgress);
         }
 
         return ExecuteDirect(action, propsResult.Value, packageProgress);
@@ -112,7 +112,8 @@ public sealed partial class MsiExecutor
         PlanAction action,
         string additionalArgs,
         IElevationClient elevationClient,
-        CancellationToken ct)
+        CancellationToken ct,
+        IProgress<int> packageProgress)
     {
         try
         {
@@ -145,7 +146,7 @@ public sealed partial class MsiExecutor
                 payload = stream.ToArray();
             }
 
-            var result = await elevationClient.SendCommandAsync(commandName, payload, ct);
+            var result = await elevationClient.SendCommandAsync(commandName, payload, ct, packageProgress);
             if (result.IsFailure)
             {
                 return Result<int>.Failure(ErrorKind.ExecutionError, result.Error.Message);
