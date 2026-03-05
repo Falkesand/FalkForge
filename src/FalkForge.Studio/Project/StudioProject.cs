@@ -25,6 +25,12 @@ public sealed class StudioProject
     [JsonPropertyName("shortcuts")]
     public List<ShortcutSection> Shortcuts { get; set; } = [];
 
+    [JsonPropertyName("environment")]
+    public List<EnvironmentVariableSection> Environment { get; set; } = [];
+
+    [JsonPropertyName("customActions")]
+    public List<CustomActionSection> CustomActions { get; set; } = [];
+
     [JsonPropertyName("ui")]
     public UiSection Ui { get; set; } = new();
 

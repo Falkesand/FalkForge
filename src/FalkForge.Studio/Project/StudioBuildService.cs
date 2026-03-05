@@ -3,6 +3,7 @@ using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
+using EnvironmentVariableAction = FalkForge.Models.EnvironmentVariableAction;
 
 namespace FalkForge.Studio.Project;
 
@@ -167,6 +168,55 @@ public static class StudioBuildService
             if (!string.IsNullOrWhiteSpace(shortcut.Description)) sb.WithDescription(shortcut.Description);
             if (!string.IsNullOrWhiteSpace(shortcut.IconFile)) sb.WithIcon(shortcut.IconFile, 0);
             if (!string.IsNullOrWhiteSpace(shortcut.WorkingDirectory)) sb.WithWorkingDirectory(shortcut.WorkingDirectory);
+        }
+
+        foreach (var env in project.Environment)
+        {
+            if (string.IsNullOrWhiteSpace(env.Name))
+                return Result<PackageModel>.Failure(ErrorKind.Validation, "Environment variable name is required.");
+
+            if (!Enum.TryParse<EnvironmentVariableAction>(env.Action, ignoreCase: true, out var action))
+                return Result<PackageModel>.Failure(ErrorKind.Validation,
+                    $"Invalid environment variable action: '{env.Action}'.");
+
+            builder.EnvironmentVariable(env.Name, env.Value, e =>
+            {
+                e.IsSystem = env.IsSystem;
+                e.Action = action;
+            });
+        }
+
+        foreach (var ca in project.CustomActions)
+        {
+            if (string.IsNullOrWhiteSpace(ca.Id))
+                return Result<PackageModel>.Failure(ErrorKind.Validation, "Custom action id is required.");
+
+            builder.CustomAction(ca.Id, cab =>
+            {
+                switch (ca.Type)
+                {
+                    case "DllFromBinary":
+                        cab.DllFromBinary(ca.Source, ca.Target ?? "");
+                        break;
+                    case "ExeFromBinary":
+                        cab.ExeFromBinary(ca.Source);
+                        break;
+                    case "SetProperty":
+                        cab.SetProperty(ca.Source, ca.Target ?? "");
+                        break;
+                }
+
+                if (ca.Deferred) cab.Deferred();
+                if (ca.Rollback) cab.Rollback();
+                if (ca.Commit) cab.Commit();
+                if (ca.NoImpersonate) cab.NoImpersonate();
+                if (ca.ContinueOnError) cab.ContinueOnError();
+
+                cab.Condition = ca.Condition;
+                cab.Sequence = ca.Sequence;
+                cab.After = ca.After;
+                cab.Before = ca.Before;
+            });
         }
 
         var model = builder.Build();
