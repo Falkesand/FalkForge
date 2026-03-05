@@ -139,6 +139,18 @@ installation state. The view displays a progress bar (`ProgressPercent`, 0-100),
 detail line (`ProgressDetail`) showing the current package name. The page triggers `PageResult.Install` on entry, which
 starts the engine apply sequence.
 
+### Per-MSI Internal Progress
+
+The progress bar moves smoothly during each MSI package installation rather than jumping between packages. The engine
+uses the Windows Installer API (`MsiSetExternalUIW`) callback to receive real-time progress ticks from the active MSI.
+`InstallProgress.PackagePercent` (0-100) tracks the percentage within the current package, and the overall progress is
+calculated as `((CurrentPackage - 1) * 100 + PackagePercent) / TotalPackages`. Updates are throttled to at most one
+per 100ms to avoid flooding the named pipe. This works for both direct and elevated (admin) MSI execution.
+
+Developers control the display text per package through localization keys (e.g., `InstallProgress.Package.MultiAccess`).
+In `OnPlanBeginAsync`, collected settings are forwarded as MSI properties to each package, guarded by the selected
+install action type so that only relevant packages receive their properties.
+
 ## Completion Page
 
 `CompletionPage` reads `SharedState.Get<bool>("InstallSuccess")` to display either a success or failure message. On
