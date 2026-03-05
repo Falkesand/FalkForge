@@ -26,5 +26,6 @@ public enum ErrorKind
     PlanningError,
     ExecutionError,
     DownloadError,
-    LayoutError
+    LayoutError,
+    PluginError
 }

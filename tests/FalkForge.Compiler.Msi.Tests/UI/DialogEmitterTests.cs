@@ -305,6 +305,37 @@ public sealed class DialogEmitterTests
         }
     }
 
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void ControlText_ContainsNoUnresolvedLocPatterns(MsiDialogSet dialogSet)
+    {
+        var msiPath = CompileWithDialogSet(dialogSet, $"LocRes_{dialogSet}");
+        try
+        {
+            using var db = OpenMsi(msiPath);
+            var rows = db.QueryRows(
+                "SELECT `Dialog_`, `Control`, `Text` FROM `Control`", 3);
+            Assert.True(rows.IsSuccess, FailMsg(rows));
+
+            var unresolved = rows.Value
+                .Where(r => r[2] is not null && r[2]!.Contains("!(loc."))
+                .Select(r => $"{r[0]}.{r[1]}: {r[2]}")
+                .ToList();
+
+            Assert.True(unresolved.Count == 0,
+                $"Found {unresolved.Count} controls with unresolved !(loc. patterns:\n" +
+                string.Join("\n", unresolved));
+        }
+        finally
+        {
+            CleanupMsi(msiPath);
+        }
+    }
+
     // --- Helper methods ---
 
     private static string CompileWithDialogSet(MsiDialogSet dialogSet, string appName)

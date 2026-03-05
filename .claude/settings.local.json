@@ -17,7 +17,8 @@
       "Bash(git mv:*)",
       "Bash(echo:*)",
       "Bash(git -C /d/git/FalkInstaller status --short)",
-      "Bash(git -C /d/git/FalkInstaller diff --name-only -- '*.md')"
+      "Bash(git -C /d/git/FalkInstaller diff --name-only -- '*.md')",
+      "Bash(git:*)"
     ]
   }
 }

@@ -7,7 +7,8 @@ public static class LocalizationLoader
     public static Result<LocalizationModel> LoadFromFile(string filePath)
     {
         if (!File.Exists(filePath))
-            return Result<LocalizationModel>.Failure(ErrorKind.FileNotFound, $"Localization file not found: {filePath}");
+            return Result<LocalizationModel>.Failure(ErrorKind.FileNotFound,
+                $"Localization file not found: {filePath}");
 
         var culture = ExtractCultureFromFileName(filePath);
         if (culture is null)
@@ -21,7 +22,8 @@ public static class LocalizationLoader
         }
         catch (IOException ex)
         {
-            return Result<LocalizationModel>.Failure(ErrorKind.IoError, $"Failed to read localization file: {ex.Message}");
+            return Result<LocalizationModel>.Failure(ErrorKind.IoError,
+                $"Failed to read localization file: {ex.Message}");
         }
 
         return ParseJson(json, culture);
@@ -90,10 +92,8 @@ public static class LocalizationLoader
                 return false;
 
             foreach (var c in segment)
-            {
                 if (!char.IsLetter(c))
                     return false;
-            }
         }
 
         return true;

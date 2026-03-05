@@ -6,11 +6,15 @@
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <!-- Required for P/Invoke interop with native Windows APIs (MSI, Restart Manager) -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
     <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
     <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Engine.Tests" />
   </ItemGroup>
 </Project>

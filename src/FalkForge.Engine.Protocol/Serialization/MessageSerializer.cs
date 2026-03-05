@@ -47,7 +47,10 @@ public static class MessageSerializer
                 {
                     writer.Write(f.FeatureId);
                     writer.Write(f.Title);
+                    writer.Write(f.Description ?? string.Empty);
                     writer.Write(f.IsSelected);
+                    writer.Write(f.IsRequired);
+                    writer.Write(f.WasPreviouslyInstalled);
                     writer.Write(f.DiskSpaceRequired);
                 }
                 break;
@@ -76,6 +79,7 @@ public static class MessageSerializer
                 writer.Write(m.Progress.Current);
                 writer.Write(m.Progress.Total);
                 writer.Write(m.Progress.CurrentPackage);
+                writer.Write(m.Progress.PackagePercent);
                 break;
 
             case ErrorMessage m:
@@ -121,10 +125,25 @@ public static class MessageSerializer
             case RequestApplyMessage:
                 break;
 
+            case SetPropertyMessage m:
+                writer.Write(m.PropertyName);
+                writer.Write(m.Value);
+                break;
+
+            case SetSecurePropertyMessage m:
+                writer.Write(m.PropertyName);
+                writer.Write(m.SecureValue.Length);
+                writer.Write(m.SecureValue);
+                break;
+
             case ElevateExecuteMessage m:
                 writer.Write(m.CommandName);
                 writer.Write(m.CommandPayload.Length);
                 writer.Write(m.CommandPayload);
+                break;
+
+            case ElevateProgressMessage m:
+                writer.Write(m.Percent);
                 break;
 
             case ElevateResultMessage m:
@@ -137,6 +156,32 @@ public static class MessageSerializer
                     writer.Write(m.ResultPayload!.Length);
                     writer.Write(m.ResultPayload);
                 }
+                break;
+
+            case UpdateAvailableMessage m:
+                writer.Write(m.Version);
+                writer.Write(m.ReleaseNotes ?? string.Empty);
+                writer.Write(m.DownloadUrl);
+                writer.Write(m.LocalPath ?? string.Empty);
+                break;
+
+            case UpdateReadyMessage m:
+                writer.Write(m.Version);
+                writer.Write(m.LocalPath);
+                break;
+
+            case UpdateDownloadProgressMessage m:
+                writer.Write(m.BytesReceived);
+                writer.Write(m.TotalBytes);
+                writer.Write(m.PercentComplete);
+                break;
+
+            case LaunchUpdateMessage:
+                break;
+
+            case LicenseMessage m:
+                writer.Write((int)m.Action);
+                writer.Write(m.LicenseContent ?? string.Empty);
                 break;
 
             default:

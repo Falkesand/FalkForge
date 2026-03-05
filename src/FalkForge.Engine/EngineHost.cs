@@ -1,7 +1,10 @@
 namespace FalkForge.Engine;
 
+using System.Text.RegularExpressions;
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Download;
+using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Journal.UndoOperations;
@@ -14,13 +17,41 @@ using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.RestartManager;
 using FalkForge.Platform;
+using FalkForge.Platform.Windows;
 
-public sealed class EngineHost : IAsyncDisposable
+public sealed partial class EngineHost : IAsyncDisposable
 {
+    private const int MaxPropertyNameLength = 255;
+    private const int MaxPropertyValueLength = 32767;
+
+    /// <summary>
+    /// Valid MSI public property name: starts with uppercase letter or underscore,
+    /// followed by uppercase letters, digits, underscores, or periods.
+    /// </summary>
+    [GeneratedRegex(@"^[A-Z_][A-Z0-9_.]*$", RegexOptions.CultureInvariant)]
+    private static partial Regex PropertyNameRegex();
+
+    /// <summary>
+    /// Built-in variable names populated by the engine. These cannot be overwritten
+    /// by UI SetProperty/SetSecureProperty messages.
+    /// </summary>
+    private static readonly HashSet<string> BuiltInVariableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "VersionNT", "VersionNTMajor", "VersionNTMinor", "ServicePackLevel", "WindowsBuildNumber",
+        "NativeMachine", "ProcessorArchitecture", "ProcessArchitecture", "Is64BitOperatingSystem",
+        "SystemFolder", "WindowsFolder", "ProgramFilesFolder", "CommonFilesFolder", "TempFolder",
+        "DesktopFolder", "AdminToolsFolder", "LocalAppDataFolder", "AppDataFolder",
+        "StartMenuFolder", "StartupFolder", "PersonalFolder", "FontsFolder", "ProgramFiles64Folder",
+        "Privileged", "TerminalServer", "RemoteSession", "ComputerName", "LogonUser",
+        "InstalledCulture", "UserLanguageID", "SystemLanguageID", "VersionMsi",
+        "Date", "Time", "RebootPending"
+    };
+
     private readonly InstallerManifest _manifest;
     private readonly IPlatformServices _platform;
     private readonly PipeConnectionOptions? _pipeOptions;
     private PipeServer? _uiPipe;
+    private HttpClient? _httpClient;
     private EngineContext? _context;
     private EngineStateMachine? _stateMachine;
     private IEngineLogger? _logger;
@@ -42,7 +73,16 @@ public sealed class EngineHost : IAsyncDisposable
         // Create pipe server if options provided
         if (_pipeOptions is not null)
         {
-            _uiPipe = new PipeServer(_pipeOptions, HandleUiMessageAsync);
+            // Wire security event callback to structured logger
+            var pipeOptionsWithLogging = new PipeConnectionOptions
+            {
+                PipeName = _pipeOptions.PipeName,
+                SharedSecret = _pipeOptions.SharedSecret,
+                MaxMessageSize = _pipeOptions.MaxMessageSize,
+                ConnectionTimeout = _pipeOptions.ConnectionTimeout,
+                OnSecurityEvent = msg => _logger!.Warning("Security", msg)
+            };
+            _uiPipe = new PipeServer(pipeOptionsWithLogging, HandleUiMessageAsync);
             var connectResult = await _uiPipe.StartAsync(ct);
             if (connectResult.IsFailure)
             {
@@ -63,19 +103,28 @@ public sealed class EngineHost : IAsyncDisposable
             UiPipe = _uiPipe,
             ShutdownToken = ct,
             UserCancellationSource = userCts,
-            Logger = _logger
+            Logger = _logger,
+            UpdateLauncher = new DefaultUpdateLauncher(cacheRoot: null)
         };
 
         // Create dependencies (manual DI for NativeAOT)
         var detector = new PackageDetector(_platform.Registry);
+        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("FalkForge-Engine/1.0");
+        var updateChecker = new UpdateChecker(_httpClient, _logger);
         var planner = new Planner();
         var processRunner = new ProcessRunner();
-        var msiExecutor = new MsiExecutor();
+        var msiExecutor = new MsiExecutor(
+            () => _context.ElevationClient,
+            () => _context.Variables,
+            static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
-        var bundleExecutor = new BundleExecutor(processRunner);
-        var packageExecutor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor);
         var cacheLayout = new CacheLayout(_manifest.Scope);
+        var bundleExecutor = new BundleExecutor(processRunner, cacheLayout.BasePath);
+        var exeExecutor = new ExeExecutor(processRunner);
+        var netRuntimeExecutor = new NetRuntimeExecutor(processRunner);
+        var packageExecutor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
         var cache = new PackageCache(cacheLayout);
 
         // Create and open rollback journal
@@ -93,13 +142,16 @@ public sealed class EngineHost : IAsyncDisposable
             journal = null;
         }
 
-        // Create Restart Manager session (Windows only)
+        // Create Windows-only dependencies (guarded for platform analysis)
         IRestartManager? restartManager = null;
+        IProcessLauncher? processLauncher = null;
         if (OperatingSystem.IsWindows())
         {
             restartManager = new RestartManagerSession();
             _context.RestartManager = restartManager;
             _context.RestartManagerEnabled = true;
+
+            processLauncher = new ProcessLauncher();
         }
 
         // Create rollback infrastructure
@@ -115,9 +167,9 @@ public sealed class EngineHost : IAsyncDisposable
         var handlers = new IEnginePhaseHandler[]
         {
             new InitializingHandler(),
-            new DetectingHandler(detector),
+            new DetectingHandler(detector, updateChecker),
             new PlanningHandler(planner),
-            new ElevatingHandler(),
+            new ElevatingHandler(processLauncher, _logger),
             new ApplyingHandler(packageExecutor),
             new CompletingHandler(),
             new FailedHandler(),
@@ -205,6 +257,61 @@ public sealed class EngineHost : IAsyncDisposable
                 // this message is a UI acknowledgement that the user is ready.
                 break;
 
+            case SetPropertyMessage propMsg:
+                if (IsInPhaseForConfiguration(stateMachine.CurrentPhase))
+                {
+                    var propValidation = ValidatePropertyName(propMsg.PropertyName, context.Logger);
+                    if (propValidation is not null)
+                        break;
+
+                    var propValue = propMsg.Value ?? string.Empty;
+                    if (propValue.Length > MaxPropertyValueLength)
+                    {
+                        context.Logger.Warning("EngineHost",
+                            string.Concat("SetProperty rejected: value exceeds max length (",
+                                MaxPropertyValueLength.ToString(), " chars) for '", propMsg.PropertyName, "'"));
+                        break;
+                    }
+
+                    context.Variables.Set(propMsg.PropertyName, propValue);
+                    context.UserProperties[propMsg.PropertyName] = propValue;
+                }
+                break;
+
+            case SetSecurePropertyMessage securePropMsg:
+                if (IsInPhaseForConfiguration(stateMachine.CurrentPhase))
+                {
+                    var secPropValidation = ValidatePropertyName(securePropMsg.PropertyName, context.Logger);
+                    if (secPropValidation is not null)
+                        break;
+
+                    context.Variables.SetSecret(
+                        securePropMsg.PropertyName,
+                        securePropMsg.SecureValue);
+                    context.SecretPropertyNames.TryAdd(securePropMsg.PropertyName, 0);
+                }
+                break;
+
+            case LaunchUpdateMessage:
+                if (context.PendingUpdatePath is null)
+                {
+                    context.Logger.Warning("EngineHost", "LaunchUpdate received but no update is ready — ignoring.");
+                }
+                else
+                {
+                    var launchResult = context.UpdateLauncher?.Launch(context.PendingUpdatePath);
+                    if (launchResult is { IsSuccess: false })
+                    {
+                        context.Logger.Warning("EngineHost",
+                            string.Concat("LaunchUpdate failed: ", launchResult.Value.Error.Message));
+                    }
+
+                    // Trigger shutdown regardless of launch result — UI is done
+                    context.UserCancelled = true;
+                    context.UserCancellationSource?.Cancel();
+                }
+                break;
+
             case ShutdownRequestMessage:
                 context.UserCancelled = true;
                 context.UserCancellationSource?.Cancel();
@@ -218,6 +325,45 @@ public sealed class EngineHost : IAsyncDisposable
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Validates a property name from an incoming UI message.
+    /// Returns null if valid, or an error message string if invalid.
+    /// </summary>
+    internal static string? ValidatePropertyName(string propertyName, IEngineLogger logger)
+    {
+        if (string.IsNullOrEmpty(propertyName))
+        {
+            logger.Warning("EngineHost", "SetProperty rejected: property name is empty");
+            return "empty";
+        }
+
+        if (propertyName.Length > MaxPropertyNameLength)
+        {
+            logger.Warning("EngineHost",
+                string.Concat("SetProperty rejected: name exceeds max length (", MaxPropertyNameLength.ToString(), " chars)"));
+            return "too long";
+        }
+
+        // Check built-in names before format validation because built-in names
+        // (e.g. "VersionNT") use mixed case and would fail the public property regex.
+        if (BuiltInVariableNames.Contains(propertyName))
+        {
+            logger.Warning("EngineHost",
+                string.Concat("SetProperty rejected: '", propertyName, "' is a built-in variable and cannot be overwritten"));
+            return "built-in";
+        }
+
+        if (!PropertyNameRegex().IsMatch(propertyName))
+        {
+            logger.Warning("EngineHost",
+                string.Concat("SetProperty rejected: invalid name format '", propertyName,
+                    "' (must match ^[A-Z_][A-Z0-9_.]*$)"));
+            return "invalid format";
+        }
+
+        return null;
     }
 
     private static bool IsInPhaseForConfiguration(EnginePhase phase)
@@ -241,6 +387,19 @@ public sealed class EngineHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Cancel any background update download before tearing down
+        _context?.UpdateDownloadCts?.Cancel();
+        if (_context?.UpdateDownloadTask is not null)
+        {
+            try
+            {
+                await _context.UpdateDownloadTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { /* expected — download was cancelled */ }
+            catch (TimeoutException) { /* download timed out — partial file kept per policy */ }
+        }
+
+        _httpClient?.Dispose();
         _logger?.Dispose();
 
         if (_uiPipe is not null)

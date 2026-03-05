@@ -4,28 +4,16 @@ namespace FalkForge.Core.Tests;
 
 public sealed class KnownFolderTests
 {
-    [Fact]
-    public void ProgramFiles_HasCorrectToken()
+    [Theory]
+    [InlineData(nameof(KnownFolder.ProgramFiles), "ProgramFilesFolder", "Program Files")]
+    [InlineData(nameof(KnownFolder.ProgramFiles64), "ProgramFiles64Folder", "Program Files (64-bit)")]
+    [InlineData(nameof(KnownFolder.CommonAppData), "CommonAppDataFolder", "ProgramData")]
+    public void KnownFolder_HasCorrectTokenAndDisplayName(string propertyName, string expectedToken, string expectedDisplayName)
     {
-        Assert.Equal("ProgramFilesFolder", KnownFolder.ProgramFiles.Token);
-    }
-
-    [Fact]
-    public void ProgramFiles64_HasCorrectToken()
-    {
-        Assert.Equal("ProgramFiles64Folder", KnownFolder.ProgramFiles64.Token);
-    }
-
-    [Fact]
-    public void CommonAppData_HasCorrectToken()
-    {
-        Assert.Equal("CommonAppDataFolder", KnownFolder.CommonAppData.Token);
-    }
-
-    [Fact]
-    public void ProgramFiles_HasCorrectDisplayName()
-    {
-        Assert.Equal("Program Files", KnownFolder.ProgramFiles.DisplayName);
+        var prop = typeof(KnownFolder).GetProperty(propertyName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!;
+        var folder = (KnownFolder)prop.GetValue(null)!;
+        Assert.Equal(expectedToken, folder.Token);
+        Assert.Equal(expectedDisplayName, folder.DisplayName);
     }
 
     [Fact]

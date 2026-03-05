@@ -1,11 +1,14 @@
-namespace FalkForge.Ui;
-
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Ui.Abstractions;
 
+namespace FalkForge.Ui;
+
 internal sealed class NullInstallerEngine : IInstallerEngine
 {
+    private readonly Dictionary<string, string> _properties = [];
+    private readonly Dictionary<string, SensitiveBytes> _secureProperties = [];
+
     public InstallerManifest Manifest { get; } = new()
     {
         Name = "Standalone",
@@ -26,17 +29,48 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     public IObservable<string> StatusMessage => EmptyObservable<string>.Instance;
 
     public Task<DetectResult> DetectAsync(CancellationToken ct = default)
-        => Task.FromResult(new DetectResult(InstallState.NotInstalled, null, []));
+    {
+        return Task.FromResult(new DetectResult(InstallState.NotInstalled, null, []));
+    }
 
     public Task<PlanResult> PlanAsync(InstallAction action, CancellationToken ct = default)
-        => Task.FromResult(new PlanResult([], 0L));
+    {
+        return Task.FromResult(new PlanResult([], 0L));
+    }
 
     public Task<ApplyResult> ApplyAsync(CancellationToken ct = default)
-        => Task.FromResult(new ApplyResult(0, null));
+    {
+        return Task.FromResult(new ApplyResult(0, null));
+    }
 
-    public void Cancel() { }
+    public void Cancel()
+    {
+    }
 
-    public Task<int> ShutdownAsync() => Task.FromResult(0);
+    public void LaunchUpdate()
+    {
+        /* no-op — design-time / test use */
+    }
+
+    public void SetProperty(string name, string value)
+    {
+        _properties[name] = value;
+    }
+
+    public void SetSecureProperty(string name, SensitiveBytes value)
+    {
+        if (_secureProperties.TryGetValue(name, out var existing))
+            existing.Dispose();
+        _secureProperties[name] = value;
+    }
+
+    public Task<int> ShutdownAsync()
+    {
+        foreach (var sp in _secureProperties.Values)
+            sp.Dispose();
+        _secureProperties.Clear();
+        return Task.FromResult(0);
+    }
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {
@@ -52,6 +86,9 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     private sealed class EmptyDisposable : IDisposable
     {
         public static readonly EmptyDisposable Instance = new();
-        public void Dispose() { }
+
+        public void Dispose()
+        {
+        }
     }
 }

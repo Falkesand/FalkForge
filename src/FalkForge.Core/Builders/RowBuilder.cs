@@ -10,5 +10,8 @@ public sealed class RowBuilder
         return this;
     }
 
-    internal Dictionary<string, object?> Build() => new(_values, StringComparer.Ordinal);
+    internal Dictionary<string, object?> Build()
+    {
+        return new Dictionary<string, object?>(_values, StringComparer.Ordinal);
+    }
 }

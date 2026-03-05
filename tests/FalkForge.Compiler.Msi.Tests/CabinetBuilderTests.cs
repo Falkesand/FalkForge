@@ -23,7 +23,7 @@ public sealed class CabinetBuilderTests : IDisposable
     [Fact]
     public void BuildCabinet_EmptyFileList_ReturnsFailure()
     {
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var outputDir = Path.Combine(_tempDir, "output");
 
         var result = builder.BuildCabinet([], outputDir, CompressionLevel.High);
@@ -50,7 +50,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess, $"BuildCabinet failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -75,7 +75,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -106,7 +106,7 @@ public sealed class CabinetBuilderTests : IDisposable
             MakeResolvedFile(file3, "readme.txt", "C_readme", "F_readme"),
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess, $"BuildCabinet failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -126,7 +126,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "uncompressed.dat", "C_unc", "F_unc") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.None);
 
         Assert.True(result.IsSuccess);
@@ -140,7 +140,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "low.dat", "C_low", "F_low") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.Low);
 
         Assert.True(result.IsSuccess);
@@ -154,7 +154,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "med.dat", "C_med", "F_med") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.Medium);
 
         Assert.True(result.IsSuccess);
@@ -168,7 +168,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "high.dat", "C_high", "F_high") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -182,7 +182,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "deeply", "nested", "output");
         var files = new[] { MakeResolvedFile(sourceFile, "auto.txt", "C_auto", "F_auto") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -207,7 +207,7 @@ public sealed class CabinetBuilderTests : IDisposable
             },
         };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsFailure);
@@ -220,7 +220,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "size.txt", "C_size", "F_size") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -242,7 +242,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var outputDir = Path.Combine(_tempDir, "output");
         var files = new[] { MakeResolvedFile(sourceFile, "large.dat", "C_large", "F_large") };
 
-        var builder = new CabinetBuilder();
+        using var builder = new CabinetBuilder();
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess);
@@ -289,6 +289,142 @@ public sealed class CabinetBuilderTests : IDisposable
         var dt = new DateTime(2024, 1, 1, 0, 0, 0);
         var dosTime = CabinetBuilder.ToDosTime(dt);
         Assert.Equal((ushort)0, dosTime);
+    }
+
+    // ── Reproducible build / timestamp normalization ────────────────────
+
+    [Fact]
+    public void BuildCabinet_WithNormalizedTimestamp_IdenticalContentProducesIdenticalBytes()
+    {
+        // Two source files with the same content but deliberately different LastWriteTime.
+        // When the same normalizedTimestamp is supplied, the resulting cabinets must be
+        // byte-identical — proving that file mtime is no longer baked into the output.
+        var epoch = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var dir1 = Path.Combine(_tempDir, "src1");
+        var dir2 = Path.Combine(_tempDir, "src2");
+        Directory.CreateDirectory(dir1);
+        Directory.CreateDirectory(dir2);
+
+        var src1 = Path.Combine(dir1, "payload.txt");
+        var src2 = Path.Combine(dir2, "payload.txt");
+        File.WriteAllText(src1, "reproducible content");
+        File.WriteAllText(src2, "reproducible content");
+
+        // Force different LastWriteTime values
+        File.SetLastWriteTime(src1, new DateTime(2020, 3, 15, 12, 0, 0));
+        File.SetLastWriteTime(src2, new DateTime(2023, 11, 30, 23, 59, 58));
+
+        var files1 = new[] { MakeResolvedFile(src1, "payload.txt", "C_p1", "F_p1") };
+        var files2 = new[] { MakeResolvedFile(src2, "payload.txt", "C_p2", "F_p2") };
+
+        var out1 = Path.Combine(_tempDir, "out1");
+        var out2 = Path.Combine(_tempDir, "out2");
+
+        var cab1 = new CabinetBuilder(epoch).BuildCabinet(files1, out1, CompressionLevel.None);
+        var cab2 = new CabinetBuilder(epoch).BuildCabinet(files2, out2, CompressionLevel.None);
+
+        Assert.True(cab1.IsSuccess, cab1.IsFailure ? cab1.Error.Message : "");
+        Assert.True(cab2.IsSuccess, cab2.IsFailure ? cab2.Error.Message : "");
+
+        var bytes1 = File.ReadAllBytes(cab1.Value);
+        var bytes2 = File.ReadAllBytes(cab2.Value);
+        Assert.Equal(bytes1, bytes2);
+    }
+
+    [Fact]
+    public void BuildCabinet_WithoutNormalizedTimestamp_DifferentMtimeProducesDifferentBytes()
+    {
+        // Negative test: without normalization, different LastWriteTime values produce
+        // different cabinet bytes. This validates that LastWriteTime actually affects output.
+        var dir1 = Path.Combine(_tempDir, "neg1");
+        var dir2 = Path.Combine(_tempDir, "neg2");
+        Directory.CreateDirectory(dir1);
+        Directory.CreateDirectory(dir2);
+
+        var src1 = Path.Combine(dir1, "data.txt");
+        var src2 = Path.Combine(dir2, "data.txt");
+        File.WriteAllText(src1, "same content");
+        File.WriteAllText(src2, "same content");
+
+        // Force distinct timestamps separated by > 2s (DOS time has 2-second resolution)
+        File.SetLastWriteTime(src1, new DateTime(2020, 1, 1, 0, 0, 0));
+        File.SetLastWriteTime(src2, new DateTime(2024, 6, 15, 14, 30, 22));
+
+        var files1 = new[] { MakeResolvedFile(src1, "data.txt", "C_n1", "F_n1") };
+        var files2 = new[] { MakeResolvedFile(src2, "data.txt", "C_n2", "F_n2") };
+
+        var out1 = Path.Combine(_tempDir, "neg_out1");
+        var out2 = Path.Combine(_tempDir, "neg_out2");
+
+        // No normalizedTimestamp supplied
+        using var builder1 = new CabinetBuilder();
+        var cab1 = builder1.BuildCabinet(files1, out1, CompressionLevel.None);
+        using var builder2 = new CabinetBuilder();
+        var cab2 = builder2.BuildCabinet(files2, out2, CompressionLevel.None);
+
+        Assert.True(cab1.IsSuccess, cab1.IsFailure ? cab1.Error.Message : "");
+        Assert.True(cab2.IsSuccess, cab2.IsFailure ? cab2.Error.Message : "");
+
+        var bytes1 = File.ReadAllBytes(cab1.Value);
+        var bytes2 = File.ReadAllBytes(cab2.Value);
+        // Timestamps are chosen to produce different DOS date/time values after 2-second rounding:
+        // 2020-01-01 00:00:00 → DOS date 0x5021 time 0x0000, 2024-06-15 14:30:22 → DOS date 0x58CF time 0x73CB. They cannot collide.
+        Assert.NotEqual(bytes1, bytes2);
+    }
+
+    [Theory]
+    [InlineData(CompressionLevel.None)]
+    [InlineData(CompressionLevel.Low)]
+    [InlineData(CompressionLevel.Medium)]
+    [InlineData(CompressionLevel.High)]
+    public void BuildCabinet_AllCompressionLevels_Succeed(CompressionLevel level)
+    {
+        var sourceFile = CreateTempFile("test.txt", $"Content for {level}");
+        var outputDir = Path.Combine(_tempDir, $"output_{level}");
+        var files = new[]
+        {
+            new ResolvedFile
+            {
+                SourcePath = sourceFile,
+                TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
+                FileName = "test.txt",
+                FileSize = new FileInfo(sourceFile).Length,
+                ComponentId = $"C_test_{level}",
+                FileId = $"F_test_{level}",
+            },
+        };
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, level);
+
+        Assert.True(result.IsSuccess, $"BuildCabinet failed for {level}: {(result.IsFailure ? result.Error.Message : "")}");
+        Assert.True(File.Exists(result.Value));
+    }
+
+    [Fact]
+    public void BuildCabinet_OutputDirectoryCreatedIfMissing()
+    {
+        var sourceFile = CreateTempFile("file.txt", "content");
+        var outputDir = Path.Combine(_tempDir, "new_dir", "subdir"); // doesn't exist yet
+        var files = new[]
+        {
+            new ResolvedFile
+            {
+                SourcePath = sourceFile,
+                TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
+                FileName = "file.txt",
+                FileSize = new FileInfo(sourceFile).Length,
+                ComponentId = "C_f",
+                FileId = "F_f",
+            },
+        };
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(Directory.Exists(outputDir), "Output directory should have been created.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────

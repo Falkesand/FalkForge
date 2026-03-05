@@ -1,8 +1,7 @@
 using FalkForge;
-using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
+using FalkForge.Localization;
 using FalkForge.Models;
-using FalkForge.Platform.Windows;
 
 // A small application installer with shortcuts, registry, major upgrade, and license.
 return Installer.Build(args, package =>
@@ -16,6 +15,11 @@ return Installer.Build(args, package =>
     package.LicenseFile = "payload/license.rtf";
 
     package.UseDialogSet(MsiDialogSet.InstallDir);
+
+    package.Localization(loc => loc
+        .AddBuiltInCultures()
+        .DefaultCulture("en-US")
+        .DetectCulture());
 
     // Application files
     package.Files(files => files
@@ -37,19 +41,29 @@ return Installer.Build(args, package =>
         .WithDescription("Launch FalkPad text editor")
         .OnStartMenu("Falk Software");
 
+    // Startup shortcut — launches on Windows login
+    package.Shortcut("FalkPad Startup", "falkpad.exe")
+        .WithArguments("--minimized")
+        .WithWorkingDirectory(@"[ProgramFilesFolder]Falk Software\FalkPad")
+        .OnStartup();
+
     // Registry entries
     package.Registry(reg => reg
         .Key(RegistryRoot.LocalMachine, @"Software\FalkSoftware\FalkPad", key =>
         {
             key.Value("Version", "2.1.0");
-            key.Value("InstallPath", "[INSTALLDIR]");
+            key.Value("InstallPath", MsiProperty.InstallDir);
+            key.DWord("EditorFlags", 3);
+            key.DefaultValue("FalkPad Text Editor");
         }));
 
-    // Major upgrade support -- block downgrades
-    package.MajorUpgrade(upgrade =>
-    {
-        upgrade.DowngradeErrorMessage(
-            "A newer version of FalkPad is already installed. Please uninstall it first.");
-    });
+    // Remove registry entries on uninstall
+    package.RemoveRegistry(rr => rr
+        .Root(RegistryRoot.LocalMachine)
+        .Key(@"Software\FalkSoftware\FalkPad")
+        .RemoveKey());
 
-}, new MsiCompiler(new WindowsFileSystem()));
+    // Major upgrade support -- block downgrades
+    package.MajorUpgrade(_ => { });
+    package.Downgrade(d => d.Block("A newer version of FalkPad is already installed. Please uninstall it first."));
+}, new MsiCompiler());

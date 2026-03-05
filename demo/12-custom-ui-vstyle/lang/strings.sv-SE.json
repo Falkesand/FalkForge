@@ -1,0 +1,19 @@
+{
+  "Product.Title": "FalkForge DevTools Suite",
+  "Product.ProductName": "FalkForge DevTools Suite 2026",
+  "Product.Description": "En omfattande uppsättning utvecklingsverktyg för att bygga moderna .NET-applikationer, webbtjänster och molnbaserade lösningar.",
+  "Product.IncludedWorkloads": "Inkluderade arbetsbelastningar:",
+  "Workloads.Title": "Arbetsbelastningar",
+  "Workloads.Components": "Komponenter",
+  "Workloads.SelectPrompt": "Välj en arbetsbelastning för att se dess komponenter",
+  "Workloads.TotalSelected": "Totalt valt:",
+  "Workloads.Required": "(obligatorisk)",
+  "Workloads.SelectAtLeastOne": "Välj minst en arbetsbelastning.",
+  "Progress.Title": "Installerar",
+  "Progress.Header": "Installerar FalkForge DevTools Suite",
+  "Progress.Preparing": "Förbereder...",
+  "Progress.OverallProgress": "Övergripande förlopp",
+  "Complete.Title": "Slutfört",
+  "Complete.Message": "FalkForge DevTools Suite har installerats.",
+  "Complete.Details": "Du kan nu öppna FalkForge DevTools från Start-menyn."
+}

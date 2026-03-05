@@ -2,10 +2,10 @@ namespace FalkForge.Extensions.Util.RemoveFolderEx;
 
 public sealed class RemoveFolderExBuilder
 {
-    private string _id = string.Empty;
     private string? _directory;
-    private string? _property;
+    private string _id = string.Empty;
     private RemoveFolderExInstallMode _installMode = RemoveFolderExInstallMode.Uninstall;
+    private string? _property;
 
     public RemoveFolderExBuilder Id(string id)
     {
@@ -49,7 +49,8 @@ public sealed class RemoveFolderExBuilder
             return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation, "RFX001: RemoveFolderEx Id is required.");
 
         if (string.IsNullOrWhiteSpace(_directory) && string.IsNullOrWhiteSpace(_property))
-            return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation, "RFX002: RemoveFolderEx requires either Directory or Property.");
+            return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
+                "RFX002: RemoveFolderEx requires either Directory or Property.");
 
         return new RemoveFolderExModel
         {

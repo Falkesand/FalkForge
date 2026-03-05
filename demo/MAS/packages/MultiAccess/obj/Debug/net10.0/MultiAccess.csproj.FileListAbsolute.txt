@@ -1,0 +1,6 @@
+D:\Git\FalkInstaller\demo\MAS\packages\MultiAccess\obj\Debug\net10.0\MultiAccess.csproj.AssemblyReference.cache
+D:\Git\FalkInstaller\demo\MAS\packages\MultiAccess\obj\Debug\net10.0\MultiAccess.GeneratedMSBuildEditorConfig.editorconfig
+D:\Git\FalkInstaller\demo\MAS\packages\MultiAccess\obj\Debug\net10.0\MultiAccess.AssemblyInfoInputs.cache
+D:\Git\FalkInstaller\demo\MAS\packages\MultiAccess\obj\Debug\net10.0\MultiAccess.AssemblyInfo.cs
+D:\Git\FalkInstaller\demo\MAS\packages\MultiAccess\obj\Debug\net10.0\MultiAccess.csproj.CoreCompileInputs.cache
+D:\Git\FalkInstaller\demo\MAS\packages\MultiAccess\obj\Debug\net10.0\MultiAccess.sourcelink.json

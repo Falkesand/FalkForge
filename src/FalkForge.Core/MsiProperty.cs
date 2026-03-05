@@ -2,18 +2,12 @@ namespace FalkForge;
 
 public sealed class MsiProperty : IEquatable<MsiProperty>
 {
-    public string Name { get; }
-
     private MsiProperty(string name)
     {
         Name = name;
     }
 
-    public static MsiProperty Custom(string name)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return new MsiProperty(name);
-    }
+    public string Name { get; }
 
     // ── Product ──
 
@@ -84,48 +78,84 @@ public sealed class MsiProperty : IEquatable<MsiProperty>
     public static MsiProperty REINSTALL { get; } = new("REINSTALL");
     public static MsiProperty CustomActionData { get; } = new("CustomActionData");
 
+    // ── Equality ──
+
+    public bool Equals(MsiProperty? other)
+    {
+        return other is not null && Name == other.Name;
+    }
+
+    public static MsiProperty Custom(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return new MsiProperty(name);
+    }
+
     // ── ToString ──
 
-    public override string ToString() => $"[{Name}]";
+    public override string ToString()
+    {
+        return $"[{Name}]";
+    }
 
     // ── / operator: MsiProperty / "subpath" → "[NAME]subpath" string ──
 
-    public static string operator /(MsiProperty property, string subPath) =>
-        $"[{property.Name}]{subPath}";
+    public static string operator /(MsiProperty property, string subPath)
+    {
+        return $"[{property.Name}]{subPath}";
+    }
 
     // ── Comparison operators returning Condition ──
     // MSI uses single = for equality and <> for not-equal.
     // String values are quoted; integer values are not.
 
-    public static Condition operator ==(MsiProperty property, string value) =>
-        new($"{property.Name} = \"{value}\"");
+    public static Condition operator ==(MsiProperty property, string value)
+    {
+        return new Condition($"{property.Name} = \"{value}\"");
+    }
 
-    public static Condition operator !=(MsiProperty property, string value) =>
-        new($"{property.Name} <> \"{value}\"");
+    public static Condition operator !=(MsiProperty property, string value)
+    {
+        return new Condition($"{property.Name} <> \"{value}\"");
+    }
 
-    public static Condition operator ==(MsiProperty property, int value) =>
-        new($"{property.Name} = {value}");
+    public static Condition operator ==(MsiProperty property, int value)
+    {
+        return new Condition($"{property.Name} = {value}");
+    }
 
-    public static Condition operator !=(MsiProperty property, int value) =>
-        new($"{property.Name} <> {value}");
+    public static Condition operator !=(MsiProperty property, int value)
+    {
+        return new Condition($"{property.Name} <> {value}");
+    }
 
-    public static Condition operator >(MsiProperty property, int value) =>
-        new($"{property.Name} > {value}");
+    public static Condition operator >(MsiProperty property, int value)
+    {
+        return new Condition($"{property.Name} > {value}");
+    }
 
-    public static Condition operator <(MsiProperty property, int value) =>
-        new($"{property.Name} < {value}");
+    public static Condition operator <(MsiProperty property, int value)
+    {
+        return new Condition($"{property.Name} < {value}");
+    }
 
-    public static Condition operator >=(MsiProperty property, int value) =>
-        new($"{property.Name} >= {value}");
+    public static Condition operator >=(MsiProperty property, int value)
+    {
+        return new Condition($"{property.Name} >= {value}");
+    }
 
-    public static Condition operator <=(MsiProperty property, int value) =>
-        new($"{property.Name} <= {value}");
+    public static Condition operator <=(MsiProperty property, int value)
+    {
+        return new Condition($"{property.Name} <= {value}");
+    }
 
-    // ── Equality ──
+    public override bool Equals(object? obj)
+    {
+        return Equals(obj as MsiProperty);
+    }
 
-    public bool Equals(MsiProperty? other) => other is not null && Name == other.Name;
-
-    public override bool Equals(object? obj) => Equals(obj as MsiProperty);
-
-    public override int GetHashCode() => Name.GetHashCode();
+    public override int GetHashCode()
+    {
+        return Name.GetHashCode();
+    }
 }

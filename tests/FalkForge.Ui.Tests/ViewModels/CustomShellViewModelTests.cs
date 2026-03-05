@@ -80,6 +80,59 @@ public class LifecyclePage : InstallerPage<ShellTestView>
     }
 }
 
+public class LifecycleHookPage : InstallerPage<ShellTestView>
+{
+    public override string Title => "Hooks";
+    public List<string> HookLog { get; } = [];
+    public bool CancelDetect { get; set; }
+    public bool CancelPlan { get; set; }
+    public bool CancelApply { get; set; }
+    public DetectResult? LastDetectResult { get; private set; }
+    public PlanResult? LastPlanResult { get; private set; }
+    public ApplyResult? LastApplyResult { get; private set; }
+
+    public override PageResult OnNext() => PageResult.Install;
+
+    protected internal override Task<bool> OnDetectBeginAsync()
+    {
+        HookLog.Add("DetectBegin");
+        return Task.FromResult(!CancelDetect);
+    }
+
+    protected internal override Task OnDetectCompleteAsync(DetectResult result)
+    {
+        HookLog.Add("DetectComplete");
+        LastDetectResult = result;
+        return Task.CompletedTask;
+    }
+
+    protected internal override Task<bool> OnPlanBeginAsync(InstallAction action)
+    {
+        HookLog.Add($"PlanBegin:{action}");
+        return Task.FromResult(!CancelPlan);
+    }
+
+    protected internal override Task OnPlanCompleteAsync(PlanResult result)
+    {
+        HookLog.Add("PlanComplete");
+        LastPlanResult = result;
+        return Task.CompletedTask;
+    }
+
+    protected internal override Task<bool> OnApplyBeginAsync()
+    {
+        HookLog.Add("ApplyBegin");
+        return Task.FromResult(!CancelApply);
+    }
+
+    protected internal override Task OnApplyCompleteAsync(ApplyResult result)
+    {
+        HookLog.Add("ApplyComplete");
+        LastApplyResult = result;
+        return Task.CompletedTask;
+    }
+}
+
 public class CustomShellViewModelTests
 {
     private static CustomShellViewModel CreateViewModel(
@@ -469,6 +522,79 @@ public class CustomShellViewModelTests
         Assert.False(engine.CancelCalled);
     }
 
+    // --- Lifecycle Hooks ---
+
+    [WpfFact]
+    public async Task ExecuteEngineAction_CallsAllLifecycleHooks_InOrder()
+    {
+        var hookPage = new LifecycleHookPage();
+        var completePage = new PageThree();
+        var vm = CreateViewModel([hookPage, completePage]);
+        await vm.NavigateToFirstPageAsync();
+
+        await vm.OnNextAsync();
+
+        Assert.Equal(
+            ["DetectBegin", "DetectComplete", "PlanBegin:Install", "PlanComplete", "ApplyBegin", "ApplyComplete"],
+            hookPage.HookLog);
+    }
+
+    [WpfFact]
+    public async Task ExecuteEngineAction_DetectBeginReturnsFalse_StopsExecution()
+    {
+        var hookPage = new LifecycleHookPage { CancelDetect = true };
+        var completePage = new PageThree();
+        var vm = CreateViewModel([hookPage, completePage]);
+        await vm.NavigateToFirstPageAsync();
+
+        await vm.OnNextAsync();
+
+        Assert.Equal(["DetectBegin"], hookPage.HookLog);
+    }
+
+    [WpfFact]
+    public async Task ExecuteEngineAction_PlanBeginReturnsFalse_StopsAfterDetect()
+    {
+        var hookPage = new LifecycleHookPage { CancelPlan = true };
+        var completePage = new PageThree();
+        var vm = CreateViewModel([hookPage, completePage]);
+        await vm.NavigateToFirstPageAsync();
+
+        await vm.OnNextAsync();
+
+        Assert.Equal(["DetectBegin", "DetectComplete", "PlanBegin:Install"], hookPage.HookLog);
+    }
+
+    [WpfFact]
+    public async Task ExecuteEngineAction_ApplyBeginReturnsFalse_StopsAfterPlan()
+    {
+        var hookPage = new LifecycleHookPage { CancelApply = true };
+        var completePage = new PageThree();
+        var vm = CreateViewModel([hookPage, completePage]);
+        await vm.NavigateToFirstPageAsync();
+
+        await vm.OnNextAsync();
+
+        Assert.Equal(
+            ["DetectBegin", "DetectComplete", "PlanBegin:Install", "PlanComplete", "ApplyBegin"],
+            hookPage.HookLog);
+    }
+
+    [WpfFact]
+    public async Task ExecuteEngineAction_HooksReceiveResults()
+    {
+        var hookPage = new LifecycleHookPage();
+        var completePage = new PageThree();
+        var vm = CreateViewModel([hookPage, completePage]);
+        await vm.NavigateToFirstPageAsync();
+
+        await vm.OnNextAsync();
+
+        Assert.NotNull(hookPage.LastDetectResult);
+        Assert.NotNull(hookPage.LastPlanResult);
+        Assert.NotNull(hookPage.LastApplyResult);
+    }
+
     /// <summary>
     /// Test engine that delays ApplyAsync to allow observing IsApplying state.
     /// </summary>
@@ -514,6 +640,12 @@ public class CustomShellViewModelTests
         public Task<ApplyResult> ApplyAsync(CancellationToken ct = default) => _applyTask;
 
         public void Cancel() => CancelCalled = true;
+
+        public void LaunchUpdate() { }
+
+        public void SetProperty(string name, string value) { }
+
+        public void SetSecureProperty(string name, SensitiveBytes value) { }
 
         public Task<int> ShutdownAsync() => Task.FromResult(0);
 

@@ -1,17 +1,17 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
 using FalkForge.Validation;
 
+namespace FalkForge.Builders;
+
 public sealed class MergeModuleBuilder
 {
-    private Guid _id;
-    private int _language = 1033;
-    private Version _version = new(1, 0, 0);
-    private string _manufacturer = string.Empty;
-    private string? _description;
     private readonly List<string> _components = [];
     private readonly List<string> _dependencies = [];
+    private string? _description;
+    private Guid _id;
+    private int _language = 1033;
+    private string _manufacturer = string.Empty;
+    private Version _version = new(1, 0, 0);
 
     public MergeModuleBuilder Id(Guid id)
     {

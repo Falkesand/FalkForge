@@ -2,14 +2,17 @@ namespace FalkForge.Engine.Cache;
 
 using System.Security.Cryptography;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Platform.Windows;
 
 public sealed class PackageCache
 {
     private readonly CacheLayout _layout;
+    private readonly IAuthenticodeValidator? _authenticodeValidator;
 
-    public PackageCache(CacheLayout layout)
+    public PackageCache(CacheLayout layout, IAuthenticodeValidator? authenticodeValidator = null)
     {
         _layout = layout;
+        _authenticodeValidator = authenticodeValidator;
     }
 
     public Result<string> CachePackage(Guid bundleId, PackageInfo package, string sourceFilePath)
@@ -30,6 +33,17 @@ public sealed class PackageCache
                 return Result<string>.Failure(
                     ErrorKind.CacheError,
                     $"SHA-256 mismatch for {package.Id}: expected {package.Sha256Hash}, got {hash}");
+            }
+
+            // Verify Authenticode signature if thumbprint is specified
+            if (package.AuthenticodeThumbprint is not null && _authenticodeValidator is not null)
+            {
+                var signatureResult = _authenticodeValidator.ValidateSignature(sourceFilePath, package.AuthenticodeThumbprint);
+                if (signatureResult.IsFailure)
+                {
+                    File.Delete(targetPath);
+                    return Result<string>.Failure(signatureResult.Error);
+                }
             }
 
             return targetPath;

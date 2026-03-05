@@ -1,6 +1,6 @@
-namespace FalkForge.Ui;
-
 using System.Windows;
+
+namespace FalkForge.Ui;
 
 public abstract class InstallerPage<TView> : InstallerPage
     where TView : FrameworkElement, new()

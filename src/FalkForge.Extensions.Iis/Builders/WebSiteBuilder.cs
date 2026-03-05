@@ -4,14 +4,14 @@ namespace FalkForge.Extensions.Iis.Builders;
 
 public sealed class WebSiteBuilder
 {
-    private string _id = string.Empty;
-    private string _description = string.Empty;
-    private string _directory = string.Empty;
     private readonly List<WebBindingModel> _bindings = [];
+    private readonly List<WebApplicationModel> _webApplications = [];
     private string? _appPool;
     private bool _autoStart = true;
     private int _connectionTimeout = 120;
-    private readonly List<WebApplicationModel> _webApplications = [];
+    private string _description = string.Empty;
+    private string _directory = string.Empty;
+    private string _id = string.Empty;
 
     public WebSiteBuilder Id(string id)
     {
@@ -57,7 +57,10 @@ public sealed class WebSiteBuilder
         return this;
     }
 
-    public WebSiteBuilder AppPool(AppPoolRef appPoolRef) => AppPool(appPoolRef.Id);
+    public WebSiteBuilder AppPool(AppPoolRef appPoolRef)
+    {
+        return AppPool(appPoolRef.Id);
+    }
 
     public WebSiteBuilder AutoStart(bool autoStart)
     {
@@ -79,15 +82,18 @@ public sealed class WebSiteBuilder
         return this;
     }
 
-    internal WebSiteModel Build() => new()
+    internal WebSiteModel Build()
     {
-        Id = string.IsNullOrEmpty(_id) ? _description : _id,
-        Description = _description,
-        Directory = _directory,
-        Bindings = _bindings,
-        AppPool = _appPool,
-        AutoStart = _autoStart,
-        ConnectionTimeout = _connectionTimeout,
-        WebApplications = _webApplications
-    };
+        return new WebSiteModel
+        {
+            Id = string.IsNullOrEmpty(_id) ? _description : _id,
+            Description = _description,
+            Directory = _directory,
+            Bindings = _bindings,
+            AppPool = _appPool,
+            AutoStart = _autoStart,
+            ConnectionTimeout = _connectionTimeout,
+            WebApplications = _webApplications
+        };
+    }
 }

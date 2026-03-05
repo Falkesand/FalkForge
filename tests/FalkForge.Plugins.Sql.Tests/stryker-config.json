@@ -1,0 +1,9 @@
+{
+  "stryker-config": {
+    "project": "FalkForge.Plugins.Sql.csproj",
+    "additional-timeout": 300000,
+    "mutate": [
+      "**/*.cs"
+    ]
+  }
+}

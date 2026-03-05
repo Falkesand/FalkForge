@@ -1,9 +1,21 @@
-namespace FalkForge.Validation;
-
+using System.Text.RegularExpressions;
 using FalkForge.Models;
+
+#pragma warning disable SYSLIB1045 // Regex is compiled; GeneratedRegex requires partial class restructuring
+
+namespace FalkForge.Validation;
 
 public static class ModelValidator
 {
+    private static readonly Regex CustomTableNameRegex =
+        new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    private static readonly Regex ColumnNameRegex =
+        new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    private static readonly Regex AssemblyVersionRegex =
+        new(@"^\d+\.\d+\.\d+\.\d+$", RegexOptions.Compiled);
+
     public static ValidationResult Validate(PackageModel package)
     {
         var result = new ValidationResult();
@@ -60,6 +72,7 @@ public static class ModelValidator
         ValidateAssemblies(package.Assemblies, result);
         ValidateSigning(package, result);
         ValidateMajorUpgrade(package, result);
+        ValidateDowngrade(package, result);
 
         return result;
     }
@@ -67,10 +80,7 @@ public static class ModelValidator
     private static void ValidateFeatures(IReadOnlyList<FeatureModel> features, ValidationResult result)
     {
         var ids = new HashSet<string>();
-        foreach (var feature in features)
-        {
-            ValidateFeature(feature, ids, result);
-        }
+        foreach (var feature in features) ValidateFeature(feature, ids, result);
     }
 
     private static void ValidateFeature(FeatureModel feature, HashSet<string> ids, ValidationResult result)
@@ -89,13 +99,11 @@ public static class ModelValidator
                 result.AddError("FEA004", $"Feature '{feature.Id}' has a condition with an empty condition string.");
 
             if (condition.Level < 0)
-                result.AddWarning("FEA005", $"Feature '{feature.Id}' has a condition with negative level {condition.Level}.");
+                result.AddWarning("FEA005",
+                    $"Feature '{feature.Id}' has a condition with negative level {condition.Level}.");
         }
 
-        foreach (var child in feature.Children)
-        {
-            ValidateFeature(child, ids, result);
-        }
+        foreach (var child in feature.Children) ValidateFeature(child, ids, result);
     }
 
     private static void ValidateServices(IReadOnlyList<ServiceModel> services, ValidationResult result)
@@ -115,7 +123,8 @@ public static class ModelValidator
                 result.AddError("SVC004", $"Service name '{service.Name}' exceeds 256 characters.");
 
             if (!string.IsNullOrEmpty(service.Password))
-                result.AddWarning("SVC005", $"Service '{service.Name}' has a plaintext password. Consider using a managed service account or store the password securely.");
+                result.AddWarning("SVC005",
+                    $"Service '{service.Name}' has a plaintext password. Consider using a managed service account or store the password securely.");
         }
     }
 
@@ -137,10 +146,8 @@ public static class ModelValidator
     private static void ValidateFonts(IReadOnlyList<FontModel> fonts, ValidationResult result)
     {
         foreach (var font in fonts)
-        {
             if (string.IsNullOrWhiteSpace(font.FileName))
                 result.AddError("FNT001", "Font FileName is required.");
-        }
     }
 
     private static void ValidateIniFiles(IReadOnlyList<IniFileModel> iniFiles, ValidationResult result)
@@ -163,11 +170,13 @@ public static class ModelValidator
             if (string.IsNullOrWhiteSpace(perm.LockObject))
                 result.AddError("PRM001", "Permission LockObject is required.");
             if (string.IsNullOrEmpty(perm.Sddl) && string.IsNullOrEmpty(perm.User))
-                result.AddError("PRM002", $"Permission for '{perm.LockObject}' must have either SDDL or User specified.");
+                result.AddError("PRM002",
+                    $"Permission for '{perm.LockObject}' must have either SDDL or User specified.");
         }
     }
 
-    private static void ValidateFileAssociations(IReadOnlyList<FileAssociationModel> associations, ValidationResult result)
+    private static void ValidateFileAssociations(IReadOnlyList<FileAssociationModel> associations,
+        ValidationResult result)
     {
         foreach (var assoc in associations)
         {
@@ -195,17 +204,20 @@ public static class ModelValidator
             var hasCommit = (ca.Type & CustomActionType.Commit) != 0;
 
             if (hasRollback && hasCommit)
-                result.AddError("CA004", $"Custom action '{ca.Id}' cannot be both Rollback and Commit. These are mutually exclusive scheduling options.");
+                result.AddError("CA004",
+                    $"Custom action '{ca.Id}' cannot be both Rollback and Commit. These are mutually exclusive scheduling options.");
 
             var hasInScript = (ca.Type & CustomActionType.InScript) != 0;
             var hasNoImpersonate = (ca.Type & CustomActionType.NoImpersonate) != 0;
 
             if (hasNoImpersonate && !hasInScript)
-                result.AddWarning("CA005", $"Custom action '{ca.Id}' has NoImpersonate set but is not a deferred/rollback/commit action. NoImpersonate only applies to in-script actions.");
+                result.AddWarning("CA005",
+                    $"Custom action '{ca.Id}' has NoImpersonate set but is not a deferred/rollback/commit action. NoImpersonate only applies to in-script actions.");
         }
     }
 
-    private static void ValidateRemoveRegistryEntries(IReadOnlyList<RemoveRegistryModel> entries, ValidationResult result)
+    private static void ValidateRemoveRegistryEntries(IReadOnlyList<RemoveRegistryModel> entries,
+        ValidationResult result)
     {
         foreach (var entry in entries)
         {
@@ -216,7 +228,8 @@ public static class ModelValidator
                 result.AddError("RRG002", $"RemoveRegistry '{entry.Id}' must have a Key.");
 
             if (entry.Action == RemoveRegistryAction.RemoveValue && string.IsNullOrWhiteSpace(entry.Name))
-                result.AddError("RRG003", $"RemoveRegistry '{entry.Id}' uses RemoveValue action but no Name specified.");
+                result.AddError("RRG003",
+                    $"RemoveRegistry '{entry.Id}' uses RemoveValue action but no Name specified.");
         }
     }
 
@@ -228,17 +241,16 @@ public static class ModelValidator
                 result.AddError("RMF001", $"RemoveFile '{rf.Id}' must have a DirectoryRef.");
 
             if (!rf.OnInstall && !rf.OnUninstall)
-                result.AddError("RMF002", $"RemoveFile '{rf.Id}' must specify at least one of OnInstall or OnUninstall.");
+                result.AddError("RMF002",
+                    $"RemoveFile '{rf.Id}' must specify at least one of OnInstall or OnUninstall.");
         }
     }
 
     private static void ValidateCreateFolders(IReadOnlyList<CreateFolderModel> createFolders, ValidationResult result)
     {
         foreach (var cf in createFolders)
-        {
             if (string.IsNullOrWhiteSpace(cf.DirectoryRef))
                 result.AddError("CRF001", $"CreateFolder '{cf.Id}' must have a DirectoryRef.");
-        }
     }
 
     private static void ValidateMoveFiles(IReadOnlyList<MoveFileModel> moveFiles, ValidationResult result)
@@ -256,13 +268,12 @@ public static class ModelValidator
         }
     }
 
-    private static void ValidateDuplicateFiles(IReadOnlyList<DuplicateFileModel> duplicateFiles, ValidationResult result)
+    private static void ValidateDuplicateFiles(IReadOnlyList<DuplicateFileModel> duplicateFiles,
+        ValidationResult result)
     {
         foreach (var df in duplicateFiles)
-        {
             if (string.IsNullOrWhiteSpace(df.FileRef))
                 result.AddError("DPF001", $"DuplicateFile '{df.Id}' must have a FileRef.");
-        }
     }
 
     private static void ValidateServiceControls(IReadOnlyList<ServiceControlModel> controls, ValidationResult result)
@@ -280,20 +291,10 @@ public static class ModelValidator
     private static void ValidateServiceDependencies(IReadOnlyList<ServiceModel> services, ValidationResult result)
     {
         foreach (var service in services)
-        {
-            foreach (var dep in service.TypedDependencies)
-            {
-                if (string.IsNullOrWhiteSpace(dep.DependsOn))
-                    result.AddError("SDP001", $"Service '{service.Name}' has a dependency with no DependsOn value.");
-            }
-        }
+        foreach (var dep in service.TypedDependencies)
+            if (string.IsNullOrWhiteSpace(dep.DependsOn))
+                result.AddError("SDP001", $"Service '{service.Name}' has a dependency with no DependsOn value.");
     }
-
-    private static readonly System.Text.RegularExpressions.Regex CustomTableNameRegex =
-        new("^[A-Za-z][A-Za-z0-9_]*$", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    private static readonly System.Text.RegularExpressions.Regex ColumnNameRegex =
-        new("^[A-Za-z_][A-Za-z0-9_]*$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static void ValidateCustomTables(IReadOnlyList<CustomTableModel> customTables, ValidationResult result)
     {
@@ -309,7 +310,8 @@ public static class ModelValidator
                     result.AddError("CTB002", $"Custom table '{table.Name}' name exceeds 31 characters.");
 
                 if (!CustomTableNameRegex.IsMatch(table.Name))
-                    result.AddError("CTB003", $"Custom table '{table.Name}' name must start with a letter and contain only alphanumeric characters and underscores.");
+                    result.AddError("CTB003",
+                        $"Custom table '{table.Name}' name must start with a letter and contain only alphanumeric characters and underscores.");
             }
 
             if (table.Columns.Count == 0)
@@ -325,53 +327,53 @@ public static class ModelValidator
                     if (string.IsNullOrWhiteSpace(column.Name))
                         result.AddError("CTB005", $"Custom table '{table.Name}' has a column with no name.");
                     else if (!columnNames.Add(column.Name))
-                        result.AddError("CTB006", $"Custom table '{table.Name}' has duplicate column name '{column.Name}'.");
+                        result.AddError("CTB006",
+                            $"Custom table '{table.Name}' has duplicate column name '{column.Name}'.");
 
                     if (!string.IsNullOrWhiteSpace(column.Name) && !ColumnNameRegex.IsMatch(column.Name))
-                        result.AddError("CTB010", $"Custom table '{table.Name}' column '{column.Name}' has an invalid name. Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
+                        result.AddError("CTB010",
+                            $"Custom table '{table.Name}' column '{column.Name}' has an invalid name. Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
 
                     if (column.PrimaryKey)
                         hasPrimaryKey = true;
                 }
 
                 if (!hasPrimaryKey)
-                    result.AddError("CTB007", $"Custom table '{table.Name}' must have at least one primary key column.");
+                    result.AddError("CTB007",
+                        $"Custom table '{table.Name}' must have at least one primary key column.");
             }
 
             // Validate row values match column types
             foreach (var row in table.Rows)
+            foreach (var (columnName, value) in row)
             {
-                foreach (var (columnName, value) in row)
+                var column = table.Columns.FirstOrDefault(c => c.Name == columnName);
+                if (column is null)
                 {
-                    var column = table.Columns.FirstOrDefault(c => c.Name == columnName);
-                    if (column is null)
-                    {
-                        result.AddError("CTB008", $"Custom table '{table.Name}' row references unknown column '{columnName}'.");
-                        continue;
-                    }
-
-                    if (value is null)
-                        continue;
-
-                    var isValid = column.Type switch
-                    {
-                        CustomTableColumnType.String => value is string,
-                        CustomTableColumnType.Int16 => value is short or int or long,
-                        CustomTableColumnType.Int32 => value is int or long,
-                        CustomTableColumnType.Binary => value is string, // path to binary
-                        CustomTableColumnType.Stream => value is string, // path to stream
-                        _ => true
-                    };
-
-                    if (!isValid)
-                        result.AddError("CTB009", $"Custom table '{table.Name}' column '{columnName}' expects type {column.Type} but got {value.GetType().Name}.");
+                    result.AddError("CTB008",
+                        $"Custom table '{table.Name}' row references unknown column '{columnName}'.");
+                    continue;
                 }
+
+                if (value is null)
+                    continue;
+
+                var isValid = column.Type switch
+                {
+                    CustomTableColumnType.String => value is string,
+                    CustomTableColumnType.Int16 => value is short or int or long,
+                    CustomTableColumnType.Int32 => value is int or long,
+                    CustomTableColumnType.Binary => value is string, // path to binary
+                    CustomTableColumnType.Stream => value is string, // path to stream
+                    _ => true
+                };
+
+                if (!isValid)
+                    result.AddError("CTB009",
+                        $"Custom table '{table.Name}' column '{columnName}' expects type {column.Type} but got {value.GetType().Name}.");
             }
         }
     }
-
-    private static readonly System.Text.RegularExpressions.Regex AssemblyVersionRegex =
-        new(@"^\d+\.\d+\.\d+\.\d+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static void ValidateAssemblies(IReadOnlyList<AssemblyModel> assemblies, ValidationResult result)
     {
@@ -383,8 +385,10 @@ public static class ModelValidator
             if (assembly.ApplicationFileRef is null && string.IsNullOrWhiteSpace(assembly.AssemblyPublicKeyToken))
                 result.AddWarning("ASM002", $"GAC assembly '{assembly.FileRef}' should have a PublicKeyToken.");
 
-            if (!string.IsNullOrEmpty(assembly.AssemblyVersion) && !AssemblyVersionRegex.IsMatch(assembly.AssemblyVersion))
-                result.AddError("ASM003", $"Assembly '{assembly.FileRef}' has invalid version format '{assembly.AssemblyVersion}'. Expected format: x.x.x.x.");
+            if (!string.IsNullOrEmpty(assembly.AssemblyVersion) &&
+                !AssemblyVersionRegex.IsMatch(assembly.AssemblyVersion))
+                result.AddError("ASM003",
+                    $"Assembly '{assembly.FileRef}' has invalid version format '{assembly.AssemblyVersion}'. Expected format: x.x.x.x.");
         }
     }
 
@@ -396,7 +400,8 @@ public static class ModelValidator
         if (string.IsNullOrWhiteSpace(mediaTemplate.CabinetTemplate))
             result.AddError("MDT001", "MediaTemplate CabinetTemplate is required.");
         else if (!mediaTemplate.CabinetTemplate.Contains("{0}"))
-            result.AddError("MDT002", "MediaTemplate CabinetTemplate must contain '{0}' placeholder for cabinet numbering.");
+            result.AddError("MDT002",
+                "MediaTemplate CabinetTemplate must contain '{0}' placeholder for cabinet numbering.");
 
         if (mediaTemplate.MaximumCabinetSizeInMB < 0)
             result.AddError("MDT003", "MediaTemplate MaximumCabinetSizeInMB cannot be negative.");
@@ -417,7 +422,13 @@ public static class ModelValidator
 
         if (!string.IsNullOrEmpty(signing.CertificatePath) &&
             signing.CertificatePath.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase))
-            result.AddWarning("SGN001", "Using a PFX certificate file embeds the private key. Consider using a certificate thumbprint from the certificate store instead.");
+            result.AddWarning("SGN001",
+                "Using a PFX certificate file embeds the private key. Consider using a certificate thumbprint from the certificate store instead.");
+
+        if (!string.IsNullOrEmpty(signing.DigestAlgorithm) &&
+            signing.DigestAlgorithm is not ("sha256" or "sha384" or "sha512"))
+            result.AddError("SGN003",
+                $"DigestAlgorithm '{signing.DigestAlgorithm}' is not allowed. Must be one of: sha256, sha384, sha512.");
     }
 
     private static void ValidateMajorUpgrade(PackageModel package, ValidationResult result)
@@ -426,12 +437,21 @@ public static class ModelValidator
             return;
 
         if (package.Upgrade is not null)
-            result.AddError("MUP003", "MajorUpgrade and Upgrade table entries cannot both be specified. Use one or the other.");
+            result.AddError("MUP003",
+                "MajorUpgrade and Upgrade table entries cannot both be specified. Use one or the other.");
 
         if (package.UpgradeCode == Guid.Empty)
             result.AddError("MUP001", "MajorUpgrade requires UpgradeCode to be set on the package.");
+    }
 
-        if (!package.MajorUpgrade.AllowDowngrades && string.IsNullOrWhiteSpace(package.MajorUpgrade.DowngradeErrorMessage))
-            result.AddError("MUP002", "MajorUpgrade requires DowngradeErrorMessage when AllowDowngrades is false.");
+    private static void ValidateDowngrade(PackageModel package, ValidationResult result)
+    {
+        if (package.Downgrade is null) return;
+
+        if (package.MajorUpgrade is null)
+            result.AddError("DNG002", "Downgrade configuration requires MajorUpgrade to be configured.");
+
+        if (!package.Downgrade.AllowDowngrades && string.IsNullOrWhiteSpace(package.Downgrade.ErrorMessage))
+            result.AddError("DNG001", "Downgrade.Block() requires a non-empty error message.");
     }
 }

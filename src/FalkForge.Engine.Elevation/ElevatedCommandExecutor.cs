@@ -12,7 +12,7 @@ public sealed class ElevatedCommandExecutor
         _commands = commands.ToDictionary(c => c.Name, StringComparer.Ordinal);
     }
 
-    public ElevateResultMessage Execute(ElevateExecuteMessage message)
+    public ElevateResultMessage Execute(ElevateExecuteMessage message, Action<int>? onProgress = null)
     {
         if (!_commands.TryGetValue(message.CommandName, out var command))
         {
@@ -24,7 +24,7 @@ public sealed class ElevatedCommandExecutor
             };
         }
 
-        var result = command.Execute(message.CommandPayload);
+        var result = command.Execute(message.CommandPayload, onProgress);
 
         return result.Match(
             payload => new ElevateResultMessage

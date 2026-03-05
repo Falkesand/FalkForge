@@ -1,0 +1,10 @@
+{
+  "Welcome.Title": "Welcome",
+  "Welcome.ProductName": "My Application",
+  "Welcome.Description": "This wizard will install My Application on your computer.\n\nClick Next to continue.",
+  "Progress.Title": "Installing",
+  "Progress.StatusText": "Preparing installation...",
+  "Progress.Installing": "Installing...",
+  "Complete.Title": "Complete",
+  "Complete.Message": "My Application has been successfully installed."
+}

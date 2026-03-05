@@ -5,16 +5,19 @@ namespace FalkForge.Engine.Protocol.Serialization;
 public static class MessageDeserializer
 {
     private const ushort ProtocolVersion = 1;
-    private const int MaxPayloadSize = 1 * 1024 * 1024; // 1MB
+    internal const int MaxPayloadSize = 1 * 1024 * 1024; // 1MB
     private const int MaxCollectionCount = 10_000;
     private const int MinHeaderSize = 8; // version(2) + type(2) + length(4)
 
     public static Result<EngineMessage> Deserialize(byte[] data)
+        => Deserialize(data, data.Length);
+
+    public static Result<EngineMessage> Deserialize(byte[] data, int length)
     {
-        if (data.Length < MinHeaderSize)
+        if (length < MinHeaderSize)
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Message too short");
 
-        using var stream = new MemoryStream(data);
+        using var stream = new MemoryStream(data, 0, length);
         using var reader = new BinaryReader(stream);
 
         var version = reader.ReadUInt16();
@@ -26,11 +29,11 @@ public static class MessageDeserializer
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Unknown message type: 0x{typeValue:X4}");
         var type = (MessageType)typeValue;
 
-        var length = reader.ReadInt32();
-        if (length < 0 || length > MaxPayloadSize)
-            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Invalid payload length: {length}");
+        var payloadLength = reader.ReadInt32();
+        if (payloadLength < 0 || payloadLength > MaxPayloadSize)
+            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Invalid payload length: {payloadLength}");
 
-        if (stream.Length - stream.Position < length)
+        if (stream.Length - stream.Position < payloadLength)
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Payload truncated");
 
         var sequenceId = reader.ReadUInt32();
@@ -56,7 +59,7 @@ public static class MessageDeserializer
                 MessageType.Progress => new ProgressMessage
                 {
                     SequenceId = sequenceId,
-                    Progress = new InstallProgress(reader.ReadInt32(), reader.ReadInt32(), reader.ReadString())
+                    Progress = new InstallProgress(reader.ReadInt32(), reader.ReadInt32(), reader.ReadString(), reader.ReadInt32())
                 },
                 MessageType.Error => new ErrorMessage
                     { SequenceId = sequenceId, Message = reader.ReadString(), Kind = (ErrorKind)reader.ReadInt32() },
@@ -76,8 +79,40 @@ public static class MessageDeserializer
                 MessageType.RequestPlan => new RequestPlanMessage
                     { SequenceId = sequenceId, Action = (InstallAction)reader.ReadInt32() },
                 MessageType.RequestApply => new RequestApplyMessage { SequenceId = sequenceId },
+                MessageType.SetProperty => new SetPropertyMessage
+                    { SequenceId = sequenceId, PropertyName = reader.ReadString(), Value = reader.ReadString() },
+                MessageType.SetSecureProperty => ReadSetSecureProperty(reader, sequenceId),
                 MessageType.ElevateExecute => ReadElevateExecute(reader, sequenceId),
+                MessageType.ElevateProgress => new ElevateProgressMessage
+                {
+                    SequenceId = sequenceId,
+                    Percent = reader.ReadInt32()
+                },
                 MessageType.ElevateResult => ReadElevateResult(reader, sequenceId),
+                MessageType.UpdateAvailable => new UpdateAvailableMessage
+                {
+                    SequenceId = sequenceId,
+                    Version = reader.ReadString(),
+                    ReleaseNotes = ReadNullableString(reader),
+                    DownloadUrl = reader.ReadString(),
+                    LocalPath = ReadNullableString(reader)
+                },
+                MessageType.UpdateReady => new UpdateReadyMessage
+                {
+                    SequenceId = sequenceId,
+                    Version = reader.ReadString(),
+                    LocalPath = reader.ReadString()
+                },
+                MessageType.UpdateDownloadProgress => new UpdateDownloadProgressMessage
+                {
+                    SequenceId = sequenceId,
+                    BytesReceived = reader.ReadInt64(),
+                    TotalBytes = reader.ReadInt64(),
+                    PercentComplete = reader.ReadInt32()
+                },
+                MessageType.LaunchUpdate => new LaunchUpdateMessage { SequenceId = sequenceId },
+                MessageType.License => new LicenseMessage
+                    { SequenceId = sequenceId, Action = (LicenseAction)reader.ReadInt32(), LicenseContent = ReadNullableString(reader) },
                 _ => throw new InvalidOperationException($"Unhandled message type: {type}")
             };
         }
@@ -104,11 +139,15 @@ public static class MessageDeserializer
         var features = new FeatureState[featureCount];
         for (var i = 0; i < featureCount; i++)
         {
+            var featureId = reader.ReadString();
+            var title = reader.ReadString();
+            var description = ReadNullableString(reader);
+            var isSelected = reader.ReadBoolean();
+            var isRequired = reader.ReadBoolean();
+            var wasPreviouslyInstalled = reader.ReadBoolean();
+            var diskSpaceRequired = reader.ReadInt64();
             features[i] = new FeatureState(
-                reader.ReadString(),
-                reader.ReadString(),
-                reader.ReadBoolean(),
-                reader.ReadInt64());
+                featureId, title, description, isSelected, isRequired, wasPreviouslyInstalled, diskSpaceRequired);
         }
 
         return new DetectCompleteMessage
@@ -136,6 +175,23 @@ public static class MessageDeserializer
             SequenceId = sequenceId,
             TotalDiskSpaceRequired = diskSpace,
             PackageIds = packageIds
+        };
+    }
+
+    private static Result<EngineMessage> ReadSetSecureProperty(BinaryReader reader, uint sequenceId)
+    {
+        var propertyName = reader.ReadString();
+        var payloadLength = reader.ReadInt32();
+        if (payloadLength < 0 || payloadLength > MaxPayloadSize)
+            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Secure property payload length out of range: {payloadLength}");
+
+        var secureValue = reader.ReadBytes(payloadLength);
+
+        return new SetSecurePropertyMessage
+        {
+            SequenceId = sequenceId,
+            PropertyName = propertyName,
+            SecureValue = secureValue
         };
     }
 

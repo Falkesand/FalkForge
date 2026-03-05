@@ -83,6 +83,78 @@ public sealed class FeatureTableReaderTests
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value);
         Assert.True(result.Value[0].IsRequired);
+        Assert.False(result.Value[0].IsDefault, "Level 0 should not be default-installed");
+    }
+
+    [Fact]
+    public void Read_LevelOne_IsNotRequired()
+    {
+        using var access = new MockMsiTableAccess()
+            .WithTable("Feature",
+            [
+                ["Opt", null, "Optional", null, "1", "1", null, "0"]
+            ]);
+
+        var result = FeatureTableReader.Read(access);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value[0].IsRequired);
+        Assert.True(result.Value[0].IsDefault); // level >= 1
+    }
+
+    [Fact]
+    public void Read_ThreeLevelTree_IsBuiltCorrectly()
+    {
+        using var access = new MockMsiTableAccess()
+            .WithTable("Feature",
+            [
+                ["A", null, "Root", null, "1", "1", null, "0"],
+                ["B", "A", "Child", null, "2", "1", null, "0"],
+                ["C", "B", "Grandchild", null, "3", "1", null, "0"]
+            ]);
+
+        var result = FeatureTableReader.Read(access);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value);
+        Assert.Equal("A", result.Value[0].Id);
+        Assert.Single(result.Value[0].Children);
+        Assert.Equal("B", result.Value[0].Children[0].Id);
+        Assert.Single(result.Value[0].Children[0].Children);
+        Assert.Equal("C", result.Value[0].Children[0].Children[0].Id);
+    }
+
+    [Fact]
+    public void Read_MultipleTopLevelFeatures_AllReturned()
+    {
+        using var access = new MockMsiTableAccess()
+            .WithTable("Feature",
+            [
+                ["F1", null, "Feature 1", null, "1", "1", null, "0"],
+                ["F2", null, "Feature 2", null, "2", "1", null, "0"],
+                ["F3", null, "Feature 3", null, "3", "1", null, "0"]
+            ]);
+
+        var result = FeatureTableReader.Read(access);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value.Count);
+    }
+
+    [Fact]
+    public void Read_FeatureWithNullTitle_FallsBackToId()
+    {
+        using var access = new MockMsiTableAccess()
+            .WithTable("Feature",
+            [
+                ["MyFeature", null, null, null, "1", "1", null, "0"]
+            ]);
+
+        var result = FeatureTableReader.Read(access);
+
+        Assert.True(result.IsSuccess);
+        // Title falls back to the Id when null
+        Assert.Equal("MyFeature", result.Value[0].Title);
     }
 
     [Fact]

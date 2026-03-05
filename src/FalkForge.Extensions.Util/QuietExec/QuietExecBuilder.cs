@@ -2,11 +2,11 @@ namespace FalkForge.Extensions.Util.QuietExec;
 
 public sealed class QuietExecBuilder
 {
-    private string _id = string.Empty;
     private string _commandLine = string.Empty;
-    private string? _workingDirectory;
     private string? _condition;
+    private string _id = string.Empty;
     private string? _rollbackCommandLine;
+    private string? _workingDirectory;
 
     public QuietExecBuilder Id(string id)
     {
@@ -48,10 +48,12 @@ public sealed class QuietExecBuilder
 
         const int maxCustomActionDataLength = 32767;
         if (_commandLine.Length > maxCustomActionDataLength)
-            return Result<QuietExecModel>.Failure(ErrorKind.Validation, $"QEX003: QuietExec CommandLine exceeds maximum length of {maxCustomActionDataLength} characters.");
+            return Result<QuietExecModel>.Failure(ErrorKind.Validation,
+                $"QEX003: QuietExec CommandLine exceeds maximum length of {maxCustomActionDataLength} characters.");
 
         if (_rollbackCommandLine is not null && _rollbackCommandLine.Length > maxCustomActionDataLength)
-            return Result<QuietExecModel>.Failure(ErrorKind.Validation, $"QEX004: QuietExec RollbackCommandLine exceeds maximum length of {maxCustomActionDataLength} characters.");
+            return Result<QuietExecModel>.Failure(ErrorKind.Validation,
+                $"QEX004: QuietExec RollbackCommandLine exceeds maximum length of {maxCustomActionDataLength} characters.");
 
         return new QuietExecModel
         {

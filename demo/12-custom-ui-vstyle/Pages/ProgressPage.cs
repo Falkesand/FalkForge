@@ -1,17 +1,19 @@
-namespace CustomUiVsStyle.Pages;
-
 using System.Collections.ObjectModel;
 using CustomUiVsStyle.Models;
 using CustomUiVsStyle.Views;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
 
+namespace CustomUiVsStyle.Pages;
+
 public class ProgressPage : InstallerPage<ProgressView>
 {
+    private string? _currentOperationOverride;
     private double _overallProgress;
-    private string _currentOperation = "Preparing...";
 
-    public override string Title => "Installing";
+    public override string Title => Localize("Progress.Title");
+    public string Header => Localize("Progress.Header");
+    public string OverallProgressLabel => Localize("Progress.OverallProgress");
 
     public double OverallProgress
     {
@@ -21,8 +23,8 @@ public class ProgressPage : InstallerPage<ProgressView>
 
     public string CurrentOperation
     {
-        get => _currentOperation;
-        set => SetField(ref _currentOperation, value);
+        get => _currentOperationOverride ?? Localize("Progress.Preparing");
+        set => SetField(ref _currentOperationOverride, value);
     }
 
     public ObservableCollection<Workload> InstallingWorkloads { get; } = new();
@@ -30,5 +32,8 @@ public class ProgressPage : InstallerPage<ProgressView>
     public override bool CanGoBack => false;
     public override bool CanGoNext => false;
 
-    public override PageResult OnNext() => PageResult.Next;
+    public override PageResult OnNext()
+    {
+        return PageResult.Next;
+    }
 }

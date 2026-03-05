@@ -1,10 +1,10 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
-using ReactiveUI;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+using ReactiveUI;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveObject
 {
@@ -19,9 +19,22 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
         RegisterPage(new CompletePageViewModel(engine, this));
     }
 
+    public event PropertyChangingEventHandler? PropertyChanging;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void RaisePropertyChanging(PropertyChangingEventArgs args)
+    {
+        PropertyChanging?.Invoke(this, args);
+    }
+
+    public void RaisePropertyChanged(PropertyChangedEventArgs args)
+    {
+        PropertyChanged?.Invoke(this, args);
+    }
+
     /// <summary>
-    /// Runs detection and navigates to the maintenance page when the product is already installed.
-    /// Call this after construction to determine the initial page.
+    ///     Runs detection and navigates to the maintenance page when the product is already installed.
+    ///     Call this after construction to determine the initial page.
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -42,13 +55,4 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
         RaisePropertyChanged(new PropertyChangedEventArgs(nameof(CanGoBack)));
         RaisePropertyChanged(new PropertyChangedEventArgs(nameof(CanGoNext)));
     }
-
-    public event PropertyChangingEventHandler? PropertyChanging;
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public void RaisePropertyChanging(PropertyChangingEventArgs args)
-        => PropertyChanging?.Invoke(this, args);
-
-    public void RaisePropertyChanged(PropertyChangedEventArgs args)
-        => PropertyChanged?.Invoke(this, args);
 }

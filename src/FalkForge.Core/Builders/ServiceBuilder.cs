@@ -1,13 +1,18 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class ServiceBuilder
 {
     private readonly string _name;
+
+    private readonly List<ServiceDependencyModel> _typedDependencies = [];
     private ServiceFailureActionsModel? _failureActions;
 
-    internal ServiceBuilder(string name) => _name = name;
+    internal ServiceBuilder(string name)
+    {
+        _name = name;
+    }
 
     public string DisplayName { get; set; } = string.Empty;
     public string Executable { get; set; } = string.Empty;
@@ -17,8 +22,6 @@ public sealed class ServiceBuilder
     public string? UserName { get; set; }
     public string? Password { get; set; }
     public List<string> Dependencies { get; } = [];
-
-    private readonly List<ServiceDependencyModel> _typedDependencies = [];
 
     public ServiceBuilder DependsOn(string serviceName)
     {
@@ -50,18 +53,21 @@ public sealed class ServiceBuilder
         return this;
     }
 
-    internal ServiceModel Build() => new()
+    internal ServiceModel Build()
     {
-        Name = _name,
-        DisplayName = string.IsNullOrEmpty(DisplayName) ? _name : DisplayName,
-        Executable = Executable,
-        Description = Description,
-        StartMode = StartMode,
-        Account = Account,
-        UserName = UserName,
-        Password = Password,
-        Dependencies = Dependencies,
-        TypedDependencies = _typedDependencies,
-        FailureActions = _failureActions
-    };
+        return new ServiceModel
+        {
+            Name = _name,
+            DisplayName = string.IsNullOrEmpty(DisplayName) ? _name : DisplayName,
+            Executable = Executable,
+            Description = Description,
+            StartMode = StartMode,
+            Account = Account,
+            UserName = UserName,
+            Password = Password,
+            Dependencies = Dependencies,
+            TypedDependencies = _typedDependencies,
+            FailureActions = _failureActions
+        };
+    }
 }

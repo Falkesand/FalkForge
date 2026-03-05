@@ -1,3 +1,5 @@
+using FalkForge.Builders;
+
 namespace FalkForge.Models;
 
 public sealed class PackageModel
@@ -29,6 +31,7 @@ public sealed class PackageModel
     public IReadOnlyList<EnvironmentVariableModel> EnvironmentVariables { get; init; } = [];
     public UpgradeModel? Upgrade { get; init; }
     public MajorUpgradeModel? MajorUpgrade { get; init; }
+    public DowngradeModel? Downgrade { get; init; }
     public IReadOnlyList<PropertyModel> Properties { get; init; } = [];
     public IReadOnlyList<FontModel> Fonts { get; init; } = [];
     public IReadOnlyList<LaunchConditionModel> LaunchConditions { get; init; } = [];
@@ -51,4 +54,5 @@ public sealed class PackageModel
     public MsiDialogSet DialogSet { get; init; } = MsiDialogSet.None;
     public int CabinetThreadCount { get; init; }
     public IReadOnlyList<LocalizationData> LocalizationData { get; init; } = [];
+    public ReproducibleBuildOptions? ReproducibleOptions { get; init; }
 }

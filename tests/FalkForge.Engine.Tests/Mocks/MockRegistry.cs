@@ -94,4 +94,23 @@ public sealed class MockRegistry : IRegistry
 
         return result;
     }
+
+    void IRegistry.SetStringValue(string rootKey, string subKey, string valueName, string value)
+    {
+        SetStringValue(rootKey, subKey, valueName, value);
+    }
+
+    public void DeleteKey(string rootKey, string subKey)
+    {
+        var fullKey = $@"{rootKey}\{subKey}";
+        var keysToRemove = _keys.Keys
+            .Where(k => k.Equals(fullKey, StringComparison.OrdinalIgnoreCase) ||
+                        k.StartsWith(fullKey + @"\", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            _keys.Remove(key);
+        }
+    }
 }

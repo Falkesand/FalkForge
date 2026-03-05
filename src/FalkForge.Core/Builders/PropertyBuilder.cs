@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class PropertyBuilder
 {
@@ -17,12 +17,15 @@ public sealed class PropertyBuilder
     public bool IsAdmin { get; set; }
     public bool IsHidden { get; set; }
 
-    internal PropertyModel Build() => new()
+    internal PropertyModel Build()
     {
-        Name = _name,
-        Value = _value,
-        IsSecure = IsSecure,
-        IsAdmin = IsAdmin,
-        IsHidden = IsHidden
-    };
+        return new PropertyModel
+        {
+            Name = _name,
+            Value = _value,
+            IsSecure = IsSecure,
+            IsAdmin = IsAdmin,
+            IsHidden = IsHidden
+        };
+    }
 }

@@ -1,19 +1,19 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class ShortcutBuilder
 {
-    private readonly string _name;
-    private readonly string _targetFile;
-    private readonly PackageBuilder _parent;
     private readonly List<ShortcutLocation> _locations = [];
-    private string? _workingDirectory;
+    private readonly string _name;
+    private readonly PackageBuilder _parent;
+    private readonly string _targetFile;
     private string? _arguments;
     private string? _description;
     private string? _iconFile;
     private int _iconIndex;
     private string? _startMenuSubfolder;
+    private string? _workingDirectory;
 
     internal ShortcutBuilder(string name, string targetFile, PackageBuilder parent)
     {
@@ -69,16 +69,19 @@ public sealed class ShortcutBuilder
         return this;
     }
 
-    private ShortcutModel BuildCurrent() => new()
+    private ShortcutModel BuildCurrent()
     {
-        Name = _name,
-        TargetFile = _targetFile,
-        Locations = [_locations[^1]], // Each call adds one shortcut for that location
-        WorkingDirectory = _workingDirectory,
-        Arguments = _arguments,
-        Description = _description,
-        IconFile = _iconFile,
-        IconIndex = _iconIndex,
-        StartMenuSubfolder = _startMenuSubfolder
-    };
+        return new ShortcutModel
+        {
+            Name = _name,
+            TargetFile = _targetFile,
+            Locations = [_locations[^1]], // Each call adds one shortcut for that location
+            WorkingDirectory = _workingDirectory,
+            Arguments = _arguments,
+            Description = _description,
+            IconFile = _iconFile,
+            IconIndex = _iconIndex,
+            StartMenuSubfolder = _startMenuSubfolder
+        };
+    }
 }

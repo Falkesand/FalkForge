@@ -5,8 +5,8 @@ namespace FalkForge.Ui;
 public partial class App : Application
 {
     /// <summary>
-    /// Gets the maintenance action requested via command-line switches, if any.
-    /// Supported switches: --modify, --repair, --uninstall.
+    ///     Gets the maintenance action requested via command-line switches, if any.
+    ///     Supported switches: --modify, --repair, --uninstall.
     /// </summary>
     public InstallAction? RequestedAction { get; private set; }
 

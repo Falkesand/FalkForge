@@ -109,17 +109,23 @@ public static class JsonConfigLoader
         {
             builder.MajorUpgrade(mu =>
             {
-                if (config.MajorUpgrade.AllowDowngrades)
-                    mu.AllowDowngrades();
-
-                if (!string.IsNullOrWhiteSpace(config.MajorUpgrade.DowngradeMessage))
-                    mu.DowngradeErrorMessage(config.MajorUpgrade.DowngradeMessage);
-
                 if (!string.IsNullOrWhiteSpace(config.MajorUpgrade.Schedule))
                 {
                     if (Enum.TryParse<RemoveExistingProductsSchedule>(config.MajorUpgrade.Schedule, true, out var schedule))
                         mu.Schedule(schedule);
                 }
+            });
+        }
+
+        // Downgrade
+        if (config.Downgrade is not null)
+        {
+            builder.Downgrade(d =>
+            {
+                if (config.Downgrade.Allow)
+                    d.Allow();
+                else if (!string.IsNullOrWhiteSpace(config.Downgrade.Message))
+                    d.Block(config.Downgrade.Message);
             });
         }
 

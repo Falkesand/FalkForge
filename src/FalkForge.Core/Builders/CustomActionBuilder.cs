@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class CustomActionBuilder
 {
@@ -9,7 +9,10 @@ public sealed class CustomActionBuilder
     private int _flags;
     private string _sourceRef = string.Empty;
 
-    internal CustomActionBuilder(string id) => _id = id;
+    internal CustomActionBuilder(string id)
+    {
+        _id = id;
+    }
 
     public string? Target { get; set; }
     public string? Condition { get; set; }
@@ -41,8 +44,8 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
-    /// Marks the custom action as deferred (in-script execution).
-    /// Deferred actions run during the installation script phase.
+    ///     Marks the custom action as deferred (in-script execution).
+    ///     Deferred actions run during the installation script phase.
     /// </summary>
     public CustomActionBuilder Deferred()
     {
@@ -51,10 +54,10 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
-    /// Marks the custom action as a rollback action.
-    /// Rollback actions run only if the installation fails after reaching
-    /// the point in the script where this action was scheduled.
-    /// Automatically sets the InScript flag.
+    ///     Marks the custom action as a rollback action.
+    ///     Rollback actions run only if the installation fails after reaching
+    ///     the point in the script where this action was scheduled.
+    ///     Automatically sets the InScript flag.
     /// </summary>
     public CustomActionBuilder Rollback()
     {
@@ -63,9 +66,9 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
-    /// Marks the custom action as a commit action.
-    /// Commit actions run only after a successful installation.
-    /// Automatically sets the InScript flag.
+    ///     Marks the custom action as a commit action.
+    ///     Commit actions run only after a successful installation.
+    ///     Automatically sets the InScript flag.
     /// </summary>
     public CustomActionBuilder Commit()
     {
@@ -74,9 +77,9 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
-    /// Runs the custom action with elevated (SYSTEM) privileges instead of
-    /// impersonating the installing user. Only meaningful for deferred,
-    /// rollback, or commit actions.
+    ///     Runs the custom action with elevated (SYSTEM) privileges instead of
+    ///     impersonating the installing user. Only meaningful for deferred,
+    ///     rollback, or commit actions.
     /// </summary>
     public CustomActionBuilder NoImpersonate()
     {
@@ -85,7 +88,7 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
-    /// If the custom action fails, the installer continues instead of aborting.
+    ///     If the custom action fails, the installer continues instead of aborting.
     /// </summary>
     public CustomActionBuilder ContinueOnError()
     {
@@ -93,15 +96,18 @@ public sealed class CustomActionBuilder
         return this;
     }
 
-    internal CustomActionModel Build() => new()
+    internal CustomActionModel Build()
     {
-        Id = _id,
-        Type = _baseType | _flags,
-        SourceRef = _sourceRef,
-        Target = Target,
-        Condition = Condition,
-        Sequence = Sequence,
-        After = After,
-        Before = Before
-    };
+        return new CustomActionModel
+        {
+            Id = _id,
+            Type = _baseType | _flags,
+            SourceRef = _sourceRef,
+            Target = Target,
+            Condition = Condition,
+            Sequence = Sequence,
+            After = After,
+            Before = Before
+        };
+    }
 }

@@ -258,4 +258,55 @@ public sealed class BundleBuilderTests
 
         Assert.Equal(BundleUiType.Custom, model.UiConfig!.UiType);
     }
+
+    [Fact]
+    public void UseBuiltInUI_WithImagePaths_SetsProperties()
+    {
+        var model = new BundleBuilder()
+            .Name("Test")
+            .Manufacturer("Corp")
+            .UseBuiltInUI(
+                watermarkImage: "watermark.bmp",
+                bannerImage: "banner.bmp",
+                bannerIcon: "icon.bmp")
+            .Build();
+
+        Assert.NotNull(model.UiConfig);
+        Assert.Equal("watermark.bmp", model.UiConfig.WatermarkImage);
+        Assert.Equal("banner.bmp", model.UiConfig.BannerImage);
+        Assert.Equal("icon.bmp", model.UiConfig.BannerIcon);
+    }
+
+    [Fact]
+    public void UseBuiltInUI_DefaultImagePaths_AreNull()
+    {
+        var model = new BundleBuilder()
+            .Name("Test")
+            .Manufacturer("Corp")
+            .UseBuiltInUI()
+            .Build();
+
+        Assert.NotNull(model.UiConfig);
+        Assert.Null(model.UiConfig.WatermarkImage);
+        Assert.Null(model.UiConfig.BannerImage);
+        Assert.Null(model.UiConfig.BannerIcon);
+    }
+
+    [Fact]
+    public void UpdateFeed_DefaultAllowResume_IsTrue()
+    {
+        var model = new BundleBuilder()
+            .UpdateFeed("https://example.com/feed.json")
+            .Build();
+        Assert.True(model.UpdateFeed!.AllowResumeDownload);
+    }
+
+    [Fact]
+    public void UpdateFeed_AllowResumeDisabled_StoredOnModel()
+    {
+        var model = new BundleBuilder()
+            .UpdateFeed("https://example.com/feed.json", allowResume: false)
+            .Build();
+        Assert.False(model.UpdateFeed!.AllowResumeDownload);
+    }
 }

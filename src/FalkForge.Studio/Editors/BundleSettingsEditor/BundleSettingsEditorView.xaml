@@ -1,0 +1,37 @@
+<UserControl x:Class="FalkForge.Studio.Editors.BundleSettingsEditor.BundleSettingsEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:FalkForge.Studio.Editors.BundleSettingsEditor">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="8" MaxWidth="500">
+            <TextBlock Text="Bundle Settings" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
+
+            <TextBlock Text="Name *" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Manufacturer *" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding Manufacturer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Version" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding Version, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Upgrade Code" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding UpgradeCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                     FontFamily="Consolas" />
+
+            <TextBlock Text="Scope" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <ComboBox ItemsSource="{x:Static local:BundleSettingsEditorViewModel.Scopes}"
+                      SelectedItem="{Binding Scope}" Margin="0,0,0,12" />
+
+            <TextBlock Text="UI Type" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <ComboBox ItemsSource="{x:Static local:BundleSettingsEditorViewModel.UiTypes}"
+                      SelectedItem="{Binding UiType}" Margin="0,0,0,12" />
+
+            <TextBlock Text="License File" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding LicenseFile, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Download Throttle (bytes/sec)" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBox Text="{Binding DownloadThrottle, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

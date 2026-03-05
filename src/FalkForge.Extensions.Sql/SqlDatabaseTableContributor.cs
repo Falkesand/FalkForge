@@ -9,16 +9,6 @@ public sealed class SqlDatabaseTableContributor : IMsiTableContributor
 
     public string TableName => "SqlDatabase";
 
-    public void Add(SqlDatabaseModel entry)
-    {
-        _entries.Add(entry);
-    }
-
-    public void AddRange(IEnumerable<SqlDatabaseModel> entries)
-    {
-        _entries.AddRange(entries);
-    }
-
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);
@@ -40,5 +30,15 @@ public sealed class SqlDatabaseTableContributor : IMsiTableContributor
         }
 
         return rows;
+    }
+
+    public void Add(SqlDatabaseModel entry)
+    {
+        _entries.Add(entry);
+    }
+
+    public void AddRange(IEnumerable<SqlDatabaseModel> entries)
+    {
+        _entries.AddRange(entries);
     }
 }

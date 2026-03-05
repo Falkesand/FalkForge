@@ -6,7 +6,7 @@ Practical examples showing how to build Windows Installer packages with FalkForg
 
 FalkForge supports two ways to define installers:
 
-1. **C# Fluent API** (demos 01-10) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
+1. **C# Fluent API** (demos 01-46) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
 2. **JSON Configuration** (demos 01-07 in `demo/json/`) -- Declarative JSON files validated and built by the `forge` CLI. Use this for straightforward packages that do not need custom code.
 
 Both approaches produce standard `.msi` Windows Installer packages (or `.exe` bundles). The C# demos cover the full API surface; the JSON demos show the subset available through declarative configuration.
@@ -21,14 +21,16 @@ Key properties:
 - **JSON mode** -- declarative configuration for common scenarios, no code required
 - **MSI native** -- generates standard Windows Installer databases via `msi.dll` P/Invoke
 - **NativeAOT engine** -- 3-5 MB self-extracting bundle runtime with WPF UI
-- **Extension system** -- Firewall, IIS, SQL, .NET detection, and utility actions
+- **Extension system** -- Firewall, IIS, SQL, .NET detection, Dependency, and utility actions
 
 ## C# Demo Index
 
+### MSI Demos (01-10)
+
 | #  | Name                | Lines | Description                                                | Dialog Set    |
 |----|---------------------|-------|------------------------------------------------------------|---------------|
-| 01 | Hello World         | ~15   | Absolute minimum installer -- one file, no options         | Minimal       |
-| 02 | Notepad Clone       | ~55   | Small app with shortcuts, registry, upgrade                | InstallDir    |
+| 01 | Hello World         | ~40   | Minimum installer -- one file, media template, reproducible build | Minimal       |
+| 02 | Notepad Clone       | ~72   | App with shortcuts, DWord registry, RemoveRegistry, startup shortcut | InstallDir    |
 | 03 | Client-Server       | ~106  | Multi-feature suite with services and conditions           | FeatureTree   |
 | 04 | Dev Toolkit         | ~185  | Developer tools with nested features and extensions        | Mondo         |
 | 05 | Enterprise Suite    | ~500  | Full enterprise IDE with 15 features and 71 files          | Advanced      |
@@ -37,6 +39,73 @@ Key properties:
 | 08 | Localization        | ~87   | Multi-language installer with culture fallback              | FeatureTree   |
 | 09 | Advanced MSI        | ~302  | Advanced MSI: custom actions, tables, sequences, file ops  | FeatureTree   |
 | 10 | Advanced Bundle     | ~163  | Advanced bundle: ExePackage, MsuPackage, MspPackage, rollback | Built-in WPF |
+
+### UI Demos (11-14)
+
+| #  | Name              | Lines | Description                                                |
+|----|-------------------|-------|------------------------------------------------------------|
+| 11 | Custom UI Simple  | ~616  | Custom WPF installer UI with page navigation and localization |
+| 12 | Custom UI VS-Style| ~650  | Visual Studio-style installer with workload selection      |
+| 13 | Glass UI          | ~293  | Custom borderless window with acrylic/glass effect         |
+| 14 | Lifecycle Hooks   | ~586  | Bundle lifecycle event hooks with custom configuration page |
+
+### Focused MSI Demos (15-28)
+
+| #  | Name                  | Lines | Description                                                      |
+|----|-----------------------|-------|------------------------------------------------------------------|
+| 15 | Bundle Signing        | ~209  | Detach/sign/reattach workflow with Store, Timestamp, Algorithm   |
+| 16 | Features              | ~92   | Feature tree with AllowSameVersionUpgrades, Schedule, MigrateFeatures |
+| 17 | Services              | ~119  | Service install with FailureActions, DependsOnGroup, credentials |
+| 18 | Environment Variables | ~75   | System and user-scoped environment variables                     |
+| 19 | File Associations     | ~67   | Register file extension with verbs and icons                     |
+| 20 | Custom Actions        | ~116  | DllFromBinary, ExeFromBinary, Binary, Commit, ContinueOnError   |
+| 21 | Launch Conditions     | ~59   | Block install unless conditions are met (admin, OS version)      |
+| 22 | INI Files             | ~71   | Write INI file entries during installation                       |
+| 23 | Permissions           | ~67   | NTFS permissions via SDDL strings and ForTable                   |
+| 24 | Fonts                 | ~60   | Register TrueType fonts with Title override                      |
+| 25 | File Operations       | ~76   | MoveFile, DuplicateFile, RemoveFile, CreateFolder, ComponentCondition |
+| 26 | Custom Tables         | ~61   | Typed custom MSI tables with row data                            |
+| 27 | GAC Assembly          | ~57   | Register assemblies in the Global Assembly Cache                 |
+| 28 | Sequence Scheduling   | ~70   | ExecuteSequence and UISequence ordering                          |
+
+### Extension Demos (29-34)
+
+| #  | Name              | Lines | Description                                                      |
+|----|-------------------|-------|------------------------------------------------------------------|
+| 29 | Ext: Firewall     | ~79   | Windows Firewall rules (inbound TCP)                             |
+| 30 | Ext: IIS          | ~84   | IIS application pool and web site                                |
+| 31 | Ext: SQL          | ~91   | SQL Server database creation and schema scripts                  |
+| 32 | Ext: .NET         | ~75   | .NET runtime detection via factory pattern, launch conditions    |
+| 33 | Ext: Util         | ~79   | XmlConfig transformation                                         |
+| 34 | Ext: Dependency   | ~80   | Dependency provider/consumer registration                        |
+
+### Bundle Demos (35-43)
+
+| #  | Name                  | Lines | Description                                                      |
+|----|-----------------------|-------|------------------------------------------------------------------|
+| 35 | Bundle Simple         | ~64   | Basic bundle with RelatedBundle and DependencyProvider            |
+| 36 | Bundle EXE Package    | ~67   | EXE prerequisite with exit code mapping                          |
+| 37 | Bundle MSU Package    | ~63   | Windows Update (.msu) hotfix prerequisite                        |
+| 38 | Bundle Nested         | ~64   | Nested child bundle inside a parent bundle                       |
+| 39 | Bundle Remote Payload | ~64   | Download package from URL at install time                        |
+| 40 | Bundle Variables      | ~81   | Secret, Hidden, and Persisted bundle variables                   |
+| 41 | Bundle Rollback       | ~68   | Rollback boundaries isolating failure domains                    |
+| 42 | Bundle Update Feed    | ~62   | Automatic update checking from a feed URL                        |
+| 43 | Bundle Layout         | ~68   | Named containers for offline layout scenarios                    |
+
+### Additional Output Types (44-46)
+
+| #  | Name            | Lines | Description                                                      |
+|----|-----------------|-------|------------------------------------------------------------------|
+| 44 | Merge Module    | ~55   | Reusable .msm component package with Dependency                  |
+| 45 | Patch           | ~52   | Delta .msp patch with Classification and AllowRemoval            |
+| 46 | Transform       | ~52   | .mst transform for MSI property customization                    |
+
+### Production-Grade Demo (MAS)
+
+| #   | Name                    | Type     | Description                                                    |
+|-----|-------------------------|----------|----------------------------------------------------------------|
+| MAS | MultiAccess Suite       | Advanced | Enterprise multi-package installer with 5 MSI bundles, custom UI plugin integration, SQL discovery, and engine wiring with progress/completion pages |
 
 ## JSON Demo Index
 
@@ -50,47 +119,127 @@ Key properties:
 | 06 | 06-web-server.json  | IIS app pool + web site, firewall rules                | InstallDir  |
 | 07 | 07-database-app.json| SQL database + scripts, .NET runtime detection         | InstallDir  |
 
-## Feature Matrix -- C# Demos
+## Feature Matrix -- MSI Demos
 
-Which FalkForge features each C# demo covers:
+Which FalkForge features each MSI-producing demo covers:
 
-| Feature                 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 |
-|-------------------------|----|----|----|----|----|----|----|----|----|----|
-| Files                   | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  |
-| Shortcuts               |    | x  | x  | x  | x  |    |    | x  |    |    |
-| Registry                |    | x  | x  | x  | x  |    |    |    | x  | x  |
-| Services                |    |    | x  |    | x  | x  |    |    |    |    |
-| Service Control         |    |    |    |    |    |    |    |    | x  |    |
-| Environment Variables   |    |    | x  | x  | x  |    |    |    |    |    |
-| Features (multi)        |    |    | x  | x  | x  |    | x  | x  | x  |    |
-| Nested Features         |    |    |    | x  | x  |    |    |    | x  |    |
-| Feature Conditions      |    |    |    |    |    |    |    |    | x  |    |
-| Custom Actions          |    |    |    | x  | x  |    |    |    | x  |    |
-| Custom Tables           |    |    |    |    | x  |    |    |    | x  |    |
-| Execute Sequences       |    |    |    |    |    |    |    |    | x  |    |
-| Media Template          |    |    |    |    |    |    |    |    | x  |    |
-| File Operations         |    |    |    |    |    |    |    |    | x  |    |
-| RemoveFile / RemoveReg  |    |    |    |    |    |    |    |    | x  |    |
-| Fonts                   |    |    |    |    | x  |    |    |    |    |    |
-| File Associations       |    |    |    | x  | x  |    |    |    |    |    |
-| Major Upgrade           |    | x  | x  | x  | x  |    | x  | x  | x  | x  |
-| Launch Conditions       |    |    | x  |    | x  |    |    |    | x  | x  |
-| Properties              |    |    |    |    |    |    |    |    | x  |    |
-| Localization            |    |    |    |    |    |    |    | x  |    |    |
-| Bundle                  |    |    |    |    |    | x  |    |    |    | x  |
-| Rollback Boundaries     |    |    |    |    |    | x  |    |    |    | x  |
-| ExePackage              |    |    |    |    |    |    |    |    |    | x  |
-| MsuPackage              |    |    |    |    |    |    |    |    |    | x  |
-| MspPackage              |    |    |    |    |    |    |    |    |    | x  |
-| Related Bundles         |    |    |    |    |    |    |    |    |    | x  |
-| Containers              |    |    |    |    |    |    |    |    |    | x  |
-| Exit Code Mapping       |    |    |    |    |    |    |    |    |    | x  |
-| Ext: Firewall           |    |    |    |    |    |    | x  |    |    |    |
-| Ext: IIS                |    |    |    |    |    |    | x  |    |    |    |
-| Ext: SQL                |    |    |    |    |    |    | x  |    |    |    |
-| Ext: .NET Detection     |    |    |    |    |    |    | x  |    |    |    |
-| Ext: Util (XmlConfig)   |    |    |    |    |    |    | x  |    |    |    |
-| Ext: Util (QuietExec)   |    |    |    |    |    |    | x  |    |    |    |
+| Feature                    | 01 | 02 | 03 | 04 | 05 | 07 | 08 | 09 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 |
+|----------------------------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|
+| Files                      | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  |
+| Shortcuts                  |    | x  | x  | x  | x  |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Shortcut: OnStartup        |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Shortcut: WithArguments     |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Shortcut: WithWorkingDir    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Registry                   |    | x  | x  | x  | x  |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Registry: DWord            |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Registry: DefaultValue     |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| RemoveRegistry             |    | x  |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Services                   |    |    | x  |    | x  |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| Service: FailureActions    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| Service: DependsOnGroup    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| Service: UserName/Password |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| ServiceControl             |    |    |    |    |    |    |    | x  |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| ServiceControl: Wait       |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| ServiceControl: StopOnInstall |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| ServiceControl: Arguments  |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |
+| Environment Variables      |    |    | x  | x  | x  |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |
+| Env Var: User-scoped       |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |
+| Features (multi)           |    |    | x  | x  | x  | x  | x  | x  |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |
+| Nested Features            |    |    |    | x  | x  |    |    | x  |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |
+| Feature Conditions         |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Custom Actions             |    |    |    | x  | x  |    |    | x  |    |    |    |    |    | x  |    |    |    |    |    |    |    | x  |
+| CA: DllFromBinary          |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |
+| CA: ExeFromBinary          |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |
+| CA: Binary (embed)         |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |
+| CA: Commit                 |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |
+| CA: ContinueOnError        |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |
+| Custom Tables              |    |    |    |    | x  |    |    | x  |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |
+| Execute Sequences          |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |
+| UISequence                 |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |
+| Media Template             | x  |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Reproducible               | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| RestartManager             | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| File Operations            |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |
+| ComponentCondition         |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |
+| RemoveFile                 |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |
+| Fonts                      |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |
+| Font: Title override       |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |
+| File Associations          |    |    |    | x  | x  |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |
+| INI Files                  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |
+| Permissions                |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |
+| Permissions: SDDL          |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |
+| Permissions: ForTable      |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |
+| GAC Assembly               |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    | x  |    |
+| Major Upgrade              |    | x  | x  | x  | x  | x  | x  | x  | x  | x  |    |    |    |    |    |    |    |    |    |    |    |    |
+| MajorUpgrade: AllowSameVer |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |
+| MajorUpgrade: Schedule     |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |
+| MajorUpgrade: MigrateFeatures |    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |
+| Launch Conditions          |    |    | x  |    | x  |    |    | x  |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |
+| Properties                 |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Localization               | x  | x  |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Signing                    |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Signing: Store             |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Signing: Timestamp         |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Signing: Algorithm         |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Signing: WithDescription   |    |    |    |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Ext: Firewall              |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Ext: IIS                   |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Ext: SQL                   |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Ext: .NET Detection        |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Ext: Util (XmlConfig)      |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+| Ext: Util (QuietExec)      |    |    |    |    |    | x  |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |    |
+
+## Feature Matrix -- Focused Extension Demos
+
+| Feature                     | 29 | 30 | 31 | 32 | 33 | 34 |
+|-----------------------------|----|----|----|----|----|----|
+| Ext: Firewall               | x  |    |    |    |    |    |
+| Ext: IIS                    |    | x  |    |    |    |    |
+| Ext: SQL                    |    |    | x  |    |    |    |
+| Ext: .NET Detection         |    |    |    | x  |    |    |
+| Ext: .NET Factory Pattern   |    |    |    | x  |    |    |
+| Launch Conditions (search)  |    |    |    | x  |    |    |
+| Ext: Util (XmlConfig)       |    |    |    |    | x  |    |
+| Ext: Dependency (Provides)  |    |    |    |    |    | x  |
+| Ext: Dependency (Requires)  |    |    |    |    |    | x  |
+
+## Feature Matrix -- Bundle Demos
+
+| Feature                     | 06 | 10 | 15 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 |
+|-----------------------------|----|----|----|----|----|----|----|----|----|----|----|----|
+| Bundle                      | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  |
+| MsiPackage                  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  | x  |
+| ExePackage                  |    | x  |    |    | x  |    |    |    |    |    |    |    |
+| MsuPackage                  |    | x  |    |    |    | x  |    |    |    |    |    |    |
+| MspPackage                  |    | x  |    |    |    |    |    |    |    |    |    |    |
+| BundlePackage (nested)      |    |    |    |    |    |    | x  |    |    |    |    |    |
+| Rollback Boundaries         | x  |    |    |    |    |    |    |    |    | x  |    |    |
+| Exit Code Mapping           |    | x  |    |    | x  |    |    |    |    |    |    |    |
+| Related Bundles             |    | x  |    | x  |    |    |    |    |    |    |    |    |
+| RelatedBundle               |    |    |    | x  |    |    |    |    |    |    |    |    |
+| DependencyProvider          |    |    |    | x  |    |    |    |    |    |    |    |    |
+| Remote Payload              |    |    |    |    |    |    |    | x  |    |    |    |    |
+| Containers                  |    | x  |    |    |    |    |    |    |    |    |    | x  |
+| Variables                   |    |    |    |    |    |    |    |    | x  |    |    |    |
+| Variable: Secret            |    |    |    |    |    |    |    |    | x  |    |    |    |
+| Variable: Hidden            |    |    |    |    |    |    |    |    | x  |    |    |    |
+| Variable: Persisted         |    |    |    |    |    |    |    |    | x  |    |    |    |
+| InstallCondition            |    |    |    |    |    |    |    |    | x  |    |    |    |
+| Update Feed                 |    |    |    |    |    |    |    |    |    |    | x  |    |
+| Detach/Sign/Reattach        |    |    | x  |    |    |    |    |    |    |    |    |    |
+| Built-in WPF UI             | x  | x  |    | x  | x  | x  | x  | x  | x  | x  | x  | x  |
+
+## Feature Matrix -- Additional Output Types
+
+| Feature                   | 44 (MSM) | 45 (MSP) | 46 (MST) |
+|---------------------------|----------|----------|----------|
+| Merge Module              | x        |          |          |
+| Merge Module: Dependency  | x        |          |          |
+| Patch                     |          | x        |          |
+| Patch: Classification     |          | x        |          |
+| Patch: AllowRemoval       |          | x        |          |
+| Transform                 |          |          | x        |
+| Transform: SetProperty    |          |          | x        |
 
 ## Feature Matrix -- JSON Demos
 
@@ -158,6 +307,64 @@ dotnet run --project demo/10-advanced-bundle/msi-package -- -o ./output
 dotnet run --project demo/10-advanced-bundle/bundle -- -o ./output
 ```
 
+**Demo 15 (Bundle Signing)** -- Build the MSI package first, then the bundle:
+
+```bash
+dotnet run --project demo/15-bundle-signing/msi-package -- -o ./output
+dotnet run --project demo/15-bundle-signing/bundle -- -o ./output
+```
+
+### Focused demos (16-28)
+
+```bash
+dotnet build demo/16-features/
+dotnet build demo/17-services/
+dotnet build demo/18-environment-variables/
+dotnet build demo/19-file-associations/
+dotnet build demo/20-custom-actions/
+dotnet build demo/21-launch-conditions/
+dotnet build demo/22-ini-files/
+dotnet build demo/23-permissions/
+dotnet build demo/24-fonts/
+dotnet build demo/25-file-operations/
+dotnet build demo/26-custom-tables/
+dotnet build demo/27-gac-assembly/
+dotnet build demo/28-sequence-scheduling/
+```
+
+### Extension demos (29-34)
+
+```bash
+dotnet build demo/29-ext-firewall/
+dotnet build demo/30-ext-iis/
+dotnet build demo/31-ext-sql/
+dotnet build demo/32-ext-dotnet/
+dotnet build demo/33-ext-util/
+dotnet build demo/34-ext-dependency/
+```
+
+### Bundle demos (35-43)
+
+```bash
+dotnet build demo/35-bundle-simple/
+dotnet build demo/36-bundle-exe-package/
+dotnet build demo/37-bundle-msu-package/
+dotnet build demo/38-bundle-nested/
+dotnet build demo/39-bundle-remote-payload/
+dotnet build demo/40-bundle-variables/
+dotnet build demo/41-bundle-rollback/
+dotnet build demo/42-bundle-update-feed/
+dotnet build demo/43-bundle-layout/
+```
+
+### Additional output types (44-46)
+
+```bash
+dotnet build demo/44-merge-module/
+dotnet build demo/45-patch/
+dotnet build demo/46-transform/
+```
+
 ## Validating JSON Demos
 
 JSON demos are validated and built by the `forge` CLI tool. Use the `validate` command to check a JSON definition without producing an MSI:
@@ -186,11 +393,11 @@ All `payload/` directories contain **dummy placeholder files** (zero-byte or min
 
 ### 01 -- Hello World
 
-Absolute minimum MSI installer. A single file installed to Program Files with no UI interaction (Minimal dialog set). Start here to understand the basic `Installer.Build()` pattern.
+Absolute minimum MSI installer. A single file installed to Program Files with Minimal dialog set. Demonstrates `MediaTemplate` (cabinet naming, compression, embedding), `Reproducible()` for deterministic builds, and `EnableRestartManagerSupport()` for graceful files-in-use handling.
 
 ### 02 -- Notepad Clone
 
-Small application installer with InstallDir dialog (user picks install directory). Demonstrates shortcuts (desktop and Start Menu), registry entries under HKCU, a license file, and major upgrade support.
+Small application installer with InstallDir dialog (user picks install directory). Demonstrates shortcuts (desktop, Start Menu, and Startup with `WithArguments` and `WithWorkingDirectory`), registry entries including `DWord` and `DefaultValue`, `RemoveRegistry` for clean uninstall, a license file, and major upgrade support.
 
 ### 03 -- Client-Server
 
@@ -245,6 +452,198 @@ Full-featured bundle demonstrating all chain package types:
 - Related bundle detection (upgrade and detect relations)
 - Named containers for logical payload grouping with download URLs
 - Built-in WPF UI with theme color customization
+
+### 11 -- Custom UI Simple
+
+Custom WPF installer UI with Welcome, Progress, and Complete pages. Uses localization (en-US, sv-SE) with language selection, custom window sizing, and accent color theming.
+
+### 12 -- Custom UI VS-Style
+
+Visual Studio-inspired installer with borderless window, dark background, workload selection page, and progress tracking. Demonstrates advanced WPF customization for complex installer UIs.
+
+### 13 -- Glass UI
+
+Minimal custom installer with a borderless acrylic/glass window effect using a custom `GlassWindow` subclass. Shows how to replace the default window chrome entirely.
+
+### 14 -- Lifecycle Hooks
+
+Bundle installer with lifecycle event hooks. Custom configuration page collects user input before installation. Demonstrates the page-based navigation model with Welcome, Config, Progress, and Complete pages.
+
+### 15 -- Bundle Signing
+
+Complete code-signing workflow for bundle EXEs:
+- Build MSI with `Signing()` configuration: `Store`, `Timestamp`, `Algorithm`, `WithDescription`
+- Compile bundle wrapping the signed MSI
+- Detach PE stub from bundle data
+- Sign the PE stub (placeholder for signtool)
+- Reattach signed stub with bundle data
+
+### 16 -- Features
+
+Nested feature tree with required and optional features. Demonstrates `MajorUpgrade` tuning: `AllowSameVersionUpgrades()`, `Schedule(AfterInstallExecute)`, and `MigrateFeatures(true)` to preserve user feature selections across upgrades.
+
+### 17 -- Services
+
+Windows service installation with full configuration:
+- Service install with `DependsOn` and `DependsOnGroup` for startup ordering
+- `FailureActions`: restart, run command, reboot with configurable delays and messages
+- `UserName`/`Password` credentials for domain service accounts
+- `ServiceControl`: `Wait`, `StopOnInstall`, `StartOnInstall`, `DeleteOnUninstall`, `Arguments`
+
+### 18 -- Environment Variables
+
+System-level and user-scoped environment variables. Demonstrates `Set` (create new), `Append` (add to PATH with separator), and user-scoped variables (`IsSystem = false`).
+
+### 19 -- File Associations
+
+Register a file extension (`.demo`) with content type, description, icon, and an "open" verb so double-clicking opens the associated application.
+
+### 20 -- Custom Actions
+
+All custom action types in one demo:
+- `Binary()` to embed a DLL for use by custom actions
+- `DllFromBinary()` -- DLL-based CA with C entry point
+- `ExeFromBinary()` -- EXE-based CA from embedded binary
+- `SetProperty()` -- Type 51 property-setting CA
+- `Deferred()` / `Rollback()` / `Commit()` execution modes
+- `ContinueOnError()` -- installer proceeds even if the CA fails
+
+### 21 -- Launch Conditions
+
+Block installation unless conditions are met. Demonstrates `Require(Condition.IsPrivileged)` for admin rights and `Require(Condition.IsWindows10OrLater)` for OS version checks.
+
+### 22 -- INI Files
+
+Write configuration entries to an INI file during installation using section/key/value with `CreateEntry` action.
+
+### 23 -- Permissions
+
+Set NTFS permissions on installed directories:
+- Traditional permission mask for `BUILTIN\Users`
+- `Sddl` string for fine-grained access control
+- `ForTable("CreateFolder")` to target specific MSI tables
+
+### 24 -- Fonts
+
+Register TrueType fonts during installation. Demonstrates basic font registration and `Title` override for custom font display names.
+
+### 25 -- File Operations
+
+File manipulation during installation:
+- `CreateFolder` for empty directories
+- `DuplicateFile` to copy files at install time
+- `RemoveFile` with wildcard patterns on uninstall
+- `ComponentCondition` for conditional file installation
+
+### 26 -- Custom Tables
+
+Define custom MSI tables with typed columns (`String`, `Int32`) and primary keys. Insert row data for application-specific metadata.
+
+### 27 -- GAC Assembly
+
+Register a .NET assembly in the Global Assembly Cache with assembly type specification.
+
+### 28 -- Sequence Scheduling
+
+Control installation action ordering:
+- `ExecuteSequence` for actions in the server-side execute phase
+- `UISequence` for actions in the client-side UI phase
+- Conditional execution with `Condition.IsInstalling`
+
+### 29-34 -- Extension Demos
+
+Focused demos for each FalkForge extension, one per project:
+- **29 Firewall**: Windows Firewall inbound TCP rule configuration
+- **30 IIS**: Application pool + web site with HTTP binding
+- **31 SQL**: Database creation + schema script execution
+- **32 .NET Detection**: `DotNetExtension` factory pattern (`SearchForRuntime()`) with search result wired as a launch condition via `package.Require()`
+- **33 Util**: XmlConfig transformation (XPath-based attribute setting)
+- **34 Dependency**: Provider/consumer registration with version constraints
+
+### 35 -- Bundle Simple
+
+Basic bundle with `RelatedBundle()` for detecting bundles with different upgrade codes, and `DependencyProvider()` for declaring this bundle as a dependency that other bundles can reference.
+
+### 36 -- Bundle EXE Package
+
+Bundle an EXE prerequisite (e.g., Visual C++ Redistributable) with `ExitCode()` mapping: success, schedule reboot, and already-installed codes.
+
+### 37 -- Bundle MSU Package
+
+Bundle a Windows Update (.msu) hotfix as a prerequisite before the main MSI application.
+
+### 38 -- Bundle Nested
+
+Nest a child bundle (`BundlePackage`) inside a parent bundle alongside an MSI package.
+
+### 39 -- Bundle Remote Payload
+
+Download an MSI package from a URL at install time using `RemotePayload()` with hash and size instead of embedding it.
+
+### 40 -- Bundle Variables
+
+Bundle variables with visibility controls:
+- `Persisted()` -- survives bundle repair/modify sessions
+- `Hidden()` -- excluded from install logs
+- `Secret()` -- excluded from logs AND persisted state (implies Hidden)
+- `InstallCondition` for conditional package installation based on variable values
+
+### 41 -- Bundle Rollback
+
+Rollback boundaries isolating failure domains. If a package in one boundary fails, only packages in that boundary roll back.
+
+### 42 -- Bundle Update Feed
+
+Automatic update checking from a JSON feed URL with `UpdatePolicy.NotifyOnly`.
+
+### 43 -- Bundle Layout
+
+Named containers (`Container()`) for grouping payloads in offline layout scenarios.
+
+### 44 -- Merge Module
+
+Reusable `.msm` component package built with `Installer.BuildMergeModule()`. Includes `Dependency()` declaration for module dependency tracking.
+
+### 45 -- Patch
+
+Delta `.msp` patch built with `Installer.BuildPatch()`. Specifies `Classification(PatchClassification.Hotfix)` and `AllowRemoval(true)` for uninstallable patches.
+
+### 46 -- Transform
+
+`.mst` transform built with `Installer.BuildTransform()`. Overrides MSI properties (`ALLUSERS`, `INSTALLDIR`, `REBOOT`) for enterprise deployment customization.
+
+### MAS -- MultiAccess Suite
+
+Production-grade enterprise installer demonstrating FalkForge's complete custom UI and bundle integration capabilities. The MAS demo consists of:
+
+**Five MSI Packages** (in `packages/` subdirectory):
+- MultiAccess: Main client application
+- MultiServer: Server component
+- MultiServerEx: Extended server component
+- Konfigurera: Configuration tool
+- Concatenate: Data concatenation utility
+
+**Bundle Project** (`bundle/MASBundle.csproj`):
+- Chains all five MSI packages via `BundleBuilder`
+- Uses `UseCustomUI()` to wire the custom UI from the UI project
+- Installs to `%ProgramFiles%\ASSA ABLOY\<Name>` with per-machine scope
+
+**Engine Wiring**:
+- UI connects to the FalkForge NativeAOT engine at runtime via named pipe
+- Engine extracts bundled MSI payloads, loads the manifest, and launches the custom WPF UI
+- Bootstrapper supports pre-compiled NativeAOT engine via `FALKFORGE_ENGINE_PATH` environment variable
+
+**Custom UI Features**:
+- Plugin system (`SqlPlugin`, `OdbcPlugin`, `FileSystemPlugin`) providing SQL discovery and ODBC configuration services
+- Multi-page installation wizard with conditional page flow (Standard vs. Advanced paths)
+- SQL Server discovery and database listing integration
+- Custom window shell with cancel confirmation dialog
+- Localization with JSON resources and language selection
+- Shared state passing between pages for aggregated confirmation
+
+**Progress & Completion Pages**:
+- `InstallProgressPage` subscribes to engine observables for real-time progress (0-100% with status text). Smooth per-MSI internal progress via `MsiSetExternalUIW` callback provides per-package percent tracking across all chained packages
+- `CompletionPage` displays success or failure with error details from shared state
 
 ### JSON 01-05 -- Core MSI Features
 

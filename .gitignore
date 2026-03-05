@@ -13,6 +13,9 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+# Claude Code
+CLAUDE.md
+
 # Mono auto generated files
 mono_crash.*
 
@@ -198,6 +201,8 @@ PublishScripts/
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
+# Demo MAS packages are source projects, not NuGet packages
+!demo/MAS/packages/**
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files
@@ -377,13 +382,20 @@ FodyWeavers.xsd
 # Local History for Visual Studio Code
 .history/
 
-# Windows Installer files from build outputs
+# Windows Installer files from build outputs (negations prevent matching source directories)
 *.cab
 *.msi
+!*.Msi/
 *.msix
 *.msm
 *.msp
 
+# Documentation generator fragments
+docs/gen/
+
 # JetBrains Rider
 *.sln.iml
 .idea/
+
+# Git worktrees
+.worktrees/

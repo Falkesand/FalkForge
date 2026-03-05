@@ -12,5 +12,12 @@ public sealed class BundleModel
     public IReadOnlyList<RelatedBundleModel> RelatedBundles { get; init; } = [];
     public IReadOnlyList<ChainItem> Chain { get; init; } = [];
     public IReadOnlyList<ContainerModel> Containers { get; init; } = [];
+    public IReadOnlyList<BundleVariableModel> Variables { get; init; } = [];
+    public IReadOnlyList<BundleFeatureModel> Features { get; init; } = [];
+    public IReadOnlyList<BundleDependencyProviderModel> DependencyProviders { get; init; } = [];
+    public IReadOnlyList<BundleDependencyConsumerModel> DependencyConsumers { get; init; } = [];
+    public IReadOnlyList<BundleDependencyRequirementModel> DependencyRequirements { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
+    public UpdateFeedConfig? UpdateFeed { get; init; }
+    public long MaxBytesPerSecond { get; init; }
 }

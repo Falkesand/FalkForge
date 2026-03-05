@@ -6,11 +6,9 @@ public sealed class FirewallTableContributor : IMsiTableContributor
 {
     private readonly List<FirewallRuleModel> _rules = [];
 
-    public string TableName => "WixFirewallException";
-
-    public void AddRule(FirewallRuleModel rule) => _rules.Add(rule);
-
     public IReadOnlyList<FirewallRuleModel> Rules => _rules;
+
+    public string TableName => "WixFirewallException";
 
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
@@ -37,25 +35,39 @@ public sealed class FirewallTableContributor : IMsiTableContributor
         return rows;
     }
 
-    private static int MapProtocol(FirewallProtocol protocol) => protocol switch
+    public void AddRule(FirewallRuleModel rule)
     {
-        FirewallProtocol.Tcp => 6,
-        FirewallProtocol.Udp => 17,
-        FirewallProtocol.Any => 256,
-        _ => 6
-    };
+        _rules.Add(rule);
+    }
 
-    private static int MapDirection(FirewallDirection direction) => direction switch
+    private static int MapProtocol(FirewallProtocol protocol)
     {
-        FirewallDirection.Inbound => 1,
-        FirewallDirection.Outbound => 2,
-        _ => 1
-    };
+        return protocol switch
+        {
+            FirewallProtocol.Tcp => 6,
+            FirewallProtocol.Udp => 17,
+            FirewallProtocol.Any => 256,
+            _ => 6
+        };
+    }
 
-    private static int MapAction(FirewallRuleAction action) => action switch
+    private static int MapDirection(FirewallDirection direction)
     {
-        FirewallRuleAction.Allow => 1,
-        FirewallRuleAction.Block => 0,
-        _ => 1
-    };
+        return direction switch
+        {
+            FirewallDirection.Inbound => 1,
+            FirewallDirection.Outbound => 2,
+            _ => 1
+        };
+    }
+
+    private static int MapAction(FirewallRuleAction action)
+    {
+        return action switch
+        {
+            FirewallRuleAction.Allow => 1,
+            FirewallRuleAction.Block => 0,
+            _ => 1
+        };
+    }
 }

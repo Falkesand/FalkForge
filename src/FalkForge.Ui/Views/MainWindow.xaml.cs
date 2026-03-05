@@ -1,7 +1,7 @@
-namespace FalkForge.Ui.Views;
-
 using System.Windows;
 using FalkForge.Ui.ViewModels;
+
+namespace FalkForge.Ui.Views;
 
 public partial class MainWindow : Window
 {
@@ -17,26 +17,17 @@ public partial class MainWindow : Window
 
     private void OnBackClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DefaultShellViewModel shell)
-        {
-            shell.NavigateBack();
-        }
+        if (DataContext is DefaultShellViewModel shell) shell.NavigateBack();
     }
 
     private void OnNextClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DefaultShellViewModel shell)
-        {
-            shell.NavigateNext();
-        }
+        if (DataContext is DefaultShellViewModel shell) shell.NavigateNext();
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DefaultShellViewModel shell)
-        {
-            shell.Engine.Cancel();
-        }
+        if (DataContext is DefaultShellViewModel shell) shell.Engine.Cancel();
 
         Close();
     }

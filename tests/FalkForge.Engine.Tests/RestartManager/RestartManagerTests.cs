@@ -365,7 +365,9 @@ public sealed class RestartManagerTests
         var msuExecutor = new MsuExecutor(runner);
         var mspExecutor = new MspExecutor(runner);
         var bundleExecutor = new BundleExecutor(runner);
-        return new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor);
+        var exeExecutor = new ExeExecutor(runner);
+        var netRuntimeExecutor = new NetRuntimeExecutor(runner);
+        return new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
     }
 
     private static InstallPlan CreatePlanWithMsuPackages(int packageCount)

@@ -48,6 +48,7 @@ public sealed class CSharpEmitter
         EmitShortcuts(package.Shortcuts);
         EmitProperties(package.Properties);
         EmitMajorUpgrade(package.MajorUpgrade);
+        EmitDowngrade(package.Downgrade);
 
         AppendLine("var model = builder.Build();");
 
@@ -184,14 +185,29 @@ public sealed class CSharpEmitter
         AppendLine("builder.MajorUpgrade(u =>");
         AppendLine("{");
         _indent++;
-        if (majorUpgrade.AllowDowngrades)
-            AppendLine("u.AllowDowngrades();");
         if (majorUpgrade.AllowSameVersionUpgrades)
             AppendLine("u.AllowSameVersionUpgrades();");
-        if (majorUpgrade.DowngradeErrorMessage is not null)
-            AppendLine($"u.DowngradeErrorMessage({Quote(majorUpgrade.DowngradeErrorMessage)});");
         _indent--;
         AppendLine("});");
+        AppendLine();
+    }
+
+    private void EmitDowngrade(DowngradeModel? downgrade)
+    {
+        if (downgrade is null)
+            return;
+
+        if (downgrade.AllowDowngrades)
+        {
+            AppendLine("builder.Downgrade(d => d.Allow());");
+        }
+        else
+        {
+            if (downgrade.ErrorMessage is not null)
+                AppendLine($"builder.Downgrade(d => d.Block({Quote(downgrade.ErrorMessage)}));");
+            else
+                AppendLine("builder.Downgrade(d => d.Block());");
+        }
         AppendLine();
     }
 

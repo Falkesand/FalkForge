@@ -2,20 +2,20 @@ namespace FalkForge.Extensions.Firewall;
 
 public sealed class FirewallRuleBuilder
 {
-    private string _id = string.Empty;
-    private string _name = string.Empty;
-    private string? _description;
-    private FirewallProtocol _protocol = FirewallProtocol.Tcp;
-    private string? _port;
-    private string? _remotePort;
-    private string? _localAddress;
-    private string? _remoteAddress;
-    private string? _program;
-    private FirewallProfile _profile = FirewallProfile.All;
-    private FirewallDirection _direction = FirewallDirection.Inbound;
     private FirewallRuleAction _action = FirewallRuleAction.Allow;
     private string? _componentRef;
     private string? _condition;
+    private string? _description;
+    private FirewallDirection _direction = FirewallDirection.Inbound;
+    private string _id = string.Empty;
+    private string? _localAddress;
+    private string _name = string.Empty;
+    private string? _port;
+    private FirewallProfile _profile = FirewallProfile.All;
+    private string? _program;
+    private FirewallProtocol _protocol = FirewallProtocol.Tcp;
+    private string? _remoteAddress;
+    private string? _remotePort;
 
     public FirewallRuleBuilder Id(string id)
     {
@@ -101,21 +101,24 @@ public sealed class FirewallRuleBuilder
         return this;
     }
 
-    internal FirewallRuleModel Build() => new()
+    internal FirewallRuleModel Build()
     {
-        Id = _id,
-        Name = _name,
-        Description = _description,
-        Protocol = _protocol,
-        Port = _port,
-        RemotePort = _remotePort,
-        LocalAddress = _localAddress,
-        RemoteAddress = _remoteAddress,
-        Program = _program,
-        Profile = _profile,
-        Direction = _direction,
-        Action = _action,
-        ComponentRef = _componentRef,
-        Condition = _condition
-    };
+        return new FirewallRuleModel
+        {
+            Id = _id,
+            Name = _name,
+            Description = _description,
+            Protocol = _protocol,
+            Port = _port,
+            RemotePort = _remotePort,
+            LocalAddress = _localAddress,
+            RemoteAddress = _remoteAddress,
+            Program = _program,
+            Profile = _profile,
+            Direction = _direction,
+            Action = _action,
+            ComponentRef = _componentRef,
+            Condition = _condition
+        };
+    }
 }

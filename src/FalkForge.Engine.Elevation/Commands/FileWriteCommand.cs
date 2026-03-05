@@ -4,7 +4,7 @@ public sealed class FileWriteCommand : IElevatedCommand
 {
     public string Name => "FileWrite";
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         using var stream = new MemoryStream(payload);
         using var reader = new BinaryReader(stream);
@@ -33,7 +33,13 @@ public sealed class FileWriteCommand : IElevatedCommand
         {
             var dir = Path.GetDirectoryName(normalizedPath);
             if (dir is not null)
+            {
                 Directory.CreateDirectory(dir);
+                var dirInfo = new DirectoryInfo(dir);
+                if (dirInfo.Exists && dirInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                        "Target directory is a symbolic link or junction and cannot be written to");
+            }
             File.WriteAllBytes(normalizedPath, content);
             return Array.Empty<byte>();
         }

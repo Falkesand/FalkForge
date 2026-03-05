@@ -7,9 +7,9 @@ namespace FalkForge.Cli.Settings;
 
 public sealed class DecompileSettings : CommandSettings
 {
-    [Description("Path to the MSI file to decompile")]
-    [CommandArgument(0, "<file.msi>")]
-    public string MsiPath { get; init; } = string.Empty;
+    [Description("Path to the file to decompile (.msi or .exe)")]
+    [CommandArgument(0, "<file>")]
+    public string FilePath { get; init; } = string.Empty;
 
     [Description("Output file path for the generated C# source")]
     [CommandOption("-o|--output")]
@@ -17,14 +17,15 @@ public sealed class DecompileSettings : CommandSettings
 
     public override CliValidationResult Validate()
     {
-        if (string.IsNullOrWhiteSpace(MsiPath))
-            return CliValidationResult.Error("MSI file path is required.");
+        if (string.IsNullOrWhiteSpace(FilePath))
+            return CliValidationResult.Error("File path is required.");
 
-        if (MsiPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
-            return CliValidationResult.Error("MSI file path contains invalid characters.");
+        if (FilePath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+            return CliValidationResult.Error("File path contains invalid characters.");
 
-        if (!MsiPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
-            return CliValidationResult.Error("File must be an .msi file.");
+        if (!FilePath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) &&
+            !FilePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            return CliValidationResult.Error("File must be an .msi or .exe file.");
 
         if (OutputPath is not null && OutputPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
             return CliValidationResult.Error("Output path contains invalid characters.");

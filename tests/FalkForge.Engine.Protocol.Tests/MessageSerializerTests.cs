@@ -78,7 +78,7 @@ public class MessageSerializerTests
         var message = new ProgressMessage
         {
             SequenceId = 10,
-            Progress = new InstallProgress(5, 20, "package-a")
+            Progress = new InstallProgress(5, 20, "package-a", 42)
         };
 
         var bytes = MessageSerializer.Serialize(message);
@@ -93,10 +93,12 @@ public class MessageSerializerTests
         var current = reader.ReadInt32();
         var total = reader.ReadInt32();
         var packageName = reader.ReadString();
+        var packagePercent = reader.ReadInt32();
 
         Assert.Equal(5, current);
         Assert.Equal(20, total);
         Assert.Equal("package-a", packageName);
+        Assert.Equal(42, packagePercent);
     }
 
     [Fact]
@@ -104,8 +106,8 @@ public class MessageSerializerTests
     {
         var features = new[]
         {
-            new FeatureState("feat-1", "Feature One", true, 1024L),
-            new FeatureState("feat-2", "Feature Two", false, 2048L)
+            new FeatureState("feat-1", "Feature One", "First feature", true, false, false, 1024L),
+            new FeatureState("feat-2", "Feature Two", null, false, true, true, 2048L)
         };
 
         var message = new DetectCompleteMessage
@@ -135,12 +137,18 @@ public class MessageSerializerTests
 
         var f1Id = reader.ReadString();
         var f1Title = reader.ReadString();
+        var f1Description = reader.ReadString();
         var f1Selected = reader.ReadBoolean();
+        var f1Required = reader.ReadBoolean();
+        var f1WasPrevious = reader.ReadBoolean();
         var f1Space = reader.ReadInt64();
 
         Assert.Equal("feat-1", f1Id);
         Assert.Equal("Feature One", f1Title);
+        Assert.Equal("First feature", f1Description);
         Assert.True(f1Selected);
+        Assert.False(f1Required);
+        Assert.False(f1WasPrevious);
         Assert.Equal(1024L, f1Space);
     }
 
@@ -286,5 +294,54 @@ public class MessageSerializerTests
         // Payload length should equal remaining bytes after the length field
         var remainingBytes = bytes.Length - 8; // 8 = header size (version + type + length)
         Assert.Equal(remainingBytes, length);
+    }
+
+    [Fact]
+    public void RoundTrip_UpdateDownloadProgressMessage_PreservesAllFields()
+    {
+        var msg = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 42,
+            BytesReceived = 500_000,
+            TotalBytes = 2_000_000,
+            PercentComplete = 25
+        };
+        var bytes = MessageSerializer.Serialize(msg);
+        var result = MessageDeserializer.Deserialize(bytes);
+        Assert.True(result.IsSuccess);
+        var deserialized = Assert.IsType<UpdateDownloadProgressMessage>(result.Value);
+        Assert.Equal(42u, deserialized.SequenceId);
+        Assert.Equal(500_000, deserialized.BytesReceived);
+        Assert.Equal(2_000_000, deserialized.TotalBytes);
+        Assert.Equal(25, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void RoundTrip_UpdateDownloadProgressMessage_UnknownSize_TotalBytesIsNegativeOne()
+    {
+        var msg = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 1,
+            BytesReceived = 81_920,
+            TotalBytes = -1,
+            PercentComplete = 0
+        };
+        var bytes = MessageSerializer.Serialize(msg);
+        var result = MessageDeserializer.Deserialize(bytes);
+        Assert.True(result.IsSuccess);
+        var deserialized = Assert.IsType<UpdateDownloadProgressMessage>(result.Value);
+        Assert.Equal(-1, deserialized.TotalBytes);
+        Assert.Equal(0, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void RoundTrip_LaunchUpdateMessage_PreservesSequenceId()
+    {
+        var msg = new LaunchUpdateMessage { SequenceId = 99 };
+        var bytes = MessageSerializer.Serialize(msg);
+        var result = MessageDeserializer.Deserialize(bytes);
+        Assert.True(result.IsSuccess);
+        var deserialized = Assert.IsType<LaunchUpdateMessage>(result.Value);
+        Assert.Equal(99u, deserialized.SequenceId);
     }
 }

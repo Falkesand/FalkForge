@@ -3,10 +3,10 @@ namespace FalkForge.Compiler.Bundle.Builders;
 public sealed class NestedBundlePackageBuilder
 {
     private readonly string _sourcePath;
-    private string _id;
     private string _displayName;
-    private bool _vital = true;
+    private string _id;
     private string? _installCondition;
+    private bool _vital = true;
 
     internal NestedBundlePackageBuilder(string sourcePath)
     {
@@ -15,12 +15,34 @@ public sealed class NestedBundlePackageBuilder
         _displayName = _id;
     }
 
-    public NestedBundlePackageBuilder Id(string id) { _id = id; return this; }
-    public NestedBundlePackageBuilder DisplayName(string name) { _displayName = name; return this; }
-    public NestedBundlePackageBuilder Vital(bool vital) { _vital = vital; return this; }
-    public NestedBundlePackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
-    public NestedBundlePackageBuilder InstallCondition(Condition condition) =>
-        InstallCondition(condition.ToString());
+    public NestedBundlePackageBuilder Id(string id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public NestedBundlePackageBuilder DisplayName(string name)
+    {
+        _displayName = name;
+        return this;
+    }
+
+    public NestedBundlePackageBuilder Vital(bool vital)
+    {
+        _vital = vital;
+        return this;
+    }
+
+    public NestedBundlePackageBuilder InstallCondition(string condition)
+    {
+        _installCondition = condition;
+        return this;
+    }
+
+    public NestedBundlePackageBuilder InstallCondition(Condition condition)
+    {
+        return InstallCondition(condition.ToString());
+    }
 
     internal BundlePackageModel Build()
     {

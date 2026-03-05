@@ -17,7 +17,8 @@ public static class XmlConfigValidator
 
         if (model.Action == XmlConfigAction.SetAttribute &&
             (string.IsNullOrWhiteSpace(model.AttributeName) || model.Value is null))
-            return Result<Unit>.Failure(ErrorKind.Validation, "XCF004: SetAttribute action requires AttributeName and Value.");
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "XCF004: SetAttribute action requires AttributeName and Value.");
 
         if (model.XPath.Length > MaxXPathLength)
             return Result<Unit>.Failure(ErrorKind.Validation,

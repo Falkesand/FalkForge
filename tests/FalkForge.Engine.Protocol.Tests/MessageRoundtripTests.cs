@@ -30,9 +30,9 @@ public class MessageRoundtripTests
     {
         var features = new[]
         {
-            new FeatureState("core", "Core Components", true, 50_000_000L),
-            new FeatureState("docs", "Documentation", false, 10_000_000L),
-            new FeatureState("samples", "Sample Projects", true, 25_000_000L)
+            new FeatureState("core", "Core Components", "Core runtime", true, true, true, 50_000_000L),
+            new FeatureState("docs", "Documentation", null, false, false, false, 10_000_000L),
+            new FeatureState("samples", "Sample Projects", "Code samples", true, false, true, 25_000_000L)
         };
 
         var original = new DetectCompleteMessage
@@ -53,14 +53,23 @@ public class MessageRoundtripTests
 
         Assert.Equal("core", deserialized.Features[0].FeatureId);
         Assert.Equal("Core Components", deserialized.Features[0].Title);
+        Assert.Equal("Core runtime", deserialized.Features[0].Description);
         Assert.True(deserialized.Features[0].IsSelected);
+        Assert.True(deserialized.Features[0].IsRequired);
+        Assert.True(deserialized.Features[0].WasPreviouslyInstalled);
         Assert.Equal(50_000_000L, deserialized.Features[0].DiskSpaceRequired);
 
         Assert.Equal("docs", deserialized.Features[1].FeatureId);
+        Assert.Null(deserialized.Features[1].Description);
         Assert.False(deserialized.Features[1].IsSelected);
+        Assert.False(deserialized.Features[1].IsRequired);
+        Assert.False(deserialized.Features[1].WasPreviouslyInstalled);
 
         Assert.Equal("samples", deserialized.Features[2].FeatureId);
+        Assert.Equal("Code samples", deserialized.Features[2].Description);
         Assert.True(deserialized.Features[2].IsSelected);
+        Assert.False(deserialized.Features[2].IsRequired);
+        Assert.True(deserialized.Features[2].WasPreviouslyInstalled);
     }
 
     [Fact]
@@ -176,7 +185,7 @@ public class MessageRoundtripTests
         var original = new ProgressMessage
         {
             SequenceId = 10,
-            Progress = new InstallProgress(7, 25, "Microsoft.NETCore.App.Runtime")
+            Progress = new InstallProgress(7, 25, "Microsoft.NETCore.App.Runtime", 63)
         };
 
         var deserialized = RoundTrip(original);
@@ -185,6 +194,7 @@ public class MessageRoundtripTests
         Assert.Equal(7, deserialized.Progress.Current);
         Assert.Equal(25, deserialized.Progress.Total);
         Assert.Equal("Microsoft.NETCore.App.Runtime", deserialized.Progress.CurrentPackage);
+        Assert.Equal(63, deserialized.Progress.PackagePercent);
     }
 
     [Theory]
@@ -437,6 +447,55 @@ public class MessageRoundtripTests
     }
 
     [Fact]
+    public void RoundTrip_LicenseMessage_Required_WithContent()
+    {
+        var original = new LicenseMessage
+        {
+            SequenceId = 40,
+            Action = LicenseAction.Required,
+            LicenseContent = "MIT License\n\nCopyright (c) 2026..."
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.License, deserialized.Type);
+        Assert.Equal(40u, deserialized.SequenceId);
+        Assert.Equal(LicenseAction.Required, deserialized.Action);
+        Assert.Equal("MIT License\n\nCopyright (c) 2026...", deserialized.LicenseContent);
+    }
+
+    [Fact]
+    public void RoundTrip_LicenseMessage_Accepted_NoContent()
+    {
+        var original = new LicenseMessage
+        {
+            SequenceId = 41,
+            Action = LicenseAction.Accepted,
+            LicenseContent = null
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(LicenseAction.Accepted, deserialized.Action);
+        Assert.Null(deserialized.LicenseContent);
+    }
+
+    [Fact]
+    public void RoundTrip_LicenseMessage_Declined()
+    {
+        var original = new LicenseMessage
+        {
+            SequenceId = 42,
+            Action = LicenseAction.Declined,
+            LicenseContent = null
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(LicenseAction.Declined, deserialized.Action);
+    }
+
+    [Fact]
     public void Deserialize_TooShort_ReturnsFailure()
     {
         var data = new byte[] { 0x01, 0x00, 0x01 }; // only 3 bytes, need 8 minimum
@@ -594,12 +653,118 @@ public class MessageRoundtripTests
     }
 
     [Fact]
+    public void RoundTrip_SetPropertyMessage()
+    {
+        var original = new SetPropertyMessage
+        {
+            SequenceId = 40,
+            PropertyName = "INSTALLFOLDER",
+            Value = @"C:\Program Files\MyApp"
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.SetProperty, deserialized.Type);
+        Assert.Equal(40u, deserialized.SequenceId);
+        Assert.Equal("INSTALLFOLDER", deserialized.PropertyName);
+        Assert.Equal(@"C:\Program Files\MyApp", deserialized.Value);
+    }
+
+    [Fact]
+    public void RoundTrip_SetPropertyMessage_EmptyValue()
+    {
+        var original = new SetPropertyMessage
+        {
+            SequenceId = 41,
+            PropertyName = "MYPROP",
+            Value = ""
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("MYPROP", deserialized.PropertyName);
+        Assert.Equal("", deserialized.Value);
+    }
+
+    [Fact]
+    public void RoundTrip_SetPropertyMessage_UnicodePropertyName()
+    {
+        var original = new SetPropertyMessage
+        {
+            SequenceId = 42,
+            PropertyName = "PROP_\u00e4\u00f6\u00fc_\u4e2d\u6587",
+            Value = "\u00c9l\u00e8ve"
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("PROP_\u00e4\u00f6\u00fc_\u4e2d\u6587", deserialized.PropertyName);
+        Assert.Equal("\u00c9l\u00e8ve", deserialized.Value);
+    }
+
+    [Fact]
+    public void RoundTrip_SetSecurePropertyMessage()
+    {
+        var secureValue = new byte[] { 0x53, 0x65, 0x63, 0x72, 0x65, 0x74 };
+        var original = new SetSecurePropertyMessage
+        {
+            SequenceId = 43,
+            PropertyName = "DB_PASSWORD",
+            SecureValue = secureValue
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.SetSecureProperty, deserialized.Type);
+        Assert.Equal(43u, deserialized.SequenceId);
+        Assert.Equal("DB_PASSWORD", deserialized.PropertyName);
+        Assert.Equal(secureValue, deserialized.SecureValue);
+    }
+
+    [Fact]
+    public void RoundTrip_SetSecurePropertyMessage_EmptyPayload()
+    {
+        var original = new SetSecurePropertyMessage
+        {
+            SequenceId = 44,
+            PropertyName = "EMPTY_SECRET",
+            SecureValue = []
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("EMPTY_SECRET", deserialized.PropertyName);
+        Assert.Empty(deserialized.SecureValue);
+    }
+
+    [Fact]
+    public void RoundTrip_SetSecurePropertyMessage_LargePayload()
+    {
+        var largePayload = new byte[1024];
+        for (var i = 0; i < largePayload.Length; i++)
+            largePayload[i] = (byte)(i % 256);
+
+        var original = new SetSecurePropertyMessage
+        {
+            SequenceId = 45,
+            PropertyName = "LARGE_SECRET",
+            SecureValue = largePayload
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("LARGE_SECRET", deserialized.PropertyName);
+        Assert.Equal(1024, deserialized.SecureValue.Length);
+        Assert.Equal(largePayload, deserialized.SecureValue);
+    }
+
+    [Fact]
     public void RoundTrip_LargeFeatureArray()
     {
         var features = new FeatureState[100];
         for (var i = 0; i < 100; i++)
         {
-            features[i] = new FeatureState($"feat-{i}", $"Feature {i}", i % 2 == 0, i * 1024L);
+            features[i] = new FeatureState($"feat-{i}", $"Feature {i}", $"Description {i}", i % 2 == 0, i % 3 == 0, i % 4 == 0, i * 1024L);
         }
 
         var original = new DetectCompleteMessage
@@ -617,7 +782,10 @@ public class MessageRoundtripTests
         {
             Assert.Equal($"feat-{i}", deserialized.Features[i].FeatureId);
             Assert.Equal($"Feature {i}", deserialized.Features[i].Title);
+            Assert.Equal($"Description {i}", deserialized.Features[i].Description);
             Assert.Equal(i % 2 == 0, deserialized.Features[i].IsSelected);
+            Assert.Equal(i % 3 == 0, deserialized.Features[i].IsRequired);
+            Assert.Equal(i % 4 == 0, deserialized.Features[i].WasPreviouslyInstalled);
             Assert.Equal(i * 1024L, deserialized.Features[i].DiskSpaceRequired);
         }
     }

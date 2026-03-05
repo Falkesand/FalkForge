@@ -2,9 +2,12 @@ namespace FalkForge.Engine.Variables;
 
 using System.Collections.Concurrent;
 
-public sealed class VariableStore
+public sealed class VariableStore : IDisposable
 {
     private readonly ConcurrentDictionary<string, object> _variables =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcurrentDictionary<string, SecureVariable> _secrets =
         new(StringComparer.OrdinalIgnoreCase);
 
     public void Set(string name, string value)
@@ -99,10 +102,21 @@ public sealed class VariableStore
     /// <summary>
     /// Gets the raw stored value for a variable, or null if not found.
     /// Used by the condition evaluator for type-aware comparisons.
+    /// Falls back to secret variables when not found in regular variables.
     /// </summary>
     internal object? GetRaw(string name)
     {
-        return _variables.GetValueOrDefault(name);
+        if (_variables.TryGetValue(name, out var value))
+        {
+            return value;
+        }
+
+        if (_secrets.TryGetValue(name, out var secure))
+        {
+            return secure.GetValue();
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -111,5 +125,83 @@ public sealed class VariableStore
     public IReadOnlyCollection<string> GetNames()
     {
         return _variables.Keys.ToArray();
+    }
+
+    /// <summary>
+    /// Stores a secret variable with pinned, zeroed-on-dispose memory.
+    /// Secret variables are excluded from logging and diagnostics.
+    /// </summary>
+    public void SetSecret(string name, string value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(value);
+
+        var secure = new SecureVariable(value);
+        SecureVariable? displaced = null;
+        _secrets.AddOrUpdate(
+            name,
+            addValueFactory: _ => secure,
+            updateValueFactory: (_, previous) => { displaced = previous; return secure; });
+        displaced?.Dispose();
+    }
+
+    /// <summary>
+    /// Stores a secret variable from raw bytes with pinned, zeroed-on-dispose memory.
+    /// Avoids creating an intermediate string on the managed heap.
+    /// </summary>
+    public void SetSecret(string name, byte[] value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(value);
+
+        var secure = new SecureVariable(value);
+        SecureVariable? displaced = null;
+        _secrets.AddOrUpdate(
+            name,
+            addValueFactory: _ => secure,
+            updateValueFactory: (_, previous) => { displaced = previous; return secure; });
+        displaced?.Dispose();
+    }
+
+    /// <summary>
+    /// Retrieves a secret variable value.
+    /// </summary>
+    public Result<string> GetSecret(string name)
+    {
+        if (!_secrets.TryGetValue(name, out var secure))
+        {
+            return Result<string>.Failure(ErrorKind.Validation, $"Secret variable '{name}' not found");
+        }
+
+        return secure.GetValue();
+    }
+
+    /// <summary>
+    /// Returns true if the named variable is a secret.
+    /// </summary>
+    public bool IsSecret(string name)
+    {
+        return _secrets.ContainsKey(name);
+    }
+
+    /// <summary>
+    /// Disposes all secret variables, zeroing their memory, and clears the secret stores.
+    /// </summary>
+    public void DisposeSecrets()
+    {
+        foreach (var kvp in _secrets)
+        {
+            kvp.Value.Dispose();
+        }
+
+        _secrets.Clear();
+    }
+
+    /// <summary>
+    /// Disposes the variable store, zeroing all secret variable memory.
+    /// </summary>
+    public void Dispose()
+    {
+        DisposeSecrets();
     }
 }

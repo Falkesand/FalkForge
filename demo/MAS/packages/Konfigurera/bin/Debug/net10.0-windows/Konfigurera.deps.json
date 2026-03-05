@@ -1,0 +1,107 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Konfigurera/1.0.0": {
+        "dependencies": {
+          "FalkForge.Compiler.Msi": "1.0.0",
+          "FalkForge.Core": "1.0.0"
+        },
+        "runtime": {
+          "Konfigurera.dll": {}
+        }
+      },
+      "FalkForge.Compiler.Msi/1.0.0": {
+        "dependencies": {
+          "FalkForge.Core": "1.0.0",
+          "FalkForge.Localization": "1.0.0",
+          "FalkForge.Platform": "1.0.0",
+          "FalkForge.Platform.Windows": "1.0.0"
+        },
+        "runtime": {
+          "FalkForge.Compiler.Msi.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "FalkForge.Core/1.0.0": {
+        "runtime": {
+          "FalkForge.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "FalkForge.Localization/1.0.0": {
+        "dependencies": {
+          "FalkForge.Core": "1.0.0"
+        },
+        "runtime": {
+          "FalkForge.Localization.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "FalkForge.Platform/1.0.0": {
+        "dependencies": {
+          "FalkForge.Core": "1.0.0"
+        },
+        "runtime": {
+          "FalkForge.Platform.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "FalkForge.Platform.Windows/1.0.0": {
+        "dependencies": {
+          "FalkForge.Platform": "1.0.0"
+        },
+        "runtime": {
+          "FalkForge.Platform.Windows.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Konfigurera/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "FalkForge.Compiler.Msi/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "FalkForge.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "FalkForge.Localization/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "FalkForge.Platform/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "FalkForge.Platform.Windows/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

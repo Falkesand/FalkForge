@@ -1,0 +1,166 @@
+Stryker Mutation Testing Run - Fri Feb 27 11:47:07     2026
+======================================
+
+--- tests/FalkForge.Cli.Tests ---
+[11:47:25 INF] 48    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m296[0m
+Survived: [38;5;13m113[0m
+Timeout:  [38;5;13m  6[0m
+Exit: 0
+
+--- tests/FalkForge.Compiler.Bundle.Tests ---
+[11:49:01 WRN] An unidentified mutation in D:\Git\FalkInstaller\src\FalkForge.Compiler.Bundle\Compilation\PayloadEmbedder.cs resulted in a compile error (at 54:73) with id: CS1503, message: Argument 1: cannot convert from 'long' to 'int' (Source code: i)
+[11:49:01 INF] Safe Mode! Stryker will remove all mutations in Embed and mark them as 'compile error'.
+[11:49:02 INF] 130   mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m377[0m
+Survived: [38;5;13m 79[0m
+Timeout:  [38;5;13m  1[0m
+Exit: 0
+
+--- tests/FalkForge.Core.Tests ---
+[11:50:55 WRN] An unidentified mutation in D:\Git\FalkInstaller\src\FalkForge.Core\Builders\PackageBuilder.cs resulted in a compile error (at 387:80) with id: CS0165, message: Use of unassigned local variable 'epoch' (Source code: epoch)
+[11:50:55 INF] Safe Mode! Stryker will remove all mutations in Reproducible and mark them as 'compile error'.
+[11:50:56 INF] 84    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m 807[0m
+Survived: [38;5;13m 194[0m
+Timeout:  [38;5;13m  27[0m
+Exit: 0
+
+--- tests/FalkForge.Decompiler.Tests ---
+[11:52:18 INF] 78    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m594[0m
+Survived: [38;5;13m320[0m
+Timeout:  [38;5;13m 11[0m
+Exit: 0
+
+--- tests/FalkForge.Engine.Protocol.Tests ---
+[11:53:54 INF] 20    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m173[0m
+Survived: [38;5;13m 55[0m
+Timeout:  [38;5;13m 41[0m
+Exit: 0
+
+--- tests/FalkForge.Engine.Tests ---
+[11:56:02 INF] 293   mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m 989[0m
+Survived: [38;5;13m 346[0m
+Timeout:  [38;5;13m  60[0m
+Exit: 0
+
+--- tests/FalkForge.Extensions.DotNet.Tests ---
+[11:58:48 INF] 1     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m48[0m
+Survived: [38;5;13m11[0m
+Timeout:  [38;5;13m 0[0m
+Exit: 0
+
+--- tests/FalkForge.Extensions.Firewall.Tests ---
+[11:59:46 INF] 3     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m76[0m
+Survived: [38;5;13m19[0m
+Timeout:  [38;5;13m 1[0m
+Exit: 0
+
+--- tests/FalkForge.Extensions.Iis.Tests ---
+[12:00:52 INF] 2     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m129[0m
+Survived: [38;5;13m 22[0m
+Timeout:  [38;5;13m  0[0m
+Exit: 0
+
+--- tests/FalkForge.Extensions.Sql.Tests ---
+[12:02:02 INF] 6     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m135[0m
+Survived: [38;5;13m 22[0m
+Timeout:  [38;5;13m  0[0m
+Exit: 0
+
+--- tests/FalkForge.Extensions.Util.Tests ---
+[12:03:17 INF] 11    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m184[0m
+Survived: [38;5;13m 10[0m
+Timeout:  [38;5;13m  0[0m
+Exit: 0
+
+--- tests/FalkForge.Localization.Tests ---
+[12:04:22 INF] 23    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m65[0m
+Survived: [38;5;13m 9[0m
+Timeout:  [38;5;13m 0[0m
+Exit: 0
+
+--- tests/FalkForge.Ui.Abstractions.Tests ---
+[12:05:18 INF] 13    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m68[0m
+Survived: [38;5;13m13[0m
+Timeout:  [38;5;13m 1[0m
+Exit: 0
+
+--- tests/FalkForge.Compiler.Msi.Tests ---
+[12:06:23 WRN] An unidentified mutation in D:\Git\FalkInstaller\src\FalkForge.Compiler.Msi\CabinetBuilder.cs resulted in a compile error (at 507:30) with id: CS1503, message: Argument 1: cannot convert from 'System.DateTime?' to 'System.DateTime' (Source code: dt)
+[12:06:23 INF] Safe Mode! Stryker will remove all mutations in CbGetOpenInfo and mark them as 'compile error'.
+[12:06:26 INF] 438   mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m1110[0m
+Survived: [38;5;13m 661[0m
+Timeout:  [38;5;13m  12[0m
+Exit: 0
+
+--- tests/FalkForge.Extensions.Dependency.Tests ---
+[12:10:33 INF] 3     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m 98[0m
+Survived: [38;5;13m 24[0m
+Timeout:  [38;5;13m  0[0m
+Exit: 0
+
+--- tests/FalkForge.Plugins.Odbc.Tests ---
+Killed:   [38;5;13m 5[0m
+Survived: [38;5;13m 2[0m
+Timeout:  [38;5;13m 8[0m
+Exit: 0
+
+--- tests/FalkForge.Plugins.Sql.Tests ---
+[12:13:01 INF] 4     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m 5[0m
+Survived: [38;5;13m 9[0m
+Timeout:  [38;5;13m11[0m
+Exit: 0
+
+--- tests/FalkForge.Ui.Tests ---
+[38;5;11mStryker.NET failed to mutate your project. For more information see the logs [0m
+[38;5;11mbelow:[0m
+
+
+Failed to analyze project builds. Stryker cannot continue.
+Exit: 1
+
+--- tests/FalkForge.Engine.Elevation.Tests ---
+[12:14:39 INF] 30    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m 76[0m
+Survived: [38;5;13m 20[0m
+Timeout:  [38;5;13m  5[0m
+Exit: 0
+
+--- tests/FalkForge.Platform.Windows.Tests ---
+[12:15:45 INF] 4     mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m 0[0m
+Survived: [38;5;13m17[0m
+Timeout:  [38;5;13m10[0m
+Exit: 0
+
+--- tests/FalkForge.Integration.Tests ---
+roj
+  D:/Git/FalkInstaller/src/FalkForge.Testing/FalkForge.Testing.csproj
+  
+D:/Git/FalkInstaller/src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.c
+sproj
+Exit: 1
+
+--- tests/FalkForge.Extensions.Http.Tests ---
+[12:16:47 INF] 16    mutants got status CompileError. Reason: Mutant caused compile errors
+Killed:   [38;5;13m143[0m
+Survived: [38;5;13m 22[0m
+Timeout:  [38;5;13m  3[0m
+Exit: 0
+
+======================================
+Run complete.

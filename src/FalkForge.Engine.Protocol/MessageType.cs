@@ -14,6 +14,11 @@ public enum MessageType : ushort
     PhaseChanged = 0x0109,
     Log = 0x010A,
     ShutdownResponse = 0x010B,
+    UpdateAvailable = 0x010C,
+    UpdateReady = 0x010D,
+    UpdateDownloadProgress = 0x010E,
+    LaunchUpdate = 0x010F,
+    License = 0x0110,
 
     // UI -> Engine (0x02xx)
     Cancel = 0x0201,
@@ -23,10 +28,13 @@ public enum MessageType : ushort
     RequestDetect = 0x0205,
     RequestPlan = 0x0206,
     RequestApply = 0x0207,
+    SetProperty = 0x0208,
+    SetSecureProperty = 0x0209,
 
     // Engine -> Elevated (0x03xx)
     ElevateExecute = 0x0301,
 
     // Elevated -> Engine (0x04xx)
     ElevateResult = 0x0401,
+    ElevateProgress = 0x0402,
 }

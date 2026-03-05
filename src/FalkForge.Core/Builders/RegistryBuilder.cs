@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class RegistryBuilder
 {
@@ -14,5 +14,8 @@ public sealed class RegistryBuilder
         return this;
     }
 
-    internal IReadOnlyList<RegistryEntryModel> Build() => _entries;
+    internal IReadOnlyList<RegistryEntryModel> Build()
+    {
+        return _entries;
+    }
 }

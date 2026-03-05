@@ -1,3 +1,7 @@
 namespace FalkForge;
 
-public enum InstallScope { PerMachine, PerUser }
+public enum InstallScope
+{
+    PerMachine,
+    PerUser
+}

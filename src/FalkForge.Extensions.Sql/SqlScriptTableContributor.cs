@@ -9,16 +9,6 @@ public sealed class SqlScriptTableContributor : IMsiTableContributor
 
     public string TableName => "SqlScript";
 
-    public void Add(SqlScriptModel entry)
-    {
-        _entries.Add(entry);
-    }
-
-    public void AddRange(IEnumerable<SqlScriptModel> entries)
-    {
-        _entries.AddRange(entries);
-    }
-
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);
@@ -42,5 +32,15 @@ public sealed class SqlScriptTableContributor : IMsiTableContributor
         }
 
         return rows;
+    }
+
+    public void Add(SqlScriptModel entry)
+    {
+        _entries.Add(entry);
+    }
+
+    public void AddRange(IEnumerable<SqlScriptModel> entries)
+    {
+        _entries.AddRange(entries);
     }
 }

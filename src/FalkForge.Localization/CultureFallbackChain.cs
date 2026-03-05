@@ -3,9 +3,9 @@ namespace FalkForge.Localization;
 public static class CultureFallbackChain
 {
     /// <summary>
-    /// Builds an ordered list of cultures to try: specific -> parent(s) -> default.
-    /// Example: "de-AT" with default "en-US" produces ["de-AT", "de", "en-US"].
-    /// Duplicates are suppressed (e.g., if parent equals default).
+    ///     Builds an ordered list of cultures to try: specific -> parent(s) -> default.
+    ///     Example: "de-AT" with default "en-US" produces ["de-AT", "de", "en-US"].
+    ///     Duplicates are suppressed (e.g., if parent equals default).
     /// </summary>
     public static IReadOnlyList<string> Build(string requestedCulture, string defaultCulture)
     {

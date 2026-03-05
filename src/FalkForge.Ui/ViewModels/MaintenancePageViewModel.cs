@@ -1,18 +1,17 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
 using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using ReactiveUI;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+using ReactiveUI;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactiveObject, IDisposable
 {
-    private bool _isOperationInProgress;
-    private string? _errorMessage;
     private readonly CompositeDisposable _disposables = new();
+    private string? _errorMessage;
+    private bool _isOperationInProgress;
 
     public MaintenancePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
@@ -64,8 +63,33 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
     public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> RepairCommand { get; }
     public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> UninstallCommand { get; }
 
-    public override bool CanNavigateNext() => false;
-    public override bool CanNavigateBack() => false;
+    public void Dispose()
+    {
+        _disposables.Dispose();
+    }
+
+    public event PropertyChangingEventHandler? PropertyChanging;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void RaisePropertyChanging(PropertyChangingEventArgs args)
+    {
+        PropertyChanging?.Invoke(this, args);
+    }
+
+    public void RaisePropertyChanged(PropertyChangedEventArgs args)
+    {
+        PropertyChanged?.Invoke(this, args);
+    }
+
+    public override bool CanNavigateNext()
+    {
+        return false;
+    }
+
+    public override bool CanNavigateBack()
+    {
+        return false;
+    }
 
     private async Task ExecuteModifyAsync(CancellationToken ct)
     {
@@ -95,18 +119,4 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
             IsOperationInProgress = false;
         }
     }
-
-    public void Dispose()
-    {
-        _disposables.Dispose();
-    }
-
-    public event PropertyChangingEventHandler? PropertyChanging;
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public void RaisePropertyChanging(PropertyChangingEventArgs args)
-        => PropertyChanging?.Invoke(this, args);
-
-    public void RaisePropertyChanged(PropertyChangedEventArgs args)
-        => PropertyChanged?.Invoke(this, args);
 }

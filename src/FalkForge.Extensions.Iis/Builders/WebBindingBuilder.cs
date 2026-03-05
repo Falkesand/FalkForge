@@ -4,11 +4,11 @@ namespace FalkForge.Extensions.Iis.Builders;
 
 public sealed class WebBindingBuilder
 {
-    private string _protocol = "http";
-    private int _port;
+    private string? _certificateRef;
     private string? _hostHeader;
     private string _ipAddress = "*";
-    private string? _certificateRef;
+    private int _port;
+    private string _protocol = "http";
 
     public WebBindingBuilder Protocol(string protocol)
     {
@@ -41,14 +41,20 @@ public sealed class WebBindingBuilder
         return this;
     }
 
-    public WebBindingBuilder Certificate(CertificateRef certificateRef) => Certificate(certificateRef.Id);
-
-    internal WebBindingModel Build() => new()
+    public WebBindingBuilder Certificate(CertificateRef certificateRef)
     {
-        Protocol = _protocol,
-        Port = _port,
-        HostHeader = _hostHeader,
-        IpAddress = _ipAddress,
-        CertificateRef = _certificateRef
-    };
+        return Certificate(certificateRef.Id);
+    }
+
+    internal WebBindingModel Build()
+    {
+        return new WebBindingModel
+        {
+            Protocol = _protocol,
+            Port = _port,
+            HostHeader = _hostHeader,
+            IpAddress = _ipAddress,
+            CertificateRef = _certificateRef
+        };
+    }
 }

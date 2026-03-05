@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Planning;
 
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
 
@@ -11,9 +12,17 @@ public sealed class Planner
         DetectionResult detection,
         InstallAction action,
         VariableStore? variables = null,
-        IReadOnlyList<RelatedBundleInfo>? detectedRelatedBundles = null)
+        IReadOnlyList<RelatedBundleInfo>? detectedRelatedBundles = null,
+        IReadOnlyDictionary<string, bool>? featureSelections = null,
+        IReadOnlyDictionary<string, string>? userProperties = null,
+        IReadOnlySet<string>? secretPropertyNames = null,
+        IReadOnlyDictionary<string, InstallState>? detectedPackageStates = null)
     {
+        var orderedPackages = OrderWithPrerequisites(manifest.Packages, detectedPackageStates);
         var actions = new List<PlanAction>();
+
+        // Build feature-to-package lookup: packageId -> set of featureIds that reference it
+        var packageFeatureMap = BuildPackageFeatureMap(manifest.Features);
 
         switch (action)
         {
@@ -22,7 +31,7 @@ public sealed class Planner
                 // Plan uninstall of upgrade-related bundles before installing new packages
                 AddRelatedBundleUninstalls(detectedRelatedBundles, actions);
 
-                var result = AddPackagesForward(manifest.Packages, PlanActionType.Install, variables, actions);
+                var result = AddPackagesForward(orderedPackages, PlanActionType.Install, variables, actions, packageFeatureMap, featureSelections);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -30,7 +39,8 @@ public sealed class Planner
 
             case InstallAction.Uninstall:
             {
-                var result = AddPackagesReverse(manifest.Packages, PlanActionType.Uninstall, variables, actions);
+                // Uninstall ignores feature selections — all packages are candidates
+                var result = AddPackagesReverse(manifest.Packages, PlanActionType.Uninstall, variables, actions, packageFeatureMap: null, featureSelections: null);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -38,7 +48,7 @@ public sealed class Planner
 
             case InstallAction.Repair:
             {
-                var result = AddPackagesForward(manifest.Packages, PlanActionType.Repair, variables, actions);
+                var result = AddPackagesForward(orderedPackages, PlanActionType.Repair, variables, actions, packageFeatureMap, featureSelections);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -46,8 +56,7 @@ public sealed class Planner
 
             case InstallAction.Modify:
             {
-                // For modify, install/uninstall based on feature selection (simplified for now)
-                var result = AddPackagesForward(manifest.Packages, PlanActionType.Install, variables, actions);
+                var result = AddPackagesForward(orderedPackages, PlanActionType.Install, variables, actions, packageFeatureMap, featureSelections);
                 if (result.IsFailure)
                     return Result<InstallPlan>.Failure(result.Error);
                 break;
@@ -57,6 +66,9 @@ public sealed class Planner
                 return Result<InstallPlan>.Failure(ErrorKind.PlanningError, $"Unknown action: {action}");
         }
 
+        // Propagate user-set properties and secret references to all planned actions
+        ApplyUserProperties(actions, userProperties, secretPropertyNames);
+
         var segments = BuildSegments(manifest.Chain, actions);
 
         return new InstallPlan
@@ -65,6 +77,79 @@ public sealed class Planner
             Segments = segments,
             TotalDiskSpaceRequired = 0 // Would calculate from package sizes
         };
+    }
+
+    private static PackageInfo[] OrderWithPrerequisites(
+        PackageInfo[] packages,
+        IReadOnlyDictionary<string, InstallState>? detectedPackageStates)
+    {
+        var hasPrereqs = false;
+        foreach (var pkg in packages)
+        {
+            if (pkg.IsPrerequisite)
+            {
+                hasPrereqs = true;
+                break;
+            }
+        }
+
+        if (!hasPrereqs)
+            return packages;
+
+        var prereqs = new List<PackageInfo>();
+        var main = new List<PackageInfo>();
+
+        foreach (var pkg in packages)
+        {
+            if (pkg.IsPrerequisite)
+            {
+                // Skip prerequisites that are already installed
+                if (detectedPackageStates is not null &&
+                    detectedPackageStates.TryGetValue(pkg.Id, out var state) &&
+                    state == InstallState.Installed)
+                {
+                    continue;
+                }
+
+                // Force Vital=true on prerequisites
+                if (pkg.Vital)
+                {
+                    prereqs.Add(pkg);
+                }
+                else
+                {
+                    prereqs.Add(new PackageInfo
+                    {
+                        Id = pkg.Id,
+                        Type = pkg.Type,
+                        DisplayName = pkg.DisplayName,
+                        Version = pkg.Version,
+                        Vital = true,
+                        SourcePath = pkg.SourcePath,
+                        Sha256Hash = pkg.Sha256Hash,
+                        Properties = pkg.Properties,
+                        InstallCondition = pkg.InstallCondition,
+                        ExitCodes = pkg.ExitCodes,
+                        KbArticle = pkg.KbArticle,
+                        PatchCode = pkg.PatchCode,
+                        TargetProductCode = pkg.TargetProductCode,
+                        DownloadUrl = pkg.DownloadUrl,
+                        ContainerId = pkg.ContainerId,
+                        IsPrerequisite = pkg.IsPrerequisite,
+                        SlipstreamTargetId = pkg.SlipstreamTargetId
+                    });
+                }
+            }
+            else
+            {
+                main.Add(pkg);
+            }
+        }
+
+        var result = new PackageInfo[prereqs.Count + main.Count];
+        prereqs.CopyTo(result, 0);
+        main.CopyTo(result, prereqs.Count);
+        return result;
     }
 
     private static List<RollbackSegment> BuildSegments(
@@ -144,10 +229,15 @@ public sealed class Planner
         PackageInfo[] packages,
         PlanActionType actionType,
         VariableStore? variables,
-        List<PlanAction> actions)
+        List<PlanAction> actions,
+        Dictionary<string, HashSet<string>>? packageFeatureMap,
+        IReadOnlyDictionary<string, bool>? featureSelections)
     {
         foreach (var package in packages)
         {
+            if (!IsPackageSelectedByFeatures(package.Id, packageFeatureMap, featureSelections))
+                continue;
+
             var shouldInclude = EvaluateCondition(package, variables);
             if (shouldInclude.IsFailure)
                 return Result<Unit>.Failure(shouldInclude.Error);
@@ -170,12 +260,18 @@ public sealed class Planner
         PackageInfo[] packages,
         PlanActionType actionType,
         VariableStore? variables,
-        List<PlanAction> actions)
+        List<PlanAction> actions,
+        Dictionary<string, HashSet<string>>? packageFeatureMap,
+        IReadOnlyDictionary<string, bool>? featureSelections)
     {
         // Reverse order for uninstall
         for (var i = packages.Length - 1; i >= 0; i--)
         {
             var package = packages[i];
+
+            if (!IsPackageSelectedByFeatures(package.Id, packageFeatureMap, featureSelections))
+                continue;
+
             var shouldInclude = EvaluateCondition(package, variables);
             if (shouldInclude.IsFailure)
                 return Result<Unit>.Failure(shouldInclude.Error);
@@ -227,6 +323,103 @@ public sealed class Planner
                         : new Dictionary<string, string>()
                 }
             });
+        }
+    }
+
+    /// <summary>
+    /// Builds a lookup from package ID to the set of feature IDs that reference it.
+    /// </summary>
+    private static Dictionary<string, HashSet<string>> BuildPackageFeatureMap(ManifestFeature[] features)
+    {
+        var map = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var feature in features)
+        {
+            foreach (var packageId in feature.PackageIds)
+            {
+                if (!map.TryGetValue(packageId, out var featureIds))
+                {
+                    featureIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    map[packageId] = featureIds;
+                }
+
+                featureIds.Add(feature.Id);
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// Determines whether a package should be included based on feature selections.
+    /// Returns true if:
+    ///   - No feature system is defined (no features at all)
+    ///   - The package is not referenced by any feature (not feature-gated)
+    ///   - The package is referenced by at least one selected feature
+    /// Returns false if:
+    ///   - The package is feature-gated but no selections are provided
+    ///   - The package is feature-gated and no referencing feature is selected
+    /// </summary>
+    private static bool IsPackageSelectedByFeatures(
+        string packageId,
+        Dictionary<string, HashSet<string>>? packageFeatureMap,
+        IReadOnlyDictionary<string, bool>? featureSelections)
+    {
+        // No feature system defined at all
+        if (packageFeatureMap is null || packageFeatureMap.Count == 0)
+            return true;
+
+        // Features defined but package not in any feature — always included
+        if (!packageFeatureMap.TryGetValue(packageId, out var featureIds))
+            return true;
+
+        // Features defined, package is feature-gated, but no selections — exclude feature-gated packages
+        if (featureSelections is null || featureSelections.Count == 0)
+            return false;
+
+        // Normal path: check if any referencing feature is selected
+        foreach (var featureId in featureIds)
+        {
+            if (featureSelections.TryGetValue(featureId, out var selected) && selected)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Copies user-defined properties and secret property bracket references to each PlanAction.
+    /// Secret properties use the <c>[PropertyName]</c> bracket reference pattern so that
+    /// MsiExecutor resolves them from VariableStore at execution time without exposing values in the plan.
+    /// </summary>
+    private static void ApplyUserProperties(
+        List<PlanAction> actions,
+        IReadOnlyDictionary<string, string>? userProperties,
+        IReadOnlySet<string>? secretPropertyNames)
+    {
+        var hasUserProps = userProperties is not null && userProperties.Count > 0;
+        var hasSecrets = secretPropertyNames is not null && secretPropertyNames.Count > 0;
+
+        if (!hasUserProps && !hasSecrets)
+            return;
+
+        foreach (var action in actions)
+        {
+            if (hasUserProps)
+            {
+                foreach (var (key, value) in userProperties!)
+                {
+                    action.Properties[key] = value;
+                }
+            }
+
+            if (hasSecrets)
+            {
+                foreach (var name in secretPropertyNames!)
+                {
+                    action.Properties[name] = $"[{name}]";
+                }
+            }
         }
     }
 

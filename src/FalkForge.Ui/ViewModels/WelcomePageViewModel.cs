@@ -1,8 +1,8 @@
-namespace FalkForge.Ui.ViewModels;
-
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class WelcomePageViewModel : InstallerPageViewModel
 {
@@ -16,7 +16,8 @@ public sealed class WelcomePageViewModel : InstallerPageViewModel
 
     public InstallState DetectedState => Engine.DetectedState;
 
-    public bool IsInstalled => DetectedState is InstallState.Installed or InstallState.OlderVersion or InstallState.NewerVersion;
+    public bool IsInstalled =>
+        DetectedState is InstallState.Installed or InstallState.OlderVersion or InstallState.NewerVersion;
 
     public bool CanInstall => DetectedState == InstallState.NotInstalled;
     public bool CanUninstall => IsInstalled;
@@ -27,5 +28,8 @@ public sealed class WelcomePageViewModel : InstallerPageViewModel
         await Engine.DetectAsync(ct);
     }
 
-    public override bool CanNavigateBack() => false;
+    public override bool CanNavigateBack()
+    {
+        return false;
+    }
 }

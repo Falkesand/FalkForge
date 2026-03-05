@@ -1,0 +1,82 @@
+<Window x:Class="FalkForge.Studio.Shell.StudioWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:nav="clr-namespace:FalkForge.Studio.Navigation"
+        xmlns:productEditor="clr-namespace:FalkForge.Studio.Editors.ProductEditor"
+        xmlns:filesEditor="clr-namespace:FalkForge.Studio.Editors.FilesEditor"
+        xmlns:featuresEditor="clr-namespace:FalkForge.Studio.Editors.FeaturesEditor"
+        xmlns:uiEditor="clr-namespace:FalkForge.Studio.Editors.UiEditor"
+        xmlns:buildEditor="clr-namespace:FalkForge.Studio.Editors.BuildSettingsEditor"
+        Title="{Binding Title}" Height="700" Width="1100"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New Project" Click="NewProject_Click" />
+                <MenuItem Header="_Open..." Click="OpenProject_Click" />
+                <MenuItem Header="_Save" Click="SaveProject_Click" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Build">
+                <MenuItem Header="_Build MSI" Click="Build_Click" />
+            </MenuItem>
+        </Menu>
+
+        <Border DockPanel.Dock="Bottom" Height="120" BorderBrush="Gray" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Output" FontWeight="Bold" Margin="4,2" />
+                <TextBox Text="{Binding OutputText, Mode=OneWay}" IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"
+                         BorderThickness="0" />
+            </DockPanel>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TreeView Grid.Column="0" ItemsSource="{Binding TreeNodes}"
+                      SelectedItemChanged="TreeView_SelectedItemChanged">
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate DataType="{x:Type nav:TreeNodeViewModel}"
+                                              ItemsSource="{Binding Children}">
+                        <TextBlock Text="{Binding Label}" />
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    </Style>
+                </TreeView.ItemContainerStyle>
+            </TreeView>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch" />
+
+            <ContentControl Grid.Column="2" Content="{Binding CurrentEditor}" Margin="8">
+                <ContentControl.Resources>
+                    <DataTemplate DataType="{x:Type productEditor:ProductEditorViewModel}">
+                        <productEditor:ProductEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type filesEditor:FilesEditorViewModel}">
+                        <filesEditor:FilesEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type featuresEditor:FeaturesEditorViewModel}">
+                        <featuresEditor:FeaturesEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type uiEditor:UiEditorViewModel}">
+                        <uiEditor:UiEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type buildEditor:BuildSettingsEditorViewModel}">
+                        <buildEditor:BuildSettingsEditorView />
+                    </DataTemplate>
+                </ContentControl.Resources>
+            </ContentControl>
+        </Grid>
+    </DockPanel>
+</Window>
