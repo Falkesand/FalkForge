@@ -10,7 +10,7 @@ public sealed partial class ServiceInstallCommand : IElevatedCommand
 
     public string Name => "ServiceInstall";
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         using var stream = new MemoryStream(payload);
         using var reader = new BinaryReader(stream);

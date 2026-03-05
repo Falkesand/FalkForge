@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
+using System.Runtime.InteropServices;
 using FalkForge.Platform.Windows;
 
 public sealed class MsiInstallCommand : IElevatedCommand
@@ -18,7 +19,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
     public string Name => "MsiInstall";
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         using var stream = new MemoryStream(payload);
         using var reader = new BinaryReader(stream);
@@ -35,9 +36,27 @@ public sealed class MsiInstallCommand : IElevatedCommand
         if (additionalArgs.AsSpan().IndexOfAny(ShellMetacharacters) >= 0)
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "Additional arguments contain prohibited shell metacharacters");
 
+        MsiExternalUIHandler? handler = null;
+        GCHandle gcHandle = default;
+
+        if (onProgress is not null)
+        {
+            var progressState = new MsiProgressState();
+            handler = (context, messageType, message) =>
+            {
+                var percent = progressState.ProcessMessage(messageType, message);
+                if (percent >= 0)
+                    onProgress(percent);
+                return 0;
+            };
+            gcHandle = GCHandle.Alloc(handler);
+        }
+
         try
         {
             _msiApi.SetInternalUI(InstallUILevelNone, IntPtr.Zero);
+            if (handler is not null)
+                _msiApi.SetExternalUI(handler, 0x00000400, IntPtr.Zero);
 
             var commandLine = string.IsNullOrEmpty(additionalArgs) ? null : additionalArgs;
             var exitCode = _msiApi.InstallProduct(msiPath, commandLine);
@@ -50,6 +69,14 @@ public sealed class MsiInstallCommand : IElevatedCommand
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI install failed: {ex.Message}");
+        }
+        finally
+        {
+            if (handler is not null)
+            {
+                _msiApi.SetExternalUI(null, 0, IntPtr.Zero);
+                gcHandle.Free();
+            }
         }
     }
 

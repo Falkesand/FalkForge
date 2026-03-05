@@ -4,7 +4,7 @@ public sealed class FileWriteCommand : IElevatedCommand
 {
     public string Name => "FileWrite";
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         using var stream = new MemoryStream(payload);
         using var reader = new BinaryReader(stream);

@@ -10,7 +10,7 @@ public sealed class MockCommand : IElevatedCommand
     public string FailureMessage { get; set; } = "Mock failure";
     public byte[]? LastPayload { get; private set; }
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         LastPayload = payload;
         return ShouldFail
