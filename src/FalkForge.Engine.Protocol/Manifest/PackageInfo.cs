@@ -19,4 +19,5 @@ public sealed class PackageInfo
     public string? ContainerId { get; init; }
     public DetectionMode DetectionMode { get; init; } = DetectionMode.Default;
     public IReadOnlyList<SearchCondition> SearchConditions { get; init; } = [];
+    public string? AuthenticodeThumbprint { get; init; }
 }
