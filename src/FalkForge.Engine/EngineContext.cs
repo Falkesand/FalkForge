@@ -166,4 +166,10 @@ public sealed class EngineContext
     /// Injected by EngineHost; can be overridden in tests.
     /// </summary>
     internal IUpdateLauncher? UpdateLauncher { get; set; }
+
+    /// <summary>
+    /// When true, the engine runs without UI interaction.
+    /// License acceptance is automatic in silent mode.
+    /// </summary>
+    public bool SilentMode { get; set; }
 }
