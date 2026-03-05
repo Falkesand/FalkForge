@@ -9,7 +9,7 @@ using FalkForge.Extensions.Http.Validation;
 namespace FalkForge.Extensions.Http;
 
 [SupportedOSPlatform("windows")]
-public sealed class HttpExtension : IFalkForgeExtension
+public sealed class HttpExtension : IFalkForgeExtension, IDryRunContributor
 {
     private readonly List<UrlReservationModel> _reservations = [];
     private readonly List<SniSslBindingModel>  _bindings     = [];
@@ -42,6 +42,22 @@ public sealed class HttpExtension : IFalkForgeExtension
 
         return HttpValidator.ValidateBindings(_bindings);
     }
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would add HTTP URL ACL reservation(s) via netsh" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would add SNI SSL certificate binding(s) via netsh" }
+            ],
+            DryRunIntent.Uninstall =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove HTTP URL ACL reservation(s) via netsh" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove SNI SSL certificate binding(s) via netsh" }
+            ],
+            _ => []
+        };
 
     public void Register(IExtensionRegistry registry)
     {

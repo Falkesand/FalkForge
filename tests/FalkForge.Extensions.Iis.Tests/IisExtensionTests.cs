@@ -121,5 +121,7 @@ public sealed class IisExtensionTests
 
         public void RegisterValidator(IExtensionValidator validator) =>
             Validators.Add(validator);
+
+        public void RegisterDryRunContributor(IDryRunContributor contributor) { }
     }
 }

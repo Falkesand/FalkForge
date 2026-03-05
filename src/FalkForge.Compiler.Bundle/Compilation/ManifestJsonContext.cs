@@ -21,4 +21,7 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 [JsonSerializable(typeof(ManifestDependencyRequirement[]))]
 [JsonSerializable(typeof(ManifestUpdateFeed))]
 [JsonSerializable(typeof(UpdatePolicy))]
+[JsonSerializable(typeof(ManifestDryRunAction))]
+[JsonSerializable(typeof(ManifestDryRunAction[]))]
+[JsonSerializable(typeof(string[]))]
 internal partial class ManifestJsonContext : JsonSerializerContext;

@@ -1,4 +1,5 @@
 using FalkForge.Builders;
+using FalkForge.Sbom;
 
 namespace FalkForge.Models;
 
@@ -55,4 +56,5 @@ public sealed class PackageModel
     public int CabinetThreadCount { get; init; }
     public IReadOnlyList<LocalizationData> LocalizationData { get; init; } = [];
     public ReproducibleBuildOptions? ReproducibleOptions { get; init; }
+    public SbomOptions? SbomOptions { get; init; }
 }

@@ -17,6 +17,15 @@ public sealed class InitializingHandler : IEnginePhaseHandler
             return Task.FromResult(EnginePhase.Failed);
         }
 
+        // Wire dry-run mode from manifest
+        if (context.Manifest.IsDryRun)
+        {
+            context.IsDryRun = true;
+            context.DryRunLogPath = Path.Combine(
+                Path.GetTempPath(),
+                $"FalkForge-DryRun-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        }
+
         // Populate built-in variables
         BuiltInVariables.Populate(context.Variables, context.Platform);
 

@@ -137,5 +137,7 @@ public sealed class UtilExtensionTests
 
         public void RegisterValidator(IExtensionValidator validator) =>
             Validators.Add(validator);
+
+        public void RegisterDryRunContributor(IDryRunContributor contributor) { }
     }
 }

@@ -1,4 +1,5 @@
 using FalkForge.Models;
+using FalkForge.Sbom;
 
 namespace FalkForge.Builders;
 
@@ -57,6 +58,8 @@ public sealed class PackageBuilder
     public string? LicenseFile { get; set; }
     public bool EnableRestartManager { get; set; }
     public int CabinetThreadCount { get; set; }
+
+    private SbomOptions? _sbomOptions;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -366,6 +369,13 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder Sbom(Action<SbomOptions>? configure = null)
+    {
+        _sbomOptions ??= new SbomOptions();
+        configure?.Invoke(_sbomOptions);
+        return this;
+    }
+
     internal void AddShortcut(ShortcutModel shortcut)
     {
         _shortcuts.Add(shortcut);
@@ -439,7 +449,8 @@ public sealed class PackageBuilder
             DialogSet = _dialogSet,
             CabinetThreadCount = CabinetThreadCount,
             LocalizationData = _localizationData,
-            ReproducibleOptions = _reproducibleOptions
+            ReproducibleOptions = _reproducibleOptions,
+            SbomOptions = _sbomOptions
         };
     }
 }

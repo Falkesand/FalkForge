@@ -254,7 +254,7 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                     }
                 });
 
-                var result = await _executor.ExecuteAsync(action, ct, progress);
+                var result = await _executor.ExecuteAsync(action, context.IsDryRun, context.DryRunLogPath, ct, progress);
                 if (result.IsFailure)
                 {
                     context.ErrorMessage = result.Error.Message;
@@ -385,7 +385,7 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                 }
             });
 
-            var result = await _executor.ExecuteAsync(action, ct, progress);
+            var result = await _executor.ExecuteAsync(action, context.IsDryRun, context.DryRunLogPath, ct, progress);
             if (result.IsFailure)
             {
                 context.ErrorMessage = result.Error.Message;

@@ -3,7 +3,7 @@ using FalkForge.Extensions.Sql.Builders;
 
 namespace FalkForge.Extensions.Sql;
 
-public sealed class SqlExtension : IFalkForgeExtension
+public sealed class SqlExtension : IFalkForgeExtension, IDryRunContributor
 {
     public SqlDatabaseTableContributor Databases { get; } = new();
 
@@ -31,4 +31,16 @@ public sealed class SqlExtension : IFalkForgeExtension
         Databases.Add(result.Value);
         return new SqlDatabaseRef(result.Value.Id);
     }
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Database, Description = "Would create SQL Server database(s)" },
+                new DryRunAction { Kind = DryRunActionKind.Database, Description = "Would execute SQL script(s)" }
+            ],
+            DryRunIntent.Uninstall => [new DryRunAction { Kind = DryRunActionKind.Database, Description = "Would drop SQL Server database(s)" }],
+            _ => []
+        };
 }

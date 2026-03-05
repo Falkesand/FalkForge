@@ -20,13 +20,15 @@ internal static class Program
         string? pipeName = null;
         string? secretPipeName = null;
         string? manifestPath = null;
+        var planOnly = false;
+        string? planOutputPath = null;
 
-        for (var i = 0; i < args.Length - 1; i++)
+        for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--pipe":
-                    pipeName = args[++i];
+                    if (i + 1 < args.Length) pipeName = args[++i];
                     break;
                 case "--secret-pipe":
                     secretPipeName = args[++i];
@@ -36,10 +38,16 @@ internal static class Program
                 // to receive secrets over a short-lived pipe instead of command-line arguments,
                 // which are visible in process listings and event logs.
                 case "--secret":
-                    _ = args[++i]; // consume and discard
+                    if (i + 1 < args.Length) _ = args[++i]; // consume and discard
                     break;
                 case "--manifest":
-                    manifestPath = args[++i];
+                    if (i + 1 < args.Length) manifestPath = args[++i];
+                    break;
+                case "--plan-only":
+                    planOnly = true;
+                    break;
+                case "--plan-output":
+                    if (i + 1 < args.Length) planOutputPath = args[++i];
                     break;
             }
         }
@@ -52,7 +60,7 @@ internal static class Program
 
         if (manifestPath is null)
         {
-            Console.Error.WriteLine("Usage: FalkForge.Engine --manifest <path> [--pipe <name> --secret-pipe <name>]");
+            Console.Error.WriteLine("Usage: FalkForge.Engine --manifest <path> [--pipe <name> --secret-pipe <name>] [--plan-only [--plan-output <path>]]");
             return 1;
         }
 

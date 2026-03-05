@@ -117,7 +117,8 @@ public sealed class ManifestGenerator
             LicenseFile = model.UiConfig?.LicenseFile,
             UpdateFeed = updateFeed,
             Scope = model.Scope,
-            MaxBytesPerSecond = model.MaxBytesPerSecond
+            MaxBytesPerSecond = model.MaxBytesPerSecond,
+            IsDryRun = model.IsDryRun
         };
     }
 

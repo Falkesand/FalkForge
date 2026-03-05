@@ -2,9 +2,16 @@ using FalkForge.Extensibility;
 
 namespace FalkForge.Extensions.DotNet;
 
-public sealed class DotNetExtension : IFalkForgeExtension
+public sealed class DotNetExtension : IFalkForgeExtension, IDryRunContributor
 {
     public string Name => "DotNet";
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install => [new DryRunAction { Kind = DryRunActionKind.FileSystem, Description = "Would detect .NET runtime via registry and filesystem" }],
+            _ => []
+        };
 
     public void Register(IExtensionRegistry registry)
     {

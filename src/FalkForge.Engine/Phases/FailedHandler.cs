@@ -17,7 +17,7 @@ public sealed class FailedHandler : IEnginePhaseHandler
             await context.UiPipe.SendAsync(new ErrorMessage
             {
                 Message = context.ErrorMessage ?? "Unknown error",
-                Kind = ErrorKind.EngineError
+                Kind = context.LastErrorKind ?? ErrorKind.EngineError
             }, ct);
         }
 

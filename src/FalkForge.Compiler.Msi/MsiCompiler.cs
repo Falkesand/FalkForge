@@ -159,6 +159,11 @@ public sealed class MsiCompiler : ICompiler
             }
         }
 
+        // Step 10: SBOM sidecar (opt-in via SbomOptions or FALKFORGE_GENERATE_SBOM env var)
+        // SBOM failure is non-fatal — log and continue.
+        var sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
+        _ = sbomResult; // warning suppression; caller may inspect via tooling
+
         return msiPath;
     }
 

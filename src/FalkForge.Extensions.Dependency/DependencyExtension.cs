@@ -2,7 +2,7 @@ using FalkForge.Extensibility;
 
 namespace FalkForge.Extensions.Dependency;
 
-public sealed class DependencyExtension : IFalkForgeExtension
+public sealed class DependencyExtension : IFalkForgeExtension, IDryRunContributor
 {
     private readonly List<DependencyConsumerModel> _consumers = [];
     private readonly List<DependencyProviderModel> _providers = [];
@@ -39,4 +39,12 @@ public sealed class DependencyExtension : IFalkForgeExtension
     {
         return DependencyValidator.Validate(_providers, _consumers);
     }
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install => [new DryRunAction { Kind = DryRunActionKind.Registry, Description = "Would register dependency provider key(s) in registry" }],
+            DryRunIntent.Uninstall => [new DryRunAction { Kind = DryRunActionKind.Registry, Description = "Would deregister dependency provider key(s) from registry" }],
+            _ => []
+        };
 }

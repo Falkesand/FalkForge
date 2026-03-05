@@ -54,6 +54,12 @@ public sealed class EngineContext
     public string? ErrorMessage { get; set; }
 
     /// <summary>
+    /// Structured error kind set by phase handlers when transitioning to Failed.
+    /// Used by FailedHandler to report the precise error category to the UI.
+    /// </summary>
+    internal ErrorKind? LastErrorKind { get; set; }
+
+    /// <summary>
     /// Index of the segment that failed during apply. -1 means no segment-level failure tracking.
     /// Used by RollingBackHandler to determine which segment to roll back.
     /// </summary>
@@ -172,4 +178,29 @@ public sealed class EngineContext
     /// License acceptance is automatic in silent mode.
     /// </summary>
     public bool SilentMode { get; set; }
+
+    /// <summary>
+    /// When true, the engine exits after the Planning phase and writes the plan JSON to stdout
+    /// instead of proceeding to Elevating/Applying. Set by the --plan-only command-line flag.
+    /// </summary>
+    internal bool IsPlanOnly { get; set; }
+
+    /// <summary>
+    /// Output file path for plan JSON when running in plan-only mode.
+    /// When null, the plan JSON is written to stdout. Only consulted when IsPlanOnly is true.
+    /// </summary>
+    internal string? PlanOnlyOutputPath { get; set; }
+
+    /// <summary>
+    /// When true, the Apply phase simulates package execution instead of running it.
+    /// No MSI/EXE/MSU/MSP installs are performed; execution is logged to DryRunLogPath.
+    /// Set from InstallerManifest.IsDryRun during Initializing phase.
+    /// </summary>
+    internal bool IsDryRun { get; set; }
+
+    /// <summary>
+    /// Path of the dry-run simulation log file. Only used when IsDryRun is true.
+    /// Set during Initializing phase when IsDryRun is detected.
+    /// </summary>
+    internal string? DryRunLogPath { get; set; }
 }
