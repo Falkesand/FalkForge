@@ -8,4 +8,5 @@ public sealed class PlanAction
     public required PlanActionType ActionType { get; init; }
     public required PackageInfo Package { get; init; }
     public Dictionary<string, string> Properties { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<string> SlipstreamPatchPaths { get; init; } = [];
 }
