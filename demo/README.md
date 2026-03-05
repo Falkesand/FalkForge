@@ -642,7 +642,7 @@ Production-grade enterprise installer demonstrating FalkForge's complete custom 
 - Shared state passing between pages for aggregated confirmation
 
 **Progress & Completion Pages**:
-- `InstallProgressPage` subscribes to engine observables for real-time progress (0-100% with status text)
+- `InstallProgressPage` subscribes to engine observables for real-time progress (0-100% with status text). Smooth per-MSI internal progress via `MsiSetExternalUIW` callback provides per-package percent tracking across all chained packages
 - `CompletionPage` displays success or failure with error details from shared state
 
 ### JSON 01-05 -- Core MSI Features
