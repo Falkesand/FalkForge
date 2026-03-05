@@ -17,6 +17,7 @@ public sealed class BundlePackageBuilder
     private bool _vital = true;
     private DetectionMode _detectionMode = Engine.Protocol.Manifest.DetectionMode.Default;
     private readonly List<SearchCondition> _searchConditions = new();
+    private string? _authenticodeThumbprint;
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -103,6 +104,7 @@ public sealed class BundlePackageBuilder
         _searchConditions.Add(builder.Build());
         return this;
     }
+    public BundlePackageBuilder AuthenticodeThumbprint(string thumbprint) { _authenticodeThumbprint = thumbprint; return this; }
 
     internal BundlePackageModel Build()
     {
@@ -120,7 +122,8 @@ public sealed class BundlePackageBuilder
             RemotePayload = _remotePayload,
             ContainerId = _containerId,
             DetectionMode = _detectionMode,
-            SearchConditions = _searchConditions.ToArray()
+            SearchConditions = _searchConditions.ToArray(),
+            AuthenticodeThumbprint = _authenticodeThumbprint
         };
     }
 }
