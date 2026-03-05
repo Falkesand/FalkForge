@@ -19,4 +19,5 @@ public sealed class BundleModel
     public IReadOnlyList<BundleDependencyRequirementModel> DependencyRequirements { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
     public UpdateFeedConfig? UpdateFeed { get; init; }
+    public long MaxBytesPerSecond { get; init; }
 }

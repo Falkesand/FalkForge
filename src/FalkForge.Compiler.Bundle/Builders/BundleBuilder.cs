@@ -15,6 +15,7 @@ public sealed class BundleBuilder
     private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<BundleVariableModel> _variables = new();
     private Guid? _bundleId;
+    private long _maxBytesPerSecond;
     private int _containerCounter;
     private string _manufacturer = string.Empty;
     private string _name = string.Empty;
@@ -83,6 +84,8 @@ public sealed class BundleBuilder
         _reproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch };
         return this;
     }
+
+    public BundleBuilder DownloadThrottle(long bytesPerSecond) { _maxBytesPerSecond = bytesPerSecond; return this; }
 
     public BundleBuilder Chain(Action<ChainBuilder> configure)
     {
@@ -281,7 +284,8 @@ public sealed class BundleBuilder
             DependencyRequirements = _dependencyRequirements.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig,
-            UpdateFeed = _updateFeed
+            UpdateFeed = _updateFeed,
+            MaxBytesPerSecond = _maxBytesPerSecond
         };
     }
 }

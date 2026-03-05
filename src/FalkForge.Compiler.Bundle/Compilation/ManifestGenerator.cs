@@ -114,7 +114,8 @@ public sealed class ManifestGenerator
             CustomUiProjectPath = model.UiConfig?.CustomUiProjectPath,
             LicenseFile = model.UiConfig?.LicenseFile,
             UpdateFeed = updateFeed,
-            Scope = model.Scope
+            Scope = model.Scope,
+            MaxBytesPerSecond = model.MaxBytesPerSecond
         };
     }
 
