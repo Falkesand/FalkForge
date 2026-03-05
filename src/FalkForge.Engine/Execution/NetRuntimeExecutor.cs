@@ -2,7 +2,7 @@ namespace FalkForge.Engine.Execution;
 
 using FalkForge.Engine.Planning;
 
-internal sealed class NetRuntimeExecutor(IProcessRunner processRunner)
+public sealed class NetRuntimeExecutor(IProcessRunner processRunner)
 {
     private const string DefaultInstallArgs = "/install /quiet /norestart";
     private const string DefaultUninstallArgs = "/uninstall /quiet /norestart";

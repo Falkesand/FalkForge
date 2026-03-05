@@ -2,7 +2,7 @@ namespace FalkForge.Engine.Execution;
 
 using FalkForge.Engine.Planning;
 
-internal sealed class ExeExecutor(IProcessRunner processRunner)
+public sealed class ExeExecutor(IProcessRunner processRunner)
 {
     public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {

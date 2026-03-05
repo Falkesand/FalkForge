@@ -122,7 +122,9 @@ public sealed partial class EngineHost : IAsyncDisposable
         var mspExecutor = new MspExecutor(processRunner);
         var cacheLayout = new CacheLayout(_manifest.Scope);
         var bundleExecutor = new BundleExecutor(processRunner, cacheLayout.BasePath);
-        var packageExecutor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor);
+        var exeExecutor = new ExeExecutor(processRunner);
+        var netRuntimeExecutor = new NetRuntimeExecutor(processRunner);
+        var packageExecutor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
         var cache = new PackageCache(cacheLayout);
 
         // Create and open rollback journal
