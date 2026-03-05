@@ -1,4 +1,5 @@
 using FalkForge.Extensibility;
+using FalkForge.Extensions.Util.Odbc;
 using FalkForge.Extensions.Util.PerfCounter;
 using FalkForge.Extensions.Util.ScheduledTask;
 using FalkForge.Extensions.Util.XmlConfig;
@@ -87,6 +88,28 @@ public sealed class UtilExtensionTests
         extension.Register(registry);
 
         Assert.Contains(registry.TableContributors, c => c is PerfCounterTableContributor);
+    }
+
+    [Fact]
+    public void Register_RegistersOdbcDriverTableContributor()
+    {
+        var extension = new UtilExtension();
+        var registry = new TestExtensionRegistry();
+
+        extension.Register(registry);
+
+        Assert.Contains(registry.TableContributors, c => c is OdbcDriverTableContributor);
+    }
+
+    [Fact]
+    public void Register_RegistersOdbcDataSourceTableContributor()
+    {
+        var extension = new UtilExtension();
+        var registry = new TestExtensionRegistry();
+
+        extension.Register(registry);
+
+        Assert.Contains(registry.TableContributors, c => c is OdbcDataSourceTableContributor);
     }
 
     [Fact]
