@@ -513,7 +513,7 @@ public sealed class BundleCSharpEmitterTests
         Assert.Contains("// NOTE: Some information is lost during decompilation:", source);
         Assert.Contains("//   - UI configuration (logo, theme, watermark, banner) is not preserved", source);
         Assert.Contains("//   - Container download URLs are not preserved", source);
-        Assert.Contains("//   - Custom UI project paths are not preserved", source);
+        Assert.Contains("//   - Custom UI project paths may not be preserved in older bundles", source);
     }
 
     [Fact]

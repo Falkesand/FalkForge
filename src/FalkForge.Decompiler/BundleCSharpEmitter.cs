@@ -43,7 +43,7 @@ internal static class BundleCSharpEmitter
         AppendLine("// NOTE: Some information is lost during decompilation:");
         AppendLine("//   - UI configuration (logo, theme, watermark, banner) is not preserved");
         AppendLine("//   - Container download URLs are not preserved");
-        AppendLine("//   - Custom UI project paths are not preserved");
+        AppendLine("//   - Custom UI project paths may not be preserved in older bundles");
         AppendLine();
 
         AppendLine("using FalkForge;");
@@ -134,8 +134,15 @@ internal static class BundleCSharpEmitter
                 appendLine("b.UseSilentUI();");
                 break;
             case BundleUiType.Custom:
-                appendLine("// Custom UI project path not preserved during decompilation");
-                appendLine("b.UseCustomUI(\"TODO: set UI project path\");");
+                if (!string.IsNullOrEmpty(uiConfig.CustomUiProjectPath))
+                {
+                    appendLine($"b.UseCustomUI({Quote(uiConfig.CustomUiProjectPath)});");
+                }
+                else
+                {
+                    appendLine("// Custom UI project path not available in this bundle");
+                    appendLine("b.UseCustomUI(\"TODO: set UI project path\");");
+                }
                 break;
             case BundleUiType.BuiltIn:
                 EmitBuiltInUi(uiConfig, appendLine);

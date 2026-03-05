@@ -12,7 +12,7 @@ internal static class ManifestMapper
         var relatedBundles = MapRelatedBundles(manifest.RelatedBundles);
         var chain = MapChain(manifest.Chain, packages);
         var containers = CollectContainers(manifest.Packages);
-        var uiConfig = MapUiConfig(manifest.LicenseFile);
+        var uiConfig = MapUiConfig(manifest.UiType, manifest.CustomUiProjectPath, manifest.LicenseFile);
         var variables = MapVariables(manifest.Variables);
         var features = MapFeatures(manifest.Features);
 
@@ -192,8 +192,19 @@ internal static class ManifestMapper
         }).ToList();
     }
 
-    private static BundleUiConfig? MapUiConfig(string? licenseFile)
+    private static BundleUiConfig? MapUiConfig(string? uiType, string? customUiProjectPath, string? licenseFile)
     {
+        if (uiType is not null && Enum.TryParse<BundleUiType>(uiType, ignoreCase: true, out var parsedType))
+        {
+            return new BundleUiConfig
+            {
+                UiType = parsedType,
+                LicenseFile = licenseFile,
+                CustomUiProjectPath = parsedType == BundleUiType.Custom ? customUiProjectPath : null
+            };
+        }
+
+        // Legacy fallback: no UiType field, infer from licenseFile presence
         if (licenseFile is null)
             return null;
 
