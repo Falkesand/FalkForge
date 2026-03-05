@@ -17,6 +17,22 @@ internal static partial class NativeMethods
     [LibraryImport("msi.dll")]
     internal static partial int MsiSetInternalUI(int dwUILevel, nint phWnd);
 
+    // MSI external UI handler delegate — called by Windows Installer during execution
+    [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+    internal delegate int MsiInstallUIHandler(
+        nint context,
+        uint messageType,
+        string message);
+
+    [LibraryImport("msi.dll", StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial nint MsiSetExternalUIW(
+        MsiInstallUIHandler? handler,
+        uint messageFilter,
+        nint context);
+
+    // Message type flags for MsiSetExternalUIW filter
+    internal const uint INSTALLLOGMODE_PROGRESS = 0x00000400;
+
     internal const int INSTALLLEVEL_DEFAULT = 0;
     internal const int INSTALLSTATE_ABSENT = 2;
     internal const int INSTALLUILEVEL_NONE = 2;
