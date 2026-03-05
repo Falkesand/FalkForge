@@ -1,4 +1,5 @@
 using FalkForge.Extensibility;
+using FalkForge.Extensions.Util.PerfCounter;
 using FalkForge.Extensions.Util.ScheduledTask;
 using FalkForge.Extensions.Util.XmlConfig;
 using Xunit;
@@ -75,6 +76,17 @@ public sealed class UtilExtensionTests
         var second = extension.XmlConfig;
 
         Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void Register_RegistersPerfCounterTableContributor()
+    {
+        var extension = new UtilExtension();
+        var registry = new TestExtensionRegistry();
+
+        extension.Register(registry);
+
+        Assert.Contains(registry.TableContributors, c => c is PerfCounterTableContributor);
     }
 
     [Fact]
