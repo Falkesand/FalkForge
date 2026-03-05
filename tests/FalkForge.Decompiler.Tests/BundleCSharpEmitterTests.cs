@@ -426,12 +426,26 @@ public sealed class BundleCSharpEmitterTests
     }
 
     [Fact]
-    public void Emit_UiConfigCustom_EmitsUseCustomUIWithTodo()
+    public void Emit_UiConfigCustom_WithPath_EmitsUseCustomUIWithPath()
     {
         var model = CreateMinimalBundle(uiConfig: new BundleUiConfig
         {
             UiType = BundleUiType.Custom,
             CustomUiProjectPath = "MyUiProject"
+        });
+
+        var source = BundleCSharpEmitter.Emit(model);
+
+        Assert.Contains("b.UseCustomUI(\"MyUiProject\");", source);
+        Assert.DoesNotContain("TODO", source);
+    }
+
+    [Fact]
+    public void Emit_UiConfigCustom_WithoutPath_EmitsUseCustomUIWithTodo()
+    {
+        var model = CreateMinimalBundle(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.Custom
         });
 
         var source = BundleCSharpEmitter.Emit(model);

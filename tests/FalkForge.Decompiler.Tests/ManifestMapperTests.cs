@@ -14,7 +14,9 @@ public sealed class ManifestMapperTests
         PackageInfo[]? packages = null,
         RelatedBundleEntry[]? relatedBundles = null,
         ManifestChainItem[]? chain = null,
-        string? licenseFile = null) => new()
+        string? licenseFile = null,
+        string? uiType = null,
+        string? customUiProjectPath = null) => new()
     {
         Name = name,
         Manufacturer = manufacturer,
@@ -25,7 +27,9 @@ public sealed class ManifestMapperTests
         Packages = packages ?? [],
         RelatedBundles = relatedBundles ?? [],
         Chain = chain ?? [],
-        LicenseFile = licenseFile
+        LicenseFile = licenseFile,
+        UiType = uiType,
+        CustomUiProjectPath = customUiProjectPath
     };
 
     private static PackageInfo CreatePackageInfo(
@@ -200,9 +204,9 @@ public sealed class ManifestMapperTests
     }
 
     [Fact]
-    public void Map_ReturnsNullUiConfigWhenNoLicenseFile()
+    public void Map_ReturnsNullUiConfigWhenNoLicenseFileAndNoUiType()
     {
-        var manifest = CreateManifest(licenseFile: null);
+        var manifest = CreateManifest(licenseFile: null, uiType: null);
 
         var result = ManifestMapper.Map(manifest, []);
 
@@ -211,7 +215,7 @@ public sealed class ManifestMapperTests
     }
 
     [Fact]
-    public void Map_MapsLicenseFileToUiConfig()
+    public void Map_LegacyLicenseFile_MapsToBuiltInUiConfig()
     {
         var manifest = CreateManifest(licenseFile: "license.rtf");
 
@@ -221,6 +225,44 @@ public sealed class ManifestMapperTests
         Assert.NotNull(result.Value.UiConfig);
         Assert.Equal(BundleUiType.BuiltIn, result.Value.UiConfig.UiType);
         Assert.Equal("license.rtf", result.Value.UiConfig.LicenseFile);
+    }
+
+    [Fact]
+    public void Map_UiTypeCustomWithPath_MapsToCustomUiConfig()
+    {
+        var manifest = CreateManifest(uiType: "Custom", customUiProjectPath: "MyUiProject");
+
+        var result = ManifestMapper.Map(manifest, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.UiConfig);
+        Assert.Equal(BundleUiType.Custom, result.Value.UiConfig.UiType);
+        Assert.Equal("MyUiProject", result.Value.UiConfig.CustomUiProjectPath);
+    }
+
+    [Fact]
+    public void Map_UiTypeSilent_MapsToSilentUiConfig()
+    {
+        var manifest = CreateManifest(uiType: "Silent");
+
+        var result = ManifestMapper.Map(manifest, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.UiConfig);
+        Assert.Equal(BundleUiType.Silent, result.Value.UiConfig.UiType);
+    }
+
+    [Fact]
+    public void Map_UiTypeBuiltInWithLicense_MapsToBuiltInUiConfig()
+    {
+        var manifest = CreateManifest(uiType: "BuiltIn", licenseFile: "eula.rtf");
+
+        var result = ManifestMapper.Map(manifest, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.UiConfig);
+        Assert.Equal(BundleUiType.BuiltIn, result.Value.UiConfig.UiType);
+        Assert.Equal("eula.rtf", result.Value.UiConfig.LicenseFile);
     }
 
     [Fact]
