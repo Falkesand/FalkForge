@@ -1,4 +1,5 @@
 using FalkForge.Extensibility;
+using FalkForge.Extensions.Util.ScheduledTask;
 using FalkForge.Extensions.Util.XmlConfig;
 using Xunit;
 
@@ -30,8 +31,18 @@ public sealed class UtilExtensionTests
 
         extension.Register(registry);
 
-        Assert.Single(registry.TableContributors);
-        Assert.IsType<XmlConfigTableContributor>(registry.TableContributors[0]);
+        Assert.Contains(registry.TableContributors, c => c is XmlConfigTableContributor);
+    }
+
+    [Fact]
+    public void Register_RegistersScheduledTaskTableContributor()
+    {
+        var extension = new UtilExtension();
+        var registry = new TestExtensionRegistry();
+
+        extension.Register(registry);
+
+        Assert.Contains(registry.TableContributors, c => c is ScheduledTaskTableContributor);
     }
 
     [Fact]
@@ -42,7 +53,8 @@ public sealed class UtilExtensionTests
 
         extension.Register(registry);
 
-        Assert.Equal("XmlConfig", registry.TableContributors[0].TableName);
+        var xmlContributor = registry.TableContributors.First(c => c is XmlConfigTableContributor);
+        Assert.Equal("XmlConfig", xmlContributor.TableName);
     }
 
     [Fact]
