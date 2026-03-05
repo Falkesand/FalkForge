@@ -697,6 +697,43 @@ public sealed class ManifestGeneratorTests : IDisposable
         Assert.Null(result.Value.DependencyRequirements[1].MaxVersion);
     }
 
+    [Fact]
+    public void Generate_SetsUiTypeAndCustomUiProjectPathFromUiConfig()
+    {
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            UiConfig = new BundleUiConfig
+            {
+                UiType = BundleUiType.Custom,
+                CustomUiProjectPath = @"ui\MyInstaller.csproj"
+            }
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Custom", result.Value.UiType);
+        Assert.Equal(@"ui\MyInstaller.csproj", result.Value.CustomUiProjectPath);
+    }
+
     private string CreateTempFile(string name, string content)
     {
         var path = Path.Combine(_tempDir, name);
