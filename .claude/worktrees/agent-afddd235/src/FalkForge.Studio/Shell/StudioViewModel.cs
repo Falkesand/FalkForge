@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.FeaturesEditor;
 using FalkForge.Studio.Editors.FilesEditor;
@@ -11,7 +12,9 @@ namespace FalkForge.Studio.Shell;
 
 public sealed class StudioViewModel : ViewModelBase
 {
-    private readonly StudioProject _project;
+    private StudioProject _project;
+    private readonly Dictionary<string, ViewModelBase> _editors = new();
+    private string? _projectPath;
     private ViewModelBase? _currentEditor;
     private string _outputText = string.Empty;
     private string _title = "FalkForge Studio";
@@ -35,6 +38,8 @@ public sealed class StudioViewModel : ViewModelBase
         get => _title;
         set => SetProperty(ref _title, value);
     }
+
+    public string? ProjectPath => _projectPath;
 
     public StudioViewModel()
     {
@@ -62,15 +67,52 @@ public sealed class StudioViewModel : ViewModelBase
 
     public void NavigateTo(string nodeKey)
     {
-        OutputText = $"Selected: {nodeKey}";
-        CurrentEditor = nodeKey switch
+        if (!_editors.TryGetValue(nodeKey, out var editor))
         {
-            "product" => new ProductEditorViewModel(_project.Product),
-            "files" => new FilesEditorViewModel(_project),
-            "features" => new FeaturesEditorViewModel(_project),
-            "ui" => new UiEditorViewModel(_project.Ui),
-            "build" => new BuildSettingsEditorViewModel(_project.Build),
-            _ => null
-        };
+            editor = CreateEditor(nodeKey);
+            if (editor is not null)
+                _editors[nodeKey] = editor;
+        }
+        CurrentEditor = editor;
     }
+
+    public void NewProject()
+    {
+        _project = StudioProjectLoader.NewProject();
+        _editors.Clear();
+        CurrentEditor = null;
+        OutputText = "New project created.";
+        Title = "FalkForge Studio - Untitled";
+        _projectPath = null;
+    }
+
+    public void LoadProject(string path)
+    {
+        _project = StudioProjectLoader.LoadFromFile(path);
+        _editors.Clear();
+        CurrentEditor = null;
+        OutputText = $"Opened: {path}";
+        Title = $"FalkForge Studio - {Path.GetFileName(path)}";
+        _projectPath = path;
+    }
+
+    public void SaveProject(string? path = null)
+    {
+        path ??= _projectPath;
+        if (path is null) return;
+        StudioProjectLoader.SaveToFile(_project, path);
+        OutputText = $"Saved: {path}";
+        Title = $"FalkForge Studio - {Path.GetFileName(path)}";
+        _projectPath = path;
+    }
+
+    private ViewModelBase? CreateEditor(string nodeKey) => nodeKey switch
+    {
+        "product" => new ProductEditorViewModel(_project.Product),
+        "files" => new FilesEditorViewModel(_project),
+        "features" => new FeaturesEditorViewModel(_project),
+        "ui" => new UiEditorViewModel(_project.Ui),
+        "build" => new BuildSettingsEditorViewModel(_project.Build),
+        _ => null
+    };
 }
