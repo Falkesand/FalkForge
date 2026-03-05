@@ -1,5 +1,7 @@
 namespace FalkForge.Compiler.Bundle;
 
+using FalkForge.Engine.Protocol.Manifest;
+
 public sealed class BundlePackageModel
 {
     public required string Id { get; init; }
@@ -19,4 +21,6 @@ public sealed class BundlePackageModel
     public string? TargetProductCode { get; init; }
     public RemotePayloadModel? RemotePayload { get; init; }
     public string? ContainerId { get; init; }
+    public DetectionMode DetectionMode { get; init; } = DetectionMode.Default;
+    public IReadOnlyList<SearchCondition> SearchConditions { get; init; } = [];
 }

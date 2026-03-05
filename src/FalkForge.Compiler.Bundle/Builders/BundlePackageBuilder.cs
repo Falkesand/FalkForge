@@ -1,5 +1,7 @@
 namespace FalkForge.Compiler.Bundle.Builders;
 
+using FalkForge.Engine.Protocol.Manifest;
+
 public sealed class BundlePackageBuilder
 {
     private readonly Dictionary<int, ExitCodeBehavior> _exitCodes = new();
@@ -13,6 +15,8 @@ public sealed class BundlePackageBuilder
     private RemotePayloadModel? _remotePayload;
     private string? _version;
     private bool _vital = true;
+    private DetectionMode _detectionMode = Engine.Protocol.Manifest.DetectionMode.Default;
+    private readonly List<SearchCondition> _searchConditions = new();
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -91,6 +95,15 @@ public sealed class BundlePackageBuilder
         return Container(containerRef.Id);
     }
 
+    public BundlePackageBuilder DetectionMode(DetectionMode mode) { _detectionMode = mode; return this; }
+    public BundlePackageBuilder SearchCondition(Action<SearchConditionBuilder> configure)
+    {
+        var builder = new SearchConditionBuilder();
+        configure(builder);
+        _searchConditions.Add(builder.Build());
+        return this;
+    }
+
     internal BundlePackageModel Build()
     {
         return new BundlePackageModel
@@ -105,7 +118,9 @@ public sealed class BundlePackageBuilder
             InstallCondition = _installCondition,
             ExitCodes = new Dictionary<int, ExitCodeBehavior>(_exitCodes),
             RemotePayload = _remotePayload,
-            ContainerId = _containerId
+            ContainerId = _containerId,
+            DetectionMode = _detectionMode,
+            SearchConditions = _searchConditions.ToArray()
         };
     }
 }
