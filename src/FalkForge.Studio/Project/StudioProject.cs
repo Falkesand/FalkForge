@@ -22,6 +22,9 @@ public sealed class StudioProject
     [JsonPropertyName("services")]
     public List<ServiceSection> Services { get; set; } = [];
 
+    [JsonPropertyName("shortcuts")]
+    public List<ShortcutSection> Shortcuts { get; set; } = [];
+
     [JsonPropertyName("ui")]
     public UiSection Ui { get; set; } = new();
 

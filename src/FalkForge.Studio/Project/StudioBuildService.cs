@@ -150,6 +150,25 @@ public static class StudioBuildService
             });
         }
 
+        foreach (var shortcut in project.Shortcuts)
+        {
+            if (string.IsNullOrWhiteSpace(shortcut.Name))
+                return Result<PackageModel>.Failure(ErrorKind.Validation, "Shortcut name is required.");
+
+            if (string.IsNullOrWhiteSpace(shortcut.TargetFile))
+                return Result<PackageModel>.Failure(ErrorKind.Validation,
+                    $"Shortcut '{shortcut.Name}' requires a target file.");
+
+            var sb = builder.Shortcut(shortcut.Name, shortcut.TargetFile);
+            if (shortcut.Desktop) sb.OnDesktop();
+            if (shortcut.StartMenu) sb.OnStartMenu(shortcut.StartMenuSubfolder);
+            if (shortcut.Startup) sb.OnStartup();
+            if (!string.IsNullOrWhiteSpace(shortcut.Arguments)) sb.WithArguments(shortcut.Arguments);
+            if (!string.IsNullOrWhiteSpace(shortcut.Description)) sb.WithDescription(shortcut.Description);
+            if (!string.IsNullOrWhiteSpace(shortcut.IconFile)) sb.WithIcon(shortcut.IconFile, 0);
+            if (!string.IsNullOrWhiteSpace(shortcut.WorkingDirectory)) sb.WithWorkingDirectory(shortcut.WorkingDirectory);
+        }
+
         var model = builder.Build();
         return Result<PackageModel>.Success(model);
     }

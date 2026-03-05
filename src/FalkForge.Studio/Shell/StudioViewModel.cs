@@ -5,6 +5,7 @@ using FalkForge.Studio.Editors.FeaturesEditor;
 using FalkForge.Studio.Editors.FilesEditor;
 using FalkForge.Studio.Editors.RegistryEditor;
 using FalkForge.Studio.Editors.ServicesEditor;
+using FalkForge.Studio.Editors.ShortcutsEditor;
 using FalkForge.Studio.Editors.ProductEditor;
 using FalkForge.Studio.Editors.UiEditor;
 using FalkForge.Studio.Navigation;
@@ -56,6 +57,7 @@ public sealed class StudioViewModel : ViewModelBase
         TreeNodes.Add(new TreeNodeViewModel("Files", "files"));
         TreeNodes.Add(new TreeNodeViewModel("Registry", "registry"));
         TreeNodes.Add(new TreeNodeViewModel("Services", "services"));
+        TreeNodes.Add(new TreeNodeViewModel("Shortcuts", "shortcuts"));
         TreeNodes.Add(new TreeNodeViewModel("UI & Dialogs", "ui"));
         TreeNodes.Add(new TreeNodeViewModel("Build Settings", "build"));
     }
@@ -117,6 +119,7 @@ public sealed class StudioViewModel : ViewModelBase
         "features" => new FeaturesEditorViewModel(_project),
         "registry" => new RegistryEditorViewModel(_project),
         "services" => new ServicesEditorViewModel(_project),
+        "shortcuts" => new ShortcutsEditorViewModel(_project),
         "ui" => new UiEditorViewModel(_project.Ui),
         "build" => new BuildSettingsEditorViewModel(_project.Build),
         _ => null
