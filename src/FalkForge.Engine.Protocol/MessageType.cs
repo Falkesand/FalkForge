@@ -35,4 +35,5 @@ public enum MessageType : ushort
 
     // Elevated -> Engine (0x04xx)
     ElevateResult = 0x0401,
+    ElevateProgress = 0x0402,
 }
