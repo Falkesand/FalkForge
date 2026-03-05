@@ -16,6 +16,9 @@ public sealed class StudioProject
     [JsonPropertyName("features")]
     public List<FeatureSection> Features { get; set; } = [];
 
+    [JsonPropertyName("registry")]
+    public List<RegistryEntrySection> Registry { get; set; } = [];
+
     [JsonPropertyName("ui")]
     public UiSection Ui { get; set; } = new();
 

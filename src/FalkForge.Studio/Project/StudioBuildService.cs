@@ -107,6 +107,19 @@ public static class StudioBuildService
             });
         }
 
+        foreach (var entry in project.Registry)
+        {
+            if (!Enum.TryParse<RegistryRoot>(entry.Root, ignoreCase: true, out var root))
+                return Result<PackageModel>.Failure(ErrorKind.Validation,
+                    $"Invalid registry root: '{entry.Root}'.");
+
+            if (!Enum.TryParse<RegistryValueType>(entry.ValueType, ignoreCase: true, out var valueType))
+                return Result<PackageModel>.Failure(ErrorKind.Validation,
+                    $"Invalid registry value type: '{entry.ValueType}'.");
+
+            builder.Registry(r => r.Key(root, entry.Key, k => k.Value(entry.ValueName, entry.Value, valueType)));
+        }
+
         var model = builder.Build();
         return Result<PackageModel>.Success(model);
     }

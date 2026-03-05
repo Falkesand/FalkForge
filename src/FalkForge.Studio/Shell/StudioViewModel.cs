@@ -3,6 +3,7 @@ using System.IO;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.FeaturesEditor;
 using FalkForge.Studio.Editors.FilesEditor;
+using FalkForge.Studio.Editors.RegistryEditor;
 using FalkForge.Studio.Editors.ProductEditor;
 using FalkForge.Studio.Editors.UiEditor;
 using FalkForge.Studio.Navigation;
@@ -50,8 +51,9 @@ public sealed class StudioViewModel : ViewModelBase
     private void BuildDefaultTree()
     {
         TreeNodes.Add(new TreeNodeViewModel("Product", "product") { IsExpanded = true });
-        TreeNodes.Add(new TreeNodeViewModel("Files", "files"));
         TreeNodes.Add(new TreeNodeViewModel("Features", "features"));
+        TreeNodes.Add(new TreeNodeViewModel("Files", "files"));
+        TreeNodes.Add(new TreeNodeViewModel("Registry", "registry"));
         TreeNodes.Add(new TreeNodeViewModel("UI & Dialogs", "ui"));
         TreeNodes.Add(new TreeNodeViewModel("Build Settings", "build"));
     }
@@ -111,6 +113,7 @@ public sealed class StudioViewModel : ViewModelBase
         "product" => new ProductEditorViewModel(_project.Product),
         "files" => new FilesEditorViewModel(_project),
         "features" => new FeaturesEditorViewModel(_project),
+        "registry" => new RegistryEditorViewModel(_project),
         "ui" => new UiEditorViewModel(_project.Ui),
         "build" => new BuildSettingsEditorViewModel(_project.Build),
         _ => null
