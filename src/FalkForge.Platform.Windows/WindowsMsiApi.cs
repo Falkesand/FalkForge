@@ -16,4 +16,10 @@ public sealed class WindowsMsiApi : IMsiApi
 
     public int SetInternalUI(int uiLevel, nint window)
         => NativeMethods.MsiSetInternalUI(uiLevel, window);
+
+    public nint SetExternalUI(Delegate? handler, uint messageFilter, nint context)
+        => NativeMethods.MsiSetExternalUIW(
+            handler as NativeMethods.MsiInstallUIHandler,
+            messageFilter,
+            context);
 }

@@ -33,4 +33,14 @@ public interface IMsiApi
     /// <param name="window">Window handle, or IntPtr.Zero.</param>
     /// <returns>Previous UI level.</returns>
     int SetInternalUI(int uiLevel, nint window);
+
+    /// <summary>
+    /// Registers an external UI handler for progress callbacks during MSI operations.
+    /// Wraps MsiSetExternalUI.
+    /// </summary>
+    /// <param name="handler">Callback function, or null to unregister.</param>
+    /// <param name="messageFilter">Bitmask of message types to receive.</param>
+    /// <param name="context">User-defined context pointer.</param>
+    /// <returns>Pointer to the previously registered handler.</returns>
+    nint SetExternalUI(Delegate? handler, uint messageFilter, nint context);
 }

@@ -51,4 +51,7 @@ internal sealed class MockMsiApi : IMsiApi
         LastUILevel = uiLevel;
         return 0;
     }
+
+    public nint SetExternalUI(Delegate? handler, uint messageFilter, nint context)
+        => nint.Zero;
 }
