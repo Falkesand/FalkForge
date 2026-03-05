@@ -25,4 +25,5 @@ public sealed class BundlePackageModel
     public IReadOnlyList<SearchCondition> SearchConditions { get; init; } = [];
     public string? AuthenticodeThumbprint { get; init; }
     public bool IsPrerequisite { get; init; }
+    public string? SlipstreamTargetId { get; init; }
 }

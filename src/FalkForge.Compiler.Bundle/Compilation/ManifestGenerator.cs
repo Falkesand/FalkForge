@@ -51,7 +51,8 @@ public sealed class ManifestGenerator
                 DownloadUrl = pkg.RemotePayload?.DownloadUrl,
                 ContainerId = pkg.ContainerId,
                 AuthenticodeThumbprint = pkg.AuthenticodeThumbprint,
-                IsPrerequisite = pkg.IsPrerequisite
+                IsPrerequisite = pkg.IsPrerequisite,
+                SlipstreamTargetId = pkg.SlipstreamTargetId
             });
         }
 

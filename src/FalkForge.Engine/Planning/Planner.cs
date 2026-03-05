@@ -135,7 +135,8 @@ public sealed class Planner
                         TargetProductCode = pkg.TargetProductCode,
                         DownloadUrl = pkg.DownloadUrl,
                         ContainerId = pkg.ContainerId,
-                        IsPrerequisite = pkg.IsPrerequisite
+                        IsPrerequisite = pkg.IsPrerequisite,
+                        SlipstreamTargetId = pkg.SlipstreamTargetId
                     });
                 }
             }

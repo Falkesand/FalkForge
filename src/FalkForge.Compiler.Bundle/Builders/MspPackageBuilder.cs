@@ -9,6 +9,7 @@ public sealed class MspPackageBuilder
     private string? _patchCode;
     private string? _targetProductCode;
     private bool _vital = true;
+    private string? _slipstreamTargetId;
 
     internal MspPackageBuilder(string sourcePath)
     {
@@ -58,6 +59,8 @@ public sealed class MspPackageBuilder
         return InstallCondition(condition.ToString());
     }
 
+    public MspPackageBuilder SlipstreamTarget(string msiPackageId) { _slipstreamTargetId = msiPackageId; return this; }
+
     internal BundlePackageModel Build()
     {
         return new BundlePackageModel
@@ -69,7 +72,8 @@ public sealed class MspPackageBuilder
             SourcePath = _sourcePath,
             PatchCode = _patchCode,
             TargetProductCode = _targetProductCode,
-            InstallCondition = _installCondition
+            InstallCondition = _installCondition,
+            SlipstreamTargetId = _slipstreamTargetId
         };
     }
 }
