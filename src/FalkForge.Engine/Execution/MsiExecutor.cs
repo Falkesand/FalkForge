@@ -120,6 +120,12 @@ public sealed partial class MsiExecutor
             string commandName;
             byte[] payload;
 
+            // Apply slipstream patches only for install actions
+            if (action.ActionType == PlanActionType.Install && action.SlipstreamPatchPaths.Count > 0)
+            {
+                additionalArgs += $" PATCH=\"{string.Join(';', action.SlipstreamPatchPaths)}\"";
+            }
+
             if (action.ActionType is PlanActionType.Uninstall)
             {
                 // MsiUninstallCommand expects: productCode (string) via BinaryWriter
@@ -164,6 +170,12 @@ public sealed partial class MsiExecutor
 
     private Result<int> ExecuteDirect(PlanAction action, string additionalArgs, IProgress<int> packageProgress)
     {
+        // Apply slipstream patches only for install actions
+        if (action.ActionType == PlanActionType.Install && action.SlipstreamPatchPaths.Count > 0)
+        {
+            additionalArgs += $" PATCH=\"{string.Join(';', action.SlipstreamPatchPaths)}\"";
+        }
+
         var msiApi = _msiApiAccessor();
         if (msiApi is null)
             return Result<int>.Failure(ErrorKind.ExecutionError, "MSI API not available");

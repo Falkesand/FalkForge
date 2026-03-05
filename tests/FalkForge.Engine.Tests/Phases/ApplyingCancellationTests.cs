@@ -27,7 +27,7 @@ public sealed class ApplyingCancellationTests
 
     private static PackageExecutor CreateExecutor(MockProcessRunner runner)
     {
-        var msiExecutor = new MsiExecutor();
+        var msiExecutor = new MsiExecutor(runner);
         var msuExecutor = new MsuExecutor(runner);
         var mspExecutor = new MspExecutor(runner);
         var bundleExecutor = new BundleExecutor(runner);
