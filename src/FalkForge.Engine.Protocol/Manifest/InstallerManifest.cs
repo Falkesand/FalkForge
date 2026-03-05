@@ -20,4 +20,5 @@ public sealed class InstallerManifest
     public string? LicenseFile { get; init; }
     public ManifestUpdateFeed? UpdateFeed { get; init; }
     public required InstallScope Scope { get; init; }
+    public long MaxBytesPerSecond { get; init; }
 }

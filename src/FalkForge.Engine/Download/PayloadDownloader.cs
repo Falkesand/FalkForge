@@ -7,12 +7,14 @@ public sealed class PayloadDownloader
 {
     private readonly HttpClient _httpClient;
     private readonly TimeSpan _timeoutPerAttempt;
+    private readonly TokenBucket? _tokenBucket;
     private const int MaxRetries = 3;
 
-    public PayloadDownloader(HttpClient httpClient, TimeSpan? timeoutPerAttempt = null)
+    public PayloadDownloader(HttpClient httpClient, TimeSpan? timeoutPerAttempt = null, TokenBucket? tokenBucket = null)
     {
         _httpClient = httpClient;
         _timeoutPerAttempt = timeoutPerAttempt ?? TimeSpan.FromMinutes(5);
+        _tokenBucket = tokenBucket;
     }
 
     public async Task<Result<string>> DownloadAsync(
@@ -118,6 +120,9 @@ public sealed class PayloadDownloader
 
                 while ((bytesRead = await contentStream.ReadAsync(buffer.AsMemory(0, buffer.Length), timeoutCts.Token)) > 0)
                 {
+                    if (_tokenBucket is not null)
+                        await _tokenBucket.WaitForTokensAsync(bytesRead, timeoutCts.Token);
+
                     await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), timeoutCts.Token);
                     totalRead += bytesRead;
                     progress?.Report((totalRead, totalBytes));
