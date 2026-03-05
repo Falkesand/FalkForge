@@ -4,6 +4,9 @@
         xmlns:nav="clr-namespace:FalkForge.Studio.Navigation"
         xmlns:productEditor="clr-namespace:FalkForge.Studio.Editors.ProductEditor"
         xmlns:filesEditor="clr-namespace:FalkForge.Studio.Editors.FilesEditor"
+        xmlns:featuresEditor="clr-namespace:FalkForge.Studio.Editors.FeaturesEditor"
+        xmlns:uiEditor="clr-namespace:FalkForge.Studio.Editors.UiEditor"
+        xmlns:buildEditor="clr-namespace:FalkForge.Studio.Editors.BuildSettingsEditor"
         Title="{Binding Title}" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
     <DockPanel>
@@ -62,6 +65,15 @@
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type filesEditor:FilesEditorViewModel}">
                         <filesEditor:FilesEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type featuresEditor:FeaturesEditorViewModel}">
+                        <featuresEditor:FeaturesEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type uiEditor:UiEditorViewModel}">
+                        <uiEditor:UiEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type buildEditor:BuildSettingsEditorViewModel}">
+                        <buildEditor:BuildSettingsEditorView />
                     </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>

@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
+using FalkForge.Studio.Editors.BuildSettingsEditor;
+using FalkForge.Studio.Editors.FeaturesEditor;
 using FalkForge.Studio.Editors.FilesEditor;
 using FalkForge.Studio.Editors.ProductEditor;
+using FalkForge.Studio.Editors.UiEditor;
 using FalkForge.Studio.Navigation;
 using FalkForge.Studio.Project;
 
@@ -55,6 +58,9 @@ public sealed class StudioViewModel : ViewModelBase
         {
             "product" => new ProductEditorViewModel(_project.Product),
             "files" => new FilesEditorViewModel(_project),
+            "features" => new FeaturesEditorViewModel(_project),
+            "ui" => new UiEditorViewModel(_project.Ui),
+            "build" => new BuildSettingsEditorViewModel(_project.Build),
             _ => null
         };
     }
