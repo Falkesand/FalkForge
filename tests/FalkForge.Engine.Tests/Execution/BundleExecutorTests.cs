@@ -34,7 +34,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction(PlanActionType.Install);
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal(@"C:\bundles\nested-setup.exe", runner.LastFileName);
         Assert.Equal("/quiet /norestart", runner.LastArguments);
@@ -47,7 +47,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction(PlanActionType.Uninstall);
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal(@"C:\bundles\nested-setup.exe", runner.LastFileName);
         Assert.Equal("/quiet /norestart /uninstall", runner.LastArguments);
@@ -60,7 +60,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction(PlanActionType.Repair);
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal(@"C:\bundles\nested-setup.exe", runner.LastFileName);
         Assert.Equal("/quiet /norestart /repair", runner.LastArguments);
@@ -73,7 +73,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -85,7 +85,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -97,7 +97,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -111,7 +111,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -128,7 +128,7 @@ public sealed class BundleExecutorTests
         cts.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => executor.ExecuteAsync(action, cts.Token));
+            () => executor.ExecuteAsync(action, cts.Token, new Progress<int>(_ => { })));
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction(sourcePath: @"C:\bundles\malicious.bat");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -152,7 +152,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner);
         var action = CreateAction(sourcePath: "");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -165,7 +165,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner, @"C:\ProgramData\FalkForge\Cache");
         var action = CreateAction(sourcePath: @"C:\Windows\System32\cmd.exe");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -179,7 +179,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner, @"C:\ProgramData\FalkForge\Cache");
         var action = CreateAction(sourcePath: @"C:\ProgramData\FalkForge\Cache\..\..\..\Windows\System32\cmd.exe");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -193,7 +193,7 @@ public sealed class BundleExecutorTests
         var executor = new BundleExecutor(runner, @"C:\bundles");
         var action = CreateAction(sourcePath: @"C:\bundles\nested-setup.exe");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }

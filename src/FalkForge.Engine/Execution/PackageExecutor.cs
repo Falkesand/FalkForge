@@ -22,14 +22,14 @@ public sealed class PackageExecutor
         _bundleExecutor = bundleExecutor;
     }
 
-    public async Task<Result<ExecutionOutcome>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    public async Task<Result<ExecutionOutcome>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {
         var innerResult = action.Package.Type switch
         {
-            PackageType.MsiPackage => await _msiExecutor.ExecuteAsync(action, ct),
-            PackageType.MsuPackage => await _msuExecutor.ExecuteAsync(action, ct),
-            PackageType.MspPackage => await _mspExecutor.ExecuteAsync(action, ct),
-            PackageType.BundlePackage => await _bundleExecutor.ExecuteAsync(action, ct),
+            PackageType.MsiPackage => await _msiExecutor.ExecuteAsync(action, ct, packageProgress),
+            PackageType.MsuPackage => await _msuExecutor.ExecuteAsync(action, ct, packageProgress),
+            PackageType.MspPackage => await _mspExecutor.ExecuteAsync(action, ct, packageProgress),
+            PackageType.BundlePackage => await _bundleExecutor.ExecuteAsync(action, ct, packageProgress),
             PackageType.ExePackage => Result<int>.Failure(
                 ErrorKind.ExecutionError, "EXE package execution not yet implemented"),
             PackageType.NetRuntime => Result<int>.Failure(

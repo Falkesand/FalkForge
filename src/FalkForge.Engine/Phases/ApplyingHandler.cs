@@ -231,7 +231,7 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                     return EnginePhase.RollingBack;
                 }
 
-                var result = await _executor.ExecuteAsync(action, ct);
+                var result = await _executor.ExecuteAsync(action, ct, new Progress<int>(_ => { }));
                 if (result.IsFailure)
                 {
                     context.ErrorMessage = result.Error.Message;
@@ -340,7 +340,7 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                 return EnginePhase.Failed;
             }
 
-            var result = await _executor.ExecuteAsync(action, ct);
+            var result = await _executor.ExecuteAsync(action, ct, new Progress<int>(_ => { }));
             if (result.IsFailure)
             {
                 context.ErrorMessage = result.Error.Message;

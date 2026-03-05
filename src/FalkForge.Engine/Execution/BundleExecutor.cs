@@ -17,7 +17,7 @@ public sealed class BundleExecutor
         _allowedBasePath = allowedBasePath;
     }
 
-    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {
         var args = BuildArguments(action);
         if (args.IsFailure)
