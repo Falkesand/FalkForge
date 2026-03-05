@@ -15,6 +15,8 @@ public sealed class InstallerManifest
     public ManifestDependencyProvider[] DependencyProviders { get; init; } = [];
     public ManifestDependencyConsumer[] DependencyConsumers { get; init; } = [];
     public ManifestDependencyRequirement[] DependencyRequirements { get; init; } = [];
+    public string? UiType { get; init; }
+    public string? CustomUiProjectPath { get; init; }
     public string? LicenseFile { get; init; }
     public ManifestUpdateFeed? UpdateFeed { get; init; }
     public required InstallScope Scope { get; init; }

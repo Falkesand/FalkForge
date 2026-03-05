@@ -109,6 +109,8 @@ public sealed class ManifestGenerator
             DependencyProviders = dependencyProviders,
             DependencyConsumers = dependencyConsumers,
             DependencyRequirements = dependencyRequirements,
+            UiType = model.UiConfig?.UiType.ToString(),
+            CustomUiProjectPath = model.UiConfig?.CustomUiProjectPath,
             LicenseFile = model.UiConfig?.LicenseFile,
             UpdateFeed = updateFeed,
             Scope = model.Scope
