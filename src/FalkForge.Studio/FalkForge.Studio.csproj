@@ -11,6 +11,10 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj"/>
         <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensions.Sql\FalkForge.Extensions.Sql.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensions.Firewall\FalkForge.Extensions.Firewall.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensions.Util\FalkForge.Extensions.Util.csproj"/>
     </ItemGroup>
 </Project>

@@ -31,6 +31,33 @@ public sealed class StudioProject
     [JsonPropertyName("customActions")]
     public List<CustomActionSection> CustomActions { get; set; } = [];
 
+    [JsonPropertyName("sqlDatabases")]
+    public List<SqlDatabaseSection> SqlDatabases { get; set; } = [];
+
+    [JsonPropertyName("firewallRules")]
+    public List<FirewallRuleSection> FirewallRules { get; set; } = [];
+
+    [JsonPropertyName("xmlConfigs")]
+    public List<XmlConfigSection> XmlConfigs { get; set; } = [];
+
+    [JsonPropertyName("scheduledTasks")]
+    public List<ScheduledTaskSection> ScheduledTasks { get; set; } = [];
+
+    [JsonPropertyName("perfCounters")]
+    public List<PerfCounterSection> PerfCounters { get; set; } = [];
+
+    [JsonPropertyName("odbcDrivers")]
+    public List<OdbcDriverSection> OdbcDrivers { get; set; } = [];
+
+    [JsonPropertyName("odbcDataSources")]
+    public List<OdbcDataSourceSection> OdbcDataSources { get; set; } = [];
+
+    [JsonPropertyName("bundleSettings")]
+    public BundleSettingsSection? BundleSettings { get; set; }
+
+    [JsonPropertyName("bundlePackages")]
+    public List<BundlePackageSection> BundlePackages { get; set; } = [];
+
     [JsonPropertyName("ui")]
     public UiSection Ui { get; set; } = new();
 

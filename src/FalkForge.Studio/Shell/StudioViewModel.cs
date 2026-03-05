@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
+using FalkForge.Studio.Editors.BundlePackagesEditor;
+using FalkForge.Studio.Editors.BundleSettingsEditor;
 using FalkForge.Studio.Editors.FeaturesEditor;
 using FalkForge.Studio.Editors.FilesEditor;
 using FalkForge.Studio.Editors.RegistryEditor;
@@ -8,8 +10,14 @@ using FalkForge.Studio.Editors.ServicesEditor;
 using FalkForge.Studio.Editors.ShortcutsEditor;
 using FalkForge.Studio.Editors.EnvironmentEditor;
 using FalkForge.Studio.Editors.CustomActionsEditor;
+using FalkForge.Studio.Editors.FirewallEditor;
+using FalkForge.Studio.Editors.OdbcEditor;
+using FalkForge.Studio.Editors.PerfCountersEditor;
 using FalkForge.Studio.Editors.ProductEditor;
+using FalkForge.Studio.Editors.ScheduledTasksEditor;
+using FalkForge.Studio.Editors.SqlEditor;
 using FalkForge.Studio.Editors.UiEditor;
+using FalkForge.Studio.Editors.XmlConfigEditor;
 using FalkForge.Studio.Navigation;
 using FalkForge.Studio.Project;
 
@@ -62,8 +70,22 @@ public sealed class StudioViewModel : ViewModelBase
         TreeNodes.Add(new TreeNodeViewModel("Shortcuts", "shortcuts"));
         TreeNodes.Add(new TreeNodeViewModel("Environment", "environment"));
         TreeNodes.Add(new TreeNodeViewModel("Custom Actions", "customActions"));
+        var extensions = new TreeNodeViewModel("Extensions", "extensions");
+        extensions.Children.Add(new TreeNodeViewModel("SQL", "sql"));
+        extensions.Children.Add(new TreeNodeViewModel("Firewall", "firewall"));
+        extensions.Children.Add(new TreeNodeViewModel("XML Config", "xmlConfig"));
+        extensions.Children.Add(new TreeNodeViewModel("Scheduled Tasks", "scheduledTasks"));
+        extensions.Children.Add(new TreeNodeViewModel("Perf Counters", "perfCounters"));
+        extensions.Children.Add(new TreeNodeViewModel("ODBC", "odbc"));
+        TreeNodes.Add(extensions);
         TreeNodes.Add(new TreeNodeViewModel("UI & Dialogs", "ui"));
         TreeNodes.Add(new TreeNodeViewModel("Build Settings", "build"));
+
+        if (_project.ProjectType == "bundle")
+        {
+            TreeNodes.Add(new TreeNodeViewModel("Bundle Settings", "bundleSettings"));
+            TreeNodes.Add(new TreeNodeViewModel("Bundle Packages", "bundlePackages"));
+        }
     }
 
     public void Build(string baseDirectory)
@@ -91,6 +113,8 @@ public sealed class StudioViewModel : ViewModelBase
         _project = StudioProjectLoader.NewProject();
         _editors.Clear();
         CurrentEditor = null;
+        TreeNodes.Clear();
+        BuildDefaultTree();
         OutputText = "New project created.";
         Title = "FalkForge Studio - Untitled";
         _projectPath = null;
@@ -101,6 +125,8 @@ public sealed class StudioViewModel : ViewModelBase
         _project = StudioProjectLoader.LoadFromFile(path);
         _editors.Clear();
         CurrentEditor = null;
+        TreeNodes.Clear();
+        BuildDefaultTree();
         OutputText = $"Opened: {path}";
         Title = $"FalkForge Studio - {Path.GetFileName(path)}";
         _projectPath = path;
@@ -126,8 +152,16 @@ public sealed class StudioViewModel : ViewModelBase
         "shortcuts" => new ShortcutsEditorViewModel(_project),
         "environment" => new EnvironmentEditorViewModel(_project),
         "customActions" => new CustomActionsEditorViewModel(_project),
+        "sql" => new SqlEditorViewModel(_project),
+        "firewall" => new FirewallEditorViewModel(_project),
+        "xmlConfig" => new XmlConfigEditorViewModel(_project),
+        "scheduledTasks" => new ScheduledTasksEditorViewModel(_project),
+        "perfCounters" => new PerfCountersEditorViewModel(_project),
+        "odbc" => new OdbcEditorViewModel(_project),
         "ui" => new UiEditorViewModel(_project.Ui),
         "build" => new BuildSettingsEditorViewModel(_project.Build),
+        "bundleSettings" => new BundleSettingsEditorViewModel(_project.BundleSettings ??= new()),
+        "bundlePackages" => new BundlePackagesEditorViewModel(_project),
         _ => null
     };
 }

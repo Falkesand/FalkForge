@@ -1,0 +1,45 @@
+<UserControl x:Class="FalkForge.Studio.Editors.XmlConfigEditor.XmlConfigEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:FalkForge.Studio.Editors.XmlConfigEditor">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Text="XML Config" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Add Entry" Click="AddEntry_Click" Padding="8,4" Margin="0,0,8,0" />
+            <Button Content="Remove" Click="Remove_Click" Padding="8,4" />
+        </StackPanel>
+        <DataGrid ItemsSource="{Binding Entries}"
+                  SelectedItem="{Binding SelectedEntry}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Id"
+                                    Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="80" />
+                <DataGridTextColumn Header="File Path"
+                                    Binding="{Binding FilePath, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="150" />
+                <DataGridTextColumn Header="XPath"
+                                    Binding="{Binding XPath, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="150" />
+                <DataGridComboBoxColumn Header="Action"
+                                        SelectedItemBinding="{Binding Action, UpdateSourceTrigger=PropertyChanged}"
+                                        ItemsSource="{x:Static local:XmlConfigEditorViewModel.Actions}"
+                                        Width="120" />
+                <DataGridTextColumn Header="Element Name"
+                                    Binding="{Binding ElementName, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="100" />
+                <DataGridTextColumn Header="Attribute Name"
+                                    Binding="{Binding AttributeName, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="100" />
+                <DataGridTextColumn Header="Value"
+                                    Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="100" />
+                <DataGridTextColumn Header="Sequence"
+                                    Binding="{Binding Sequence, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="80" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

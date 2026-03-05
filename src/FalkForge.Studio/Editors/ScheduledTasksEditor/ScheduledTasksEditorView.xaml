@@ -1,0 +1,48 @@
+<UserControl x:Class="FalkForge.Studio.Editors.ScheduledTasksEditor.ScheduledTasksEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:FalkForge.Studio.Editors.ScheduledTasksEditor">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Text="Scheduled Tasks" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Add Task" Click="AddEntry_Click" Padding="8,4" Margin="0,0,8,0" />
+            <Button Content="Remove" Click="Remove_Click" Padding="8,4" />
+        </StackPanel>
+        <DataGrid ItemsSource="{Binding Entries}"
+                  SelectedItem="{Binding SelectedEntry}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Id"
+                                    Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="80" />
+                <DataGridTextColumn Header="Name"
+                                    Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="120" />
+                <DataGridTextColumn Header="Command"
+                                    Binding="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="150" />
+                <DataGridTextColumn Header="Arguments"
+                                    Binding="{Binding Arguments, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="120" />
+                <DataGridTextColumn Header="Working Dir"
+                                    Binding="{Binding WorkingDir, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="120" />
+                <DataGridComboBoxColumn Header="Trigger Type"
+                                        SelectedItemBinding="{Binding TriggerType, UpdateSourceTrigger=PropertyChanged}"
+                                        ItemsSource="{x:Static local:ScheduledTasksEditorViewModel.TriggerTypes}"
+                                        Width="100" />
+                <DataGridTextColumn Header="Schedule"
+                                    Binding="{Binding Schedule, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="100" />
+                <DataGridTextColumn Header="Run As User"
+                                    Binding="{Binding RunAsUser, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="100" />
+                <DataGridCheckBoxColumn Header="Elevated"
+                                        Binding="{Binding RunElevated, UpdateSourceTrigger=PropertyChanged}"
+                                        Width="70" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>
