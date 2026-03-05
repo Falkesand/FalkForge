@@ -179,6 +179,11 @@ public static class MessageSerializer
             case LaunchUpdateMessage:
                 break;
 
+            case LicenseMessage m:
+                writer.Write((int)m.Action);
+                writer.Write(m.LicenseContent ?? string.Empty);
+                break;
+
             default:
                 throw new InvalidOperationException($"Unknown message type: {message.GetType().Name}");
         }

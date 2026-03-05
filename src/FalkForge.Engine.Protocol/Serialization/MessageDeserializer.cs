@@ -111,6 +111,8 @@ public static class MessageDeserializer
                     PercentComplete = reader.ReadInt32()
                 },
                 MessageType.LaunchUpdate => new LaunchUpdateMessage { SequenceId = sequenceId },
+                MessageType.License => new LicenseMessage
+                    { SequenceId = sequenceId, Action = (LicenseAction)reader.ReadInt32(), LicenseContent = ReadNullableString(reader) },
                 _ => throw new InvalidOperationException($"Unhandled message type: {type}")
             };
         }

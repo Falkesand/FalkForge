@@ -18,6 +18,7 @@ public enum MessageType : ushort
     UpdateReady = 0x010D,
     UpdateDownloadProgress = 0x010E,
     LaunchUpdate = 0x010F,
+    License = 0x0110,
 
     // UI -> Engine (0x02xx)
     Cancel = 0x0201,

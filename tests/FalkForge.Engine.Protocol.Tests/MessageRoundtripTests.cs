@@ -447,6 +447,55 @@ public class MessageRoundtripTests
     }
 
     [Fact]
+    public void RoundTrip_LicenseMessage_Required_WithContent()
+    {
+        var original = new LicenseMessage
+        {
+            SequenceId = 40,
+            Action = LicenseAction.Required,
+            LicenseContent = "MIT License\n\nCopyright (c) 2026..."
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.License, deserialized.Type);
+        Assert.Equal(40u, deserialized.SequenceId);
+        Assert.Equal(LicenseAction.Required, deserialized.Action);
+        Assert.Equal("MIT License\n\nCopyright (c) 2026...", deserialized.LicenseContent);
+    }
+
+    [Fact]
+    public void RoundTrip_LicenseMessage_Accepted_NoContent()
+    {
+        var original = new LicenseMessage
+        {
+            SequenceId = 41,
+            Action = LicenseAction.Accepted,
+            LicenseContent = null
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(LicenseAction.Accepted, deserialized.Action);
+        Assert.Null(deserialized.LicenseContent);
+    }
+
+    [Fact]
+    public void RoundTrip_LicenseMessage_Declined()
+    {
+        var original = new LicenseMessage
+        {
+            SequenceId = 42,
+            Action = LicenseAction.Declined,
+            LicenseContent = null
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(LicenseAction.Declined, deserialized.Action);
+    }
+
+    [Fact]
     public void Deserialize_TooShort_ReturnsFailure()
     {
         var data = new byte[] { 0x01, 0x00, 0x01 }; // only 3 bytes, need 8 minimum
