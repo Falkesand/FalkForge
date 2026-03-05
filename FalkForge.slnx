@@ -23,6 +23,7 @@
     <Project Path="src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
     <Project Path="src/FalkForge.Platform.Windows/FalkForge.Platform.Windows.csproj" />
     <Project Path="src/FalkForge.Sdk/FalkForge.Sdk.csproj" />
+    <Project Path="src/FalkForge.Studio/FalkForge.Studio.csproj" />
     <Project Path="src/FalkForge.Testing/FalkForge.Testing.csproj" />
     <Project Path="src/FalkForge.Ui/FalkForge.Ui.csproj" />
     <Project Path="src/FalkForge.Ui.Abstractions/FalkForge.Ui.Abstractions.csproj" />
@@ -47,6 +48,7 @@
     <Project Path="tests/FalkForge.Extensions.Util.Tests/FalkForge.Extensions.Util.Tests.csproj" />
     <Project Path="tests/FalkForge.Integration.Tests/FalkForge.Integration.Tests.csproj" />
     <Project Path="tests/FalkForge.Localization.Tests/FalkForge.Localization.Tests.csproj" />
+    <Project Path="tests/FalkForge.Studio.Tests/FalkForge.Studio.Tests.csproj" />
     <Project Path="tests/FalkForge.Ui.Abstractions.Tests/FalkForge.Ui.Abstractions.Tests.csproj" />
     <Project Path="tests/FalkForge.Ui.Tests/FalkForge.Ui.Tests.csproj" />
     <Project Path="tests/FalkForge.Platform.Windows.Tests/FalkForge.Platform.Windows.Tests.csproj" />
