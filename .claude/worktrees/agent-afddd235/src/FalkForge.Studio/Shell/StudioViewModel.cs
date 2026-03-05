@@ -1,10 +1,14 @@
 using System.Collections.ObjectModel;
+using FalkForge.Studio.Editors.FilesEditor;
+using FalkForge.Studio.Editors.ProductEditor;
 using FalkForge.Studio.Navigation;
+using FalkForge.Studio.Project;
 
 namespace FalkForge.Studio.Shell;
 
 public sealed class StudioViewModel : ViewModelBase
 {
+    private readonly StudioProject _project;
     private ViewModelBase? _currentEditor;
     private string _outputText = string.Empty;
     private string _title = "FalkForge Studio";
@@ -31,6 +35,7 @@ public sealed class StudioViewModel : ViewModelBase
 
     public StudioViewModel()
     {
+        _project = StudioProjectLoader.NewProject();
         BuildDefaultTree();
     }
 
@@ -46,5 +51,11 @@ public sealed class StudioViewModel : ViewModelBase
     public void NavigateTo(string nodeKey)
     {
         OutputText = $"Selected: {nodeKey}";
+        CurrentEditor = nodeKey switch
+        {
+            "product" => new ProductEditorViewModel(_project.Product),
+            "files" => new FilesEditorViewModel(_project),
+            _ => null
+        };
     }
 }
