@@ -19,6 +19,9 @@ public sealed class StudioProject
     [JsonPropertyName("registry")]
     public List<RegistryEntrySection> Registry { get; set; } = [];
 
+    [JsonPropertyName("services")]
+    public List<ServiceSection> Services { get; set; } = [];
+
     [JsonPropertyName("ui")]
     public UiSection Ui { get; set; } = new();
 

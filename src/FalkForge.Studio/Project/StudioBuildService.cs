@@ -120,6 +120,36 @@ public static class StudioBuildService
             builder.Registry(r => r.Key(root, entry.Key, k => k.Value(entry.ValueName, entry.Value, valueType)));
         }
 
+        foreach (var svc in project.Services)
+        {
+            if (string.IsNullOrWhiteSpace(svc.Name))
+                return Result<PackageModel>.Failure(ErrorKind.Validation, "Service name is required.");
+
+            if (!Enum.TryParse<ServiceStartMode>(svc.StartMode, ignoreCase: true, out var startMode))
+                return Result<PackageModel>.Failure(ErrorKind.Validation,
+                    $"Invalid service start mode: '{svc.StartMode}'.");
+
+            if (!Enum.TryParse<ServiceAccount>(svc.Account, ignoreCase: true, out var account))
+                return Result<PackageModel>.Failure(ErrorKind.Validation,
+                    $"Invalid service account: '{svc.Account}'.");
+
+            builder.Service(svc.Name, s =>
+            {
+                s.DisplayName = svc.DisplayName;
+                s.Executable = svc.Executable;
+                s.Description = svc.Description;
+                s.StartMode = startMode;
+                s.Account = account;
+            });
+
+            builder.ServiceControl(sc =>
+            {
+                sc.ServiceName(svc.Name);
+                if (svc.StartOnInstall) sc.StartOnInstall();
+                if (svc.StopOnUninstall) sc.StopOnUninstall();
+            });
+        }
+
         var model = builder.Build();
         return Result<PackageModel>.Success(model);
     }
