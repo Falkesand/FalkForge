@@ -75,7 +75,7 @@ public class MsiProgressStateTests
         var state = new MsiProgressState();
         state.ProcessMessage(ProgressFlag, "1: 0 2: 100 3: 1 4: 1");
         var result = state.ProcessMessage(ProgressFlag, "1: 2 2: 30");
-        Assert.InRange(result, 0, 100);
+        Assert.Equal(30, result);
     }
 
     [Fact]
@@ -103,5 +103,24 @@ public class MsiProgressStateTests
         state.ProcessMessage(ProgressFlag, "1: 0 2: 200 3: 0 4: 1");
         var result = state.ProcessMessage(ProgressFlag, "1: 2 2: 50");
         Assert.Equal(25, result);
+    }
+
+    [Fact]
+    public void ProcessMessage_MasterReset_MissingField3_DefaultsToForward()
+    {
+        var state = new MsiProgressState();
+        state.ProcessMessage(ProgressFlag, "1: 0 2: 100");
+        var result = state.ProcessMessage(ProgressFlag, "1: 2 2: 50");
+        Assert.Equal(50, result);
+    }
+
+    [Fact]
+    public void ProcessMessage_ReverseDirection_ExceedsBounds_ClampedTo100()
+    {
+        var state = new MsiProgressState();
+        state.ProcessMessage(ProgressFlag, "1: 0 2: 100 3: 1 4: 1");
+        state.ProcessMessage(ProgressFlag, "1: 2 2: 50");
+        var result = state.ProcessMessage(ProgressFlag, "1: 2 2: 100");
+        Assert.Equal(100, result);
     }
 }
