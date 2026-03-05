@@ -39,6 +39,9 @@ public sealed class InstallProgressPage : MasPageBase<InstallProgressView>
 
     protected override Task<bool> OnPlanBeginAsync(InstallAction action)
     {
+        if (action is InstallAction.Uninstall)
+            return Task.FromResult(true);
+
         SetStringProperty("DBSERVER", "DatabaseServer");
         SetStringProperty("DBNAME", "DatabaseName");
         SetBoolProperty("INTEGRATEDSECURITY", "IntegratedSecurity");
@@ -144,11 +147,12 @@ public sealed class InstallProgressPage : MasPageBase<InstallProgressView>
 
     private void OnProgress(InstallProgress progress)
     {
-        var percent = progress.Total > 0
-            ? (int)(progress.Current * 100.0 / progress.Total)
+        var overall = progress.Total > 0
+            ? ((progress.Current - 1) * 100 + progress.PackagePercent) / progress.Total
             : 0;
 
-        ProgressPercent = percent;
+        ProgressPercent = Math.Clamp(overall, 0, 100);
+
         var locKey = $"InstallProgress.Package.{progress.CurrentPackage}";
         var localized = Localize(locKey);
         ProgressDetail = localized != locKey ? localized : progress.CurrentPackage;
