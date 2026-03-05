@@ -44,7 +44,7 @@ public sealed class MsiExecutorElevationTests
         var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -75,7 +75,7 @@ public sealed class MsiExecutorElevationTests
             productCode: "{12345678-1234-1234-1234-123456789012}");
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -104,7 +104,7 @@ public sealed class MsiExecutorElevationTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsFailure);
@@ -128,7 +128,7 @@ public sealed class MsiExecutorElevationTests
 
         // This will attempt to run msiexec.exe directly. On CI or restricted environments
         // this may fail, so we just verify it doesn't use the elevation path.
-        var result = await executorWithNullAccessor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executorWithNullAccessor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert: Either succeeds (unlikely in test env) or fails with execution error (not elevation error)
         if (result.IsFailure)
@@ -155,7 +155,7 @@ public sealed class MsiExecutorElevationTests
             });
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -184,7 +184,7 @@ public sealed class MsiExecutorElevationTests
             productCode: null);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -212,7 +212,7 @@ public sealed class MsiExecutorElevationTests
             });
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert: Validation rejects the property key before sending to elevation client
         Assert.True(result.IsFailure);
@@ -234,7 +234,7 @@ public sealed class MsiExecutorElevationTests
             });
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsFailure);

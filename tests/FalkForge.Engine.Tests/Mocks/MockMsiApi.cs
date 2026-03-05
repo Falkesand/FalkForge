@@ -52,6 +52,6 @@ internal sealed class MockMsiApi : IMsiApi
         return 0;
     }
 
-    public nint SetExternalUI(Delegate? handler, uint messageFilter, nint context)
+    public nint SetExternalUI(MsiExternalUIHandler? handler, uint messageFilter, nint context)
         => nint.Zero;
 }

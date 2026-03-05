@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Execution;
 
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using FalkForge.Engine.Elevation;
@@ -40,7 +41,7 @@ public sealed partial class MsiExecutor
         _msiApiAccessor = msiApiAccessor;
     }
 
-    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {
         // Validate custom properties up front (applies to both elevated and direct paths)
         var propsResult = ValidateAndBuildPropertyArgs(action, _variableStoreAccessor());
@@ -53,7 +54,7 @@ public sealed partial class MsiExecutor
             return await ExecuteElevatedAsync(action, propsResult.Value, elevationClient, ct);
         }
 
-        return ExecuteDirect(action, propsResult.Value);
+        return ExecuteDirect(action, propsResult.Value, packageProgress);
     }
 
     private static Result<string> ValidateAndBuildPropertyArgs(PlanAction action, VariableStore? variableStore)
@@ -160,15 +161,26 @@ public sealed partial class MsiExecutor
         }
     }
 
-    private Result<int> ExecuteDirect(PlanAction action, string additionalArgs)
+    private Result<int> ExecuteDirect(PlanAction action, string additionalArgs, IProgress<int> packageProgress)
     {
         var msiApi = _msiApiAccessor();
         if (msiApi is null)
             return Result<int>.Failure(ErrorKind.ExecutionError, "MSI API not available");
 
+        var progressState = new MsiProgressState();
+        MsiExternalUIHandler handler = (context, messageType, message) =>
+        {
+            var percent = progressState.ProcessMessage(messageType, message);
+            if (percent >= 0)
+                packageProgress.Report(percent);
+            return 0; // IDOK
+        };
+
+        var gcHandle = GCHandle.Alloc(handler);
         try
         {
             msiApi.SetInternalUI(2, IntPtr.Zero); // INSTALLUILEVEL_NONE
+            msiApi.SetExternalUI(handler, 0x00000400, IntPtr.Zero); // INSTALLLOGMODE_PROGRESS
 
             uint exitCode = action.ActionType switch
             {
@@ -197,6 +209,11 @@ public sealed partial class MsiExecutor
         {
             return Result<int>.Failure(
                 ErrorKind.ExecutionError, $"MSI execution failed: {ex.Message}");
+        }
+        finally
+        {
+            msiApi.SetExternalUI(null, 0, IntPtr.Zero);
+            gcHandle.Free();
         }
     }
 

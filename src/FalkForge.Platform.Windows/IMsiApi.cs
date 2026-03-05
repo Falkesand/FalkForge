@@ -42,5 +42,5 @@ public interface IMsiApi
     /// <param name="messageFilter">Bitmask of message types to receive.</param>
     /// <param name="context">User-defined context pointer.</param>
     /// <returns>Pointer to the previously registered handler.</returns>
-    nint SetExternalUI(Delegate? handler, uint messageFilter, nint context);
+    nint SetExternalUI(MsiExternalUIHandler? handler, uint messageFilter, nint context);
 }

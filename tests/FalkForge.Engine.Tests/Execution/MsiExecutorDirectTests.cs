@@ -51,7 +51,7 @@ public sealed class MsiExecutorDirectTests
             });
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -70,7 +70,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.Equal(1, mockApi.SetInternalUICallCount);
@@ -88,7 +88,7 @@ public sealed class MsiExecutorDirectTests
             productCode: "{12345678-1234-1234-1234-123456789012}");
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -107,7 +107,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -123,7 +123,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -138,7 +138,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsFailure);
@@ -159,7 +159,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsFailure);
@@ -176,7 +176,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Repair);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -196,7 +196,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -216,7 +216,7 @@ public sealed class MsiExecutorDirectTests
             productCode: null);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert: Falls back to SourcePath
         Assert.True(result.IsSuccess);
@@ -234,7 +234,7 @@ public sealed class MsiExecutorDirectTests
         var action = CreateMsiAction(PlanActionType.Install);
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert: Elevation path was used, not direct MSI API
         Assert.True(result.IsSuccess);
@@ -260,7 +260,7 @@ public sealed class MsiExecutorDirectTests
             });
 
         // Act
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         // Assert
         Assert.True(result.IsSuccess);
