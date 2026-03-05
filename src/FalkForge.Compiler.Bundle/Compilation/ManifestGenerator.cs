@@ -50,7 +50,8 @@ public sealed class ManifestGenerator
                 TargetProductCode = pkg.TargetProductCode,
                 DownloadUrl = pkg.RemotePayload?.DownloadUrl,
                 ContainerId = pkg.ContainerId,
-                AuthenticodeThumbprint = pkg.AuthenticodeThumbprint
+                AuthenticodeThumbprint = pkg.AuthenticodeThumbprint,
+                IsPrerequisite = pkg.IsPrerequisite
             });
         }
 

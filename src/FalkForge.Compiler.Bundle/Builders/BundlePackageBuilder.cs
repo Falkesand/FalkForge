@@ -18,6 +18,7 @@ public sealed class BundlePackageBuilder
     private DetectionMode _detectionMode = Engine.Protocol.Manifest.DetectionMode.Default;
     private readonly List<SearchCondition> _searchConditions = new();
     private string? _authenticodeThumbprint;
+    private bool _isPrerequisite;
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -105,6 +106,7 @@ public sealed class BundlePackageBuilder
         return this;
     }
     public BundlePackageBuilder AuthenticodeThumbprint(string thumbprint) { _authenticodeThumbprint = thumbprint; return this; }
+    public BundlePackageBuilder Prerequisite(bool isPrerequisite = true) { _isPrerequisite = isPrerequisite; return this; }
 
     internal BundlePackageModel Build()
     {
@@ -123,7 +125,8 @@ public sealed class BundlePackageBuilder
             ContainerId = _containerId,
             DetectionMode = _detectionMode,
             SearchConditions = _searchConditions.ToArray(),
-            AuthenticodeThumbprint = _authenticodeThumbprint
+            AuthenticodeThumbprint = _authenticodeThumbprint,
+            IsPrerequisite = _isPrerequisite
         };
     }
 }
