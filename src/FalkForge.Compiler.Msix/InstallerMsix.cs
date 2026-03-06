@@ -64,6 +64,9 @@ public static class InstallerMsix
         configure(builder);
         var model = builder.Build();
 
+        // MsixBundleModel validation is deferred to the compiler —
+        // the bundle format has fewer constraints than individual packages.
+
         var outputPath = Installer.GetOutputPath(args);
         var result = compile(model, outputPath);
         if (result.IsFailure)

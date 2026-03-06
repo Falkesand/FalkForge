@@ -64,4 +64,18 @@ public sealed class InstallerMsixTests
 
         Assert.Equal(0, exitCode);
     }
+
+    [Fact]
+    public void BuildMsixBundle_CompileFails_ReturnsOne()
+    {
+        var exitCode = InstallerMsix.BuildMsixBundle([], b =>
+        {
+            b.Name("TestBundle")
+                .Publisher("CN=Test")
+                .Version(new Version(1, 0, 0, 0))
+                .Package("test-x64.msix", ProcessorArchitecture.X64);
+        }, (_, _) => Result<string>.Failure(ErrorKind.CompilationError, "bundle compile failed"));
+
+        Assert.Equal(1, exitCode);
+    }
 }
