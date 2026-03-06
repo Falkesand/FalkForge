@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Interop;
+using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Validation;
 
@@ -44,6 +45,54 @@ public sealed class IceValidator
             return Result<IceValidationResult>.Failure(ErrorKind.FileNotFound, $"CUB file not found: {cubPath}");
 
         return ValidateWithCub(msiPath, cubPath);
+    }
+
+    /// <summary>
+    ///     Validates an MSI using an <see cref="IceConfiguration"/> for suppression,
+    ///     warning promotion, and custom CUB path.
+    /// </summary>
+    public Result<IceValidationResult> Validate(string msiPath, IceConfiguration config)
+    {
+        if (!config.Enabled)
+            return Result<IceValidationResult>.Success(IceValidationResult.Success());
+
+        var cubPath = config.CubFilePath ?? FindDariceCub();
+        if (cubPath is null)
+            return Result<IceValidationResult>.Success(IceValidationResult.Success());
+
+        if (!File.Exists(msiPath))
+            return Result<IceValidationResult>.Failure(ErrorKind.FileNotFound, $"MSI file not found: {msiPath}");
+
+        if (!File.Exists(cubPath))
+            return Result<IceValidationResult>.Failure(ErrorKind.FileNotFound, $"CUB file not found: {cubPath}");
+
+        var result = ValidateWithCub(msiPath, cubPath);
+        if (result.IsFailure)
+            return result;
+
+        var messages = result.Value.Messages.ToList();
+
+        // Filter suppressed ICEs
+        if (config.SuppressedIces.Count > 0)
+            messages.RemoveAll(m => config.SuppressedIces.Contains(m.IceName, StringComparer.OrdinalIgnoreCase));
+
+        // Promote warnings to errors if configured
+        if (config.WarningsAsErrors)
+        {
+            messages = messages.Select(m => m.Severity == IceMessageSeverity.Warning
+                ? new IceMessage
+                {
+                    IceName = m.IceName,
+                    Severity = IceMessageSeverity.Error,
+                    Description = m.Description,
+                    Table = m.Table,
+                    Column = m.Column,
+                    PrimaryKeys = m.PrimaryKeys
+                }
+                : m).ToList();
+        }
+
+        return Result<IceValidationResult>.Success(IceValidationResult.FromMessages(messages));
     }
 
     private static Result<IceValidationResult> ValidateWithCub(string msiPath, string cubPath)

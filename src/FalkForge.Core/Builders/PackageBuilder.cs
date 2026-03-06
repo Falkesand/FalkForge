@@ -60,6 +60,7 @@ public sealed class PackageBuilder
     public int CabinetThreadCount { get; set; }
 
     private SbomOptions? _sbomOptions;
+    private IceConfiguration? _iceConfiguration;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -376,6 +377,14 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder Ice(Action<IceConfigurationBuilder> configure)
+    {
+        var builder = new IceConfigurationBuilder();
+        configure(builder);
+        _iceConfiguration = builder.Build();
+        return this;
+    }
+
     internal void AddShortcut(ShortcutModel shortcut)
     {
         _shortcuts.Add(shortcut);
@@ -450,7 +459,8 @@ public sealed class PackageBuilder
             CabinetThreadCount = CabinetThreadCount,
             LocalizationData = _localizationData,
             ReproducibleOptions = _reproducibleOptions,
-            SbomOptions = _sbomOptions
+            SbomOptions = _sbomOptions,
+            IceConfiguration = _iceConfiguration
         };
     }
 }
