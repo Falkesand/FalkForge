@@ -81,10 +81,16 @@ public sealed class StudioViewModel : ViewModelBase
         TreeNodes.Add(new TreeNodeViewModel("UI & Dialogs", "ui"));
         TreeNodes.Add(new TreeNodeViewModel("Build Settings", "build"));
 
-        if (_project.ProjectType == "bundle")
+        switch (_project.ProjectType)
         {
-            TreeNodes.Add(new TreeNodeViewModel("Bundle Settings", "bundleSettings"));
-            TreeNodes.Add(new TreeNodeViewModel("Bundle Packages", "bundlePackages"));
+            case "bundle":
+                TreeNodes.Add(new TreeNodeViewModel("Bundle Settings", "bundleSettings"));
+                TreeNodes.Add(new TreeNodeViewModel("Bundle Packages", "bundlePackages"));
+                break;
+            case "msix":
+                TreeNodes.Add(new TreeNodeViewModel("MSIX Applications", "msixApplications"));
+                TreeNodes.Add(new TreeNodeViewModel("Capabilities", "msixCapabilities"));
+                break;
         }
     }
 

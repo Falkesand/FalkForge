@@ -228,16 +228,38 @@ public static class StudioBuildService
 
     public static Result<string> Compile(StudioProject project, string baseDirectory)
     {
-        var modelResult = BuildModel(project, baseDirectory);
-        if (modelResult.IsFailure)
-            return Result<string>.Failure(modelResult.Error);
-
         var outputPath = Path.IsPathRooted(project.Build.OutputPath)
             ? project.Build.OutputPath
             : Path.Combine(baseDirectory, project.Build.OutputPath);
 
+        return project.ProjectType?.ToLowerInvariant() switch
+        {
+            "msix" => CompileMsix(project, baseDirectory, outputPath),
+            "bundle" => CompileBundle(project, baseDirectory, outputPath),
+            _ => CompileMsi(project, baseDirectory, outputPath)
+        };
+    }
+
+    private static Result<string> CompileMsi(StudioProject project, string baseDirectory, string outputPath)
+    {
+        var modelResult = BuildModel(project, baseDirectory);
+        if (modelResult.IsFailure)
+            return Result<string>.Failure(modelResult.Error);
+
         var compiler = new MsiCompiler();
         return compiler.Compile(modelResult.Value, outputPath);
+    }
+
+    private static Result<string> CompileBundle(StudioProject project, string baseDirectory, string outputPath)
+    {
+        return Result<string>.Failure(ErrorKind.NotSupported,
+            "Bundle compilation from Studio is not yet supported. Use the C# API or CLI instead.");
+    }
+
+    private static Result<string> CompileMsix(StudioProject project, string baseDirectory, string outputPath)
+    {
+        return Result<string>.Failure(ErrorKind.NotSupported,
+            "MSIX compilation from Studio is not yet supported. Use the C# API or CLI instead.");
     }
 
     public static Result<BundleModel> BuildBundleModel(StudioProject project, string baseDirectory)
