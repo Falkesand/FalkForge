@@ -182,7 +182,9 @@ public sealed class DetectingHandler : IEnginePhaseHandler
                 sendFn,
                 context.Logger,
                 policy,
-                allowResume);
+                allowResume,
+                promptBeforeAutoUpdate: context.Manifest.UpdateFeed.PromptBeforeAutoUpdate,
+                showDownloadErrors: context.Manifest.UpdateFeed.ShowDownloadErrors);
 
             context.UpdateDownloadTask = downloader.StartAsync(
                 pendingUpdate,

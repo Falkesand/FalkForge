@@ -12,6 +12,8 @@ internal sealed class UpdateDownloader
     private readonly UpdatePolicy _policy;
     private readonly bool _allowResume;
     private readonly IUpdateLauncher _launcher;
+    private readonly bool _promptBeforeAutoUpdate;
+    private readonly bool _showDownloadErrors;
 
     internal UpdateDownloader(
         Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
@@ -19,7 +21,9 @@ internal sealed class UpdateDownloader
         IEngineLogger logger,
         UpdatePolicy policy,
         bool allowResume,
-        IUpdateLauncher? launcher = null)
+        IUpdateLauncher? launcher = null,
+        bool promptBeforeAutoUpdate = false,
+        bool showDownloadErrors = false)
     {
         _download = download;
         _sendMessage = sendMessage;
@@ -27,6 +31,8 @@ internal sealed class UpdateDownloader
         _policy = policy;
         _allowResume = allowResume;
         _launcher = launcher ?? new NullUpdateLauncher();
+        _promptBeforeAutoUpdate = promptBeforeAutoUpdate;
+        _showDownloadErrors = showDownloadErrors;
     }
 
     internal async Task StartAsync(UpdateInfo update, string cacheDir, CancellationToken ct)
@@ -63,6 +69,16 @@ internal sealed class UpdateDownloader
         if (!result.IsSuccess)
         {
             _logger.Warning("UpdateDownloader", $"Update download failed: {result.Error.Message}");
+
+            if (_showDownloadErrors)
+            {
+                await _sendMessage(new ErrorMessage
+                {
+                    Kind = result.Error.Kind,
+                    Message = result.Error.Message
+                }, ct);
+            }
+
             return;
         }
 
@@ -72,7 +88,7 @@ internal sealed class UpdateDownloader
             LocalPath = result.Value
         }, ct);
 
-        if (_policy == UpdatePolicy.AutoUpdate)
+        if (_policy == UpdatePolicy.AutoUpdate && !_promptBeforeAutoUpdate)
         {
             var launchResult = _launcher.Launch(result.Value);
             if (!launchResult.IsSuccess)

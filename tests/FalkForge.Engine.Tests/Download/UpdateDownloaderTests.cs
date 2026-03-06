@@ -99,7 +99,9 @@ public sealed class UpdateDownloaderTests
         List<EngineMessage> sentMessages,
         UpdatePolicy policy,
         bool allowResume = false,
-        IUpdateLauncher? launcher = null)
+        IUpdateLauncher? launcher = null,
+        bool promptBeforeAutoUpdate = false,
+        bool showDownloadErrors = false)
     {
         var fakePipe = new FakePipeServer(sentMessages);
         var logger = new NullLogger();
@@ -110,7 +112,9 @@ public sealed class UpdateDownloaderTests
             logger,
             policy,
             allowResume,
-            launcher);
+            launcher,
+            promptBeforeAutoUpdate,
+            showDownloadErrors);
     }
 
     private static UpdateDownloader CreateDownloaderWithLogger(
@@ -119,7 +123,9 @@ public sealed class UpdateDownloaderTests
         CapturingLogger logger,
         UpdatePolicy policy,
         bool allowResume = false,
-        IUpdateLauncher? launcher = null)
+        IUpdateLauncher? launcher = null,
+        bool promptBeforeAutoUpdate = false,
+        bool showDownloadErrors = false)
     {
         var fakePipe = new FakePipeServer(sentMessages);
 
@@ -129,7 +135,9 @@ public sealed class UpdateDownloaderTests
             logger,
             policy,
             allowResume,
-            launcher);
+            launcher,
+            promptBeforeAutoUpdate,
+            showDownloadErrors);
     }
 
     // ---------------------------------------------------------------------------
@@ -194,5 +202,80 @@ public sealed class UpdateDownloaderTests
 
         Assert.Single(launched);
         Assert.Equal("/cache/v2.exe", launched[0]);
+    }
+
+    [Fact]
+    public async Task StartAsync_AutoUpdateWithPrompt_DoesNotLaunch()
+    {
+        var launched = new List<string>();
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(Result<string>.Success("/cache/v2.exe"));
+        var fakeLauncher = new FakeUpdateLauncher(launched);
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.AutoUpdate, allowResume: false,
+            launcher: fakeLauncher, promptBeforeAutoUpdate: true);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.Empty(launched);
+    }
+
+    [Fact]
+    public async Task StartAsync_AutoUpdateWithoutPrompt_Launches()
+    {
+        var launched = new List<string>();
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(Result<string>.Success("/cache/v2.exe"));
+        var fakeLauncher = new FakeUpdateLauncher(launched);
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.AutoUpdate, allowResume: false,
+            launcher: fakeLauncher, promptBeforeAutoUpdate: false);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.Single(launched);
+        Assert.Equal("/cache/v2.exe", launched[0]);
+    }
+
+    [Fact]
+    public async Task StartAsync_DownloadFails_ShowErrors_SendsErrorMessage()
+    {
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(
+            Result<string>.Failure(new Error(ErrorKind.DownloadError, "Network timeout")));
+        var logger = new CapturingLogger();
+
+        var downloader = CreateDownloaderWithLogger(
+            fakeDownloader, sentMessages, logger, UpdatePolicy.DownloadAndPrompt,
+            allowResume: false, showDownloadErrors: true);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        var error = Assert.Single(sentMessages.OfType<ErrorMessage>());
+        Assert.Equal(ErrorKind.DownloadError, error.Kind);
+        Assert.Contains("Network timeout", error.Message);
+    }
+
+    [Fact]
+    public async Task StartAsync_DownloadFails_SilentFallback_NoErrorMessage()
+    {
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(
+            Result<string>.Failure(new Error(ErrorKind.DownloadError, "Network timeout")));
+        var logger = new CapturingLogger();
+
+        var downloader = CreateDownloaderWithLogger(
+            fakeDownloader, sentMessages, logger, UpdatePolicy.DownloadAndPrompt,
+            allowResume: false, showDownloadErrors: false);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.Empty(sentMessages.OfType<ErrorMessage>());
     }
 }

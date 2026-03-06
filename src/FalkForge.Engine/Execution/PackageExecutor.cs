@@ -45,14 +45,15 @@ public sealed class PackageExecutor
             return await SimulateDryRunAsync(action, dryRunLogPath, ct);
         }
 
+        var progress = packageProgress ?? new NullProgress<int>();
         var innerResult = action.Package.Type switch
         {
-            PackageType.MsiPackage => await _msiExecutor.ExecuteAsync(action, ct, packageProgress),
-            PackageType.MsuPackage => await _msuExecutor.ExecuteAsync(action, ct, packageProgress),
-            PackageType.MspPackage => await _mspExecutor.ExecuteAsync(action, ct, packageProgress),
-            PackageType.BundlePackage => await _bundleExecutor.ExecuteAsync(action, ct, packageProgress),
-            PackageType.ExePackage => await _exeExecutor.ExecuteAsync(action, ct, packageProgress),
-            PackageType.NetRuntime => await _netRuntimeExecutor.ExecuteAsync(action, ct, packageProgress),
+            PackageType.MsiPackage => await _msiExecutor.ExecuteAsync(action, ct, progress),
+            PackageType.MsuPackage => await _msuExecutor.ExecuteAsync(action, ct, progress),
+            PackageType.MspPackage => await _mspExecutor.ExecuteAsync(action, ct, progress),
+            PackageType.BundlePackage => await _bundleExecutor.ExecuteAsync(action, ct, progress),
+            PackageType.ExePackage => await _exeExecutor.ExecuteAsync(action, ct, progress),
+            PackageType.NetRuntime => await _netRuntimeExecutor.ExecuteAsync(action, ct, progress),
             _ => Result<int>.Failure(
                 ErrorKind.ExecutionError, $"Unknown package type: {action.Package.Type}")
         };
@@ -114,5 +115,10 @@ public sealed class PackageExecutor
                 ErrorKind.ExecutionError,
                 $"Package '{action.PackageId}' returned unknown behavior for exit code {processExitCode}")
         };
+    }
+
+    private sealed class NullProgress<T> : IProgress<T>
+    {
+        public void Report(T value) { }
     }
 }

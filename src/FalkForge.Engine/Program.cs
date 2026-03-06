@@ -52,6 +52,9 @@ internal static class Program
             }
         }
 
+        // Suppress unused warning until plan-only mode is wired into EngineHost
+        _ = planOnly;
+
         // Bootstrapper mode: if we ARE the bundle, extract and orchestrate
         if (manifestPath is null && HasEmbeddedBundle())
         {

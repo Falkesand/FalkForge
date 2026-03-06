@@ -37,7 +37,10 @@ public sealed class PackageExecutorDryRunTests
         var mspExecutor = new MspExecutor(new MockProcessRunner().WithExitCode(99));
         var bundleExecutor = new BundleExecutor(new MockProcessRunner().WithExitCode(99));
 
-        var executor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor);
+        var exeExecutor = new ExeExecutor(new MockProcessRunner().WithExitCode(99));
+        var netRuntimeExecutor = new NetRuntimeExecutor(new MockProcessRunner().WithExitCode(99));
+
+        var executor = new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
 
         var action = new PlanAction
         {
@@ -73,7 +76,9 @@ public sealed class PackageExecutorDryRunTests
                 new MsiExecutor(),
                 new MsuExecutor(new MockProcessRunner()),
                 new MspExecutor(new MockProcessRunner()),
-                new BundleExecutor(new MockProcessRunner()));
+                new BundleExecutor(new MockProcessRunner()),
+                new ExeExecutor(new MockProcessRunner()),
+                new NetRuntimeExecutor(new MockProcessRunner()));
 
             var action = new PlanAction
             {
@@ -113,7 +118,9 @@ public sealed class PackageExecutorDryRunTests
             new MsiExecutor(),
             new MsuExecutor(processRunner),
             new MspExecutor(processRunner),
-            bundleExecutor);
+            bundleExecutor,
+            new ExeExecutor(processRunner),
+            new NetRuntimeExecutor(processRunner));
 
         var action = new PlanAction
         {
