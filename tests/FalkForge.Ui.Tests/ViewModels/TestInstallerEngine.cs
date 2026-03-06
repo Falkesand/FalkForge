@@ -45,7 +45,9 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public void Cancel() => CancelCalled = true;
 
-    public void LaunchUpdate() { }
+    public bool LaunchUpdateCalled { get; set; }
+
+    public void LaunchUpdate() => LaunchUpdateCalled = true;
 
     public void SetProperty(string name, string value) { }
 

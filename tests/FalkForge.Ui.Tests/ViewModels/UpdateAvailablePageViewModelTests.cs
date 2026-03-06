@@ -1,0 +1,108 @@
+namespace FalkForge.Ui.Tests.ViewModels;
+
+using FalkForge.Ui.Abstractions;
+using FalkForge.Ui.Abstractions.ViewModels;
+using FalkForge.Ui.ViewModels;
+using Xunit;
+
+public class UpdateAvailablePageViewModelTests
+{
+    private readonly TestInstallerEngine _engine = new();
+
+    private UpdateAvailablePageViewModel CreateViewModel()
+    {
+        var navigation = new TestNavigationService();
+        return new UpdateAvailablePageViewModel(_engine, navigation);
+    }
+
+    [Fact]
+    public void Title_ReturnsUpdateAvailable()
+    {
+        var vm = CreateViewModel();
+
+        Assert.Equal("Update Available", vm.Title);
+    }
+
+    [Fact]
+    public void Description_ContainsProductName()
+    {
+        var vm = CreateViewModel();
+
+        Assert.Contains("TestProduct", vm.Description);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_SetsAllProperties()
+    {
+        var vm = CreateViewModel();
+
+        vm.SetUpdateInfo("2.0.0", @"C:\cache\update.exe", 1024 * 1024);
+
+        Assert.Equal("2.0.0", vm.UpdateVersion);
+        Assert.Equal(@"C:\cache\update.exe", vm.CachedFilePath);
+        Assert.Equal(1024 * 1024, vm.UpdateSize);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_RaisesPropertyChanged()
+    {
+        var vm = CreateViewModel();
+        var changedProperties = new List<string?>();
+        vm.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
+
+        vm.SetUpdateInfo("2.0.0", @"C:\cache\update.exe", 2048);
+
+        Assert.Contains(nameof(UpdateAvailablePageViewModel.UpdateVersion), changedProperties);
+        Assert.Contains(nameof(UpdateAvailablePageViewModel.CachedFilePath), changedProperties);
+        Assert.Contains(nameof(UpdateAvailablePageViewModel.UpdateSize), changedProperties);
+    }
+
+    [Fact]
+    public void CanNavigateBack_ReturnsTrue()
+    {
+        var vm = CreateViewModel();
+
+        Assert.True(vm.CanNavigateBack());
+    }
+
+    [Fact]
+    public void CanNavigateNext_ReturnsFalse()
+    {
+        var vm = CreateViewModel();
+
+        Assert.False(vm.CanNavigateNext());
+    }
+
+    [Fact]
+    public void UpdateNowCommand_CallsLaunchUpdate()
+    {
+        _engine.LaunchUpdateCalled = false;
+        var vm = CreateViewModel();
+
+        vm.UpdateNowCommand.Execute(null);
+
+        Assert.True(_engine.LaunchUpdateCalled);
+    }
+
+    [Fact]
+    public void Description_AfterSetUpdateInfo_ContainsVersion()
+    {
+        var vm = CreateViewModel();
+
+        vm.SetUpdateInfo("3.5.0", null, 0);
+
+        Assert.Contains("3.5.0", vm.Description);
+    }
+
+    private sealed class TestNavigationService : INavigationService
+    {
+        public InstallerPageViewModel? CurrentPage { get; set; }
+        public bool CanGoBack => false;
+        public bool CanGoNext => false;
+        public IReadOnlyList<InstallerPageViewModel> Pages { get; } = [];
+        public void NavigateNext() { }
+        public void NavigateBack() { }
+        public void NavigateTo(InstallerPageViewModel page) { CurrentPage = page; }
+        public void NavigateTo<T>() where T : InstallerPageViewModel { }
+    }
+}
