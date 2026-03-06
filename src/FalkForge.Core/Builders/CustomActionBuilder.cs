@@ -44,6 +44,32 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
+    ///     Creates a custom action that runs a PowerShell script inline.
+    ///     Uses ExeInDir (type 34) targeting powershell.exe in [SystemFolder].
+    /// </summary>
+    public CustomActionBuilder PowerShellScript(string script)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(script);
+        _baseType = CustomActionType.ExeInDir;
+        _sourceRef = "[SystemFolder]";
+        var escapedScript = script.Replace("\"", "\\\"");
+        Target = $"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{escapedScript}\"";
+        return this;
+    }
+
+    /// <summary>
+    ///     Creates a custom action that runs a PowerShell script from a file.
+    ///     Reads the file content and embeds it inline via <see cref="PowerShellScript"/>.
+    /// </summary>
+    public CustomActionBuilder PowerShellFile(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"PowerShell script not found: {filePath}", filePath);
+        return PowerShellScript(File.ReadAllText(filePath));
+    }
+
+    /// <summary>
     ///     Marks the custom action as deferred (in-script execution).
     ///     Deferred actions run during the installation script phase.
     /// </summary>
