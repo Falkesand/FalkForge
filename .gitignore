@@ -387,6 +387,7 @@ FodyWeavers.xsd
 *.msi
 !*.Msi/
 *.msix
+!*.Msix/
 *.msm
 *.msp
 
