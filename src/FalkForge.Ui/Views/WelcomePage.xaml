@@ -40,6 +40,15 @@
                         HorizontalAlignment="Left"
                         Visibility="{Binding CanRepair, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,16,0,0"
+                        Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibility}}">
+                <ProgressBar Width="120" Height="16" Minimum="0" Maximum="100"
+                             Value="{Binding DownloadPercent, Mode=OneWay}" />
+                <TextBlock Text="Downloading update..." Margin="8,0,0,0"
+                           VerticalAlignment="Center" FontSize="11"
+                           Foreground="{DynamicResource SubtleTextBrush}" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>
