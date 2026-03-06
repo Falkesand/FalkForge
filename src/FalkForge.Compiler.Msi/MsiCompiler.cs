@@ -139,23 +139,28 @@ public sealed class MsiCompiler : ICompiler
                 return Result<string>.Failure(signResult.Error);
         }
 
-        // Step 9: ICE validation (opt-in, requires Windows SDK)
-        // Skipped for reproducible builds: ICE merges darice.cub tables into the MSI
-        // which would break byte-identity between builds.
-        if (package.ReproducibleOptions is null)
+        // Step 9: ICE validation
+        var iceConfig = package.IceConfiguration ?? new IceConfiguration();
+        if (iceConfig.Enabled && package.ReproducibleOptions is null)
         {
             var iceValidator = new IceValidator();
-            var iceResult = iceValidator.Validate(msiPath);
+            var iceResult = iceValidator.Validate(msiPath, iceConfig);
             if (iceResult.IsFailure)
             {
-                // ICE validation failure is non-fatal - just log
+                // ICE validation infrastructure failure is non-fatal
             }
-            else if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
+            else
             {
-                var iceErrors = string.Join("; ", iceResult.Value.Messages
-                    .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
-                    .Select(m => $"{m.IceName}: {m.Description}"));
-                return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
+                if (iceConfig.ReportPath is not null)
+                    IceReportExporter.Export(iceResult.Value, iceConfig.ReportPath);
+
+                if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
+                {
+                    var iceErrors = string.Join("; ", iceResult.Value.Messages
+                        .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
+                        .Select(m => $"{m.IceName}: {m.Description}"));
+                    return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
+                }
             }
         }
 
