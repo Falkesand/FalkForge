@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using FalkForge.Models;
 using Spectre.Console.Cli;
 
 using CliValidationResult = Spectre.Console.ValidationResult;
@@ -48,6 +49,30 @@ public sealed class BuildSettings : CommandSettings
     [Description("Output format: msi (default), msix, bundle, msm, msp, mst")]
     public string? Format { get; init; }
 
+    [CommandOption("--ice")]
+    [Description("Enable ICE validation (default: enabled)")]
+    public bool? Ice { get; init; }
+
+    [CommandOption("--no-ice")]
+    [Description("Disable ICE validation")]
+    public bool NoIce { get; init; }
+
+    [CommandOption("--ice-cub-path <PATH>")]
+    [Description("Path to custom darice.cub file")]
+    public string? IceCubPath { get; init; }
+
+    [CommandOption("--suppress-ice <NAMES>")]
+    [Description("Comma-separated ICE names to suppress (e.g., ICE03,ICE82)")]
+    public string? SuppressIce { get; init; }
+
+    [CommandOption("--ice-warnings-as-errors")]
+    [Description("Treat ICE warnings as build errors")]
+    public bool IceWarningsAsErrors { get; init; }
+
+    [CommandOption("--ice-report <PATH>")]
+    [Description("Export ICE validation results to JSON file")]
+    public string? IceReport { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
@@ -70,6 +95,18 @@ public sealed class BuildSettings : CommandSettings
                 return CliValidationResult.Error($"Invalid format '{Format}'. Valid formats: {string.Join(", ", validFormats)}");
         }
 
+        if (IceCubPath is not null && !File.Exists(IceCubPath))
+            return CliValidationResult.Error($"ICE CUB file not found: {IceCubPath}");
+
         return CliValidationResult.Success();
     }
+
+    public IceConfiguration BuildIceConfiguration() => new()
+    {
+        Enabled = NoIce ? false : Ice ?? true,
+        CubFilePath = IceCubPath,
+        SuppressedIces = SuppressIce?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [],
+        WarningsAsErrors = IceWarningsAsErrors,
+        ReportPath = IceReport
+    };
 }
