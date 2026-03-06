@@ -64,6 +64,8 @@ internal sealed class TableEmitter
             EmitConditions(resolved),
             EmitCustomTables(resolved),
             EmitAssemblies(resolved),
+            EmitComClasses(resolved),
+            EmitTypeLibs(resolved),
             EmitDialogSet(resolved)
         };
 
@@ -122,7 +124,9 @@ internal sealed class TableEmitter
             MsiTableDefinitions.CreateDuplicateFileTable,
             MsiTableDefinitions.CreateMsiAssemblyTable,
             MsiTableDefinitions.CreateMsiAssemblyNameTable,
-            MsiTableDefinitions.CreateConditionTable
+            MsiTableDefinitions.CreateConditionTable,
+            MsiTableDefinitions.CreateClassTable,
+            MsiTableDefinitions.CreateTypeLibTable
         };
 
         foreach (var sql in tableStatements)
@@ -1553,6 +1557,94 @@ internal sealed class TableEmitter
                 .SetString(1, componentId)
                 .SetString(2, name)
                 .SetString(3, value));
+    }
+
+    private Result<Unit> EmitComClasses(ResolvedPackage resolved)
+    {
+        var comClasses = resolved.Package.ComClasses;
+        if (comClasses.Count == 0) return Unit.Value;
+
+        var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+        var defaultFeature = resolved.Package.Features.FirstOrDefault()?.Id ?? "Complete";
+
+        foreach (var cls in comClasses)
+        {
+            var clsid = cls.ClassId.ToString("B").ToUpperInvariant();
+            var context = cls.ServerType == ComServerType.InprocServer32
+                ? "InprocServer32"
+                : "LocalServer32";
+            var componentId = cls.ComponentRef ?? defaultComponentId;
+
+            // DefInprocHandler holds the threading model for inproc servers
+            string? defInprocHandler = cls.ServerType == ComServerType.InprocServer32
+                ? cls.ThreadingModel.ToString().ToLowerInvariant()
+                : null;
+
+            var result = _database.InsertRow(
+                "SELECT `CLSID`, `Context`, `Component_`, `ProgId_Default`, `Description`, `AppId_`, `FileTypeMask`, `Icon_`, `IconIndex`, `DefInprocHandler`, `Argument`, `Feature_` FROM `Class`",
+                record => record
+                    .SetString(1, clsid)
+                    .SetString(2, context)
+                    .SetString(3, componentId)
+                    .SetString(4, cls.ProgId)
+                    .SetString(5, cls.Description)
+                    .SetString(6, cls.AppId?.ToString("B").ToUpperInvariant())
+                    .SetString(7, null)
+                    .SetString(8, null)
+                    .SetInteger(9, 0)
+                    .SetString(10, defInprocHandler)
+                    .SetString(11, null)
+                    .SetString(12, defaultFeature));
+            if (result.IsFailure) return result;
+
+            // If ProgId is set, also emit a ProgId row linking to this Class
+            if (!string.IsNullOrEmpty(cls.ProgId))
+            {
+                var progResult = _database.InsertRow(
+                    "SELECT `ProgId`, `ProgId_Parent`, `Class_`, `Description`, `Icon_`, `IconIndex` FROM `ProgId`",
+                    record => record
+                        .SetString(1, cls.ProgId)
+                        .SetString(2, null)
+                        .SetString(3, clsid)
+                        .SetString(4, cls.Description)
+                        .SetString(5, null)
+                        .SetInteger(6, 0));
+                if (progResult.IsFailure) return progResult;
+            }
+        }
+
+        return Unit.Value;
+    }
+
+    private Result<Unit> EmitTypeLibs(ResolvedPackage resolved)
+    {
+        var typeLibs = resolved.Package.TypeLibs;
+        if (typeLibs.Count == 0) return Unit.Value;
+
+        var defaultComponentId = resolved.Components.FirstOrDefault()?.Id ?? "MainComponent";
+        var defaultFeature = resolved.Package.Features.FirstOrDefault()?.Id ?? "Complete";
+
+        foreach (var tl in typeLibs)
+        {
+            var libId = tl.TypeLibId.ToString("B").ToUpperInvariant();
+            var componentId = tl.ComponentRef ?? defaultComponentId;
+            var version = (tl.Version.Major << 8) | tl.Version.Minor;
+
+            var result = _database.InsertRow(
+                "SELECT `LibID`, `Language`, `Component_`, `Version`, `Description`, `Directory_`, `Feature_`, `Cost` FROM `TypeLib`",
+                record => record
+                    .SetString(1, libId)
+                    .SetInteger(2, tl.Language)
+                    .SetString(3, componentId)
+                    .SetInteger(4, version)
+                    .SetString(5, tl.Description)
+                    .SetString(6, null)
+                    .SetString(7, defaultFeature)
+                    .SetInteger(8, 0));
+            if (result.IsFailure) return result;
+        }
+
+        return Unit.Value;
     }
 
     private static int GetSequenceForAction(string? after, string? before)

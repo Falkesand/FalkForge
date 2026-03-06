@@ -58,4 +58,6 @@ public sealed class PackageModel
     public ReproducibleBuildOptions? ReproducibleOptions { get; init; }
     public SbomOptions? SbomOptions { get; init; }
     public IceConfiguration? IceConfiguration { get; init; }
+    public IReadOnlyList<ComClassModel> ComClasses { get; init; } = [];
+    public IReadOnlyList<ComTypeLibModel> TypeLibs { get; init; } = [];
 }

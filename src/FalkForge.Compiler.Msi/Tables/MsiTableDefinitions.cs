@@ -107,6 +107,12 @@ internal static class MsiTableDefinitions
     internal const string CreateConditionTable =
         "CREATE TABLE `Condition` (`Feature_` CHAR(38) NOT NULL, `Level` SHORT NOT NULL, `Condition` CHAR(255) NOT NULL PRIMARY KEY `Feature_`, `Level`)";
 
+    internal const string CreateClassTable =
+        "CREATE TABLE `Class` (`CLSID` CHAR(38) NOT NULL, `Context` CHAR(32) NOT NULL, `Component_` CHAR(72) NOT NULL, `ProgId_Default` CHAR(255), `Description` CHAR(255), `AppId_` CHAR(38), `FileTypeMask` CHAR(255), `Icon_` CHAR(72), `IconIndex` SHORT, `DefInprocHandler` CHAR(32), `Argument` CHAR(255), `Feature_` CHAR(38) NOT NULL PRIMARY KEY `CLSID`, `Context`, `Component_`)";
+
+    internal const string CreateTypeLibTable =
+        "CREATE TABLE `TypeLib` (`LibID` CHAR(38) NOT NULL, `Language` SHORT NOT NULL, `Component_` CHAR(72) NOT NULL, `Version` LONG, `Description` CHAR(255), `Directory_` CHAR(72), `Feature_` CHAR(38) NOT NULL, `Cost` LONG PRIMARY KEY `LibID`, `Language`, `Component_`)";
+
     internal const string CreateMsiAssemblyTable =
         "CREATE TABLE `MsiAssembly` (`Component_` CHAR(72) NOT NULL, `Feature_` CHAR(38) NOT NULL, `File_Manifest` CHAR(72), `File_Application` CHAR(72), `Attributes` SHORT PRIMARY KEY `Component_`)";
 
