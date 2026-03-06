@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <RootNamespace>FalkForge.Extensions.Driver</RootNamespace>
+        <Description>Driver extension for FalkForge — manages device driver installation via pnputil</Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Extensions.Driver.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj"/>
+    </ItemGroup>
+</Project>
