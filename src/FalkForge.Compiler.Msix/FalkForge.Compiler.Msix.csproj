@@ -4,6 +4,9 @@
         <RootNamespace>FalkForge.Compiler.Msix</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Compiler.Msix.Tests" />
+    </ItemGroup>
+    <ItemGroup>
         <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
     </ItemGroup>
 </Project>
