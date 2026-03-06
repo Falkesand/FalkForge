@@ -34,5 +34,9 @@
   "Button.Next": "&Nästa >",
   "Button.Back": "< &Tillbaka",
   "Button.Cancel": "Avbryt",
-  "Button.Finish": "&Slutför"
+  "Button.Finish": "&Slutför",
+  "Button.UpdateNow": "&Uppdatera nu",
+  "Button.UpdateLater": "&Senare",
+  "Dialog.Update.Title": "Uppdatering tillgänglig",
+  "Dialog.Update.Description": "En nyare version ({0}) finns tillgänglig. Vill du uppdatera nu?"
 }

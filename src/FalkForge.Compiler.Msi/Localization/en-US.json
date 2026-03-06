@@ -34,5 +34,9 @@
   "Button.Next": "&Next >",
   "Button.Back": "< &Back",
   "Button.Cancel": "Cancel",
-  "Button.Finish": "&Finish"
+  "Button.Finish": "&Finish",
+  "Button.UpdateNow": "&Update Now",
+  "Button.UpdateLater": "&Later",
+  "Dialog.Update.Title": "Update Available",
+  "Dialog.Update.Description": "A newer version ({0}) is available. Would you like to update now?"
 }
