@@ -184,7 +184,7 @@ public class EngineClientTests
     {
         await using var client = new EngineClient(CreateOptions(), CreateManifest());
         var versions = new List<string>();
-        client.UpdateReady += v => versions.Add(v);
+        client.UpdateReady += (v, _) => versions.Add(v);
 
         await client.SimulateMessageAsync(new UpdateReadyMessage
         {

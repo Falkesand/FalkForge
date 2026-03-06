@@ -125,7 +125,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 
     public event Action<string, string?>? UpdateAvailable;
     public event Action<int, long, long>? UpdateDownloadProgress;
-    public event Action<string>? UpdateReady;
+    public event Action<string, string?>? UpdateReady;
 
     public Task<Result<Unit>> ConnectAsync(CancellationToken ct = default)
     {
@@ -176,7 +176,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
                 break;
 
             case UpdateReadyMessage m:
-                UpdateReady?.Invoke(m.Version);
+                UpdateReady?.Invoke(m.Version, m.LocalPath);
                 break;
 
             case ErrorMessage error:

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Localization;
 
@@ -42,10 +43,9 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                 if (CurrentPage is InstallerPage page)
                     await page.DispatchUpdateProgressAsync(pct, bytes, total);
             };
-            engineClient.UpdateReady += async version =>
+            engineClient.UpdateReady += async (version, localPath) =>
             {
-                if (CurrentPage is InstallerPage page)
-                    await page.DispatchUpdateReadyAsync(version);
+                await HandleUpdateReadyAsync(version, localPath);
             };
         }
     }
@@ -132,6 +132,38 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         if (_isApplying)
             _engine.Cancel();
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal async Task HandleUpdateReadyAsync(string version, string? localPath)
+    {
+        var feed = _engine.Manifest.UpdateFeed;
+        var shouldPrompt = feed is not null && feed.Policy switch
+        {
+            UpdatePolicy.DownloadAndPrompt => true,
+            UpdatePolicy.AutoUpdate when feed.PromptBeforeAutoUpdate => true,
+            _ => false
+        };
+
+        if (shouldPrompt)
+        {
+            var updatePage = new UpdateAvailableInstallerPage();
+            updatePage.Engine = _engine;
+            updatePage.SharedState = _sharedState;
+            updatePage.SetUpdateInfo(version, localPath, 0);
+
+            // Insert after current page and navigate to it
+            var insertIndex = _currentPageIndex + 1;
+            _pages.Insert(insertIndex, updatePage);
+
+            await NavigateFromCurrentAsync();
+            _currentPageIndex = insertIndex;
+            await ActivateCurrentPageAsync();
+        }
+        else
+        {
+            if (CurrentPage is InstallerPage page)
+                await page.DispatchUpdateReadyAsync(version);
+        }
     }
 
     internal async Task ProcessResultAsync(PageResult result)
