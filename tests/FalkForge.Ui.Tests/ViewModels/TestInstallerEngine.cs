@@ -53,7 +53,13 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public void SetSecureProperty(string name, SensitiveBytes value) { }
 
-    public Task<int> ShutdownAsync() => Task.FromResult(0);
+    public bool ShutdownCalled { get; private set; }
+
+    public Task<int> ShutdownAsync()
+    {
+        ShutdownCalled = true;
+        return Task.FromResult(0);
+    }
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {

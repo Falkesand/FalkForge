@@ -27,7 +27,7 @@
                         HorizontalAlignment="Left"
                         Margin="0,0,0,6" />
                 <Button Content="Later"
-                        Command="{Binding NavigateBackCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Command="{Binding LaterCommand}"
                         Width="100" Height="26"
                         HorizontalAlignment="Left" />
             </StackPanel>

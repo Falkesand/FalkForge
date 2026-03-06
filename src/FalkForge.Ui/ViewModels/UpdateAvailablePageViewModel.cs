@@ -14,9 +14,15 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
     public UpdateAvailablePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
-        UpdateNowCommand = new RelayCommand(() =>
+        UpdateNowCommand = new RelayCommand(async () =>
         {
             Engine.LaunchUpdate();
+            await Engine.ShutdownAsync();
+        });
+
+        LaterCommand = new RelayCommand(() =>
+        {
+            Navigation.NavigateNext();
             return Task.CompletedTask;
         });
     }
@@ -64,6 +70,8 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
 
     public ICommand UpdateNowCommand { get; }
 
+    public ICommand LaterCommand { get; }
+
     public void SetUpdateInfo(string version, string? cachedPath, long size)
     {
         UpdateVersion = version;
@@ -71,7 +79,7 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
         UpdateSize = size;
     }
 
-    public override bool CanNavigateNext() => false;
+    public override bool CanNavigateNext() => true;
 
     public override bool CanNavigateBack() => true;
 

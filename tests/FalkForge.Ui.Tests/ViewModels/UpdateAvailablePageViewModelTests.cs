@@ -9,9 +9,9 @@ public class UpdateAvailablePageViewModelTests
 {
     private readonly TestInstallerEngine _engine = new();
 
-    private UpdateAvailablePageViewModel CreateViewModel()
+    private UpdateAvailablePageViewModel CreateViewModel(TestNavigationService? navigation = null)
     {
-        var navigation = new TestNavigationService();
+        navigation ??= new TestNavigationService();
         return new UpdateAvailablePageViewModel(_engine, navigation);
     }
 
@@ -66,11 +66,11 @@ public class UpdateAvailablePageViewModelTests
     }
 
     [Fact]
-    public void CanNavigateNext_ReturnsFalse()
+    public void CanNavigateNext_ReturnsTrue()
     {
         var vm = CreateViewModel();
 
-        Assert.False(vm.CanNavigateNext());
+        Assert.True(vm.CanNavigateNext());
     }
 
     [Fact]
@@ -94,13 +94,37 @@ public class UpdateAvailablePageViewModelTests
         Assert.Contains("3.5.0", vm.Description);
     }
 
+    [Fact]
+    public void LaterCommand_NavigatesNext()
+    {
+        var navigation = new TestNavigationService();
+        var vm = CreateViewModel(navigation);
+
+        vm.LaterCommand.Execute(null);
+
+        Assert.True(navigation.NavigateNextCalled);
+    }
+
+    [Fact]
+    public void UpdateNowCommand_CallsShutdownAfterLaunchUpdate()
+    {
+        _engine.LaunchUpdateCalled = false;
+        var vm = CreateViewModel();
+
+        vm.UpdateNowCommand.Execute(null);
+
+        Assert.True(_engine.LaunchUpdateCalled);
+        Assert.True(_engine.ShutdownCalled);
+    }
+
     private sealed class TestNavigationService : INavigationService
     {
         public InstallerPageViewModel? CurrentPage { get; set; }
         public bool CanGoBack => false;
         public bool CanGoNext => false;
         public IReadOnlyList<InstallerPageViewModel> Pages { get; } = [];
-        public void NavigateNext() { }
+        public bool NavigateNextCalled { get; private set; }
+        public void NavigateNext() { NavigateNextCalled = true; }
         public void NavigateBack() { }
         public void NavigateTo(InstallerPageViewModel page) { CurrentPage = page; }
         public void NavigateTo<T>() where T : InstallerPageViewModel { }
