@@ -41,7 +41,14 @@ public sealed class DecompileCommand : Command<DecompileSettings>
         if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
             return DecompileBundle(filePath, settings.OutputPath);
 
-        _console.WriteError($"Unsupported file extension '{extension}'. Expected .msi or .exe.");
+        if (extension.Equals(".msix", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".msixbundle", StringComparison.OrdinalIgnoreCase))
+        {
+            _console.WriteError("MSIX decompilation is not yet supported.");
+            return ExitCodes.RuntimeError;
+        }
+
+        _console.WriteError($"Unsupported file extension '{extension}'. Expected .msi, .exe, .msix, or .msixbundle.");
         return ExitCodes.RuntimeError;
     }
 
