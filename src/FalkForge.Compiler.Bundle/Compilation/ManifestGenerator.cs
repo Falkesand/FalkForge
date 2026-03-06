@@ -94,7 +94,8 @@ public sealed class ManifestGenerator
 
         var updateFeed = model.UpdateFeed is not null
             ? new ManifestUpdateFeed(model.UpdateFeed.FeedUrl, model.UpdateFeed.Policy,
-                model.UpdateFeed.AllowResumeDownload)
+                model.UpdateFeed.AllowResumeDownload, model.UpdateFeed.ShowDownloadProgress,
+                model.UpdateFeed.ShowDownloadErrors, model.UpdateFeed.PromptBeforeAutoUpdate)
             : null;
 
         return new InstallerManifest

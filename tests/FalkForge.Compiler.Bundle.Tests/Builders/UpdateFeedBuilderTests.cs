@@ -64,4 +64,14 @@ public sealed class UpdateFeedBuilderTests
         var builder = new BundleBuilder();
         Assert.Throws<ArgumentException>(() => builder.UpdateFeed("   "));
     }
+
+    [Fact]
+    public void UpdateFeedConfig_NewProperties_HaveCorrectDefaults()
+    {
+        var config = new UpdateFeedConfig { FeedUrl = "https://example.com/feed.json" };
+
+        Assert.True(config.ShowDownloadProgress);
+        Assert.False(config.ShowDownloadErrors);
+        Assert.False(config.PromptBeforeAutoUpdate);
+    }
 }
