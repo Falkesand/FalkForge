@@ -7,6 +7,8 @@ public sealed class PackageBuilder
 {
     private readonly List<AssemblyModel> _assemblies = [];
     private readonly List<BinaryModel> _binaries = [];
+    private readonly List<ComClassModel> _comClasses = [];
+    private readonly List<ComTypeLibModel> _typeLibs = [];
     private readonly List<CreateFolderModel> _createFolders = [];
     private readonly List<CustomActionModel> _customActions = [];
     private readonly List<CustomTableModel> _customTables = [];
@@ -385,6 +387,22 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder ComClass(Action<ComClassBuilder> configure)
+    {
+        var builder = new ComClassBuilder();
+        configure(builder);
+        _comClasses.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder TypeLib(Action<ComTypeLibBuilder> configure)
+    {
+        var builder = new ComTypeLibBuilder();
+        configure(builder);
+        _typeLibs.Add(builder.Build());
+        return this;
+    }
+
     internal void AddShortcut(ShortcutModel shortcut)
     {
         _shortcuts.Add(shortcut);
@@ -460,7 +478,9 @@ public sealed class PackageBuilder
             LocalizationData = _localizationData,
             ReproducibleOptions = _reproducibleOptions,
             SbomOptions = _sbomOptions,
-            IceConfiguration = _iceConfiguration
+            IceConfiguration = _iceConfiguration,
+            ComClasses = [.. _comClasses],
+            TypeLibs = [.. _typeLibs]
         };
     }
 }
