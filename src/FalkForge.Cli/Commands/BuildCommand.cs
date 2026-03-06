@@ -63,8 +63,27 @@ public sealed class BuildCommand : Command<BuildSettings>
 
             var package = jsonResult.Value;
             _console.MarkupLine($"[green]Loaded JSON config:[/] {Markup.Escape(package.Name)} v{package.Version}");
+
+            if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
+            {
+                _console.WriteError("MSIX compilation from JSON is not yet supported.");
+                return ExitCodes.Success;
+            }
+
             _console.MarkupLine("[yellow]MSI compilation from JSON is not yet supported.[/]");
             return ExitCodes.Success;
+        }
+
+        if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                _console.WriteError("MSIX compilation requires Windows.");
+                return ExitCodes.RuntimeError;
+            }
+
+            _console.MarkupLine("[yellow]MSIX compilation from .cs scripts requires calling Installer.BuildMsix() in the script.[/]");
+            _console.MarkupLine("[grey]Use --format msi (default) for MSI output.[/]");
         }
 
         var packageResult = ScriptLoader.LoadPackageModel(projectPath);
