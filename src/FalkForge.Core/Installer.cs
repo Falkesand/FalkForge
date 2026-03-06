@@ -177,7 +177,7 @@ public static class Installer
         return 0;
     }
 
-    private static string GetOutputPath(string[] args)
+    internal static string GetOutputPath(string[] args)
     {
         for (var i = 0; i < args.Length - 1; i++)
             if (args[i] is "-o" or "--output")
