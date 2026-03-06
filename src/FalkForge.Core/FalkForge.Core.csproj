@@ -5,5 +5,6 @@
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="FalkForge.Core.Tests"/>
+        <InternalsVisibleTo Include="FalkForge.Compiler.Msix"/>
     </ItemGroup>
 </Project>

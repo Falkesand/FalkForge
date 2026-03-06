@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <RootNamespace>FalkForge.Compiler.Msix</RootNamespace>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Compiler.Msix.Tests" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    </ItemGroup>
+</Project>

@@ -3,6 +3,7 @@
     <Project Path="src/FalkForge.Cli/FalkForge.Cli.csproj" />
     <Project Path="src/FalkForge.Compiler.Bundle/FalkForge.Compiler.Bundle.csproj" />
     <Project Path="src/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj" />
+    <Project Path="src/FalkForge.Compiler.Msix/FalkForge.Compiler.Msix.csproj" />
     <Project Path="src/FalkForge.Core/FalkForge.Core.csproj" />
     <Project Path="src/FalkForge.Decompiler/FalkForge.Decompiler.csproj" />
     <Project Path="src/FalkForge.Engine/FalkForge.Engine.csproj" />
@@ -32,6 +33,7 @@
     <Project Path="tests/FalkForge.Cli.Tests/FalkForge.Cli.Tests.csproj" />
     <Project Path="tests/FalkForge.Compiler.Bundle.Tests/FalkForge.Compiler.Bundle.Tests.csproj" />
     <Project Path="tests/FalkForge.Compiler.Msi.Tests/FalkForge.Compiler.Msi.Tests.csproj" />
+    <Project Path="tests/FalkForge.Compiler.Msix.Tests/FalkForge.Compiler.Msix.Tests.csproj" />
     <Project Path="tests/FalkForge.Core.Tests/FalkForge.Core.Tests.csproj" />
     <Project Path="tests/FalkForge.Decompiler.Tests/FalkForge.Decompiler.Tests.csproj" />
     <Project Path="tests/FalkForge.Engine.Elevation.Tests/FalkForge.Engine.Elevation.Tests.csproj" />
