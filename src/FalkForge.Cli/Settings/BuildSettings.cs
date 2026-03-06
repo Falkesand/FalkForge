@@ -44,6 +44,10 @@ public sealed class BuildSettings : CommandSettings
     [Description("Public download URL for the WinGet manifest InstallerUrl field")]
     public string? WinGetInstallerUrl { get; init; }
 
+    [CommandOption("--format")]
+    [Description("Output format: msi (default), msix, bundle, msm, msp, mst")]
+    public string? Format { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
@@ -58,6 +62,13 @@ public sealed class BuildSettings : CommandSettings
 
         if (OutputPath is not null && OutputPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
             return CliValidationResult.Error("Output path contains invalid characters.");
+
+        if (Format is not null)
+        {
+            var validFormats = new[] { "msi", "msix", "bundle", "msm", "msp", "mst" };
+            if (!validFormats.Contains(Format, StringComparer.OrdinalIgnoreCase))
+                return CliValidationResult.Error($"Invalid format '{Format}'. Valid formats: {string.Join(", ", validFormats)}");
+        }
 
         return CliValidationResult.Success();
     }

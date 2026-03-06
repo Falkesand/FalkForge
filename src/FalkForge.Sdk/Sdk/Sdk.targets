@@ -15,6 +15,8 @@
       <FalkArtifactPath Condition="'$(FalkOutputType)' == 'Module'">$(TargetDir)$(AssemblyName).msm</FalkArtifactPath>
       <FalkArtifactPath Condition="'$(FalkOutputType)' == 'Patch'">$(TargetDir)$(AssemblyName).msp</FalkArtifactPath>
       <FalkArtifactPath Condition="'$(FalkOutputType)' == 'CustomAction'">$(TargetPath)</FalkArtifactPath>
+      <FalkArtifactPath Condition="'$(FalkOutputType)' == 'Msix'">$(TargetDir)$(AssemblyName).msix</FalkArtifactPath>
+      <FalkArtifactPath Condition="'$(FalkOutputType)' == 'MsixBundle'">$(TargetDir)$(AssemblyName).msixbundle</FalkArtifactPath>
     </PropertyGroup>
   </Target>
 
