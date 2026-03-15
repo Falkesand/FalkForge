@@ -5,6 +5,10 @@
         <StackPanel Margin="8" MaxWidth="500">
             <TextBlock Text="Product Information" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
 
+            <TextBlock Text="Output Format" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <ComboBox ItemsSource="{Binding ProjectTypes}" SelectedItem="{Binding SelectedProjectType}"
+                      Margin="0,0,0,12" />
+
             <TextBlock Text="Product Name *" FontWeight="SemiBold" Margin="0,0,0,4" />
             <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
 

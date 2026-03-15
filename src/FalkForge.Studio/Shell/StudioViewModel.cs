@@ -150,7 +150,7 @@ public sealed class StudioViewModel : ViewModelBase
 
     private ViewModelBase? CreateEditor(string nodeKey) => nodeKey switch
     {
-        "product" => new ProductEditorViewModel(_project.Product),
+        "product" => CreateProductEditor(),
         "files" => new FilesEditorViewModel(_project),
         "features" => new FeaturesEditorViewModel(_project),
         "registry" => new RegistryEditorViewModel(_project),
@@ -170,4 +170,33 @@ public sealed class StudioViewModel : ViewModelBase
         "bundlePackages" => new BundlePackagesEditorViewModel(_project),
         _ => null
     };
+
+    private ProductEditorViewModel CreateProductEditor()
+    {
+        var vm = new ProductEditorViewModel(_project.Product, _project);
+        vm.ProjectTypeChanged += OnProjectTypeChanged;
+        return vm;
+    }
+
+    private void OnProjectTypeChanged(object? sender, EventArgs e)
+    {
+        var currentKey = _editors.FirstOrDefault(kv => kv.Value == CurrentEditor).Key;
+        TreeNodes.Clear();
+        BuildDefaultTree();
+
+        if (currentKey is not null && _editors.ContainsKey(currentKey) && TreeNodeExists(currentKey))
+        {
+            CurrentEditor = _editors[currentKey];
+        }
+        else if (currentKey != "product")
+        {
+            // Current editor's node was removed; fall back to product
+            NavigateTo("product");
+        }
+    }
+
+    private bool TreeNodeExists(string key)
+    {
+        return TreeNodes.Any(n => n.NodeKey == key || n.Children.Any(c => c.NodeKey == key));
+    }
 }
