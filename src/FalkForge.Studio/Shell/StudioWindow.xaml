@@ -7,6 +7,19 @@
         xmlns:featuresEditor="clr-namespace:FalkForge.Studio.Editors.FeaturesEditor"
         xmlns:uiEditor="clr-namespace:FalkForge.Studio.Editors.UiEditor"
         xmlns:buildEditor="clr-namespace:FalkForge.Studio.Editors.BuildSettingsEditor"
+        xmlns:registryEditor="clr-namespace:FalkForge.Studio.Editors.RegistryEditor"
+        xmlns:servicesEditor="clr-namespace:FalkForge.Studio.Editors.ServicesEditor"
+        xmlns:shortcutsEditor="clr-namespace:FalkForge.Studio.Editors.ShortcutsEditor"
+        xmlns:environmentEditor="clr-namespace:FalkForge.Studio.Editors.EnvironmentEditor"
+        xmlns:customActionsEditor="clr-namespace:FalkForge.Studio.Editors.CustomActionsEditor"
+        xmlns:sqlEditor="clr-namespace:FalkForge.Studio.Editors.SqlEditor"
+        xmlns:firewallEditor="clr-namespace:FalkForge.Studio.Editors.FirewallEditor"
+        xmlns:xmlConfigEditor="clr-namespace:FalkForge.Studio.Editors.XmlConfigEditor"
+        xmlns:scheduledTasksEditor="clr-namespace:FalkForge.Studio.Editors.ScheduledTasksEditor"
+        xmlns:perfCountersEditor="clr-namespace:FalkForge.Studio.Editors.PerfCountersEditor"
+        xmlns:odbcEditor="clr-namespace:FalkForge.Studio.Editors.OdbcEditor"
+        xmlns:bundleSettingsEditor="clr-namespace:FalkForge.Studio.Editors.BundleSettingsEditor"
+        xmlns:bundlePackagesEditor="clr-namespace:FalkForge.Studio.Editors.BundlePackagesEditor"
         Title="{Binding Title}" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
     <DockPanel>
@@ -74,6 +87,45 @@
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type buildEditor:BuildSettingsEditorViewModel}">
                         <buildEditor:BuildSettingsEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type registryEditor:RegistryEditorViewModel}">
+                        <registryEditor:RegistryEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type servicesEditor:ServicesEditorViewModel}">
+                        <servicesEditor:ServicesEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type shortcutsEditor:ShortcutsEditorViewModel}">
+                        <shortcutsEditor:ShortcutsEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type environmentEditor:EnvironmentEditorViewModel}">
+                        <environmentEditor:EnvironmentEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type customActionsEditor:CustomActionsEditorViewModel}">
+                        <customActionsEditor:CustomActionsEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type sqlEditor:SqlEditorViewModel}">
+                        <sqlEditor:SqlEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type firewallEditor:FirewallEditorViewModel}">
+                        <firewallEditor:FirewallEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type xmlConfigEditor:XmlConfigEditorViewModel}">
+                        <xmlConfigEditor:XmlConfigEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type scheduledTasksEditor:ScheduledTasksEditorViewModel}">
+                        <scheduledTasksEditor:ScheduledTasksEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type perfCountersEditor:PerfCountersEditorViewModel}">
+                        <perfCountersEditor:PerfCountersEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type odbcEditor:OdbcEditorViewModel}">
+                        <odbcEditor:OdbcEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type bundleSettingsEditor:BundleSettingsEditorViewModel}">
+                        <bundleSettingsEditor:BundleSettingsEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type bundlePackagesEditor:BundlePackagesEditorViewModel}">
+                        <bundlePackagesEditor:BundlePackagesEditorView />
                     </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>
