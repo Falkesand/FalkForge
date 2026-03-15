@@ -14,6 +14,8 @@ internal sealed class UpdateAvailableInstallerPage : InstallerPage
     private string? _updateVersion;
     private string? _cachedFilePath;
 
+    internal Func<Task>? NavigateNextCallback { get; set; }
+
     public override string Title => "Update Available";
 
     public string? UpdateVersion
@@ -41,7 +43,7 @@ internal sealed class UpdateAvailableInstallerPage : InstallerPage
 
     public ICommand LaterCommand => new RelayCommand(() =>
     {
-        return Task.CompletedTask;
+        return NavigateNextCallback?.Invoke() ?? Task.CompletedTask;
     });
 
     public void SetUpdateInfo(string version, string? cachedPath, long size)

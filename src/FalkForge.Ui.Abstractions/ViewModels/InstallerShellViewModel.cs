@@ -74,5 +74,24 @@ public abstract class InstallerShellViewModel : INavigationService
             NavigateTo(page);
     }
 
+    /// <summary>
+    /// Inserts a page after the current page and navigates to it.
+    /// </summary>
+    protected async Task InsertPageAfterCurrentAndNavigateAsync(InstallerPageViewModel page)
+    {
+        var insertIndex = _currentPageIndex + 1;
+        _pages.Insert(insertIndex, page);
+
+        if (CurrentPage is not null)
+            await CurrentPage.OnNavigatingFromAsync();
+
+        _currentPageIndex = insertIndex;
+
+        if (CurrentPage is not null)
+            await CurrentPage.OnNavigatedToAsync();
+
+        OnCurrentPageChanged();
+    }
+
     protected virtual void OnCurrentPageChanged() { }
 }

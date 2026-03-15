@@ -170,4 +170,96 @@ public sealed class DetectingHandlerTests
         // Assert: no task started when there's no actual update
         Assert.Null(context.UpdateDownloadTask);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_CleansUpOlderCachedPayloads()
+    {
+        // Arrange: create temp cache dir with version-prefixed files
+        var cacheDir = Path.Combine(Path.GetTempPath(), $"FalkForge_CleanupTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(cacheDir);
+
+        try
+        {
+            // Create cached files: older (1.0.0), current (2.0.0), and newer (3.0.0)
+            var oldFile = Path.Combine(cacheDir, "1.0.0_aaa111.exe");
+            var currentFile = Path.Combine(cacheDir, "2.0.0_bbb222.exe");
+            var newerFile = Path.Combine(cacheDir, "3.0.0_ccc333.exe");
+            var invalidFile = Path.Combine(cacheDir, "not-a-version.exe");
+
+            File.WriteAllText(oldFile, "old");
+            File.WriteAllText(currentFile, "current");
+            File.WriteAllText(newerFile, "newer");
+            File.WriteAllText(invalidFile, "invalid");
+
+            // Create a feed so the handler's cache dir path is constructed —
+            // but we override LocalApplicationData to point at the parent of cacheDir
+            var bundleId = Guid.NewGuid();
+            var expectedCacheDir = Path.Combine(Path.GetTempPath(), "FalkForge", "UpdateCache", bundleId.ToString("D"));
+
+            // Instead, use the real cache dir by wiring mock env to the right parent
+            // The handler computes: {LocalAppData}/FalkForge/UpdateCache/{BundleId:D}
+            // So set LocalAppData to a temp parent and use a known BundleId
+            var parentDir = Path.Combine(Path.GetTempPath(), $"FalkForge_CleanupParent_{Guid.NewGuid():N}");
+            var realCacheDir = Path.Combine(parentDir, "FalkForge", "UpdateCache");
+
+            var mockEnv = new MockEnvironment()
+                .SetFolderPath(Environment.SpecialFolder.LocalApplicationData, parentDir)
+                .SetFolderPath(Environment.SpecialFolder.ProgramFiles, @"C:\Program Files");
+
+            var manifest = new InstallerManifest
+            {
+                Name = "TestApp",
+                Manufacturer = "Test",
+                Version = "2.0.0",
+                BundleId = bundleId,
+                UpgradeCode = Guid.NewGuid(),
+                Scope = InstallScope.PerUser,
+                Packages = [TestManifestFactory.CreateMsiPackage()],
+                UpdateFeed = new ManifestUpdateFeed("https://example.com/feed.json", UpdatePolicy.NotifyOnly, AllowResumeDownload: false)
+            };
+
+            var context = new EngineContext
+            {
+                Manifest = manifest,
+                Platform = new MockPlatformServices(environment: mockEnv),
+                UiPipe = null,
+                ShutdownToken = CancellationToken.None
+            };
+
+            // Create the actual cache dir the handler will compute
+            var bundleCacheDir = Path.Combine(realCacheDir, bundleId.ToString("D"));
+            Directory.CreateDirectory(bundleCacheDir);
+
+            // Place files in the real cache dir
+            var oldFile2 = Path.Combine(bundleCacheDir, "1.0.0_aaa111.exe");
+            var currentFile2 = Path.Combine(bundleCacheDir, "2.0.0_bbb222.exe");
+            var newerFile2 = Path.Combine(bundleCacheDir, "3.0.0_ccc333.exe");
+            var invalidFile2 = Path.Combine(bundleCacheDir, "not-a-version.exe");
+
+            File.WriteAllText(oldFile2, "old");
+            File.WriteAllText(currentFile2, "current");
+            File.WriteAllText(newerFile2, "newer");
+            File.WriteAllText(invalidFile2, "invalid");
+
+            var detector = new PackageDetector(new MockRegistry());
+            var handler = new DetectingHandler(detector);
+
+            // Act
+            await handler.ExecuteAsync(context, CancellationToken.None);
+
+            // Assert: files for versions <= 2.0.0 are deleted, newer and invalid remain
+            Assert.False(File.Exists(oldFile2), "Old version (1.0.0) should be deleted");
+            Assert.False(File.Exists(currentFile2), "Current version (2.0.0) should be deleted");
+            Assert.True(File.Exists(newerFile2), "Newer version (3.0.0) should remain");
+            Assert.True(File.Exists(invalidFile2), "Non-version file should remain");
+
+            // Cleanup extra temp dir
+            Directory.Delete(parentDir, recursive: true);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+                Directory.Delete(cacheDir, recursive: true);
+        }
+    }
 }

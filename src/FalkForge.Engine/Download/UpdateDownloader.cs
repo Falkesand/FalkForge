@@ -37,7 +37,7 @@ internal sealed class UpdateDownloader
 
     internal async Task StartAsync(UpdateInfo update, string cacheDir, CancellationToken ct)
     {
-        var destPath = Path.Combine(cacheDir, $"{update.Sha256}.exe");
+        var destPath = Path.Combine(cacheDir, $"{update.Version}_{update.Sha256}.exe");
 
         // Collect progress snapshots for sequential delivery after download completes.
         // Progress<T> posts callbacks to a thread pool thread; to guarantee message ordering

@@ -127,4 +127,20 @@ public class CustomShellViewModelUpdateTests
         Assert.Equal("3.5.0", updatePage.UpdateVersion);
         Assert.Equal(@"C:\cache\update.exe", updatePage.CachedFilePath);
     }
+
+    [WpfFact]
+    public async Task LaterCommand_NavigatesForwardPastUpdatePage()
+    {
+        var engine = CreateEngineWithFeed(UpdatePolicy.DownloadAndPrompt);
+        var pages = new InstallerPage[] { new PageOne(), new PageTwo() };
+        var vm = CreateVmWithEngine(pages, engine);
+        await vm.NavigateToFirstPageAsync();
+
+        await vm.HandleUpdateReadyAsync("2.0.0", @"C:\cache\update.exe");
+        var updatePage = Assert.IsType<UpdateAvailableInstallerPage>(vm.CurrentPage);
+
+        updatePage.LaterCommand.Execute(null);
+
+        Assert.IsType<PageTwo>(vm.CurrentPage);
+    }
 }

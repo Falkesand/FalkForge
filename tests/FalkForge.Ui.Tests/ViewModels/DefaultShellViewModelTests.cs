@@ -1,5 +1,7 @@
 namespace FalkForge.Ui.Tests.ViewModels;
 
+using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Ui.ViewModels;
 using Xunit;
 
@@ -106,5 +108,108 @@ public class DefaultShellViewModelTests
         shell.NavigateNext();
 
         Assert.IsType<LicensePageViewModel>(shell.CurrentPage);
+    }
+
+    [Fact]
+    public void ForwardUpdateDownloadProgress_UpdatesWelcomePageViewModel()
+    {
+        var shell = new DefaultShellViewModel(_engine);
+
+        // Current page is WelcomePageViewModel (index 0)
+        shell.ForwardUpdateDownloadProgress(42, 420, 1000);
+
+        var welcome = (WelcomePageViewModel)shell.CurrentPage!;
+        Assert.Equal(42, welcome.DownloadPercent);
+        Assert.True(welcome.IsDownloadingUpdate);
+    }
+
+    [Fact]
+    public void ForwardUpdateDownloadProgress_WhenNotOnWelcomePage_DoesNotThrow()
+    {
+        var shell = new DefaultShellViewModel(_engine);
+        shell.NavigateNext(); // Move to LicensePage
+
+        // Should not throw when current page is not WelcomePageViewModel
+        shell.ForwardUpdateDownloadProgress(50, 500, 1000);
+    }
+
+    [Fact]
+    public async Task HandleUpdateReadyAsync_WithDownloadAndPromptPolicy_InsertsUpdatePage()
+    {
+        SetUpdateFeed(UpdatePolicy.DownloadAndPrompt);
+        var shell = new DefaultShellViewModel(_engine);
+
+        await shell.HandleUpdateReadyAsync("2.0.0", @"C:\cache\update.exe");
+
+        // Update page should be inserted after current page (Welcome at 0), so at index 1
+        Assert.IsType<UpdateAvailablePageViewModel>(shell.Pages[1]);
+        Assert.Equal(8, shell.Pages.Count);
+    }
+
+    [Fact]
+    public async Task HandleUpdateReadyAsync_WithDownloadAndPromptPolicy_NavigatesToUpdatePage()
+    {
+        SetUpdateFeed(UpdatePolicy.DownloadAndPrompt);
+        var shell = new DefaultShellViewModel(_engine);
+
+        await shell.HandleUpdateReadyAsync("2.0.0", @"C:\cache\update.exe");
+
+        Assert.IsType<UpdateAvailablePageViewModel>(shell.CurrentPage);
+    }
+
+    [Fact]
+    public async Task HandleUpdateReadyAsync_WithAutoUpdateAndPrompt_InsertsUpdatePage()
+    {
+        SetUpdateFeed(UpdatePolicy.AutoUpdate, promptBeforeAutoUpdate: true);
+        var shell = new DefaultShellViewModel(_engine);
+
+        await shell.HandleUpdateReadyAsync("2.0.0", null);
+
+        Assert.IsType<UpdateAvailablePageViewModel>(shell.CurrentPage);
+    }
+
+    [Fact]
+    public async Task HandleUpdateReadyAsync_WithAutoUpdateNoPrompt_DoesNotInsertPage()
+    {
+        SetUpdateFeed(UpdatePolicy.AutoUpdate, promptBeforeAutoUpdate: false);
+        var shell = new DefaultShellViewModel(_engine);
+
+        await shell.HandleUpdateReadyAsync("2.0.0", null);
+
+        // No page inserted, still 7 pages
+        Assert.Equal(7, shell.Pages.Count);
+        Assert.IsType<WelcomePageViewModel>(shell.CurrentPage);
+    }
+
+    [Fact]
+    public async Task HandleUpdateReadyAsync_SetsVersionOnUpdatePage()
+    {
+        SetUpdateFeed(UpdatePolicy.DownloadAndPrompt);
+        var shell = new DefaultShellViewModel(_engine);
+
+        await shell.HandleUpdateReadyAsync("2.0.0", @"C:\cache\update.exe");
+
+        var updatePage = (UpdateAvailablePageViewModel)shell.CurrentPage!;
+        Assert.Equal("2.0.0", updatePage.UpdateVersion);
+        Assert.Equal(@"C:\cache\update.exe", updatePage.CachedFilePath);
+    }
+
+    private void SetUpdateFeed(UpdatePolicy policy, bool promptBeforeAutoUpdate = false)
+    {
+        _engine.Manifest = new InstallerManifest
+        {
+            Name = "TestProduct",
+            Manufacturer = "TestCorp",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Packages = [],
+            Scope = InstallScope.PerUser,
+            UpdateFeed = new ManifestUpdateFeed(
+                "https://example.com/feed",
+                policy,
+                AllowResumeDownload: false,
+                PromptBeforeAutoUpdate: promptBeforeAutoUpdate)
+        };
     }
 }

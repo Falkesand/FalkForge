@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Windows;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
 using ReactiveUI;
@@ -17,6 +19,15 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
         RegisterPage(new MaintenancePageViewModel(engine, this));
         RegisterPage(new ProgressPageViewModel(engine, this));
         RegisterPage(new CompletePageViewModel(engine, this));
+
+        if (engine is EngineClient engineClient)
+        {
+            engineClient.UpdateDownloadProgress += (pct, bytes, total) =>
+                ForwardUpdateDownloadProgress(pct, bytes, total);
+            engineClient.UpdateReady += (version, localPath) =>
+                Application.Current.Dispatcher.InvokeAsync(
+                    () => HandleUpdateReadyAsync(version, localPath));
+        }
     }
 
     public event PropertyChangingEventHandler? PropertyChanging;
@@ -46,6 +57,30 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
         {
             IsMaintenanceMode = true;
             NavigateTo<MaintenancePageViewModel>();
+        }
+    }
+
+    internal void ForwardUpdateDownloadProgress(int percent, long bytesReceived, long totalBytes)
+    {
+        if (CurrentPage is WelcomePageViewModel welcome)
+            welcome.UpdateDownloadProgress(percent, bytesReceived, totalBytes);
+    }
+
+    internal async Task HandleUpdateReadyAsync(string version, string? localPath)
+    {
+        var feed = Engine.Manifest.UpdateFeed;
+        var shouldPrompt = feed is not null && feed.Policy switch
+        {
+            UpdatePolicy.DownloadAndPrompt => true,
+            UpdatePolicy.AutoUpdate when feed.PromptBeforeAutoUpdate => true,
+            _ => false
+        };
+
+        if (shouldPrompt)
+        {
+            var updatePage = new UpdateAvailablePageViewModel(Engine, this);
+            updatePage.SetUpdateInfo(version, localPath, 0);
+            await InsertPageAfterCurrentAndNavigateAsync(updatePage);
         }
     }
 

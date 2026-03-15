@@ -43,9 +43,10 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                 if (CurrentPage is InstallerPage page)
                     await page.DispatchUpdateProgressAsync(pct, bytes, total);
             };
-            engineClient.UpdateReady += async (version, localPath) =>
+            engineClient.UpdateReady += (version, localPath) =>
             {
-                await HandleUpdateReadyAsync(version, localPath);
+                Application.Current.Dispatcher.InvokeAsync(
+                    () => HandleUpdateReadyAsync(version, localPath));
             };
         }
     }
@@ -149,6 +150,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
             var updatePage = new UpdateAvailableInstallerPage();
             updatePage.Engine = _engine;
             updatePage.SharedState = _sharedState;
+            updatePage.NavigateNextCallback = OnNextAsync;
             updatePage.SetUpdateInfo(version, localPath, 0);
 
             // Insert after current page and navigate to it

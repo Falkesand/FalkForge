@@ -53,7 +53,7 @@ public sealed class WelcomePageViewModel : InstallerPageViewModel, INotifyProper
     public void UpdateDownloadProgress(int percent, long bytesReceived, long totalBytes)
     {
         DownloadPercent = percent;
-        IsDownloadingUpdate = true;
+        IsDownloadingUpdate = percent < 100;
     }
 
     public override async Task OnNavigatedToAsync(CancellationToken ct = default)

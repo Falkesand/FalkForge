@@ -164,11 +164,7 @@ public sealed class DetectingHandler : IEnginePhaseHandler
 
             var policy = context.Manifest.UpdateFeed!.Policy;
             var allowResume = context.Manifest.UpdateFeed.AllowResumeDownload;
-            var cacheDir = Path.Combine(
-                context.Platform.Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "FalkForge",
-                "UpdateCache",
-                context.Manifest.BundleId.ToString("D"));
+            var cacheDir = GetUpdateCacheDir(context);
 
             Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> downloadFn =
                 _downloadDelegate ?? new PayloadDownloader(new HttpClient()).DownloadAsync;
@@ -192,6 +188,12 @@ public sealed class DetectingHandler : IEnginePhaseHandler
                 downloadCts.Token);
         }
 
+        // Clean up cached update payloads for versions at or below the current version
+        if (context.Manifest.UpdateFeed is not null)
+        {
+            CleanupOlderUpdates(GetUpdateCacheDir(context), context.Manifest.Version);
+        }
+
         // Set per-package variables for condition evaluation
         SetPerPackageVariables(context, result);
 
@@ -207,6 +209,44 @@ public sealed class DetectingHandler : IEnginePhaseHandler
         }
 
         return EnginePhase.Planning;
+    }
+
+    private static string GetUpdateCacheDir(EngineContext context)
+    {
+        return Path.Combine(
+            context.Platform.Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "FalkForge",
+            "UpdateCache",
+            context.Manifest.BundleId.ToString("D"));
+    }
+
+    /// <summary>
+    /// Deletes cached update payloads whose version is less than or equal to the
+    /// currently running bundle version.  Files are named {version}_{sha256}.exe
+    /// by <see cref="Download.UpdateDownloader"/>.  Best-effort: IO failures are swallowed.
+    /// </summary>
+    private static void CleanupOlderUpdates(string cacheDir, string currentVersion)
+    {
+        if (!Directory.Exists(cacheDir))
+            return;
+
+        if (!Version.TryParse(currentVersion, out var current))
+            return;
+
+        foreach (var file in Directory.GetFiles(cacheDir))
+        {
+            var fileName = Path.GetFileNameWithoutExtension(file);
+            var underscoreIndex = fileName.IndexOf('_');
+            if (underscoreIndex < 0)
+                continue;
+
+            var versionPart = fileName[..underscoreIndex];
+            if (Version.TryParse(versionPart, out var fileVersion) && fileVersion <= current)
+            {
+                try { File.Delete(file); }
+                catch { /* best-effort cleanup */ }
+            }
+        }
     }
 
     private static void SetPerPackageVariables(EngineContext context, DetectionResult result)
