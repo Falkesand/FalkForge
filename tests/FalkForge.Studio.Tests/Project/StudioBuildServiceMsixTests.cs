@@ -148,17 +148,17 @@ public class StudioBuildServiceMsixTests
     }
 
     [Fact]
-    public void Compile_BundleProjectType_ReturnsNotSupported()
+    public void Compile_BundleProjectType_NullSettings_ReturnsValidationError()
     {
         var project = StudioProjectLoader.NewProject();
         project.Product.Name = "TestApp";
         project.Product.Manufacturer = "TestCorp";
         project.ProjectType = "bundle";
+        project.BundleSettings = null;
 
         var result = StudioBuildService.Compile(project, ".");
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.NotSupported, result.Error.Kind);
-        Assert.Contains("not yet supported", result.Error.Message);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 }

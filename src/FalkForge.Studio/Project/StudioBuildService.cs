@@ -3,6 +3,7 @@ using FalkForge;
 using FalkForge.Builders;
 using FalkForge.Compiler.Bundle;
 using FalkForge.Compiler.Bundle.Builders;
+using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msix;
 using FalkForge.Compiler.Msix.Builders;
@@ -254,8 +255,12 @@ public static class StudioBuildService
 
     private static Result<string> CompileBundle(StudioProject project, string baseDirectory, string outputPath)
     {
-        return Result<string>.Failure(ErrorKind.NotSupported,
-            "Bundle compilation from Studio is not yet supported. Use the C# API or CLI instead.");
+        var modelResult = BuildBundleModel(project, baseDirectory);
+        if (modelResult.IsFailure)
+            return Result<string>.Failure(modelResult.Error);
+
+        var compiler = new BundleCompiler();
+        return compiler.Compile(modelResult.Value, outputPath);
     }
 
     private static Result<string> CompileMsix(StudioProject project, string baseDirectory, string outputPath)
