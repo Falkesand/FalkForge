@@ -26,21 +26,30 @@
             </ListBox>
             <StackPanel Grid.Column="1" DataContext="{Binding SelectedEntry}">
                 <TextBlock Text="Name" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                <TextBlock Text="This is the sc.exe service name, not the display name." FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
+                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                         ToolTip="Internal service name used by Windows Service Control Manager. No spaces allowed." />
                 <TextBlock Text="Display Name" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                         ToolTip="Human-readable name shown in services.msc and Task Manager." />
                 <TextBlock Text="Executable" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Executable, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                <TextBox Text="{Binding Executable, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                         ToolTip="Path to the service executable relative to the install directory." />
                 <TextBlock Text="Description" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                         ToolTip="Optional description shown in the service properties dialog." />
                 <TextBlock Text="Start Mode" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <ComboBox ItemsSource="{x:Static local:ServicesEditorViewModel.StartModes}"
-                          SelectedItem="{Binding StartMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                          SelectedItem="{Binding StartMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                          ToolTip="Auto starts with Windows. Demand starts only when triggered. Disabled prevents starting." />
                 <TextBlock Text="Account" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <ComboBox ItemsSource="{x:Static local:ServicesEditorViewModel.Accounts}"
-                          SelectedItem="{Binding Account, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
-                <CheckBox Content="Start on install" IsChecked="{Binding StartOnInstall}" Margin="0,0,0,8" />
-                <CheckBox Content="Stop on uninstall" IsChecked="{Binding StopOnUninstall}" Margin="0,0,0,8" />
+                          SelectedItem="{Binding Account, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                          ToolTip="Security context the service runs under. LocalSystem has full access. LocalService/NetworkService are more restricted." />
+                <CheckBox Content="Start on install" IsChecked="{Binding StartOnInstall}" Margin="0,0,0,8"
+                          ToolTip="Start the service immediately after installation completes." />
+                <CheckBox Content="Stop on uninstall" IsChecked="{Binding StopOnUninstall}" Margin="0,0,0,8"
+                          ToolTip="Stop the running service before uninstalling." />
             </StackPanel>
         </Grid>
     </DockPanel>

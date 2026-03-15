@@ -3,9 +3,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel Margin="8" MaxWidth="500">
         <TextBlock Text="Build Settings" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
+
         <TextBlock Text="Output Path" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <TextBox Text="{Binding OutputPath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+        <TextBlock Text="Relative paths are resolved from the project file location."
+                   Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
+        <TextBox Text="{Binding OutputPath, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Directory where the compiled installer will be saved. Relative paths are resolved from the project file location (e.g., bin\Release)."
+                 Margin="0,0,0,12" />
+
         <TextBlock Text="Compression" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <ComboBox ItemsSource="{Binding CompressionLevels}" SelectedItem="{Binding Compression}" Margin="0,0,0,12" />
+        <ComboBox ItemsSource="{Binding CompressionLevels}" SelectedItem="{Binding Compression}"
+                  ToolTip="Cabinet compression level. Higher compression = smaller file but slower build. None is fastest for development."
+                  Margin="0,0,0,12" />
     </StackPanel>
 </UserControl>

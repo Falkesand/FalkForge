@@ -27,24 +27,50 @@
             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel DataContext="{Binding SelectedEntry}">
                     <TextBlock Text="Id" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                    <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="Unique identifier for this package within the bundle." />
+
                     <TextBlock Text="Type" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="Msi for Windows Installer packages, Exe for standalone executables."
+                               FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
                     <ComboBox ItemsSource="{x:Static local:BundlePackagesEditorViewModel.PackageTypes}"
-                              SelectedItem="{Binding Type, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                              SelectedItem="{Binding Type, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                              ToolTip="The type of installer package (Msi, Exe, Msu, Msp, or nested Bundle)." />
+
                     <TextBlock Text="Source Path" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding SourcePath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                    <TextBox Text="{Binding SourcePath, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="File path to the package payload (.msi, .exe, etc.)." />
+
                     <TextBlock Text="Display Name" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
-                    <CheckBox Content="Vital" IsChecked="{Binding Vital}" Margin="0,0,0,8" />
-                    <CheckBox Content="Is Prerequisite" IsChecked="{Binding IsPrerequisite}" Margin="0,0,0,12" />
+                    <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="Friendly name shown in the installer UI and logs for this package." />
+
+                    <CheckBox Content="Vital" IsChecked="{Binding Vital}" Margin="0,0,0,8"
+                              ToolTip="If checked, the entire bundle fails when this package fails to install." />
+                    <CheckBox Content="Is Prerequisite" IsChecked="{Binding IsPrerequisite}" Margin="0,0,0,4"
+                              ToolTip="If checked, this package is installed before the main UI is shown." />
+                    <TextBlock Text="Prerequisite packages run before the full UI loads (e.g. .NET runtime)."
+                               FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,12" />
+
                     <TextBlock Text="Install Condition" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding InstallCondition, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                    <TextBlock Text="Leave empty to always install. Use MSI condition syntax."
+                               FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding InstallCondition, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="MSI condition expression that determines whether this package is installed." />
+
                     <TextBlock Text="Detection Mode" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="Controls how the engine determines if this package is already installed."
+                               FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
                     <ComboBox ItemsSource="{x:Static local:BundlePackagesEditorViewModel.DetectionModes}"
-                              SelectedItem="{Binding DetectionMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                              SelectedItem="{Binding DetectionMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                              ToolTip="Method used to detect whether this package is already installed on the system." />
+
                     <TextBlock Text="Authenticode Thumbprint" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="SHA-1 thumbprint of the code signing certificate for payload verification."
+                               FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
                     <TextBox Text="{Binding AuthenticodeThumbprint, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
-                             FontFamily="Consolas" />
+                             FontFamily="Consolas"
+                             ToolTip="Expected Authenticode certificate thumbprint to verify package integrity." />
                 </StackPanel>
             </ScrollViewer>
         </Grid>

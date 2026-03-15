@@ -2,10 +2,14 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <DockPanel Margin="8">
-        <TextBlock DockPanel.Dock="Top" Text="Features" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+        <TextBlock DockPanel.Dock="Top" Text="Features" FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top" Text="Organize your installer into selectable features. Each feature groups files that users can choose to install or skip."
+                   Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,8" />
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <Button Content="Add Feature" Click="AddFeature_Click" Padding="8,4" Margin="0,0,8,0" />
-            <Button Content="Remove" Click="Remove_Click" Padding="8,4" />
+            <Button Content="Add Feature" Click="AddFeature_Click" Padding="8,4" Margin="0,0,8,0"
+                    ToolTip="Add a new feature to the installer. Every installer needs at least one feature." />
+            <Button Content="Remove" Click="Remove_Click" Padding="8,4"
+                    ToolTip="Remove the selected feature. Files assigned to it will become unassigned." />
         </StackPanel>
         <Grid>
             <Grid.ColumnDefinitions>
@@ -25,13 +29,27 @@
             </ListBox>
             <StackPanel Grid.Column="1" DataContext="{Binding SelectedFeature}">
                 <TextBlock Text="Feature ID" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                <TextBlock Text="A unique identifier used internally. Use letters, digits, and underscores only."
+                           Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
+                <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Unique identifier for this feature (e.g., MainApplication, Documentation). Must be alphanumeric with underscores, max 38 characters."
+                         Margin="0,0,0,12" />
+
                 <TextBlock Text="Title" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+                <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Display name shown in the feature selection tree during installation."
+                         Margin="0,0,0,12" />
+
                 <TextBlock Text="Description" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
-                <CheckBox Content="Default (installed by default)" IsChecked="{Binding IsDefault}" Margin="0,0,0,8" />
-                <CheckBox Content="Required (cannot be deselected)" IsChecked="{Binding IsRequired}" Margin="0,0,0,8" />
+                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Descriptive text shown when the user selects this feature in the feature tree. Helps users decide whether to install it."
+                         Margin="0,0,0,12" />
+
+                <CheckBox Content="Default (installed by default)" IsChecked="{Binding IsDefault}" Margin="0,0,0,8"
+                          ToolTip="When checked, this feature is selected for installation by default. Users can still deselect it unless it is also marked as Required." />
+                <CheckBox Content="Required (cannot be deselected)" IsChecked="{Binding IsRequired}" Margin="0,0,0,8"
+                          ToolTip="When checked, this feature is always installed and cannot be deselected by the user. Use for core components that the product cannot function without." />
+
                 <TextBlock Text="{Binding FileCount, StringFormat='{}{0} files assigned'}" Foreground="Gray" Margin="0,8,0,0" />
             </StackPanel>
         </Grid>

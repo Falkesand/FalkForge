@@ -3,12 +3,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel Margin="8" MaxWidth="500">
         <TextBlock Text="UI &amp; Dialogs" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
+
         <TextBlock Text="Dialog Set" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <ComboBox ItemsSource="{Binding DialogSets}" SelectedItem="{Binding DialogSet}" Margin="0,0,0,12" />
+        <TextBlock Text="Controls which dialog pages are shown during installation."
+                   Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
+        <ComboBox ItemsSource="{Binding DialogSets}" SelectedItem="{Binding DialogSet}"
+                  ToolTip="Choose the built-in dialog template. Minimal shows only progress, InstallDir adds a directory picker, FeatureTree lets users select features, Mondo and Advanced offer full customization."
+                  Margin="0,0,0,12" />
+
         <TextBlock Text="License File (RTF)" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <TextBlock Text="Displayed on the license acceptance page. Leave empty to skip the license dialog."
+                   Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
         <DockPanel Margin="0,0,0,12">
-            <Button DockPanel.Dock="Right" Content="Browse..." Click="BrowseLicense_Click" Padding="8,4" Margin="4,0,0,0" />
-            <TextBox Text="{Binding LicenseFile, UpdateSourceTrigger=PropertyChanged}" />
+            <Button DockPanel.Dock="Right" Content="Browse..." Click="BrowseLicense_Click" Padding="8,4" Margin="4,0,0,0"
+                    ToolTip="Browse for an RTF license file to embed in the installer." />
+            <TextBox Text="{Binding LicenseFile, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Path to an RTF file containing the license agreement (e.g., License.rtf). Relative paths are resolved from the project file." />
         </DockPanel>
     </StackPanel>
 </UserControl>

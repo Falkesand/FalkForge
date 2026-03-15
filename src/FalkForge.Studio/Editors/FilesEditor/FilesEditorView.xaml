@@ -13,9 +13,37 @@
                   AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                   SelectionMode="Single">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Source Path" Binding="{Binding Source}" Width="*" />
-                <DataGridTextColumn Header="Target Directory" Binding="{Binding TargetDirectory}" Width="200" />
-                <DataGridTextColumn Header="Feature" Binding="{Binding FeatureId}" Width="120" IsReadOnly="True" />
+                <DataGridTextColumn Header="Source Path" Binding="{Binding Source}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Absolute or project-relative path to the source file on disk." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                    <DataGridTextColumn.EditingElementStyle>
+                        <Style TargetType="TextBox">
+                            <Setter Property="ToolTip" Value="Absolute or project-relative path to the source file on disk." />
+                        </Style>
+                    </DataGridTextColumn.EditingElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Target Directory" Binding="{Binding TargetDirectory}" Width="200">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Directory where the file will be installed on the target machine, e.g., INSTALLDIR or a subdirectory." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                    <DataGridTextColumn.EditingElementStyle>
+                        <Style TargetType="TextBox">
+                            <Setter Property="ToolTip" Value="Directory where the file will be installed on the target machine, e.g., INSTALLDIR or a subdirectory." />
+                        </Style>
+                    </DataGridTextColumn.EditingElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Feature" Binding="{Binding FeatureId}" Width="120" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="The feature this file belongs to. Assigned automatically based on the active feature context." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>

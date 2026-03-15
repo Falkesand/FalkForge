@@ -3,7 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:FalkForge.Studio.Editors.OdbcEditor">
     <DockPanel Margin="8">
-        <TextBlock DockPanel.Dock="Top" Text="ODBC" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+        <TextBlock DockPanel.Dock="Top" Text="ODBC" FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top" Text="ODBC drivers and data sources registered during installation"
+                   FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,8" />
 
         <TextBlock DockPanel.Dock="Top" Text="Drivers" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
@@ -19,16 +21,40 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Id"
                                     Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="80" />
+                                    Width="80">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Unique identifier for this ODBC driver entry." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Driver Name"
                                     Binding="{Binding DriverName, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="200" />
+                                    Width="200">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Display name of the ODBC driver as registered in ODBC Data Source Administrator." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="File Name"
                                     Binding="{Binding FileName, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="200" />
+                                    Width="200">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Path to the driver DLL file, relative to the install directory." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Setup File Name"
                                     Binding="{Binding SetupFileName, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="*" />
+                                    Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Path to the setup DLL used for driver configuration dialogs. Often the same as the driver DLL." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
 
@@ -45,17 +71,41 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Id"
                                     Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="80" />
+                                    Width="80">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Unique identifier for this data source entry." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Name"
                                     Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="150" />
+                                    Width="150">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="DSN name as shown in ODBC Data Source Administrator. Applications use this name to connect." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Driver Name"
                                     Binding="{Binding DriverName, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="200" />
+                                    Width="200">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Name of the ODBC driver this data source uses. Must match a registered driver name." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridComboBoxColumn Header="Registration"
                                         SelectedItemBinding="{Binding Registration, UpdateSourceTrigger=PropertyChanged}"
                                         ItemsSource="{x:Static local:OdbcEditorViewModel.Registrations}"
-                                        Width="*" />
+                                        Width="*">
+                    <DataGridComboBoxColumn.ElementStyle>
+                        <Style TargetType="ComboBox">
+                            <Setter Property="ToolTip" Value="PerMachine registers for all users (requires admin). PerUser registers for the current user only." />
+                        </Style>
+                    </DataGridComboBoxColumn.ElementStyle>
+                </DataGridComboBoxColumn>
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>
