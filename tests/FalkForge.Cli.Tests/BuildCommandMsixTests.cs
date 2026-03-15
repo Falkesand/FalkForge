@@ -73,9 +73,13 @@ public sealed class BuildCommandMsixTests
             var result = command.Execute(CreateContext(), settings);
 
             // Assert
-            Assert.Equal(ExitCodes.Success, result);
+            Assert.Equal(ExitCodes.ValidationFailure, result);
             Assert.Contains(console.Errors,
-                e => e.Contains("MSIX compilation from JSON is not yet supported"));
+                e => e.Contains("MSIX packages cannot be built from JSON configuration"));
+            Assert.Contains(console.Errors,
+                e => e.Contains("Installer.BuildMsix()"));
+            Assert.Contains(console.Errors,
+                e => e.Contains("demo/15-msix-basic"));
         }
         finally
         {

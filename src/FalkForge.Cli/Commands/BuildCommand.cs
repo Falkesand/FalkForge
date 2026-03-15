@@ -66,8 +66,8 @@ public sealed class BuildCommand : Command<BuildSettings>
 
             if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
             {
-                _console.WriteError("MSIX compilation from JSON is not yet supported.");
-                return ExitCodes.Success;
+                _console.WriteError("MSIX packages cannot be built from JSON configuration. Use the C# script API with Installer.BuildMsix() instead. See demo/15-msix-basic for an example.");
+                return ExitCodes.ValidationFailure;
             }
 
             _console.MarkupLine("[yellow]MSI compilation from JSON is not yet supported.[/]");
