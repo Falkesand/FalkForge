@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using FalkForge.Studio.Export;
 using FalkForge.Studio.Navigation;
 using Microsoft.Win32;
 
@@ -114,6 +115,28 @@ public partial class StudioWindow : Window
             System.IO.File.WriteAllText(dialog.FileName, result.Value);
             ViewModel.OutputText = $"Exported C# script: {dialog.FileName}";
         }
+    }
+
+    private void ExportCiCd_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new CiCdExportDialog(ViewModel.GetProject()) { Owner = this };
+        if (dialog.ShowDialog() == true)
+            ViewModel.OutputText = "CI/CD pipeline exported.";
+    }
+
+    private void CompareProjects_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.NavigateTo("diffViewer");
+    }
+
+    private void TableInspector_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.NavigateTo("tableInspector");
+    }
+
+    private void DependencyGraph_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.NavigateTo("dependencyGraph");
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();

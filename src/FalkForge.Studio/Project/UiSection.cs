@@ -9,4 +9,7 @@ public sealed class UiSection
 
     [JsonPropertyName("licenseFile")]
     public string? LicenseFile { get; set; }
+
+    [JsonPropertyName("dialogs")]
+    public List<DialogDefinition> Dialogs { get; set; } = [];
 }

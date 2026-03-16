@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Input;
 using FalkForge;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
+using FalkForge.Studio.Editors.BundleChain;
 using FalkForge.Studio.Editors.BundlePackagesEditor;
 using FalkForge.Studio.Editors.BundleSettingsEditor;
 using FalkForge.Studio.Editors.FeaturesEditor;
@@ -21,6 +22,10 @@ using FalkForge.Studio.Editors.ScheduledTasksEditor;
 using FalkForge.Studio.Editors.SqlEditor;
 using FalkForge.Studio.Editors.UiEditor;
 using FalkForge.Studio.Editors.XmlConfigEditor;
+using FalkForge.Studio.Editors.DependencyGraph;
+using FalkForge.Studio.Editors.DialogEditor;
+using FalkForge.Studio.Editors.DiffViewer;
+using FalkForge.Studio.Editors.TableInspector;
 using FalkForge.Studio.Navigation;
 using FalkForge.Studio.Project;
 
@@ -112,6 +117,7 @@ public sealed class StudioViewModel : ViewModelBase
         extensions.Children.Add(new TreeNodeViewModel("ODBC", "odbc"));
         TreeNodes.Add(extensions);
         TreeNodes.Add(new TreeNodeViewModel("UI & Dialogs", "ui"));
+        TreeNodes.Add(new TreeNodeViewModel("Dialog Editor", "dialogs"));
         TreeNodes.Add(new TreeNodeViewModel("Build Settings", "build"));
 
         switch (_project.ProjectType)
@@ -119,6 +125,7 @@ public sealed class StudioViewModel : ViewModelBase
             case "bundle":
                 TreeNodes.Add(new TreeNodeViewModel("Bundle Settings", "bundleSettings"));
                 TreeNodes.Add(new TreeNodeViewModel("Bundle Packages", "bundlePackages"));
+                TreeNodes.Add(new TreeNodeViewModel("Bundle Chain", "bundleChain"));
                 break;
             case "msix":
                 TreeNodes.Add(new TreeNodeViewModel("MSIX Applications", "msixApplications"));
@@ -325,6 +332,8 @@ public sealed class StudioViewModel : ViewModelBase
         return Export.CSharpExporter.Export(_project);
     }
 
+    public StudioProject GetProject() => _project;
+
     public void SaveUndoState()
     {
         _undoManager.SaveState(_project);
@@ -381,9 +390,14 @@ public sealed class StudioViewModel : ViewModelBase
         "perfCounters" => new PerfCountersEditorViewModel(_project),
         "odbc" => new OdbcEditorViewModel(_project),
         "ui" => new UiEditorViewModel(_project.Ui),
+        "dialogs" => new DialogEditorViewModel(_project.Ui),
         "build" => new BuildSettingsEditorViewModel(_project.Build),
         "bundleSettings" => new BundleSettingsEditorViewModel(_project.BundleSettings ??= new()),
         "bundlePackages" => new BundlePackagesEditorViewModel(_project),
+        "bundleChain" => new BundleChainViewModel(_project),
+        "diffViewer" => new DiffViewerViewModel(_project),
+        "tableInspector" => new TableInspectorViewModel(),
+        "dependencyGraph" => new DependencyGraphViewModel(_project),
         _ => null
     };
 
