@@ -134,5 +134,10 @@ public partial class StudioWindow : Window
         ViewModel.NavigateTo("tableInspector");
     }
 
+    private void DependencyGraph_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.NavigateTo("dependencyGraph");
+    }
+
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 }

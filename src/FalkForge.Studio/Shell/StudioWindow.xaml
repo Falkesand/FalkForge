@@ -19,9 +19,12 @@
         xmlns:perfCountersEditor="clr-namespace:FalkForge.Studio.Editors.PerfCountersEditor"
         xmlns:odbcEditor="clr-namespace:FalkForge.Studio.Editors.OdbcEditor"
         xmlns:bundleSettingsEditor="clr-namespace:FalkForge.Studio.Editors.BundleSettingsEditor"
+        xmlns:bundleChainEditor="clr-namespace:FalkForge.Studio.Editors.BundleChain"
         xmlns:bundlePackagesEditor="clr-namespace:FalkForge.Studio.Editors.BundlePackagesEditor"
         xmlns:diffViewer="clr-namespace:FalkForge.Studio.Editors.DiffViewer"
         xmlns:tableInspector="clr-namespace:FalkForge.Studio.Editors.TableInspector"
+        xmlns:depGraph="clr-namespace:FalkForge.Studio.Editors.DependencyGraph"
+        xmlns:dialogEditor="clr-namespace:FalkForge.Studio.Editors.DialogEditor"
         Title="{Binding Title}" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
     <Window.InputBindings>
@@ -49,6 +52,7 @@
             <MenuItem Header="_Tools">
                 <MenuItem Header="Compare Projects..." Click="CompareProjects_Click" />
                 <MenuItem Header="MSI Table Inspector" Click="TableInspector_Click" />
+                <MenuItem Header="Dependency Graph" Click="DependencyGraph_Click" />
             </MenuItem>
             <MenuItem Header="_Build">
                 <MenuItem Header="_Build MSI" Click="Build_Click">
@@ -181,6 +185,9 @@
                     <DataTemplate DataType="{x:Type bundleSettingsEditor:BundleSettingsEditorViewModel}">
                         <bundleSettingsEditor:BundleSettingsEditorView />
                     </DataTemplate>
+                    <DataTemplate DataType="{x:Type bundleChainEditor:BundleChainViewModel}">
+                        <bundleChainEditor:BundleChainView />
+                    </DataTemplate>
                     <DataTemplate DataType="{x:Type bundlePackagesEditor:BundlePackagesEditorViewModel}">
                         <bundlePackagesEditor:BundlePackagesEditorView />
                     </DataTemplate>
@@ -189,6 +196,12 @@
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type tableInspector:TableInspectorViewModel}">
                         <tableInspector:TableInspectorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type depGraph:DependencyGraphViewModel}">
+                        <depGraph:DependencyGraphView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type dialogEditor:DialogEditorViewModel}">
+                        <dialogEditor:DialogEditorView />
                     </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>
