@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
+using FalkForge;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.BundlePackagesEditor;
 using FalkForge.Studio.Editors.BundleSettingsEditor;
@@ -263,6 +264,52 @@ public sealed class StudioViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanRedo));
     }
 
+    public void ImportMsi(string msiPath)
+    {
+        var result = Import.MsiImporter.Import(msiPath);
+        if (result.IsFailure)
+        {
+            OutputText = $"Import failed: {result.Error.Message}";
+            return;
+        }
+
+        _project = result.Value;
+        _editors.Clear();
+        CurrentEditor = null;
+        TreeNodes.Clear();
+        BuildDefaultTree();
+        OutputText = $"Imported MSI: {Path.GetFileName(msiPath)}";
+        Title = $"FalkForge Studio - {Path.GetFileName(msiPath)} (imported)";
+        _projectPath = null;
+        _undoManager.Clear();
+        _undoManager.SaveState(_project);
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
+    public void ImportWix(string wxsPath)
+    {
+        var result = Import.WixImporter.Import(wxsPath);
+        if (result.IsFailure)
+        {
+            OutputText = $"Import failed: {result.Error.Message}";
+            return;
+        }
+
+        _project = result.Value;
+        _editors.Clear();
+        CurrentEditor = null;
+        TreeNodes.Clear();
+        BuildDefaultTree();
+        OutputText = $"Imported WiX source: {Path.GetFileName(wxsPath)}";
+        Title = $"FalkForge Studio - {Path.GetFileName(wxsPath)} (imported)";
+        _projectPath = null;
+        _undoManager.Clear();
+        _undoManager.SaveState(_project);
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
     public void SaveProject(string? path = null)
     {
         path ??= _projectPath;
@@ -271,6 +318,11 @@ public sealed class StudioViewModel : ViewModelBase
         OutputText = $"Saved: {path}";
         Title = $"FalkForge Studio - {Path.GetFileName(path)}";
         _projectPath = path;
+    }
+
+    public Result<string> ExportCSharpScript()
+    {
+        return Export.CSharpExporter.Export(_project);
     }
 
     public void SaveUndoState()

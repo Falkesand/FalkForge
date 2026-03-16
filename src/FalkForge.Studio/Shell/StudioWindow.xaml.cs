@@ -72,5 +72,49 @@ public partial class StudioWindow : Window
             ViewModel.NavigateTo(msg.EditorKey);
     }
 
+    private void ImportMsi_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "MSI Installer (*.msi)|*.msi|All files (*.*)|*.*",
+            Title = "Import MSI"
+        };
+        if (dialog.ShowDialog() == true)
+            ViewModel.ImportMsi(dialog.FileName);
+    }
+
+    private void ImportWix_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "WiX Source (*.wxs)|*.wxs|XML files (*.xml)|*.xml|All files (*.*)|*.*",
+            Title = "Import WiX Source"
+        };
+        if (dialog.ShowDialog() == true)
+            ViewModel.ImportWix(dialog.FileName);
+    }
+
+    private void ExportCSharp_Click(object sender, RoutedEventArgs e)
+    {
+        var result = ViewModel.ExportCSharpScript();
+        if (result.IsFailure)
+        {
+            MessageBox.Show(result.Error.Message, "Export Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Filter = "C# Script (*.csx)|*.csx|C# file (*.cs)|*.cs|All files (*.*)|*.*",
+            Title = "Export to C# Script",
+            FileName = "installer.csx"
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            System.IO.File.WriteAllText(dialog.FileName, result.Value);
+            ViewModel.OutputText = $"Exported C# script: {dialog.FileName}";
+        }
+    }
+
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 }

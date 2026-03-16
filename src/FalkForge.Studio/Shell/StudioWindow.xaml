@@ -33,6 +33,10 @@
                 <MenuItem Header="_Open..." Click="OpenProject_Click" />
                 <MenuItem Header="_Save" Click="SaveProject_Click" />
                 <Separator />
+                <MenuItem Header="_Import MSI..." Click="ImportMsi_Click" />
+                <MenuItem Header="Import _WiX Source..." Click="ImportWix_Click" />
+                <MenuItem Header="Export to C# Script..." Click="ExportCSharp_Click" />
+                <Separator />
                 <MenuItem Header="E_xit" Click="Exit_Click" />
             </MenuItem>
             <MenuItem Header="_Edit">
