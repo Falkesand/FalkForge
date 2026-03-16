@@ -183,6 +183,14 @@ public sealed class BundleValidator
                     $"BDL025: Update feed URL must use HTTPS scheme, got '{feedUri.Scheme}'.");
         }
 
+        // BDL027: EnableFeatureSelection only valid for MsiPackage
+        foreach (var pkg in model.Packages)
+        {
+            if (pkg.EnableFeatureSelection && pkg.Type != BundlePackageType.MsiPackage)
+                return Result<Unit>.Failure(ErrorKind.BundleError,
+                    $"BDL027: EnableFeatureSelection is only valid for MsiPackage type, but package '{pkg.Id}' is {pkg.Type}.");
+        }
+
         return Unit.Value;
     }
 }

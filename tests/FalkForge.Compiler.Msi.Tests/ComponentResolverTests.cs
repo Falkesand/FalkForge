@@ -301,6 +301,70 @@ public sealed class ComponentResolverTests
     }
 
     [Fact]
+    public void Resolve_FileWithNeverOverwrite_SetsComponentAttribute()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile("C:/build/config.xml", size: 256);
+
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f.Add("C:/build/config.xml").NeverOverwrite().To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        var resolver = new ComponentResolver(fs);
+
+        var result = resolver.Resolve(package);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Components[0].NeverOverwrite);
+    }
+
+    [Fact]
+    public void Resolve_FileWithPermanent_SetsComponentAttribute()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile("C:/build/data.db", size: 1024);
+
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f.Add("C:/build/data.db").Permanent().To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        var resolver = new ComponentResolver(fs);
+
+        var result = resolver.Resolve(package);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Components[0].Permanent);
+    }
+
+    [Fact]
+    public void Resolve_FileWithBothFlags_SetsComponentAttributes()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile("C:/build/config.xml", size: 256);
+
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f.Add("C:/build/config.xml").NeverOverwrite().Permanent().To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        var resolver = new ComponentResolver(fs);
+
+        var result = resolver.Resolve(package);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Components[0].NeverOverwrite);
+        Assert.True(result.Value.Components[0].Permanent);
+    }
+
+    [Fact]
     public void Resolve_DeterministicGuids_SameFileInSameDir_ProduceSameGuid()
     {
         var fs1 = new MockFileSystem();

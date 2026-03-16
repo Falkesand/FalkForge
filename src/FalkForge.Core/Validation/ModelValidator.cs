@@ -125,6 +125,19 @@ public static class ModelValidator
             if (!string.IsNullOrEmpty(service.Password))
                 result.AddWarning("SVC005",
                     $"Service '{service.Name}' has a plaintext password. Consider using a managed service account or store the password securely.");
+
+            if (service.Arguments is not null && service.Arguments.Length == 0)
+                result.AddWarning("SVC009",
+                    $"Service '{service.Name}' has empty Arguments. Use null to omit arguments.");
+
+            if (service.AccountProperty is not null && service.Account == ServiceAccount.User &&
+                !string.IsNullOrWhiteSpace(service.UserName))
+                result.AddWarning("SVC010",
+                    $"Service '{service.Name}' has both AccountProperty and UserName set. AccountProperty will take precedence.");
+
+            if (service.ComponentCondition is not null && service.ComponentCondition.Length == 0)
+                result.AddError("SVC011",
+                    $"Service '{service.Name}' has empty ComponentCondition. Use null to omit condition.");
         }
     }
 
@@ -163,6 +176,9 @@ public static class ModelValidator
         }
     }
 
+    private static readonly HashSet<string> ValidPermissionTables =
+        new(StringComparer.OrdinalIgnoreCase) { "File", "Registry", "CreateFolder", "ServiceInstall" };
+
     private static void ValidatePermissions(IReadOnlyList<PermissionModel> permissions, ValidationResult result)
     {
         foreach (var perm in permissions)
@@ -172,6 +188,9 @@ public static class ModelValidator
             if (string.IsNullOrEmpty(perm.Sddl) && string.IsNullOrEmpty(perm.User))
                 result.AddError("PRM002",
                     $"Permission for '{perm.LockObject}' must have either SDDL or User specified.");
+            if (!string.IsNullOrEmpty(perm.Table) && !ValidPermissionTables.Contains(perm.Table))
+                result.AddError("PRM003",
+                    $"Permission for '{perm.LockObject}' has invalid Table '{perm.Table}'. Valid tables: {string.Join(", ", ValidPermissionTables)}.");
         }
     }
 

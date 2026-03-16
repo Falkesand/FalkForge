@@ -4,6 +4,7 @@ using FalkForge.Engine.Execution;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
+using FalkForge.Engine.Variables;
 using Xunit;
 
 public sealed class ExeExecutorTests
@@ -145,5 +146,127 @@ public sealed class ExeExecutorTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
+    }
+
+    [Fact]
+    public async Task Install_WithVariableInArguments_ResolvesVariable()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        variables.Set("InstallDir", @"C:\MyApp");
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "/dir=[InstallDir] /quiet" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal(@"/dir=C:\MyApp /quiet", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithMultipleVariables_ResolvesAll()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        variables.Set("Dir", @"C:\App");
+        variables.Set("Port", "8080");
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "/dir=[Dir] /port=[Port]" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal(@"/dir=C:\App /port=8080", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithUnknownVariable_LeavesUnreplaced()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "/dir=[Unknown]" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal("/dir=[Unknown]", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithNoVariables_PassesThrough()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "/quiet /norestart" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal("/quiet /norestart", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithAdjacentVariables_ResolvesAll()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        variables.Set("A", "Hello");
+        variables.Set("B", "World");
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "[A][B]" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal("HelloWorld", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithEmptyArguments_PassesEmpty()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(PlanActionType.Install);
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal(string.Empty, runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithNullVariableStore_PassesThrough()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new ExeExecutor(runner, () => null);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "/dir=[InstallDir]" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal("/dir=[InstallDir]", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task Install_WithEmptyBrackets_LeavesUnreplaced()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var variables = new VariableStore();
+        var executor = new ExeExecutor(runner, () => variables);
+        var action = CreateAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string> { ["InstallArguments"] = "/flag=[]" });
+
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.Equal("/flag=[]", runner.LastArguments);
     }
 }

@@ -216,6 +216,12 @@ internal sealed class TableEmitter
                 ? 256
                 : 0; // msidbComponentAttributes64bit
 
+            if (component.NeverOverwrite)
+                attributes |= 0x80; // msidbComponentAttributesNeverOverwrite (128)
+
+            if (component.Permanent)
+                attributes |= 0x10; // msidbComponentAttributesPermanent (16)
+
             var result = _database.InsertRow(
                 "SELECT `Component`, `ComponentId`, `Directory_`, `Attributes`, `Condition`, `KeyPath` FROM `Component`",
                 record => record
@@ -532,7 +538,7 @@ internal sealed class TableEmitter
                 _ => 2
             };
 
-            var startName = service.Account switch
+            var startName = service.AccountProperty ?? service.Account switch
             {
                 ServiceAccount.LocalSystem => "LocalSystem",
                 ServiceAccount.LocalService => @"NT AUTHORITY\LocalService",
@@ -573,7 +579,7 @@ internal sealed class TableEmitter
                     .SetString(8, dependencies)
                     .SetString(9, startName)
                     .SetString(10, service.Password)
-                    .SetString(11, null)
+                    .SetString(11, service.Arguments)
                     .SetString(12, componentId)
                     .SetString(13, service.Description));
             if (result.IsFailure) return result;

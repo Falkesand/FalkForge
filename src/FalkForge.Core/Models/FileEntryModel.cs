@@ -10,5 +10,7 @@ public sealed class FileEntryModel
     public Guid? ComponentGuid { get; init; }
     public string? FeatureRef { get; init; }
     public bool Vital { get; init; } = true;
+    public bool NeverOverwrite { get; init; }
+    public bool Permanent { get; init; }
     public string? ComponentCondition { get; init; }
 }

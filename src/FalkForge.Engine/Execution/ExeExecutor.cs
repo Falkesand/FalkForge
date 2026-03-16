@@ -1,9 +1,24 @@
 namespace FalkForge.Engine.Execution;
 
 using FalkForge.Engine.Planning;
+using FalkForge.Engine.Variables;
 
-public sealed class ExeExecutor(IProcessRunner processRunner)
+public sealed class ExeExecutor
 {
+    private readonly IProcessRunner _processRunner;
+    private readonly Func<VariableStore?> _variableStoreAccessor;
+
+    public ExeExecutor(IProcessRunner processRunner)
+        : this(processRunner, static () => null)
+    {
+    }
+
+    public ExeExecutor(IProcessRunner processRunner, Func<VariableStore?> variableStoreAccessor)
+    {
+        _processRunner = processRunner;
+        _variableStoreAccessor = variableStoreAccessor;
+    }
+
     public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {
         var key = action.ActionType switch
@@ -18,10 +33,11 @@ public sealed class ExeExecutor(IProcessRunner processRunner)
             return Result<int>.Failure(ErrorKind.ExecutionError, $"Unsupported action type: {action.ActionType}");
 
         var arguments = action.Package.Properties.GetValueOrDefault(key, "");
+        arguments = VariableResolver.Resolve(arguments, _variableStoreAccessor());
 
         try
         {
-            var exitCode = await processRunner.RunAsync(action.Package.SourcePath, arguments, ct);
+            var exitCode = await _processRunner.RunAsync(action.Package.SourcePath, arguments, ct);
             return exitCode;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

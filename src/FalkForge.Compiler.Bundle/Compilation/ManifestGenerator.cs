@@ -52,6 +52,10 @@ public sealed class ManifestGenerator
                 ContainerId = pkg.ContainerId,
                 AuthenticodeThumbprint = pkg.AuthenticodeThumbprint,
                 IsPrerequisite = pkg.IsPrerequisite,
+                Permanent = pkg.Permanent,
+                EnableFeatureSelection = pkg.EnableFeatureSelection,
+                DetectionMode = pkg.DetectionMode,
+                SearchConditions = pkg.SearchConditions,
                 SlipstreamTargetId = pkg.SlipstreamTargetId
             });
         }

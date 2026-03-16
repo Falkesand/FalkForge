@@ -77,4 +77,81 @@ public sealed class SearchConditionBuilderTests
         Assert.Equal(SearchConditionType.FileVersion, pkg.SearchConditions[2].Type);
         Assert.Equal(DetectionMode.Combined, pkg.DetectionMode);
     }
+
+    [Fact]
+    public void Build_WithRegistryExists_SetsSearchCondition()
+    {
+        var model = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Chain(c => c.MsiPackage("app.msi", p => p
+                .Id("App")
+                .SearchCondition(sc => sc.RegistryExists(RegistryRoot.LocalMachine, @"SOFTWARE\App"))))
+            .Build();
+
+        var pkg = model.Packages[0];
+        Assert.Single(pkg.SearchConditions);
+        Assert.Equal(SearchConditionType.RegistryValue, pkg.SearchConditions[0].Type);
+        Assert.Equal(@"HKLM\SOFTWARE\App", pkg.SearchConditions[0].Path);
+        Assert.Null(pkg.SearchConditions[0].Value);
+        Assert.Equal("exists", pkg.SearchConditions[0].Comparison);
+    }
+
+    [Fact]
+    public void Build_WithRegistryExists_WithValueName_SetsSearchCondition()
+    {
+        var model = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Chain(c => c.MsiPackage("app.msi", p => p
+                .Id("App")
+                .SearchCondition(sc => sc.RegistryExists(RegistryRoot.CurrentUser, @"SOFTWARE\App", "Version"))))
+            .Build();
+
+        var pkg = model.Packages[0];
+        Assert.Single(pkg.SearchConditions);
+        Assert.Equal(SearchConditionType.RegistryValue, pkg.SearchConditions[0].Type);
+        Assert.Equal(@"HKCU\SOFTWARE\App", pkg.SearchConditions[0].Path);
+        Assert.Equal("Version", pkg.SearchConditions[0].Value);
+        Assert.Equal("exists", pkg.SearchConditions[0].Comparison);
+    }
+
+    [Fact]
+    public void Build_WithRegistryValue_SetsComparisonAndExpectedValue()
+    {
+        var model = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Chain(c => c.MsiPackage("app.msi", p => p
+                .Id("App")
+                .SearchCondition(sc => sc.RegistryValue(
+                    RegistryRoot.LocalMachine, @"SOFTWARE\App", "Version", ">=", "2.0.0"))))
+            .Build();
+
+        var pkg = model.Packages[0];
+        Assert.Single(pkg.SearchConditions);
+        Assert.Equal(SearchConditionType.RegistryValue, pkg.SearchConditions[0].Type);
+        Assert.Equal(@"HKLM\SOFTWARE\App", pkg.SearchConditions[0].Path);
+        Assert.Equal("Version", pkg.SearchConditions[0].Value);
+        Assert.Equal(">=:2.0.0", pkg.SearchConditions[0].Comparison);
+    }
+
+    [Theory]
+    [InlineData(RegistryRoot.LocalMachine, "HKLM")]
+    [InlineData(RegistryRoot.CurrentUser, "HKCU")]
+    [InlineData(RegistryRoot.ClassesRoot, "HKCR")]
+    [InlineData(RegistryRoot.Users, "HKU")]
+    public void Build_WithRegistryExists_MapsAllRoots(RegistryRoot root, string expectedPrefix)
+    {
+        var model = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Chain(c => c.MsiPackage("app.msi", p => p
+                .Id("App")
+                .SearchCondition(sc => sc.RegistryExists(root, @"SOFTWARE\Test"))))
+            .Build();
+
+        var pkg = model.Packages[0];
+        Assert.Equal($@"{expectedPrefix}\SOFTWARE\Test", pkg.SearchConditions[0].Path);
+    }
 }

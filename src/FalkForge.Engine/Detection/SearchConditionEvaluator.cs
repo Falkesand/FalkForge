@@ -1,8 +1,9 @@
 namespace FalkForge.Engine.Detection;
 
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Platform;
 
-public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem)
+public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRegistry? registry = null)
 {
     public Result<bool> Evaluate(SearchCondition condition)
     {
@@ -11,6 +12,7 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem)
             SearchConditionType.FileExists => fileSystem.FileExists(condition.Path),
             SearchConditionType.FileVersion => EvaluateFileVersion(condition),
             SearchConditionType.DirectoryExists => fileSystem.DirectoryExists(condition.Path),
+            SearchConditionType.RegistryValue => EvaluateRegistryValue(condition),
             _ => Result<bool>.Failure(ErrorKind.DetectionError, $"Unsupported search condition type: {condition.Type}")
         };
     }
@@ -36,6 +38,78 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem)
             "<=" => fileVersion <= targetVersion,
             "<>" => fileVersion != targetVersion,
             _ => Result<bool>.Failure(ErrorKind.DetectionError, $"Unknown comparison: {condition.Comparison}")
+        };
+    }
+
+    private Result<bool> EvaluateRegistryValue(SearchCondition condition)
+    {
+        if (registry is null)
+            return Result<bool>.Failure(ErrorKind.DetectionError, "Registry provider not available");
+
+        var separatorIndex = condition.Path.IndexOf('\\');
+        if (separatorIndex < 0)
+            return Result<bool>.Failure(ErrorKind.DetectionError, $"Invalid registry path: {condition.Path}");
+
+        var rootKey = condition.Path[..separatorIndex];
+        var subKey = condition.Path[(separatorIndex + 1)..];
+
+        var comparison = condition.Comparison ?? "exists";
+
+        if (comparison == "exists")
+            return EvaluateRegistryExists(rootKey, subKey, condition.Value);
+
+        return EvaluateRegistryComparison(rootKey, subKey, condition.Value, comparison);
+    }
+
+    private Result<bool> EvaluateRegistryExists(string rootKey, string subKey, string? valueName)
+    {
+        if (valueName is null)
+            return registry!.KeyExists(rootKey, subKey);
+
+        var value = registry!.GetStringValue(rootKey, subKey, valueName);
+        return value is not null;
+    }
+
+    private Result<bool> EvaluateRegistryComparison(string rootKey, string subKey, string? valueName, string comparison)
+    {
+        if (valueName is null)
+            return Result<bool>.Failure(ErrorKind.DetectionError, "Value name required for registry comparison");
+
+        // Comparison format: "operator:expectedValue" (e.g., ">=:2.0.0" or "=:Enterprise")
+        var colonIndex = comparison.IndexOf(':');
+        if (colonIndex < 0)
+            return Result<bool>.Failure(ErrorKind.DetectionError, $"Invalid comparison format: {comparison}");
+
+        var op = comparison[..colonIndex];
+        var expectedValue = comparison[(colonIndex + 1)..];
+
+        var actualValue = registry!.GetStringValue(rootKey, subKey, valueName);
+        if (actualValue is null)
+            return false;
+
+        // Try version comparison first
+        if (Version.TryParse(actualValue, out var actualVersion) &&
+            Version.TryParse(expectedValue, out var expectedVersion))
+        {
+            return op switch
+            {
+                "=" => actualVersion == expectedVersion,
+                ">" => actualVersion > expectedVersion,
+                ">=" => actualVersion >= expectedVersion,
+                "<" => actualVersion < expectedVersion,
+                "<=" => actualVersion <= expectedVersion,
+                "<>" => actualVersion != expectedVersion,
+                _ => Result<bool>.Failure(ErrorKind.DetectionError, $"Unknown comparison operator: {op}")
+            };
+        }
+
+        // Fall back to string comparison
+        return op switch
+        {
+            "=" => string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
+            "<>" => !string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
+            _ => Result<bool>.Failure(ErrorKind.DetectionError,
+                $"Operator '{op}' not supported for non-version string values")
         };
     }
 }
