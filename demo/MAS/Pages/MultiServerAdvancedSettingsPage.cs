@@ -117,6 +117,7 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
         using var pw = GetPassword("MultiServerServicePassword");
         if (!pw.IsEmpty)
             SharedState.SetSensitive("MultiServerServicePassword", pw.Span);
+        SharedState.Set("MultiServerServiceName", "MultiServer");
         SharedState.Set("MultiServerInstallAsService", true);
         return PageResult.GoTo<MultiServerExAdvancedSettingsPage>();
     }

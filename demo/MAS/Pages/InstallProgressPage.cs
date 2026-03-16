@@ -66,6 +66,10 @@ public sealed class InstallProgressPage : MasPageBase<InstallProgressView>
         SetBoolProperty("MSEXINSTALLASSERVICE", "MultiServerExInstallAsService");
         SetStringProperty("MSEXINSTALLFOLDER", "MultiServerExInstallFolder");
 
+        var useExisting = SharedState.Get<bool>("UseExistingDatabase");
+        Engine.SetProperty("INSTALLDB", useExisting ? "false" : "true");
+        Engine.SetProperty("ATTACHDATABASE", useExisting ? "true" : "false");
+
         SetSecureProperty("DBPASSWORD", "DbPassword");
         SetSecureProperty("MSSERVICEPASSWORD", "MultiServerServicePassword");
         SetSecureProperty("MSEXSERVICEPASSWORD", "MultiServerExServicePassword");
