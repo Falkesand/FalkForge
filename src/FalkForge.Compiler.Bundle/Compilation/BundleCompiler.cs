@@ -54,6 +54,13 @@ public sealed class BundleCompiler
             });
         }
 
+        // Step 3.5: Integrity signing (opportunistic -- only if Sigil is on PATH and configured)
+        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, payloads);
+        if (integrityResult.IsFailure)
+            return Result<string>.Failure(integrityResult.Error);
+
+        manifest = integrityResult.Value;
+
         // Step 4: Create stub (minimal placeholder -- in production, this is the pre-compiled NativeAOT engine binary)
         var stubPath = CreateStub(outputPath);
 

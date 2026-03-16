@@ -75,6 +75,23 @@ public sealed partial class EngineHost : IAsyncDisposable
         _pipeOptions = pipeOptions;
     }
 
+    /// <summary>
+    /// Extracts the SBOM attestation from an installer manifest to a file.
+    /// Returns 0 on success, 1 if no SBOM is available.
+    /// </summary>
+    internal static int ExtractSbom(InstallerManifest manifest, string outputPath)
+    {
+        if (manifest.SbomAttestation is null)
+        {
+            Console.Error.WriteLine("No SBOM available in this installer.");
+            return 1;
+        }
+
+        File.WriteAllText(outputPath, manifest.SbomAttestation);
+        Console.WriteLine($"SBOM written to {outputPath}");
+        return 0;
+    }
+
     public async Task<int> RunAsync(CancellationToken ct = default)
     {
         // Initialize structured logger

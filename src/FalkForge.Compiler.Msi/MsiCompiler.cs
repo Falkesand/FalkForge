@@ -139,6 +139,14 @@ public sealed class MsiCompiler : ICompiler
                 return Result<string>.Failure(signResult.Error);
         }
 
+        // Step 8.5: Integrity signing (opportunistic -- only if Sigil is on PATH)
+        if (!IsIntegritySigningDisabled() && SigilDetector.IsAvailable() && package.Integrity is not null)
+        {
+            var integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
+            if (integrityResult.IsFailure)
+                return Result<string>.Failure(integrityResult.Error);
+        }
+
         // Step 9: ICE validation
         var iceConfig = package.IceConfiguration ?? new IceConfiguration();
         if (iceConfig.Enabled && package.ReproducibleOptions is null)
@@ -170,6 +178,11 @@ public sealed class MsiCompiler : ICompiler
         _ = sbomResult; // warning suppression; caller may inspect via tooling
 
         return msiPath;
+    }
+
+    private static bool IsIntegritySigningDisabled()
+    {
+        return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN"));
     }
 
     private static string GetPlatformTemplate(ProcessorArchitecture architecture)

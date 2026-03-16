@@ -16,6 +16,11 @@ public sealed class InspectSettings : CommandSettings
     [DefaultValue(false)]
     public bool Verbose { get; init; }
 
+    [Description("Extract SBOM from the MSI integrity table")]
+    [CommandOption("--sbom")]
+    [DefaultValue(false)]
+    public bool ExtractSbom { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(MsiPath))

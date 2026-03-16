@@ -24,4 +24,6 @@ public sealed class InstallerManifest
     public bool IsDryRun { get; init; }
     public ManifestDryRunAction[] DryRunActions { get; init; } = [];
     public string[] UnsupportedExtensions { get; init; } = [];
+    public string? ManifestSignature { get; init; }
+    public string? SbomAttestation { get; init; }
 }

@@ -22,6 +22,7 @@ internal static class Program
         string? manifestPath = null;
         var planOnly = false;
         string? planOutputPath = null;
+        string? sbomOutputPath = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -48,6 +49,9 @@ internal static class Program
                     break;
                 case "--plan-output":
                     if (i + 1 < args.Length) planOutputPath = args[++i];
+                    break;
+                case "--sbom":
+                    if (i + 1 < args.Length) sbomOutputPath = args[++i];
                     break;
             }
         }
@@ -79,6 +83,10 @@ internal static class Program
             Console.Error.WriteLine($"Failed to load manifest: {ex.Message}");
             return 1;
         }
+
+        // Early exit: SBOM extraction (before pipe setup or platform checks)
+        if (sbomOutputPath is not null)
+            return EngineHost.ExtractSbom(manifest, sbomOutputPath);
 
         PipeConnectionOptions? pipeOptions = null;
         if (pipeName is not null && secretPipeName is not null)
