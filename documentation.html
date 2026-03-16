@@ -776,22 +776,44 @@
   <h2>Overview</h2>
 
   <p>
-    FalkForge is a C# installer framework for building Windows Installer (MSI) packages and
-    self-extracting EXE bundles entirely in code. Instead of XML authoring or visual designers,
-    FalkForge provides a strongly-typed fluent API where installer definitions are ordinary C#
-    programs compiled with <code>dotnet build</code>.
+    FalkForge is a C# framework for building Windows installers &mdash; MSI packages, MSIX app packages,
+    and self-extracting EXE bundles. It compiles directly to production-ready output with no external tools required.
   </p>
+
+  <h3>Three Ways to Build Installers</h3>
+  <table class="api-table">
+    <thead>
+      <tr><th>Approach</th><th>Best For</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>C# Fluent API</strong></td>
+        <td>Developers who want full control</td>
+        <td>Define installers as ordinary C# programs with IntelliSense, type safety, and refactoring. Compiled with <code>dotnet build</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>JSON Configuration</strong></td>
+        <td>Declarative definitions, CI/CD pipelines</td>
+        <td>Write a JSON file describing your installer. Build with <code>forge build config.json</code>. No C# required.</td>
+      </tr>
+      <tr>
+        <td><strong>FalkForge Studio</strong></td>
+        <td>Visual designers, non-developers</td>
+        <td>A WPF desktop IDE for designing installers visually. Supports import from MSI and WiX, export to C# and CI/CD pipelines.</td>
+      </tr>
+    </tbody>
+  </table>
 
   <h3>Key Features</h3>
   <ul>
-    <li><strong>Fluent Builder API</strong> &mdash; Define packages, features, files, registry entries, services, shortcuts, and more with discoverable, IntelliSense-friendly builders.</li>
-    <li><strong>MSI Compiler</strong> &mdash; Generates production-ready <code>.msi</code> files via direct P/Invoke to <code>msi.dll</code> and <code>cabinet.dll</code>. No WiX toolset dependency.</li>
+    <li><strong>Self-contained Compiler</strong> &mdash; Generates production-ready <code>.msi</code>, <code>.msix</code>, and <code>.exe</code> files via direct P/Invoke. No WiX, no InstallShield, no external tools.</li>
+    <li><strong>Six Output Formats</strong> &mdash; MSI, MSIX, MSM (merge module), MSP (patch), MST (transform), and EXE bundle.</li>
     <li><strong>NativeAOT Bundle Engine</strong> &mdash; Self-extracting EXE bootstrapper with a 3-process architecture (UI, Engine, Elevated companion) communicating over named pipes with HMAC-SHA256 handshake.</li>
     <li><strong>WPF Installer UI</strong> &mdash; Built-in classic wizard theme with watermark/banner customization, plus a custom UI framework for fully bespoke installer experiences.</li>
-    <li><strong>Extension System</strong> &mdash; First-class extensions for Firewall rules, IIS configuration, SQL Server deployment, .NET runtime detection, and utility actions (XML config, user management, file shares, quiet exec).</li>
-    <li><strong>Multiple Output Types</strong> &mdash; MSI, MSM (merge module), MSP (patch), MST (transform), and EXE bundle.</li>
+    <li><strong>Extension System</strong> &mdash; Firewall rules, IIS, SQL Server, .NET detection, HTTP/URL reservations, device drivers, COM registration, and utility actions.</li>
+    <li><strong>Prerequisite Management</strong> &mdash; Built-in package groups for .NET Framework, VC++ Redistributable, ODBC drivers, and SQL Server Express.</li>
     <li><strong>Type-Safe Conditions &amp; Properties</strong> &mdash; <code>MsiProperty</code> and <code>Condition</code> classes with operator overloads for compile-time-safe condition expressions.</li>
-    <li><strong>CLI Tool</strong> &mdash; The <code>forge</code> command supports build, validate, inspect, and decompile workflows from both C# scripts and JSON config files.</li>
+    <li><strong>CLI Tool</strong> &mdash; The <code>forge</code> command supports build, validate, inspect, and decompile workflows.</li>
   </ul>
 
   <h3>Technology Stack</h3>

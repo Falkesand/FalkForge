@@ -1,15 +1,23 @@
 # FalkForge
 
-**The C# installer framework.** Build MSI, MSIX, and EXE bundle installers with a fluent API, compile them with zero external dependencies, and ship with a NativeAOT runtime engine.
+Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools. Self-contained compiler, NativeAOT runtime engine, six output formats.
+
+## Three Ways to Build
+
+| Approach | Best For | How |
+|----------|----------|-----|
+| **C# Fluent API** | Developers who want full control | Define installers as C# programs with IntelliSense and type safety. `dotnet build` compiles them. |
+| **JSON Configuration** | Declarative definitions, CI/CD | Write a JSON file, build with `forge build config.json`. No C# required. |
+| **FalkForge Studio** | Visual designers, non-developers | WPF desktop IDE. Import from MSI/WiX, export to C# or CI/CD pipelines. |
 
 ## Why FalkForge?
 
-- **Pure C#** -- Define installers in C# with IntelliSense, type safety, and refactoring. No XML schemas to memorize.
-- **Self-contained compiler** -- MSI compilation via direct P/Invoke to `msi.dll`. No WiX, no InstallShield, no external tools.
-- **NativeAOT engine** -- Sub-10ms startup bundle runtime. Three-process architecture with named-pipe IPC and HMAC-SHA256 handshake.
+- **Self-contained compiler** -- Direct P/Invoke to `msi.dll`. No WiX, no InstallShield, no external tools.
 - **Six output formats** -- MSI, MSIX, MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
-- **WPF custom UI** -- Full page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
-- **55+ demo projects** -- From hello-world to production-grade multi-package suites.
+- **NativeAOT engine** -- Sub-10ms startup bundle runtime. Three-process architecture with named-pipe IPC.
+- **WPF custom UI** -- Page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
+- **Prerequisite management** -- Built-in package groups for .NET Framework, VC++, ODBC drivers, SQL Server Express.
+- **52+ demo projects** -- From hello-world to complex multi-package bundles.
 
 ## Quick Start
 
