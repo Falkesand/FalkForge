@@ -20,6 +20,8 @@
         xmlns:odbcEditor="clr-namespace:FalkForge.Studio.Editors.OdbcEditor"
         xmlns:bundleSettingsEditor="clr-namespace:FalkForge.Studio.Editors.BundleSettingsEditor"
         xmlns:bundlePackagesEditor="clr-namespace:FalkForge.Studio.Editors.BundlePackagesEditor"
+        xmlns:diffViewer="clr-namespace:FalkForge.Studio.Editors.DiffViewer"
+        xmlns:tableInspector="clr-namespace:FalkForge.Studio.Editors.TableInspector"
         Title="{Binding Title}" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
     <Window.InputBindings>
@@ -36,12 +38,17 @@
                 <MenuItem Header="_Import MSI..." Click="ImportMsi_Click" />
                 <MenuItem Header="Import _WiX Source..." Click="ImportWix_Click" />
                 <MenuItem Header="Export to C# Script..." Click="ExportCSharp_Click" />
+                <MenuItem Header="Export CI/CD Pipeline..." Click="ExportCiCd_Click" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="Exit_Click" />
             </MenuItem>
             <MenuItem Header="_Edit">
                 <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z" />
                 <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGestureText="Ctrl+Y" />
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="Compare Projects..." Click="CompareProjects_Click" />
+                <MenuItem Header="MSI Table Inspector" Click="TableInspector_Click" />
             </MenuItem>
             <MenuItem Header="_Build">
                 <MenuItem Header="_Build MSI" Click="Build_Click">
@@ -176,6 +183,12 @@
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type bundlePackagesEditor:BundlePackagesEditorViewModel}">
                         <bundlePackagesEditor:BundlePackagesEditorView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type diffViewer:DiffViewerViewModel}">
+                        <diffViewer:DiffViewerView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type tableInspector:TableInspectorViewModel}">
+                        <tableInspector:TableInspectorView />
                     </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>

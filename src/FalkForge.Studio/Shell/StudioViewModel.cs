@@ -21,6 +21,8 @@ using FalkForge.Studio.Editors.ScheduledTasksEditor;
 using FalkForge.Studio.Editors.SqlEditor;
 using FalkForge.Studio.Editors.UiEditor;
 using FalkForge.Studio.Editors.XmlConfigEditor;
+using FalkForge.Studio.Editors.DiffViewer;
+using FalkForge.Studio.Editors.TableInspector;
 using FalkForge.Studio.Navigation;
 using FalkForge.Studio.Project;
 
@@ -325,6 +327,8 @@ public sealed class StudioViewModel : ViewModelBase
         return Export.CSharpExporter.Export(_project);
     }
 
+    public StudioProject GetProject() => _project;
+
     public void SaveUndoState()
     {
         _undoManager.SaveState(_project);
@@ -384,6 +388,8 @@ public sealed class StudioViewModel : ViewModelBase
         "build" => new BuildSettingsEditorViewModel(_project.Build),
         "bundleSettings" => new BundleSettingsEditorViewModel(_project.BundleSettings ??= new()),
         "bundlePackages" => new BundlePackagesEditorViewModel(_project),
+        "diffViewer" => new DiffViewerViewModel(_project),
+        "tableInspector" => new TableInspectorViewModel(),
         _ => null
     };
 

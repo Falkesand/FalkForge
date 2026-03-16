@@ -1,0 +1,56 @@
+<UserControl x:Class="FalkForge.Studio.Editors.TableInspector.TableInspectorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Text="MSI Table Inspector" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+
+        <!-- File selector -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Content="Browse..." Click="Browse_Click" Padding="12,4" Margin="8,0,0,0" />
+            <TextBox Text="{Binding MsiFilePath, Mode=OneWay}" IsReadOnly="True" VerticalContentAlignment="Center"
+                     ToolTip="Path to the MSI file being inspected." />
+        </DockPanel>
+
+        <!-- Status bar -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,4,0,0">
+            <TextBlock Text="{Binding StatusText}" Foreground="Gray" FontSize="11" />
+        </DockPanel>
+
+        <!-- Main content: table list + data grid -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Table list -->
+            <DockPanel Grid.Column="0">
+                <TextBlock DockPanel.Dock="Top" Text="Tables" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <ListBox ItemsSource="{Binding TableNames}"
+                         SelectedItem="{Binding SelectedTableName}" />
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" />
+
+            <!-- Table data -->
+            <DockPanel Grid.Column="2" Margin="4,0,0,0">
+                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedTableName, StringFormat='Table: {0}', FallbackValue='Select a table'}"
+                           FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <DataGrid x:Name="TableDataGrid"
+                          ItemsSource="{Binding TableRows}"
+                          AutoGenerateColumns="True"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          SelectionMode="Extended"
+                          SelectionUnit="CellOrRowHeader"
+                          BorderThickness="1"
+                          BorderBrush="Gray"
+                          GridLinesVisibility="All"
+                          FontFamily="Consolas"
+                          FontSize="12" />
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</UserControl>
