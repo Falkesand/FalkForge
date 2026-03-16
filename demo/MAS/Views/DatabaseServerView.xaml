@@ -38,13 +38,16 @@
             <Border BorderBrush="#AAAAAA" BorderThickness="1"
                     Background="White" Padding="8" Margin="0,0,0,4">
                 <StackPanel>
-                    <Button Content="{Binding SearchButtonText}" HorizontalAlignment="Center"
-                            Padding="16,6" Margin="0,4,0,4"
+                    <Button HorizontalAlignment="Stretch" Padding="8,6" Margin="0,4,0,4"
                             Click="SearchServer_Click"
-                            IsEnabled="{Binding IsSearching, Converter={StaticResource InverseBool}}" />
-                    <ProgressBar IsIndeterminate="True"
-                                 Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"
-                                 Height="4" Margin="0,0,0,4" />
+                            IsEnabled="{Binding IsSearching, Converter={StaticResource InverseBool}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding SearchButtonContent}"
+                                       HorizontalAlignment="Center" FontSize="12" />
+                            <ProgressBar IsIndeterminate="True" Height="3" Margin="0,4,0,0"
+                                         Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </Button>
                     <ComboBox IsEditable="True"
                               Text="{Binding DatabaseServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               ItemsSource="{Binding AvailableServers}"

@@ -20,6 +20,7 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     private bool _isTesting;
     private string _testResult = string.Empty;
     private string _userName = "AUSR_AptusWeb";
+    private string _testButtonContent = string.Empty;
 
     public override string Title => Localize("DbConnectionSettings.Title");
     public override string? Subtitle => Localize("DbConnectionSettings.Subtitle");
@@ -35,7 +36,6 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     public string PasswordLabel => Localize("DbConnectionSettings.PasswordLabel");
     public string ShowButtonText => Localize("DbConnectionSettings.ShowButton");
     public string ShowPasswordTooltip => Localize("DbConnectionSettings.ShowPasswordTooltip");
-    public string TestConnectionButtonText => Localize("DbConnectionSettings.TestConnectionButton");
     public string SkipTestCheckbox => Localize("DbConnectionSettings.SkipTestCheckbox");
 
     // --- Editable properties ---
@@ -90,6 +90,12 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         set => SetField(ref _testResult, value);
     }
 
+    public string TestButtonContent
+    {
+        get => string.IsNullOrEmpty(_testButtonContent) ? Localize("DbConnectionSettings.TestConnectionButton") : _testButtonContent;
+        private set => SetField(ref _testButtonContent, value);
+    }
+
     public string WarningText => Localize("DbConnectionSettings.WarningText");
 
     public async Task TestConnectionAsync()
@@ -98,21 +104,36 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         if (tester is null) return;
 
         IsTesting = true;
+        TestButtonContent = Localize("DbConnectionSettings.Testing");
         try
         {
-            TestResult = Localize("DbConnectionSettings.TestResultTesting");
+            TestResult = string.Empty;
             using var pw = GetPassword("DbPassword");
             var passwordStr = pw.IsEmpty ? string.Empty : Encoding.UTF8.GetString(pw.Span);
             var result = await tester.TestConnectionAsync(
                 DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
-            TestResult = result.IsSuccess
-                ? Localize("DbConnectionSettings.TestResultSuccess")
-                : string.Format(Localize("DbConnectionSettings.TestResultFailed"), result.Error.Message);
+            if (result.IsSuccess)
+            {
+                TestButtonContent = Localize("DbConnectionSettings.ConnectionOk");
+                TestResult = Localize("DbConnectionSettings.TestResultSuccess");
+            }
+            else
+            {
+                TestButtonContent = Localize("DbConnectionSettings.ConnectionFailed");
+                TestResult = string.Format(Localize("DbConnectionSettings.TestResultFailed"), result.Error.Message);
+            }
         }
         finally
         {
             IsTesting = false;
+            _ = ResetTestButtonAsync();
         }
+    }
+
+    private async Task ResetTestButtonAsync()
+    {
+        await Task.Delay(2000);
+        TestButtonContent = string.Empty;
     }
 
     public override PageResult OnNext()

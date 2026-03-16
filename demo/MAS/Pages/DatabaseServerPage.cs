@@ -16,6 +16,7 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
     private string _databaseServer = @".\SQLEXPRESS";
     private bool _isSearching;
     private bool _useExisting = true;
+    private string _searchButtonContent = string.Empty;
 
     public override string Title => Localize("DatabaseServer.Title");
     public override string? Subtitle => Localize("DatabaseServer.Subtitle");
@@ -24,13 +25,18 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
     public string CreateEmptyRadioText => Localize("DatabaseServer.CreateEmptyRadio");
     public string InfoText => Localize("DatabaseServer.InfoText");
     public string ServerLabel => Localize("DatabaseServer.ServerLabel");
-    public string SearchButtonText => Localize("DatabaseServer.SearchButton");
     public string DatabaseNameLabel => Localize("DatabaseServer.DatabaseNameLabel");
 
     public bool IsSearching
     {
         get => _isSearching;
         set => SetField(ref _isSearching, value);
+    }
+
+    public string SearchButtonContent
+    {
+        get => string.IsNullOrEmpty(_searchButtonContent) ? Localize("DatabaseServer.SearchButton") : _searchButtonContent;
+        private set => SetField(ref _searchButtonContent, value);
     }
 
     public ObservableCollection<string> AvailableServers { get; } = [];
@@ -66,6 +72,7 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
         if (discovery is null) return;
 
         IsSearching = true;
+        SearchButtonContent = Localize("DatabaseServer.Searching");
         try
         {
             var result = await discovery.DiscoverServersAsync();
@@ -74,12 +81,27 @@ public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
                 AvailableServers.Clear();
                 foreach (var server in result.Value)
                     AvailableServers.Add(server);
+
+                SearchButtonContent = string.Format(
+                    Localize("DatabaseServer.FoundServers"),
+                    result.Value.Count);
+            }
+            else
+            {
+                SearchButtonContent = Localize("DatabaseServer.SearchFailed");
             }
         }
         finally
         {
             IsSearching = false;
+            _ = ResetSearchButtonAsync();
         }
+    }
+
+    private async Task ResetSearchButtonAsync()
+    {
+        await Task.Delay(2000);
+        SearchButtonContent = string.Empty;
     }
 
     public async Task LoadDatabasesAsync()

@@ -17,12 +17,17 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
     private string _dsnName = "MultiAccess";
     private string _dsnWarning = string.Empty;
     private string _serviceAccount = "LocalSystem";
+    private string _checkButtonContent = string.Empty;
 
     public override string Title => Localize("MSAdvancedSettings.Title");
 
     public string OdbcGroupHeader => Localize("MSAdvancedSettings.OdbcGroupHeader");
     public string DsnNameLabel => Localize("MSAdvancedSettings.DsnNameLabel");
-    public string CheckDsnButtonText => Localize("MSAdvancedSettings.CheckDsnButton");
+    public string CheckButtonContent
+    {
+        get => string.IsNullOrEmpty(_checkButtonContent) ? Localize("MSAdvancedSettings.CheckDsnButton") : _checkButtonContent;
+        private set => SetField(ref _checkButtonContent, value);
+    }
     public string OdbcAdminButtonText => Localize("MSAdvancedSettings.OdbcAdminButton");
     public string ServiceGroupHeader => Localize("MSAdvancedSettings.ServiceGroupHeader");
     public string ServiceNameLabel => Localize("MSAdvancedSettings.ServiceNameLabel");
@@ -71,18 +76,32 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
         if (odbc is null) return;
 
         IsChecking = true;
+        CheckButtonContent = Localize("MSAdvancedSettings.Checking");
         try
         {
             var result = odbc.DsnExists(DsnName);
             if (result.IsSuccess && result.Value)
+            {
                 DsnWarning = string.Format(Localize("MSAdvancedSettings.DsnWarningFormat"), DsnName);
+                CheckButtonContent = Localize("MSAdvancedSettings.DsnExists");
+            }
             else
+            {
                 DsnWarning = string.Empty;
+                CheckButtonContent = Localize("MSAdvancedSettings.DsnAvailable");
+            }
         }
         finally
         {
             IsChecking = false;
+            _ = ResetCheckButtonAsync();
         }
+    }
+
+    private async Task ResetCheckButtonAsync()
+    {
+        await Task.Delay(2000);
+        CheckButtonContent = string.Empty;
     }
 
     public void LaunchOdbcAdmin()

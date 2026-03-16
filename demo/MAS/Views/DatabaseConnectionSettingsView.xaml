@@ -57,13 +57,16 @@
                 </StackPanel>
 
                 <!-- Connection test -->
-                <Button Content="{Binding TestConnectionButtonText}" HorizontalAlignment="Stretch"
-                        Padding="8,6" FontSize="12" Margin="0,0,0,4"
+                <Button HorizontalAlignment="Stretch" Padding="8,6" Margin="0,0,0,4"
                         Click="TestConnection_Click"
-                        IsEnabled="{Binding IsTesting, Converter={StaticResource InverseBool}}" />
-                <ProgressBar IsIndeterminate="True"
-                             Visibility="{Binding IsTesting, Converter={StaticResource BoolToVis}}"
-                             Height="4" Margin="0,0,0,4" />
+                        IsEnabled="{Binding IsTesting, Converter={StaticResource InverseBool}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding TestButtonContent}"
+                                   HorizontalAlignment="Center" FontSize="12" />
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,4,0,0"
+                                     Visibility="{Binding IsTesting, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Button>
                 <TextBlock Text="{Binding TestResult}" FontSize="11"
                            Margin="0,0,0,4" TextWrapping="Wrap" />
 
