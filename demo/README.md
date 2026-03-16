@@ -101,6 +101,17 @@ Key properties:
 | 45 | Patch           | ~52   | Delta .msp patch with Classification and AllowRemoval            |
 | 46 | Transform       | ~52   | .mst transform for MSI property customization                    |
 
+### Advanced Feature Demos (47-52)
+
+| #  | Name                | Lines | Description                                                      |
+|----|---------------------|-------|------------------------------------------------------------------|
+| 47 | PowerShell Actions  | ~56   | Inline and file-based PowerShell custom actions                  |
+| 48 | COM Registration    | ~38   | In-process and out-of-process COM server registration            |
+| 49 | HTTP Extension      | ~45   | URL ACL reservations and SNI SSL certificate bindings            |
+| 50 | Driver Install      | ~55   | Device driver installation from INF files                        |
+| 51 | ICE Validation      | ~32   | MSI ICE validation with suppression, warnings-as-errors, reports |
+| 52 | MSIX Advanced       | ~78   | Multi-app MSIX with file associations, updates, dependencies     |
+
 ### Production-Grade Demo (MAS)
 
 | #   | Name                    | Type     | Description                                                    |
@@ -365,6 +376,22 @@ dotnet build demo/45-patch/
 dotnet build demo/46-transform/
 ```
 
+### Advanced feature demos (47-52)
+
+```bash
+dotnet build demo/47-powershell-actions/
+dotnet build demo/48-com-registration/
+dotnet build demo/49-http-extension/
+dotnet build demo/50-driver-install/
+dotnet build demo/51-ice-validation/
+```
+
+Demo 52 (MSIX Advanced) uses a C# script:
+
+```bash
+dotnet script demo/52-msix-advanced/msix-advanced.csx -- -o ./output
+```
+
 ## Validating JSON Demos
 
 JSON demos are validated and built by the `forge` CLI tool. Use the `validate` command to check a JSON definition without producing an MSI:
@@ -611,6 +638,30 @@ Delta `.msp` patch built with `Installer.BuildPatch()`. Specifies `Classificatio
 ### 46 -- Transform
 
 `.mst` transform built with `Installer.BuildTransform()`. Overrides MSI properties (`ALLUSERS`, `INSTALLDIR`, `REBOOT`) for enterprise deployment customization.
+
+### 47 -- PowerShell Actions
+
+PowerShell-based MSI custom actions using the `PowerShellScript()` and `PowerShellFile()` APIs on `CustomActionBuilder`. Shows inline PowerShell scripts (e.g., writing to the Windows Event Log), file-based scripts that are read and embedded at build time, deferred execution with `NoImpersonate()` for elevated operations, and rollback actions for clean failure recovery.
+
+### 48 -- COM Registration
+
+Registers COM classes via the MSI `Class` table using `package.ComClass()`. Demonstrates in-process DLL servers (`InprocServer32`) with Apartment and Both threading models, out-of-process EXE servers (`LocalServer32`), and `ProgId` / `Description` for human-readable COM identification.
+
+### 49 -- HTTP Extension
+
+Configures HTTP URL ACL reservations and SNI SSL certificate bindings using the `HttpExtension` API. Shows `AllowNetworkService()` and `AllowBuiltinUsers()` SDDL shortcuts for URL reservations, SNI SSL binding with `Thumbprint()` and `CertStoreName()`, and automatic AppId derivation.
+
+### 50 -- Driver Installation
+
+Installs device drivers from INF files using the `DriverExtension` API. Demonstrates `PlugAndPlay()` for PnP-aware installation, `Force()` for replacing existing drivers even with newer versions, conditional installation via `Condition()`, and built-in validation (DRV001-003).
+
+### 51 -- ICE Validation
+
+Configures MSI Internal Consistency Evaluators (ICE) using `package.Ice()`. Shows `Suppress()` for skipping inapplicable rules, `WarningsAsErrors()` for strict validation, and `ReportPath()` for generating JSON reports suitable for CI/CD integration.
+
+### 52 -- MSIX Advanced
+
+Advanced MSIX packaging with multiple applications (editor, CLI tool, background service) in a single package, file type association and protocol handler extensions, capabilities (`internetClient`, `runFullTrust`), framework package dependencies (VCLibs), and auto-update settings with `HoursBetweenUpdateChecks`, `ShowPrompt`, `AutomaticBackgroundTask`, and `ForceUpdateFromAnyVersion`. Includes visual elements with multiple logo sizes.
 
 ### MAS -- MultiAccess Suite
 

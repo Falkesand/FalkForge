@@ -1,0 +1,23 @@
+; device.inf -- Placeholder INF file for Demo USB Device Driver
+; Replace with a real driver INF when adapting for production use.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = USB
+ClassGuid   = {36FC9E60-C465-11CF-8056-444553540000}
+Provider    = %ManufacturerName%
+DriverVer   = 01/01/2026,1.0.0.0
+CatalogFile = device.cat
+
+[Manufacturer]
+%ManufacturerName% = Standard, NTamd64
+
+[Standard.NTamd64]
+%DeviceDesc% = Install, USB\VID_1234&PID_5678
+
+[Install]
+; Driver install section placeholder
+
+[Strings]
+ManufacturerName = "Demo"
+DeviceDesc       = "Demo USB Device"
