@@ -6,6 +6,11 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Advanced-only page for MultiServerEx ODBC DSN and Windows service configuration.
+/// Mirrors <see cref="MultiServerAdvancedSettingsPage"/> for the 64-bit MultiServerEx package.
+/// Matches the WiX BA ServiceView for the MultiServerEx package.
+/// </summary>
 public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerExAdvancedSettingsView>
 {
     private string _dsnName = "MultiAccessx64";
@@ -22,6 +27,8 @@ public sealed class MultiServerExAdvancedSettingsPage : MasPageBase<MultiServerE
     public string ServiceNameLabel => Localize("MSExAdvancedSettings.ServiceNameLabel");
     public string ServiceAccountLabel => Localize("MSExAdvancedSettings.ServiceAccountLabel");
     public string PasswordLabel => Localize("MSExAdvancedSettings.PasswordLabel");
+    public string ShowButtonText => Localize("Shell.ShowButton");
+    public string ShowPasswordTooltip => Localize("Shell.ShowPasswordTooltip");
 
     public string DsnName
     {

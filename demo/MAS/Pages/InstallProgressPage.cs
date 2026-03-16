@@ -5,6 +5,11 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Displays installation progress and forwards all collected parameters to the engine
+/// during the Plan phase. Subscribes to engine progress/status observables during Apply.
+/// Matches the WiX BA InstallProgressView.
+/// </summary>
 public sealed class InstallProgressPage : MasPageBase<InstallProgressView>
 {
     private IDisposable? _progressSubscription;

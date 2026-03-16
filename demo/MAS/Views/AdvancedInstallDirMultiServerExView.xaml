@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#F0F0F0">
     <StackPanel Margin="24,24,24,20">
+        <!-- Install path with browse button -->
         <TextBlock Text="{Binding InstallFolderLabel}" FontSize="12" Margin="0,0,0,4" />
         <Grid>
             <Grid.ColumnDefinitions>

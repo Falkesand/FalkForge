@@ -25,16 +25,22 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Banner area -->
+        <!-- Banner: product icon, page title, and optional subtitle -->
         <Border Grid.Row="0" Background="{StaticResource BannerBackground}" Padding="12,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Ellipse Grid.Column="0" Width="36" Height="36"
-                         Fill="{StaticResource IconBrush}" Margin="0,0,10,0"
-                         VerticalAlignment="Center" />
+
+                <!-- Product icon (ASSA ABLOY red "A" shield shape) -->
+                <Viewbox Grid.Column="0" Width="36" Height="36" Margin="0,0,10,0">
+                    <Path Fill="{StaticResource IconBrush}"
+                          Data="M16,0 L32,8 L32,24 C32,28 28,32 16,32 C4,32 0,28 0,24 L0,8 Z
+                                M16,6 L10,22 L13,22 L14.5,18 L17.5,18 L19,22 L22,22 L16,6 Z
+                                M15.2,15.5 L16,12 L16.8,15.5 Z" />
+                </Viewbox>
+
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Text="{Binding CurrentPage.Title}"
                                FontSize="14" FontWeight="SemiBold" />
@@ -47,39 +53,42 @@
             </Grid>
         </Border>
 
-        <!-- Separator -->
+        <!-- Separator between banner and content -->
         <Rectangle Grid.Row="1" Height="1" Fill="{StaticResource BannerSeparator}" />
 
-        <!-- Page content -->
+        <!-- Page content area -->
         <ContentPresenter Grid.Row="2" Content="{Binding CurrentView}" />
 
-        <!-- Button bar separator -->
+        <!-- Separator between content and button bar -->
         <Rectangle Grid.Row="3" Height="1" Fill="{StaticResource ButtonBarSeparator}" />
 
-        <!-- Button bar -->
+        <!-- Button bar: version, status message, and navigation buttons -->
         <Grid Grid.Row="4" Background="{StaticResource ButtonBarBackground}" Margin="12,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="8.9.0-alpha4-000+g284fb5e-aptussw"
+            <!-- Version label (set at build time; in production, read from bundle manifest) -->
+            <TextBlock Grid.Column="0" Text="8.9.0"
                        Foreground="{StaticResource VersionForeground}"
                        VerticalAlignment="Center" FontSize="10" />
 
+            <!-- Inline status/error message -->
             <TextBlock Grid.Column="0" Text="{Binding StatusMessage}"
                        Foreground="#CC0000" VerticalAlignment="Center"
                        HorizontalAlignment="Center" FontSize="11"
                        Margin="200,0,0,0" />
 
+            <!-- Navigation buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Content="Print"
+                <Button Content="{Binding CurrentPage.PrintButtonText, FallbackValue=Print}"
                         Style="{StaticResource InstallerButton}"
                         Visibility="{Binding CurrentPage.ShowPrintButton,
                             Converter={StaticResource BoolToVisibilityConverter},
                             FallbackValue=Collapsed}" />
 
-                <Button Content="Previous"
+                <Button Content="{Binding CurrentPage.PreviousButtonText, FallbackValue=Previous}"
                         Command="{Binding BackCommand}"
                         IsEnabled="{Binding CanGoBack}"
                         Style="{StaticResource InstallerButton}"
@@ -92,7 +101,7 @@
                         IsEnabled="{Binding CanGoNext}"
                         Style="{StaticResource InstallerButton}" />
 
-                <Button Content="Cancel"
+                <Button Content="{Binding CurrentPage.CancelButtonText, FallbackValue=Cancel}"
                         Click="Cancel_Click"
                         Style="{StaticResource InstallerButton}" />
             </StackPanel>

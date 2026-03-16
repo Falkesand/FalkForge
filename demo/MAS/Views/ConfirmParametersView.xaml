@@ -8,6 +8,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- Column headers -->
         <Grid Grid.Row="0" Background="#E8E8E8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="250" />
@@ -19,6 +20,7 @@
                        Padding="8,4" FontSize="12" />
         </Grid>
 
+        <!-- Grouped parameter list -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                       BorderBrush="#AAAAAA" BorderThickness="1"
                       Background="White">

@@ -7,6 +7,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>MAS</RootNamespace>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- Transitive from FalkForge.Ui: ReactiveUI.WPF lacks a net10.0 TFM -->
+        <NoWarn>NU1701</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <!-- Exclude MSI package and bundle sub-projects from WPF temp project -->

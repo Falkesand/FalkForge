@@ -9,6 +9,7 @@
     <Grid Margin="20,8,20,8">
         <GroupBox Header="{Binding GroupHeader}" FontSize="12" Padding="12,8">
             <StackPanel>
+                <!-- Server and database identification -->
                 <TextBlock Text="{Binding ServerLabel}" FontSize="12" Margin="0,0,0,4" />
                 <TextBox Text="{Binding DatabaseServer, UpdateSourceTrigger=PropertyChanged}"
                          FontSize="12" Padding="4,4" BorderBrush="#AAAAAA"
@@ -19,10 +20,16 @@
                          FontSize="12" Padding="4,4" BorderBrush="#AAAAAA"
                          Margin="0,0,0,8" />
 
+                <!-- Authentication mode -->
                 <CheckBox Content="{Binding IntegratedSecurityCheckbox}"
                           IsChecked="{Binding IntegratedSecurity}"
+                          FontSize="12" Margin="0,0,0,4" />
+
+                <CheckBox Content="{Binding TrustServerCertificateCheckbox}"
+                          IsChecked="{Binding TrustServerCertificate}"
                           FontSize="12" Margin="0,0,0,8" />
 
+                <!-- SQL authentication credentials (visible when integrated security is off) -->
                 <StackPanel Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding UserNameLabel}" FontSize="12" Margin="0,0,0,4" />
                     <TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"
@@ -47,6 +54,7 @@
                     </Grid>
                 </StackPanel>
 
+                <!-- Connection test -->
                 <Button Content="{Binding TestConnectionButtonText}" HorizontalAlignment="Stretch"
                         Padding="8,6" FontSize="12" Margin="0,0,0,4"
                         Click="TestConnection_Click" />

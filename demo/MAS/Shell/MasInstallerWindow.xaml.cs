@@ -14,12 +14,14 @@ public partial class MasInstallerWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show(
-            this,
-            "Are you sure you want to cancel the installation?",
-            "Cancel Installation",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+        // Use localized strings from page properties, falling back to English
+        var page = DataContext?.GetType().GetProperty("CurrentPage")?.GetValue(DataContext);
+        var message = page?.GetType().GetProperty("CancelConfirmMessage")?.GetValue(page) as string
+                      ?? "Are you sure you want to cancel the installation?";
+        var caption = page?.GetType().GetProperty("CancelConfirmTitle")?.GetValue(page) as string
+                      ?? "Cancel Installation";
+
+        var result = MessageBox.Show(this, message, caption, MessageBoxButton.YesNo, MessageBoxImage.Question);
 
         if (result == MessageBoxResult.Yes && DataContext is { } vm)
         {

@@ -109,11 +109,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\Concatenate\\Concatenate.csproj",
+      "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Concatenate\\Concatenate.csproj",
       "projectName": "Concatenate",
-      "projectPath": "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\Concatenate\\Concatenate.csproj",
+      "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Concatenate\\Concatenate.csproj",
       "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-      "outputPath": "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\Concatenate\\obj\\",
+      "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Concatenate\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "fallbackFolders": [
@@ -136,11 +136,11 @@
         "net10.0-windows7.0": {
           "targetAlias": "net10.0-windows",
           "projectReferences": {
-            "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
-              "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj"
+            "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
+              "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj"
             },
-            "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-              "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+            "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+              "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
             }
           }
         }
@@ -156,7 +156,7 @@
         "auditLevel": "low",
         "auditMode": "all"
       },
-      "SdkAnalysisLevel": "10.0.100"
+      "SdkAnalysisLevel": "10.0.200"
     },
     "frameworks": {
       "net10.0-windows7.0": {
@@ -190,7 +190,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",

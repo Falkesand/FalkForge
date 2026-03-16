@@ -4,6 +4,7 @@
              xmlns:ui="clr-namespace:FalkForge.Ui;assembly=FalkForge.Ui"
              Background="#F0F0F0">
     <StackPanel Margin="20,8,20,8">
+        <!-- ODBC DSN configuration -->
         <GroupBox Header="{Binding OdbcGroupHeader}" FontSize="12" Padding="12,8" Margin="0,0,0,12">
             <StackPanel>
                 <TextBlock Text="{Binding DsnNameLabel}" FontWeight="Bold" FontSize="12" Margin="0,0,0,4" />
@@ -29,6 +30,7 @@
             </StackPanel>
         </GroupBox>
 
+        <!-- Windows service configuration -->
         <GroupBox Header="{Binding ServiceGroupHeader}" FontSize="12" Padding="12,8">
             <StackPanel>
                 <TextBlock Text="{Binding ServiceNameLabel}" FontSize="12" Margin="0,0,0,2" />
@@ -58,8 +60,9 @@
                     <PasswordBox Grid.Column="0" FontSize="12" Padding="4,4"
                                  BorderBrush="#AAAAAA"
                                  ui:PasswordBridge.Key="MultiServerServicePassword" />
-                    <Button Grid.Column="1" Content="Show" Width="40"
-                            Margin="4,0,0,0" ToolTip="Show password" />
+                    <Button Grid.Column="1" Content="{Binding DataContext.ShowButtonText, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=Show}"
+                            Width="40" Margin="4,0,0,0"
+                            ToolTip="{Binding DataContext.ShowPasswordTooltip, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue='Show password'}" />
                 </Grid>
             </StackPanel>
         </GroupBox>

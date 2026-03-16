@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MultiServerEx")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f98db1733b947576ffc38151aff4f4629939a648")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+87942ac8af9fd6344a4355fc34036cc3a8539216")]
 [assembly: System.Reflection.AssemblyProductAttribute("MultiServerEx")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MultiServerEx")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

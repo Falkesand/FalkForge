@@ -6,6 +6,11 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Advanced-only page for MultiServer ODBC DSN and Windows service configuration.
+/// The DSN check validates whether the name already exists to avoid overwriting.
+/// Matches the WiX BA ServiceView for the MultiServer package.
+/// </summary>
 public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdvancedSettingsView>
 {
     private string _dsnName = "MultiAccess";
@@ -22,6 +27,8 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
     public string ServiceNameLabel => Localize("MSAdvancedSettings.ServiceNameLabel");
     public string ServiceAccountLabel => Localize("MSAdvancedSettings.ServiceAccountLabel");
     public string PasswordLabel => Localize("MSAdvancedSettings.PasswordLabel");
+    public string ShowButtonText => Localize("Shell.ShowButton");
+    public string ShowPasswordTooltip => Localize("Shell.ShowPasswordTooltip");
 
     public string DsnName
     {

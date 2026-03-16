@@ -5,6 +5,11 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Read-only summary of all installation parameters before the user clicks Install.
+/// Dynamically builds parameter groups based on Standard vs Advanced installation type.
+/// Matches the WiX BA ConfirmParametersView.
+/// </summary>
 public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
 {
     public override string Title => Localize("ConfirmParameters.Title");
@@ -23,10 +28,27 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
         var useExisting = SharedState.Get<bool>("UseExistingDatabase");
         var dbServer = SharedState.Get<string>("DatabaseServer") ?? @".\SQLEXPRESS";
         var dbName = SharedState.Get<string>("DatabaseName") ?? "MultiAccess";
-
         var yes = Localize("ConfirmParameters.Yes");
         var no = Localize("ConfirmParameters.No");
 
+        // Default paths used by both Standard and as fallback for Advanced
+        const string defaultMaFolder = @"C:\Program Files (x86)\Aptus\MultiAccess";
+        const string defaultMsFolder = @"C:\Program Files (x86)\Aptus\MultiServer";
+        const string defaultMsExFolder = @"C:\Program Files (x86)\Aptus\MultiServerEx";
+
+        // Read advanced values (will have user-chosen values or fall back to defaults)
+        var msInstallFolder = SharedState.Get<string>("MultiServerInstallFolder") ?? defaultMsFolder;
+        var msExInstallFolder = SharedState.Get<string>("MultiServerExInstallFolder") ?? defaultMsExFolder;
+        var intSecurity = installType == "Advanced" ? SharedState.Get<bool>("IntegratedSecurity") : true;
+        var dbUser = SharedState.Get<string>("DbUserName") ?? "";
+        var msDsn = SharedState.Get<string>("MultiServerDsnName") ?? "MultiAccess";
+        var msExDsn = SharedState.Get<string>("MultiServerExDsnName") ?? "MultiAccessx64";
+        var msServiceAccount = SharedState.Get<string>("MultiServerServiceAccount") ?? "LocalSystem";
+        var msExServiceAccount = SharedState.Get<string>("MultiServerExServiceAccount") ?? "LocalSystem";
+        var msAsService = installType == "Advanced" && SharedState.Get<bool>("MultiServerInstallAsService");
+        var msExAsService = installType == "Advanced" && SharedState.Get<bool>("MultiServerExInstallAsService");
+
+        // --- Packages ---
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupInstallationType"),
@@ -40,16 +62,14 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
             ]
         });
 
+        // --- MultiAccess install folder (always default in this demo) ---
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupInstallFolderMA"),
-            Entries =
-            [
-                new ParameterEntry(Localize("ConfirmParameters.InstallFolder"),
-                    @"C:\Program Files (x86)\Aptus\MultiAccess")
-            ]
+            Entries = [new ParameterEntry(Localize("ConfirmParameters.InstallFolder"), defaultMaFolder)]
         });
 
+        // --- Database server ---
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupDatabaseServer"),
@@ -63,16 +83,14 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
             ]
         });
 
+        // --- MultiServer install folder ---
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupInstallFolderMS"),
-            Entries =
-            [
-                new ParameterEntry(Localize("ConfirmParameters.InstallFolder"),
-                    @"C:\Program Files (x86)\Aptus\MultiServer")
-            ]
+            Entries = [new ParameterEntry(Localize("ConfirmParameters.InstallFolder"), msInstallFolder)]
         });
 
+        // --- Database connection settings ---
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupDbConnectionSettings"),
@@ -80,115 +98,54 @@ public sealed class ConfirmParametersPage : MasPageBase<ConfirmParametersView>
             [
                 new ParameterEntry(Localize("ConfirmParameters.NameOfDatabase"), dbName),
                 new ParameterEntry(Localize("ConfirmParameters.DatabaseServer"), dbServer),
-                new ParameterEntry(Localize("ConfirmParameters.IntegratedSecurity"), yes),
-                new ParameterEntry(Localize("ConfirmParameters.UserName"), ""),
+                new ParameterEntry(Localize("ConfirmParameters.IntegratedSecurity"), intSecurity ? yes : no),
+                new ParameterEntry(Localize("ConfirmParameters.UserName"), dbUser),
                 new ParameterEntry(Localize("ConfirmParameters.Password"), "")
             ]
         });
 
+        // --- MultiServer advanced settings ---
+        var msEntries = new List<ParameterEntry>
+        {
+            new(Localize("ConfirmParameters.DsnName"), msDsn),
+            new(Localize("ConfirmParameters.InstallAsService"), msAsService ? yes : no)
+        };
+        if (msAsService)
+        {
+            msEntries.Add(new ParameterEntry(Localize("ConfirmParameters.ServiceName"), "MultiServer"));
+            msEntries.Add(new ParameterEntry(Localize("ConfirmParameters.ServiceAccount"), msServiceAccount));
+            msEntries.Add(new ParameterEntry(Localize("ConfirmParameters.Password"), ""));
+        }
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupMSAdvancedSettings"),
-            Entries =
-            [
-                new ParameterEntry(Localize("ConfirmParameters.DsnName"), dbName),
-                new ParameterEntry(Localize("ConfirmParameters.InstallAsService"), no)
-            ]
+            Entries = msEntries
         });
 
+        // --- MultiServerEx install folder ---
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupInstallFolderMSEx"),
-            Entries =
-            [
-                new ParameterEntry(Localize("ConfirmParameters.InstallFolder"),
-                    @"C:\Program Files (x86)\Aptus\MultiServerEx")
-            ]
+            Entries = [new ParameterEntry(Localize("ConfirmParameters.InstallFolder"), msExInstallFolder)]
         });
 
+        // --- MultiServerEx advanced settings ---
+        var msExEntries = new List<ParameterEntry>
+        {
+            new(Localize("ConfirmParameters.DsnName"), msExDsn),
+            new(Localize("ConfirmParameters.InstallAsService"), msExAsService ? yes : no)
+        };
+        if (msExAsService)
+        {
+            msExEntries.Add(new ParameterEntry(Localize("ConfirmParameters.ServiceName"), "MultiServerEx"));
+            msExEntries.Add(new ParameterEntry(Localize("ConfirmParameters.ServiceAccount"), msExServiceAccount));
+            msExEntries.Add(new ParameterEntry(Localize("ConfirmParameters.Password"), ""));
+        }
         ParameterGroups.Add(new ParameterGroup
         {
             Header = Localize("ConfirmParameters.GroupMSExAdvancedSettings"),
-            Entries = [new ParameterEntry(Localize("ConfirmParameters.InstallAsService"), no)]
+            Entries = msExEntries
         });
-
-        if (installType == "Advanced")
-        {
-            var msInstallFolder = SharedState.Get<string>("MultiServerInstallFolder")
-                                  ?? @"C:\Program Files (x86)\Aptus\MultiServer";
-            var msExInstallFolder = SharedState.Get<string>("MultiServerExInstallFolder")
-                                    ?? @"C:\Program Files (x86)\Aptus\MultiServerEx";
-            var intSecurity = SharedState.Get<bool>("IntegratedSecurity");
-            var dbUser = SharedState.Get<string>("DbUserName") ?? "";
-            var msDsn = SharedState.Get<string>("MultiServerDsnName") ?? "MultiAccess";
-            var msExDsn = SharedState.Get<string>("MultiServerExDsnName") ?? "MultiAccessx64";
-            var msServiceAccount = SharedState.Get<string>("MultiServerServiceAccount") ?? "LocalSystem";
-            var msExServiceAccount = SharedState.Get<string>("MultiServerExServiceAccount") ?? "LocalSystem";
-
-            ParameterGroups[3] = new ParameterGroup
-            {
-                Header = Localize("ConfirmParameters.GroupInstallFolderMS"),
-                Entries = [new ParameterEntry(Localize("ConfirmParameters.InstallFolder"), msInstallFolder)]
-            };
-
-            ParameterGroups[4] = new ParameterGroup
-            {
-                Header = Localize("ConfirmParameters.GroupDbConnectionSettings"),
-                Entries =
-                [
-                    new ParameterEntry(Localize("ConfirmParameters.NameOfDatabase"), dbName),
-                    new ParameterEntry(Localize("ConfirmParameters.DatabaseServer"), dbServer),
-                    new ParameterEntry(Localize("ConfirmParameters.IntegratedSecurity"), intSecurity ? yes : no),
-                    new ParameterEntry(Localize("ConfirmParameters.UserName"), dbUser),
-                    new ParameterEntry(Localize("ConfirmParameters.Password"), "")
-                ]
-            };
-
-            ParameterGroups[5] = new ParameterGroup
-            {
-                Header = Localize("ConfirmParameters.GroupMSAdvancedSettings"),
-                Entries =
-                [
-                    new ParameterEntry(Localize("ConfirmParameters.DsnName"), msDsn),
-                    new ParameterEntry(Localize("ConfirmParameters.InstallAsService"), yes),
-                    new ParameterEntry(Localize("ConfirmParameters.ServiceName"), "MultiServer"),
-                    new ParameterEntry(Localize("ConfirmParameters.ServiceAccount"), msServiceAccount),
-                    new ParameterEntry(Localize("ConfirmParameters.Password"), "")
-                ]
-            };
-
-            ParameterGroups[6] = new ParameterGroup
-            {
-                Header = Localize("ConfirmParameters.GroupInstallFolderMSEx"),
-                Entries = [new ParameterEntry(Localize("ConfirmParameters.InstallFolder"), msExInstallFolder)]
-            };
-
-            ParameterGroups[7] = new ParameterGroup
-            {
-                Header = Localize("ConfirmParameters.GroupMSExAdvancedSettings"),
-                Entries =
-                [
-                    new ParameterEntry(Localize("ConfirmParameters.DsnName"), msExDsn),
-                    new ParameterEntry(Localize("ConfirmParameters.InstallAsService"), yes),
-                    new ParameterEntry(Localize("ConfirmParameters.ServiceName"), "MultiServerEx"),
-                    new ParameterEntry(Localize("ConfirmParameters.ServiceAccount"), msExServiceAccount),
-                    new ParameterEntry(Localize("ConfirmParameters.Password"), "")
-                ]
-            };
-
-            ParameterGroups.Add(new ParameterGroup
-            {
-                Header = Localize("ConfirmParameters.GroupPackages"),
-                Entries =
-                [
-                    new ParameterEntry("Concatenate", "Install"),
-                    new ParameterEntry("Konfigurera", "Install"),
-                    new ParameterEntry("MultiAccess", "Install"),
-                    new ParameterEntry("MultiServer", "Install"),
-                    new ParameterEntry("MultiServerEx", "Install")
-                ]
-            });
-        }
 
         return Task.CompletedTask;
     }

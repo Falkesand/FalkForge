@@ -5,6 +5,11 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Configures the SQL Server database: choose "use existing" or "create empty",
+/// pick the server instance, and name the database. The SQL Server discovery plugin
+/// populates the server dropdown. Matches the WiX BA AddDatabasePageView.
+/// </summary>
 public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
 {
     private string _databaseName = "MultiAccess";
