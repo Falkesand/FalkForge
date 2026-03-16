@@ -16,20 +16,20 @@ public sealed class DriverTableContributor : IMsiTableContributor
 
         foreach (var driver in _drivers)
         {
-            var forceFlag = driver.ForceInstall ? " /force" : string.Empty;
+            var installFlags = BuildInstallFlags(driver);
 
             var installRow = new MsiTableRow()
                 .Set("Action", $"DrvInstall_{driver.Id}")
                 .Set("Type", 3090) // Deferred, no-impersonate, EXE
                 .Set("Source", "pnputil")
-                .Set("Target", $"/install-driver \"[INSTALLDIR]{driver.InfFilePath}\" /subdirs{forceFlag}")
+                .Set("Target", $"/add-driver \"[INSTALLDIR]{driver.InfFilePath}\"{installFlags}")
                 .Set("Condition", driver.Condition);
 
             var uninstallRow = new MsiTableRow()
                 .Set("Action", $"DrvUninstall_{driver.Id}")
                 .Set("Type", 3090)
                 .Set("Source", "pnputil")
-                .Set("Target", $"/delete-driver \"[INSTALLDIR]{driver.InfFilePath}\" /uninstall")
+                .Set("Target", $"/delete-driver \"[INSTALLDIR]{driver.InfFilePath}\" /uninstall{(driver.ForceInstall ? " /force" : string.Empty)}")
                 .Set("Condition", driver.Condition);
 
             rows.Add(installRow);
@@ -37,6 +37,19 @@ public sealed class DriverTableContributor : IMsiTableContributor
         }
 
         return rows;
+    }
+
+    private static string BuildInstallFlags(DriverModel driver)
+    {
+        var flags = string.Empty;
+
+        if (driver.PlugAndPlay)
+            flags += " /install";
+
+        if (driver.ForceInstall)
+            flags += " /force";
+
+        return flags;
     }
 
     public void AddDriver(DriverModel driver)
