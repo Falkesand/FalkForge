@@ -1,15 +1,51 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Animation;
 using MAS.Pages;
+using MAS.Shell;
 
 namespace MAS.Views;
 
 public partial class DatabaseServerView : UserControl
 {
+    private Storyboard? _bounceStoryboard;
+
     public DatabaseServerView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is DatabaseServerPage page)
+            page.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(DatabaseServerPage.IsSearching))
+                {
+                    if (page.IsSearching) StartBounce();
+                    else StopBounce();
+                }
+            };
+    }
+
+    private void StartBounce()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _bounceStoryboard = BounceAnimationHelper.CreateBounce(BounceBar, SearchButton.ActualWidth - 2);
+            _bounceStoryboard.Begin();
+        });
+    }
+
+    private void StopBounce()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _bounceStoryboard?.Stop();
+            _bounceStoryboard = null;
+        });
     }
 
     private async void SearchServer_Click(object sender, RoutedEventArgs e)
@@ -21,9 +57,6 @@ public partial class DatabaseServerView : UserControl
             var typedServer = page.DatabaseServer;
             await page.SearchServersAsync();
 
-            // If the typed server wasn't found in the results, open the dropdown
-            // so the user can pick from what was discovered.
-            // If it WAS found, do nothing — the current value is valid.
             var found = page.AvailableServers.Any(s =>
                 string.Equals(s, typedServer, StringComparison.OrdinalIgnoreCase));
 
