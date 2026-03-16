@@ -18,6 +18,7 @@ public sealed class FeatureBuilder
     public string? Description { get; set; }
     public bool IsRequired { get; set; }
     public bool IsDefault { get; set; } = true;
+    public int DisplayLevel { get; set; } = 1;
 
     public FeatureBuilder Feature(string id, Action<FeatureBuilder> configure)
     {
@@ -65,6 +66,7 @@ public sealed class FeatureBuilder
             Description = Description,
             IsRequired = IsRequired,
             IsDefault = IsDefault,
+            DisplayLevel = DisplayLevel,
             Children = _children,
             Conditions = _conditions
         };

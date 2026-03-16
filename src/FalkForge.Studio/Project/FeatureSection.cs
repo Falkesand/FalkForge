@@ -19,6 +19,12 @@ public sealed class FeatureSection
     [JsonPropertyName("isRequired")]
     public bool IsRequired { get; set; }
 
+    [JsonPropertyName("installLevel")]
+    public int InstallLevel { get; set; } = 1;
+
+    [JsonPropertyName("display")]
+    public string Display { get; set; } = "expand";
+
     [JsonPropertyName("files")]
     public List<FileEntry> Files { get; set; } = [];
 

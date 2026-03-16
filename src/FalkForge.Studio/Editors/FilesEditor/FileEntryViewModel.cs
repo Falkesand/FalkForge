@@ -27,6 +27,12 @@ public sealed class FileEntryViewModel : ViewModelBase
         set { _model.TargetDirectory = value; OnPropertyChanged(); }
     }
 
+    public bool Vital
+    {
+        get => _model.Vital;
+        set { _model.Vital = value; OnPropertyChanged(); }
+    }
+
     public string FeatureId
     {
         get => _featureId;

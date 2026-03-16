@@ -105,6 +105,12 @@ public sealed class ProductEditorViewModel : ViewModelBase
         set { _model.Comments = value; OnPropertyChanged(); }
     }
 
+    public string? LicenseFile
+    {
+        get => _model.LicenseFile;
+        set { _model.LicenseFile = value; OnPropertyChanged(); }
+    }
+
     public string[] Architectures { get; } = ["x86", "x64", "arm64"];
     public string[] Scopes { get; } = ["perMachine", "perUser"];
     public ProjectTypeItem[] ProjectTypes { get; } =

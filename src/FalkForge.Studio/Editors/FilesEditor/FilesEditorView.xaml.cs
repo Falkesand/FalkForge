@@ -28,6 +28,22 @@ public partial class FilesEditorView : UserControl
         }
     }
 
+    private void AddFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select folder to add"
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            var featureId = ViewModel.Files.Count > 0
+                ? ViewModel.Files[0].FeatureId
+                : "Main";
+            foreach (var file in System.IO.Directory.GetFiles(dialog.FolderName))
+                ViewModel.AddFile(file, featureId);
+        }
+    }
+
     private void Remove_Click(object sender, RoutedEventArgs e)
         => ViewModel.RemoveSelected();
 }

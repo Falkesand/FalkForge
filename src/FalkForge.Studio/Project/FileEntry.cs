@@ -9,4 +9,7 @@ public sealed class FileEntry
 
     [JsonPropertyName("targetDirectory")]
     public string? TargetDirectory { get; set; }
+
+    [JsonPropertyName("vital")]
+    public bool Vital { get; set; } = true;
 }

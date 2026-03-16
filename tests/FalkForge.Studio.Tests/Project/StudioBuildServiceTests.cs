@@ -100,6 +100,32 @@ public class StudioBuildServiceTests
     }
 
     [Fact]
+    public void BuildModel_ProductLicenseFile_TakesPrecedenceOverUiLicenseFile()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "Test";
+        project.Product.Manufacturer = "Corp";
+        project.Product.LicenseFile = "product-license.rtf";
+        project.Ui.LicenseFile = "ui-license.rtf";
+        var result = StudioBuildService.BuildModel(project, @"C:\base");
+        Assert.True(result.IsSuccess);
+        Assert.Equal(@"C:\base\product-license.rtf", result.Value.LicenseFile);
+    }
+
+    [Fact]
+    public void BuildModel_UiLicenseFile_UsedWhenProductLicenseFileIsNull()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "Test";
+        project.Product.Manufacturer = "Corp";
+        project.Product.LicenseFile = null;
+        project.Ui.LicenseFile = "ui-license.rtf";
+        var result = StudioBuildService.BuildModel(project, @"C:\base");
+        Assert.True(result.IsSuccess);
+        Assert.Equal(@"C:\base\ui-license.rtf", result.Value.LicenseFile);
+    }
+
+    [Fact]
     public void BuildModel_EmptyFeatureId_ReturnsFailure()
     {
         var project = StudioProjectLoader.NewProject();

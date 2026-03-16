@@ -42,4 +42,7 @@ public sealed class ProductSection
 
     [JsonPropertyName("comments")]
     public string? Comments { get; set; }
+
+    [JsonPropertyName("licenseFile")]
+    public string? LicenseFile { get; set; }
 }

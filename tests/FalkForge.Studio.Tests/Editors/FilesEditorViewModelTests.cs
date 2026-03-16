@@ -75,4 +75,30 @@ public class FilesEditorViewModelTests
         Assert.NotNull(vm.SelectedFile);
         Assert.Equal("selected.dll", vm.SelectedFile!.Source);
     }
+
+    [Fact]
+    public void Vital_DefaultsToTrue()
+    {
+        var model = new FileEntry { Source = "test.dll" };
+        var vm = new FileEntryViewModel(model, "Main");
+        Assert.True(vm.Vital);
+    }
+
+    [Fact]
+    public void Vital_SetUpdatesModel()
+    {
+        var model = new FileEntry { Source = "test.dll" };
+        var vm = new FileEntryViewModel(model, "Main");
+        vm.Vital = false;
+        Assert.False(model.Vital);
+    }
+
+    [Fact]
+    public void AddFile_CreatesEntryWithVitalTrue()
+    {
+        var project = CreateProject();
+        var vm = new FilesEditorViewModel(project);
+        vm.AddFile("new.dll", "Main");
+        Assert.True(vm.Files[^1].Vital);
+    }
 }

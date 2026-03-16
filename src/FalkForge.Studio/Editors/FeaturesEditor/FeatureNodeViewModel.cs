@@ -14,5 +14,11 @@ public sealed class FeatureNodeViewModel : ViewModelBase
     public string? Description { get => _model.Description; set { _model.Description = value; OnPropertyChanged(); } }
     public bool IsDefault { get => _model.IsDefault; set { _model.IsDefault = value; OnPropertyChanged(); } }
     public bool IsRequired { get => _model.IsRequired; set { _model.IsRequired = value; OnPropertyChanged(); } }
+    public int InstallLevel { get => _model.InstallLevel; set { _model.InstallLevel = value; OnPropertyChanged(); } }
+    public string Display { get => _model.Display; set { _model.Display = value; OnPropertyChanged(); } }
+
+    public static string[] DisplayModes { get; } = ["expand", "collapse", "hidden"];
+    public static int[] InstallLevels { get; } = [0, 1, 3, 4];
+
     public int FileCount => _model.Files.Count;
 }

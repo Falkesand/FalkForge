@@ -79,10 +79,11 @@ public static class StudioBuildService
         if (!string.IsNullOrWhiteSpace(project.InstallDirectory))
             builder.DefaultInstallDirectory = KnownFolder.ProgramFiles / project.InstallDirectory;
 
-        if (!string.IsNullOrWhiteSpace(project.Ui.LicenseFile))
-            builder.LicenseFile = Path.IsPathRooted(project.Ui.LicenseFile)
-                ? project.Ui.LicenseFile
-                : Path.Combine(baseDirectory, project.Ui.LicenseFile);
+        var licenseFile = project.Product.LicenseFile ?? project.Ui?.LicenseFile;
+        if (!string.IsNullOrWhiteSpace(licenseFile))
+            builder.LicenseFile = Path.IsPathRooted(licenseFile)
+                ? licenseFile
+                : Path.Combine(baseDirectory, licenseFile);
 
         builder.UseDialogSet(dialogSet);
 
@@ -94,6 +95,7 @@ public static class StudioBuildService
                 fb.Description = feature.Description;
                 fb.IsDefault = feature.IsDefault;
                 fb.IsRequired = feature.IsRequired;
+                fb.DisplayLevel = feature.InstallLevel;
 
                 if (feature.Files.Count > 0)
                 {
@@ -452,6 +454,7 @@ public static class StudioBuildService
                 fb.Description = sub.Description;
                 fb.IsDefault = sub.IsDefault;
                 fb.IsRequired = sub.IsRequired;
+                fb.DisplayLevel = sub.InstallLevel;
 
                 if (sub.Files.Count > 0)
                 {
