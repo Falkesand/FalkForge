@@ -36,6 +36,7 @@ public sealed class PackageBuilder
 
     private MsiDialogSet _dialogSet = MsiDialogSet.None;
     private DowngradeModel? _downgrade;
+    private IntegrityConfiguration? _integrity;
     private MajorUpgradeModel? _majorUpgrade;
     private MediaTemplateModel? _mediaTemplate;
     private ReproducibleBuildOptions? _reproducibleOptions;
@@ -337,6 +338,14 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder Integrity(Action<IntegrityBuilder> configure)
+    {
+        var builder = new IntegrityBuilder();
+        configure(builder);
+        _integrity = builder.Build();
+        return this;
+    }
+
     public PackageBuilder UseDialogSet(MsiDialogSet dialogSet)
     {
         _dialogSet = dialogSet;
@@ -480,7 +489,8 @@ public sealed class PackageBuilder
             SbomOptions = _sbomOptions,
             IceConfiguration = _iceConfiguration,
             ComClasses = [.. _comClasses],
-            TypeLibs = [.. _typeLibs]
+            TypeLibs = [.. _typeLibs],
+            Integrity = _integrity
         };
     }
 }

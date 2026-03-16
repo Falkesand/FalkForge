@@ -1,5 +1,6 @@
 namespace FalkForge.Compiler.Bundle;
 
+using FalkForge.Models;
 using FalkForge.Sbom;
 
 public sealed class BundleModel
@@ -23,6 +24,8 @@ public sealed class BundleModel
     public UpdateFeedConfig? UpdateFeed { get; init; }
     public long MaxBytesPerSecond { get; init; }
     public SbomOptions? SbomOptions { get; init; }
+
+    public IntegrityConfiguration? Integrity { get; init; }
 
     /// <summary>
     /// When true, the engine Apply phase simulates package execution

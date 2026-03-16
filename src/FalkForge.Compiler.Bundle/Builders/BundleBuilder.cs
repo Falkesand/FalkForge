@@ -1,5 +1,6 @@
 using FalkForge.Builders;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Models;
 using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Bundle.Builders;
@@ -28,6 +29,7 @@ public sealed class BundleBuilder
     private Guid? _upgradeCode;
     private string _version = "1.0.0";
     private SbomOptions? _sbomOptions;
+    private IntegrityConfiguration? _integrity;
     private bool _isDryRun;
 
     public BundleBuilder Name(string name)
@@ -265,6 +267,14 @@ public sealed class BundleBuilder
         return this;
     }
 
+    public BundleBuilder Integrity(Action<IntegrityBuilder> configure)
+    {
+        var builder = new IntegrityBuilder();
+        configure(builder);
+        _integrity = builder.Build();
+        return this;
+    }
+
     /// <summary>
     /// Marks this bundle as a dry-run installer. The engine Apply phase will
     /// simulate package execution instead of running real installers.
@@ -307,6 +317,7 @@ public sealed class BundleBuilder
             UpdateFeed = _updateFeed,
             MaxBytesPerSecond = _maxBytesPerSecond,
             SbomOptions = _sbomOptions,
+            Integrity = _integrity,
             IsDryRun = _isDryRun
         };
     }

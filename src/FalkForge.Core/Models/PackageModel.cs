@@ -60,4 +60,5 @@ public sealed class PackageModel
     public IceConfiguration? IceConfiguration { get; init; }
     public IReadOnlyList<ComClassModel> ComClasses { get; init; } = [];
     public IReadOnlyList<ComTypeLibModel> TypeLibs { get; init; } = [];
+    public IntegrityConfiguration? Integrity { get; init; }
 }

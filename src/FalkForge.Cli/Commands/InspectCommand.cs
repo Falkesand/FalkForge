@@ -39,6 +39,19 @@ public sealed class InspectCommand : Command<InspectSettings>
         if (settings.Verbose)
             _console.MarkupLine($"[grey]Inspecting: {Markup.Escape(msiPath)}[/]");
 
+        if (settings.ExtractSbom)
+        {
+            var sbomResult = MsiInspector.ExtractSbom(msiPath);
+            if (sbomResult.IsFailure)
+            {
+                _console.WriteError(sbomResult.Error.Message);
+                return ExitCodes.FromErrorKind(sbomResult.Error.Kind);
+            }
+
+            _console.WriteLine(sbomResult.Value);
+            return ExitCodes.Success;
+        }
+
         var inspectResult = MsiInspector.Inspect(msiPath);
         if (inspectResult.IsFailure)
         {

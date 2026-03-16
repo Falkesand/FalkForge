@@ -49,6 +49,11 @@ public sealed class BuildSettings : CommandSettings
     [Description("Output format: msi (default), msix, bundle, msm, msp, mst")]
     public string? Format { get; init; }
 
+    [CommandOption("--no-sign")]
+    [Description("Skip Sigil integrity signing even if Sigil is available")]
+    [DefaultValue(false)]
+    public bool NoSign { get; init; }
+
     [CommandOption("--ice")]
     [Description("Enable ICE validation (default: enabled)")]
     public bool? Ice { get; init; }

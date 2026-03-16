@@ -39,6 +39,9 @@ public sealed class BuildCommand : Command<BuildSettings>
         if (settings.GenerateSbom)
             Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", "1");
 
+        if (settings.NoSign)
+            Environment.SetEnvironmentVariable("FALKFORGE_NO_SIGN", "1");
+
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 
         if (!File.Exists(projectPath))

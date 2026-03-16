@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Phases;
 using System.Net.Http;
 using FalkForge.Engine.Detection;
 using FalkForge.Engine.Download;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
@@ -194,6 +195,19 @@ public sealed class DetectingHandler : IEnginePhaseHandler
             CleanupOlderUpdates(GetUpdateCacheDir(context), context.Manifest.Version);
         }
 
+        // Verify payload integrity before proceeding to planning
+        var integrityResult = IntegrityVerifier.Verify(
+            context.Manifest,
+            GetPayloadDirectory(context));
+
+        if (integrityResult.IsFailure)
+        {
+            context.ErrorMessage = integrityResult.Error.Message;
+            context.LastErrorKind = ErrorKind.IntegrityError;
+            context.Logger.Error("IntegrityCheck", integrityResult.Error.Message);
+            return EnginePhase.Failed;
+        }
+
         // Set per-package variables for condition evaluation
         SetPerPackageVariables(context, result);
 
@@ -247,6 +261,19 @@ public sealed class DetectingHandler : IEnginePhaseHandler
                 catch { /* best-effort cleanup */ }
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the directory containing payload files for integrity verification.
+    /// This is the directory of the running engine executable, where the bundle
+    /// extracts its payloads before launching.
+    /// </summary>
+    private static string GetPayloadDirectory(EngineContext context)
+    {
+        // Payloads are extracted to the same directory as the engine executable.
+        // AppContext.BaseDirectory gives us that location at runtime.
+        _ = context; // context available for future cache-directory resolution
+        return AppContext.BaseDirectory;
     }
 
     private static void SetPerPackageVariables(EngineContext context, DetectionResult result)
