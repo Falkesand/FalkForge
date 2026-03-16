@@ -57,24 +57,21 @@ return Installer.Build(args, package =>
 
     // --- Service Installation ---
     // Installs as a Windows service when ASSERVICE ~= "true"
-    // GAP: ServiceBuilder has no Arguments property. WiX sets Arguments="DSN=[ODBCNAME]"
-    //      which passes runtime arguments to the service executable. FalkForge would need
-    //      ServiceModel.Arguments / ServiceBuilder.Arguments() to match this.
-    // GAP: WiX ServiceInstall accepts Account="[SERVICEACCOUNT]" as a property reference
-    //      so the account type is chosen at install time. FalkForge uses a fixed enum.
-    //      Using ServiceAccount.User with property-referenced UserName/Password as the
-    //      closest approximation.
-    // GAP: WiX supports condition on ServiceInstall component: ASSERVICE ~= "true".
-    //      FalkForge has ComponentCondition on FileSetBuilder but not on ServiceBuilder.
     package.Service("MultiServer", svc =>
     {
         svc.DisplayName = "[SERVICENAME]";
         svc.Executable = "MultiServer.exe";
         svc.Description = "MultiServer service";
         svc.StartMode = ServiceStartMode.Automatic;
-        svc.Account = ServiceAccount.User;
-        svc.UserName = "[SERVICEACCOUNT]";
+        svc.Arguments = "DSN=[ODBCNAME]";
+        svc.AccountProperty("[SERVICEACCOUNT]");
         svc.Password = "[SERVICEPASSWORD]";
+        svc.Condition("ASSERVICE ~= \"true\"");
+        svc.Permission(perm =>
+        {
+            perm.User = "Everyone";
+            perm.Sddl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWRPWPDTLOCRRC;;;SU)(A;;GA;;;BA)(A;;GA;;;WD)";
+        });
     });
 
     // --- Service Control ---
@@ -86,12 +83,6 @@ return Installer.Build(args, package =>
         .StopOnUninstall()
         .DeleteOnUninstall()
         .Wait(false));
-
-    // --- Service Permissions ---
-    // GAP: WiX uses util:PermissionEx on ServiceInstall with fine-grained service rights
-    //      (GenericAll, ServiceChangeConfig, ServiceStart, ServiceStop, etc.) for "Everyone".
-    //      FalkForge PermissionBuilder targets CreateFolder/File/Registry tables, not services.
-    //      Service permissions would need a ServicePermissionBuilder or extension.
 
     // --- Registry: Install folder persistence ---
     package.Registry(reg => reg

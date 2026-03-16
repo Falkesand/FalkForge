@@ -43,10 +43,8 @@ return Installer.Build(args, package =>
     //   Database\Backup\ (NetworkService: GenericAll)
 
     // --- Folder Permissions ---
-    // GAP: FalkForge PermissionBuilder uses SDDL or raw permission ints, not named
-    //      GenericAll/User like WiX util:PermissionEx. Using SDDL equivalents.
-    //      D:(A;OICI;GA;;;NS) = NetworkService GenericAll
-    //      D:(A;OICI;GA;;;BU) = Users GenericAll
+    // SDDL: D:(A;OICI;GA;;;NS) = NetworkService GenericAll
+    //        D:(A;OICI;GA;;;BU) = Users GenericAll
 
     // INSTALLFOLDER: Users GenericAll
     package.Permission("INSTALLFOLDER", p =>
@@ -81,26 +79,25 @@ return Installer.Build(args, package =>
             .To(installFolder));
     });
 
-    // Feature: Database -- .mdf/.ldf files
+    // Feature: Database -- .mdf/.ldf files (Permanent: survive uninstall)
     package.Feature("Database", f =>
     {
         f.Title = "Database";
         f.Files(files => files
             .Add("payload/MultiAccess.mdf")
             .Add("payload/MultiAccess.ldf")
+            .Permanent()
             .To(installFolder / "Database"));
     });
 
-    // Feature: MAConfig -- config file with NeverOverwrite
-    // GAP: FalkForge FileEntryModel has no NeverOverwrite/Permanent properties.
-    //      The config file will be installed but WILL be overwritten on upgrade.
-    //      To match WiX behavior (NeverOverwrite="yes" Permanent="yes"), the framework
-    //      would need FileEntryModel.NeverOverwrite and FileEntryModel.Permanent.
+    // Feature: MAConfig -- config file preserved across upgrades
     package.Feature("MAConfig", f =>
     {
         f.Title = "MultiAccessConfig";
         f.Files(files => files
             .Add("payload/MultiAccessStyra.exe.config")
+            .NeverOverwrite()
+            .Permanent()
             .To(installFolder));
     });
 
@@ -138,8 +135,6 @@ return Installer.Build(args, package =>
         .OnStartMenu("MultiAccess Styra");
 
     // Desktop: MultiAccess Styra -> MultiAccessStyra.exe
-    // GAP: WiX sets an icon via <Icon SourceFile="...Keyhole.ico">. FalkForge supports
-    //      WithIcon() but we don't have the .ico file in the demo payload.
     package.Shortcut("MultiAccess Styra", "MultiAccess.exe")
         .WithDescription("MultiAccess Styra")
         .WithWorkingDirectory("[INSTALLFOLDER]")

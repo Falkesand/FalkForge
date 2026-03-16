@@ -50,12 +50,18 @@ return Installer.Build(args, p =>
         f.IsRequired = false;
     });
 
-    // Server files
+    // Server files — main binaries
     p.Files(f => f
         .Add("payload/server/server.exe")
         .Add("payload/server/server.core.dll")
         .Add("payload/server/server.data.dll")
+        .To(KnownFolder.ProgramFiles / "Acme Corporation" / "ClientServer" / "Server"));
+
+    // Server config — NeverOverwrite preserves user edits on upgrade, Permanent keeps on uninstall
+    p.Files(f => f
         .Add("payload/server/appsettings.json")
+        .NeverOverwrite()
+        .Permanent()
         .To(KnownFolder.ProgramFiles / "Acme Corporation" / "ClientServer" / "Server"));
 
     // Server Windows service
@@ -66,6 +72,9 @@ return Installer.Build(args, p =>
         svc.Executable = "server.exe";
         svc.StartMode = ServiceStartMode.Automatic;
         svc.Account = ServiceAccount.LocalSystem;
+
+        // Pass startup arguments to the service executable
+        svc.Arguments = "--port=8080 --config=appsettings.json";
     });
 
     // Server registry
@@ -107,7 +116,7 @@ return Installer.Build(args, p =>
 
     // Major upgrade support
     p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version is already installed."));
+        .AllowSameVersionUpgrades());
 
     // Launch condition: Require Windows 10+ (typed Condition API)
     p.Require(Condition.IsWindows10OrLater, "This application requires Windows 10 or later.");

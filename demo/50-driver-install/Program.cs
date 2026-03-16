@@ -56,8 +56,10 @@ return Installer.Build(args, package =>
     package.Manufacturer = "Demo";
     package.Version = new Version(1, 0, 0);
 
+    // NeverOverwrite prevents replacing INF files if they were modified post-install
     package.Files(files => files
         .Add("payload/device.inf")
         .Add("payload/printer.inf")
+        .NeverOverwrite()
         .To(KnownFolder.ProgramFiles / "Demo" / "DriverDemo"));
 }, new MsiCompiler());

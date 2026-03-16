@@ -54,16 +54,22 @@ return Installer.Build(args, package =>
         .To(installFolder));
 
     // --- Service Installation ---
-    // GAP: Same gaps as MultiServer (no Arguments, no property-ref Account, no component condition)
+    // Installs as a Windows service when ASSERVICE ~= "true"
     package.Service("MultiServerEx", svc =>
     {
         svc.DisplayName = "[SERVICENAME]";
         svc.Executable = "MultiServerEx.exe";
         svc.Description = "MultiServerEx service";
         svc.StartMode = ServiceStartMode.Automatic;
-        svc.Account = ServiceAccount.User;
-        svc.UserName = "[SERVICEACCOUNT]";
+        svc.Arguments = "DSN=[ODBCNAME]";
+        svc.AccountProperty("[SERVICEACCOUNT]");
         svc.Password = "[SERVICEPASSWORD]";
+        svc.Condition("ASSERVICE ~= \"true\"");
+        svc.Permission(perm =>
+        {
+            perm.User = "Everyone";
+            perm.Sddl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWRPWPDTLOCRRC;;;SU)(A;;GA;;;BA)(A;;GA;;;WD)";
+        });
     });
 
     // --- Service Control ---

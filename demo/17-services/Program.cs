@@ -21,6 +21,20 @@ return Installer.Build(args, package =>
         svc.StartMode = ServiceStartMode.Automatic;
         svc.Account = ServiceAccount.LocalService;
 
+        // Pass command-line arguments to the service on startup
+        svc.Arguments = "--config=default --log-level=info";
+
+        // Only install this service when the INSTALLSERVICE property is set
+        svc.Condition("INSTALLSERVICE ~= \"true\"");
+
+        // Grant the Administrators group full control over the service
+        svc.Permission(perm =>
+        {
+            perm.Domain = "BUILTIN";
+            perm.User = "Administrators";
+            perm.Permission = 0xF01FF; // SERVICE_ALL_ACCESS
+        });
+
         // Depend on a specific service (won't start until Tcpip is running)
         svc.DependsOn("Tcpip");
 
@@ -38,13 +52,16 @@ return Installer.Build(args, package =>
         });
     });
 
-    // A second service running under a domain account
+    // A second service running under a configurable domain account
     package.Service("DemoWorker", svc =>
     {
         svc.DisplayName = "Demo Worker Service";
         svc.Executable = @"[ProgramFilesFolder]Demo\ServiceDemo\myservice.exe";
         svc.StartMode = ServiceStartMode.Manual;
-        svc.UserName = @".\DemoUser";
+
+        // Use AccountProperty to read the service account from an MSI property at install time.
+        // The installer UI or command line sets SERVICEACCOUNT; the engine passes it to the service.
+        svc.AccountProperty("[SERVICEACCOUNT]");
         svc.Password = "[DEMO_PASSWORD]";
 
         // Run a diagnostic command on failure
