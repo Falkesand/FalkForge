@@ -2,23 +2,39 @@ using FalkForge;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
+// ---------------------------------------------------------------------------
+// Konfigurera MSI -- Configuration tool
+// WiX parity: setup/Konfigurera/*.wxs
+// UpgradeCode matches WiX: 976E7E9D-30C0-47AB-AF56-FBA9C00E0CE1
+// Installs into ProgramFiles\Aptus\MultiAccess\Utilities (shared with MultiAccess)
+// ---------------------------------------------------------------------------
+
+var utilitiesFolder = KnownFolder.ProgramFiles / "Aptus" / "MultiAccess" / "Utilities";
+
 return Installer.Build(args, package =>
 {
+    // --- Product Information ---
     package.Name = "Konfigurera";
-    package.Manufacturer = "ASSA ABLOY";
+    package.Manufacturer = "ASSA ABLOY Opening Solutions Sweden AB";
     package.Version = new Version(8, 9, 0);
-    package.UpgradeCode = new Guid("D4E5F6A7-B8C9-4D0E-1F2A-3B4C5D6E7F80");
+    package.UpgradeCode = new Guid("976E7E9D-30C0-47AB-AF56-FBA9C00E0CE1");
     package.Scope = InstallScope.PerMachine;
+    package.DefaultInstallDirectory = utilitiesFolder;
     package.UseDialogSet(MsiDialogSet.None);
-    package.Reproducible();
 
+    // --- Major Upgrade ---
+    package.MajorUpgrade(mu =>
+        mu.Schedule(RemoveExistingProductsSchedule.AfterInstallValidate));
+
+    // --- Launch Condition (downgrade prevention) ---
+    package.Require(
+        Condition.IsInstalled | Condition.Raw("NOT NEWER_VERSION_FOUND"),
+        "A newer version of [ProductName] is already installed. Exiting installation.");
+
+    // --- Files ---
+    // Single executable installed to the Utilities subfolder
     package.Files(files => files
         .Add("payload/Konfigurera.exe")
-        .To(KnownFolder.ProgramFiles / "ASSA ABLOY" / "Konfigurera"));
+        .To(utilitiesFolder));
 
-    package.MajorUpgrade(mu =>
-    {
-        mu.AllowSameVersionUpgrades();
-        mu.Schedule(RemoveExistingProductsSchedule.AfterInstallExecute);
-    });
 }, new MsiCompiler());

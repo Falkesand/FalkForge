@@ -3,6 +3,12 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Lets the user choose between Standard and Advanced installation.
+/// Standard: installs all packages with default settings (SQLEXPRESS, default paths).
+/// Advanced: unlocks custom install directories, DB connection, ODBC, and service settings.
+/// Matches the WiX BA ChoseInstallationTypeView.
+/// </summary>
 public sealed class InstallationTypePage : MasPageBase<InstallationTypeView>
 {
     private bool _isStandard = true;

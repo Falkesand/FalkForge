@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/Concatenate.exe" />
+    <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/Concatenate-README.txt" />
   </ItemGroup>
 </Project>

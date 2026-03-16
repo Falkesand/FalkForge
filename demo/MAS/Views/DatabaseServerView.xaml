@@ -9,6 +9,7 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
+        <!-- Left panel: database mode selection and info -->
         <StackPanel Grid.Column="0">
             <RadioButton Content="{Binding UseExistingRadioText}"
                          IsChecked="{Binding UseExisting}"
@@ -25,6 +26,7 @@
             </Border>
         </StackPanel>
 
+        <!-- Right panel: server search and database name -->
         <StackPanel Grid.Column="2">
             <TextBlock Text="{Binding ServerLabel}" FontWeight="SemiBold"
                        FontSize="12" Margin="0,0,0,4" />

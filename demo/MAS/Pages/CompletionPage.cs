@@ -1,7 +1,12 @@
+using FalkForge.Ui.Abstractions;
 using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Final page showing success or failure. On success, displays a congratulations message.
+/// On failure, shows the error detail. Matches the WiX BA FinishView.
+/// </summary>
 public sealed class CompletionPage : MasPageBase<CompletionView>
 {
     private bool InstallSuccess => SharedState.Get<bool>("InstallSuccess") is true;
@@ -12,8 +17,11 @@ public sealed class CompletionPage : MasPageBase<CompletionView>
             : "Completion.FailureTitle");
 
     public override bool CanGoBack => false;
-    public override bool CanGoNext => false;
+    public override bool CanGoNext => true;
     public override bool ShowPreviousButton => false;
+    public override string NextButtonText => Localize("Completion.FinishButton");
+
+    public override PageResult OnNext() => PageResult.Finish;
 
     public string CompletionMessage => Localize(
         InstallSuccess

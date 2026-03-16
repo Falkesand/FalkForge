@@ -2,6 +2,11 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Displays the EULA and requires acceptance before proceeding.
+/// Next button is disabled until the user checks the acceptance checkbox.
+/// Matches the WiX BA LicensPageView.
+/// </summary>
 public sealed class LicensePage : MasPageBase<LicenseView>
 {
     private bool _accepted;

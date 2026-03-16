@@ -5,11 +5,17 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Advanced-only page for configuring database connection credentials.
+/// Supports integrated security or SQL authentication with a test-connection button.
+/// Matches the WiX BA DatabaseConnectionSettingsView + AttachDataBaseSettingsView combined.
+/// </summary>
 public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnectionSettingsView>
 {
     private string _databaseName = "MultiAccess";
     private string _databaseServer = @".\SQLEXPRESS";
     private bool _integratedSecurity = true;
+    private bool _trustServerCertificate = true;
     private bool _skipTest;
     private string _testResult = string.Empty;
     private string _userName = "AUSR_AptusWeb";
@@ -17,16 +23,21 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     public override string Title => Localize("DbConnectionSettings.Title");
     public override string? Subtitle => Localize("DbConnectionSettings.Subtitle");
 
+    // --- Localized labels ---
+
     public string GroupHeader => Localize("DbConnectionSettings.GroupHeader");
     public string ServerLabel => Localize("DbConnectionSettings.ServerLabel");
     public string DatabaseNameLabel => Localize("DbConnectionSettings.DatabaseNameLabel");
     public string IntegratedSecurityCheckbox => Localize("DbConnectionSettings.IntegratedSecurityCheckbox");
+    public string TrustServerCertificateCheckbox => Localize("DbConnectionSettings.TrustServerCertificateCheckbox");
     public string UserNameLabel => Localize("DbConnectionSettings.UserNameLabel");
     public string PasswordLabel => Localize("DbConnectionSettings.PasswordLabel");
     public string ShowButtonText => Localize("DbConnectionSettings.ShowButton");
     public string ShowPasswordTooltip => Localize("DbConnectionSettings.ShowPasswordTooltip");
     public string TestConnectionButtonText => Localize("DbConnectionSettings.TestConnectionButton");
     public string SkipTestCheckbox => Localize("DbConnectionSettings.SkipTestCheckbox");
+
+    // --- Editable properties ---
 
     public string DatabaseServer
     {
@@ -44,6 +55,12 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     {
         get => _integratedSecurity;
         set => SetField(ref _integratedSecurity, value, [nameof(ShowCredentials)]);
+    }
+
+    public bool TrustServerCertificate
+    {
+        get => _trustServerCertificate;
+        set => SetField(ref _trustServerCertificate, value);
     }
 
     public bool ShowCredentials => !_integratedSecurity;
@@ -88,6 +105,7 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         SharedState.Set("DatabaseServer", _databaseServer);
         SharedState.Set("DatabaseName", _databaseName);
         SharedState.Set("IntegratedSecurity", _integratedSecurity);
+        SharedState.Set("TrustServerCertificate", _trustServerCertificate);
         SharedState.Set("DbUserName", _userName);
         using var pw = GetPassword("DbPassword");
         if (!pw.IsEmpty)

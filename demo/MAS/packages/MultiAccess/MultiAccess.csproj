@@ -10,5 +10,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/MultiAccess.exe" />
+    <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/MultiAccess.mdf" />
+    <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/MultiAccess.ldf" />
+    <None Include="../stub/out/dummy.exe" CopyToOutputDirectory="PreserveNewest" Link="payload/MultiAccessStyra.exe.config" />
   </ItemGroup>
 </Project>

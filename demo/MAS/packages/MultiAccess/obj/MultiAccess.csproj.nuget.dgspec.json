@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj": {}
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj": {}
   },
   "projects": {
-    "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj",
         "projectName": "MultiAccess",
-        "projectPath": "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\MultiAccess\\MultiAccess.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\demo\\MAS\\packages\\MultiAccess\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\MultiAccess\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -34,11 +34,11 @@
           "net10.0-windows7.0": {
             "targetAlias": "net10.0-windows",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj"
               },
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               }
             }
           }
@@ -54,7 +54,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0-windows7.0": {
@@ -88,7 +88,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -366,14 +366,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
         "projectName": "FalkForge.Compiler.Msi",
-        "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -396,17 +396,17 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               },
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Localization\\FalkForge.Localization.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj"
               },
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj"
               },
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
               }
             }
           }
@@ -422,7 +422,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -456,7 +456,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -734,14 +734,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj",
         "projectName": "FalkForge.Core",
-        "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -777,7 +777,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -811,7 +811,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -1089,14 +1089,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
         "projectName": "FalkForge.Localization",
-        "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Localization\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1119,8 +1119,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               }
             }
           }
@@ -1136,7 +1136,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -1170,7 +1170,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -1448,14 +1448,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
         "projectName": "FalkForge.Platform.Windows",
-        "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform.Windows\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1478,8 +1478,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
               }
             }
           }
@@ -1495,7 +1495,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -1529,7 +1529,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -1807,14 +1807,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
         "projectName": "FalkForge.Platform",
-        "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Platform\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1837,8 +1837,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               }
             }
           }
@@ -1854,7 +1854,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
@@ -1888,7 +1888,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.200/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

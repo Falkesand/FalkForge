@@ -4,6 +4,10 @@ using MAS.Views;
 
 namespace MAS.Pages;
 
+/// <summary>
+/// Advanced-only page for choosing the MultiServer installation directory.
+/// Matches the WiX BA DestinationFolderPageView for the MultiServer package.
+/// </summary>
 public sealed class AdvancedInstallDirMultiServerPage : MasPageBase<AdvancedInstallDirMultiServerView>
 {
     private string _installFolder = @"C:\Program Files (x86)\Aptus\MultiServer";
