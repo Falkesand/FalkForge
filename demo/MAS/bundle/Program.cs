@@ -1,6 +1,7 @@
 using FalkForge;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
+using FalkForge.Compiler.Bundle.Prerequisites;
 
 // ---------------------------------------------------------------------------
 // MultiAccess Suite — EXE bundle
@@ -83,38 +84,23 @@ return Installer.BuildBundle(args, outputPath =>
         // -----------------------------------------------------------------
         .Chain(chain =>
         {
-            // =============================================================
-            // Section 1: Prerequisites (PackageGroup "Checks")
-            //
-            // GAP: FalkForge does not support PackageGroupRef or external
-            // prerequisite bootstrapper packages (NetFx472Redist, VCRedist,
-            // OdbcDriver17, Sql2017). These would be separate MSI/EXE
-            // packages with detection via registry search conditions.
-            //
-            // WiX equivalent:
-            //   <PackageGroupRef Id="NetFx472Redist" />
-            //   <PackageGroupRef Id="VCRedist" After="NetFx472Redist" />
-            //   <PackageGroupRef Id="OdbcDriver17" After="VCRedist" />
-            //   <PackageGroupRef Id="Sql2017" After="OdbcDriver17" />
-            //
-            // GAP: FalkForge does not support util:RegistrySearch for
-            // detection variables (VCIsInstalled, ODBCIsInstalled).
-            // =============================================================
+            // Section 1: Prerequisites
+            chain.PackageGroup(BuiltInPrerequisites.NetFx472());
+            chain.PackageGroup(BuiltInPrerequisites.VCRedist14x64());
+            chain.PackageGroup(BuiltInPrerequisites.OdbcDriver17());
+            chain.PackageGroup(BuiltInPrerequisites.SqlExpress2017());
 
             // Rollback boundary between prerequisites and product packages
-            chain.RollbackBoundary("ProductBoundary");
+            chain.RollbackBoundary("PrerequisiteBoundary");
 
-            // =============================================================
             // Section 2: Product MSI packages
-            // =============================================================
 
-            // MultiAccess MSI — installed when MULTIACCESS = "true"
-            // WiX: After="Sql2017" (after prerequisites)
             chain.MsiPackage(MsiPath("MultiAccess"), p => p
                 .Id("MultiAccessMsi")
                 .DisplayName("MultiAccess")
                 .Version("8.9.0")
                 .Vital(true)
+                .EnableFeatureSelection()
                 .InstallCondition("MULTIACCESS = \"true\"")
                 .Property("INSTALLFOLDER", "[INSTALLFOLDERMA]")
                 .Property("DBFOLDER", "[DBFOLDER]")
@@ -133,13 +119,12 @@ return Installer.BuildBundle(args, outputPath =>
                 .Property("SERVER_MDFLOCATION", "[SERVER_MDFLOCATION]")
                 .Property("SERVER_LDFLOCATION", "[SERVER_LDFLOCATION]"));
 
-            // MultiServer MSI — installed when MULTISERVER = "true"
-            // WiX: After="MultiAccessMsi"
             chain.MsiPackage(MsiPath("MultiServer"), p => p
                 .Id("MultiServerMsi")
                 .DisplayName("MultiServer")
                 .Version("8.9.0")
                 .Vital(true)
+                .EnableFeatureSelection()
                 .InstallCondition("MULTISERVER = \"true\"")
                 .Property("DB_SERVER", "[DB_SERVER]")
                 .Property("DB_DATABASE", "[DB_DATABASE]")
@@ -154,8 +139,6 @@ return Installer.BuildBundle(args, outputPath =>
                 .Property("SERVICEPASSWORD", "[SERVICEPASSWORD]")
                 .Property("ODBCNAME", "[ODBCNAME]"));
 
-            // Concatenate MSI — installed when CONCATENATE = "true"
-            // WiX: After="MultiAccessMsi"
             chain.MsiPackage(MsiPath("Concatenate"), p => p
                 .Id("ConcatenateMsi")
                 .DisplayName("Concatenate")
@@ -164,8 +147,6 @@ return Installer.BuildBundle(args, outputPath =>
                 .InstallCondition("CONCATENATE = \"true\"")
                 .Property("INSTALLFOLDER", "[INSTALLFOLDERCO]"));
 
-            // Konfigurera MSI — installed when KONFIGURERA = "true"
-            // WiX: After="ConcatenateMsi"
             chain.MsiPackage(MsiPath("Konfigurera"), p => p
                 .Id("KonfigureraMsi")
                 .DisplayName("Konfigurera")
@@ -174,18 +155,13 @@ return Installer.BuildBundle(args, outputPath =>
                 .InstallCondition("KONFIGURERA = \"true\"")
                 .Property("INSTALLFOLDER", "[INSTALLFOLDERKO]"));
 
-            // =============================================================
             // Section 3: Post-install EXE packages
-            // =============================================================
 
-            // DatabaseSetup EXE — runs when ATTACHDATABASE ~= "true" OR INSTALLDB ~= "true"
-            // WiX: Permanent="yes" PerMachine="yes"
-            // GAP: FalkForge does not support Permanent (package never uninstalled).
-            //       The exe will be subject to normal uninstall handling.
             chain.ExePackage(stubExe, p => p
                 .Id("DatabaseSetupExe")
                 .DisplayName("Database Setup")
                 .Vital(true)
+                .Permanent()
                 .InstallCondition("ATTACHDATABASE ~= \"true\" OR INSTALLDB ~= \"true\"")
                 .Property("InstallArguments",
                     "/mode all"
@@ -205,13 +181,11 @@ return Installer.BuildBundle(args, outputPath =>
                     + " /serverldflocation \"[SERVER_LDFLOCATION]\"")
                 .ExitCode(0, ExitCodeBehavior.Success));
 
-            // OdbcSetup EXE — runs when ASSERVICE ~= "true"
-            // WiX: Permanent="yes" PerMachine="yes"
-            // GAP: FalkForge does not support Permanent (package never uninstalled).
             chain.ExePackage(stubExe, p => p
                 .Id("OdbcSetupExe")
                 .DisplayName("ODBC Setup")
                 .Vital(true)
+                .Permanent()
                 .InstallCondition("ASSERVICE ~= \"true\"")
                 .Property("InstallArguments",
                     "/odbcname \"[ODBCNAME]\""

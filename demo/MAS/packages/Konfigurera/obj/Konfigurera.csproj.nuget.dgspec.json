@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj": {}
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj": {}
   },
   "projects": {
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj",
         "projectName": "Konfigurera",
-        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\demo\\MAS\\packages\\Konfigurera\\Konfigurera.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\demo\\MAS\\packages\\Konfigurera\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\demo\\MAS\\packages\\Konfigurera\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -34,11 +34,11 @@
           "net10.0-windows7.0": {
             "targetAlias": "net10.0-windows",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj"
               },
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               }
             }
           }
@@ -366,14 +366,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
         "projectName": "FalkForge.Compiler.Msi",
-        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Compiler.Msi\\FalkForge.Compiler.Msi.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Compiler.Msi\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Compiler.Msi\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -396,17 +396,17 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               },
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Localization\\FalkForge.Localization.csproj"
               },
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj"
               },
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
               }
             }
           }
@@ -734,14 +734,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj",
         "projectName": "FalkForge.Core",
-        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1089,14 +1089,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Localization\\FalkForge.Localization.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
         "projectName": "FalkForge.Localization",
-        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Localization\\FalkForge.Localization.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Localization\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Localization\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1119,8 +1119,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               }
             }
           }
@@ -1448,14 +1448,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
         "projectName": "FalkForge.Platform.Windows",
-        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform.Windows\\FalkForge.Platform.Windows.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform.Windows\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform.Windows\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1478,8 +1478,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj"
               }
             }
           }
@@ -1807,14 +1807,14 @@
         }
       }
     },
-    "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
+    "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
+        "projectUniqueName": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
         "projectName": "FalkForge.Platform",
-        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
+        "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\FalkForge.Platform.csproj",
         "packagesPath": "C:\\Users\\Peter\\.nuget\\packages\\",
-        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Platform\\obj\\",
+        "outputPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Platform\\obj\\",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
         "fallbackFolders": [
@@ -1837,8 +1837,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
-                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-rewrite\\src\\FalkForge.Core\\FalkForge.Core.csproj"
+              "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj": {
+                "projectPath": "D:\\Git\\FalkInstaller\\.worktrees\\mas-final\\src\\FalkForge.Core\\FalkForge.Core.csproj"
               }
             }
           }
