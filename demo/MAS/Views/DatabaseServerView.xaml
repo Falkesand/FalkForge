@@ -48,7 +48,7 @@
                                          Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                     </Button>
-                    <ComboBox IsEditable="True"
+                    <ComboBox x:Name="ServerCombo" IsEditable="True"
                               Text="{Binding DatabaseServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               ItemsSource="{Binding AvailableServers}"
                               FontSize="12"
