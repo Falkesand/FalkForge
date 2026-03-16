@@ -9,6 +9,7 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
 {
     private string? _updateVersion;
     private string? _cachedFilePath;
+    private string? _releaseNotes;
     private long _updateSize;
 
     public UpdateAvailablePageViewModel(IInstallerEngine engine, INavigationService navigation)
@@ -57,6 +58,17 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
         }
     }
 
+    public string? ReleaseNotes
+    {
+        get => _releaseNotes;
+        private set
+        {
+            if (_releaseNotes == value) return;
+            _releaseNotes = value;
+            OnPropertyChanged();
+        }
+    }
+
     public long UpdateSize
     {
         get => _updateSize;
@@ -72,11 +84,12 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
 
     public ICommand LaterCommand { get; }
 
-    public void SetUpdateInfo(string version, string? cachedPath, long size)
+    public void SetUpdateInfo(string version, string? cachedPath, long size, string? releaseNotes = null)
     {
         UpdateVersion = version;
         CachedFilePath = cachedPath;
         UpdateSize = size;
+        ReleaseNotes = releaseNotes;
     }
 
     public override bool CanNavigateNext() => true;

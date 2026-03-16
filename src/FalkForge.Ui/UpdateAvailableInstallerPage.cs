@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace FalkForge.Ui;
@@ -13,6 +12,7 @@ internal sealed class UpdateAvailableInstallerPage : InstallerPage
 {
     private string? _updateVersion;
     private string? _cachedFilePath;
+    private string? _releaseNotes;
 
     internal Func<Task>? NavigateNextCallback { get; set; }
 
@@ -28,6 +28,12 @@ internal sealed class UpdateAvailableInstallerPage : InstallerPage
     {
         get => _cachedFilePath;
         private set => SetField(ref _cachedFilePath, value);
+    }
+
+    public string? ReleaseNotes
+    {
+        get => _releaseNotes;
+        private set => SetField(ref _releaseNotes, value);
     }
 
     public string Description =>
@@ -46,16 +52,18 @@ internal sealed class UpdateAvailableInstallerPage : InstallerPage
         return NavigateNextCallback?.Invoke() ?? Task.CompletedTask;
     });
 
-    public void SetUpdateInfo(string version, string? cachedPath, long size)
+    public void SetUpdateInfo(string version, string? cachedPath, long size, string? releaseNotes = null)
     {
         UpdateVersion = version;
         CachedFilePath = cachedPath;
+        ReleaseNotes = releaseNotes;
         OnPropertyChanged(nameof(Description));
     }
 
     internal override FrameworkElement CreateViewInternal()
     {
-        var view = new ContentControl { Content = this };
+        var view = new Views.UpdateAvailablePage();
+        view.DataContext = this;
         return view;
     }
 }

@@ -217,4 +217,100 @@ public sealed class UpdateFeedParserTests
         Assert.Equal(15_000_000L, update.Size);
         Assert.Equal("Fixed critical bug", update.ReleaseNotes);
     }
+
+    [Fact]
+    public void Parse_HttpUrl_ReturnsUPD004()
+    {
+        var json = MakeFeedJson(TestBundleId,
+            ("2.0.0", "http://insecure.example.com/v2.exe", "aaa"));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "1.0.0");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.EngineError, result.Error.Kind);
+        Assert.Contains("UPD004", result.Error.Message);
+    }
+
+    [Fact]
+    public void Parse_InvalidUrl_ReturnsUPD004()
+    {
+        var json = MakeFeedJson(TestBundleId,
+            ("2.0.0", "not-a-url", "aaa"));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "1.0.0");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.EngineError, result.Error.Kind);
+        Assert.Contains("UPD004", result.Error.Message);
+    }
+
+    [Fact]
+    public void Parse_InvalidCurrentVersion_ReturnsUPD002()
+    {
+        var json = MakeFeedJson(TestBundleId,
+            ("2.0.0", "https://example.com/v2.exe", "aaa"));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "notaversion");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.EngineError, result.Error.Kind);
+        Assert.Contains("UPD002", result.Error.Message);
+    }
+
+    [Fact]
+    public void Parse_MultipleEntries_PicksHighestVersion()
+    {
+        var json = MakeFeedJson(TestBundleId,
+            ("3.0.0", "https://example.com/v3.exe", "ccc"),
+            ("2.0.0", "https://example.com/v2.exe", "bbb"),
+            ("4.0.0", "https://example.com/v4.exe", "ddd"),
+            ("2.5.0", "https://example.com/v25.exe", "eee"));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "1.0.0");
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.Update);
+        Assert.Equal("4.0.0", result.Value.Update!.Version);
+        Assert.Equal("ddd", result.Value.Update.Sha256);
+    }
+
+    [Fact]
+    public void Parse_SameVersionAsCurrent_ReturnsNone()
+    {
+        var json = MakeFeedJson(TestBundleId,
+            ("1.0.0", "https://example.com/v1.exe", "aaa"));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "1.0.0");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value.Update);
+    }
+
+    [Fact]
+    public void Parse_FtpUrl_ReturnsUPD004()
+    {
+        var json = MakeFeedJson(TestBundleId,
+            ("2.0.0", "ftp://files.example.com/v2.exe", "aaa"));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "1.0.0");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("UPD004", result.Error.Message);
+    }
+
+    [Fact]
+    public void Parse_MinVersion_MultipleEntries_SelectsCorrect()
+    {
+        // Entry A: requires minVersion 2.0.0 (user has 1.5.0, excluded)
+        // Entry B: no minVersion requirement (included)
+        var json = MakeFeedJsonWithExtras(TestBundleId,
+            ("4.0.0", "https://example.com/v4.exe", "aaa", null, null, "2.0.0"),
+            ("3.0.0", "https://example.com/v3.exe", "bbb", null, null, null));
+
+        var result = UpdateFeedParser.Parse(json, TestBundleId, "1.5.0");
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.Update);
+        Assert.Equal("3.0.0", result.Value.Update!.Version);
+    }
 }

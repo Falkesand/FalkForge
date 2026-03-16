@@ -31,6 +31,9 @@
             <DataTemplate DataType="{x:Type vm:CompletePageViewModel}">
                 <views:CompletePage />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:UpdateAvailablePageViewModel}">
+                <views:UpdateAvailablePage />
+            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
