@@ -112,12 +112,6 @@ Key properties:
 | 51 | ICE Validation      | ~32   | MSI ICE validation with suppression, warnings-as-errors, reports |
 | 52 | MSIX Advanced       | ~78   | Multi-app MSIX with file associations, updates, dependencies     |
 
-### Production-Grade Demo (MAS)
-
-| #   | Name                    | Type     | Description                                                    |
-|-----|-------------------------|----------|----------------------------------------------------------------|
-| MAS | MultiAccess Suite       | Advanced | Enterprise multi-package installer with 5 MSI bundles, custom UI plugin integration, SQL discovery, and engine wiring with progress/completion pages |
-
 ## JSON Demo Index
 
 | #  | File                | Description                                            | Dialog Set  |
@@ -662,39 +656,6 @@ Configures MSI Internal Consistency Evaluators (ICE) using `package.Ice()`. Show
 ### 52 -- MSIX Advanced
 
 Advanced MSIX packaging with multiple applications (editor, CLI tool, background service) in a single package, file type association and protocol handler extensions, capabilities (`internetClient`, `runFullTrust`), framework package dependencies (VCLibs), and auto-update settings with `HoursBetweenUpdateChecks`, `ShowPrompt`, `AutomaticBackgroundTask`, and `ForceUpdateFromAnyVersion`. Includes visual elements with multiple logo sizes.
-
-### MAS -- MultiAccess Suite
-
-Production-grade enterprise installer demonstrating FalkForge's complete custom UI and bundle integration capabilities. The MAS demo consists of:
-
-**Five MSI Packages** (in `packages/` subdirectory):
-- MultiAccess: Main client application
-- MultiServer: Server component
-- MultiServerEx: Extended server component
-- Konfigurera: Configuration tool
-- Concatenate: Data concatenation utility
-
-**Bundle Project** (`bundle/MASBundle.csproj`):
-- Chains all five MSI packages via `BundleBuilder`
-- Uses `UseCustomUI()` to wire the custom UI from the UI project
-- Installs to `%ProgramFiles%\ASSA ABLOY\<Name>` with per-machine scope
-
-**Engine Wiring**:
-- UI connects to the FalkForge NativeAOT engine at runtime via named pipe
-- Engine extracts bundled MSI payloads, loads the manifest, and launches the custom WPF UI
-- Bootstrapper supports pre-compiled NativeAOT engine via `FALKFORGE_ENGINE_PATH` environment variable
-
-**Custom UI Features**:
-- Plugin system (`SqlPlugin`, `OdbcPlugin`, `FileSystemPlugin`) providing SQL discovery and ODBC configuration services
-- Multi-page installation wizard with conditional page flow (Standard vs. Advanced paths)
-- SQL Server discovery and database listing integration
-- Custom window shell with cancel confirmation dialog
-- Localization with JSON resources and language selection
-- Shared state passing between pages for aggregated confirmation
-
-**Progress & Completion Pages**:
-- `InstallProgressPage` subscribes to engine observables for real-time progress (0-100% with status text). Smooth per-MSI internal progress via `MsiSetExternalUIW` callback provides per-package percent tracking across all chained packages
-- `CompletionPage` displays success or failure with error details from shared state
 
 ### JSON 01-05 -- Core MSI Features
 

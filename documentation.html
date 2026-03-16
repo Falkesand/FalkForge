@@ -720,7 +720,6 @@
           <a href="#demo-gallery-output-types">Output Types (44&ndash;46)</a>
           <a href="#demo-gallery-advanced-features">Advanced Features (47&ndash;52)</a>
           <a href="#demo-gallery-json">JSON Mode (01&ndash;07)</a>
-          <a href="#demo-gallery-production">Production (MAS)</a>
           <a href="#ice-validation">ICE Validation</a>
           <a href="#powershell-ca">PowerShell Custom Actions</a>
           <a href="#update-feed-guide">Update Feed Deep Dive</a>
@@ -7214,8 +7213,8 @@ public sealed class MsiDecompiler
 <h2>18. Demo Gallery</h2>
 
 <p>
-    FalkForge ships with 47 C# demo projects, 7 JSON configuration demos, and a production-grade
-    multi-package installer (MAS) that collectively showcase the framework's full capabilities &mdash;
+    FalkForge ships with 52 C# demo projects and 7 JSON configuration demos
+    that collectively showcase the framework's full capabilities &mdash;
     from minimal MSI installers to complex multi-project bundles with custom WPF UI.
 </p>
 
@@ -7562,19 +7561,6 @@ public sealed class MsiDecompiler
 <tr><td>07</td><td>07-database-app.json</td><td>SQL database + scripts, .NET runtime detection</td><td>InstallDir</td></tr>
 </tbody>
 </table>
-
-<h3 id="demo-gallery-production">Production (MAS)</h3>
-<p>
-    The <strong>MultiAccess Suite</strong> is a production-grade enterprise installer demonstrating
-    FalkForge's complete custom UI and bundle integration capabilities:
-</p>
-<ul>
-    <li><strong>5 MSI packages</strong> &mdash; MultiAccess, MultiServer, MultiServerEx, Konfigurera, Concatenate</li>
-    <li><strong>Full WiX parity</strong> &mdash; Prerequisite groups, service args, account properties, conditional services, permissions, file protection, feature selection</li>
-    <li><strong>Plugin system</strong> &mdash; SqlPlugin, OdbcPlugin, FileSystemPlugin for SQL discovery and ODBC configuration</li>
-    <li><strong>Custom UI</strong> &mdash; Multi-page wizard with conditional page flow, cancel confirmation, language selection</li>
-    <li><strong>Engine wiring</strong> &mdash; Named pipe IPC, real-time progress with per-MSI tracking, shared state</li>
-</ul>
 
 <!-- ===== B) ICE Validation Guide ===== -->
 

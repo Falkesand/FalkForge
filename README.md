@@ -256,7 +256,6 @@ dotnet publish -c Release   # NativeAOT for Engine + Elevation
 | 35-43 | Advanced bundles: exe packages, MSU, nested, remote payloads, update feeds |
 | 44-46 | MSM, MSP, MST: merge modules, patches, transforms |
 | 47-52 | PowerShell, COM, HTTP, driver install, ICE validation, advanced MSIX |
-| MAS | Production-grade multi-package suite |
 | json/ | JSON-based definitions (no C# required) |
 
 ## Documentation
