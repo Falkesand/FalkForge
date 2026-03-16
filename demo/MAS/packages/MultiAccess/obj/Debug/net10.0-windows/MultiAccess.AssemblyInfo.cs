@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MultiAccess")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+09bedc35266c939540bad9cbdcf41fa5b6dc7b97")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4502059869b7cf466e493e23d522a9c14c84baab")]
 [assembly: System.Reflection.AssemblyProductAttribute("MultiAccess")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MultiAccess")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

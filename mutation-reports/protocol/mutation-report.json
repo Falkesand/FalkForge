@@ -1,0 +1,17 @@
+{
+  "projectPath": "D:/Git/FalkInstaller/src/FalkForge.Engine.Protocol/FalkForge.Engine.Protocol.csproj",
+  "generatedAt": "2026-03-16T20:13:49.3321682Z",
+  "score": 37.91,
+  "totalMutants": 1625,
+  "killed": 242,
+  "survived": 0,
+  "noCoverage": 1009,
+  "timeout": 0,
+  "equivalent": 0,
+  "runtimeErrors": 374,
+  "projects": [],
+  "advice": {
+    "topMethodsToFix": [],
+    "perMutantSuggestions": {}
+  }
+}

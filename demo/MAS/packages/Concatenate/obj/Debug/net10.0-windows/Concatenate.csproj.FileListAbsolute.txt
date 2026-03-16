@@ -84,3 +84,4 @@ D:\Git\FalkInstaller\.worktrees\mas-final\demo\MAS\packages\Concatenate\obj\Debu
 D:\Git\FalkInstaller\.worktrees\mas-final\demo\MAS\packages\Concatenate\obj\Debug\net10.0-windows\Concatenate.pdb
 D:\Git\FalkInstaller\.worktrees\mas-final\demo\MAS\packages\Concatenate\obj\Debug\net10.0-windows\Concatenate.genruntimeconfig.cache
 D:\Git\FalkInstaller\.worktrees\mas-final\demo\MAS\packages\Concatenate\obj\Debug\net10.0-windows\ref\Concatenate.dll
+D:\Git\FalkInstaller\demo\MAS\packages\Concatenate\bin\Debug\net10.0-windows\payload\Concatenate-README.txt

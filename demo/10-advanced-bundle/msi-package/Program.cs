@@ -33,8 +33,8 @@ return Installer.Build(args, p =>
             .Value("Version", "2.5.0")
             .Value("InstallPath", "[INSTALLFOLDER]")));
 
-    p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Northwind Application is already installed."));
+    p.MajorUpgrade(_ => { });
+    p.Downgrade(d => d.Block("A newer version of Northwind Application is already installed."));
 
     p.Require("VersionNT >= 603", "Northwind Application requires Windows 10 or later.");
 

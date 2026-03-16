@@ -21,34 +21,34 @@
                     Background="White" Padding="10" Margin="4,4,4,0">
                 <TextBlock TextWrapping="Wrap" FontSize="12">
                     <Run FontWeight="Bold"
-                         Text="{Binding DataContext.StandardDetailsHeader, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                         Text="{Binding DataContext.StandardDetailsHeader, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail1, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail1, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail1a, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail1a, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail1b, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail1b, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail1c, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail1c, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail1d, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail1d, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail2, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail2, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail2a, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail2a, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail3, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail3, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.StandardDetail4, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.StandardDetail4, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                 </TextBlock>
             </Border>
         </StackPanel>
@@ -65,28 +65,28 @@
                     Background="White" Padding="10" Margin="4,4,4,0">
                 <TextBlock TextWrapping="Wrap" FontSize="12">
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail1, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail1, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail2, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail2, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail3, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail3, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail4, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail4, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail4a, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail4a, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail5, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail5, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail6, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail6, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                     <LineBreak />
                     <Run
-                        Text="{Binding DataContext.AdvancedDetail6a, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        Text="{Binding DataContext.AdvancedDetail6a, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
                 </TextBlock>
             </Border>
         </StackPanel>

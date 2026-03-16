@@ -18,7 +18,9 @@
       "Bash(echo:*)",
       "Bash(git -C /d/git/FalkInstaller status --short)",
       "Bash(git -C /d/git/FalkInstaller diff --name-only -- '*.md')",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "WebFetch(domain:www.advancedinstaller.com)",
+      "Bash(mutantnet run:*)"
     ]
   }
 }

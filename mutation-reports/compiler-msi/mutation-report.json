@@ -1,0 +1,53 @@
+{
+  "projectPath": "D:/Git/FalkInstaller/src/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj",
+  "generatedAt": "2026-03-16T20:13:46.5639218Z",
+  "score": 8.91,
+  "totalMutants": 13637,
+  "killed": 203,
+  "survived": 12,
+  "noCoverage": 12410,
+  "timeout": 0,
+  "equivalent": 0,
+  "runtimeErrors": 1012,
+  "projects": [],
+  "advice": {
+    "topMethodsToFix": [
+      {
+        "typeName": "CabinetBuilder",
+        "methodName": "ToDosDate",
+        "filePath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\CabinetBuilder.cs",
+        "line": 424,
+        "total": 22,
+        "killed": 16,
+        "survived": 6,
+        "methodScore": 72.7,
+        "scoreImprovementIfFixed": 0.5
+      },
+      {
+        "typeName": "CabinetBuilder",
+        "methodName": "ToDosTime",
+        "filePath": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\CabinetBuilder.cs",
+        "line": 433,
+        "total": 22,
+        "killed": 16,
+        "survived": 6,
+        "methodScore": 72.7,
+        "scoreImprovementIfFixed": 0.5
+      }
+    ],
+    "perMutantSuggestions": {
+      "499": "Add a test where only one condition is true \u2014 this distinguishes \u0026\u0026 from ||. The mutant changes \u0060|\u0060 to \u0060^\u0060 on line 424.",
+      "501": "Add a test where only one condition is true \u2014 this distinguishes \u0026\u0026 from ||. The mutant changes \u0060|\u0060 to \u0060^\u0060 on line 424.",
+      "502": "Assert the specific return value, not just truthiness or non-null. The mutant changes \u0060(ushort)(((dt.Year - 1980) \u003C\u003C 9) | (dt.Month \u003C\u003C 5) | dt.Day)\u0060 to \u00600\u0060 on line 424.",
+      "514": "Add a test that detects the change from \u0060dt.Year - 1980\u0060 to \u0060dt.Year\u0060. The mutant changes \u0060dt.Year - 1980\u0060 to \u0060dt.Year\u0060 on line 424.",
+      "515": "Add a test that detects the change from \u0060dt.Year - 1980\u0060 to \u00601980\u0060. The mutant changes \u0060dt.Year - 1980\u0060 to \u00601980\u0060 on line 424.",
+      "516": "Add a test that detects the change from \u0060(ushort)(((dt.Year - 1980) \u003C\u003C 9) | (dt.Month \u003C\u003C 5) | dt.Day)\u0060 to \u0060(((dt.Year - 1980) \u003C\u003C 9) | (dt.Month \u003C\u003C 5) | dt.Day)\u0060. The mutant changes \u0060(ushort)(((dt.Year - 1980) \u003C\u003C 9) | (dt.Month \u003C\u003C 5) | dt.Day)\u0060 to \u0060(((dt.Year - 1980) \u003C\u003C 9) | (dt.Month \u003C\u003C 5) | dt.Day)\u0060 on line 424.",
+      "521": "Add a test where only one condition is true \u2014 this distinguishes \u0026\u0026 from ||. The mutant changes \u0060|\u0060 to \u0060^\u0060 on line 433.",
+      "523": "Add a test where only one condition is true \u2014 this distinguishes \u0026\u0026 from ||. The mutant changes \u0060|\u0060 to \u0060^\u0060 on line 433.",
+      "524": "Assert the specific return value, not just truthiness or non-null. The mutant changes \u0060(ushort)((dt.Hour \u003C\u003C 11) | (dt.Minute \u003C\u003C 5) | (dt.Second / 2))\u0060 to \u00600\u0060 on line 433.",
+      "536": "Add a test that detects the change from \u0060dt.Second / 2\u0060 to \u0060dt.Second\u0060. The mutant changes \u0060dt.Second / 2\u0060 to \u0060dt.Second\u0060 on line 433.",
+      "537": "Add a test that detects the change from \u0060dt.Second / 2\u0060 to \u00602\u0060. The mutant changes \u0060dt.Second / 2\u0060 to \u00602\u0060 on line 433.",
+      "538": "Add a test that detects the change from \u0060(ushort)((dt.Hour \u003C\u003C 11) | (dt.Minute \u003C\u003C 5) | (dt.Second / 2))\u0060 to \u0060((dt.Hour \u003C\u003C 11) | (dt.Minute \u003C\u003C 5) | (dt.Second / 2))\u0060. The mutant changes \u0060(ushort)((dt.Hour \u003C\u003C 11) | (dt.Minute \u003C\u003C 5) | (dt.Second / 2))\u0060 to \u0060((dt.Hour \u003C\u003C 11) | (dt.Minute \u003C\u003C 5) | (dt.Second / 2))\u0060 on line 433."
+    }
+  }
+}

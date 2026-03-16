@@ -226,8 +226,8 @@ return Installer.Build(args, package =>
 
     package.UseDialogSet(MsiDialogSet.InstallDir);
 
-    package.MajorUpgrade(upgrade => upgrade
-        .DowngradeErrorMessage("A newer version of Extensions Showcase is already installed."));
+    package.MajorUpgrade(_ => { });
+    package.Downgrade(d => d.Block("A newer version of Extensions Showcase is already installed."));
 
     package.Feature("Complete", f =>
     {

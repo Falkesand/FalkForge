@@ -29,6 +29,6 @@ return Installer.Build(args, package =>
     });
 
     // Add a major upgrade entry so the package is production-like
-    package.MajorUpgrade(mu => mu
-        .DowngradeMessage("A newer version is already installed."));
+    package.MajorUpgrade(_ => { });
+    package.Downgrade(d => d.Block("A newer version is already installed."));
 }, new MsiCompiler());

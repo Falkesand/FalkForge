@@ -435,11 +435,11 @@ return Installer.Build(args, pkg =>
     // ──────────────────────────────────────────────────────────────────
     pkg.MajorUpgrade(mu =>
     {
-        mu.DowngradeErrorMessage(
-            "A newer version of Apex Enterprise Suite is already installed. Please uninstall it first.");
         mu.AllowSameVersionUpgrades();
         mu.Schedule(RemoveExistingProductsSchedule.AfterInstallValidate);
     });
+    pkg.Downgrade(d => d.Block(
+        "A newer version of Apex Enterprise Suite is already installed. Please uninstall it first."));
 
     // ──────────────────────────────────────────────────────────────────
     // Launch conditions

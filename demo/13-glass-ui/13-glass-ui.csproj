@@ -5,6 +5,7 @@
         <UseWPF>true</UseWPF>
         <RootNamespace>GlassUi</RootNamespace>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <NoWarn>NU1701</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\src\FalkForge.Ui\FalkForge.Ui.csproj"/>

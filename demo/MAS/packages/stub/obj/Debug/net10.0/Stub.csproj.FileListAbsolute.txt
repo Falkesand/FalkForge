@@ -1,0 +1,15 @@
+D:\Git\FalkInstaller\demo\MAS\packages\stub\bin\Debug\net10.0\dummy.exe
+D:\Git\FalkInstaller\demo\MAS\packages\stub\bin\Debug\net10.0\dummy.deps.json
+D:\Git\FalkInstaller\demo\MAS\packages\stub\bin\Debug\net10.0\dummy.runtimeconfig.json
+D:\Git\FalkInstaller\demo\MAS\packages\stub\bin\Debug\net10.0\dummy.dll
+D:\Git\FalkInstaller\demo\MAS\packages\stub\bin\Debug\net10.0\dummy.pdb
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\Stub.GeneratedMSBuildEditorConfig.editorconfig
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\Stub.AssemblyInfoInputs.cache
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\Stub.AssemblyInfo.cs
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\Stub.csproj.CoreCompileInputs.cache
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\Stub.sourcelink.json
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\dummy.dll
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\refint\dummy.dll
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\dummy.pdb
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\Stub.genruntimeconfig.cache
+D:\Git\FalkInstaller\demo\MAS\packages\stub\obj\Debug\net10.0\ref\dummy.dll
