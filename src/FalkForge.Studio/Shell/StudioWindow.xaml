@@ -32,17 +32,55 @@
                 <MenuItem Header="E_xit" Click="Exit_Click" />
             </MenuItem>
             <MenuItem Header="_Build">
-                <MenuItem Header="_Build MSI" Click="Build_Click" />
+                <MenuItem Header="_Build MSI" Click="Build_Click">
+                    <MenuItem.Style>
+                        <Style TargetType="MenuItem">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBuildInProgress}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                    <Setter Property="Header" Value="Building..." />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </MenuItem.Style>
+                </MenuItem>
             </MenuItem>
         </Menu>
 
-        <Border DockPanel.Dock="Bottom" Height="120" BorderBrush="Gray" BorderThickness="0,1,0,0">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Output" FontWeight="Bold" Margin="4,2" />
-                <TextBox Text="{Binding OutputText, Mode=OneWay}" IsReadOnly="True"
-                         VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"
-                         BorderThickness="0" />
-            </DockPanel>
+        <Border DockPanel.Dock="Bottom" Height="150" BorderThickness="0,1,0,0" BorderBrush="Gray">
+            <TabControl>
+                <TabItem Header="Output">
+                    <TextBox Text="{Binding OutputText, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas"
+                             VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" BorderThickness="0" />
+                </TabItem>
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Errors" />
+                            <TextBlock Text="{Binding ErrorCount, StringFormat=' ({0})'}" Foreground="Red">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ErrorCount}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <DataGrid ItemsSource="{Binding ValidationMessages}" AutoGenerateColumns="False"
+                              CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single"
+                              MouseDoubleClick="ValidationItem_DoubleClick" BorderThickness="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="70" />
+                            <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="70" />
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+            </TabControl>
         </Border>
 
         <Grid>

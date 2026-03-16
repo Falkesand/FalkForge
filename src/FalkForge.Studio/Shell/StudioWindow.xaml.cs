@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using FalkForge.Studio.Navigation;
 using Microsoft.Win32;
 
@@ -22,7 +23,11 @@ public partial class StudioWindow : Window
     }
 
     private void NewProject_Click(object sender, RoutedEventArgs e)
-        => ViewModel.NewProject();
+    {
+        var dialog = new NewProjectDialog { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedTemplate is not null)
+            ViewModel.NewProject(dialog.SelectedTemplate);
+    }
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
     {
@@ -53,10 +58,18 @@ public partial class StudioWindow : Window
         }
     }
 
-    private void Build_Click(object sender, RoutedEventArgs e)
+    private async void Build_Click(object sender, RoutedEventArgs e)
     {
-        var baseDir = Environment.CurrentDirectory;
-        ViewModel.Build(baseDir);
+        var baseDirectory = ViewModel.ProjectPath is not null
+            ? System.IO.Path.GetDirectoryName(ViewModel.ProjectPath) ?? "."
+            : ".";
+        await ViewModel.BuildAsync(baseDirectory);
+    }
+
+    private void ValidationItem_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid grid && grid.SelectedItem is ValidationMessage msg && msg.EditorKey is not null)
+            ViewModel.NavigateTo(msg.EditorKey);
     }
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();

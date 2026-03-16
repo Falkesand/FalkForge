@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.BundlePackagesEditor;
 using FalkForge.Studio.Editors.BundleSettingsEditor;
@@ -31,8 +32,13 @@ public sealed class StudioViewModel : ViewModelBase
     private ViewModelBase? _currentEditor;
     private string _outputText = string.Empty;
     private string _title = "FalkForge Studio";
+    private bool _isBuildInProgress;
 
     public ObservableCollection<TreeNodeViewModel> TreeNodes { get; } = [];
+    public ObservableCollection<ValidationMessage> ValidationMessages { get; } = [];
+
+    public int ErrorCount => ValidationMessages.Count(m => m.Severity == "Error");
+    public int WarningCount => ValidationMessages.Count(m => m.Severity == "Warning");
 
     public ViewModelBase? CurrentEditor
     {
@@ -52,11 +58,23 @@ public sealed class StudioViewModel : ViewModelBase
         set => SetProperty(ref _title, value);
     }
 
+    public bool IsBuildInProgress
+    {
+        get => _isBuildInProgress;
+        private set => SetProperty(ref _isBuildInProgress, value);
+    }
+
     public string? ProjectPath => _projectPath;
 
     public StudioViewModel()
     {
         _project = StudioProjectLoader.NewProject();
+        BuildDefaultTree();
+    }
+
+    public StudioViewModel(StudioProject project)
+    {
+        _project = project;
         BuildDefaultTree();
     }
 
@@ -94,13 +112,82 @@ public sealed class StudioViewModel : ViewModelBase
         }
     }
 
-    public void Build(string baseDirectory)
+    public async Task BuildAsync(string baseDirectory)
     {
-        OutputText = "Building...\n";
-        var result = StudioBuildService.Compile(_project, baseDirectory);
-        OutputText += result.IsSuccess
-            ? $"Build succeeded: {result.Value}\n"
-            : $"Build failed: {result.Error.Message}\n";
+        IsBuildInProgress = true;
+        OutputText = $"Build started at {DateTime.Now:HH:mm:ss}\n";
+
+        try
+        {
+            var result = await Task.Run(() => StudioBuildService.Compile(_project, baseDirectory));
+
+            if (result.IsSuccess)
+            {
+                OutputText += $"Build succeeded: {result.Value}\n";
+                OutputText += $"Completed at {DateTime.Now:HH:mm:ss}\n";
+            }
+            else
+            {
+                OutputText += $"Build failed: {result.Error.Message}\n";
+                OutputText += $"Failed at {DateTime.Now:HH:mm:ss}\n";
+            }
+        }
+        catch (Exception ex)
+        {
+            OutputText += $"Build error: {ex.Message}\n";
+        }
+        finally
+        {
+            IsBuildInProgress = false;
+        }
+
+        RunValidation(baseDirectory);
+    }
+
+    public void RunValidation(string baseDirectory = ".")
+    {
+        ValidationMessages.Clear();
+
+        if (string.IsNullOrWhiteSpace(_project.Product.Name))
+            ValidationMessages.Add(new ValidationMessage { Code = "STU001", Severity = "Error", Message = "Product name is empty.", EditorKey = "product" });
+
+        if (string.IsNullOrWhiteSpace(_project.Product.Manufacturer))
+            ValidationMessages.Add(new ValidationMessage { Code = "STU002", Severity = "Error", Message = "Manufacturer is empty.", EditorKey = "product" });
+
+        if (!Version.TryParse(_project.Product.Version, out _))
+            ValidationMessages.Add(new ValidationMessage { Code = "STU003", Severity = "Error", Message = $"Version '{_project.Product.Version}' is not valid.", EditorKey = "product" });
+
+        if (_project.Features.Count == 0)
+            ValidationMessages.Add(new ValidationMessage { Code = "STU004", Severity = "Error", Message = "No features defined.", EditorKey = "features" });
+
+        foreach (var feature in _project.Features)
+            CheckFeatureFiles(feature);
+
+        if (!string.IsNullOrWhiteSpace(_project.Product.UpgradeCode) && !Guid.TryParse(_project.Product.UpgradeCode, out _))
+            ValidationMessages.Add(new ValidationMessage { Code = "STU006", Severity = "Error", Message = $"Upgrade code '{_project.Product.UpgradeCode}' is not a valid GUID.", EditorKey = "product" });
+
+        var modelResult = StudioBuildService.BuildModel(_project, baseDirectory);
+        if (modelResult.IsFailure)
+        {
+            var alreadyCovered = ValidationMessages.Any(m => modelResult.Error.Message.Contains(m.Message, StringComparison.OrdinalIgnoreCase));
+            if (!alreadyCovered)
+                ValidationMessages.Add(new ValidationMessage { Code = "STU099", Severity = "Error", Message = modelResult.Error.Message });
+        }
+
+        OnPropertyChanged(nameof(ErrorCount));
+        OnPropertyChanged(nameof(WarningCount));
+    }
+
+    private void CheckFeatureFiles(Project.FeatureSection feature)
+    {
+        if (feature.Files.Count == 0 && (feature.Features is null || feature.Features.Count == 0))
+            ValidationMessages.Add(new ValidationMessage { Code = "STU005", Severity = "Warning", Message = $"Feature '{feature.Id}' has no files.", EditorKey = "features" });
+
+        if (feature.Features is not null)
+        {
+            foreach (var sub in feature.Features)
+                CheckFeatureFiles(sub);
+        }
     }
 
     public void NavigateTo(string nodeKey)
@@ -124,6 +211,18 @@ public sealed class StudioViewModel : ViewModelBase
         OutputText = "New project created.";
         Title = "FalkForge Studio - Untitled";
         _projectPath = null;
+    }
+
+    public void NewProject(ProjectTemplate template)
+    {
+        _project = template.Create();
+        _projectPath = null;
+        Title = $"FalkForge Studio - {_project.Product.Name}";
+        _editors.Clear();
+        CurrentEditor = null;
+        TreeNodes.Clear();
+        BuildDefaultTree();
+        OutputText = $"New project created from template: {template.Name}";
     }
 
     public void LoadProject(string path)
