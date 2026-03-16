@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Windows.Input;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.BundlePackagesEditor;
 using FalkForge.Studio.Editors.BundleSettingsEditor;
@@ -28,6 +29,7 @@ public sealed class StudioViewModel : ViewModelBase
 {
     private StudioProject _project;
     private readonly Dictionary<string, ViewModelBase> _editors = new();
+    private readonly UndoManager _undoManager = new();
     private string? _projectPath;
     private ViewModelBase? _currentEditor;
     private string _outputText = string.Empty;
@@ -66,16 +68,28 @@ public sealed class StudioViewModel : ViewModelBase
 
     public string? ProjectPath => _projectPath;
 
+    public bool CanUndo => _undoManager.CanUndo;
+    public bool CanRedo => _undoManager.CanRedo;
+
+    public ICommand UndoCommand { get; }
+    public ICommand RedoCommand { get; }
+
     public StudioViewModel()
     {
         _project = StudioProjectLoader.NewProject();
+        UndoCommand = new RelayCommand(Undo, () => CanUndo);
+        RedoCommand = new RelayCommand(Redo, () => CanRedo);
         BuildDefaultTree();
+        _undoManager.SaveState(_project);
     }
 
     public StudioViewModel(StudioProject project)
     {
         _project = project;
+        UndoCommand = new RelayCommand(Undo, () => CanUndo);
+        RedoCommand = new RelayCommand(Redo, () => CanRedo);
         BuildDefaultTree();
+        _undoManager.SaveState(_project);
     }
 
     private void BuildDefaultTree()
@@ -211,6 +225,10 @@ public sealed class StudioViewModel : ViewModelBase
         OutputText = "New project created.";
         Title = "FalkForge Studio - Untitled";
         _projectPath = null;
+        _undoManager.Clear();
+        _undoManager.SaveState(_project);
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
     }
 
     public void NewProject(ProjectTemplate template)
@@ -223,6 +241,10 @@ public sealed class StudioViewModel : ViewModelBase
         TreeNodes.Clear();
         BuildDefaultTree();
         OutputText = $"New project created from template: {template.Name}";
+        _undoManager.Clear();
+        _undoManager.SaveState(_project);
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
     }
 
     public void LoadProject(string path)
@@ -235,6 +257,10 @@ public sealed class StudioViewModel : ViewModelBase
         OutputText = $"Opened: {path}";
         Title = $"FalkForge Studio - {Path.GetFileName(path)}";
         _projectPath = path;
+        _undoManager.Clear();
+        _undoManager.SaveState(_project);
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
     }
 
     public void SaveProject(string? path = null)
@@ -245,6 +271,45 @@ public sealed class StudioViewModel : ViewModelBase
         OutputText = $"Saved: {path}";
         Title = $"FalkForge Studio - {Path.GetFileName(path)}";
         _projectPath = path;
+    }
+
+    public void SaveUndoState()
+    {
+        _undoManager.SaveState(_project);
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
+    private void Undo()
+    {
+        var restored = _undoManager.Undo(_project);
+        if (restored is null) return;
+
+        _project = restored;
+        RefreshCurrentEditor();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
+    private void Redo()
+    {
+        var restored = _undoManager.Redo(_project);
+        if (restored is null) return;
+
+        _project = restored;
+        RefreshCurrentEditor();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+    }
+
+    private void RefreshCurrentEditor()
+    {
+        var currentKey = _editors.FirstOrDefault(kv => kv.Value == CurrentEditor).Key;
+        _editors.Clear();
+        if (currentKey is not null)
+            NavigateTo(currentKey);
+        else
+            CurrentEditor = null;
     }
 
     private ViewModelBase? CreateEditor(string nodeKey) => nodeKey switch

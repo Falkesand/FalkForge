@@ -22,6 +22,10 @@
         xmlns:bundlePackagesEditor="clr-namespace:FalkForge.Studio.Editors.BundlePackagesEditor"
         Title="{Binding Title}" Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
+    <Window.InputBindings>
+        <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding UndoCommand}" />
+        <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding RedoCommand}" />
+    </Window.InputBindings>
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
@@ -30,6 +34,10 @@
                 <MenuItem Header="_Save" Click="SaveProject_Click" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z" />
+                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGestureText="Ctrl+Y" />
             </MenuItem>
             <MenuItem Header="_Build">
                 <MenuItem Header="_Build MSI" Click="Build_Click">
