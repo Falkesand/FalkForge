@@ -24,6 +24,11 @@ public sealed class DriverExtension : IFalkForgeExtension, IDryRunContributor
         return result;
     }
 
+    public IReadOnlyList<DriverValidationError> ValidateDrivers()
+    {
+        return DriverValidator.Validate(TableContributor.Drivers);
+    }
+
     public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
         intent switch
         {

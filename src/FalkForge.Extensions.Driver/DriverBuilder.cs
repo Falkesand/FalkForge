@@ -4,7 +4,8 @@ public sealed class DriverBuilder
 {
     private string _id = string.Empty;
     private string _infFilePath = string.Empty;
-    private bool _forceInstall;
+    private DriverInstallFlags _flags;
+    private string? _description;
     private string? _condition;
 
     public DriverBuilder Id(string id)
@@ -19,9 +20,21 @@ public sealed class DriverBuilder
         return this;
     }
 
-    public DriverBuilder ForceInstall(bool force = true)
+    public DriverBuilder Force()
     {
-        _forceInstall = force;
+        _flags |= DriverInstallFlags.ForceInstall;
+        return this;
+    }
+
+    public DriverBuilder PlugAndPlay()
+    {
+        _flags |= DriverInstallFlags.PlugAndPlay;
+        return this;
+    }
+
+    public DriverBuilder Description(string description)
+    {
+        _description = description;
         return this;
     }
 
@@ -39,12 +52,16 @@ public sealed class DriverBuilder
         if (string.IsNullOrWhiteSpace(_infFilePath))
             return Result<DriverModel>.Failure(ErrorKind.Validation, "DRV002: Driver InfFilePath must not be empty.");
 
+        if (!_infFilePath.EndsWith(".inf", StringComparison.OrdinalIgnoreCase))
+            return Result<DriverModel>.Failure(ErrorKind.Validation, "DRV003: Driver InfFilePath must end with '.inf'.");
+
         return Result<DriverModel>.Success(new DriverModel
         {
             Id = _id,
             InfFilePath = _infFilePath,
-            ForceInstall = _forceInstall,
-            Condition = _condition
+            Flags = _flags,
+            Description = _description,
+            Condition = _condition,
         });
     }
 }
