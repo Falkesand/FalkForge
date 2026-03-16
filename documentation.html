@@ -718,6 +718,7 @@
           <a href="#demo-gallery-extensions">Extension Demos (29&ndash;34)</a>
           <a href="#demo-gallery-bundle-advanced">Bundle Advanced (35&ndash;43)</a>
           <a href="#demo-gallery-output-types">Output Types (44&ndash;46)</a>
+          <a href="#demo-gallery-advanced-features">Advanced Features (47&ndash;52)</a>
           <a href="#demo-gallery-json">JSON Mode (01&ndash;07)</a>
           <a href="#demo-gallery-production">Production (MAS)</a>
           <a href="#ice-validation">ICE Validation</a>
@@ -2520,6 +2521,8 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>Add(string filePath)</code></td><td><code>FileSetBuilder</code></td><td>Adds a single file by path.</td></tr>
       <tr><td><code>FromDirectory(string sourcePath)</code></td><td><code>FileSetBuilder</code></td><td>Adds all files from a source directory. Resolved at compile time.</td></tr>
       <tr><td><code>To(InstallPath targetDirectory)</code></td><td><code>FileSetBuilder</code></td><td>Sets the target installation directory. Required -- build throws if not specified.</td></tr>
+      <tr><td><code>NeverOverwrite()</code></td><td><code>FileSetBuilder</code></td><td>Prevents overwriting the file on upgrade if it already exists. Maps to MSI component attribute <code>msidbComponentAttributesNeverOverwrite</code>.</td></tr>
+      <tr><td><code>Permanent()</code></td><td><code>FileSetBuilder</code></td><td>File is never removed on uninstall. Maps to MSI component attribute <code>msidbComponentAttributesPermanent</code>. Use for config files and user data.</td></tr>
       <tr><td><code>ComponentCondition(string condition)</code></td><td><code>FileSetBuilder</code></td><td>Applies a condition to all components generated from this file set.</td></tr>
     </tbody>
   </table>
@@ -2559,6 +2562,18 @@ return Installer.Build(args, p =&gt;
     .Add("bin/config.json")
     .To(KnownFolder.ProgramFiles / "Contoso" / "MyApp")
     .ComponentCondition("NOT REMOVE"));</code></pre>
+
+  <h4>Preserving Files Across Upgrades</h4>
+  <p>
+    Use <code>NeverOverwrite()</code> and <code>Permanent()</code> to protect configuration files
+    and user data during upgrades and uninstalls:
+  </p>
+  <pre><code class="language-csharp">// Config file: keep user edits on upgrade, leave on uninstall
+p.Files(f =&gt; f
+    .Add("defaults/appsettings.json")
+    .To(KnownFolder.CommonAppData / "Contoso" / "MyApp")
+    .NeverOverwrite()
+    .Permanent());</code></pre>
 
   <!-- ================================================================ -->
   <!-- 7.5 ShortcutBuilder                                              -->
@@ -2619,6 +2634,7 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>Account</code></td><td><code>ServiceAccount</code></td><td><code>LocalSystem</code></td><td>Service account: <code>LocalSystem</code>, <code>LocalService</code>, <code>NetworkService</code>, <code>User</code>.</td></tr>
       <tr><td><code>UserName</code></td><td><code>string?</code></td><td><code>null</code></td><td>Username when <code>Account</code> is <code>User</code>.</td></tr>
       <tr><td><code>Password</code></td><td><code>string?</code></td><td><code>null</code></td><td>Password when <code>Account</code> is <code>User</code>.</td></tr>
+      <tr><td><code>Arguments</code></td><td><code>string?</code></td><td><code>null</code></td><td>Command-line arguments passed to the service executable at startup. Supports MSI property references: <code>"DSN=[ODBCNAME]"</code>.</td></tr>
       <tr><td><code>Dependencies</code></td><td><code>List&lt;string&gt;</code></td><td>Empty</td><td>Legacy string-based dependency list.</td></tr>
     </tbody>
   </table>
@@ -2631,6 +2647,10 @@ return Installer.Build(args, p =&gt;
     <tbody>
       <tr><td><code>DependsOn(string serviceName)</code></td><td><code>ServiceBuilder</code></td><td>Adds a dependency on another service.</td></tr>
       <tr><td><code>DependsOnGroup(string groupName)</code></td><td><code>ServiceBuilder</code></td><td>Adds a dependency on a service group.</td></tr>
+      <tr><td><code>AccountProperty(string propertyRef)</code></td><td><code>ServiceBuilder</code></td><td>Sets the service account via an MSI property reference (e.g., <code>[SERVICEACCOUNT]</code>) resolved at install time. Overrides the <code>Account</code> enum.</td></tr>
+      <tr><td><code>Condition(string condition)</code></td><td><code>ServiceBuilder</code></td><td>MSI condition controlling whether the service is installed. Example: <code>"ASSERVICE ~= \"true\""</code>.</td></tr>
+      <tr><td><code>Condition(Condition condition)</code></td><td><code>ServiceBuilder</code></td><td>Type-safe overload using the <code>Condition</code> builder.</td></tr>
+      <tr><td><code>Permission(Action&lt;PermissionBuilder&gt;)</code></td><td><code>ServiceBuilder</code></td><td>Configures service access control. Auto-sets <code>ForTable("ServiceInstall")</code>. Use SDDL or User/Domain for fine-grained permissions.</td></tr>
       <tr><td><code>FailureActions(Action&lt;ServiceFailureActionsBuilder&gt;)</code></td><td><code>ServiceBuilder</code></td><td>Configures failure recovery actions.</td></tr>
     </tbody>
   </table>
@@ -2642,6 +2662,7 @@ return Installer.Build(args, p =&gt;
     svc.Executable = "bin/WorkerService.exe";
     svc.StartMode = ServiceStartMode.DelayedAutomatic;
     svc.Account = ServiceAccount.NetworkService;
+    svc.Arguments = "DSN=[ODBCNAME] --mode production";
 
     svc.DependsOn("Tcpip");
     svc.DependsOnGroup("NetworkProvider");
@@ -2654,6 +2675,31 @@ return Installer.Build(args, p =&gt;
         fa.ResetPeriod = TimeSpan.FromDays(1);
         fa.RestartDelay = TimeSpan.FromMinutes(2);
         fa.Command = @"C:\Tools\notify.exe --service-failed";
+    });
+});</code></pre>
+
+  <h4>Advanced Service Configuration</h4>
+  <p>
+    The following example shows dynamic account selection via MSI properties, conditional installation,
+    and service permissions:
+  </p>
+  <pre><code class="language-csharp">p.Service("DataSync", svc =&gt;
+{
+    svc.DisplayName = "Data Sync Agent";
+    svc.Executable = "bin/DataSync.exe";
+    svc.StartMode = ServiceStartMode.Automatic;
+
+    // Account resolved at install time from an MSI property
+    svc.AccountProperty("[SERVICEACCOUNT]");
+
+    // Only install if the user chose "service mode"
+    svc.Condition("ASSERVICE ~= \"true\"");
+
+    // Grant specific permissions on the service object
+    svc.Permission(perm =&gt;
+    {
+        perm.User = "NT AUTHORITY\\Authenticated Users";
+        perm.GenericRead = true;
     });
 });</code></pre>
 
@@ -3891,8 +3937,121 @@ p.CreateFolder(cf =&gt; cf
       <tr><td><code>RemotePayload(string url, string sha256, long size)</code></td><td><code>BundlePackageBuilder</code></td><td>Declares a remote payload with download URL, SHA-256 hash, and size. Remote payloads are not embedded in the bundle.</td></tr>
       <tr><td><code>Container(string containerId)</code></td><td><code>BundlePackageBuilder</code></td><td>Assigns this package to a named container by string ID.</td></tr>
       <tr><td><code>Container(ContainerRef containerRef)</code></td><td><code>BundlePackageBuilder</code></td><td>Assigns this package to a container using a typed reference handle.</td></tr>
+      <tr><td><code>DetectionMode(DetectionMode mode)</code></td><td><code>BundlePackageBuilder</code></td><td>Sets the detection strategy. <code>Default</code> uses product code (MSI) or ARP (EXE). <code>SearchOnly</code> relies solely on search conditions.</td></tr>
+      <tr><td><code>SearchCondition(Action&lt;SearchConditionBuilder&gt;)</code></td><td><code>BundlePackageBuilder</code></td><td>Adds a search condition for package detection. Multiple conditions are ANDed. See <a href="#bundle-search-conditions">SearchConditionBuilder</a>.</td></tr>
+      <tr><td><code>AuthenticodeThumbprint(string)</code></td><td><code>BundlePackageBuilder</code></td><td>Sets the expected Authenticode certificate thumbprint for payload verification.</td></tr>
+      <tr><td><code>Prerequisite(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Marks the package as a prerequisite that must succeed before the main chain runs. Default: <code>false</code>.</td></tr>
+      <tr><td><code>Permanent(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Package is never uninstalled when the bundle is removed. Use for shared runtimes or setup utilities. Default: <code>false</code>.</td></tr>
+      <tr><td><code>EnableFeatureSelection(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Allows bundle UI to present MSI feature selection for this package. Only valid for MSI packages. Default: <code>false</code>.</td></tr>
     </tbody>
   </table>
+
+  <!-- 8.3a SearchConditionBuilder -->
+  <h3 id="bundle-search-conditions">8.3a SearchConditionBuilder</h3>
+  <p>
+    Defines a search condition used for package detection. Created via
+    <code>BundlePackageBuilder.SearchCondition()</code>.
+    Located in <code>src/FalkForge.Compiler.Bundle/Builders/SearchConditionBuilder.cs</code>.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>FileExists(string path)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a file at the specified path.</td></tr>
+      <tr><td><code>FileVersion(string path, string comparison, string version)</code></td><td><code>SearchConditionBuilder</code></td><td>Compares a file's version against an expected version (e.g., <code>"&gt;="</code>, <code>"14.0.0"</code>).</td></tr>
+      <tr><td><code>DirectoryExists(string path)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a directory.</td></tr>
+      <tr><td><code>RegistryExists(RegistryRoot, string key, string? valueName)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a registry key or value. Used for prerequisite detection.</td></tr>
+      <tr><td><code>RegistryValue(RegistryRoot, string key, string valueName, string comparison, string expected)</code></td><td><code>SearchConditionBuilder</code></td><td>Compares a registry value against an expected value. Supports version comparisons (e.g., <code>"&gt;="</code>, <code>"="</code>).</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <code>RegistryRoot</code> values: <code>LocalMachine</code> (HKLM), <code>CurrentUser</code> (HKCU),
+    <code>ClassesRoot</code> (HKCR), <code>Users</code> (HKU).
+  </div>
+
+  <!-- 8.3b PackageGroupBuilder -->
+  <h3 id="bundle-package-groups">8.3b PackageGroupBuilder</h3>
+  <p>
+    Defines a reusable group of packages that are flattened into the chain at build time. Created via
+    <code>ChainBuilder.PackageGroup()</code> or passed as a pre-built <code>PackageGroupModel</code>.
+    Located in <code>src/FalkForge.Compiler.Bundle/Builders/PackageGroupBuilder.cs</code>.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Id(string id)</code></td><td><code>PackageGroupBuilder</code></td><td>Sets the group identifier.</td></tr>
+      <tr><td><code>ExePackage(string sourcePath, Action&lt;BundlePackageBuilder&gt;)</code></td><td><code>PackageGroupBuilder</code></td><td>Adds an EXE package to the group.</td></tr>
+      <tr><td><code>MsiPackage(string sourcePath, Action&lt;BundlePackageBuilder&gt;)</code></td><td><code>PackageGroupBuilder</code></td><td>Adds an MSI package to the group.</td></tr>
+    </tbody>
+  </table>
+
+  <h4>ChainBuilder Integration</h4>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>PackageGroup(Action&lt;PackageGroupBuilder&gt;)</code></td><td><code>ChainBuilder</code></td><td>Defines and flattens a custom package group inline.</td></tr>
+      <tr><td><code>PackageGroup(PackageGroupModel)</code></td><td><code>ChainBuilder</code></td><td>Flattens a pre-built package group (e.g., from <code>BuiltInPrerequisites</code>).</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 8.3c BuiltInPrerequisites -->
+  <h3 id="bundle-built-in-prerequisites">8.3c Built-in Prerequisites</h3>
+  <p>
+    Pre-configured package groups for common runtime prerequisites. Each group defines detection via
+    registry search conditions and silent install arguments. The actual installer files are
+    <strong>not</strong> embedded -- users must provide the source files or use <code>RemotePayload</code>.
+    Located in <code>src/FalkForge.Compiler.Bundle/Prerequisites/BuiltInPrerequisites.cs</code>.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Returns</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>BuiltInPrerequisites.NetFx472()</code></td><td><code>PackageGroupModel</code></td><td>.NET Framework 4.7.2 offline installer. Detection: <code>HKLM\...\NDP\v4\Full</code>, Release &gt;= 461808. Silent: <code>/q /norestart</code>.</td></tr>
+      <tr><td><code>BuiltInPrerequisites.VCRedist14x64()</code></td><td><code>PackageGroupModel</code></td><td>Visual C++ 2015-2022 Redistributable (x64). Detection: <code>HKLM\...\VC\Runtimes\x64</code>, Installed = 1. Silent: <code>/install /quiet /norestart</code>.</td></tr>
+      <tr><td><code>BuiltInPrerequisites.OdbcDriver17()</code></td><td><code>PackageGroupModel</code></td><td>Microsoft ODBC Driver 17 for SQL Server. Detection: <code>HKLM\...\ODBCINST.INI\ODBC Driver 17</code>. Silent MSI install.</td></tr>
+      <tr><td><code>BuiltInPrerequisites.SqlExpress2017()</code></td><td><code>PackageGroupModel</code></td><td>SQL Server 2017 Express. Detection: <code>HKLM\...\Instance Names\SQL\SQLEXPRESS</code>. Silent: <code>/QUIET</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <pre><code class="language-csharp">// Use built-in prerequisites in a bundle chain
+Installer.BuildBundle(args, bundle =&gt;
+{
+    bundle.Name("My Enterprise App")
+          .Version("2.0.0")
+          .Chain(chain =&gt;
+          {
+              // Add .NET Framework and VC++ prerequisites
+              chain.PackageGroup(BuiltInPrerequisites.NetFx472());
+              chain.PackageGroup(BuiltInPrerequisites.VCRedist14x64());
+
+              // Main application MSI with feature selection
+              chain.MsiPackage("MyApp.msi", p =&gt; p
+                  .Id("MyApp")
+                  .DisplayName("My Enterprise App")
+                  .EnableFeatureSelection(true));
+          });
+});</code></pre>
+
+  <!-- 8.3d Variable Resolution -->
+  <h3 id="bundle-variable-resolution">8.3d Variable Resolution in Install Arguments</h3>
+  <p>
+    EXE package install arguments support the <code>[VariableName]</code> syntax, which is resolved
+    at runtime by the bundle engine. Variables are sourced from the <code>VariableStore</code>, which
+    includes built-in variables and any user-defined variables set via the bundle UI or command line.
+  </p>
+  <pre><code class="language-csharp">chain.ExePackage("setup.exe", p =&gt; p
+    .Id("Setup")
+    .Property("InstallArguments", "/TARGETDIR=[InstallFolder] /LOG=[BundleLog]"));</code></pre>
+  <div class="note">
+    Unresolved variables (not found in the <code>VariableStore</code>) are left as-is in the argument
+    string. The pattern <code>[name]</code> is matched by a regex and replaced only when the variable exists.
+  </div>
 
   <!-- 8.4 MsuPackageBuilder -->
   <h3>8.4 MsuPackageBuilder</h3>
@@ -6703,6 +6862,19 @@ public sealed class MsiDecompiler
         <tr><td>SVC006</td><td>Duplicate service name</td></tr>
         <tr><td>SVC007</td><td>Service account requires password</td></tr>
         <tr><td>SVC008</td><td>Invalid failure action configuration</td></tr>
+        <tr><td>SVC009</td><td>Service Arguments is empty string (use null for no arguments)</td></tr>
+        <tr><td>SVC010</td><td>Both AccountProperty and UserName specified (AccountProperty takes precedence)</td></tr>
+        <tr><td>SVC011</td><td>Service ComponentCondition must not be empty (use null to omit)</td></tr>
+    </tbody>
+</table>
+
+<h3>Permission Validation (PRM)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>PRM001</td><td>Permission LockObject is required</td></tr>
+        <tr><td>PRM002</td><td>Permission must have either SDDL or User specified</td></tr>
+        <tr><td>PRM003</td><td>Invalid permission Table (must be File, Registry, CreateFolder, or ServiceInstall)</td></tr>
     </tbody>
 </table>
 
@@ -6806,6 +6978,7 @@ public sealed class MsiDecompiler
         <tr><td>BDL023</td><td>Dependency consumer key must not be empty</td></tr>
         <tr><td>BDL024</td><td>Update feed URL is not a valid absolute URI</td></tr>
         <tr><td>BDL025</td><td>Update feed URL must use HTTPS</td></tr>
+        <tr><td>BDL027</td><td>EnableFeatureSelection is only valid for MsiPackage type</td></tr>
     </tbody>
 </table>
 
@@ -7066,7 +7239,7 @@ public sealed class MsiDecompiler
 </tr>
 <tr>
     <td>03</td><td>Client-Server</td>
-    <td>Multi-feature suite with services and conditions</td>
+    <td>Services with arguments, config file protection (NeverOverwrite/Permanent)</td>
     <td><span class="badge">Features</span> <span class="badge">Services</span> <span class="badge">EnvVars</span> <span class="badge">LaunchConditions</span> <span class="badge">FeatureTree UI</span></td>
 </tr>
 <tr>
@@ -7153,8 +7326,8 @@ public sealed class MsiDecompiler
 </tr>
 <tr>
     <td>17</td><td>Services</td>
-    <td>Service install with FailureActions, DependsOnGroup, credentials</td>
-    <td><span class="badge">ServiceInstall</span> <span class="badge">FailureActions</span> <span class="badge">ServiceControl</span> <span class="badge">Credentials</span></td>
+    <td>Complete service API showcase: arguments, AccountProperty, conditional install, service permissions</td>
+    <td><span class="badge">ServiceInstall</span> <span class="badge">FailureActions</span> <span class="badge">ServiceControl</span> <span class="badge">Credentials</span> <span class="badge">AccountProperty</span> <span class="badge">Arguments</span> <span class="badge">ComponentCondition</span> <span class="badge">Permissions</span></td>
 </tr>
 <tr>
     <td>18</td><td>Environment Variables</td>
@@ -7331,6 +7504,45 @@ public sealed class MsiDecompiler
 </tbody>
 </table>
 
+<h3 id="demo-gallery-advanced-features">Advanced Features (47&ndash;52)</h3>
+<table>
+<thead>
+<tr><th>#</th><th>Name</th><th>Description</th><th>Key Features</th></tr>
+</thead>
+<tbody>
+<tr>
+    <td>47</td><td>PowerShell Actions</td>
+    <td>Inline script, file-based script, and deferred PowerShell custom actions</td>
+    <td><span class="badge">PowerShell</span> <span class="badge">InlineScript</span> <span class="badge">Deferred</span></td>
+</tr>
+<tr>
+    <td>48</td><td>COM Registration</td>
+    <td>In-proc server, local server, ProgId, and threading model registration</td>
+    <td><span class="badge">COM</span> <span class="badge">ProgId</span> <span class="badge">ThreadingModel</span></td>
+</tr>
+<tr>
+    <td>49</td><td>HTTP Extension</td>
+    <td>URL reservation and SNI SSL certificate binding</td>
+    <td><span class="badge">HttpExtension</span> <span class="badge">UrlReservation</span> <span class="badge">SslBinding</span></td>
+</tr>
+<tr>
+    <td>50</td><td>Driver Install</td>
+    <td>INF-based device driver installation with NeverOverwrite on INF files</td>
+    <td><span class="badge">DriverExtension</span> <span class="badge">PlugAndPlay</span> <span class="badge">ForceInstall</span> <span class="badge">NeverOverwrite</span></td>
+</tr>
+<tr>
+    <td>51</td><td>ICE Validation</td>
+    <td>Post-build ICE validation with rule suppression and JSON reporting</td>
+    <td><span class="badge">IceValidation</span> <span class="badge">Suppress</span> <span class="badge">WarningsAsErrors</span></td>
+</tr>
+<tr>
+    <td>52</td><td>MSIX Advanced</td>
+    <td>Advanced MSIX packaging with visual assets and capabilities</td>
+    <td><span class="badge">MSIX</span> <span class="badge">Advanced</span> <span class="badge">Capabilities</span></td>
+</tr>
+</tbody>
+</table>
+
 <h3 id="demo-gallery-json">JSON Mode (01&ndash;07)</h3>
 <p>
     Declarative JSON files validated and built by the <code>forge</code> CLI. No C# code required.
@@ -7358,6 +7570,7 @@ public sealed class MsiDecompiler
 </p>
 <ul>
     <li><strong>5 MSI packages</strong> &mdash; MultiAccess, MultiServer, MultiServerEx, Konfigurera, Concatenate</li>
+    <li><strong>Full WiX parity</strong> &mdash; Prerequisite groups, service args, account properties, conditional services, permissions, file protection, feature selection</li>
     <li><strong>Plugin system</strong> &mdash; SqlPlugin, OdbcPlugin, FileSystemPlugin for SQL discovery and ODBC configuration</li>
     <li><strong>Custom UI</strong> &mdash; Multi-page wizard with conditional page flow, cancel confirmation, language selection</li>
     <li><strong>Engine wiring</strong> &mdash; Named pipe IPC, real-time progress with per-MSI tracking, shared state</li>
