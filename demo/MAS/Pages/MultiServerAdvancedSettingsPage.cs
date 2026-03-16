@@ -13,6 +13,7 @@ namespace MAS.Pages;
 /// </summary>
 public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdvancedSettingsView>
 {
+    private bool _isChecking;
     private string _dsnName = "MultiAccess";
     private string _dsnWarning = string.Empty;
     private string _serviceAccount = "LocalSystem";
@@ -29,6 +30,12 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
     public string PasswordLabel => Localize("MSAdvancedSettings.PasswordLabel");
     public string ShowButtonText => Localize("Shell.ShowButton");
     public string ShowPasswordTooltip => Localize("Shell.ShowPasswordTooltip");
+
+    public bool IsChecking
+    {
+        get => _isChecking;
+        set => SetField(ref _isChecking, value);
+    }
 
     public string DsnName
     {
@@ -63,11 +70,19 @@ public sealed class MultiServerAdvancedSettingsPage : MasPageBase<MultiServerAdv
         var odbc = PluginServices.GetService<IOdbcManager>();
         if (odbc is null) return;
 
-        var result = odbc.DsnExists(DsnName);
-        if (result.IsSuccess && result.Value)
-            DsnWarning = string.Format(Localize("MSAdvancedSettings.DsnWarningFormat"), DsnName);
-        else
-            DsnWarning = string.Empty;
+        IsChecking = true;
+        try
+        {
+            var result = odbc.DsnExists(DsnName);
+            if (result.IsSuccess && result.Value)
+                DsnWarning = string.Format(Localize("MSAdvancedSettings.DsnWarningFormat"), DsnName);
+            else
+                DsnWarning = string.Empty;
+        }
+        finally
+        {
+            IsChecking = false;
+        }
     }
 
     public void LaunchOdbcAdmin()

@@ -1,7 +1,12 @@
 <UserControl x:Class="MAS.Views.DatabaseServerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:MAS.Shell"
              Background="#F0F0F0">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <shell:InverseBooleanConverter x:Key="InverseBool" />
+    </UserControl.Resources>
     <Grid Margin="16,12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -34,8 +39,12 @@
                     Background="White" Padding="8" Margin="0,0,0,4">
                 <StackPanel>
                     <Button Content="{Binding SearchButtonText}" HorizontalAlignment="Center"
-                            Padding="16,6" Margin="0,4,0,8"
-                            Click="SearchServer_Click" />
+                            Padding="16,6" Margin="0,4,0,4"
+                            Click="SearchServer_Click"
+                            IsEnabled="{Binding IsSearching, Converter={StaticResource InverseBool}}" />
+                    <ProgressBar IsIndeterminate="True"
+                                 Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"
+                                 Height="4" Margin="0,0,0,4" />
                     <ComboBox IsEditable="True"
                               Text="{Binding DatabaseServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                               ItemsSource="{Binding AvailableServers}"

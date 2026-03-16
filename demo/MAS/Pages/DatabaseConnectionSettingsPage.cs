@@ -17,6 +17,7 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
     private bool _integratedSecurity = true;
     private bool _trustServerCertificate = true;
     private bool _skipTest;
+    private bool _isTesting;
     private string _testResult = string.Empty;
     private string _userName = "AUSR_AptusWeb";
 
@@ -77,6 +78,12 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         set => SetField(ref _skipTest, value);
     }
 
+    public bool IsTesting
+    {
+        get => _isTesting;
+        set => SetField(ref _isTesting, value);
+    }
+
     public string TestResult
     {
         get => _testResult;
@@ -90,14 +97,22 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
         var tester = PluginServices.GetService<IConnectionTester>();
         if (tester is null) return;
 
-        TestResult = Localize("DbConnectionSettings.TestResultTesting");
-        using var pw = GetPassword("DbPassword");
-        var passwordStr = pw.IsEmpty ? string.Empty : Encoding.UTF8.GetString(pw.Span);
-        var result = await tester.TestConnectionAsync(
-            DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
-        TestResult = result.IsSuccess
-            ? Localize("DbConnectionSettings.TestResultSuccess")
-            : string.Format(Localize("DbConnectionSettings.TestResultFailed"), result.Error.Message);
+        IsTesting = true;
+        try
+        {
+            TestResult = Localize("DbConnectionSettings.TestResultTesting");
+            using var pw = GetPassword("DbPassword");
+            var passwordStr = pw.IsEmpty ? string.Empty : Encoding.UTF8.GetString(pw.Span);
+            var result = await tester.TestConnectionAsync(
+                DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
+            TestResult = result.IsSuccess
+                ? Localize("DbConnectionSettings.TestResultSuccess")
+                : string.Format(Localize("DbConnectionSettings.TestResultFailed"), result.Error.Message);
+        }
+        finally
+        {
+            IsTesting = false;
+        }
     }
 
     public override PageResult OnNext()
