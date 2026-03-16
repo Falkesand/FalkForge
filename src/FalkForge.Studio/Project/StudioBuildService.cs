@@ -68,7 +68,12 @@ public static class StudioBuildService
             Scope = scope,
             Architecture = architecture,
             Compression = compression,
-            Description = project.Product.Description
+            Description = project.Product.Description,
+            Comments = project.Product.Comments,
+            Contact = project.Product.Email,
+            HelpUrl = project.Product.HelpUrl,
+            AboutUrl = project.Product.AboutUrl,
+            UpdateUrl = project.Product.UpdateUrl
         };
 
         if (!string.IsNullOrWhiteSpace(project.InstallDirectory))

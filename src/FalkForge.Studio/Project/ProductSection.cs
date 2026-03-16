@@ -24,4 +24,22 @@ public sealed class ProductSection
 
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+
+    [JsonPropertyName("helpUrl")]
+    public string? HelpUrl { get; set; }
+
+    [JsonPropertyName("aboutUrl")]
+    public string? AboutUrl { get; set; }
+
+    [JsonPropertyName("updateUrl")]
+    public string? UpdateUrl { get; set; }
+
+    [JsonPropertyName("phone")]
+    public string? Phone { get; set; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("comments")]
+    public string? Comments { get; set; }
 }

@@ -149,4 +149,56 @@ public class ProductEditorViewModelTests
         vm.SelectedProjectType = new ProjectTypeItem("MSIX Package", "msix");
         Assert.Equal("msix", vm.ProjectType);
     }
+
+    [Theory]
+    [InlineData(nameof(ProductEditorViewModel.HelpUrl), "https://help.example.com")]
+    [InlineData(nameof(ProductEditorViewModel.AboutUrl), "https://about.example.com")]
+    [InlineData(nameof(ProductEditorViewModel.UpdateUrl), "https://update.example.com")]
+    [InlineData(nameof(ProductEditorViewModel.Phone), "+1-555-0100")]
+    [InlineData(nameof(ProductEditorViewModel.Email), "support@example.com")]
+    [InlineData(nameof(ProductEditorViewModel.Comments), "Test comments")]
+    public void SupportInfoProperty_ReadsFromModel(string propertyName, string value)
+    {
+        var model = new ProductSection();
+        typeof(ProductSection).GetProperty(propertyName)!.SetValue(model, value);
+        var vm = CreateVm(model);
+        var actual = (string?)typeof(ProductEditorViewModel).GetProperty(propertyName)!.GetValue(vm);
+        Assert.Equal(value, actual);
+    }
+
+    [Theory]
+    [InlineData(nameof(ProductEditorViewModel.HelpUrl), "https://help.example.com")]
+    [InlineData(nameof(ProductEditorViewModel.AboutUrl), "https://about.example.com")]
+    [InlineData(nameof(ProductEditorViewModel.UpdateUrl), "https://update.example.com")]
+    [InlineData(nameof(ProductEditorViewModel.Phone), "+1-555-0100")]
+    [InlineData(nameof(ProductEditorViewModel.Email), "support@example.com")]
+    [InlineData(nameof(ProductEditorViewModel.Comments), "Test comments")]
+    public void SupportInfoProperty_Set_UpdatesModel(string propertyName, string value)
+    {
+        var project = new StudioProject();
+        var vm = CreateVm(project: project);
+        typeof(ProductEditorViewModel).GetProperty(propertyName)!.SetValue(vm, value);
+        var actual = (string?)typeof(ProductSection).GetProperty(propertyName)!.GetValue(project.Product);
+        Assert.Equal(value, actual);
+    }
+
+    [Theory]
+    [InlineData(nameof(ProductEditorViewModel.HelpUrl))]
+    [InlineData(nameof(ProductEditorViewModel.AboutUrl))]
+    [InlineData(nameof(ProductEditorViewModel.UpdateUrl))]
+    [InlineData(nameof(ProductEditorViewModel.Phone))]
+    [InlineData(nameof(ProductEditorViewModel.Email))]
+    [InlineData(nameof(ProductEditorViewModel.Comments))]
+    public void SupportInfoProperty_Set_RaisesPropertyChanged(string propertyName)
+    {
+        var vm = CreateVm();
+        var raised = false;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == propertyName)
+                raised = true;
+        };
+        typeof(ProductEditorViewModel).GetProperty(propertyName)!.SetValue(vm, "test");
+        Assert.True(raised);
+    }
 }

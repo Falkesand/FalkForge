@@ -69,6 +69,42 @@ public sealed class ProductEditorViewModel : ViewModelBase
         set { _model.Description = value; OnPropertyChanged(); }
     }
 
+    public string? HelpUrl
+    {
+        get => _model.HelpUrl;
+        set { _model.HelpUrl = value; OnPropertyChanged(); }
+    }
+
+    public string? AboutUrl
+    {
+        get => _model.AboutUrl;
+        set { _model.AboutUrl = value; OnPropertyChanged(); }
+    }
+
+    public string? UpdateUrl
+    {
+        get => _model.UpdateUrl;
+        set { _model.UpdateUrl = value; OnPropertyChanged(); }
+    }
+
+    public string? Phone
+    {
+        get => _model.Phone;
+        set { _model.Phone = value; OnPropertyChanged(); }
+    }
+
+    public string? Email
+    {
+        get => _model.Email;
+        set { _model.Email = value; OnPropertyChanged(); }
+    }
+
+    public string? Comments
+    {
+        get => _model.Comments;
+        set { _model.Comments = value; OnPropertyChanged(); }
+    }
+
     public string[] Architectures { get; } = ["x86", "x64", "arm64"];
     public string[] Scopes { get; } = ["perMachine", "perUser"];
     public ProjectTypeItem[] ProjectTypes { get; } =

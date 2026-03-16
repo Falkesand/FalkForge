@@ -5,49 +5,101 @@
         <StackPanel Margin="8" MaxWidth="500">
             <TextBlock Text="Product Information" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
 
-            <TextBlock Text="Output Format" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <ComboBox ItemsSource="{Binding ProjectTypes}" SelectedItem="{Binding SelectedProjectType}"
-                      ToolTip="Choose the installer package format. MSI for traditional Windows Installer, Bundle for multi-package EXE, MSIX for modern Windows apps."
-                      Margin="0,0,0,12" />
+            <TabControl Margin="0,0,0,12">
+                <!-- Tab 1: General -->
+                <TabItem Header="General">
+                    <StackPanel Margin="8" MaxWidth="500">
+                        <TextBlock Text="Output Format" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding ProjectTypes}" SelectedItem="{Binding SelectedProjectType}"
+                                  ToolTip="Choose the installer package format. MSI for traditional Windows Installer, Bundle for multi-package EXE, MSIX for modern Windows apps."
+                                  Margin="0,0,0,12" />
 
-            <TextBlock Text="Product Name *" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="The display name shown in Add/Remove Programs and installer dialogs."
-                     Margin="0,0,0,12" />
+                        <TextBlock Text="Product Name *" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="The display name shown in Add/Remove Programs and installer dialogs."
+                                 Margin="0,0,0,12" />
 
-            <TextBlock Text="Manufacturer *" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <TextBox Text="{Binding Manufacturer, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Company or author name. Used in the default install path (Program Files\Manufacturer\Product)."
-                     Margin="0,0,0,12" />
+                        <TextBlock Text="Manufacturer *" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Manufacturer, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Company or author name. Used in the default install path (Program Files\Manufacturer\Product)."
+                                 Margin="0,0,0,12" />
 
-            <TextBlock Text="Version *" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <TextBlock Text="Used for upgrade detection and displayed in Add/Remove Programs."
-                       Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
-            <TextBox Text="{Binding Version, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Product version in Major.Minor.Build format (e.g., 1.2.3). MSI supports up to 255.255.65535."
-                     Margin="0,0,0,12" />
+                        <TextBlock Text="Version *" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBlock Text="Used for upgrade detection and displayed in Add/Remove Programs."
+                                   Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Version, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Product version in Major.Minor.Build format (e.g., 1.2.3). MSI supports up to 255.255.65535."
+                                 Margin="0,0,0,12" />
 
-            <TextBlock Text="Upgrade Code" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <TextBlock Text="Generate once and never change. Format: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
-                       Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
-            <TextBox Text="{Binding UpgradeCode, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="A fixed GUID identifying this product line. Must remain the same across all versions to enable upgrades."
-                     Margin="0,0,0,12" FontFamily="Consolas" />
+                        <TextBlock Text="Upgrade Code" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBlock Text="Generate once and never change. Format: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
+                                   Foreground="Gray" FontSize="11" FontStyle="Italic" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding UpgradeCode, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="A fixed GUID identifying this product line. Must remain the same across all versions to enable upgrades."
+                                 Margin="0,0,0,12" FontFamily="Consolas" />
 
-            <TextBlock Text="Architecture" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <ComboBox ItemsSource="{Binding Architectures}" SelectedItem="{Binding Architecture}"
-                      ToolTip="Target processor architecture. x64 for 64-bit, x86 for 32-bit, arm64 for ARM devices."
-                      Margin="0,0,0,12" />
+                        <TextBlock Text="Architecture" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding Architectures}" SelectedItem="{Binding Architecture}"
+                                  ToolTip="Target processor architecture. x64 for 64-bit, x86 for 32-bit, arm64 for ARM devices."
+                                  Margin="0,0,0,12" />
 
-            <TextBlock Text="Install Scope" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope}"
-                      ToolTip="Per-machine installs for all users (requires elevation). Per-user installs for the current user only."
-                      Margin="0,0,0,12" />
+                        <TextBlock Text="Install Scope" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope}"
+                                  ToolTip="Per-machine installs for all users (requires elevation). Per-user installs for the current user only."
+                                  Margin="0,0,0,12" />
+                    </StackPanel>
+                </TabItem>
 
-            <TextBlock Text="Description" FontWeight="SemiBold" Margin="0,0,0,4" />
-            <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Optional description shown in Add/Remove Programs."
-                     AcceptsReturn="True" Height="60" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <!-- Tab 2: Support Info -->
+                <TabItem Header="Support Info">
+                    <StackPanel Margin="8" MaxWidth="500">
+                        <TextBlock Text="Description" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Optional description shown in Add/Remove Programs."
+                                 AcceptsReturn="True" Height="60" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <TextBlock Text="Comments" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Comments, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Additional product description shown in Add/Remove Programs."
+                                 AcceptsReturn="True" Height="60" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                        <TextBlock Text="Help URL" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding HelpUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="URL for technical support, shown in Add/Remove Programs."
+                                 Margin="0,0,0,12" />
+
+                        <TextBlock Text="About URL" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding AboutUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="URL with product information, shown in Add/Remove Programs."
+                                 Margin="0,0,0,12" />
+
+                        <TextBlock Text="Update Info URL" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding UpdateUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="URL for product updates, shown in Add/Remove Programs."
+                                 Margin="0,0,0,12" />
+
+                        <TextBlock Text="Phone" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Support telephone number for this product."
+                                 Margin="0,0,0,12" />
+
+                        <TextBlock Text="Email" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Support email address for this product."
+                                 Margin="0,0,0,12" />
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Tab 3: Programs & Features -->
+                <TabItem Header="Programs &amp; Features">
+                    <StackPanel Margin="8" MaxWidth="500">
+                        <TextBlock Text="These settings control how the product appears in Windows Add/Remove Programs."
+                                   TextWrapping="Wrap" Margin="0,0,0,12" />
+                        <TextBlock Text="ARP customization options coming soon: custom icon, disable modify/repair/remove buttons."
+                                   Foreground="Gray" FontStyle="Italic" TextWrapping="Wrap" />
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
 
             <TextBlock Text="{Binding ValidationError}" Foreground="Red" FontStyle="Italic" />
         </StackPanel>
