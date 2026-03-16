@@ -136,6 +136,8 @@ public sealed class Planner
                         DownloadUrl = pkg.DownloadUrl,
                         ContainerId = pkg.ContainerId,
                         IsPrerequisite = pkg.IsPrerequisite,
+                        Permanent = pkg.Permanent,
+                        EnableFeatureSelection = pkg.EnableFeatureSelection,
                         SlipstreamTargetId = pkg.SlipstreamTargetId
                     });
                 }
@@ -268,6 +270,10 @@ public sealed class Planner
         for (var i = packages.Length - 1; i >= 0; i--)
         {
             var package = packages[i];
+
+            // Permanent packages are never uninstalled
+            if (actionType == PlanActionType.Uninstall && package.Permanent)
+                continue;
 
             if (!IsPackageSelectedByFeatures(package.Id, packageFeatureMap, featureSelections))
                 continue;

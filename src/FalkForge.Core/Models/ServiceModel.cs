@@ -10,8 +10,12 @@ public sealed class ServiceModel
     public ServiceAccount Account { get; init; } = ServiceAccount.LocalSystem;
     public string? UserName { get; init; }
     public string? Password { get; init; }
+    public string? Arguments { get; init; }
+    public string? AccountProperty { get; init; }
+    public string? ComponentCondition { get; init; }
     public IReadOnlyList<string> Dependencies { get; init; } = [];
     public IReadOnlyList<ServiceDependencyModel> TypedDependencies { get; init; } = [];
     public ServiceFailureActionsModel? FailureActions { get; init; }
+    public IReadOnlyList<PermissionModel> Permissions { get; init; } = [];
     public string? FeatureRef { get; init; }
 }

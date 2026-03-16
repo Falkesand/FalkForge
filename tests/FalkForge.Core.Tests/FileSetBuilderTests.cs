@@ -145,4 +145,84 @@ public sealed class FileSetBuilderTests
         // extra.dll is second
         Assert.False(package.Files[1].IsKeyPath);
     }
+
+    [Fact]
+    public void NeverOverwrite_SetsFlag()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("config.xml")
+                .NeverOverwrite()
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.True(package.Files[0].NeverOverwrite);
+    }
+
+    [Fact]
+    public void NeverOverwrite_DefaultsToFalse()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("app.exe")
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.False(package.Files[0].NeverOverwrite);
+    }
+
+    [Fact]
+    public void Permanent_SetsFlag()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("data.db")
+                .Permanent()
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.True(package.Files[0].Permanent);
+    }
+
+    [Fact]
+    public void Permanent_DefaultsToFalse()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("app.exe")
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.False(package.Files[0].Permanent);
+    }
+
+    [Fact]
+    public void NeverOverwrite_And_Permanent_BothSet()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("config.xml")
+                .NeverOverwrite()
+                .Permanent()
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.True(package.Files[0].NeverOverwrite);
+        Assert.True(package.Files[0].Permanent);
+    }
 }

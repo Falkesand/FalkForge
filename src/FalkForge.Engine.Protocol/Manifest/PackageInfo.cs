@@ -22,4 +22,6 @@ public sealed class PackageInfo
     public string? AuthenticodeThumbprint { get; init; }
     public bool IsPrerequisite { get; init; }
     public string? SlipstreamTargetId { get; init; }
+    public bool Permanent { get; init; }
+    public bool EnableFeatureSelection { get; init; }
 }

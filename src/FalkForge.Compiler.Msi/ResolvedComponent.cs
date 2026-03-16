@@ -9,4 +9,6 @@ public sealed class ResolvedComponent
     public required IReadOnlyList<ResolvedFile> Files { get; init; }
     public string? FeatureRef { get; init; }
     public string? Condition { get; init; }
+    public bool NeverOverwrite { get; init; }
+    public bool Permanent { get; init; }
 }

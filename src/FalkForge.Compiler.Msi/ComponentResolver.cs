@@ -64,7 +64,9 @@ public sealed class ComponentResolver
                         KeyPath = resolvedFile.FileId,
                         Files = [resolvedFile],
                         FeatureRef = file.FeatureRef,
-                        Condition = file.ComponentCondition
+                        Condition = file.ComponentCondition,
+                        NeverOverwrite = file.NeverOverwrite,
+                        Permanent = file.Permanent
                     });
                 }
             }
@@ -96,7 +98,9 @@ public sealed class ComponentResolver
                     KeyPath = resolvedFile.FileId,
                     Files = [resolvedFile],
                     FeatureRef = file.FeatureRef,
-                    Condition = file.ComponentCondition
+                    Condition = file.ComponentCondition,
+                    NeverOverwrite = file.NeverOverwrite,
+                    Permanent = file.Permanent
                 });
             }
 

@@ -19,6 +19,8 @@ public sealed class BundlePackageBuilder
     private readonly List<SearchCondition> _searchConditions = new();
     private string? _authenticodeThumbprint;
     private bool _isPrerequisite;
+    private bool _permanent;
+    private bool _enableFeatureSelection;
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -107,6 +109,8 @@ public sealed class BundlePackageBuilder
     }
     public BundlePackageBuilder AuthenticodeThumbprint(string thumbprint) { _authenticodeThumbprint = thumbprint; return this; }
     public BundlePackageBuilder Prerequisite(bool isPrerequisite = true) { _isPrerequisite = isPrerequisite; return this; }
+    public BundlePackageBuilder Permanent(bool permanent = true) { _permanent = permanent; return this; }
+    public BundlePackageBuilder EnableFeatureSelection(bool enable = true) { _enableFeatureSelection = enable; return this; }
 
     internal BundlePackageModel Build()
     {
@@ -126,7 +130,9 @@ public sealed class BundlePackageBuilder
             DetectionMode = _detectionMode,
             SearchConditions = _searchConditions.ToArray(),
             AuthenticodeThumbprint = _authenticodeThumbprint,
-            IsPrerequisite = _isPrerequisite
+            IsPrerequisite = _isPrerequisite,
+            Permanent = _permanent,
+            EnableFeatureSelection = _enableFeatureSelection
         };
     }
 }

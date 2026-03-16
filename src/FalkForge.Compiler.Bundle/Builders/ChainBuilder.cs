@@ -65,6 +65,30 @@ public sealed class ChainBuilder
         return this;
     }
 
+    public ChainBuilder PackageGroup(Action<PackageGroupBuilder> configure)
+    {
+        var builder = new PackageGroupBuilder();
+        configure(builder);
+        var group = builder.Build();
+        FlattenGroup(group);
+        return this;
+    }
+
+    public ChainBuilder PackageGroup(PackageGroupModel group)
+    {
+        FlattenGroup(group);
+        return this;
+    }
+
+    private void FlattenGroup(PackageGroupModel group)
+    {
+        foreach (var package in group.Packages)
+        {
+            _packages.Add(package);
+            _chainItems.Add(new PackageChainItem(package));
+        }
+    }
+
     public ChainBuilder RollbackBoundary(string id, Action<RollbackBoundaryBuilder>? configure = null)
     {
         var builder = new RollbackBoundaryBuilder().Id(id);

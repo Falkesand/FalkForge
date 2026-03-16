@@ -6,6 +6,8 @@ public sealed class FileSetBuilder
 {
     private readonly List<FileEntrySource> _sources = [];
     private string? _componentCondition;
+    private bool _neverOverwrite;
+    private bool _permanent;
     private InstallPath? _targetDirectory;
 
     public FileSetBuilder FromDirectory(string sourcePath)
@@ -23,6 +25,18 @@ public sealed class FileSetBuilder
     public FileSetBuilder To(InstallPath targetDirectory)
     {
         _targetDirectory = targetDirectory;
+        return this;
+    }
+
+    public FileSetBuilder NeverOverwrite()
+    {
+        _neverOverwrite = true;
+        return this;
+    }
+
+    public FileSetBuilder Permanent()
+    {
+        _permanent = true;
         return this;
     }
 
@@ -49,6 +63,8 @@ public sealed class FileSetBuilder
                     TargetDirectory = _targetDirectory,
                     FileName = "*",
                     IsKeyPath = files.Count == 0,
+                    NeverOverwrite = _neverOverwrite,
+                    Permanent = _permanent,
                     ComponentCondition = _componentCondition
                 });
             else
@@ -58,6 +74,8 @@ public sealed class FileSetBuilder
                     TargetDirectory = _targetDirectory,
                     FileName = Path.GetFileName(source.Path),
                     IsKeyPath = files.Count == 0,
+                    NeverOverwrite = _neverOverwrite,
+                    Permanent = _permanent,
                     ComponentCondition = _componentCondition
                 });
 
