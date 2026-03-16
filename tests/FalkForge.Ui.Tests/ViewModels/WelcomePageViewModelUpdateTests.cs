@@ -101,6 +101,43 @@ public class WelcomePageViewModelUpdateTests
         Assert.DoesNotContain(nameof(WelcomePageViewModel.DownloadPercent), changedProperties);
     }
 
+    [Fact]
+    public void UpdateDownloadProgress_At100Percent_SetsIsDownloadingUpdateFalse()
+    {
+        var vm = CreateViewModel();
+
+        vm.UpdateDownloadProgress(100, 1000, 1000);
+
+        Assert.False(vm.IsDownloadingUpdate);
+        Assert.Equal(100, vm.DownloadPercent);
+    }
+
+    [Fact]
+    public void UpdateDownloadProgress_TransitionTo100_RaisesIsDownloadingUpdateChanged()
+    {
+        var vm = CreateViewModel();
+        vm.UpdateDownloadProgress(50, 500, 1000);
+        Assert.True(vm.IsDownloadingUpdate);
+
+        var changedProperties = new List<string?>();
+        vm.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
+
+        vm.UpdateDownloadProgress(100, 1000, 1000);
+
+        Assert.Contains(nameof(WelcomePageViewModel.IsDownloadingUpdate), changedProperties);
+        Assert.False(vm.IsDownloadingUpdate);
+    }
+
+    [Fact]
+    public void UpdateDownloadProgress_ZeroPercent_SetsIsDownloadingUpdateTrue()
+    {
+        var vm = CreateViewModel();
+
+        vm.UpdateDownloadProgress(0, 0, 1000);
+
+        Assert.True(vm.IsDownloadingUpdate);
+    }
+
     private sealed class TestNavigationService : INavigationService
     {
         public InstallerPageViewModel? CurrentPage { get; set; }

@@ -117,6 +117,85 @@ public class UpdateAvailablePageViewModelTests
         Assert.True(_engine.ShutdownCalled);
     }
 
+    [Fact]
+    public void InitialState_HasNullValues()
+    {
+        var vm = CreateViewModel();
+
+        Assert.Null(vm.UpdateVersion);
+        Assert.Null(vm.CachedFilePath);
+        Assert.Null(vm.ReleaseNotes);
+        Assert.Equal(0L, vm.UpdateSize);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_WithReleaseNotes_SetsReleaseNotes()
+    {
+        var vm = CreateViewModel();
+
+        vm.SetUpdateInfo("2.0.0", null, 0, "Fixed critical security issue");
+
+        Assert.Equal("Fixed critical security issue", vm.ReleaseNotes);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_RaisesPropertyChanged_ForReleaseNotes()
+    {
+        var vm = CreateViewModel();
+        var changedProperties = new List<string?>();
+        vm.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
+
+        vm.SetUpdateInfo("2.0.0", null, 0, "New features");
+
+        Assert.Contains(nameof(UpdateAvailablePageViewModel.ReleaseNotes), changedProperties);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_RaisesPropertyChanged_ForDescription()
+    {
+        var vm = CreateViewModel();
+        var changedProperties = new List<string?>();
+        vm.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
+
+        vm.SetUpdateInfo("2.0.0", null, 0);
+
+        Assert.Contains(nameof(UpdateAvailablePageViewModel.Description), changedProperties);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_SameVersion_DoesNotRaisePropertyChanged()
+    {
+        var vm = CreateViewModel();
+        vm.SetUpdateInfo("2.0.0", null, 1024);
+
+        var changedProperties = new List<string?>();
+        vm.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
+
+        vm.SetUpdateInfo("2.0.0", null, 1024);
+
+        Assert.DoesNotContain(nameof(UpdateAvailablePageViewModel.UpdateVersion), changedProperties);
+        Assert.DoesNotContain(nameof(UpdateAvailablePageViewModel.UpdateSize), changedProperties);
+    }
+
+    [Fact]
+    public void Description_WithoutVersion_ContainsProductName()
+    {
+        var vm = CreateViewModel();
+
+        Assert.Contains("TestProduct", vm.Description);
+        Assert.DoesNotContain("Version", vm.Description);
+    }
+
+    [Fact]
+    public void SetUpdateInfo_NullReleaseNotes_LeavesNull()
+    {
+        var vm = CreateViewModel();
+
+        vm.SetUpdateInfo("2.0.0", @"C:\cache\update.exe", 2048, null);
+
+        Assert.Null(vm.ReleaseNotes);
+    }
+
     private sealed class TestNavigationService : INavigationService
     {
         public InstallerPageViewModel? CurrentPage { get; set; }

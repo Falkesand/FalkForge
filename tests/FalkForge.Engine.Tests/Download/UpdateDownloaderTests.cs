@@ -278,4 +278,127 @@ public sealed class UpdateDownloaderTests
 
         Assert.Empty(sentMessages.OfType<ErrorMessage>());
     }
+
+    [Fact]
+    public async Task StartAsync_NotifyOnlyPolicy_DoesNotLaunch()
+    {
+        var launched = new List<string>();
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(Result<string>.Success("/cache/v2.exe"));
+        var fakeLauncher = new FakeUpdateLauncher(launched);
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.NotifyOnly,
+            allowResume: false, launcher: fakeLauncher);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.Empty(launched);
+        Assert.Single(sentMessages.OfType<UpdateReadyMessage>());
+    }
+
+    [Fact]
+    public async Task StartAsync_DownloadAndPromptPolicy_DoesNotLaunch()
+    {
+        var launched = new List<string>();
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(Result<string>.Success("/cache/v2.exe"));
+        var fakeLauncher = new FakeUpdateLauncher(launched);
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.DownloadAndPrompt,
+            allowResume: false, launcher: fakeLauncher);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.Empty(launched);
+        Assert.Single(sentMessages.OfType<UpdateReadyMessage>());
+    }
+
+    [Fact]
+    public async Task StartAsync_ProgressOrderIsPreserved()
+    {
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(
+            Result<string>.Success("/cache/update.exe"),
+            reportProgress: true);
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.DownloadAndPrompt);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", 1_000_000, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        var progressMessages = sentMessages.OfType<UpdateDownloadProgressMessage>().ToList();
+        Assert.Equal(2, progressMessages.Count);
+        Assert.Equal(512_000L, progressMessages[0].BytesReceived);
+        Assert.Equal(1_000_000L, progressMessages[1].BytesReceived);
+    }
+
+    [Fact]
+    public async Task StartAsync_PercentCalculation_IsCorrect()
+    {
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(
+            Result<string>.Success("/cache/update.exe"),
+            reportProgress: true);
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.DownloadAndPrompt);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", 1_000_000, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        var progressMessages = sentMessages.OfType<UpdateDownloadProgressMessage>().ToList();
+        Assert.Equal(51, progressMessages[0].PercentComplete); // 512_000 * 100 / 1_000_000
+        Assert.Equal(100, progressMessages[1].PercentComplete); // 1_000_000 * 100 / 1_000_000
+    }
+
+    [Fact]
+    public async Task StartAsync_DestPathIncludesVersionAndSha()
+    {
+        string? capturedPath = null;
+        var fakePipe = new FakePipeServer(new List<EngineMessage>());
+
+        Func<string, string, string, IProgress<(long, long)>?, bool, CancellationToken, Task<Result<string>>> download =
+            (url, sha, path, progress, resume, ct) =>
+            {
+                capturedPath = path;
+                return Task.FromResult(Result<string>.Success(path));
+            };
+
+        var downloader = new UpdateDownloader(
+            download,
+            fakePipe.SendMessageAsync,
+            new NullLogger(),
+            UpdatePolicy.NotifyOnly,
+            allowResume: false);
+
+        var update = new UpdateInfo("2.5.0", "https://example.com/v2.exe", "sha256hash", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.NotNull(capturedPath);
+        Assert.Contains("2.5.0", capturedPath);
+        Assert.Contains("sha256hash", capturedPath);
+        Assert.EndsWith(".exe", capturedPath);
+    }
+
+    [Fact]
+    public async Task StartAsync_DownloadFails_NoProgressSent()
+    {
+        var sentMessages = new List<EngineMessage>();
+        var fakeDownloader = new FakePayloadDownloader(
+            Result<string>.Failure(new Error(ErrorKind.DownloadError, "Fail")));
+
+        var downloader = CreateDownloader(
+            fakeDownloader, sentMessages, UpdatePolicy.DownloadAndPrompt);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+        await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+        Assert.Empty(sentMessages.OfType<UpdateDownloadProgressMessage>());
+        Assert.Empty(sentMessages.OfType<UpdateReadyMessage>());
+    }
 }

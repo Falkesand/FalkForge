@@ -90,4 +90,153 @@ public class UpdateMessageTests
         var typeValue = BitConverter.ToUInt16(bytes, 2);
         Assert.Equal((ushort)MessageType.UpdateAvailable, typeValue);
     }
+
+    [Fact]
+    public void Serialize_UpdateDownloadProgressMessage_RoundTrips()
+    {
+        var original = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 200,
+            BytesReceived = 512_000L,
+            TotalBytes = 1_000_000L,
+            PercentComplete = 51
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(200u, deserialized.SequenceId);
+        Assert.Equal(512_000L, deserialized.BytesReceived);
+        Assert.Equal(1_000_000L, deserialized.TotalBytes);
+        Assert.Equal(51, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void Serialize_UpdateDownloadProgressMessage_HasCorrectType()
+    {
+        var message = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 201,
+            BytesReceived = 0,
+            TotalBytes = 100,
+            PercentComplete = 0
+        };
+
+        var bytes = MessageSerializer.Serialize(message);
+
+        var typeValue = BitConverter.ToUInt16(bytes, 2);
+        Assert.Equal((ushort)MessageType.UpdateDownloadProgress, typeValue);
+    }
+
+    [Fact]
+    public void Serialize_UpdateDownloadProgressMessage_ZeroValues_RoundTrips()
+    {
+        var original = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 202,
+            BytesReceived = 0,
+            TotalBytes = 0,
+            PercentComplete = 0
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(0L, deserialized.BytesReceived);
+        Assert.Equal(0L, deserialized.TotalBytes);
+        Assert.Equal(0, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void Serialize_UpdateDownloadProgressMessage_LargeValues_RoundTrips()
+    {
+        var original = new UpdateDownloadProgressMessage
+        {
+            SequenceId = 203,
+            BytesReceived = long.MaxValue,
+            TotalBytes = long.MaxValue,
+            PercentComplete = 100
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(long.MaxValue, deserialized.BytesReceived);
+        Assert.Equal(long.MaxValue, deserialized.TotalBytes);
+        Assert.Equal(100, deserialized.PercentComplete);
+    }
+
+    [Fact]
+    public void Serialize_LaunchUpdateMessage_RoundTrips()
+    {
+        var original = new LaunchUpdateMessage
+        {
+            SequenceId = 300
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(300u, deserialized.SequenceId);
+    }
+
+    [Fact]
+    public void Serialize_LaunchUpdateMessage_HasCorrectType()
+    {
+        var message = new LaunchUpdateMessage { SequenceId = 301 };
+
+        var bytes = MessageSerializer.Serialize(message);
+
+        var typeValue = BitConverter.ToUInt16(bytes, 2);
+        Assert.Equal((ushort)MessageType.LaunchUpdate, typeValue);
+    }
+
+    [Fact]
+    public void Serialize_UpdateReadyMessage_HasCorrectType()
+    {
+        var message = new UpdateReadyMessage
+        {
+            SequenceId = 104,
+            Version = "1.0.0",
+            LocalPath = @"C:\cache\update.exe"
+        };
+
+        var bytes = MessageSerializer.Serialize(message);
+
+        var typeValue = BitConverter.ToUInt16(bytes, 2);
+        Assert.Equal((ushort)MessageType.UpdateReady, typeValue);
+    }
+
+    [Fact]
+    public void Serialize_UpdateAvailableMessage_EmptyNullableStrings_DeserializeAsNull()
+    {
+        // ReadNullableString treats empty strings as null for optional fields
+        var original = new UpdateAvailableMessage
+        {
+            SequenceId = 105,
+            Version = "1.0.0",
+            ReleaseNotes = "",
+            DownloadUrl = "https://example.com/update.exe",
+            LocalPath = ""
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("1.0.0", deserialized.Version);
+        Assert.Null(deserialized.ReleaseNotes);
+        Assert.Equal("https://example.com/update.exe", deserialized.DownloadUrl);
+        Assert.Null(deserialized.LocalPath);
+    }
+
+    [Fact]
+    public void Serialize_UpdateAvailableMessage_UnicodeContent_RoundTrips()
+    {
+        var original = new UpdateAvailableMessage
+        {
+            SequenceId = 106,
+            Version = "2.0.0",
+            ReleaseNotes = "Korrigerade buggar och prestandaförbättringar \u2014 全新功能",
+            DownloadUrl = "https://example.com/update.exe"
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal("Korrigerade buggar och prestandaförbättringar \u2014 全新功能", deserialized.ReleaseNotes);
+    }
 }
