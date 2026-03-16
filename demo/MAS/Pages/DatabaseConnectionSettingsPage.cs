@@ -111,7 +111,8 @@ public sealed class DatabaseConnectionSettingsPage : MasPageBase<DatabaseConnect
             using var pw = GetPassword("DbPassword");
             var passwordStr = pw.IsEmpty ? string.Empty : Encoding.UTF8.GetString(pw.Span);
             var result = await tester.TestConnectionAsync(
-                DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr);
+                DatabaseServer, DatabaseName, IntegratedSecurity, UserName, passwordStr,
+                TrustServerCertificate);
             if (result.IsSuccess)
             {
                 TestButtonContent = Localize("DbConnectionSettings.ConnectionOk");

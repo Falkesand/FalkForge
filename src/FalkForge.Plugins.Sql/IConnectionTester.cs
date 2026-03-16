@@ -8,5 +8,6 @@ public interface IConnectionTester
         bool integratedSecurity,
         string? userName = null,
         string? password = null,
+        bool trustServerCertificate = false,
         CancellationToken ct = default);
 }
