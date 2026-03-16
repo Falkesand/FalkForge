@@ -57,8 +57,11 @@ public partial class DatabaseServerView : UserControl
             var typedServer = page.DatabaseServer;
             await page.SearchServersAsync();
 
+            // .\SQLEXPRESS is shorthand for MACHINENAME\SQLEXPRESS
+            var normalized = typedServer.Replace(@".\", Environment.MachineName + @"\", StringComparison.OrdinalIgnoreCase);
             var found = page.AvailableServers.Any(s =>
-                string.Equals(s, typedServer, StringComparison.OrdinalIgnoreCase));
+                string.Equals(s, typedServer, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s, normalized, StringComparison.OrdinalIgnoreCase));
 
             if (!found && page.AvailableServers.Count > 0)
                 ServerCombo.IsDropDownOpen = true;
