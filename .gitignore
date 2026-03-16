@@ -400,3 +400,7 @@ docs/gen/
 
 # Git worktrees
 .worktrees/
+mutation-reports/
+.mutantnet/
+**/bin/
+**/obj/

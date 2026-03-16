@@ -1,2 +1,0 @@
-D:\Git\FalkInstaller\demo\MAS\packages\stub\out\dummy.pdb
-D:\Git\FalkInstaller\demo\MAS\packages\stub\out\dummy.exe
