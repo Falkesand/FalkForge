@@ -72,4 +72,4 @@ return Installer.Build(args, p =>
     // ──────────────────────────────────────────────────────────────────
     p.MajorUpgrade(_ => { });
     p.Downgrade(d => d.Block("A newer version of Acme Background Service is already installed."));
-});
+}, new MsiCompiler());

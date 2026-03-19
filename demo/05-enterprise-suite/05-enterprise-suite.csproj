@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>FalkForge.Demo.EnterpriseSuite</RootNamespace>
     <Description>Demo: Enterprise Development Suite installer with advanced UI and ~80 payload files across ~15 features</Description>
   </PropertyGroup>

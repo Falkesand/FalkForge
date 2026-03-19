@@ -59,6 +59,7 @@ return Installer.Build(args, package =>
 
     // Remove registry entries on uninstall
     package.RemoveRegistry(rr => rr
+        .Id("RemoveFalkPadRegKey")
         .Root(RegistryRoot.LocalMachine)
         .Key(@"Software\FalkSoftware\FalkPad")
         .RemoveKey());

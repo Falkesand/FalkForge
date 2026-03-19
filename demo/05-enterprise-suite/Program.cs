@@ -1,5 +1,6 @@
 using FalkForge;
 using FalkForge.Builders;
+using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
 var payloadDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "payload"));
@@ -11,7 +12,7 @@ return Installer.Build(args, pkg =>
     // ──────────────────────────────────────────────────────────────────
     pkg.Name = "Apex Enterprise Development Suite";
     pkg.Manufacturer = "Apex Software Inc.";
-    pkg.Version = new Version(2025, 1, 0);
+    pkg.Version = new Version(25, 1, 0);
     pkg.Description = "Complete enterprise development environment";
     pkg.Scope = InstallScope.PerMachine;
     pkg.Architecture = ProcessorArchitecture.X64;
@@ -496,4 +497,4 @@ return Installer.Build(args, pkg =>
     {
         f.Title = "Apex Mono";
     });
-});
+}, new MsiCompiler());

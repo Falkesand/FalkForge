@@ -27,6 +27,12 @@ public static class DemoTestCatalog
     public static IEnumerable<DemoExpectation> BundleDemos =>
         AllDemos.Where(d => d.OutputType == DemoOutputType.Bundle);
 
+    public static IEnumerable<object[]> MsiDemosData =>
+        MsiDemos.Select(d => new object[] { d });
+
+    public static IEnumerable<object[]> BundleDemosData =>
+        BundleDemos.Select(d => new object[] { d });
+
     public static IEnumerable<object[]> AllDemosData =>
         AllDemos.Select(d => new object[] { d });
 
