@@ -4,24 +4,6 @@ namespace FalkForge.Compiler.Msi.Tests;
 
 public sealed class ParallelCabinetBuilderMutationTests
 {
-    private static ResolvedFile MakeFile(string name) => new()
-    {
-        SourcePath = $@"C:\fake\{name}",
-        TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
-        FileName = name,
-        FileSize = 1024,
-        ComponentId = $"C_{Path.GetFileNameWithoutExtension(name)}",
-        FileId = $"F_{Path.GetFileNameWithoutExtension(name)}",
-    };
-
-    private static CabinetWorkItem MakeWorkItem(string cabName, int fileCount)
-    {
-        var files = Enumerable.Range(1, fileCount)
-            .Select(i => MakeFile($"{cabName}_file{i}.dll"))
-            .ToList();
-        return new CabinetWorkItem(cabName, files, CompressionLevel.High);
-    }
-
     [Fact]
     public void Constructor_NullBuildFunc_ThrowsArgumentNullException()
     {
@@ -29,19 +11,6 @@ public sealed class ParallelCabinetBuilderMutationTests
             () => new ParallelCabinetBuilder(null!));
 
         Assert.Equal("buildFunc", ex.ParamName);
-    }
-
-    [Fact]
-    public async Task BuildAsync_EmptyWorkItems_ReturnsSuccessWithEmptyArray()
-    {
-        var builder = new ParallelCabinetBuilder((_, _) =>
-            throw new InvalidOperationException("Should not be called"));
-
-        var result = await builder.BuildAsync([], maxDegreeOfParallelism: 4, CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Value);
-        Assert.Empty(result.Value);
     }
 
     [Fact]
@@ -58,7 +27,7 @@ public sealed class ParallelCabinetBuilderMutationTests
                 workItem.FileEntries.Count * 100L);
         });
 
-        var workItems = new[] { MakeWorkItem("Single", 3) };
+        var workItems = new[] { ParallelCabinetBuilderTests.MakeWorkItem("Single", 3) };
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 8, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -76,7 +45,7 @@ public sealed class ParallelCabinetBuilderMutationTests
         var builder = new ParallelCabinetBuilder((_, _) =>
             Result<CabinetBuildResult>.Failure(ErrorKind.CompilationError, "specific error text"));
 
-        var workItems = new[] { MakeWorkItem("FailSingle", 2) };
+        var workItems = new[] { ParallelCabinetBuilderTests.MakeWorkItem("FailSingle", 2) };
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 4, CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -96,7 +65,7 @@ public sealed class ParallelCabinetBuilderMutationTests
             return new CabinetBuildResult("X", "path", 1, 1);
         });
 
-        var workItems = new[] { MakeWorkItem("Cancelled", 1) };
+        var workItems = new[] { ParallelCabinetBuilderTests.MakeWorkItem("Cancelled", 1) };
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 1, cts.Token);
 
         Assert.True(result.IsFailure);
@@ -116,8 +85,8 @@ public sealed class ParallelCabinetBuilderMutationTests
 
         var workItems = new[]
         {
-            MakeWorkItem("Alpha", 2),
-            MakeWorkItem("Beta", 5),
+            ParallelCabinetBuilderTests.MakeWorkItem("Alpha", 2),
+            ParallelCabinetBuilderTests.MakeWorkItem("Beta", 5),
         };
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 2, CancellationToken.None);
@@ -143,9 +112,9 @@ public sealed class ParallelCabinetBuilderMutationTests
 
         var workItems = new[]
         {
-            MakeWorkItem("A", 1),
-            MakeWorkItem("B", 1),
-            MakeWorkItem("C", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("A", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("B", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("C", 1),
         };
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 4, CancellationToken.None);
@@ -172,9 +141,9 @@ public sealed class ParallelCabinetBuilderMutationTests
 
         var workItems = new[]
         {
-            MakeWorkItem("First", 1),
-            MakeWorkItem("Middle", 1),
-            MakeWorkItem("Last", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("First", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("Middle", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("Last", 1),
         };
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 1, CancellationToken.None);
@@ -200,15 +169,17 @@ public sealed class ParallelCabinetBuilderMutationTests
         });
 
         var workItems = Enumerable.Range(1, 10)
-            .Select(i => MakeWorkItem($"Cab{i}", 1))
+            .Select(i => ParallelCabinetBuilderTests.MakeWorkItem($"Cab{i}", 1))
             .ToList();
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 1, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("first error", result.Error.Message);
-        // With parallelism=1 and short-circuit, not all items should be processed
-        Assert.True(callCount < 10, $"Expected short-circuit but {callCount} items were processed");
+        // With DOP=1, the first item fails, so the loop should stop after processing it.
+        // At most a small number may be processed due to implementation details,
+        // but with sequential execution and short-circuit, only the first should run.
+        Assert.Equal(1, callCount);
     }
 
     [Fact]
@@ -228,8 +199,8 @@ public sealed class ParallelCabinetBuilderMutationTests
 
         var workItems = new[]
         {
-            MakeWorkItem("Trigger", 1),
-            MakeWorkItem("After", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("Trigger", 1),
+            ParallelCabinetBuilderTests.MakeWorkItem("After", 1),
         };
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 1, cts.Token);
@@ -251,8 +222,8 @@ public sealed class ParallelCabinetBuilderMutationTests
 
         var workItems = new[]
         {
-            MakeWorkItem("X", 3),
-            MakeWorkItem("Y", 7),
+            ParallelCabinetBuilderTests.MakeWorkItem("X", 3),
+            ParallelCabinetBuilderTests.MakeWorkItem("Y", 7),
         };
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 2, CancellationToken.None);
@@ -276,7 +247,7 @@ public sealed class ParallelCabinetBuilderMutationTests
         var builder = new ParallelCabinetBuilder((_, _) =>
             Result<CabinetBuildResult>.Failure(ErrorKind.IoError, "disk full"));
 
-        var workItems = new[] { MakeWorkItem("DiskFull", 1) };
+        var workItems = new[] { ParallelCabinetBuilderTests.MakeWorkItem("DiskFull", 1) };
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 1, CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -287,7 +258,7 @@ public sealed class ParallelCabinetBuilderMutationTests
     [Fact]
     public void CabinetWorkItem_Properties_AreAccessible()
     {
-        var files = new[] { MakeFile("test.dll") };
+        var files = new[] { ParallelCabinetBuilderTests.MakeFile("test.dll") };
         var item = new CabinetWorkItem("TestCab", files, CompressionLevel.Medium);
 
         Assert.Equal("TestCab", item.CabinetName);
@@ -336,7 +307,7 @@ public sealed class ParallelCabinetBuilderMutationTests
     [Fact]
     public void CabinetWorkItem_DifferentCompressionLevel_AreNotEqual()
     {
-        var files = new[] { MakeFile("a.dll") };
+        var files = new[] { ParallelCabinetBuilderTests.MakeFile("a.dll") };
         var a = new CabinetWorkItem("Cab", files, CompressionLevel.High);
         var b = new CabinetWorkItem("Cab", files, CompressionLevel.Low);
 

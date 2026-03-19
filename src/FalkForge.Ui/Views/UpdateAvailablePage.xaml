@@ -21,10 +21,10 @@
         <DockPanel Grid.Column="1" Margin="20,16,16,16">
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Title}"
-                       Style="{StaticResource ExteriorTitle}" />
+                       Style="{DynamicResource ExteriorTitle}" />
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Description}"
-                       Style="{StaticResource ExteriorDescription}" />
+                       Style="{DynamicResource ExteriorDescription}" />
 
             <!-- Buttons at the bottom -->
             <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">

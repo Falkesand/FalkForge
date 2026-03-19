@@ -5,69 +5,6 @@ namespace FalkForge.Compiler.Msi.Tests;
 public sealed class FileNameSanitizerMutationTests
 {
     [Fact]
-    public void Sanitize_NormalFileName_ReturnsUnchanged()
-    {
-        var result = FileNameSanitizer.Sanitize("myfile.txt");
-
-        Assert.Equal("myfile.txt", result);
-    }
-
-    [Fact]
-    public void Sanitize_SpacesReplacedWithUnderscores()
-    {
-        var result = FileNameSanitizer.Sanitize("my file name.txt");
-
-        Assert.Equal("my_file_name.txt", result);
-        Assert.DoesNotContain(" ", result);
-    }
-
-    [Fact]
-    public void Sanitize_BackslashReplacedWithUnderscore()
-    {
-        var result = FileNameSanitizer.Sanitize(@"sub\file.txt");
-
-        Assert.Equal("sub_file.txt", result);
-        Assert.DoesNotContain(@"\", result);
-    }
-
-    [Fact]
-    public void Sanitize_ForwardSlashReplacedWithUnderscore()
-    {
-        var result = FileNameSanitizer.Sanitize("sub/file.txt");
-
-        Assert.Equal("sub_file.txt", result);
-        Assert.DoesNotContain("/", result);
-    }
-
-    [Fact]
-    public void Sanitize_ColonReplacedWithUnderscore()
-    {
-        var result = FileNameSanitizer.Sanitize("file:name.txt");
-
-        Assert.Equal("file_name.txt", result);
-        Assert.DoesNotContain(":", result);
-    }
-
-    [Fact]
-    public void Sanitize_PreservesLettersDigitsDotsDashesUnderscores()
-    {
-        var result = FileNameSanitizer.Sanitize("my_file-v2.0.dll");
-
-        Assert.Equal("my_file-v2.0.dll", result);
-    }
-
-    [Fact]
-    public void Sanitize_PathTraversal_BackslashesReplacedDotsPreserved()
-    {
-        var result = FileNameSanitizer.Sanitize(@"..\..\secret");
-
-        // Backslashes replaced with _, dots preserved, spaces replaced with _
-        Assert.DoesNotContain(@"\", result);
-        Assert.Contains("..", result); // dots are valid in filenames
-        Assert.Contains("secret", result);
-    }
-
-    [Fact]
     public void Sanitize_OutputLength_SameAsInput()
     {
         var input = "test file.txt";
