@@ -912,4 +912,873 @@ public sealed class JsonConfigLoaderTests
 
         Assert.True(result.IsSuccess);
     }
+
+    // ── Whitespace-only values (kills IsNullOrWhiteSpace → != "" mutations) ──
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyName_ReturnsJSN002()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "   ",
+                "manufacturer": "TestCorp"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN002", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyManufacturer_ReturnsJSN003()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "\t"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN003", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyVersion_TreatedAsAbsent()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "version": "  "
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new Version(1, 0, 0), result.Value.Version);
+    }
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyUpgradeCode_TreatedAsAbsent()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp",
+                "upgradeCode": "   "
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEqual(Guid.Empty, result.Value.UpgradeCode);
+    }
+
+    // ── Compound && → || mutations (launch conditions) ──
+
+    [Fact]
+    public void LoadFromString_LaunchConditionEmptyCondition_IsSkipped()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "launchConditions": [
+                {
+                    "condition": "",
+                    "message": "Some requirement"
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.LaunchConditions);
+    }
+
+    [Fact]
+    public void LoadFromString_LaunchConditionEmptyMessage_IsSkipped()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "launchConditions": [
+                {
+                    "condition": "VersionNT >= 603",
+                    "message": ""
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.LaunchConditions);
+    }
+
+    // ── Path resolution (kills Path.IsPathRooted mutation) ──
+
+    [Fact]
+    public void LoadFromString_AbsoluteLicensePath_NotCombinedWithBaseDir()
+    {
+        var absolutePath = @"C:\licenses\License.rtf";
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "license": "{{absolutePath.Replace("\\", "\\\\")}}"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(absolutePath, result.Value.LicenseFile);
+    }
+
+    [Fact]
+    public void LoadFromString_RelativeLicensePath_CombinedWithBaseDir()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "license": "License.rtf"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.StartsWith(BaseDir, result.Value.LicenseFile);
+        Assert.EndsWith("License.rtf", result.Value.LicenseFile);
+    }
+
+    // ── Extension validation && mutations ──
+
+    [Fact]
+    public void LoadFromString_FirewallMissingName_ReturnsJSN011()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "extensions": {
+                "firewall": [
+                    {
+                        "id": "HttpRule",
+                        "port": "80"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN011", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_FirewallMissingBothPortAndProgram_ReturnsJSN011()
+    {
+        var json = """
+        {
+            "product": {"name": "App", "manufacturer": "Corp"},
+            "extensions": {
+                "firewall": [{"id": "r1", "name": "Rule"}]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN011", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_FirewallWithPortOnly_IsValid()
+    {
+        var json = """
+        {
+            "product": {"name": "App", "manufacturer": "Corp"},
+            "extensions": {
+                "firewall": [{"id": "r1", "name": "Rule", "port": "80"}]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void LoadFromString_SqlMissingServer_ReturnsJSN013()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "extensions": {
+                "sql": [
+                    {
+                        "id": "AppDb",
+                        "database": "TestDb"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN013", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_SqlMissingDatabase_ReturnsJSN013()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "extensions": {
+                "sql": [
+                    {
+                        "id": "AppDb",
+                        "server": "localhost"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN013", result.Error.Message);
+    }
+
+    // ── Install directory whitespace (kills IsNullOrWhiteSpace → != "" mutation) ──
+
+    [Fact]
+    public void LoadFromString_WhitespaceOnlyInstallDirectory_DoesNotUseWhitespace()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "installDirectory": "   "
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        // Whitespace-only installDirectory is treated as absent;
+        // the model receives the builder-computed default (ProgramFiles/Manufacturer/Name)
+        // rather than a path containing only spaces.
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.DefaultInstallDirectory);
+        Assert.DoesNotContain("   ", result.Value.DefaultInstallDirectory.ToString());
+    }
+
+    [Fact]
+    public void LoadFromString_NonWhitespaceInstallDirectory_UsesProvidedValue()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "installDirectory": "UniqueCompanyName/UniqueAppName"
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        // The provided installDirectory should appear in the path
+        Assert.True(result.IsSuccess);
+        Assert.Contains("UniqueCompanyName", result.Value.DefaultInstallDirectory!.ToString());
+        Assert.Contains("UniqueAppName", result.Value.DefaultInstallDirectory.ToString());
+    }
+
+    // ── Feature with zero files vs one file (kills Count > 0 mutations) ──
+
+    [Fact]
+    public void LoadFromString_FeatureWithEmptyFilesArray_NoFilesAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": []
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    // ── Shortcut conditions (kills && → || mutations on Name/Source checks) ──
+
+    [Fact]
+    public void LoadFromString_ShortcutMissingName_ShortcutNotAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": [
+                        {
+                            "source": "app.exe",
+                            "shortcut": {
+                                "name": "",
+                                "location": "Desktop"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Shortcuts);
+    }
+
+    [Fact]
+    public void LoadFromString_ShortcutMissingSource_ShortcutNotAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": [
+                        {
+                            "source": "",
+                            "shortcut": {
+                                "name": "TestApp",
+                                "location": "Desktop"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Shortcuts);
+    }
+
+    [Fact]
+    public void LoadFromString_ShortcutWithDescription_SetsDescription()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": [
+                        {
+                            "source": "app.exe",
+                            "shortcut": {
+                                "name": "TestApp",
+                                "location": "Desktop",
+                                "description": "Launch TestApp"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Shortcuts);
+        Assert.Equal("Launch TestApp", result.Value.Shortcuts[0].Description);
+    }
+
+    [Fact]
+    public void LoadFromString_ShortcutOnStartMenu_SetsLocation()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": [
+                        {
+                            "source": "app.exe",
+                            "shortcut": {
+                                "name": "TestApp",
+                                "location": "StartMenu"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Shortcuts);
+    }
+
+    [Fact]
+    public void LoadFromString_ShortcutOnStartup_SetsLocation()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "files": [
+                        {
+                            "source": "app.exe",
+                            "shortcut": {
+                                "name": "TestApp",
+                                "location": "Startup"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Shortcuts);
+    }
+
+    // ── Registry && mutations (missing Key or Name skips entry) ──
+
+    [Fact]
+    public void LoadFromString_RegistryMissingKey_EntryNotAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "HKLM",
+                            "key": "",
+                            "name": "Version",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.RegistryEntries);
+    }
+
+    [Fact]
+    public void LoadFromString_RegistryMissingName_EntryNotAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "HKLM",
+                            "key": "Software\\TestCorp\\TestApp",
+                            "name": "",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.RegistryEntries);
+    }
+
+    // ── ParseRegistryRoot logical mutations (HKCU, HKCR, HKU) ──
+
+    [Theory]
+    [InlineData("HKCU")]
+    [InlineData("CurrentUser")]
+    public void LoadFromString_RegistryRootHKCU_ParsesSuccessfully(string root)
+    {
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "{{root}}",
+                            "key": "Software\\TestCorp",
+                            "name": "Version",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(result.Value.RegistryEntries);
+    }
+
+    [Theory]
+    [InlineData("HKCR")]
+    [InlineData("ClassesRoot")]
+    public void LoadFromString_RegistryRootHKCR_ParsesSuccessfully(string root)
+    {
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "{{root}}",
+                            "key": "Software\\TestCorp",
+                            "name": "Version",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(result.Value.RegistryEntries);
+    }
+
+    [Theory]
+    [InlineData("HKU")]
+    [InlineData("Users")]
+    public void LoadFromString_RegistryRootHKU_ParsesSuccessfully(string root)
+    {
+        var json = $$"""
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "{{root}}",
+                            "key": "Software\\TestCorp",
+                            "name": "Version",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(result.Value.RegistryEntries);
+    }
+
+    [Fact]
+    public void LoadFromString_RegistryRootUnknown_DefaultsToHKLM()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "registry": [
+                        {
+                            "root": "UNKNOWN",
+                            "key": "Software\\TestCorp",
+                            "name": "Version",
+                            "value": "1.0"
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(result.Value.RegistryEntries);
+    }
+
+    // ── Environment variable && mutations (missing Name or Value skips entry) ──
+
+    [Fact]
+    public void LoadFromString_EnvVarMissingName_EntryNotAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "environmentVariables": [
+                        {
+                            "name": "",
+                            "value": "[INSTALLDIR]",
+                            "action": "Set",
+                            "system": false
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.EnvironmentVariables);
+    }
+
+    [Fact]
+    public void LoadFromString_EnvVarMissingValue_EntryNotAdded()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "environmentVariables": [
+                        {
+                            "name": "TEST_HOME",
+                            "value": "",
+                            "action": "Set",
+                            "system": true
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.EnvironmentVariables);
+    }
+
+    [Fact]
+    public void LoadFromString_EnvVarSystemFalse_SetsIsSystemFalse()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                {
+                    "id": "Main",
+                    "title": "Main",
+                    "environmentVariables": [
+                        {
+                            "name": "TEST_HOME",
+                            "value": "[INSTALLDIR]",
+                            "action": "Set",
+                            "system": false
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.EnvironmentVariables);
+        Assert.False(result.Value.EnvironmentVariables[0].IsSystem);
+    }
+
+    // ── MajorUpgrade schedule (kills block removal and whitespace mutations) ──
+
+    [Fact]
+    public void LoadFromString_MajorUpgradeWithSchedule_ParsesSuccessfully()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "majorUpgrade": {
+                "schedule": "afterInstallExecute"
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.MajorUpgrade);
+    }
+
+    [Fact]
+    public void LoadFromString_MajorUpgradeWithWhitespaceSchedule_SkipsSchedule()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "majorUpgrade": {
+                "schedule": "  "
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.MajorUpgrade);
+    }
 }

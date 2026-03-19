@@ -4,12 +4,18 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Cli.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Spectre.Console" />
     <PackageReference Include="Spectre.Console.Cli" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
     <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
     <ProjectReference Include="..\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
+    <!-- Compiler.Msix reference deferred: targets net10.0-windows, Cli targets net10.0.
+         MSIX format routing uses string checks only; actual compilation will invoke Compiler.Msix
+         via Roslyn script references (Installer.BuildMsix) or a future conditional TFM. -->
     <ProjectReference Include="..\FalkForge.Decompiler\FalkForge.Decompiler.csproj" />
     <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj" />
     <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />

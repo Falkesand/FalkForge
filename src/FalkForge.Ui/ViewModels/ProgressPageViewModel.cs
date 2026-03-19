@@ -1,22 +1,22 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
 using System.Reactive.Linq;
-using ReactiveUI;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+using ReactiveUI;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObject, IDisposable
 {
-    private int _progressCurrent;
-    private int _progressTotal;
     private string _currentPackage = string.Empty;
-    private string _statusText = string.Empty;
     private bool _isComplete;
-    private IDisposable? _progressSubscription;
-    private IDisposable? _statusSubscription;
     private IDisposable? _phaseSubscription;
+    private int _progressCurrent;
+    private IDisposable? _progressSubscription;
+    private int _progressTotal;
+    private IDisposable? _statusSubscription;
+    private string _statusText = string.Empty;
 
     public ProgressPageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
@@ -59,6 +59,29 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
     public double ProgressPercent =>
         ProgressTotal > 0 ? (double)ProgressCurrent / ProgressTotal * 100.0 : 0.0;
 
+    public void Dispose()
+    {
+        _progressSubscription?.Dispose();
+        _statusSubscription?.Dispose();
+        _phaseSubscription?.Dispose();
+        _progressSubscription = null;
+        _statusSubscription = null;
+        _phaseSubscription = null;
+    }
+
+    public event PropertyChangingEventHandler? PropertyChanging;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void RaisePropertyChanging(PropertyChangingEventArgs args)
+    {
+        PropertyChanging?.Invoke(this, args);
+    }
+
+    public void RaisePropertyChanged(PropertyChangedEventArgs args)
+    {
+        PropertyChanged?.Invoke(this, args);
+    }
+
     public override Task OnNavigatedToAsync(CancellationToken ct = default)
     {
         _progressSubscription = Engine.Progress
@@ -92,31 +115,16 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
 
     private void OnPhaseChanged(EnginePhase phase)
     {
-        if (phase is EnginePhase.Completing or EnginePhase.Failed)
-        {
-            IsComplete = true;
-        }
+        if (phase is EnginePhase.Completing or EnginePhase.Failed) IsComplete = true;
     }
 
-    public override bool CanNavigateNext() => IsComplete;
-    public override bool CanNavigateBack() => false;
-
-    public void Dispose()
+    public override bool CanNavigateNext()
     {
-        _progressSubscription?.Dispose();
-        _statusSubscription?.Dispose();
-        _phaseSubscription?.Dispose();
-        _progressSubscription = null;
-        _statusSubscription = null;
-        _phaseSubscription = null;
+        return IsComplete;
     }
 
-    public event PropertyChangingEventHandler? PropertyChanging;
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public void RaisePropertyChanging(PropertyChangingEventArgs args)
-        => PropertyChanging?.Invoke(this, args);
-
-    public void RaisePropertyChanged(PropertyChangedEventArgs args)
-        => PropertyChanged?.Invoke(this, args);
+    public override bool CanNavigateBack()
+    {
+        return false;
+    }
 }

@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class EnvironmentVariableBuilder
 {
@@ -17,12 +17,15 @@ public sealed class EnvironmentVariableBuilder
     public EnvironmentVariableAction Action { get; set; } = EnvironmentVariableAction.Set;
     public string? Separator { get; set; }
 
-    internal EnvironmentVariableModel Build() => new()
+    internal EnvironmentVariableModel Build()
     {
-        Name = _name,
-        Value = _value,
-        IsSystem = IsSystem,
-        Action = Action,
-        Separator = Separator
-    };
+        return new EnvironmentVariableModel
+        {
+            Name = _name,
+            Value = _value,
+            IsSystem = IsSystem,
+            Action = Action,
+            Separator = Separator
+        };
+    }
 }

@@ -5,9 +5,9 @@ namespace FalkForge.Localization;
 public sealed partial class LocalizedStringResolver
 {
     private static readonly Regex LocPattern = CreateLocPattern();
+    private readonly string _defaultCulture;
 
     private readonly Dictionary<string, LocalizationModel> _modelsByCulture;
-    private readonly string _defaultCulture;
 
     public LocalizedStringResolver(IEnumerable<LocalizationModel> models, string defaultCulture)
     {
@@ -19,9 +19,9 @@ public sealed partial class LocalizedStringResolver
     }
 
     /// <summary>
-    /// Resolves all !(loc.StringId) patterns in the input string using the specified culture
-    /// with fallback to the default culture. If no culture is specified, uses the default.
-    /// Supports nested references (a resolved value may itself contain !(loc.X) patterns).
+    ///     Resolves all !(loc.StringId) patterns in the input string using the specified culture
+    ///     with fallback to the default culture. If no culture is specified, uses the default.
+    ///     Supports nested references (a resolved value may itself contain !(loc.X) patterns).
     /// </summary>
     public Result<string> Resolve(string input, string? culture = null)
     {
@@ -60,7 +60,8 @@ public sealed partial class LocalizedStringResolver
             if (nestedResult.IsFailure)
                 return nestedResult;
 
-            result = string.Concat(result.AsSpan(0, match.Index), nestedResult.Value, result.AsSpan(match.Index + match.Length));
+            result = string.Concat(result.AsSpan(0, match.Index), nestedResult.Value,
+                result.AsSpan(match.Index + match.Length));
 
             resolving.Remove(stringId);
         }
@@ -71,11 +72,9 @@ public sealed partial class LocalizedStringResolver
     private string? LookupString(string stringId, IReadOnlyList<string> fallbackChain)
     {
         foreach (var culture in fallbackChain)
-        {
             if (_modelsByCulture.TryGetValue(culture, out var model) &&
                 model.Strings.TryGetValue(stringId, out var value))
                 return value;
-        }
 
         return null;
     }

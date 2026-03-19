@@ -1,3 +1,4 @@
+using System.Globalization;
 using FalkForge.Localization;
 using Xunit;
 
@@ -195,5 +196,137 @@ public sealed class LocalizationBuilderTests : IDisposable
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
         Assert.Contains("LOC002", result.Error.Message);
+    }
+
+    [Fact]
+    public void DetectCulture_ExactMatch_SelectsMatchingCulture()
+    {
+        var originalCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("de-DE");
+
+            var builder = new LocalizationBuilder();
+            builder.AddCulture("en-US", new Dictionary<string, string> { ["Hello"] = "Hello" });
+            builder.AddCulture("de-DE", new Dictionary<string, string> { ["Hello"] = "Hallo" });
+            builder.DetectCulture();
+
+            var result = builder.Build();
+
+            Assert.True(result.IsSuccess);
+            // The fact that Build() succeeded without DefaultCulture() proves DetectCulture selected "de-DE"
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = originalCulture;
+        }
+    }
+
+    [Fact]
+    public void DetectCulture_ParentFallback_SelectsParentCulture()
+    {
+        var originalCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("sv-SE");
+
+            var builder = new LocalizationBuilder();
+            builder.AddCulture("en-US", new Dictionary<string, string> { ["Hello"] = "Hello" });
+            builder.AddCulture("sv", new Dictionary<string, string> { ["Hello"] = "Hej" });
+            builder.DetectCulture();
+
+            var result = builder.Build();
+
+            // sv-SE not in cultures, but parent "sv" is — should auto-select "sv"
+            Assert.True(result.IsSuccess);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = originalCulture;
+        }
+    }
+
+    [Fact]
+    public void DetectCulture_NoMatch_KeepsExplicitDefault()
+    {
+        var originalCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("ja-JP");
+
+            var builder = new LocalizationBuilder();
+            builder.AddCulture("en-US", new Dictionary<string, string> { ["Hello"] = "Hello" });
+            builder.AddCulture("de", new Dictionary<string, string> { ["Hello"] = "Hallo" });
+            builder.DefaultCulture("en-US");
+            builder.DetectCulture();
+
+            var result = builder.Build();
+
+            // ja-JP and ja both not in cultures — should keep explicit "en-US" default
+            Assert.True(result.IsSuccess);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = originalCulture;
+        }
+    }
+
+    [Fact]
+    public void DetectCulture_NoMatch_NoExplicitDefault_ReturnsFailure_LOC002()
+    {
+        var originalCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("ja-JP");
+
+            var builder = new LocalizationBuilder();
+            builder.AddCulture("en-US", new Dictionary<string, string> { ["Hello"] = "Hello" });
+            builder.DetectCulture();
+
+            var result = builder.Build();
+
+            // ja-JP not in cultures, no explicit default — should fail
+            Assert.True(result.IsFailure);
+            Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+            Assert.Contains("LOC002", result.Error.Message);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = originalCulture;
+        }
+    }
+
+    [Fact]
+    public void DetectCulture_FluentChaining_ReturnsSameInstance()
+    {
+        var builder = new LocalizationBuilder();
+        var returned = builder.DetectCulture();
+
+        Assert.Same(builder, returned);
+    }
+
+    [Fact]
+    public void DetectCulture_ExactMatch_OverridesExplicitDefault()
+    {
+        var originalCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("de-DE");
+
+            var builder = new LocalizationBuilder();
+            builder.AddCulture("en-US", new Dictionary<string, string> { ["Hello"] = "Hello" });
+            builder.AddCulture("de-DE", new Dictionary<string, string> { ["Hello"] = "Hallo" });
+            builder.DefaultCulture("en-US");
+            builder.DetectCulture();
+
+            var result = builder.Build();
+
+            // DetectCulture found exact match "de-DE", should override "en-US"
+            Assert.True(result.IsSuccess);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = originalCulture;
+        }
     }
 }

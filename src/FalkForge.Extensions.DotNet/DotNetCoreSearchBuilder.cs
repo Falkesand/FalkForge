@@ -2,9 +2,9 @@ namespace FalkForge.Extensions.DotNet;
 
 public sealed class DotNetCoreSearchBuilder
 {
-    private DotNetRuntimeType _runtimeType;
-    private DotNetPlatform _platform;
     private Version? _minimumVersion;
+    private DotNetPlatform _platform;
+    private DotNetRuntimeType _runtimeType;
     private string? _variableName;
 
     public DotNetCoreSearchBuilder RuntimeType(DotNetRuntimeType runtimeType)

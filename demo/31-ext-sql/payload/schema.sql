@@ -1,0 +1,5 @@
+CREATE TABLE Demo
+(
+    Id   INT PRIMARY KEY,
+    Name NVARCHAR(100)
+);

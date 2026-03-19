@@ -1,0 +1,5 @@
+{
+  "stryker-config": {
+    "project": "FalkForge.Extensions.Dependency.csproj"
+  }
+}

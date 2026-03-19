@@ -1,15 +1,18 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Ui.Abstractions;
+using FalkForge.Ui.Localization;
+
+namespace FalkForge.Ui.ViewModels;
 
 internal sealed class CustomShellViewModel : INotifyPropertyChanged
 {
-    private readonly List<InstallerPage> _pages;
     private readonly IInstallerEngine _engine;
+    private readonly List<InstallerPage> _pages;
     private readonly InstallerState _sharedState;
     private int _currentPageIndex = -1;
     private bool _isApplying;
@@ -27,6 +30,25 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         NextCommand = new RelayCommand(OnNextAsync);
         BackCommand = new RelayCommand(OnBackAsync);
         CancelCommand = new RelayCommand(OnCancelAsync);
+
+        if (engine is EngineClient engineClient)
+        {
+            engineClient.UpdateAvailable += async (version, notes) =>
+            {
+                if (CurrentPage is InstallerPage page)
+                    await page.DispatchUpdateAvailableAsync(version, notes);
+            };
+            engineClient.UpdateDownloadProgress += async (pct, bytes, total) =>
+            {
+                if (CurrentPage is InstallerPage page)
+                    await page.DispatchUpdateProgressAsync(pct, bytes, total);
+            };
+            engineClient.UpdateReady += (version, localPath) =>
+            {
+                Application.Current.Dispatcher.InvokeAsync(
+                    () => HandleUpdateReadyAsync(version, localPath));
+            };
+        }
     }
 
     public ICommand NextCommand { get; }
@@ -40,22 +62,50 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
 
     public FrameworkElement? CurrentView { get; private set; }
 
+    public FrameworkElement? LanguageSelector { get; private set; }
+
     public bool CanGoBack => !_isApplying && _currentPageIndex > 0 && (CurrentPage?.CanGoBack ?? false);
     public bool CanGoNext => !_isApplying && (CurrentPage?.CanGoNext ?? false);
 
     public bool IsApplying
     {
         get => _isApplying;
-        private set { _isApplying = value; RaiseAllNavigationProperties(); }
+        private set
+        {
+            _isApplying = value;
+            RaiseAllNavigationProperties();
+        }
     }
 
     public string? StatusMessage
     {
         get => _statusMessage;
-        private set { _statusMessage = value; OnPropertyChanged(); }
+        private set
+        {
+            _statusMessage = value;
+            OnPropertyChanged();
+        }
     }
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public event EventHandler? CloseRequested;
+
+    internal void InitializeLocalization(UiLocalizationConfig config)
+    {
+        if (!config.AllowLanguageSelection) return;
+
+        var selector = new LanguageSelectorControl();
+        selector.Initialize(config.Resolver);
+        LanguageSelector = selector;
+        OnPropertyChanged(nameof(LanguageSelector));
+
+        config.Resolver.CultureChanged += () =>
+        {
+            foreach (var page in _pages)
+                page.NotifyCultureChanged();
+        };
+    }
 
     public async Task NavigateToFirstPageAsync()
     {
@@ -85,6 +135,39 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    internal async Task HandleUpdateReadyAsync(string version, string? localPath)
+    {
+        var feed = _engine.Manifest.UpdateFeed;
+        var shouldPrompt = feed is not null && feed.Policy switch
+        {
+            UpdatePolicy.DownloadAndPrompt => true,
+            UpdatePolicy.AutoUpdate when feed.PromptBeforeAutoUpdate => true,
+            _ => false
+        };
+
+        if (shouldPrompt)
+        {
+            var updatePage = new UpdateAvailableInstallerPage();
+            updatePage.Engine = _engine;
+            updatePage.SharedState = _sharedState;
+            updatePage.NavigateNextCallback = OnNextAsync;
+            updatePage.SetUpdateInfo(version, localPath, 0);
+
+            // Insert after current page and navigate to it
+            var insertIndex = _currentPageIndex + 1;
+            _pages.Insert(insertIndex, updatePage);
+
+            await NavigateFromCurrentAsync();
+            _currentPageIndex = insertIndex;
+            await ActivateCurrentPageAsync();
+        }
+        else
+        {
+            if (CurrentPage is InstallerPage page)
+                await page.DispatchUpdateReadyAsync(version);
+        }
+    }
+
     internal async Task ProcessResultAsync(PageResult result)
     {
         StatusMessage = null;
@@ -98,6 +181,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     _currentPageIndex++;
                     await ActivateCurrentPageAsync();
                 }
+
                 break;
 
             case PageResultKind.Previous:
@@ -107,6 +191,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     _currentPageIndex--;
                     await ActivateCurrentPageAsync();
                 }
+
                 break;
 
             case PageResultKind.Stay:
@@ -121,6 +206,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     _currentPageIndex = targetIndex;
                     await ActivateCurrentPageAsync();
                 }
+
                 break;
 
             case PageResultKind.Install:
@@ -150,8 +236,28 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         IsApplying = true;
         try
         {
-            await _engine.PlanAsync(action);
-            await _engine.ApplyAsync();
+            var page = CurrentPage;
+
+            // Detect phase
+            if (page is not null && !await page.OnDetectBeginAsync())
+                return;
+            var detectResult = await _engine.DetectAsync();
+            if (page is not null)
+                await page.OnDetectCompleteAsync(detectResult);
+
+            // Plan phase
+            if (page is not null && !await page.OnPlanBeginAsync(action))
+                return;
+            var planResult = await _engine.PlanAsync(action);
+            if (page is not null)
+                await page.OnPlanCompleteAsync(planResult);
+
+            // Apply phase
+            if (page is not null && !await page.OnApplyBeginAsync())
+                return;
+            var applyResult = await _engine.ApplyAsync();
+            if (page is not null)
+                await page.OnApplyCompleteAsync(applyResult);
 
             // Auto-advance to next page after successful apply
             if (_currentPageIndex < _pages.Count - 1)
@@ -167,7 +273,8 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
+            Trace.TraceError($"Engine action failed: {ex}");
+            StatusMessage = "An unexpected error occurred. See logs for details.";
         }
         finally
         {
@@ -180,6 +287,7 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         var page = CurrentPage;
         if (page is null) return;
 
+        page.PropertyChanged += OnCurrentPagePropertyChanged;
         CurrentView = page.CreateViewInternal();
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(CurrentView));
@@ -190,17 +298,24 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
     private async Task NavigateFromCurrentAsync()
     {
         if (CurrentPage is not null)
+        {
+            CurrentPage.PropertyChanged -= OnCurrentPagePropertyChanged;
             await CurrentPage.OnNavigatingFromAsync();
+        }
+    }
+
+    private void OnCurrentPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstallerPage.CanGoNext) or nameof(InstallerPage.CanGoBack))
+            RaiseAllNavigationProperties();
     }
 
     private int FindPageIndex(Type? pageType)
     {
         if (pageType is null) return -1;
         for (var i = 0; i < _pages.Count; i++)
-        {
             if (_pages[i].GetType() == pageType)
                 return i;
-        }
         return -1;
     }
 
@@ -211,8 +326,8 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsApplying));
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
     private void OnPropertyChanged([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
 }

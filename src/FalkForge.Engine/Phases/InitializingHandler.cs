@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Phases;
 
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
 
 public sealed class InitializingHandler : IEnginePhaseHandler
@@ -16,8 +17,39 @@ public sealed class InitializingHandler : IEnginePhaseHandler
             return Task.FromResult(EnginePhase.Failed);
         }
 
+        // Wire dry-run mode from manifest
+        if (context.Manifest.IsDryRun)
+        {
+            context.IsDryRun = true;
+            context.DryRunLogPath = Path.Combine(
+                Path.GetTempPath(),
+                $"FalkForge-DryRun-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        }
+
         // Populate built-in variables
         BuiltInVariables.Populate(context.Variables, context.Platform);
+
+        // Seed author-defined variables from manifest
+        foreach (var v in context.Manifest.Variables)
+        {
+            if (v.Secret)
+            {
+                if (v.DefaultValue is not null)
+                    context.Variables.SetSecret(v.Name, v.DefaultValue);
+            }
+            else if (v.DefaultValue is not null)
+            {
+                context.Variables.Set(v.Name, v.DefaultValue);
+            }
+        }
+
+        // Load persisted variable overrides from registry
+        VariablePersistence.LoadPersistedVariables(
+            context.Variables,
+            context.Manifest.BundleId,
+            context.Manifest.Scope,
+            context.Manifest.Variables,
+            context.Platform.Registry);
 
         // Set default install directory if not set
         if (string.IsNullOrEmpty(context.InstallDirectory))

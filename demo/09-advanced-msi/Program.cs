@@ -283,9 +283,9 @@ return Installer.Build(args, p =>
     // Major upgrade -- replace previous versions
     // ──────────────────────────────────────────────────────────────────
     p.MajorUpgrade(mu => mu
-        .DowngradeErrorMessage("A newer version of Contoso Server Platform is already installed.")
         .Schedule(RemoveExistingProductsSchedule.AfterInstallInitialize)
         .MigrateFeatures(true));
+    p.Downgrade(d => d.Block("A newer version of Contoso Server Platform is already installed."));
 
     // ──────────────────────────────────────────────────────────────────
     // Launch conditions

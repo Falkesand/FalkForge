@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class UpgradeBuilder
 {
@@ -10,12 +10,15 @@ public sealed class UpgradeBuilder
     public string? MaximumVersion { get; set; }
     public string? DowngradeErrorMessage { get; set; } = "A newer version is already installed.";
 
-    internal UpgradeModel Build() => new()
+    internal UpgradeModel Build()
     {
-        AllowDowngrades = AllowDowngrades,
-        AllowSameVersion = AllowSameVersion,
-        MinimumVersion = MinimumVersion,
-        MaximumVersion = MaximumVersion,
-        DowngradeErrorMessage = DowngradeErrorMessage
-    };
+        return new UpgradeModel
+        {
+            AllowDowngrades = AllowDowngrades,
+            AllowSameVersion = AllowSameVersion,
+            MinimumVersion = MinimumVersion,
+            MaximumVersion = MaximumVersion,
+            DowngradeErrorMessage = DowngradeErrorMessage
+        };
+    }
 }

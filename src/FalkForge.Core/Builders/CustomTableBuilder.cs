@@ -1,16 +1,19 @@
-namespace FalkForge.Builders;
-
 using System.Text.RegularExpressions;
 using FalkForge.Models;
+
+#pragma warning disable SYSLIB1045 // Regex is compiled; GeneratedRegex requires partial class restructuring
+
+namespace FalkForge.Builders;
 
 public sealed class CustomTableBuilder
 {
     private static readonly Regex ColumnNameRegex =
         new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
-    private string _name = string.Empty;
     private readonly List<CustomTableColumnModel> _columns = [];
     private readonly List<Dictionary<string, object?>> _rows = [];
+
+    private string _name = string.Empty;
 
     public CustomTableBuilder Name(string name)
     {
@@ -52,10 +55,13 @@ public sealed class CustomTableBuilder
         return this;
     }
 
-    internal CustomTableModel Build() => new()
+    internal CustomTableModel Build()
     {
-        Name = _name,
-        Columns = _columns,
-        Rows = _rows
-    };
+        return new CustomTableModel
+        {
+            Name = _name,
+            Columns = _columns,
+            Rows = _rows
+        };
+    }
 }

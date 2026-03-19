@@ -1,28 +1,42 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class FileSetBuilder
 {
     private readonly List<FileEntrySource> _sources = [];
-    private InstallPath? _targetDirectory;
     private string? _componentCondition;
+    private bool _neverOverwrite;
+    private bool _permanent;
+    private InstallPath? _targetDirectory;
 
     public FileSetBuilder FromDirectory(string sourcePath)
     {
-        _sources.Add(new FileEntrySource(sourcePath, IsDirectory: true));
+        _sources.Add(new FileEntrySource(sourcePath, true));
         return this;
     }
 
     public FileSetBuilder Add(string filePath)
     {
-        _sources.Add(new FileEntrySource(filePath, IsDirectory: false));
+        _sources.Add(new FileEntrySource(filePath, false));
         return this;
     }
 
     public FileSetBuilder To(InstallPath targetDirectory)
     {
         _targetDirectory = targetDirectory;
+        return this;
+    }
+
+    public FileSetBuilder NeverOverwrite()
+    {
+        _neverOverwrite = true;
+        return this;
+    }
+
+    public FileSetBuilder Permanent()
+    {
+        _permanent = true;
         return this;
     }
 
@@ -40,9 +54,7 @@ public sealed class FileSetBuilder
         var files = new List<FileEntryModel>();
 
         foreach (var source in _sources)
-        {
             if (source.IsDirectory)
-            {
                 // At build time, the compiler will resolve this to actual files.
                 // For now, we record the directory source as a single entry marker.
                 files.Add(new FileEntryModel
@@ -51,21 +63,21 @@ public sealed class FileSetBuilder
                     TargetDirectory = _targetDirectory,
                     FileName = "*",
                     IsKeyPath = files.Count == 0,
+                    NeverOverwrite = _neverOverwrite,
+                    Permanent = _permanent,
                     ComponentCondition = _componentCondition
                 });
-            }
             else
-            {
                 files.Add(new FileEntryModel
                 {
                     SourcePath = source.Path,
                     TargetDirectory = _targetDirectory,
-                    FileName = System.IO.Path.GetFileName(source.Path),
+                    FileName = Path.GetFileName(source.Path),
                     IsKeyPath = files.Count == 0,
+                    NeverOverwrite = _neverOverwrite,
+                    Permanent = _permanent,
                     ComponentCondition = _componentCondition
                 });
-            }
-        }
 
         return files;
     }

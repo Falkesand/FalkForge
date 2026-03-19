@@ -38,7 +38,7 @@ public sealed class MspExecutorTests
         var executor = new MspExecutor(runner);
         var action = CreateAction(PlanActionType.Install);
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal("msiexec.exe", runner.LastFileName);
         Assert.Equal(@"/p ""C:\patches\hotfix.msp"" /quiet /norestart", runner.LastArguments);
@@ -54,7 +54,7 @@ public sealed class MspExecutorTests
             patchCode: "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
             targetProductCode: "{12345678-1234-1234-1234-123456789012}");
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal("msiexec.exe", runner.LastFileName);
         Assert.Equal("/i \"{12345678-1234-1234-1234-123456789012}\" MSIPATCHREMOVE=\"{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}\" /quiet /norestart", runner.LastArguments);
@@ -70,7 +70,7 @@ public sealed class MspExecutorTests
             patchCode: "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
             targetProductCode: null);
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -87,7 +87,7 @@ public sealed class MspExecutorTests
             patchCode: null,
             targetProductCode: "{12345678-1234-1234-1234-123456789012}");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -104,7 +104,7 @@ public sealed class MspExecutorTests
             patchCode: "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
             targetProductCode: "not-a-guid & malicious");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
@@ -121,7 +121,7 @@ public sealed class MspExecutorTests
             patchCode: "not-a-guid | rm -rf /",
             targetProductCode: "{12345678-1234-1234-1234-123456789012}");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
@@ -135,7 +135,7 @@ public sealed class MspExecutorTests
         var executor = new MspExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -147,7 +147,7 @@ public sealed class MspExecutorTests
         var executor = new MspExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -159,7 +159,7 @@ public sealed class MspExecutorTests
         var executor = new MspExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -173,7 +173,7 @@ public sealed class MspExecutorTests
         var executor = new MspExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);

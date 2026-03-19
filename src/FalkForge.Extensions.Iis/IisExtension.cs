@@ -6,17 +6,24 @@ using FalkForge.Extensions.Iis.Models;
 namespace FalkForge.Extensions.Iis;
 
 [SupportedOSPlatform("windows")]
-public sealed class IisExtension : IFalkForgeExtension
+public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
 {
-    private readonly List<WebSiteModel> _webSites = [];
     private readonly List<AppPoolModel> _appPools = [];
     private readonly List<CertificateModel> _certificates = [];
-
-    public string Name => "Iis";
+    private readonly List<WebSiteModel> _webSites = [];
 
     public IReadOnlyList<WebSiteModel> WebSites => _webSites;
     public IReadOnlyList<AppPoolModel> AppPools => _appPools;
     public IReadOnlyList<CertificateModel> Certificates => _certificates;
+
+    public string Name => "Iis";
+
+    public void Register(IExtensionRegistry registry)
+    {
+        // IIS extension is model-only at compile time.
+        // The actual IIS management happens via custom actions at install time
+        // using Microsoft.Web.Administration.
+    }
 
     public IisExtension AddWebSite(Action<WebSiteBuilder> configure)
     {
@@ -60,13 +67,24 @@ public sealed class IisExtension : IFalkForgeExtension
         return new CertificateRef(model.Id);
     }
 
-    public Result<Unit> Validate() =>
-        IisValidator.ValidateAll(_webSites, _appPools, _certificates);
-
-    public void Register(IExtensionRegistry registry)
+    public Result<Unit> Validate()
     {
-        // IIS extension is model-only at compile time.
-        // The actual IIS management happens via custom actions at install time
-        // using Microsoft.Web.Administration.
+        return IisValidator.ValidateAll(_webSites, _appPools, _certificates);
     }
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would create IIS application pool(s)" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would create IIS web site(s) with binding(s)" }
+            ],
+            DryRunIntent.Uninstall =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove IIS application pool(s)" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove IIS web site(s)" }
+            ],
+            _ => []
+        };
 }

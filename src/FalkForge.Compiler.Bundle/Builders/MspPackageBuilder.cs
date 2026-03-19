@@ -3,12 +3,13 @@ namespace FalkForge.Compiler.Bundle.Builders;
 public sealed class MspPackageBuilder
 {
     private readonly string _sourcePath;
-    private string _id;
     private string _displayName;
-    private bool _vital = true;
+    private string _id;
+    private string? _installCondition;
     private string? _patchCode;
     private string? _targetProductCode;
-    private string? _installCondition;
+    private bool _vital = true;
+    private string? _slipstreamTargetId;
 
     internal MspPackageBuilder(string sourcePath)
     {
@@ -17,14 +18,48 @@ public sealed class MspPackageBuilder
         _displayName = _id;
     }
 
-    public MspPackageBuilder Id(string id) { _id = id; return this; }
-    public MspPackageBuilder DisplayName(string name) { _displayName = name; return this; }
-    public MspPackageBuilder Vital(bool vital) { _vital = vital; return this; }
-    public MspPackageBuilder PatchCode(string patchCode) { _patchCode = patchCode; return this; }
-    public MspPackageBuilder TargetProductCode(string targetProductCode) { _targetProductCode = targetProductCode; return this; }
-    public MspPackageBuilder InstallCondition(string condition) { _installCondition = condition; return this; }
-    public MspPackageBuilder InstallCondition(Condition condition) =>
-        InstallCondition(condition.ToString());
+    public MspPackageBuilder Id(string id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public MspPackageBuilder DisplayName(string name)
+    {
+        _displayName = name;
+        return this;
+    }
+
+    public MspPackageBuilder Vital(bool vital)
+    {
+        _vital = vital;
+        return this;
+    }
+
+    public MspPackageBuilder PatchCode(string patchCode)
+    {
+        _patchCode = patchCode;
+        return this;
+    }
+
+    public MspPackageBuilder TargetProductCode(string targetProductCode)
+    {
+        _targetProductCode = targetProductCode;
+        return this;
+    }
+
+    public MspPackageBuilder InstallCondition(string condition)
+    {
+        _installCondition = condition;
+        return this;
+    }
+
+    public MspPackageBuilder InstallCondition(Condition condition)
+    {
+        return InstallCondition(condition.ToString());
+    }
+
+    public MspPackageBuilder SlipstreamTarget(string msiPackageId) { _slipstreamTargetId = msiPackageId; return this; }
 
     internal BundlePackageModel Build()
     {
@@ -37,7 +72,8 @@ public sealed class MspPackageBuilder
             SourcePath = _sourcePath,
             PatchCode = _patchCode,
             TargetProductCode = _targetProductCode,
-            InstallCondition = _installCondition
+            InstallCondition = _installCondition,
+            SlipstreamTargetId = _slipstreamTargetId
         };
     }
 }

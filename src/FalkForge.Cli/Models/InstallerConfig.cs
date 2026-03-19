@@ -19,6 +19,9 @@ public sealed class InstallerConfig
     [JsonPropertyName("majorUpgrade")]
     public MajorUpgradeConfig? MajorUpgrade { get; set; }
 
+    [JsonPropertyName("downgrade")]
+    public DowngradeConfig? Downgrade { get; set; }
+
     [JsonPropertyName("launchConditions")]
     public List<LaunchConditionConfig>? LaunchConditions { get; set; }
 

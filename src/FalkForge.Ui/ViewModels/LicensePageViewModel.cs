@@ -1,9 +1,9 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
-using ReactiveUI;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+using ReactiveUI;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObject
 {
@@ -25,14 +25,21 @@ public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObje
         set => this.RaiseAndSetIfChanged(ref _isAccepted, value);
     }
 
-    public override bool CanNavigateNext() => IsAccepted;
-
     public event PropertyChangingEventHandler? PropertyChanging;
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public void RaisePropertyChanging(PropertyChangingEventArgs args)
-        => PropertyChanging?.Invoke(this, args);
+    {
+        PropertyChanging?.Invoke(this, args);
+    }
 
     public void RaisePropertyChanged(PropertyChangedEventArgs args)
-        => PropertyChanged?.Invoke(this, args);
+    {
+        PropertyChanged?.Invoke(this, args);
+    }
+
+    public override bool CanNavigateNext()
+    {
+        return IsAccepted;
+    }
 }

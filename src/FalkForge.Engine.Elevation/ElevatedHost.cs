@@ -4,11 +4,13 @@ using System.Diagnostics;
 using FalkForge.Engine.Elevation.Commands;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
+using FalkForge.Platform.Windows;
 
 public sealed class ElevatedHost : IAsyncDisposable
 {
     private readonly PipeConnectionOptions _pipeOptions;
     private readonly int _parentPid;
+    private readonly DateTime _parentStartTime;
     private readonly ElevatedCommandExecutor _executor;
     private PipeClient? _pipe;
     private CancellationTokenSource? _cts;
@@ -18,11 +20,13 @@ public sealed class ElevatedHost : IAsyncDisposable
     {
         _pipeOptions = pipeOptions;
         _parentPid = parentPid;
+        _parentStartTime = CaptureParentStartTime(parentPid);
 
+        var msiApi = new WindowsMsiApi();
         _executor = new ElevatedCommandExecutor(new IElevatedCommand[]
         {
-            new MsiInstallCommand(),
-            new MsiUninstallCommand(),
+            new MsiInstallCommand(msiApi),
+            new MsiUninstallCommand(msiApi),
             new ServiceInstallCommand(),
             new RegistryWriteCommand(),
             new FileWriteCommand()
@@ -33,6 +37,7 @@ public sealed class ElevatedHost : IAsyncDisposable
     {
         _pipeOptions = pipeOptions;
         _parentPid = parentPid;
+        _parentStartTime = CaptureParentStartTime(parentPid);
         _executor = executor;
     }
 
@@ -42,6 +47,7 @@ public sealed class ElevatedHost : IAsyncDisposable
 
         if (!IsParentAlive())
         {
+            ElevationSecurityLog.SecurityEvent("ParentWatch", $"Parent process not found: pid={_parentPid}");
             Console.Error.WriteLine("Parent process not found");
             return 1;
         }
@@ -52,6 +58,7 @@ public sealed class ElevatedHost : IAsyncDisposable
         var connectResult = await _pipe.ConnectAsync(_cts.Token);
         if (connectResult.IsFailure)
         {
+            ElevationSecurityLog.SecurityEvent("Connection", $"Failed to connect to engine pipe: {connectResult.Error}");
             Console.Error.WriteLine($"Failed to connect to engine: {connectResult.Error}");
             return 1;
         }
@@ -72,7 +79,19 @@ public sealed class ElevatedHost : IAsyncDisposable
     {
         if (message is ElevateExecuteMessage executeMsg)
         {
-            var result = _executor.Execute(executeMsg);
+            Action<int> onProgress = percent =>
+            {
+                if (_pipe is not null)
+                {
+                    _ = _pipe.SendAsync(new ElevateProgressMessage
+                    {
+                        SequenceId = executeMsg.SequenceId,
+                        Percent = percent
+                    });
+                }
+            };
+
+            var result = _executor.Execute(executeMsg, onProgress);
             if (_pipe is not null)
                 await _pipe.SendAsync(result);
         }
@@ -83,11 +102,39 @@ public sealed class ElevatedHost : IAsyncDisposable
         try
         {
             using var process = Process.GetProcessById(_parentPid);
-            return !process.HasExited;
+            if (process.HasExited)
+                return false;
+
+            // Guard against PID recycling: verify the start time matches
+            // the snapshot captured at construction. If a different process
+            // now owns this PID, its start time will differ.
+            if (process.StartTime != _parentStartTime)
+            {
+                ElevationSecurityLog.SecurityEvent("ParentWatch",
+                    $"PID recycling detected: pid={_parentPid}, expected start={_parentStartTime:O}, actual start={process.StartTime:O}");
+                return false;
+            }
+
+            return true;
         }
         catch (ArgumentException)
         {
             return false;
+        }
+    }
+
+    private static DateTime CaptureParentStartTime(int parentPid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(parentPid);
+            return process.StartTime;
+        }
+        catch (ArgumentException)
+        {
+            // Process does not exist; return sentinel value.
+            // RunAsync will fail on the first IsParentAlive check.
+            return DateTime.MinValue;
         }
     }
 

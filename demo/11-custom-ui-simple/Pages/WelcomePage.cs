@@ -1,16 +1,20 @@
-namespace CustomUiSimple.Pages;
-
 using CustomUiSimple.Views;
 using FalkForge.Ui;
 using FalkForge.Ui.Abstractions;
 
+namespace CustomUiSimple.Pages;
+
 public class WelcomePage : InstallerPage<WelcomeView>
 {
-    public override string Title => "Welcome";
+    public override string Title => Localize("Welcome.Title");
 
-    public string ProductName => "My Application";
-    public string Description => "This wizard will install My Application on your computer.\n\nClick Next to continue.";
+    public string ProductName => Localize("Welcome.ProductName");
+    public string Description => Localize("Welcome.Description");
 
-    public override PageResult OnNext() => PageResult.Next;
     public override bool CanGoBack => false;
+
+    public override PageResult OnNext()
+    {
+        return PageResult.Next;
+    }
 }

@@ -5,6 +5,9 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="FalkForge.Engine.Protocol.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
   </ItemGroup>
 </Project>

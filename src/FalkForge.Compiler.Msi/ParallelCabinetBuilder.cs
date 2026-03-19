@@ -63,7 +63,7 @@ public sealed class ParallelCabinetBuilder
                 new ParallelOptions
                 {
                     MaxDegreeOfParallelism = maxDegreeOfParallelism,
-                    CancellationToken = cancellationToken,
+                    CancellationToken = cancellationToken
                 },
                 (entry, ct) =>
                 {
@@ -81,6 +81,7 @@ public sealed class ParallelCabinetBuilder
                         {
                             firstError ??= buildResult.Error;
                         }
+
                         return ValueTask.CompletedTask;
                     }
 

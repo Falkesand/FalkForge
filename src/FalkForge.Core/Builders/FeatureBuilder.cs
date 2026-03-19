@@ -1,20 +1,24 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class FeatureBuilder
 {
-    private readonly string _id;
     private readonly List<FeatureModel> _children = [];
-    private readonly List<FileEntryModel> _files = [];
     private readonly List<FeatureConditionModel> _conditions = [];
+    private readonly List<FileEntryModel> _files = [];
+    private readonly string _id;
 
-    internal FeatureBuilder(string id) => _id = id;
+    internal FeatureBuilder(string id)
+    {
+        _id = id;
+    }
 
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public bool IsRequired { get; set; }
     public bool IsDefault { get; set; } = true;
+    public int DisplayLevel { get; set; } = 1;
 
     public FeatureBuilder Feature(string id, Action<FeatureBuilder> configure)
     {
@@ -35,11 +39,15 @@ public sealed class FeatureBuilder
         return Condition(condition, 0);
     }
 
-    public FeatureBuilder Condition(Condition condition, int level) =>
-        Condition(condition.ToString(), level);
+    public FeatureBuilder Condition(Condition condition, int level)
+    {
+        return Condition(condition.ToString(), level);
+    }
 
-    public FeatureBuilder Condition(Condition condition) =>
-        Condition(condition.ToString(), 0);
+    public FeatureBuilder Condition(Condition condition)
+    {
+        return Condition(condition.ToString(), 0);
+    }
 
     public FeatureBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -49,14 +57,18 @@ public sealed class FeatureBuilder
         return this;
     }
 
-    internal FeatureModel Build() => new()
+    internal FeatureModel Build()
     {
-        Id = _id,
-        Title = string.IsNullOrEmpty(Title) ? _id : Title,
-        Description = Description,
-        IsRequired = IsRequired,
-        IsDefault = IsDefault,
-        Children = _children,
-        Conditions = _conditions
-    };
+        return new FeatureModel
+        {
+            Id = _id,
+            Title = string.IsNullOrEmpty(Title) ? _id : Title,
+            Description = Description,
+            IsRequired = IsRequired,
+            IsDefault = IsDefault,
+            DisplayLevel = DisplayLevel,
+            Children = _children,
+            Conditions = _conditions
+        };
+    }
 }

@@ -1,3 +1,11 @@
 namespace FalkForge;
 
-public enum RegistryValueType { String, ExpandString, MultiString, DWord, QWord, Binary }
+public enum RegistryValueType
+{
+    String,
+    ExpandString,
+    MultiString,
+    DWord,
+    QWord,
+    Binary
+}

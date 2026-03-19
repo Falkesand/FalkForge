@@ -1,3 +1,9 @@
 namespace FalkForge;
 
-public enum InstallAction { Install, Uninstall, Repair, Modify }
+public enum InstallAction
+{
+    Install,
+    Uninstall,
+    Repair,
+    Modify
+}

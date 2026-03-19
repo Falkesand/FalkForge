@@ -5,7 +5,7 @@ namespace FalkForge.Compiler.Msi.Tests;
 
 public sealed class ParallelCabinetBuilderTests
 {
-    private static ResolvedFile MakeFile(string name) => new()
+    internal static ResolvedFile MakeFile(string name) => new()
     {
         SourcePath = $@"C:\fake\{name}",
         TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
@@ -15,7 +15,7 @@ public sealed class ParallelCabinetBuilderTests
         FileId = $"F_{Path.GetFileNameWithoutExtension(name)}",
     };
 
-    private static CabinetWorkItem MakeWorkItem(string cabName, int fileCount)
+    internal static CabinetWorkItem MakeWorkItem(string cabName, int fileCount)
     {
         var files = Enumerable.Range(1, fileCount)
             .Select(i => MakeFile($"{cabName}_file{i}.dll"))

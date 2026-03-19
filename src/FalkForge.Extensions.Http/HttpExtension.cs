@@ -1,0 +1,67 @@
+using System.Runtime.Versioning;
+using FalkForge;
+using FalkForge.Extensibility;
+using FalkForge.Extensions.Http.Builders;
+using FalkForge.Extensions.Http.Compilation;
+using FalkForge.Extensions.Http.Models;
+using FalkForge.Extensions.Http.Validation;
+
+namespace FalkForge.Extensions.Http;
+
+[SupportedOSPlatform("windows")]
+public sealed class HttpExtension : IFalkForgeExtension, IDryRunContributor
+{
+    private readonly List<UrlReservationModel> _reservations = [];
+    private readonly List<SniSslBindingModel>  _bindings     = [];
+
+    public string Name => "Http";
+
+    public HttpExtension AddUrlReservation(string url, Action<UrlReservationBuilder> configure)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+        var builder = new UrlReservationBuilder(url);
+        configure(builder);
+        _reservations.Add(builder.Build());
+        return this;
+    }
+
+    public HttpExtension AddSniSslBinding(string hostname, int port, Action<SniSslBindingBuilder> configure)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(hostname);
+        var builder = new SniSslBindingBuilder(hostname, port);
+        configure(builder);
+        _bindings.Add(builder.Build());
+        return this;
+    }
+
+    public Result<Unit> Validate()
+    {
+        var reservationResult = HttpValidator.ValidateReservations(_reservations);
+        if (reservationResult.IsFailure)
+            return reservationResult;
+
+        return HttpValidator.ValidateBindings(_bindings);
+    }
+
+    public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        intent switch
+        {
+            DryRunIntent.Install =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would add HTTP URL ACL reservation(s) via netsh" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would add SNI SSL certificate binding(s) via netsh" }
+            ],
+            DryRunIntent.Uninstall =>
+            [
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove HTTP URL ACL reservation(s) via netsh" },
+                new DryRunAction { Kind = DryRunActionKind.Network, Description = "Would remove SNI SSL certificate binding(s) via netsh" }
+            ],
+            _ => []
+        };
+
+    public void Register(IExtensionRegistry registry)
+    {
+        registry.RegisterTableContributor(new HttpCustomActionContributor(_reservations, _bindings));
+        registry.RegisterTableContributor(new HttpSequenceContributor(_reservations, _bindings));
+    }
+}

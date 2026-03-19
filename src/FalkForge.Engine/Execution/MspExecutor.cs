@@ -1,8 +1,9 @@
 namespace FalkForge.Engine.Execution;
 
+using System.Text.RegularExpressions;
 using FalkForge.Engine.Planning;
 
-public sealed class MspExecutor
+public sealed partial class MspExecutor
 {
     private const int SuccessExitCode = 0;
     private const int RebootRequiredExitCode = 3010;
@@ -15,7 +16,7 @@ public sealed class MspExecutor
         _processRunner = processRunner;
     }
 
-    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {
         var args = BuildArguments(action);
         if (args.IsFailure)
@@ -81,9 +82,12 @@ public sealed class MspExecutor
             $"/i \"{targetProductCode}\" MSIPATCHREMOVE=\"{patchCode}\" /quiet /norestart");
     }
 
+    [GeneratedRegex(@"^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$")]
+    private static partial Regex StrictGuidRegex();
+
     private static bool IsValidGuid(string value)
     {
-        return Guid.TryParse(value.Trim('{', '}'), out _);
+        return StrictGuidRegex().IsMatch(value);
     }
 
     internal static Result<Unit> MapExitCode(int exitCode)

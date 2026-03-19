@@ -1,6 +1,6 @@
-namespace FalkForge;
-
 using FalkForge.Models;
+
+namespace FalkForge;
 
 public interface ICompiler
 {

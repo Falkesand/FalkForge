@@ -6,11 +6,11 @@ using System.Text.RegularExpressions;
 public sealed partial class ServiceInstallCommand : IElevatedCommand
 {
     private const int ProcessTimeoutMs = 600_000;
-    private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}'];
+    private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}', '"'];
 
     public string Name => "ServiceInstall";
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         using var stream = new MemoryStream(payload);
         using var reader = new BinaryReader(stream);
@@ -37,6 +37,10 @@ public sealed partial class ServiceInstallCommand : IElevatedCommand
 
         if (normalizedBinaryPath.Contains("..", StringComparison.Ordinal))
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "Binary path must not contain '..' segments after normalization");
+
+        if (!FileWriteCommand.IsAllowedPath(normalizedBinaryPath))
+            return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                "Binary path must be under Program Files or ProgramData");
 
         try
         {

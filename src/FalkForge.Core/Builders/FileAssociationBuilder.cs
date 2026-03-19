@@ -1,14 +1,17 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class FileAssociationBuilder
 {
     private readonly string _extension;
-    private string _progId = string.Empty;
     private readonly List<VerbModel> _verbs = [];
+    private string _progId = string.Empty;
 
-    internal FileAssociationBuilder(string extension) => _extension = extension;
+    internal FileAssociationBuilder(string extension)
+    {
+        _extension = extension;
+    }
 
     public string? Description { get; set; }
     public string? IconFile { get; set; }
@@ -29,14 +32,17 @@ public sealed class FileAssociationBuilder
         return this;
     }
 
-    internal FileAssociationModel Build() => new()
+    internal FileAssociationModel Build()
     {
-        Extension = _extension,
-        ProgId = _progId,
-        Description = Description,
-        IconFile = IconFile,
-        IconIndex = IconIndex,
-        ContentType = ContentType,
-        Verbs = _verbs
-    };
+        return new FileAssociationModel
+        {
+            Extension = _extension,
+            ProgId = _progId,
+            Description = Description,
+            IconFile = IconFile,
+            IconIndex = IconIndex,
+            ContentType = ContentType,
+            Verbs = _verbs
+        };
+    }
 }

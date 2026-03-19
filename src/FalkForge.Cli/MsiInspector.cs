@@ -71,4 +71,33 @@ public static class MsiInspector
             TableCount = tableNames.Count
         };
     }
+
+    /// <summary>
+    /// Extracts SBOM attestation data from the _FalkForgeIntegrity custom table.
+    /// Returns the SBOM string if found, or a failure result if the table or row is missing.
+    /// </summary>
+    public static Result<string> ExtractSbom(string msiPath)
+    {
+        var dbResult = MsiDatabase.Open(msiPath, readOnly: true);
+        if (dbResult.IsFailure)
+            return Result<string>.Failure(dbResult.Error);
+
+        using var db = dbResult.Value;
+
+        var queryResult = db.QueryRows(
+            "SELECT `Id`, `Data` FROM `_FalkForgeIntegrity`", 2);
+
+        if (queryResult.IsFailure)
+            return Result<string>.Failure(ErrorKind.FileNotFound,
+                "No _FalkForgeIntegrity table found in this MSI.");
+
+        foreach (var row in queryResult.Value)
+        {
+            if (string.Equals(row[0], "SbomAttestation", StringComparison.Ordinal) && row[1] is { } sbomData)
+                return sbomData;
+        }
+
+        return Result<string>.Failure(ErrorKind.FileNotFound,
+            "No SBOM available in this MSI.");
+    }
 }

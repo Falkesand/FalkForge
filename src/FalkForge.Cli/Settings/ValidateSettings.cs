@@ -16,6 +16,26 @@ public sealed class ValidateSettings : CommandSettings
     [DefaultValue(false)]
     public bool Verbose { get; init; }
 
+    [CommandOption("--ice")]
+    [Description("Run ICE validation on .msi files")]
+    public bool Ice { get; init; }
+
+    [CommandOption("--ice-cub-path <PATH>")]
+    [Description("Path to custom darice.cub file")]
+    public string? IceCubPath { get; init; }
+
+    [CommandOption("--suppress-ice <NAMES>")]
+    [Description("Comma-separated ICE names to suppress")]
+    public string? SuppressIce { get; init; }
+
+    [CommandOption("--ice-warnings-as-errors")]
+    [Description("Treat ICE warnings as errors")]
+    public bool IceWarningsAsErrors { get; init; }
+
+    [CommandOption("--ice-report <PATH>")]
+    [Description("Export ICE results to JSON file")]
+    public string? IceReport { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
@@ -25,8 +45,9 @@ public sealed class ValidateSettings : CommandSettings
             return CliValidationResult.Error("Project path contains invalid characters.");
 
         if (!ProjectPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) &&
-            !ProjectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            return CliValidationResult.Error("Project path must be a .cs or .json file.");
+            !ProjectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+            !ProjectPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+            return CliValidationResult.Error("Project path must be a .cs, .json, or .msi file.");
 
         return CliValidationResult.Success();
     }

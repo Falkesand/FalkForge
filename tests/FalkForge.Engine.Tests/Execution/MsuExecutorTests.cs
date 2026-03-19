@@ -36,7 +36,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction(PlanActionType.Install);
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal("wusa.exe", runner.LastFileName);
         Assert.Equal(@"""C:\updates\KB12345.msu"" /quiet /norestart", runner.LastArguments);
@@ -49,7 +49,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction(PlanActionType.Uninstall, kbArticle: "12345");
 
-        await executor.ExecuteAsync(action, CancellationToken.None);
+        await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.Equal("wusa.exe", runner.LastFileName);
         Assert.Equal("/uninstall /kb:12345 /quiet /norestart", runner.LastArguments);
@@ -62,7 +62,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction(PlanActionType.Uninstall, kbArticle: null);
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -76,7 +76,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction(PlanActionType.Uninstall, kbArticle: "12345 & malicious");
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
@@ -90,7 +90,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -102,7 +102,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -114,7 +114,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess);
     }
@@ -126,7 +126,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);
@@ -140,7 +140,7 @@ public sealed class MsuExecutorTests
         var executor = new MsuExecutor(runner);
         var action = CreateAction();
 
-        var result = await executor.ExecuteAsync(action, CancellationToken.None);
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ExecutionError, result.Error.Kind);

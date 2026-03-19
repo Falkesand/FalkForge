@@ -1,18 +1,18 @@
-namespace FalkForge.Extensions.Sql.Builders;
-
 using FalkForge.Extensions.Sql.Models;
+
+namespace FalkForge.Extensions.Sql.Builders;
 
 public sealed class SqlDatabaseBuilder
 {
-    private string _id = string.Empty;
-    private string? _server;
-    private string _database = string.Empty;
-    private string? _instance;
+    private string? _componentRef;
+    private bool _confirmOverwrite;
     private string? _connectionString;
     private bool _createOnInstall;
+    private string _database = string.Empty;
     private bool _dropOnUninstall;
-    private bool _confirmOverwrite;
-    private string? _componentRef;
+    private string _id = string.Empty;
+    private string? _instance;
+    private string? _server;
 
     public SqlDatabaseBuilder Id(string id)
     {

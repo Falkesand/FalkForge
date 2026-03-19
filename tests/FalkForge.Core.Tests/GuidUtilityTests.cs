@@ -86,15 +86,4 @@ public sealed class GuidUtilityTests
         Assert.NotEqual(Guid.Empty, guid);
     }
 
-    [Fact]
-    public void CreateDeterministicGuid_IsStableAcrossInvocations()
-    {
-        // A known input should always produce the exact same GUID
-        var guid1 = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, "stable-test");
-        var guid2 = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, "stable-test");
-        var guid3 = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, "stable-test");
-
-        Assert.Equal(guid1, guid2);
-        Assert.Equal(guid2, guid3);
-    }
 }

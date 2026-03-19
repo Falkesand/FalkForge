@@ -1,3 +1,9 @@
 namespace FalkForge;
 
-public enum ServiceAccount { LocalSystem, LocalService, NetworkService, User }
+public enum ServiceAccount
+{
+    LocalSystem,
+    LocalService,
+    NetworkService,
+    User
+}

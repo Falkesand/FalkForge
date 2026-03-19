@@ -1,0 +1,98 @@
+<UserControl x:Class="FalkForge.Studio.Editors.FirewallEditor.FirewallEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:FalkForge.Studio.Editors.FirewallEditor">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Text="Firewall Rules" FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top" Text="Define Windows Firewall rules to create during installation"
+                   FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,8" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Add Rule" Click="AddEntry_Click" Padding="8,4" Margin="0,0,8,0" />
+            <Button Content="Remove" Click="Remove_Click" Padding="8,4" />
+        </StackPanel>
+        <DataGrid ItemsSource="{Binding Entries}"
+                  SelectedItem="{Binding SelectedEntry}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Id"
+                                    Binding="{Binding Id, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="80">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Unique identifier for this firewall rule entry." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Name"
+                                    Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="150">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Display name of the firewall rule as shown in Windows Firewall." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridComboBoxColumn Header="Protocol"
+                                        SelectedItemBinding="{Binding Protocol, UpdateSourceTrigger=PropertyChanged}"
+                                        ItemsSource="{x:Static local:FirewallEditorViewModel.Protocols}"
+                                        Width="80">
+                    <DataGridComboBoxColumn.ElementStyle>
+                        <Style TargetType="ComboBox">
+                            <Setter Property="ToolTip" Value="Network protocol: TCP for web/API traffic, UDP for streaming/DNS." />
+                        </Style>
+                    </DataGridComboBoxColumn.ElementStyle>
+                </DataGridComboBoxColumn>
+                <DataGridTextColumn Header="Port"
+                                    Binding="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="80">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Port number or range (e.g., 8080, 3000-3010). Leave empty for program-based rules." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridComboBoxColumn Header="Direction"
+                                        SelectedItemBinding="{Binding Direction, UpdateSourceTrigger=PropertyChanged}"
+                                        ItemsSource="{x:Static local:FirewallEditorViewModel.Directions}"
+                                        Width="100">
+                    <DataGridComboBoxColumn.ElementStyle>
+                        <Style TargetType="ComboBox">
+                            <Setter Property="ToolTip" Value="Inbound allows incoming connections. Outbound controls outgoing connections." />
+                        </Style>
+                    </DataGridComboBoxColumn.ElementStyle>
+                </DataGridComboBoxColumn>
+                <DataGridComboBoxColumn Header="Profile"
+                                        SelectedItemBinding="{Binding Profile, UpdateSourceTrigger=PropertyChanged}"
+                                        ItemsSource="{x:Static local:FirewallEditorViewModel.Profiles}"
+                                        Width="80">
+                    <DataGridComboBoxColumn.ElementStyle>
+                        <Style TargetType="ComboBox">
+                            <Setter Property="ToolTip" Value="Which network profiles this rule applies to: Domain, Private, Public, or All." />
+                        </Style>
+                    </DataGridComboBoxColumn.ElementStyle>
+                </DataGridComboBoxColumn>
+                <DataGridComboBoxColumn Header="Action"
+                                        SelectedItemBinding="{Binding Action, UpdateSourceTrigger=PropertyChanged}"
+                                        ItemsSource="{x:Static local:FirewallEditorViewModel.Actions}"
+                                        Width="80">
+                    <DataGridComboBoxColumn.ElementStyle>
+                        <Style TargetType="ComboBox">
+                            <Setter Property="ToolTip" Value="Allow permits the traffic. Block denies the traffic." />
+                        </Style>
+                    </DataGridComboBoxColumn.ElementStyle>
+                </DataGridComboBoxColumn>
+                <DataGridTextColumn Header="Program"
+                                    Binding="{Binding Program, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="Path to the executable this rule applies to, relative to install directory." />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

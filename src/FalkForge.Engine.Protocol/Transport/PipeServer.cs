@@ -1,5 +1,12 @@
+// SECURITY: Pipe traffic is authenticated via HMAC-SHA256 handshake but is NOT encrypted.
+// An attacker with admin or kernel-level access could read named pipe buffers in transit.
+// This is an accepted risk: such an attacker already has the ability to read process memory
+// directly, attach a debugger, or inject code — making pipe encryption ineffective as a
+// mitigation. The HMAC handshake prevents unauthorized (non-admin) processes from connecting.
+
 namespace FalkForge.Engine.Protocol.Transport;
 
+using System.Buffers;
 using System.IO.Pipes;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Serialization;
@@ -68,12 +75,18 @@ public sealed class PipeServer : IAsyncDisposable
         {
             var read = await _pipe.ReadAsync(clientHmac.AsMemory(bytesRead), ct);
             if (read == 0)
+            {
+                _options.OnSecurityEvent?.Invoke("Client disconnected during HMAC handshake before completing response");
                 return Result<Unit>.Failure(ErrorKind.HandshakeError, "Client disconnected during handshake");
+            }
             bytesRead += read;
         }
 
         if (!PipeSecurityValidator.ValidateHmac(_options.SharedSecret, nonce, clientHmac))
+        {
+            _options.OnSecurityEvent?.Invoke("HMAC validation failed: client presented invalid credentials during handshake");
             return Result<Unit>.Failure(ErrorKind.HandshakeError, "HMAC validation failed");
+        }
 
         return Unit.Value;
     }
@@ -119,13 +132,23 @@ public sealed class PipeServer : IAsyncDisposable
                 if (messageLength <= 0 || messageLength > _options.MaxMessageSize)
                     break;
 
-                var messageBuffer = new byte[messageLength];
-                if (!await ReadExactAsync(_pipe, messageBuffer, ct))
-                    break;
+                var messageBuffer = ArrayPool<byte>.Shared.Rent(messageLength);
+                try
+                {
+                    if (!await ReadExactAsync(_pipe, messageBuffer, messageLength, ct))
+                        break;
 
-                var result = MessageDeserializer.Deserialize(messageBuffer);
-                if (result.IsSuccess)
-                    await _messageHandler(result.Value);
+                    var result = MessageDeserializer.Deserialize(messageBuffer, messageLength);
+                    if (result.IsSuccess)
+                        await _messageHandler(result.Value);
+                    else
+                        _options.OnSecurityEvent?.Invoke(
+                            $"Message deserialization failed ({messageLength} bytes): {result.Error.Message}");
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(messageBuffer);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -139,11 +162,14 @@ public sealed class PipeServer : IAsyncDisposable
     }
 
     private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, CancellationToken ct)
+        => await ReadExactAsync(stream, buffer, buffer.Length, ct);
+
+    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int length, CancellationToken ct)
     {
         var totalRead = 0;
-        while (totalRead < buffer.Length)
+        while (totalRead < length)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(totalRead), ct);
+            var read = await stream.ReadAsync(buffer.AsMemory(totalRead, length - totalRead), ct);
             if (read == 0) return false;
             totalRead += read;
         }

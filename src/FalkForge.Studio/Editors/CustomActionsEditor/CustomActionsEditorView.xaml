@@ -1,0 +1,69 @@
+<UserControl x:Class="FalkForge.Studio.Editors.CustomActionsEditor.CustomActionsEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:FalkForge.Studio.Editors.CustomActionsEditor">
+    <DockPanel Margin="8">
+        <TextBlock DockPanel.Dock="Top" Text="Custom Actions" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Add Custom Action" Click="AddEntry_Click" Padding="8,4" Margin="0,0,8,0" />
+            <Button Content="Remove" Click="Remove_Click" Padding="8,4" />
+        </StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <ListBox Grid.Column="0" ItemsSource="{Binding Entries}"
+                     SelectedItem="{Binding SelectedEntry}" Margin="0,0,8,0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Id}" FontWeight="SemiBold" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel DataContext="{Binding SelectedEntry}">
+                    <TextBlock Text="Name" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="Unique identifier for this custom action" FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Id, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="Unique identifier for this custom action. Used in sequence references." />
+                    <TextBlock Text="Type" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{x:Static local:CustomActionsEditorViewModel.Types}"
+                              SelectedItem="{Binding Type}" Margin="0,0,0,12"
+                              ToolTip="DllFromBinary calls a DLL function. ExeFromBinary runs an embedded executable. SetProperty sets an MSI property value." />
+                    <TextBlock Text="Source" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="Binary table entry name, or property name for SetProperty" FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Source, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="For DLL/EXE: name of the Binary table entry. For SetProperty: the property name to set." />
+                    <TextBlock Text="Target" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="Function name, command-line args, or property value" FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="For DLL: exported function name. For EXE: command-line arguments. For SetProperty: the value." />
+                    <TextBlock Text="Condition" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="Example: NOT Installed (runs only on first install)" FontSize="11" Foreground="Gray" FontStyle="Italic" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Condition, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="MSI condition that must be true for this action to run. Leave empty to always run." />
+                    <TextBlock Text="Sequence" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Sequence, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="Numeric position in the installation sequence. Lower numbers run earlier." />
+                    <TextBlock Text="After" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding After, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="Name of the action after which this custom action should run." />
+                    <TextBlock Text="Before" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Before, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12"
+                             ToolTip="Name of the action before which this custom action should run." />
+                    <CheckBox Content="Deferred" IsChecked="{Binding Deferred}" Margin="0,0,0,8"
+                              ToolTip="Run during the installation transaction (elevated). Required for file system or registry changes." />
+                    <CheckBox Content="Rollback" IsChecked="{Binding Rollback}" Margin="0,0,0,8"
+                              ToolTip="Run if the installation fails and rolls back. Use to undo deferred actions." />
+                    <CheckBox Content="Commit" IsChecked="{Binding Commit}" Margin="0,0,0,8"
+                              ToolTip="Run after a successful installation commit. Use for post-install cleanup." />
+                    <CheckBox Content="No Impersonate" IsChecked="{Binding NoImpersonate}" Margin="0,0,0,8"
+                              ToolTip="Run with elevated privileges instead of impersonating the installing user." />
+                    <CheckBox Content="Continue On Error" IsChecked="{Binding ContinueOnError}" Margin="0,0,0,8"
+                              ToolTip="Continue installation even if this custom action fails." />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

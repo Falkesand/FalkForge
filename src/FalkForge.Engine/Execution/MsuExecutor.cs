@@ -15,7 +15,7 @@ public sealed class MsuExecutor
         _processRunner = processRunner;
     }
 
-    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct)
+    public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
     {
         var args = BuildArguments(action);
         if (args.IsFailure)
@@ -38,6 +38,10 @@ public sealed class MsuExecutor
 
     internal static Result<string> BuildArguments(PlanAction action)
     {
+        if (action.Package.SourcePath.Contains('"'))
+            return Result<string>.Failure(
+                ErrorKind.Validation, "MSU SourcePath contains embedded quotes, which is not allowed.");
+
         return action.ActionType switch
         {
             PlanActionType.Install => Result<string>.Success(

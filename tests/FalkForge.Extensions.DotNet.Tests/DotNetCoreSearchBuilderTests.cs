@@ -61,4 +61,19 @@ public sealed class DotNetCoreSearchBuilderTests
         Assert.True(result.IsFailure);
         Assert.Contains("NET002", result.Error.Message);
     }
+
+    [Fact]
+    public void SearchForRuntime_ReturnsBuilder_ThatBuildsSuccessfully()
+    {
+        var builder = new DotNetExtension().SearchForRuntime();
+
+        var result = builder
+            .RuntimeType(DotNetRuntimeType.AspNetCore)
+            .Platform(DotNetPlatform.X64)
+            .MinVersion(new Version(8, 0))
+            .Variable("DotNet_AspNetCore_X64")
+            .Build();
+
+        Assert.True(result.IsSuccess);
+    }
 }

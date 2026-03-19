@@ -1,15 +1,15 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class ServiceControlBuilder
 {
-    private string _id = string.Empty;
-    private string _serviceName = string.Empty;
-    private ServiceControlEvent _events = ServiceControlEvent.None;
-    private bool _wait = true;
     private string? _arguments;
     private string? _componentRef;
+    private ServiceControlEvent _events = ServiceControlEvent.None;
+    private string _id = string.Empty;
+    private string _serviceName = string.Empty;
+    private bool _wait = true;
 
     public ServiceControlBuilder Id(string id)
     {
@@ -77,13 +77,16 @@ public sealed class ServiceControlBuilder
         return this;
     }
 
-    internal ServiceControlModel Build() => new()
+    internal ServiceControlModel Build()
     {
-        Id = _id,
-        ServiceName = _serviceName,
-        Events = _events,
-        Wait = _wait,
-        Arguments = _arguments,
-        ComponentRef = _componentRef
-    };
+        return new ServiceControlModel
+        {
+            Id = _id,
+            ServiceName = _serviceName,
+            Events = _events,
+            Wait = _wait,
+            Arguments = _arguments,
+            ComponentRef = _componentRef
+        };
+    }
 }

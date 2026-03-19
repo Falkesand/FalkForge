@@ -1,6 +1,6 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class ServiceFailureActionsBuilder
 {
@@ -12,14 +12,17 @@ public sealed class ServiceFailureActionsBuilder
     public string? Command { get; set; }
     public string? RebootMessage { get; set; }
 
-    internal ServiceFailureActionsModel Build() => new()
+    internal ServiceFailureActionsModel Build()
     {
-        OnFirstFailure = OnFirstFailure,
-        OnSecondFailure = OnSecondFailure,
-        OnSubsequentFailures = OnSubsequentFailures,
-        ResetPeriod = ResetPeriod,
-        RestartDelay = RestartDelay,
-        Command = Command,
-        RebootMessage = RebootMessage
-    };
+        return new ServiceFailureActionsModel
+        {
+            OnFirstFailure = OnFirstFailure,
+            OnSecondFailure = OnSecondFailure,
+            OnSubsequentFailures = OnSubsequentFailures,
+            ResetPeriod = ResetPeriod,
+            RestartDelay = RestartDelay,
+            Command = Command,
+            RebootMessage = RebootMessage
+        };
+    }
 }

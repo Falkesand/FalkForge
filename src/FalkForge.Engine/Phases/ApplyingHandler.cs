@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Phases;
 
+using System.Diagnostics;
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Execution;
@@ -231,7 +232,29 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                     return EnginePhase.RollingBack;
                 }
 
-                var result = await _executor.ExecuteAsync(action, ct);
+                var lastProgressTime = Stopwatch.GetTimestamp();
+                var progress = new Progress<int>(percent =>
+                {
+                    var now = Stopwatch.GetTimestamp();
+                    if (Stopwatch.GetElapsedTime(lastProgressTime, now).TotalMilliseconds < 100 && percent < 100)
+                        return;
+
+                    lastProgressTime = now;
+
+                    if (context.UiPipe is { IsConnected: true })
+                    {
+                        _ = context.UiPipe.SendAsync(new ProgressMessage
+                        {
+                            Progress = new InstallProgress(
+                                globalActionIndex + 1,
+                                totalPackages,
+                                action.PackageId,
+                                percent)
+                        }, ct);
+                    }
+                });
+
+                var result = await _executor.ExecuteAsync(action, context.IsDryRun, context.DryRunLogPath, ct, progress);
                 if (result.IsFailure)
                 {
                     context.ErrorMessage = result.Error.Message;
@@ -340,7 +363,29 @@ public sealed class ApplyingHandler : IEnginePhaseHandler
                 return EnginePhase.Failed;
             }
 
-            var result = await _executor.ExecuteAsync(action, ct);
+            var lastProgressTime = Stopwatch.GetTimestamp();
+            var progress = new Progress<int>(percent =>
+            {
+                var now = Stopwatch.GetTimestamp();
+                if (Stopwatch.GetElapsedTime(lastProgressTime, now).TotalMilliseconds < 100 && percent < 100)
+                    return;
+
+                lastProgressTime = now;
+
+                if (context.UiPipe is { IsConnected: true })
+                {
+                    _ = context.UiPipe.SendAsync(new ProgressMessage
+                    {
+                        Progress = new InstallProgress(
+                            i + 1,
+                            totalPackages,
+                            action.PackageId,
+                            percent)
+                    }, ct);
+                }
+            });
+
+            var result = await _executor.ExecuteAsync(action, context.IsDryRun, context.DryRunLogPath, ct, progress);
             if (result.IsFailure)
             {
                 context.ErrorMessage = result.Error.Message;

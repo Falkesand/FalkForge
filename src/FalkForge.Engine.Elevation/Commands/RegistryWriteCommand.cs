@@ -1,23 +1,27 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 [SupportedOSPlatform("windows")]
-public sealed class RegistryWriteCommand : IElevatedCommand
+public sealed partial class RegistryWriteCommand : IElevatedCommand
 {
-    private static readonly string[] DeniedSubKeyPrefixes =
+    // System-reserved application name segments that must never be written to.
+    // These are checked case-insensitively against the second path segment.
+    private static readonly string[] ReservedAppNames =
     [
-        @"SOFTWARE\Microsoft\Windows NT\",
-        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-        @"SYSTEM\",
-        @"SECURITY\",
-        @"SAM\"
+        "Microsoft",
+        "Classes",
+        "Policies",
+        "WOW6432Node",
+        "RegisteredApplications",
+        "Clients",
     ];
 
     public string Name => "RegistryWrite";
 
-    public Result<byte[]> Execute(byte[] payload)
+    public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         using var stream = new MemoryStream(payload);
         using var reader = new BinaryReader(stream);
@@ -31,10 +35,23 @@ public sealed class RegistryWriteCommand : IElevatedCommand
         if (!subKey.StartsWith(@"SOFTWARE\", StringComparison.OrdinalIgnoreCase))
             return Result<byte[]>.Failure(ErrorKind.SecurityError, @"Registry subkey must start with 'SOFTWARE\'");
 
-        foreach (var denied in DeniedSubKeyPrefixes)
+        // Allowlist step 1: Structural validation — require at least 2 levels deep
+        // under SOFTWARE\, where the application name segment contains only safe characters.
+        if (!AllowedSubKeyPattern().IsMatch(subKey))
+            return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                @"Registry subkey must match 'SOFTWARE\<AppName>\...' where AppName starts with a letter or digit and contains only alphanumeric, space, dot, underscore, or dash characters");
+
+        // Allowlist step 2: Block system-reserved application name segments.
+        // Extract the app name (second segment between first and second backslash).
+        var afterSoftware = subKey.AsSpan()[@"SOFTWARE\".Length..];
+        var nextSlash = afterSoftware.IndexOf('\\');
+        var appName = nextSlash >= 0 ? afterSoftware[..nextSlash] : afterSoftware;
+
+        foreach (var reserved in ReservedAppNames)
         {
-            if (subKey.StartsWith(denied, StringComparison.OrdinalIgnoreCase))
-                return Result<byte[]>.Failure(ErrorKind.SecurityError, $"Registry subkey prefix '{denied.TrimEnd('\\')}' is not allowed");
+            if (appName.Equals(reserved, StringComparison.OrdinalIgnoreCase))
+                return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                    $"Registry writes under 'SOFTWARE\\{reserved}' are not allowed");
         }
 
         try
@@ -77,4 +94,13 @@ public sealed class RegistryWriteCommand : IElevatedCommand
             return Result<byte[]>.Failure(ErrorKind.ElevationError, $"Access denied: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Matches SOFTWARE\AppName\... where AppName starts with a letter or digit
+    /// and contains only alphanumeric characters, spaces, dots, underscores, or dashes.
+    /// Must be at least 2 levels deep (SOFTWARE\AppName\something).
+    /// Case-insensitive.
+    /// </summary>
+    [GeneratedRegex(@"^SOFTWARE\\[A-Za-z0-9][A-Za-z0-9 ._-]*\\", RegexOptions.IgnoreCase)]
+    private static partial Regex AllowedSubKeyPattern();
 }

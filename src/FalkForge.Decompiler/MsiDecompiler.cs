@@ -213,7 +213,8 @@ public sealed class MsiDecompiler
             Services = servicesResult.Value,
             Shortcuts = shortcutsResult.Value,
             Properties = userPropertiesResult.Value,
-            MajorUpgrade = upgradeReadResult.Value.MajorUpgrade
+            MajorUpgrade = upgradeReadResult.Value.MajorUpgrade,
+            Downgrade = upgradeReadResult.Value.Downgrade
         };
     }
 }

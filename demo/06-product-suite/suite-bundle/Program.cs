@@ -22,7 +22,7 @@ return Installer.BuildBundle(args, outputPath =>
         .BundleId(new Guid("E1F2A3B4-C5D6-4E7F-8A9B-0C1D2E3F4A5B"))
         .UpgradeCode(new Guid("F4A5B6C7-D8E9-4F0A-1B2C-3D4E5F6A7B8C"))
         .Scope(InstallScope.PerMachine)
-        .UseBuiltInUI(licenseFile: licenseFile, themeColor: "#2563EB")
+        .UseBuiltInUI(licenseFile, themeColor: "#2563EB")
         .Chain(chain => chain
             // Prerequisites boundary -- if the app MSI fails, roll back only the app
             .RollbackBoundary("Prerequisites")

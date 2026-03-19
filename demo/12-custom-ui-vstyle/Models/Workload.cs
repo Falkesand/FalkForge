@@ -1,7 +1,7 @@
-namespace CustomUiVsStyle.Models;
-
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+
+namespace CustomUiVsStyle.Models;
 
 public sealed class Workload : INotifyPropertyChanged
 {
@@ -16,7 +16,12 @@ public sealed class Workload : INotifyPropertyChanged
     public bool IsSelected
     {
         get => _isSelected;
-        set { _isSelected = value; OnPropertyChanged(); OnPropertyChanged(nameof(SelectedSize)); }
+        set
+        {
+            _isSelected = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedSize));
+        }
     }
 
     public string SelectedSize => IsSelected ? Size : "0 MB";
@@ -24,10 +29,17 @@ public sealed class Workload : INotifyPropertyChanged
     public double Progress
     {
         get => _progress;
-        set { _progress = value; OnPropertyChanged(); }
+        set
+        {
+            _progress = value;
+            OnPropertyChanged();
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
     private void OnPropertyChanged([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
 }

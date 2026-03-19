@@ -1,20 +1,20 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
 using FalkForge.Validation;
 
+namespace FalkForge.Builders;
+
 public sealed class PatchBuilder
 {
-    private Guid _id;
+    private bool _allowRemoval;
     private PatchClassification _classification = PatchClassification.Update;
     private string? _description;
+    private Guid _id;
     private string? _manufacturer;
+    private string _targetMsiPath = string.Empty;
     private Guid _targetProductCode;
     private string? _targetVersion;
-    private string? _updatedVersion;
-    private string _targetMsiPath = string.Empty;
     private string _updatedMsiPath = string.Empty;
-    private bool _allowRemoval;
+    private string? _updatedVersion;
 
     public PatchBuilder Id(Guid id)
     {

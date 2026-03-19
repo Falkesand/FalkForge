@@ -12,10 +12,8 @@ public static class PackageBuilderExtensions
 
         var result = locBuilder.Build();
         if (result.IsFailure)
-        {
             throw new InvalidOperationException(
                 $"Localization configuration error: {result.Error.Message}");
-        }
 
         var data = result.Value
             .Select(m => new LocalizationData

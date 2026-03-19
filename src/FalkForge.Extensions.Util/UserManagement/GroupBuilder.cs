@@ -2,9 +2,9 @@ namespace FalkForge.Extensions.Util.UserManagement;
 
 public sealed class GroupBuilder
 {
-    private string _name = string.Empty;
-    private string? _domain;
     private string? _componentRef;
+    private string? _domain;
+    private string _name = string.Empty;
 
     public GroupBuilder Name(string name)
     {

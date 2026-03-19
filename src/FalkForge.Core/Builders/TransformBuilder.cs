@@ -1,15 +1,15 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
 using FalkForge.Validation;
 
+namespace FalkForge.Builders;
+
 public sealed class TransformBuilder
 {
-    private string? _id;
-    private string _baseMsiPath = string.Empty;
-    private string _targetMsiPath = string.Empty;
-    private string? _description;
     private readonly Dictionary<string, string> _propertyChanges = new();
+    private string _baseMsiPath = string.Empty;
+    private string? _description;
+    private string? _id;
+    private string _targetMsiPath = string.Empty;
 
     public TransformBuilder Id(string id)
     {

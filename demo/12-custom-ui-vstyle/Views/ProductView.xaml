@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#1E1E1E">
     <UserControl.Resources>
-        <ResourceDictionary Source="/Themes/DarkTheme.xaml"/>
+        <ResourceDictionary Source="/Themes/DarkTheme.xaml" />
     </UserControl.Resources>
 
     <Grid Margin="40,32">
@@ -12,41 +12,41 @@
             <Border Background="#252526" CornerRadius="8" Padding="24" Margin="0,0,0,24">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="64"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <!-- App icon placeholder -->
                     <Border Grid.Column="0" Width="48" Height="48" Background="#7B68EE" CornerRadius="8"
                             VerticalAlignment="Center">
                         <TextBlock Text="FF" FontSize="20" FontWeight="Bold" Foreground="White"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding ProductName}" FontSize="18" FontWeight="SemiBold"
-                                   Foreground="#CCCCCC"/>
+                                   Foreground="#CCCCCC" />
                         <TextBlock Foreground="#969696" FontSize="12" Margin="0,4,0,0">
-                            <Run Text="Version"/>
-                            <Run Text="{Binding ProductVersion, Mode=OneWay}"/>
-                            <Run Text=" | "/>
-                            <Run Text="{Binding Manufacturer, Mode=OneWay}"/>
+                            <Run Text="Version" />
+                            <Run Text="{Binding ProductVersion, Mode=OneWay}" />
+                            <Run Text=" | " />
+                            <Run Text="{Binding Manufacturer, Mode=OneWay}" />
                         </TextBlock>
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- Description -->
-            <TextBlock Text="A comprehensive suite of development tools for building modern .NET applications, web services, and cloud-native solutions."
+            <TextBlock Text="{Binding Description}"
                        FontSize="14" Foreground="#969696" TextWrapping="Wrap" LineHeight="22"
-                       Margin="0,0,0,24"/>
+                       Margin="0,0,0,24" />
 
             <!-- Included components list -->
-            <TextBlock Text="Included workloads:" FontSize="13" Foreground="#CCCCCC" Margin="0,0,0,8"/>
-            <TextBlock Text="  &#x2022; .NET Desktop Development" FontSize="12" Foreground="#969696" Margin="0,2"/>
-            <TextBlock Text="  &#x2022; Web Development Tools" FontSize="12" Foreground="#969696" Margin="0,2"/>
-            <TextBlock Text="  &#x2022; Database Tooling" FontSize="12" Foreground="#969696" Margin="0,2"/>
-            <TextBlock Text="  &#x2022; Cloud Deployment Kit" FontSize="12" Foreground="#969696" Margin="0,2"/>
+            <TextBlock Text="{Binding IncludedWorkloadsLabel}" FontSize="13" Foreground="#CCCCCC" Margin="0,0,0,8" />
+            <TextBlock Text="  &#x2022; .NET Desktop Development" FontSize="12" Foreground="#969696" Margin="0,2" />
+            <TextBlock Text="  &#x2022; Web Development Tools" FontSize="12" Foreground="#969696" Margin="0,2" />
+            <TextBlock Text="  &#x2022; Database Tooling" FontSize="12" Foreground="#969696" Margin="0,2" />
+            <TextBlock Text="  &#x2022; Cloud Deployment Kit" FontSize="12" Foreground="#969696" Margin="0,2" />
         </StackPanel>
     </Grid>
 </UserControl>

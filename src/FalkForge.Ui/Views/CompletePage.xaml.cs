@@ -1,7 +1,7 @@
-namespace FalkForge.Ui.Views;
-
 using System.Windows;
 using System.Windows.Controls;
+
+namespace FalkForge.Ui.Views;
 
 public partial class CompletePage : UserControl
 {

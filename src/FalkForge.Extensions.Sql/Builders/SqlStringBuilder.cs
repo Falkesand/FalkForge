@@ -1,16 +1,16 @@
-namespace FalkForge.Extensions.Sql.Builders;
-
 using FalkForge.Extensions.Sql.Models;
+
+namespace FalkForge.Extensions.Sql.Builders;
 
 public sealed class SqlStringBuilder
 {
-    private string _id = string.Empty;
+    private bool _continueOnError;
     private string _databaseRef = string.Empty;
-    private string _sql = string.Empty;
     private bool _executeOnInstall;
     private bool _executeOnUninstall;
+    private string _id = string.Empty;
     private int _sequence;
-    private bool _continueOnError;
+    private string _sql = string.Empty;
 
     public SqlStringBuilder Id(string id)
     {
@@ -24,7 +24,10 @@ public sealed class SqlStringBuilder
         return this;
     }
 
-    public SqlStringBuilder Database(SqlDatabaseRef databaseRef) => Database(databaseRef.Id);
+    public SqlStringBuilder Database(SqlDatabaseRef databaseRef)
+    {
+        return Database(databaseRef.Id);
+    }
 
     public SqlStringBuilder Sql(string sql)
     {

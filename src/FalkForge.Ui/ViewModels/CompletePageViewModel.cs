@@ -1,15 +1,15 @@
-namespace FalkForge.Ui.ViewModels;
-
 using System.ComponentModel;
-using ReactiveUI;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
+using ReactiveUI;
+
+namespace FalkForge.Ui.ViewModels;
 
 public sealed class CompletePageViewModel : InstallerPageViewModel, IReactiveObject
 {
     private bool _isSuccess;
-    private string _message = string.Empty;
     private bool _launchOnClose;
+    private string _message = string.Empty;
 
     public CompletePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
@@ -17,6 +17,7 @@ public sealed class CompletePageViewModel : InstallerPageViewModel, IReactiveObj
     }
 
     public override string Title => "Complete";
+
     public override string Description => IsSuccess
         ? "Installation completed successfully."
         : "Installation failed.";
@@ -39,15 +40,26 @@ public sealed class CompletePageViewModel : InstallerPageViewModel, IReactiveObj
         set => this.RaiseAndSetIfChanged(ref _launchOnClose, value);
     }
 
-    public override bool CanNavigateNext() => false;
-    public override bool CanNavigateBack() => false;
-
     public event PropertyChangingEventHandler? PropertyChanging;
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public void RaisePropertyChanging(PropertyChangingEventArgs args)
-        => PropertyChanging?.Invoke(this, args);
+    {
+        PropertyChanging?.Invoke(this, args);
+    }
 
     public void RaisePropertyChanged(PropertyChangedEventArgs args)
-        => PropertyChanged?.Invoke(this, args);
+    {
+        PropertyChanged?.Invoke(this, args);
+    }
+
+    public override bool CanNavigateNext()
+    {
+        return false;
+    }
+
+    public override bool CanNavigateBack()
+    {
+        return false;
+    }
 }

@@ -1,14 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>CustomUiSimple</RootNamespace>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/FalkForge.Ui/FalkForge.Ui.csproj" />
-  </ItemGroup>
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <UseWPF>true</UseWPF>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>CustomUiSimple</RootNamespace>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <NoWarn>NU1701</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="lang\*.json" WithCulture="false" LogicalName="CustomUiSimple.lang.%(Filename)%(Extension)"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/FalkForge.Ui/FalkForge.Ui.csproj"/>
+    </ItemGroup>
 </Project>

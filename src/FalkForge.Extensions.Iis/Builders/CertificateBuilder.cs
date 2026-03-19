@@ -4,12 +4,12 @@ namespace FalkForge.Extensions.Iis.Builders;
 
 public sealed class CertificateBuilder
 {
-    private string _id = string.Empty;
-    private CertificateStoreName _storeName = CertificateStoreName.My;
-    private CertificateStoreLocation _storeLocation = CertificateStoreLocation.LocalMachine;
+    private bool _exportable;
     private CertificateFindType _findType = CertificateFindType.FindByThumbprint;
     private string _findValue = string.Empty;
-    private bool _exportable;
+    private string _id = string.Empty;
+    private CertificateStoreLocation _storeLocation = CertificateStoreLocation.LocalMachine;
+    private CertificateStoreName _storeName = CertificateStoreName.My;
 
     public CertificateBuilder Id(string id)
     {
@@ -44,13 +44,16 @@ public sealed class CertificateBuilder
         return this;
     }
 
-    internal CertificateModel Build() => new()
+    internal CertificateModel Build()
     {
-        Id = _id,
-        StoreName = _storeName,
-        StoreLocation = _storeLocation,
-        FindType = _findType,
-        FindValue = _findValue,
-        Exportable = _exportable
-    };
+        return new CertificateModel
+        {
+            Id = _id,
+            StoreName = _storeName,
+            StoreLocation = _storeLocation,
+            FindType = _findType,
+            FindValue = _findValue,
+            Exportable = _exportable
+        };
+    }
 }

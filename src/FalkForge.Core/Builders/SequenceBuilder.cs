@@ -1,14 +1,14 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class SequenceBuilder
 {
-    private readonly SequenceTable _table;
     private readonly List<SequenceActionModel> _actions = [];
+    private readonly SequenceTable _table;
     private string? _currentActionName;
-    private ActionPosition? _currentPosition;
     private string? _currentCondition;
+    private ActionPosition? _currentPosition;
 
     internal SequenceBuilder(SequenceTable table)
     {

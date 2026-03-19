@@ -1,11 +1,11 @@
-namespace FalkForge.Extensions.DotNet;
-
 using FalkForge.Platform;
+
+namespace FalkForge.Extensions.DotNet;
 
 public sealed class DotNetDetector
 {
-    private readonly IRegistry _registry;
     private readonly IFileSystem _fileSystem;
+    private readonly IRegistry _registry;
 
     public DotNetDetector(IRegistry registry, IFileSystem fileSystem)
     {
@@ -54,12 +54,10 @@ public sealed class DotNetDetector
 
                 // Avoid duplicates (registry + filesystem may find the same version)
                 if (!results.Exists(r =>
-                    r.RuntimeType == runtimeType &&
-                    r.Platform == platform &&
-                    r.Version == version))
-                {
+                        r.RuntimeType == runtimeType &&
+                        r.Platform == platform &&
+                        r.Version == version))
                     results.Add(new DotNetDetectionResult(runtimeType, platform, version, installPath));
-                }
             }
         }
     }
@@ -92,16 +90,14 @@ public sealed class DotNetDetector
 
             // hostfxr presence indicates the Runtime is installed
             if (!results.Exists(r =>
-                r.RuntimeType == DotNetRuntimeType.Runtime &&
-                r.Platform == platform &&
-                r.Version == version))
-            {
+                    r.RuntimeType == DotNetRuntimeType.Runtime &&
+                    r.Platform == platform &&
+                    r.Version == version))
                 results.Add(new DotNetDetectionResult(
                     DotNetRuntimeType.Runtime,
                     platform,
                     version,
                     versionDir));
-            }
         }
     }
 
@@ -112,20 +108,26 @@ public sealed class DotNetDetector
         return _registry.GetStringValue("HKLM", subKey, "InstallPath");
     }
 
-    internal static string PlatformToArchKey(DotNetPlatform platform) => platform switch
+    internal static string PlatformToArchKey(DotNetPlatform platform)
     {
-        DotNetPlatform.X64 => "x64",
-        DotNetPlatform.X86 => "x86",
-        DotNetPlatform.Arm64 => "arm64",
-        _ => "x64"
-    };
+        return platform switch
+        {
+            DotNetPlatform.X64 => "x64",
+            DotNetPlatform.X86 => "x86",
+            DotNetPlatform.Arm64 => "arm64",
+            _ => "x64"
+        };
+    }
 
-    internal static string? RuntimeTypeToRegistryName(DotNetRuntimeType runtimeType) => runtimeType switch
+    internal static string? RuntimeTypeToRegistryName(DotNetRuntimeType runtimeType)
     {
-        DotNetRuntimeType.Runtime => "Microsoft.NETCore.App",
-        DotNetRuntimeType.AspNetCore => "Microsoft.AspNetCore.App",
-        DotNetRuntimeType.WindowsDesktop => "Microsoft.WindowsDesktop.App",
-        DotNetRuntimeType.Sdk => null, // SDK is detected differently
-        _ => null
-    };
+        return runtimeType switch
+        {
+            DotNetRuntimeType.Runtime => "Microsoft.NETCore.App",
+            DotNetRuntimeType.AspNetCore => "Microsoft.AspNetCore.App",
+            DotNetRuntimeType.WindowsDesktop => "Microsoft.WindowsDesktop.App",
+            DotNetRuntimeType.Sdk => null, // SDK is detected differently
+            _ => null
+        };
+    }
 }

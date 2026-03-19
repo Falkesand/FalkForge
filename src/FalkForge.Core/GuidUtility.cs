@@ -6,13 +6,13 @@ namespace FalkForge;
 public static class GuidUtility
 {
     /// <summary>
-    /// Namespace GUID for FalkForge deterministic GUID generation.
+    ///     Namespace GUID for FalkForge deterministic GUID generation.
     /// </summary>
     public static readonly Guid FalkForgeNamespace = new("A3F2B1C4-5D6E-7F80-9A1B-2C3D4E5F6A7B");
 
     /// <summary>
-    /// Creates a deterministic GUID based on a namespace and name using SHA-256.
-    /// This ensures the same input always produces the same GUID.
+    ///     Creates a deterministic GUID based on a namespace and name using SHA-256.
+    ///     This ensures the same input always produces the same GUID.
     /// </summary>
     public static Guid CreateDeterministicGuid(Guid namespaceId, string name)
     {

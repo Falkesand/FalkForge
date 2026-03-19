@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace FalkForge.Localization;
 
 public sealed class LocalizationBuilder
@@ -5,6 +7,7 @@ public sealed class LocalizationBuilder
     private readonly List<(string Culture, Dictionary<string, string> Strings)> _inlineCultures = [];
     private readonly List<string> _jsonFilePaths = [];
     private string? _defaultCulture;
+    private bool _detectCulture;
 
     public LocalizationBuilder AddCulture(string culture, Dictionary<string, string> strings)
     {
@@ -15,6 +18,12 @@ public sealed class LocalizationBuilder
     public LocalizationBuilder DefaultCulture(string culture)
     {
         _defaultCulture = culture;
+        return this;
+    }
+
+    public LocalizationBuilder DetectCulture(bool detect = true)
+    {
+        _detectCulture = detect;
         return this;
     }
 
@@ -41,11 +50,6 @@ public sealed class LocalizationBuilder
         // Combine inline cultures
         loaded.AddRange(_inlineCultures);
 
-        // Validate default culture is set
-        if (_defaultCulture is null)
-            return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
-                "LOC002: No default culture specified. Call DefaultCulture() to set the default culture.");
-
         // Merge entries by culture, detecting duplicate string IDs
         var merged = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
@@ -58,27 +62,40 @@ public sealed class LocalizationBuilder
             }
 
             foreach (var (key, value) in strings)
-            {
                 if (!existing.TryAdd(key, value))
                     return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
                         $"LOC001: Duplicate string ID '{key}' in culture '{culture}'.");
-            }
         }
 
-        // Validate default culture exists in the merged set
-        if (!merged.ContainsKey(_defaultCulture))
+        // Auto-detect default culture from system UI culture if requested
+        var resolvedDefaultCulture = _defaultCulture;
+
+        if (_detectCulture)
+        {
+            var uiCulture = CultureInfo.CurrentUICulture;
+            if (merged.ContainsKey(uiCulture.Name))
+                resolvedDefaultCulture = uiCulture.Name;
+            else if (uiCulture.Parent is { Name.Length: > 0 } parent && merged.ContainsKey(parent.Name))
+                resolvedDefaultCulture = parent.Name;
+        }
+
+        // Validate default culture is set
+        if (resolvedDefaultCulture is null)
             return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
-                $"LOC002: Default culture '{_defaultCulture}' is not defined. Add it with AddCulture() or AddJsonFile().");
+                "LOC002: No default culture specified. Call DefaultCulture() to set the default culture.");
+
+        // Validate default culture exists in the merged set
+        if (!merged.ContainsKey(resolvedDefaultCulture))
+            return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
+                $"LOC002: Default culture '{resolvedDefaultCulture}' is not defined. Add it with AddCulture() or AddJsonFile().");
 
         var models = new List<LocalizationModel>(merged.Count);
         foreach (var (culture, strings) in merged)
-        {
             models.Add(new LocalizationModel
             {
                 Culture = culture,
                 Strings = strings
             });
-        }
 
         return Result<IReadOnlyList<LocalizationModel>>.Success(models);
     }

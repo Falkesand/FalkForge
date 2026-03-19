@@ -1,0 +1,139 @@
+using System.Collections.ObjectModel;
+using FalkForge.Plugins.Sql;
+using FalkForge.Ui.Abstractions;
+using MAS.Views;
+
+namespace MAS.Pages;
+
+/// <summary>
+/// Configures the SQL Server database: choose "use existing" or "create empty",
+/// pick the server instance, and name the database. The SQL Server discovery plugin
+/// populates the server dropdown. Matches the WiX BA AddDatabasePageView.
+/// </summary>
+public sealed class DatabaseServerPage : MasPageBase<DatabaseServerView>
+{
+    private string _databaseName = "MultiAccess";
+    private string _databaseServer = @".\SQLEXPRESS";
+    private bool _isSearching;
+    private bool _useExisting = true;
+    private string _searchButtonContent = string.Empty;
+
+    public override string Title => Localize("DatabaseServer.Title");
+    public override string? Subtitle => Localize("DatabaseServer.Subtitle");
+
+    public string UseExistingRadioText => Localize("DatabaseServer.UseExistingRadio");
+    public string CreateEmptyRadioText => Localize("DatabaseServer.CreateEmptyRadio");
+    public string InfoText => Localize("DatabaseServer.InfoText");
+    public string ServerLabel => Localize("DatabaseServer.ServerLabel");
+    public string DatabaseNameLabel => Localize("DatabaseServer.DatabaseNameLabel");
+
+    public bool IsSearching
+    {
+        get => _isSearching;
+        set => SetField(ref _isSearching, value);
+    }
+
+    public string SearchButtonContent
+    {
+        get => string.IsNullOrEmpty(_searchButtonContent) ? Localize("DatabaseServer.SearchButton") : _searchButtonContent;
+        private set => SetField(ref _searchButtonContent, value);
+    }
+
+    public ObservableCollection<string> AvailableServers { get; } = [];
+    public ObservableCollection<string> AvailableDatabases { get; } = [];
+
+    public bool UseExisting
+    {
+        get => _useExisting;
+        set => SetField(ref _useExisting, value, [nameof(CreateEmpty)]);
+    }
+
+    public bool CreateEmpty
+    {
+        get => !_useExisting;
+        set => UseExisting = !value;
+    }
+
+    public string DatabaseServer
+    {
+        get => _databaseServer;
+        set => SetField(ref _databaseServer, value);
+    }
+
+    public string DatabaseName
+    {
+        get => _databaseName;
+        set => SetField(ref _databaseName, value);
+    }
+
+    public async Task SearchServersAsync()
+    {
+        var discovery = PluginServices.GetService<ISqlServerDiscovery>();
+        if (discovery is null) return;
+
+        IsSearching = true;
+        SearchButtonContent = Localize("DatabaseServer.Searching");
+        try
+        {
+            var result = await discovery.DiscoverServersAsync();
+            if (result.IsSuccess)
+            {
+                AvailableServers.Clear();
+                foreach (var server in result.Value)
+                    AvailableServers.Add(server);
+
+                SearchButtonContent = string.Format(
+                    Localize("DatabaseServer.FoundServers"),
+                    result.Value.Count);
+            }
+            else
+            {
+                SearchButtonContent = Localize("DatabaseServer.SearchFailed");
+            }
+        }
+        finally
+        {
+            IsSearching = false;
+            _ = ResetSearchButtonAsync();
+        }
+    }
+
+    private async Task ResetSearchButtonAsync()
+    {
+        await Task.Delay(2000);
+        SearchButtonContent = string.Empty;
+    }
+
+    public async Task LoadDatabasesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(DatabaseServer)) return;
+
+        var lister = PluginServices.GetService<IDatabaseLister>();
+        if (lister is null) return;
+
+        var result = await lister.ListDatabasesAsync(DatabaseServer, true);
+        if (result.IsSuccess)
+        {
+            AvailableDatabases.Clear();
+            foreach (var db in result.Value)
+                AvailableDatabases.Add(db);
+        }
+    }
+
+    public override PageResult OnNext()
+    {
+        SharedState.Set("UseExistingDatabase", _useExisting);
+        SharedState.Set("DatabaseServer", _databaseServer);
+        SharedState.Set("DatabaseName", _databaseName);
+
+        var installType = SharedState.Get<string>("InstallationType");
+        return installType == "Advanced"
+            ? PageResult.GoTo<AdvancedInstallDirMultiServerPage>()
+            : PageResult.GoTo<ConfirmParametersPage>();
+    }
+
+    public override PageResult OnBack()
+    {
+        return PageResult.GoTo<InstallationTypePage>();
+    }
+}

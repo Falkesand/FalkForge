@@ -1,34 +1,47 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+using FalkForge.Sbom;
+
+namespace FalkForge.Builders;
 
 public sealed class PackageBuilder
 {
-    private readonly List<FileEntryModel> _files = [];
-    private readonly List<FeatureModel> _features = [];
-    private readonly List<ShortcutModel> _shortcuts = [];
-    private readonly List<ServiceModel> _services = [];
-    private readonly List<ServiceControlModel> _serviceControls = [];
-    private readonly List<RegistryEntryModel> _registryEntries = [];
-    private readonly List<RemoveRegistryModel> _removeRegistryEntries = [];
-    private readonly List<EnvironmentVariableModel> _environmentVariables = [];
-    private readonly List<FontModel> _fonts = [];
-    private readonly List<PropertyModel> _properties = [];
-    private readonly List<LaunchConditionModel> _launchConditions = [];
-    private readonly List<IniFileModel> _iniFiles = [];
-    private readonly List<PermissionModel> _permissions = [];
-    private readonly List<FileAssociationModel> _fileAssociations = [];
-    private readonly List<CustomActionModel> _customActions = [];
-    private readonly List<BinaryModel> _binaries = [];
-    private readonly List<RemoveFileModel> _removeFiles = [];
-    private readonly List<CreateFolderModel> _createFolders = [];
-    private readonly List<MoveFileModel> _moveFiles = [];
-    private readonly List<DuplicateFileModel> _duplicateFiles = [];
     private readonly List<AssemblyModel> _assemblies = [];
+    private readonly List<BinaryModel> _binaries = [];
+    private readonly List<ComClassModel> _comClasses = [];
+    private readonly List<ComTypeLibModel> _typeLibs = [];
+    private readonly List<CreateFolderModel> _createFolders = [];
+    private readonly List<CustomActionModel> _customActions = [];
     private readonly List<CustomTableModel> _customTables = [];
+    private readonly List<DuplicateFileModel> _duplicateFiles = [];
+    private readonly List<EnvironmentVariableModel> _environmentVariables = [];
     private readonly List<SequenceActionModel> _executeSequenceActions = [];
+    private readonly List<FeatureModel> _features = [];
+    private readonly List<FileAssociationModel> _fileAssociations = [];
+    private readonly List<FileEntryModel> _files = [];
+    private readonly List<FontModel> _fonts = [];
+    private readonly List<IniFileModel> _iniFiles = [];
+    private readonly List<LaunchConditionModel> _launchConditions = [];
+
+    private readonly List<LocalizationData> _localizationData = [];
+    private readonly List<MoveFileModel> _moveFiles = [];
+    private readonly List<PermissionModel> _permissions = [];
+    private readonly List<PropertyModel> _properties = [];
+    private readonly List<RegistryEntryModel> _registryEntries = [];
+    private readonly List<RemoveFileModel> _removeFiles = [];
+    private readonly List<RemoveRegistryModel> _removeRegistryEntries = [];
+    private readonly List<ServiceControlModel> _serviceControls = [];
+    private readonly List<ServiceModel> _services = [];
+    private readonly List<ShortcutModel> _shortcuts = [];
     private readonly List<SequenceActionModel> _uiSequenceActions = [];
+
+    private MsiDialogSet _dialogSet = MsiDialogSet.None;
+    private DowngradeModel? _downgrade;
+    private IntegrityConfiguration? _integrity;
+    private MajorUpgradeModel? _majorUpgrade;
     private MediaTemplateModel? _mediaTemplate;
+    private ReproducibleBuildOptions? _reproducibleOptions;
+    private SigningOptions? _signing;
+    private UpgradeModel? _upgrade;
 
     public string Name { get; set; } = string.Empty;
     public string Manufacturer { get; set; } = string.Empty;
@@ -49,12 +62,8 @@ public sealed class PackageBuilder
     public bool EnableRestartManager { get; set; }
     public int CabinetThreadCount { get; set; }
 
-    private readonly List<LocalizationData> _localizationData = [];
-
-    private MsiDialogSet _dialogSet = MsiDialogSet.None;
-    private UpgradeModel? _upgrade;
-    private MajorUpgradeModel? _majorUpgrade;
-    private SigningOptions? _signing;
+    private SbomOptions? _sbomOptions;
+    private IceConfiguration? _iceConfiguration;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -110,7 +119,8 @@ public sealed class PackageBuilder
         return this;
     }
 
-    public PackageBuilder EnvironmentVariable(string name, string value, Action<EnvironmentVariableBuilder>? configure = null)
+    public PackageBuilder EnvironmentVariable(string name, string value,
+        Action<EnvironmentVariableBuilder>? configure = null)
     {
         var builder = new EnvironmentVariableBuilder(name, value);
         configure?.Invoke(builder);
@@ -118,8 +128,11 @@ public sealed class PackageBuilder
         return this;
     }
 
-    public PackageBuilder EnvironmentVariable(string name, MsiProperty property, Action<EnvironmentVariableBuilder>? configure = null) =>
-        EnvironmentVariable(name, property.ToString(), configure);
+    public PackageBuilder EnvironmentVariable(string name, MsiProperty property,
+        Action<EnvironmentVariableBuilder>? configure = null)
+    {
+        return EnvironmentVariable(name, property.ToString(), configure);
+    }
 
     public PackageBuilder Property(string name, string value, Action<PropertyBuilder>? configure = null)
     {
@@ -135,8 +148,10 @@ public sealed class PackageBuilder
         return this;
     }
 
-    public PackageBuilder Require(Condition condition, string message) =>
-        Require(condition.ToString(), message);
+    public PackageBuilder Require(Condition condition, string message)
+    {
+        return Require(condition.ToString(), message);
+    }
 
     public PackageBuilder Upgrade(Action<UpgradeBuilder> configure)
     {
@@ -151,6 +166,14 @@ public sealed class PackageBuilder
         var builder = new MajorUpgradeBuilder();
         configure(builder);
         _majorUpgrade = builder.Build();
+        return this;
+    }
+
+    public PackageBuilder Downgrade(Action<DowngradeBuilder> configure)
+    {
+        var builder = new DowngradeBuilder();
+        configure(builder);
+        _downgrade = builder.Build();
         return this;
     }
 
@@ -194,7 +217,8 @@ public sealed class PackageBuilder
         return this;
     }
 
-    public PackageBuilder CustomAction(string binaryPath, string entryPoint, Action<CustomActionBuilder>? configure = null)
+    public PackageBuilder CustomAction(string binaryPath, string entryPoint,
+        Action<CustomActionBuilder>? configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(binaryPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(entryPoint);
@@ -202,9 +226,7 @@ public sealed class PackageBuilder
         var binaryName = Path.GetFileNameWithoutExtension(binaryPath);
 
         if (!_binaries.Exists(b => b.Name == binaryName))
-        {
             _binaries.Add(new BinaryModel { Name = binaryName, SourcePath = binaryPath });
-        }
 
         var builder = new CustomActionBuilder(entryPoint);
         builder.DllFromBinary(binaryName, entryPoint);
@@ -316,6 +338,14 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder Integrity(Action<IntegrityBuilder> configure)
+    {
+        var builder = new IntegrityBuilder();
+        configure(builder);
+        _integrity = builder.Build();
+        return this;
+    }
+
     public PackageBuilder UseDialogSet(MsiDialogSet dialogSet)
     {
         _dialogSet = dialogSet;
@@ -329,16 +359,80 @@ public sealed class PackageBuilder
         return this;
     }
 
-    internal void AddShortcut(ShortcutModel shortcut) => _shortcuts.Add(shortcut);
+    public PackageBuilder Reproducible(long? epochOverride = null)
+    {
+        long epoch;
+        if (epochOverride.HasValue)
+        {
+            epoch = epochOverride.Value;
+        }
+        else if (Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH") is { } envValue)
+        {
+            if (!long.TryParse(envValue, out epoch))
+                throw new ArgumentException($"RPR001: SOURCE_DATE_EPOCH '{envValue}' is not a valid Unix timestamp.");
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
+        }
+
+        _reproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch };
+        return this;
+    }
+
+    public PackageBuilder Sbom(Action<SbomOptions>? configure = null)
+    {
+        _sbomOptions ??= new SbomOptions();
+        configure?.Invoke(_sbomOptions);
+        return this;
+    }
+
+    public PackageBuilder Ice(Action<IceConfigurationBuilder> configure)
+    {
+        var builder = new IceConfigurationBuilder();
+        configure(builder);
+        _iceConfiguration = builder.Build();
+        return this;
+    }
+
+    public PackageBuilder ComClass(Action<ComClassBuilder> configure)
+    {
+        var builder = new ComClassBuilder();
+        configure(builder);
+        _comClasses.Add(builder.Build());
+        return this;
+    }
+
+    public PackageBuilder TypeLib(Action<ComTypeLibBuilder> configure)
+    {
+        var builder = new ComTypeLibBuilder();
+        configure(builder);
+        _typeLibs.Add(builder.Build());
+        return this;
+    }
+
+    internal void AddShortcut(ShortcutModel shortcut)
+    {
+        _shortcuts.Add(shortcut);
+    }
 
     public PackageModel Build()
     {
-        var upgradeCode = UpgradeCode ?? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{Name}::{Manufacturer}");
-        var productCode = ProductCode ?? Guid.NewGuid();
+        var upgradeCode = UpgradeCode ??
+                          GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
+                              $"{Name}::{Manufacturer}");
+        var productCode = ProductCode ?? (_reproducibleOptions is not null
+            ? GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"{Name}::{Manufacturer}::{Version}") // Version.ToString(): 2-component → "1.0", 3-component → "1.0.0"
+            : Guid.NewGuid());
         var defaultInstallDir = DefaultInstallDirectory ?? KnownFolder.ProgramFiles / Manufacturer / Name;
 
         // If no features defined, create implicit "Complete" feature
-        var features = _features.Count > 0 ? _features : [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }];
+        var features = _features.Count > 0
+            ? _features
+            : [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }];
 
         return new PackageModel
         {
@@ -387,9 +481,16 @@ public sealed class PackageBuilder
             Signing = _signing,
             Upgrade = _upgrade ?? (_majorUpgrade is null ? new UpgradeModel() : null),
             MajorUpgrade = _majorUpgrade,
+            Downgrade = _downgrade,
             DialogSet = _dialogSet,
             CabinetThreadCount = CabinetThreadCount,
-            LocalizationData = _localizationData
+            LocalizationData = _localizationData,
+            ReproducibleOptions = _reproducibleOptions,
+            SbomOptions = _sbomOptions,
+            IceConfiguration = _iceConfiguration,
+            ComClasses = [.. _comClasses],
+            TypeLibs = [.. _typeLibs],
+            Integrity = _integrity
         };
     }
 }

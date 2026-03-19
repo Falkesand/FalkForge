@@ -1,0 +1,23 @@
+; printer.inf -- Placeholder INF file for Demo Printer Driver
+; Replace with a real driver INF when adapting for production use.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = Printer
+ClassGuid   = {4D36E979-E325-11CE-BFC1-08002BE10318}
+Provider    = %ManufacturerName%
+DriverVer   = 01/01/2026,1.0.0.0
+CatalogFile = printer.cat
+
+[Manufacturer]
+%ManufacturerName% = Standard, NTamd64
+
+[Standard.NTamd64]
+%DeviceDesc% = Install, USBPRINT\DemoPrinter
+
+[Install]
+; Driver install section placeholder
+
+[Strings]
+ManufacturerName = "Demo"
+DeviceDesc       = "Demo Printer"

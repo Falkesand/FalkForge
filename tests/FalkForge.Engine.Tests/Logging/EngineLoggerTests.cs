@@ -426,6 +426,22 @@ public sealed class EngineLoggerTests : IDisposable
     }
 
     [Fact]
+    public void GetDefaultLogPath_ContainsPerSessionGuidDirectory()
+    {
+        var path1 = EngineLogger.GetDefaultLogPath();
+        var path2 = EngineLogger.GetDefaultLogPath();
+
+        // Each call should produce a unique session directory
+        var dir1 = Path.GetDirectoryName(path1)!;
+        var dir2 = Path.GetDirectoryName(path2)!;
+        Assert.NotEqual(dir1, dir2);
+
+        // The parent of the session dir should be FalkForge
+        var falkForgeDir = Path.GetDirectoryName(dir1)!;
+        Assert.EndsWith("FalkForge", falkForgeDir);
+    }
+
+    [Fact]
     public void MultipleDisposes_DoNotThrow()
     {
         var path = GetLogPath();

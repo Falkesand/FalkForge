@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <UseWPF>true</UseWPF>
+        <RootNamespace>FalkForge.Studio</RootNamespace>
+        <Description>Visual MSI package editor for FalkForge</Description>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Studio.Tests"/>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj"/>
+        <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj"/>
+        <ProjectReference Include="..\FalkForge.Compiler.Msix\FalkForge.Compiler.Msix.csproj"/>
+        <ProjectReference Include="..\FalkForge.Decompiler\FalkForge.Decompiler.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensions.Sql\FalkForge.Extensions.Sql.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensions.Firewall\FalkForge.Extensions.Firewall.csproj"/>
+        <ProjectReference Include="..\FalkForge.Extensions.Util\FalkForge.Extensions.Util.csproj"/>
+    </ItemGroup>
+</Project>

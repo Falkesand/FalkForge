@@ -5,8 +5,10 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 
 public sealed class BundleCompiler
 {
-    private readonly BundleValidator _validator = new();
     private readonly ManifestGenerator _manifestGenerator = new();
+    private readonly BundleValidator _validator = new();
+
+    public string? EngineStubPath { get; set; }
 
     public Result<string> Compile(BundleModel model, string outputPath)
     {
@@ -22,7 +24,7 @@ public sealed class BundleCompiler
 
         var manifest = manifestResult.Value;
 
-        // Step 3: Read and prepare payloads (skip remote-only packages)
+        // Step 3: Prepare payload metadata (skip remote-only packages); stream SHA256 to avoid ReadAllBytes
         var payloads = new List<PayloadEntry>();
         foreach (var package in model.Packages)
         {
@@ -31,19 +33,33 @@ public sealed class BundleCompiler
                 continue;
 
             if (!File.Exists(package.SourcePath))
-                return Result<string>.Failure(ErrorKind.PayloadError, $"Package source not found: {package.SourcePath}");
+                return Result<string>.Failure(ErrorKind.PayloadError,
+                    $"Package source not found: {package.SourcePath}");
 
-            var data = File.ReadAllBytes(package.SourcePath);
-            var hash = Convert.ToHexString(SHA256.HashData(data));
+            long originalSize;
+            string hash;
+            using (var fileStream = File.OpenRead(package.SourcePath))
+            {
+                originalSize = fileStream.Length;
+                hash = Convert.ToHexString(SHA256.HashData(fileStream));
+            }
 
             payloads.Add(new PayloadEntry
             {
                 PackageId = package.Id,
-                Data = data,
+                SourcePath = package.SourcePath,
+                OriginalSize = originalSize,
                 Sha256Hash = hash,
                 ContainerId = package.ContainerId
             });
         }
+
+        // Step 3.5: Integrity signing (opportunistic -- only if Sigil is on PATH and configured)
+        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, payloads);
+        if (integrityResult.IsFailure)
+            return Result<string>.Failure(integrityResult.Error);
+
+        manifest = integrityResult.Value;
 
         // Step 4: Create stub (minimal placeholder -- in production, this is the pre-compiled NativeAOT engine binary)
         var stubPath = CreateStub(outputPath);
@@ -54,8 +70,14 @@ public sealed class BundleCompiler
         var embedResult = embedder.Embed(stubPath, outputFilePath, manifest, payloads);
 
         // Clean up stub
-        try { File.Delete(stubPath); }
-        catch (IOException) { /* best effort cleanup */ }
+        try
+        {
+            File.Delete(stubPath);
+        }
+        catch (IOException)
+        {
+            /* best effort cleanup */
+        }
 
         if (embedResult.IsFailure)
             return Result<string>.Failure(embedResult.Error);
@@ -63,11 +85,20 @@ public sealed class BundleCompiler
         return outputFilePath;
     }
 
-    private static string CreateStub(string outputDir)
+    private string CreateStub(string outputDir)
     {
-        var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
         Directory.CreateDirectory(outputDir);
-        File.WriteAllBytes(stubPath, []);
-        return stubPath;
+
+        if (EngineStubPath is not null && File.Exists(EngineStubPath))
+        {
+            var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
+            File.Copy(EngineStubPath, stubPath, overwrite: true);
+            return stubPath;
+        }
+
+        // Fallback: empty placeholder (design-time / test)
+        var fallbackPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
+        File.WriteAllBytes(fallbackPath, []);
+        return fallbackPath;
     }
 }

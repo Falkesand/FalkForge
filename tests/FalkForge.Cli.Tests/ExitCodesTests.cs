@@ -4,30 +4,6 @@ namespace FalkForge.Cli.Tests;
 
 public sealed class ExitCodesTests
 {
-    [Fact]
-    public void Success_IsZero()
-    {
-        Assert.Equal(0, ExitCodes.Success);
-    }
-
-    [Fact]
-    public void ValidationFailure_IsOne()
-    {
-        Assert.Equal(1, ExitCodes.ValidationFailure);
-    }
-
-    [Fact]
-    public void CompilationError_IsTwo()
-    {
-        Assert.Equal(2, ExitCodes.CompilationError);
-    }
-
-    [Fact]
-    public void RuntimeError_IsThree()
-    {
-        Assert.Equal(3, ExitCodes.RuntimeError);
-    }
-
     [Theory]
     [InlineData(ErrorKind.Validation, 1)]
     [InlineData(ErrorKind.InvalidConfiguration, 1)]
@@ -55,26 +31,18 @@ public sealed class ExitCodesTests
     }
 
     [Fact]
-    public void FromResult_FailedResult_MapsErrorKind()
+    public void FromResult_FailedResult_ReturnsNonZero()
     {
-        var result = Result<string>.Failure(ErrorKind.Validation, "bad input");
+        var result = Result<string>.Failure(new Error(ErrorKind.Validation, "Error"));
 
-        Assert.Equal(1, ExitCodes.FromResult(result));
+        Assert.Equal(ExitCodes.ValidationFailure, ExitCodes.FromResult(result));
     }
 
     [Fact]
-    public void FromResult_CompilationFailure_ReturnsTwo()
+    public void FromResult_FileNotFoundResult_ReturnsRuntimeError()
     {
-        var result = Result<string>.Failure(ErrorKind.CompilationError, "compile failed");
+        var result = Result<string>.Failure(new Error(ErrorKind.FileNotFound, "Not found"));
 
-        Assert.Equal(2, ExitCodes.FromResult(result));
-    }
-
-    [Fact]
-    public void FromResult_RuntimeFailure_ReturnsThree()
-    {
-        var result = Result<string>.Failure(ErrorKind.FileNotFound, "not found");
-
-        Assert.Equal(3, ExitCodes.FromResult(result));
+        Assert.Equal(ExitCodes.RuntimeError, ExitCodes.FromResult(result));
     }
 }

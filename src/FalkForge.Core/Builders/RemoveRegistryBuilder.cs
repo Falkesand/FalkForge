@@ -1,15 +1,15 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class RemoveRegistryBuilder
 {
-    private string _id = string.Empty;
-    private RegistryRoot _root;
-    private string _key = string.Empty;
-    private string? _name;
     private RemoveRegistryAction _action = RemoveRegistryAction.RemoveKey;
     private string? _componentRef;
+    private string _id = string.Empty;
+    private string _key = string.Empty;
+    private string? _name;
+    private RegistryRoot _root;
 
     public RemoveRegistryBuilder Id(string id)
     {
@@ -53,13 +53,16 @@ public sealed class RemoveRegistryBuilder
         return this;
     }
 
-    internal RemoveRegistryModel Build() => new()
+    internal RemoveRegistryModel Build()
     {
-        Id = _id,
-        Action = _action,
-        Root = _root,
-        Key = _key,
-        Name = _name,
-        ComponentRef = _componentRef
-    };
+        return new RemoveRegistryModel
+        {
+            Id = _id,
+            Action = _action,
+            Root = _root,
+            Key = _key,
+            Name = _name,
+            ComponentRef = _componentRef
+        };
+    }
 }

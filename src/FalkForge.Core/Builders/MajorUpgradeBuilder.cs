@@ -1,30 +1,16 @@
-namespace FalkForge.Builders;
-
 using FalkForge.Models;
+
+namespace FalkForge.Builders;
 
 public sealed class MajorUpgradeBuilder
 {
-    private bool _allowDowngrades;
     private bool _allowSameVersionUpgrades;
-    private string? _downgradeErrorMessage;
-    private RemoveExistingProductsSchedule _schedule = RemoveExistingProductsSchedule.AfterInstallValidate;
     private bool _migrateFeatures = true;
-
-    public MajorUpgradeBuilder AllowDowngrades()
-    {
-        _allowDowngrades = true;
-        return this;
-    }
+    private RemoveExistingProductsSchedule _schedule = RemoveExistingProductsSchedule.AfterInstallValidate;
 
     public MajorUpgradeBuilder AllowSameVersionUpgrades()
     {
         _allowSameVersionUpgrades = true;
-        return this;
-    }
-
-    public MajorUpgradeBuilder DowngradeErrorMessage(string message)
-    {
-        _downgradeErrorMessage = message;
         return this;
     }
 
@@ -40,12 +26,13 @@ public sealed class MajorUpgradeBuilder
         return this;
     }
 
-    internal MajorUpgradeModel Build() => new()
+    internal MajorUpgradeModel Build()
     {
-        AllowDowngrades = _allowDowngrades,
-        AllowSameVersionUpgrades = _allowSameVersionUpgrades,
-        DowngradeErrorMessage = _downgradeErrorMessage,
-        Schedule = _schedule,
-        MigrateFeatures = _migrateFeatures
-    };
+        return new MajorUpgradeModel
+        {
+            AllowSameVersionUpgrades = _allowSameVersionUpgrades,
+            Schedule = _schedule,
+            MigrateFeatures = _migrateFeatures
+        };
+    }
 }

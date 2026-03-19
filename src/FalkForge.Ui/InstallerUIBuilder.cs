@@ -1,15 +1,24 @@
+using FalkForge.Plugins;
+using FalkForge.Ui.Localization;
+
 namespace FalkForge.Ui;
 
 public sealed class InstallerUIBuilder
 {
-    private InstallerWindowConfig _windowConfig = new();
     private readonly PageRegistrar _pageRegistrar = new();
+    private readonly List<IInstallerPlugin> _plugins = [];
+
+    internal InstallerWindowConfig WindowConfig { get; private set; } = new();
+
+    internal IReadOnlyList<Func<InstallerPage>> PageFactories => _pageRegistrar.Factories;
+    internal IReadOnlyList<IInstallerPlugin> Plugins => _plugins;
+    internal UiLocalizationConfig? LocalizationConfig { get; private set; }
 
     public InstallerUIBuilder Window(Action<InstallerWindowBuilder> configure)
     {
         var builder = new InstallerWindowBuilder();
         configure(builder);
-        _windowConfig = builder.Build();
+        WindowConfig = builder.Build();
         return this;
     }
 
@@ -19,6 +28,17 @@ public sealed class InstallerUIBuilder
         return this;
     }
 
-    internal InstallerWindowConfig WindowConfig => _windowConfig;
-    internal IReadOnlyList<Func<InstallerPage>> PageFactories => _pageRegistrar.Factories;
+    public InstallerUIBuilder Plugin<T>() where T : IInstallerPlugin, new()
+    {
+        _plugins.Add(new T());
+        return this;
+    }
+
+    public InstallerUIBuilder Localization(Action<UiLocalizationBuilder> configure)
+    {
+        var builder = new UiLocalizationBuilder();
+        configure(builder);
+        LocalizationConfig = builder.Build();
+        return this;
+    }
 }

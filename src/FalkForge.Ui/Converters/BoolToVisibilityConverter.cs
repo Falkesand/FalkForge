@@ -1,8 +1,8 @@
-namespace FalkForge.Ui.Converters;
-
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+
+namespace FalkForge.Ui.Converters;
 
 [ValueConversion(typeof(bool), typeof(Visibility))]
 public sealed class BoolToVisibilityConverter : IValueConverter
@@ -12,7 +12,7 @@ public sealed class BoolToVisibilityConverter : IValueConverter
         if (value is bool boolValue)
         {
             var invert = parameter is "Invert";
-            return (boolValue ^ invert) ? Visibility.Visible : Visibility.Collapsed;
+            return boolValue ^ invert ? Visibility.Visible : Visibility.Collapsed;
         }
 
         return Visibility.Collapsed;
