@@ -20,7 +20,12 @@
       "Bash(git -C /d/git/FalkInstaller diff --name-only -- '*.md')",
       "Bash(git:*)",
       "WebFetch(domain:www.advancedinstaller.com)",
-      "Bash(mutantnet run:*)"
+      "Bash(mutantnet run:*)",
+      "Bash(roslynator analyze:*)",
+      "mcp__csharp-roslyn__load",
+      "mcp__csharp-roslyn__get_diagnostics",
+      "Bash(find /d/Git/FalkInstaller/demo -type f \\\\\\(-name *.ps1 -o -name *.sh -o -name *.bat \\\\\\))",
+      "Bash(quickdup:*)"
     ]
   }
 }

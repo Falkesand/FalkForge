@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Konfigurera")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4502059869b7cf466e493e23d522a9c14c84baab")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dadae096ad912dd3a5c2572abc095253c99ca214")]
 [assembly: System.Reflection.AssemblyProductAttribute("Konfigurera")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Konfigurera")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
