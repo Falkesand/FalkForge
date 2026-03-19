@@ -152,6 +152,9 @@ internal sealed class TableEmitter
         result = InsertDirectoryRow(installDir.Root.Token, "TARGETDIR", ".");
         if (result.IsFailure) return result;
 
+        // Collect all unique directories to avoid duplicate primary key inserts
+        var emittedDirs = new HashSet<string> { "TARGETDIR", installDir.Root.Token };
+
         // Build directory tree from install path segments
         var parentId = installDir.Root.Token;
         foreach (var segment in installDir.Segments)
@@ -161,16 +164,13 @@ internal sealed class TableEmitter
 
             result = InsertDirectoryRow(dirId, parentId, segment);
             if (result.IsFailure) return result;
+            emittedDirs.Add(dirId);
             parentId = dirId;
         }
 
         // Emit INSTALLDIR property pointing to the leaf directory
         var installDirResult = InsertPropertyRow("INSTALLDIR", parentId);
         if (installDirResult.IsFailure) return installDirResult;
-
-        // Collect all unique directories from components
-        var emittedDirs = new HashSet<string> { "TARGETDIR", installDir.Root.Token };
-        emittedDirs.Add(parentId);
 
         foreach (var component in resolved.Components)
         {

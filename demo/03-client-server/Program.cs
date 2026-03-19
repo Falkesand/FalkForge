@@ -1,4 +1,5 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
 return Installer.Build(args, p =>
@@ -120,4 +121,4 @@ return Installer.Build(args, p =>
 
     // Launch condition: Require Windows 10+ (typed Condition API)
     p.Require(Condition.IsWindows10OrLater, "This application requires Windows 10 or later.");
-});
+}, new MsiCompiler());

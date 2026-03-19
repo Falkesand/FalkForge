@@ -1,4 +1,5 @@
 using FalkForge;
+using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 
 return Installer.Build(args, p =>
@@ -182,4 +183,4 @@ return Installer.Build(args, p =>
         ca.SetProperty("FALK_VERSION", "5.0.0");
         ca.After = "InstallValidate";
     });
-});
+}, new MsiCompiler());

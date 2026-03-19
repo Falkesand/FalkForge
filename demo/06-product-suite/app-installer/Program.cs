@@ -74,4 +74,4 @@ return Installer.Build(args, p =>
 
     // Launch condition: Require Windows 10+
     p.Require(Condition.IsWindows10OrLater, "Acme Application requires Windows 10 or later.");
-});
+}, new MsiCompiler());

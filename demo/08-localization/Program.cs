@@ -85,4 +85,4 @@ return Installer.Build(args, package =>
     // -- Major upgrade -------------------------------------------------------
     package.MajorUpgrade(_ => { });
     package.Downgrade(d => d.Block("A newer version is already installed."));
-});
+}, new MsiCompiler());

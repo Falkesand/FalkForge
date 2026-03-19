@@ -192,7 +192,7 @@ return Installer.Build(args, p =>
     {
         ca.SetProperty("CONTOSO_INSTALL_MODE", "server");
         ca.Condition = "NOT Installed";
-        ca.After = "CostFinalize";
+        // Scheduled via p.ExecuteSequence() below -- do not set After here to avoid duplicate sequence entries
     });
 
     // Custom Action -- SetProperty for upgrade scenario
@@ -200,7 +200,7 @@ return Installer.Build(args, p =>
     {
         ca.SetProperty("CONTOSO_UPGRADING", "1");
         ca.Condition = "WIX_UPGRADE_DETECTED";
-        ca.After = "FindRelatedProducts";
+        // Scheduled via p.ExecuteSequence() below
     });
 
     // Custom Action -- DLL from binary (deferred, elevated)
@@ -210,8 +210,8 @@ return Installer.Build(args, p =>
         ca.DllFromBinary("ContosoActions", "ConfigureDatabase");
         ca.Deferred();
         ca.NoImpersonate();
-        ca.After = "InstallFiles";
         ca.Condition = "NOT Installed";
+        // Scheduled via p.ExecuteSequence() below
     });
 
     // Custom Action -- Rollback for the deferred action
@@ -220,8 +220,8 @@ return Installer.Build(args, p =>
         ca.DllFromBinary("ContosoActions", "RollbackDatabase");
         ca.Rollback();
         ca.NoImpersonate();
-        ca.Before = "ConfigureDatabase";
         ca.Condition = "NOT Installed";
+        // Scheduled via p.ExecuteSequence() below
     });
 
     // ──────────────────────────────────────────────────────────────────
