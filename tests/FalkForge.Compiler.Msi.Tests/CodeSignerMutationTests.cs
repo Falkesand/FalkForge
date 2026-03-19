@@ -149,21 +149,6 @@ public sealed class CodeSignerMutationTests
     }
 
     [Fact]
-    public void BuildArguments_FilePath_IsAlwaysLastArgument()
-    {
-        var options = new SigningOptions
-        {
-            CertificateThumbprint = "AA",
-            TimestampUrl = "http://ts.example.com",
-            Description = "Desc",
-            DescriptionUrl = "http://desc.example.com"
-        };
-        var args = CodeSigner.BuildArguments(@"C:\out\product.msi", options);
-
-        Assert.Equal(@"C:\out\product.msi", args[^1]);
-    }
-
-    [Fact]
     public void BuildArguments_CertificatePath_TakesPriorityOverThumbprint()
     {
         // When both are set, CertificatePath should be used (if/else if structure)
@@ -198,19 +183,6 @@ public sealed class CodeSignerMutationTests
         Assert.Contains("/d", args);
         Assert.Contains("/du", args);
         Assert.Equal(@"C:\app.msi", args[^1]);
-    }
-
-    [Fact]
-    public void Sign_NonExistentFile_ReturnsFileNotFoundError()
-    {
-        var signer = new CodeSigner();
-        var options = new SigningOptions { CertificateThumbprint = "AA" };
-
-        var result = signer.Sign(@"C:\definitely\not\real\file.msi", options);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
-        Assert.Contains("not found", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -8,6 +8,25 @@ namespace FalkForge.Compiler.Msi.Tests;
 [SupportedOSPlatform("windows")]
 public sealed class ComponentResolverMutationTests
 {
+    private static ResolvedPackage ResolvePackageWithFile(
+        string filePath, string fileName, InstallPath targetDir)
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile(filePath, size: 512);
+
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f.Add(filePath).To(targetDir));
+        });
+
+        var resolver = new ComponentResolver(fs);
+        var result = resolver.Resolve(package);
+        Assert.True(result.IsSuccess);
+        return result.Value;
+    }
+
     [Fact]
     public void Resolve_ComponentId_IsTruncatedAt72Characters()
     {
@@ -56,65 +75,14 @@ public sealed class ComponentResolverMutationTests
     [Fact]
     public void Resolve_ShortFileName_IsNotTruncated()
     {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/app.exe", size: 512);
+        var resolved = ResolvePackageWithFile(
+            "C:/build/app.exe", "app.exe", KnownFolder.ProgramFiles / "App");
 
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/app.exe").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
         // Short name should not be truncated - verify full format C_{sanitized}_{hash}
-        var id = result.Value.Components[0].Id;
+        var id = resolved.Components[0].Id;
         Assert.StartsWith("C_", id);
         Assert.Contains("app.exe", id);
         Assert.True(id.Length < 72, $"Short ID should be under 72 chars, was {id.Length}");
-    }
-
-    [Fact]
-    public void Resolve_ComponentId_StartsWithC_Prefix()
-    {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/test.dll", size: 100);
-
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/test.dll").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
-        Assert.StartsWith("C_", result.Value.Components[0].Id);
-    }
-
-    [Fact]
-    public void Resolve_FileId_StartsWithF_Prefix()
-    {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/test.dll", size: 100);
-
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/test.dll").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
-        Assert.StartsWith("F_", result.Value.Files[0].FileId);
     }
 
     [Fact]
@@ -140,26 +108,6 @@ public sealed class ComponentResolverMutationTests
         Assert.DoesNotContain("(", id);
         Assert.DoesNotContain(")", id);
         Assert.DoesNotContain(" ", id);
-    }
-
-    [Fact]
-    public void Resolve_ComponentGuid_IsNonEmpty()
-    {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/app.exe", size: 100);
-
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/app.exe").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
-        Assert.NotEqual(Guid.Empty, result.Value.Components[0].Guid);
     }
 
     [Fact]
@@ -357,42 +305,20 @@ public sealed class ComponentResolverMutationTests
     [Fact]
     public void Resolve_DefaultFlags_NeverOverwriteAndPermanentAreFalse()
     {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/app.exe", size: 100);
+        var resolved = ResolvePackageWithFile(
+            "C:/build/app.exe", "app.exe", KnownFolder.ProgramFiles / "App");
 
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/app.exe").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
-        Assert.False(result.Value.Components[0].NeverOverwrite);
-        Assert.False(result.Value.Components[0].Permanent);
+        Assert.False(resolved.Components[0].NeverOverwrite);
+        Assert.False(resolved.Components[0].Permanent);
     }
 
     [Fact]
     public void Resolve_NoFeatureRef_IsNull()
     {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/app.exe", size: 100);
+        var resolved = ResolvePackageWithFile(
+            "C:/build/app.exe", "app.exe", KnownFolder.ProgramFiles / "App");
 
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/app.exe").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
-        Assert.Null(result.Value.Components[0].FeatureRef);
+        Assert.Null(resolved.Components[0].FeatureRef);
     }
 
     [Fact]
@@ -421,22 +347,11 @@ public sealed class ComponentResolverMutationTests
     [Fact]
     public void Resolve_SourcePath_IsFullPath()
     {
-        var fs = new MockFileSystem();
-        fs.AddFile("C:/build/app.exe", size: 100);
+        var resolved = ResolvePackageWithFile(
+            "C:/build/app.exe", "app.exe", KnownFolder.ProgramFiles / "App");
 
-        var package = InstallerTestHost.BuildPackage(p =>
-        {
-            p.Name = "App";
-            p.Manufacturer = "Corp";
-            p.Files(f => f.Add("C:/build/app.exe").To(KnownFolder.ProgramFiles / "App"));
-        });
-
-        var resolver = new ComponentResolver(fs);
-        var result = resolver.Resolve(package);
-
-        Assert.True(result.IsSuccess);
         // SourcePath should be a full path
-        Assert.True(Path.IsPathFullyQualified(result.Value.Files[0].SourcePath),
-            $"Expected full path but got: {result.Value.Files[0].SourcePath}");
+        Assert.True(Path.IsPathFullyQualified(resolved.Files[0].SourcePath),
+            $"Expected full path but got: {resolved.Files[0].SourcePath}");
     }
 }

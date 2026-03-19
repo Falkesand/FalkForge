@@ -21,7 +21,7 @@
         <DockPanel Grid.Column="1" Margin="20,16,16,16" LastChildFill="False">
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Title}"
-                       Style="{StaticResource ExteriorTitle}" />
+                       Style="{DynamicResource ExteriorTitle}" />
 
             <TextBlock DockPanel.Dock="Top"
                        Text="Installation completed successfully."
@@ -36,7 +36,7 @@
 
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Message}"
-                       Style="{StaticResource ExteriorDescription}" />
+                       Style="{DynamicResource ExteriorDescription}" />
 
             <CheckBox DockPanel.Dock="Top"
                       Content="Launch application when closing"

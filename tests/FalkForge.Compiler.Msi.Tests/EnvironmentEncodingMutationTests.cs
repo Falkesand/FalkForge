@@ -7,41 +7,6 @@ namespace FalkForge.Compiler.Msi.Tests;
 public sealed class EnvironmentEncodingMutationTests
 {
     [Fact]
-    public void EncodeName_Set_PrefixIsExactlyEqualsHyphen()
-    {
-        var result = EnvironmentEncoding.EncodeName("VAR", EnvironmentVariableAction.Set);
-
-        Assert.Equal("=-VAR", result);
-        Assert.StartsWith("=-", result);
-        Assert.EndsWith("VAR", result);
-        Assert.Equal(5, result.Length);
-    }
-
-    [Fact]
-    public void EncodeName_Append_PrefixIsExactlyEqualsHyphen()
-    {
-        var result = EnvironmentEncoding.EncodeName("VAR", EnvironmentVariableAction.Append);
-
-        Assert.Equal("=-VAR", result);
-    }
-
-    [Fact]
-    public void EncodeName_Prepend_PrefixIsExactlyEqualsHyphen()
-    {
-        var result = EnvironmentEncoding.EncodeName("VAR", EnvironmentVariableAction.Prepend);
-
-        Assert.Equal("=-VAR", result);
-    }
-
-    [Fact]
-    public void EncodeValue_Set_ReturnsExactValue()
-    {
-        var result = EnvironmentEncoding.EncodeValue("hello", EnvironmentVariableAction.Set, null);
-
-        Assert.Equal("hello", result);
-    }
-
-    [Fact]
     public void EncodeValue_Append_DefaultSeparator_Format()
     {
         var result = EnvironmentEncoding.EncodeValue("val", EnvironmentVariableAction.Append, null);

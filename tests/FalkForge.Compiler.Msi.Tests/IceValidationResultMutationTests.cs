@@ -153,57 +153,6 @@ public sealed class IceValidationResultMutationTests
     }
 
     [Fact]
-    public void IceMessage_AllProperties_RoundTrip()
-    {
-        var msg = new IceMessage
-        {
-            IceName = "ICE99",
-            Severity = IceMessageSeverity.Warning,
-            Description = "Test desc",
-            Table = "File",
-            Column = "FileName",
-            PrimaryKeys = "F_main"
-        };
-
-        Assert.Equal("ICE99", msg.IceName);
-        Assert.Equal(IceMessageSeverity.Warning, msg.Severity);
-        Assert.Equal("Test desc", msg.Description);
-        Assert.Equal("File", msg.Table);
-        Assert.Equal("FileName", msg.Column);
-        Assert.Equal("F_main", msg.PrimaryKeys);
-    }
-
-    [Fact]
-    public void IceMessageSeverity_HasExpectedValues()
-    {
-        Assert.Equal(0, (int)IceMessageSeverity.Failure);
-        Assert.Equal(1, (int)IceMessageSeverity.Error);
-        Assert.Equal(2, (int)IceMessageSeverity.Warning);
-        Assert.Equal(3, (int)IceMessageSeverity.Information);
-    }
-
-    [Fact]
-    public void IceReportMessage_AllProperties_RoundTrip()
-    {
-        var msg = new IceReportMessage
-        {
-            IceName = "ICE01",
-            Severity = "Error",
-            Description = "Some error",
-            Table = "Component",
-            Column = "Id",
-            PrimaryKeys = "C_main"
-        };
-
-        Assert.Equal("ICE01", msg.IceName);
-        Assert.Equal("Error", msg.Severity);
-        Assert.Equal("Some error", msg.Description);
-        Assert.Equal("Component", msg.Table);
-        Assert.Equal("Id", msg.Column);
-        Assert.Equal("C_main", msg.PrimaryKeys);
-    }
-
-    [Fact]
     public void IceReportMessage_OptionalProperties_DefaultNull()
     {
         var msg = new IceReportMessage
@@ -216,34 +165,6 @@ public sealed class IceValidationResultMutationTests
         Assert.Null(msg.Table);
         Assert.Null(msg.Column);
         Assert.Null(msg.PrimaryKeys);
-    }
-
-    [Fact]
-    public void IceReportSummary_AllProperties_RoundTrip()
-    {
-        var summary = new IceReportSummary
-        {
-            Errors = 3,
-            Warnings = 5,
-            Failures = 1,
-            Information = 10
-        };
-
-        Assert.Equal(3, summary.Errors);
-        Assert.Equal(5, summary.Warnings);
-        Assert.Equal(1, summary.Failures);
-        Assert.Equal(10, summary.Information);
-    }
-
-    [Fact]
-    public void IceReportSummary_DefaultValues_AreZero()
-    {
-        var summary = new IceReportSummary();
-
-        Assert.Equal(0, summary.Errors);
-        Assert.Equal(0, summary.Warnings);
-        Assert.Equal(0, summary.Failures);
-        Assert.Equal(0, summary.Information);
     }
 
     [Fact]

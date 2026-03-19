@@ -20,9 +20,9 @@
         <!-- Content panel -->
         <StackPanel Grid.Column="1" Margin="20,16,16,16">
             <TextBlock Text="{Binding Title}"
-                       Style="{StaticResource ExteriorTitle}" />
+                       Style="{DynamicResource ExteriorTitle}" />
             <TextBlock Text="{Binding Description}"
-                       Style="{StaticResource ExteriorDescription}" />
+                       Style="{DynamicResource ExteriorDescription}" />
 
             <StackPanel Margin="0,20,0,0">
                 <Button Content="Install"
