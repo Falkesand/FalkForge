@@ -20,17 +20,6 @@
         <Project Path="01-hello-world/01-hello-world.csproj" />
         <Project Path="02-notepad-clone/02-notepad-clone.csproj" />
     </Folder>
-    <Folder Name="/MAS/" />
-    <Folder Name="/MAS/bundle/">
-        <Project Path="MAS/bundle/MASBundle.csproj" />
-    </Folder>
-    <Folder Name="/MAS/packages/">
-        <Project Path="MAS/packages/Concatenate/Concatenate.csproj" />
-        <Project Path="MAS/packages/Konfigurera/Konfigurera.csproj" />
-        <Project Path="MAS/packages/MultiAccess/MultiAccess.csproj" />
-        <Project Path="MAS/packages/MultiServer/MultiServer.csproj" />
-        <Project Path="MAS/packages/MultiServerEx/MultiServerEx.csproj" />
-    </Folder>
     <Folder Name="/msi-features/">
         <Project Path="16-features/16-features.csproj" />
         <Project Path="17-services/17-services.csproj" />
@@ -83,6 +72,5 @@
         <Project Path="08-localization/08-localization.csproj" />
         <Project Path="15-bundle-signing/bundle/bundle.csproj" />
         <Project Path="15-bundle-signing/msi-package/msi-package.csproj" />
-        <Project Path="MAS/MAS.csproj" />
     </Folder>
 </Solution>
