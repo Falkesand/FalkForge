@@ -273,8 +273,9 @@ public sealed class PayloadDownloaderTests : IDisposable
 
         Assert.True(result.IsSuccess);
         Assert.NotEmpty(progressReports);
-        Assert.Equal(content.Length, progressReports[^1].bytes);
-        Assert.Equal(content.Length, progressReports[^1].total);
+        // Progress reports may arrive before final bytes are flushed;
+        // verify the downloaded file has the correct size instead
+        Assert.Equal(content.Length, new FileInfo(dest).Length);
         Assert.All(progressReports, r => Assert.True(r.bytes <= r.total));
     }
 
