@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom UI — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Custom UI</h1>
+    <div class="tutorial-meta">
+      15 min read · Prerequisite: <a href="getting-started.html">Getting Started</a> · Wraps <code>demo/11-custom-ui-simple</code>, <code>demo/12-custom-ui-vstyle</code>, <code>demo/13-glass-ui</code>
+    </div>
+
+    <!-- Intro -->
+    <p>FalkForge includes a built-in WPF UI framework for installer applications. Instead of the standard MSI dialog boxes, you can build fully custom installer experiences with pages, navigation, theming, and data binding.</p>
+    <p>WPF (Windows Presentation Foundation) is a .NET UI framework for desktop apps. It uses XAML markup to define layouts and supports rich styling, animations, and data binding. You don't need deep WPF knowledge to follow this tutorial &mdash; we explain each concept as it appears.</p>
+
+    <!-- Section 1 -->
+    <h2>1. Your First Custom UI</h2>
+    <p>Open <code>demo/11-custom-ui-simple/Program.cs</code>. The entire app is a single call to <code>InstallerApp.Run()</code>.</p>
+
+    <h3>The entry point</h3>
+    <pre><code><span class="kw">using</span> <span class="typ">CustomUiSimple<span class="punc">.</span>Pages</span><span class="punc">;</span>
+<span class="kw">using</span> <span class="typ">FalkForge<span class="punc">.</span>Ui</span><span class="punc">;</span>
+
+<span class="kw">return</span> <span class="typ">InstallerApp</span><span class="punc">.</span><span class="method">Run</span><span class="punc">(</span>args<span class="punc">,</span> app <span class="punc">=></span> app
+    <span class="punc">.</span><span class="method">Localization</span><span class="punc">(</span>loc <span class="punc">=></span> loc
+        <span class="punc">.</span><span class="method">DefaultCulture</span><span class="punc">(</span><span class="str">"en-US"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">AddJsonResource</span><span class="punc">&lt;</span><span class="typ">WelcomePage</span><span class="punc">&gt;(</span><span class="str">"lang.strings.en-US.json"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">AddJsonResource</span><span class="punc">&lt;</span><span class="typ">WelcomePage</span><span class="punc">&gt;(</span><span class="str">"lang.strings.sv-SE.json"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DetectCulture</span><span class="punc">()</span>
+        <span class="punc">.</span><span class="method">AllowLanguageSelection</span><span class="punc">())</span>
+    <span class="punc">.</span><span class="method">Window</span><span class="punc">(</span>w <span class="punc">=></span> w
+        <span class="punc">.</span><span class="method">Size</span><span class="punc">(</span><span class="num">500</span><span class="punc">,</span> <span class="num">350</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Title</span><span class="punc">(</span><span class="str">"My App Setup"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Accent</span><span class="punc">(</span><span class="str">"#2563EB"</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Pages</span><span class="punc">(</span>p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">WelcomePage</span><span class="punc">&gt;()</span>
+        <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">ProgressPage</span><span class="punc">&gt;()</span>
+        <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">CompletePage</span><span class="punc">&gt;())));</span></code></pre>
+
+    <p><code>InstallerApp.Run()</code> is the entry point for every custom UI installer. It launches the WPF application, connects to the engine process, and renders your pages. The <code>return</code> passes the exit code back to the OS.</p>
+    <p>Three builders configure the app:</p>
+    <ul>
+      <li><strong>Localization</strong> &mdash; loads JSON string files, sets the default culture, and enables a language picker in the UI.</li>
+      <li><strong>Window</strong> &mdash; sets the window size, title bar text, and accent colour.</li>
+      <li><strong>Pages</strong> &mdash; registers pages in display order. The installer walks through them sequentially.</li>
+    </ul>
+
+    <h3>Pages with InstallerPage&lt;TView&gt;</h3>
+    <p>Each page is a C# class paired with a XAML view. The class holds logic and data. The view defines the layout. WPF data binding connects the two.</p>
+
+    <pre><code><span class="kw">public class</span> <span class="typ">WelcomePage</span> <span class="punc">:</span> <span class="typ">InstallerPage</span><span class="punc">&lt;</span><span class="typ">WelcomeView</span><span class="punc">&gt;</span>
+<span class="punc">{</span>
+    <span class="kw">public override</span> <span class="typ">string</span> Title <span class="punc">=></span> <span class="method">Localize</span><span class="punc">(</span><span class="str">"Welcome.Title"</span><span class="punc">);</span>
+    <span class="kw">public</span> <span class="typ">string</span> ProductName <span class="punc">=></span> <span class="method">Localize</span><span class="punc">(</span><span class="str">"Welcome.ProductName"</span><span class="punc">);</span>
+    <span class="kw">public</span> <span class="typ">string</span> Description <span class="punc">=></span> <span class="method">Localize</span><span class="punc">(</span><span class="str">"Welcome.Description"</span><span class="punc">);</span>
+
+    <span class="kw">public override</span> <span class="typ">bool</span> CanGoBack <span class="punc">=></span> <span class="kw">false</span><span class="punc">;</span>
+
+    <span class="kw">public override</span> <span class="typ">PageResult</span> <span class="method">OnNext</span><span class="punc">()</span>
+    <span class="punc">{</span>
+        <span class="kw">return</span> <span class="typ">PageResult</span><span class="punc">.</span>Next<span class="punc">;</span>
+    <span class="punc">}</span>
+<span class="punc">}</span></code></pre>
+
+    <p>Key points:</p>
+    <ul>
+      <li><code>InstallerPage&lt;WelcomeView&gt;</code> &mdash; the generic parameter is a WPF <code>UserControl</code>. FalkForge creates the view automatically and wires up the <code>DataContext</code>.</li>
+      <li><code>Localize()</code> &mdash; looks up a string from the loaded JSON files. Returns the localized value for the current culture.</li>
+      <li><code>CanGoBack</code> &mdash; controls whether the Back button is enabled. The welcome page disables it.</li>
+      <li><code>OnNext()</code> &mdash; called when the user clicks Next. Returns a <code>PageResult</code> that tells the framework what to do.</li>
+    </ul>
+
+    <h3>The XAML view</h3>
+    <p>The view is a standard WPF <code>UserControl</code>. Properties on the page class are available via data binding.</p>
+
+    <pre><code><span class="punc">&lt;</span><span class="typ">UserControl</span> x:Class<span class="punc">=</span><span class="str">"CustomUiSimple.Views.WelcomeView"</span>
+             xmlns<span class="punc">=</span><span class="str">"http://schemas.microsoft.com/winfx/2006/xaml/presentation"</span>
+             xmlns:x<span class="punc">=</span><span class="str">"http://schemas.microsoft.com/winfx/2006/xaml"</span>
+             Padding<span class="punc">=</span><span class="str">"32"</span><span class="punc">&gt;</span>
+    <span class="punc">&lt;</span><span class="typ">StackPanel</span> VerticalAlignment<span class="punc">=</span><span class="str">"Center"</span><span class="punc">&gt;</span>
+        <span class="punc">&lt;</span><span class="typ">TextBlock</span> Text<span class="punc">=</span><span class="str">"{Binding ProductName}"</span>
+                   FontSize<span class="punc">=</span><span class="str">"24"</span> FontWeight<span class="punc">=</span><span class="str">"SemiBold"</span> <span class="punc">/&gt;</span>
+        <span class="punc">&lt;</span><span class="typ">TextBlock</span> Text<span class="punc">=</span><span class="str">"{Binding Description}"</span>
+                   FontSize<span class="punc">=</span><span class="str">"14"</span> TextWrapping<span class="punc">=</span><span class="str">"Wrap"</span> <span class="punc">/&gt;</span>
+    <span class="punc">&lt;/</span><span class="typ">StackPanel</span><span class="punc">&gt;</span>
+<span class="punc">&lt;/</span><span class="typ">UserControl</span><span class="punc">&gt;</span></code></pre>
+
+    <p><code>{Binding ProductName}</code> reads the <code>ProductName</code> property from the page. When the property changes, WPF updates the text automatically. This is data binding &mdash; the view never touches the page directly.</p>
+
+    <h3>Page navigation</h3>
+    <p>Navigation is driven by <code>PageResult</code> values returned from <code>OnNext()</code> and <code>OnBack()</code>. The framework handles the rest.</p>
+
+    <p>In demo 11, the flow is:</p>
+    <ol>
+      <li><strong>WelcomePage</strong> &mdash; returns <code>PageResult.Next</code> to advance.</li>
+      <li><strong>ProgressPage</strong> &mdash; returns <code>PageResult.Install</code> to trigger the installation.</li>
+      <li><strong>CompletePage</strong> &mdash; returns <code>PageResult.Finish</code> to close the installer.</li>
+    </ol>
+
+    <details class="deep-dive">
+      <summary>Deep dive: PageResult options</summary>
+      <div class="deep-dive-content">
+        <p><code>PageResult</code> has these built-in values:</p>
+        <ul>
+          <li><code>Next</code> &mdash; advance to the next registered page.</li>
+          <li><code>Previous</code> &mdash; go back one page.</li>
+          <li><code>Finish</code> &mdash; close the installer window.</li>
+          <li><code>Cancel</code> &mdash; abort the installation.</li>
+          <li><code>Install</code> &mdash; start the install action.</li>
+          <li><code>Uninstall</code> &mdash; start the uninstall action.</li>
+          <li><code>Repair</code> &mdash; start the repair action.</li>
+        </ul>
+        <p>Two factory methods offer more control:</p>
+        <ul>
+          <li><code>Stay(message?)</code> &mdash; remain on the current page. Optionally display a validation message.</li>
+          <li><code>GoTo&lt;TPage&gt;()</code> &mdash; jump to a specific page by type, skipping the normal order.</li>
+        </ul>
+        <p>Combine these to build any navigation pattern. For example, a workloads page can call <code>PageResult.Stay("Select at least one workload")</code> to block progress until the user makes a selection.</p>
+      </div>
+    </details>
+
+    <h3>Registering pages</h3>
+    <p>Pages are registered in the <code>Pages()</code> builder. The order matters &mdash; it defines the sequence the user navigates through.</p>
+    <pre><code><span class="punc">.</span><span class="method">Pages</span><span class="punc">(</span>p <span class="punc">=></span> p
+    <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">WelcomePage</span><span class="punc">&gt;()</span>
+    <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">ProgressPage</span><span class="punc">&gt;()</span>
+    <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">CompletePage</span><span class="punc">&gt;())</span></code></pre>
+    <p>FalkForge creates each page instance, binds its view, and manages the page stack. You never instantiate pages yourself.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: The 3-process architecture</summary>
+      <div class="deep-dive-content">
+        <p>When a custom UI installer runs, FalkForge launches three processes:</p>
+        <ol>
+          <li><strong>UI process</strong> &mdash; your WPF application. Renders pages, collects user input, displays progress.</li>
+          <li><strong>Engine process</strong> &mdash; a NativeAOT executable. Detects installed packages, plans actions, and coordinates execution.</li>
+          <li><strong>Elevated process</strong> &mdash; a NativeAOT executable running as administrator. Performs privileged operations like writing to Program Files and modifying the registry.</li>
+        </ol>
+        <p>The processes communicate over named pipes with HMAC-SHA256 authentication. Your page code talks to the engine through the <code>Engine</code> property on <code>InstallerPage</code>. The engine handles elevation transparently &mdash; you never launch processes or manage pipes yourself.</p>
+        <p>This architecture keeps the UI responsive (no admin prompts blocking the window) and limits the attack surface (only the elevated process has admin rights).</p>
+      </div>
+    </details>
+
+    <h3>Try it</h3>
+    <pre><code>dotnet run --project demo/11-custom-ui-simple</code></pre>
+    <p>You'll see a window with a welcome page, a progress page, and a completion page. Three pages, zero MSI dialog boxes.</p>
+
+    <!-- Section 2 -->
+    <h2>2. VS-Style Dark Theme</h2>
+    <p>Demo 12 builds a Visual Studio-style installer with a dark theme, borderless window, and a workload selector. Open <code>demo/12-custom-ui-vstyle/Program.cs</code>.</p>
+
+    <h3>Window configuration</h3>
+    <pre><code><span class="punc">.</span><span class="method">Window</span><span class="punc">(</span>w <span class="punc">=></span> w
+    <span class="punc">.</span><span class="method">Size</span><span class="punc">(</span><span class="num">1024</span><span class="punc">,</span> <span class="num">700</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Borderless</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Background</span><span class="punc">(</span><span class="str">"#1E1E1E"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Accent</span><span class="punc">(</span><span class="str">"#7B68EE"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Title</span><span class="punc">(</span><span class="str">"FalkForge DevTools Suite Installer"</span><span class="punc">))</span></code></pre>
+
+    <p>The <code>InstallerWindowBuilder</code> controls the window chrome:</p>
+    <ul>
+      <li><code>Size(1024, 700)</code> &mdash; sets width and height in pixels.</li>
+      <li><code>Borderless()</code> &mdash; removes the standard Windows title bar. You own the entire window surface.</li>
+      <li><code>Background("#1E1E1E")</code> &mdash; sets the window background to a dark grey.</li>
+      <li><code>Accent("#7B68EE")</code> &mdash; sets the accent colour used for buttons, highlights, and focus indicators.</li>
+    </ul>
+
+    <h3>Richer pages</h3>
+    <p>Demo 12 has four pages: <code>ProductPage</code>, <code>WorkloadsPage</code>, <code>ProgressPage</code>, and <code>CompletePage</code>.</p>
+    <p>The product page detects whether the app is already installed and adjusts its UI accordingly:</p>
+    <pre><code><span class="kw">public</span> <span class="typ">bool</span> IsInstalled <span class="punc">=></span> DetectedState <span class="punc">==</span> <span class="typ">InstallState</span><span class="punc">.</span>Installed<span class="punc">;</span>
+<span class="kw">public</span> <span class="typ">bool</span> IsNotInstalled <span class="punc">=></span> DetectedState <span class="punc">==</span> <span class="typ">InstallState</span><span class="punc">.</span>NotInstalled<span class="punc">;</span></code></pre>
+    <p><code>DetectedState</code> is a built-in property on <code>InstallerPage</code>. The engine detects whether the product is installed, being modified, or absent. Your view can bind to these properties to show Install, Modify, or Repair buttons as needed.</p>
+
+    <h3>Validation with Stay()</h3>
+    <p>The workloads page uses <code>PageResult.Stay()</code> to prevent navigation when no workload is selected:</p>
+    <pre><code><span class="kw">public override</span> <span class="typ">PageResult</span> <span class="method">OnNext</span><span class="punc">()</span>
+<span class="punc">{</span>
+    <span class="kw">if</span> <span class="punc">(!</span>Workloads<span class="punc">.</span><span class="method">Any</span><span class="punc">(</span>w <span class="punc">=></span> w<span class="punc">.</span>IsSelected<span class="punc">))</span>
+        <span class="kw">return</span> <span class="typ">PageResult</span><span class="punc">.</span><span class="method">Stay</span><span class="punc">(</span><span class="method">Localize</span><span class="punc">(</span><span class="str">"Workloads.SelectAtLeastOne"</span><span class="punc">));</span>
+    <span class="kw">return</span> <span class="typ">PageResult</span><span class="punc">.</span>Install<span class="punc">;</span>
+<span class="punc">}</span></code></pre>
+    <p>The message is displayed to the user. The page stays put until the validation passes.</p>
+
+    <h3>Observable collections</h3>
+    <p>The workloads page uses <code>ObservableCollection&lt;Workload&gt;</code> to hold its data. When items are added or removed, WPF updates the list automatically. The page also uses <code>SetField()</code> for property change notifications:</p>
+    <pre><code><span class="kw">public</span> <span class="typ">Workload</span><span class="punc">?</span> SelectedWorkload
+<span class="punc">{</span>
+    <span class="kw">get</span> <span class="punc">=></span> _selectedWorkload<span class="punc">;</span>
+    <span class="kw">set</span> <span class="punc">=></span> <span class="method">SetField</span><span class="punc">(</span><span class="kw">ref</span> _selectedWorkload<span class="punc">,</span> value<span class="punc">);</span>
+<span class="punc">}</span></code></pre>
+    <p><code>SetField()</code> is provided by <code>InstallerPage</code>. It sets the backing field and raises <code>PropertyChanged</code> so the view updates. Use it for any property the UI binds to.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How DynamicResource theming works</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge's built-in theme uses WPF <code>DynamicResource</code> keys. When you call <code>Background()</code> or <code>Accent()</code> on the window builder, FalkForge updates the application-level resource dictionary at runtime.</p>
+        <p>Unlike <code>StaticResource</code> (resolved once at load time), <code>DynamicResource</code> re-evaluates whenever the resource changes. This means:</p>
+        <ul>
+          <li>You can switch themes at runtime without restarting the app.</li>
+          <li>Custom pages automatically pick up the accent colour if they reference the theme keys.</li>
+          <li>The built-in navigation bar, buttons, and progress indicators all respond to your colour choices.</li>
+        </ul>
+        <p>The theme is defined in <code>InstallerTheme.xaml</code>. Key resource names include accent brushes, background brushes, and text foreground brushes. Your XAML views can reference these keys to stay consistent with the overall theme.</p>
+      </div>
+    </details>
+
+    <h3>Try it</h3>
+    <pre><code>dotnet run --project demo/12-custom-ui-vstyle</code></pre>
+    <p>A dark, borderless window appears. Browse the workload selector, toggle components, and watch the total size update in real time.</p>
+
+    <!-- Section 3 -->
+    <h2>3. Glass Effect UI</h2>
+    <p>Demo 13 pushes the visual boundaries. It replaces the default installer window with a fully custom WPF window featuring a translucent glass effect, rounded corners, and glow effects.</p>
+    <p>Open <code>demo/13-glass-ui/Program.cs</code>:</p>
+
+    <pre><code><span class="kw">return</span> <span class="typ">InstallerApp</span><span class="punc">.</span><span class="method">Run</span><span class="punc">(</span>args<span class="punc">,</span> app <span class="punc">=></span> app
+    <span class="punc">.</span><span class="method">Window</span><span class="punc">(</span>w <span class="punc">=></span> w
+        <span class="punc">.</span><span class="method">CustomWindow</span><span class="punc">&lt;</span><span class="typ">GlassWindow</span><span class="punc">&gt;()</span>
+        <span class="punc">.</span><span class="method">Size</span><span class="punc">(</span><span class="num">500</span><span class="punc">,</span> <span class="num">350</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Borderless</span><span class="punc">()</span>
+        <span class="punc">.</span><span class="method">Title</span><span class="punc">(</span><span class="str">"GlassForge"</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Pages</span><span class="punc">(</span>p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">InstallPage</span><span class="punc">&gt;()));</span></code></pre>
+
+    <p>The key difference is <code>CustomWindow&lt;GlassWindow&gt;()</code>. Instead of the default installer window, FalkForge uses your custom WPF <code>Window</code> class.</p>
+
+    <h3>The custom window</h3>
+    <p>The <code>GlassWindow</code> is a standard WPF <code>Window</code> with transparency enabled:</p>
+    <pre><code><span class="punc">&lt;</span><span class="typ">Window</span> WindowStyle<span class="punc">=</span><span class="str">"None"</span>
+        AllowsTransparency<span class="punc">=</span><span class="str">"True"</span>
+        Background<span class="punc">=</span><span class="str">"Transparent"</span><span class="punc">&gt;</span>
+    <span class="punc">&lt;</span><span class="typ">Border</span> CornerRadius<span class="punc">=</span><span class="str">"175"</span> ClipToBounds<span class="punc">=</span><span class="str">"True"</span><span class="punc">&gt;</span>
+        <span class="punc">&lt;</span><span class="typ">Border.Background</span><span class="punc">&gt;</span>
+            <span class="punc">&lt;</span><span class="typ">SolidColorBrush</span> Color<span class="punc">=</span><span class="str">"#1A1A2E"</span> Opacity<span class="punc">=</span><span class="str">"0.85"</span> <span class="punc">/&gt;</span>
+        <span class="punc">&lt;/</span><span class="typ">Border.Background</span><span class="punc">&gt;</span>
+        <span class="punc">&lt;</span><span class="typ">ContentPresenter</span> Content<span class="punc">=</span><span class="str">"{Binding CurrentView}"</span> <span class="punc">/&gt;</span>
+    <span class="punc">&lt;/</span><span class="typ">Border</span><span class="punc">&gt;</span>
+<span class="punc">&lt;/</span><span class="typ">Window</span><span class="punc">&gt;</span></code></pre>
+
+    <p>Three WPF properties create the glass effect:</p>
+    <ul>
+      <li><code>WindowStyle="None"</code> &mdash; removes the title bar and borders.</li>
+      <li><code>AllowsTransparency="True"</code> &mdash; enables per-pixel transparency.</li>
+      <li><code>Background="Transparent"</code> &mdash; makes the window itself invisible. Only the <code>Border</code> inside is visible.</li>
+    </ul>
+    <p>The <code>Border</code> with a large <code>CornerRadius</code> creates the pill shape. Its semi-transparent background (<code>Opacity="0.85"</code>) lets the desktop show through slightly. A gradient <code>BorderBrush</code> adds the subtle edge glow.</p>
+    <p>The <code>ContentPresenter</code> binds to <code>CurrentView</code>, which FalkForge sets to the active page's view.</p>
+
+    <h3>Window dragging</h3>
+    <p>Without a title bar, the user needs another way to move the window. The code-behind adds drag support:</p>
+    <pre><code>MouseLeftButtonDown <span class="punc">+=</span> <span class="punc">(</span>_<span class="punc">,</span> e<span class="punc">)</span> <span class="punc">=></span>
+<span class="punc">{</span>
+    <span class="kw">if</span> <span class="punc">(</span>e<span class="punc">.</span>OriginalSource <span class="kw">is not</span> <span class="punc">(</span><span class="typ">Button</span> <span class="kw">or</span> <span class="typ">TextBlock</span><span class="punc">))</span>
+        <span class="method">DragMove</span><span class="punc">();</span>
+<span class="punc">};</span></code></pre>
+    <p>Clicking anywhere on the window background starts a drag. Clicks on buttons and text blocks are excluded so they behave normally.</p>
+
+    <h3>Visual effects in views</h3>
+    <p>The install view uses WPF effects for a neon glow style:</p>
+    <pre><code><span class="punc">&lt;</span><span class="typ">TextBlock</span> Text<span class="punc">=</span><span class="str">"GlassForge"</span> Foreground<span class="punc">=</span><span class="str">"White"</span> FontSize<span class="punc">=</span><span class="str">"28"</span><span class="punc">&gt;</span>
+    <span class="punc">&lt;</span><span class="typ">TextBlock.Effect</span><span class="punc">&gt;</span>
+        <span class="punc">&lt;</span><span class="typ">DropShadowEffect</span> Color<span class="punc">=</span><span class="str">"#00D4FF"</span> BlurRadius<span class="punc">=</span><span class="str">"15"</span>
+                           ShadowDepth<span class="punc">=</span><span class="str">"0"</span> Opacity<span class="punc">=</span><span class="str">"0.3"</span> <span class="punc">/&gt;</span>
+    <span class="punc">&lt;/</span><span class="typ">TextBlock.Effect</span><span class="punc">&gt;</span>
+<span class="punc">&lt;/</span><span class="typ">TextBlock</span><span class="punc">&gt;</span></code></pre>
+    <p>A <code>DropShadowEffect</code> with <code>ShadowDepth="0"</code> creates a glow behind the text instead of a traditional shadow. The button uses the same technique with a hover trigger that intensifies the glow.</p>
+
+    <h3>Driving the engine directly</h3>
+    <p>Demo 13's install page calls the engine API directly instead of returning <code>PageResult.Install</code>:</p>
+    <pre><code><span class="kw">public async</span> <span class="typ">Task</span> <span class="method">InstallAsync</span><span class="punc">()</span>
+<span class="punc">{</span>
+    <span class="kw">await</span> Engine<span class="punc">.</span><span class="method">PlanAsync</span><span class="punc">(</span><span class="typ">InstallAction</span><span class="punc">.</span>Install<span class="punc">);</span>
+    <span class="kw">await</span> Engine<span class="punc">.</span><span class="method">ApplyAsync</span><span class="punc">();</span>
+<span class="punc">}</span></code></pre>
+    <p>The <code>Engine</code> property on <code>InstallerPage</code> gives you direct access to the installer engine. <code>PlanAsync()</code> builds the execution plan. <code>ApplyAsync()</code> runs it. This gives you full control over when and how installation happens &mdash; useful for single-page installers or custom progress reporting.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use custom UI vs built-in templates</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge offers two paths for installer UI:</p>
+        <table>
+          <thead>
+            <tr><th>Approach</th><th>Best for</th><th>Effort</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Built-in dialog templates</strong><br>(Minimal, InstallDir, FeatureTree, Mondo, Advanced)</td>
+              <td>Standard installers. IT-deployed software. Products where users expect a familiar install experience.</td>
+              <td>One line of code: <code>UseDialogSet()</code></td>
+            </tr>
+            <tr>
+              <td><strong>Custom UI</strong><br>(<code>InstallerApp.Run()</code> + <code>InstallerPage&lt;T&gt;</code>)</td>
+              <td>Branded experiences. Complex workflows (workload selection, license activation). Products where the installer <em>is</em> the first impression.</td>
+              <td>XAML views + page classes. More code, full control.</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>You can start with a built-in template and migrate to custom UI later. The underlying engine and compilation pipeline are the same &mdash; only the UI layer changes.</p>
+      </div>
+    </details>
+
+    <h3>Try it</h3>
+    <pre><code>dotnet run --project demo/13-glass-ui</code></pre>
+    <p>A translucent pill-shaped window appears with a glowing install button. This is the same engine and pipeline &mdash; just a radically different surface.</p>
+
+    <!-- Recap -->
+    <h2>Recap</h2>
+    <p>You've seen three levels of UI customization:</p>
+    <ol>
+      <li><strong>Demo 11</strong> &mdash; standard window with custom pages. The simplest custom UI. Good starting point.</li>
+      <li><strong>Demo 12</strong> &mdash; borderless dark theme with workload selection. Production-ready branded installer.</li>
+      <li><strong>Demo 13</strong> &mdash; fully custom window with glass effects. Shows that anything WPF can render, FalkForge can host.</li>
+    </ol>
+
+    <p><strong>Choosing the right approach:</strong></p>
+    <ul>
+      <li>Need a standard installer fast? Use <code>UseDialogSet(MsiDialogSet.Minimal)</code> or one of the other built-in templates.</li>
+      <li>Need branded pages but standard chrome? Use <code>InstallerApp.Run()</code> with <code>InstallerPage&lt;TView&gt;</code> (demo 11).</li>
+      <li>Need full visual control? Use <code>CustomWindow&lt;T&gt;()</code> and own every pixel (demo 13).</li>
+    </ul>
+
+    <nav class="tutorial-nav">
+      <a href="msi-basics.html">&larr; Previous: MSI Basics</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
