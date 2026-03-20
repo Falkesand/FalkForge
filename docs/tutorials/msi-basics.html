@@ -477,6 +477,27 @@ myapp.exe --extract D:\Temp\output --package ServerMsi</code></pre>
       </div>
     </details>
 
+    <h2>WinGet Distribution</h2>
+
+    <p>Want to distribute your installer via <code>winget install</code>? FalkForge can generate WinGet manifests automatically:</p>
+
+    <pre><code>package.<span class="method">WinGet</span>(w <span class="op">=></span> w
+    .<span class="method">PackageIdentifier</span>(<span class="str">"Contoso.MyApp"</span>)
+    .<span class="method">License</span>(<span class="str">"MIT"</span>)
+    .<span class="method">ShortDescription</span>(<span class="str">"A tool for doing things"</span>)
+    .<span class="method">InstallerUrl</span>(<span class="str">"https://releases.contoso.com/myapp/1.0.0/MyApp.msi"</span>));</code></pre>
+
+    <p>This generates three YAML manifest files alongside your MSI — the format required by the <a href="https://github.com/microsoft/winget-pkgs">winget-pkgs</a> repository. Version, publisher, product code, and SHA-256 are auto-populated from your package definition.</p>
+
+    <details class="deep-dive">
+      <summary>Generating manifests from existing MSIs</summary>
+      <div class="deep-dive-content">
+        <p>Don't have the source? Use the CLI to generate manifests from any MSI file:</p>
+        <pre><code>forge winget myapp.msi --id Contoso.MyApp --license MIT --desc "A tool" -o ./manifests</code></pre>
+        <p>This reads the MSI metadata (name, version, manufacturer, product code) and produces the three-file manifest set ready for submission.</p>
+      </div>
+    </details>
+
     <h2>What's next</h2>
     <ul>
       <li><strong>Custom UI</strong> &mdash; build your own WPF installer pages with InstallerPage and InstallerApp (coming soon).</li>
