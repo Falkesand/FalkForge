@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <span style="color:var(--text-muted);font-size:0.9rem">Tutorials</span>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Hero section -->
+    <h1>Learn FalkForge</h1>
+    <p>Build Windows installers from C# code. These tutorials walk you through real demo projects, explaining every concept along the way.</p>
+    <p style="color:var(--text-muted);font-size:0.95rem">Each tutorial wraps a working demo you can run immediately. No theory without practice.</p>
+
+    <!-- Start Here -->
+    <h2>Start Here</h2>
+    <div class="tutorial-card">
+      <a href="getting-started.html">Getting Started</a>
+      <p>Build your first MSI installer in 5 minutes. Learn what FalkForge is and how it turns C# into a Windows Installer package.</p>
+      <span class="meta">5 min read · No prerequisites</span>
+    </div>
+
+    <!-- Topic Tutorials -->
+    <h2>Topic Tutorials</h2>
+
+    <div class="tutorial-card">
+      <a href="msi-basics.html">MSI Basics</a>
+      <p>Shortcuts, file associations, services, registry, environment variables, features, and major upgrades — the building blocks of every real installer.</p>
+      <span class="meta">20 min read · Prerequisite: Getting Started</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>Custom UI</span>
+      <p>Build WPF installer interfaces with pages, navigation, and theming. Full control over the install experience.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>EXE Bundles</span>
+      <p>Package multiple MSIs into a single self-extracting installer with rollback boundaries and update feeds.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>Extensions</span>
+      <p>Firewall rules, IIS sites, SQL Server databases, .NET detection, and utility operations.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>JSON Configuration</span>
+      <p>Define installers in JSON without writing C#. Ideal for IT/DevOps teams.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>MSIX Packaging</span>
+      <p>Build modern Windows app packages alongside traditional MSI.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>Advanced MSI</span>
+      <p>Custom actions, custom tables, merge modules, patches, and transforms.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>Localization</span>
+      <p>Multi-language installers with culture fallback chains.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <div class="tutorial-card coming-soon">
+      <span>Services Deep Dive</span>
+      <p>Install, configure, and control Windows services with failure recovery.</p>
+      <span class="meta">Coming soon</span>
+    </div>
+
+    <!-- Migration Guides -->
+    <h2>Migration Guides</h2>
+
+    <div class="tutorial-card">
+      <a href="coming-from-wix.html">Coming from WiX</a>
+      <p>Side-by-side translations of WiX XML patterns to FalkForge C#. Concepts, extensions, and bundle migration.</p>
+      <span class="meta">15 min read · For WiX v4/v5/v6 users</span>
+    </div>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
