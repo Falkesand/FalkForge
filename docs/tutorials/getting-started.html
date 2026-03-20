@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Getting Started</h1>
+    <div class="tutorial-meta">
+      5 min read · No prerequisites · Wraps <code>demo/01-hello-world</code>
+    </div>
+
+    <!-- What you'll build -->
+    <h2>What you'll build</h2>
+    <p>By the end of this tutorial, you'll have a working MSI installer that places a file on the user's computer. Along the way, you'll learn what FalkForge is, how it works, and how to inspect the output.</p>
+
+    <!-- What is an MSI? -->
+    <details class="deep-dive">
+      <summary>What is an MSI file?</summary>
+      <div class="deep-dive-content">
+        <p>MSI is the standard Windows Installer format. IT departments use it to deploy software silently via Group Policy and SCCM. Unlike a plain EXE installer, an MSI tracks every file, registry entry, and shortcut it installs &mdash; so Windows can repair and cleanly uninstall the software later.</p>
+        <p>FalkForge compiles your C# description into this format. You describe <em>what</em> to install; FalkForge generates the database tables that Windows Installer needs.</p>
+      </div>
+    </details>
+
+    <!-- Prerequisites -->
+    <h2>Prerequisites</h2>
+    <p>.NET 10 SDK installed. A text editor or IDE. That's it.</p>
+
+    <!-- The Code -->
+    <h2>The Code</h2>
+    <p>Open <code>demo/01-hello-world/Program.cs</code>. This is the entire installer &mdash; about 35 lines of C#.</p>
+
+    <!-- Chunk 1: using statements -->
+    <h3>Imports</h3>
+    <pre><code><span class="kw">using</span> <span class="typ">FalkForge</span><span class="punc">;</span>
+<span class="kw">using</span> <span class="typ">FalkForge<span class="punc">.</span>Compiler<span class="punc">.</span>Msi</span><span class="punc">;</span>
+<span class="kw">using</span> <span class="typ">FalkForge<span class="punc">.</span>Localization</span><span class="punc">;</span>
+<span class="kw">using</span> <span class="typ">FalkForge<span class="punc">.</span>Models</span><span class="punc">;</span></code></pre>
+    <p>These bring in the FalkForge API. <code>FalkForge</code> provides the entry point. <code>Compiler.Msi</code> contains the MSI compiler. <code>Localization</code> adds culture support. <code>Models</code> provides types like <code>KnownFolder</code> and <code>CompressionLevel</code>.</p>
+
+    <!-- Chunk 2: Installer.Build -->
+    <h3>The entry point</h3>
+    <pre><code><span class="cmt">// A minimal installer: one file, no features, Minimal dialog set.</span>
+<span class="kw">return</span> <span class="typ">Installer</span><span class="punc">.</span><span class="method">Build</span><span class="punc">(</span>args<span class="punc">,</span> package <span class="punc">=></span>
+<span class="punc">{</span>
+    <span class="cmt">// ... package configuration ...</span>
+<span class="punc">},</span> <span class="kw">new</span> <span class="typ">MsiCompiler</span><span class="punc">());</span></code></pre>
+    <p>This is the entry point. You pass a lambda that describes your installer and a compiler that turns the description into an MSI file. FalkForge calls your lambda, validates the result, and writes the output. The <code>return</code> passes the exit code back to the OS &mdash; zero means success.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: The build pipeline</summary>
+      <div class="deep-dive-content">
+        <p><code>Installer.Build</code> runs a five-step pipeline:</p>
+        <ol>
+          <li><strong>Parse args</strong> &mdash; command-line arguments control output path and verbosity.</li>
+          <li><strong>Run builder</strong> &mdash; your lambda populates a <code>PackageBuilder</code> with metadata, files, and settings.</li>
+          <li><strong>Validate</strong> &mdash; FalkForge checks for missing fields, invalid GUIDs, and structural errors. Each rule has a code like <code>PKG001</code>.</li>
+          <li><strong>Compile</strong> &mdash; the <code>MsiCompiler</code> creates database tables, packs files into cabinets, and writes the MSI.</li>
+          <li><strong>Return exit code</strong> &mdash; 0 on success, non-zero on failure.</li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- Chunk 3: Product metadata -->
+    <h3>Product metadata</h3>
+    <pre><code>package<span class="punc">.</span>Name <span class="punc">=</span> <span class="str">"Hello World"</span><span class="punc">;</span>
+package<span class="punc">.</span>Manufacturer <span class="punc">=</span> <span class="str">"Demo"</span><span class="punc">;</span>
+package<span class="punc">.</span>Version <span class="punc">=</span> <span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">1</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">);</span></code></pre>
+    <p>Describes your product. The name and manufacturer appear in Programs &amp; Features (Add/Remove Programs). The version follows the standard <code>Major.Minor.Build</code> format.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: UpgradeCode</summary>
+      <div class="deep-dive-content">
+        <p>Every MSI product has an <strong>UpgradeCode</strong> &mdash; a GUID that ties all versions of your product together. Windows uses it to detect existing installations during upgrades. FalkForge generates one automatically from your product name and manufacturer if you don't set it explicitly.</p>
+        <p><strong>Important:</strong> Never change the UpgradeCode after you ship. If you do, Windows treats the new version as a completely different product and won't upgrade the old one.</p>
+      </div>
+    </details>
+
+    <!-- Chunk 4: Dialog set -->
+    <h3>Installer UI</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">UseDialogSet</span><span class="punc">(</span><span class="typ">MsiDialogSet</span><span class="punc">.</span>Minimal<span class="punc">);</span></code></pre>
+    <p>Sets the installer UI. <code>Minimal</code> shows a single Install button &mdash; no feature tree, no directory chooser. Perfect for simple installers.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Built-in dialog sets</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge ships five built-in dialog templates:</p>
+        <ul>
+          <li><strong>Minimal</strong> &mdash; Welcome page and progress bar. No choices.</li>
+          <li><strong>InstallDir</strong> &mdash; Lets the user pick the installation folder.</li>
+          <li><strong>FeatureTree</strong> &mdash; Displays a tree of features the user can toggle on or off.</li>
+          <li><strong>Mondo</strong> &mdash; Combines directory selection and feature tree for maximum user control.</li>
+          <li><strong>Advanced</strong> &mdash; Adds typical/custom/complete install types on top of Mondo.</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- Chunk 5: Localization -->
+    <h3>Localization</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Localization</span><span class="punc">(</span>loc <span class="punc">=></span> loc
+    <span class="punc">.</span><span class="method">AddBuiltInCultures</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">DefaultCulture</span><span class="punc">(</span><span class="str">"en-US"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DetectCulture</span><span class="punc">());</span></code></pre>
+    <p>Adds the built-in language strings (English and Swedish), sets English as the default, and enables automatic culture detection. The MSI language matches the user's OS locale when possible.</p>
+
+    <!-- Chunk 6: Cabinet and reproducible builds -->
+    <h3>Cabinet settings and reproducible builds</h3>
+    <pre><code><span class="cmt">// Cabinet file settings — naming template, compression level, embedding</span>
+package<span class="punc">.</span><span class="method">MediaTemplate</span><span class="punc">(</span>mt <span class="punc">=></span>
+<span class="punc">{</span>
+    mt<span class="punc">.</span><span class="method">CabinetTemplate</span><span class="punc">(</span><span class="str">"data{0}.cab"</span><span class="punc">);</span>
+    mt<span class="punc">.</span><span class="method">CompressionLevel</span><span class="punc">(</span><span class="typ">CompressionLevel</span><span class="punc">.</span>High<span class="punc">);</span>
+    mt<span class="punc">.</span><span class="method">EmbedCabinet</span><span class="punc">(</span><span class="kw">true</span><span class="punc">);</span>
+<span class="punc">});</span>
+
+<span class="cmt">// Enable deterministic builds (same source → identical MSI output)</span>
+package<span class="punc">.</span><span class="method">Reproducible</span><span class="punc">();</span>
+
+<span class="cmt">// Enable Windows Restart Manager — gracefully close files-in-use during install</span>
+package<span class="punc">.</span><span class="method">EnableRestartManagerSupport</span><span class="punc">();</span></code></pre>
+    <p><code>MediaTemplate</code> controls how payload files are compressed. <code>EmbedCabinet(true)</code> stores everything inside the MSI itself &mdash; one file to distribute. <code>Reproducible()</code> ensures the same source always produces a byte-identical MSI, useful for build verification. <code>EnableRestartManagerSupport()</code> lets Windows gracefully close applications that have files in use during installation.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: What are cabinets?</summary>
+      <div class="deep-dive-content">
+        <p>MSI files contain compressed archives called <em>cabinets</em>. Your files are packed into one or more cabinets inside the MSI. The <code>CabinetTemplate</code> controls the naming pattern &mdash; <code>{0}</code> is replaced with a sequence number. FalkForge handles the compression and embedding automatically.</p>
+        <p>When <code>EmbedCabinet</code> is <code>false</code>, the cabinet files sit alongside the MSI as separate <code>.cab</code> files. Embedding is more convenient for distribution; external cabinets are useful for network installs where bandwidth matters.</p>
+      </div>
+    </details>
+
+    <!-- Chunk 7: Files -->
+    <h3>Adding files</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Files</span><span class="punc">(</span>files <span class="punc">=></span> files
+    <span class="punc">.</span><span class="method">Add</span><span class="punc">(</span><span class="str">"payload/hello.txt"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">To</span><span class="punc">(</span><span class="typ">KnownFolder</span><span class="punc">.</span>ProgramFiles <span class="punc">/</span> <span class="str">"Demo"</span> <span class="punc">/</span> <span class="str">"HelloWorld"</span><span class="punc">));</span></code></pre>
+    <p>Adds a file to the installer and sets where it goes on the target machine. The <code>/</code> operator builds directory paths &mdash; this installs to <code>C:\Program Files\Demo\HelloWorld\hello.txt</code>.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Components and features</summary>
+      <div class="deep-dive-content">
+        <p>Under the hood, Windows Installer organizes files into <em>components</em> and <em>features</em>.</p>
+        <p>A <strong>component</strong> is the smallest installable unit &mdash; typically one file plus its registry entries. Each component has a unique GUID. Windows tracks components to know exactly what's installed.</p>
+        <p>A <strong>feature</strong> groups components that the user can select or deselect. Even this simple installer gets a default feature automatically. In more complex installers, you define features explicitly so users can choose what to install.</p>
+        <p>FalkForge generates component GUIDs and creates the default feature for you. You only need to think about features when you want user-selectable parts.</p>
+      </div>
+    </details>
+
+    <!-- That's it -->
+    <p>That's it &mdash; 37 lines of C# and you have a working installer.</p>
+
+    <!-- Try It -->
+    <h2>Try it</h2>
+    <pre><code>dotnet run --project demo/01-hello-world</code></pre>
+    <p>This compiles the installer definition and produces a <code>.msi</code> file. You can double-click it to install, or inspect it with the CLI:</p>
+    <pre><code>forge inspect path/to/output.msi</code></pre>
+    <p>The <code>inspect</code> command shows the MSI's tables, files, features, and properties &mdash; useful for verifying the output without installing it.</p>
+
+    <!-- What's Next -->
+    <h2>What's next</h2>
+    <ul>
+      <li>Ready for more? <a href="msi-basics.html">MSI Basics</a> covers shortcuts, services, registry, and features.</li>
+      <li>Prefer JSON over C#? JSON Configuration (coming soon).</li>
+      <li>Migrating from WiX? <a href="coming-from-wix.html">Coming from WiX</a>.</li>
+    </ul>
+
+    <nav class="tutorial-nav">
+      <span></span>
+      <a href="msi-basics.html">Next: MSI Basics →</a>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
