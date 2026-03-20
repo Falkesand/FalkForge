@@ -2,10 +2,9 @@ namespace FalkForge.Engine.Tests.RestartManager;
 
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Phases;
-using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
-using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.RestartManager;
+using FalkForge.Engine.Tests.Helpers;
 using FalkForge.Engine.Tests.Mocks;
 using Xunit;
 
@@ -277,12 +276,12 @@ public sealed class RestartManagerTests
                 new RestartManagerProcess(1234, "notepad", "Notepad", CanBeRestarted: true));
 
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
         context.RestartManager = mock;
         context.RestartManagerEnabled = true;
-        context.CurrentPlan = CreatePlanWithMsuPackages(2);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(2);
 
         var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
 
@@ -303,12 +302,12 @@ public sealed class RestartManagerTests
         var mock = new MockRestartManager(); // No affected processes configured
 
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
         context.RestartManager = mock;
         context.RestartManagerEnabled = true;
-        context.CurrentPlan = CreatePlanWithMsuPackages(1);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
 
         var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
 
@@ -327,12 +326,12 @@ public sealed class RestartManagerTests
         var mock = new MockRestartManager();
 
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
         context.RestartManager = mock;
         context.RestartManagerEnabled = false;
-        context.CurrentPlan = CreatePlanWithMsuPackages(1);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
 
         var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
 
@@ -340,64 +339,5 @@ public sealed class RestartManagerTests
 
         // No RM methods should have been called
         Assert.Empty(mock.CallLog);
-    }
-
-    // ─── Helpers ────────────────────────────────────────────────────────
-
-    private static EngineContext CreateContext()
-    {
-        var mockEnv = new MockEnvironment()
-            .SetFolderPath(Environment.SpecialFolder.LocalApplicationData, @"C:\Users\Test\AppData\Local")
-            .SetFolderPath(Environment.SpecialFolder.ProgramFiles, @"C:\Program Files");
-
-        return new EngineContext
-        {
-            Manifest = TestManifestFactory.CreateSimple(),
-            Platform = new MockPlatformServices(environment: mockEnv),
-            UiPipe = null,
-            ShutdownToken = CancellationToken.None
-        };
-    }
-
-    private static PackageExecutor CreateExecutor(MockProcessRunner runner)
-    {
-        var msiExecutor = new MsiExecutor();
-        var msuExecutor = new MsuExecutor(runner);
-        var mspExecutor = new MspExecutor(runner);
-        var bundleExecutor = new BundleExecutor(runner);
-        var exeExecutor = new ExeExecutor(runner);
-        var netRuntimeExecutor = new NetRuntimeExecutor(runner);
-        return new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
-    }
-
-    private static InstallPlan CreatePlanWithMsuPackages(int packageCount)
-    {
-        var actions = new List<PlanAction>();
-        for (var i = 0; i < packageCount; i++)
-        {
-            actions.Add(new PlanAction
-            {
-                PackageId = $"Package{i}",
-                ActionType = PlanActionType.Install,
-                Package = new PackageInfo
-                {
-                    Id = $"Package{i}",
-                    Type = PackageType.MsuPackage,
-                    DisplayName = $"Test MSU Package {i}",
-                    SourcePath = $@"C:\updates\pkg{i}.msu",
-                    Sha256Hash = $"HASH{i}"
-                }
-            });
-        }
-
-        var segment = new RollbackSegment { BoundaryId = "__default__", Vital = true };
-        segment.Actions.AddRange(actions);
-
-        return new InstallPlan
-        {
-            Actions = actions,
-            Segments = [segment],
-            TotalDiskSpaceRequired = 0
-        };
     }
 }

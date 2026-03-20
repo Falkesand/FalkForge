@@ -2,81 +2,23 @@ namespace FalkForge.Engine.Tests.Phases;
 
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Phases;
-using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
-using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Engine.Tests.Helpers;
 using FalkForge.Engine.Tests.Mocks;
 using Xunit;
 
 public sealed class ApplyingCancellationTests
 {
-    private static EngineContext CreateContext()
-    {
-        var mockEnv = new MockEnvironment()
-            .SetFolderPath(Environment.SpecialFolder.LocalApplicationData, @"C:\Users\Test\AppData\Local")
-            .SetFolderPath(Environment.SpecialFolder.ProgramFiles, @"C:\Program Files");
-
-        return new EngineContext
-        {
-            Manifest = TestManifestFactory.CreateSimple(),
-            Platform = new MockPlatformServices(environment: mockEnv),
-            UiPipe = null,
-            ShutdownToken = CancellationToken.None
-        };
-    }
-
-    private static PackageExecutor CreateExecutor(MockProcessRunner runner)
-    {
-        var msiExecutor = new MsiExecutor();
-        var msuExecutor = new MsuExecutor(runner);
-        var mspExecutor = new MspExecutor(runner);
-        var bundleExecutor = new BundleExecutor(runner);
-        var exeExecutor = new ExeExecutor(runner);
-        var netRuntimeExecutor = new NetRuntimeExecutor(runner);
-        return new PackageExecutor(msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
-    }
-
-    private static InstallPlan CreatePlanWithMsuPackages(int packageCount)
-    {
-        var actions = new List<PlanAction>();
-        for (var i = 0; i < packageCount; i++)
-        {
-            actions.Add(new PlanAction
-            {
-                PackageId = $"Package{i}",
-                ActionType = PlanActionType.Install,
-                Package = new PackageInfo
-                {
-                    Id = $"Package{i}",
-                    Type = PackageType.MsuPackage,
-                    DisplayName = $"Test MSU Package {i}",
-                    SourcePath = $@"C:\updates\pkg{i}.msu",
-                    Sha256Hash = $"HASH{i}"
-                }
-            });
-        }
-
-        var segment = new RollbackSegment { BoundaryId = "__default__", Vital = true };
-        segment.Actions.AddRange(actions);
-
-        return new InstallPlan
-        {
-            Actions = actions,
-            Segments = [segment],
-            TotalDiskSpaceRequired = 0
-        };
-    }
-
     [Fact]
     public async Task CancellationBetweenPackages_StopsExecution()
     {
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
 
         // Create a plan with 3 packages
-        context.CurrentPlan = CreatePlanWithMsuPackages(3);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(3);
 
         // Set cancellation before execution begins
         context.UserCancelled = true;
@@ -92,12 +34,12 @@ public sealed class ApplyingCancellationTests
     public async Task CancellationBetweenPackages_TransitionsToRollingBack()
     {
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
 
         // Create a plan with 3 packages
-        context.CurrentPlan = CreatePlanWithMsuPackages(3);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(3);
 
         // Cancel immediately (before first package)
         context.UserCancelled = true;
@@ -112,12 +54,12 @@ public sealed class ApplyingCancellationTests
     public async Task NoCancellation_CompletesAllPackages()
     {
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
 
         // Create plan with 3 packages
-        context.CurrentPlan = CreatePlanWithMsuPackages(3);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(3);
         context.UserCancelled = false;
 
         var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
@@ -133,12 +75,12 @@ public sealed class ApplyingCancellationTests
         // When cancellation is set AFTER all packages have executed (i.e., the loop
         // has finished naturally), the handler should still report Completing.
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
 
         // Create a plan with 1 package
-        context.CurrentPlan = CreatePlanWithMsuPackages(1);
+        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
 
         // Don't cancel before execution
         context.UserCancelled = false;
@@ -153,9 +95,9 @@ public sealed class ApplyingCancellationTests
     public async Task NoPlan_ReturnsFailedPhase()
     {
         var runner = new MockProcessRunner().WithExitCode(0);
-        var executor = CreateExecutor(runner);
+        var executor = ExecutionTestFactory.CreateExecutor(runner);
         var handler = new ApplyingHandler(executor);
-        var context = CreateContext();
+        var context = ExecutionTestFactory.CreateContext();
 
         // No plan set
         context.CurrentPlan = null;
