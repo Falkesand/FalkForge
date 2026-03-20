@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Services Deep Dive — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Services Deep Dive</h1>
+    <div class="tutorial-meta">
+      10 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps <code>demo/17-services</code>
+    </div>
+
+    <!-- Intro -->
+    <p>Windows services run in the background without user interaction &mdash; web servers, monitoring agents, database engines. This tutorial covers everything you need to install, configure, and control services with FalkForge.</p>
+
+    <!-- Section 1: Basic Service Installation -->
+    <h2>Basic Service Installation</h2>
+    <p>In <a href="msi-basics.html">MSI Basics</a> you saw a service defined inside demo 03. Here is the essential pattern:</p>
+
+    <pre><code>package<span class="punc">.</span><span class="method">Service</span><span class="punc">(</span><span class="str">"AcmeServer"</span><span class="punc">,</span> svc <span class="punc">=></span>
+<span class="punc">{</span>
+    svc<span class="punc">.</span>DisplayName <span class="punc">=</span> <span class="str">"Acme Server"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Acme Client-Server Suite background service"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Executable <span class="punc">=</span> <span class="str">"server.exe"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>StartMode <span class="punc">=</span> <span class="typ">ServiceStartMode</span><span class="punc">.</span>Automatic<span class="punc">;</span>
+    svc<span class="punc">.</span>Account <span class="punc">=</span> <span class="typ">ServiceAccount</span><span class="punc">.</span>LocalSystem<span class="punc">;</span>
+    svc<span class="punc">.</span>Arguments <span class="punc">=</span> <span class="str">"--port=8080 --config=appsettings.json"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+
+    <p>Four things happen here:</p>
+    <ol>
+      <li><strong>Service name</strong> &mdash; the internal name Windows uses to identify the service (<code>AcmeServer</code>).</li>
+      <li><strong>Display name</strong> &mdash; the human-readable label shown in <code>services.msc</code>.</li>
+      <li><strong>Executable</strong> &mdash; the binary that Windows launches.</li>
+      <li><strong>Start mode and account</strong> &mdash; when the service starts and which identity it runs under.</li>
+    </ol>
+
+    <p>This is enough for many installers. Demo 17 goes further.</p>
+
+    <!-- Section 2: Service Configuration -->
+    <h2>Service Configuration</h2>
+    <p>Demo 17 installs two services with different configurations. Let's walk through the first one.</p>
+
+    <h3>Name, display name, and description</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Service</span><span class="punc">(</span><span class="str">"DemoService"</span><span class="punc">,</span> svc <span class="punc">=></span>
+<span class="punc">{</span>
+    svc<span class="punc">.</span>DisplayName <span class="punc">=</span> <span class="str">"Demo Background Service"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Demonstrates FalkForge service installation"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Executable <span class="punc">=</span> <span class="str">"[ProgramFilesFolder]Demo\\ServiceDemo\\myservice.exe"</span><span class="punc">;</span></code></pre>
+
+    <p>The <strong>service name</strong> (<code>DemoService</code>) is the key you use with <code>sc query</code>, <code>net start</code>, and dependency declarations. Keep it short, no spaces. The <strong>display name</strong> and <strong>description</strong> appear in the Services management console.</p>
+
+    <h3>Start type</h3>
+    <pre><code>    svc<span class="punc">.</span>StartMode <span class="punc">=</span> <span class="typ">ServiceStartMode</span><span class="punc">.</span>Automatic<span class="punc">;</span></code></pre>
+
+    <p>FalkForge supports four start types:</p>
+    <ul>
+      <li><code>Automatic</code> &mdash; starts at boot. Use for services that must always run.</li>
+      <li><code>AutomaticDelayed</code> &mdash; starts shortly after boot. Reduces boot time contention.</li>
+      <li><code>Manual</code> &mdash; starts only when another service or application requests it.</li>
+      <li><code>Disabled</code> &mdash; cannot start until an admin changes the setting.</li>
+    </ul>
+
+    <p>Most background services should use <code>AutomaticDelayed</code>. Use <code>Automatic</code> only when other services depend on yours at boot.</p>
+
+    <h3>Service account</h3>
+    <pre><code>    svc<span class="punc">.</span>Account <span class="punc">=</span> <span class="typ">ServiceAccount</span><span class="punc">.</span>LocalService<span class="punc">;</span></code></pre>
+
+    <p>The account determines the security context your service runs in.</p>
+    <ul>
+      <li><code>LocalSystem</code> &mdash; full access to the machine. Dangerous. Use only when you need kernel-level operations.</li>
+      <li><code>LocalService</code> &mdash; limited local privileges, anonymous network identity. Good default for services that don't need network access.</li>
+      <li><code>NetworkService</code> &mdash; limited local privileges, machine identity on the network. Use when the service must authenticate to other machines.</li>
+    </ul>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Service account security</summary>
+      <div class="deep-dive-content">
+        <p>Choosing the right account is the most important security decision for a service.</p>
+        <p><strong>LocalSystem</strong> has unrestricted access. A compromised LocalSystem service gives an attacker full control of the machine. Avoid it unless you are writing a driver-level service or need to impersonate any user.</p>
+        <p><strong>LocalService</strong> runs with the same privileges as a standard user. It can read most file system locations but cannot write outside its own profile. On the network, it appears as an anonymous user. This is the safest built-in choice.</p>
+        <p><strong>NetworkService</strong> has the same local privileges as LocalService. The difference is network identity: it authenticates as the computer account in Active Directory. Use it for services that call other servers, access network shares, or connect to SQL Server with Windows authentication.</p>
+        <p><strong>Custom domain accounts</strong> are best for enterprise services. Create a dedicated Active Directory service account with only the permissions the service needs. FalkForge supports this via <code>AccountProperty</code>:</p>
+        <pre><code>svc<span class="punc">.</span><span class="method">AccountProperty</span><span class="punc">(</span><span class="str">"[SERVICEACCOUNT]"</span><span class="punc">);</span>
+svc<span class="punc">.</span>Password <span class="punc">=</span> <span class="str">"[DEMO_PASSWORD]"</span><span class="punc">;</span></code></pre>
+        <p>The installer reads the account name from an MSI property at install time. The password property is passed securely and never written to the MSI database in clear text.</p>
+      </div>
+    </details>
+
+    <h3>Conditional installation</h3>
+    <pre><code>    svc<span class="punc">.</span><span class="method">Condition</span><span class="punc">(</span><span class="str">"INSTALLSERVICE ~= \"true\""</span><span class="punc">);</span></code></pre>
+    <p>The service is only installed when the <code>INSTALLSERVICE</code> property is set. This lets you gate service installation behind a checkbox in the UI or a command-line parameter.</p>
+
+    <h3>Service permissions</h3>
+    <pre><code>    svc<span class="punc">.</span><span class="method">Permission</span><span class="punc">(</span>perm <span class="punc">=></span>
+    <span class="punc">{</span>
+        perm<span class="punc">.</span>Domain <span class="punc">=</span> <span class="str">"BUILTIN"</span><span class="punc">;</span>
+        perm<span class="punc">.</span>User <span class="punc">=</span> <span class="str">"Administrators"</span><span class="punc">;</span>
+        perm<span class="punc">.</span>Permission <span class="punc">=</span> <span class="num">0xF01FF</span><span class="punc">;</span> <span class="cmt">// SERVICE_ALL_ACCESS</span>
+    <span class="punc">});</span></code></pre>
+    <p>This grants the Administrators group full control over the service. The permission value is a standard Windows access mask. Common values: <code>0xF01FF</code> (full control), <code>0x2009D</code> (start, stop, query status).</p>
+
+    <h3>Custom domain account</h3>
+    <p>The second service in demo 17 runs under a domain account:</p>
+    <pre><code>package<span class="punc">.</span><span class="method">Service</span><span class="punc">(</span><span class="str">"DemoWorker"</span><span class="punc">,</span> svc <span class="punc">=></span>
+<span class="punc">{</span>
+    svc<span class="punc">.</span>DisplayName <span class="punc">=</span> <span class="str">"Demo Worker Service"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Executable <span class="punc">=</span> <span class="str">"[ProgramFilesFolder]Demo\\ServiceDemo\\myservice.exe"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>StartMode <span class="punc">=</span> <span class="typ">ServiceStartMode</span><span class="punc">.</span>Manual<span class="punc">;</span>
+    svc<span class="punc">.</span><span class="method">AccountProperty</span><span class="punc">(</span><span class="str">"[SERVICEACCOUNT]"</span><span class="punc">);</span>
+    svc<span class="punc">.</span>Password <span class="punc">=</span> <span class="str">"[DEMO_PASSWORD]"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p><code>AccountProperty</code> reads the account name from an MSI property. The installer UI or command line sets <code>SERVICEACCOUNT</code> and <code>DEMO_PASSWORD</code> at install time. This avoids hardcoding credentials in the installer.</p>
+
+    <!-- Section 3: Service Control -->
+    <h2>Service Control</h2>
+    <p>Installing a service registers it with Windows. But you also need to tell Windows <em>when</em> to start and stop it during install and uninstall.</p>
+
+    <pre><code>package<span class="punc">.</span><span class="method">ServiceControl</span><span class="punc">(</span>sc <span class="punc">=></span>
+<span class="punc">{</span>
+    sc<span class="punc">.</span><span class="method">ServiceName</span><span class="punc">(</span><span class="str">"DemoService"</span><span class="punc">);</span>
+    sc<span class="punc">.</span><span class="method">StopOnUninstall</span><span class="punc">();</span>
+    sc<span class="punc">.</span><span class="method">StartOnInstall</span><span class="punc">();</span>
+    sc<span class="punc">.</span><span class="method">DeleteOnUninstall</span><span class="punc">();</span>
+    sc<span class="punc">.</span><span class="method">Wait</span><span class="punc">(</span><span class="kw">true</span><span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+
+    <p>This configuration does three things:</p>
+    <ol>
+      <li><strong>Start after install</strong> &mdash; the service starts automatically once files are copied.</li>
+      <li><strong>Stop before uninstall</strong> &mdash; the service is stopped before its files are removed.</li>
+      <li><strong>Delete on uninstall</strong> &mdash; the service registration is removed from Windows.</li>
+    </ol>
+
+    <p><code>Wait(true)</code> tells Windows Installer to wait for the service to reach the desired state before continuing. Without it, the installer moves on immediately and later steps may fail if they depend on the service being stopped.</p>
+
+    <h3>Passing arguments on start</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">ServiceControl</span><span class="punc">(</span>sc <span class="punc">=></span>
+<span class="punc">{</span>
+    sc<span class="punc">.</span><span class="method">ServiceName</span><span class="punc">(</span><span class="str">"DemoWorker"</span><span class="punc">);</span>
+    sc<span class="punc">.</span><span class="method">StopOnInstall</span><span class="punc">();</span>
+    sc<span class="punc">.</span><span class="method">StartOnInstall</span><span class="punc">();</span>
+    sc<span class="punc">.</span><span class="method">Arguments</span><span class="punc">(</span><span class="str">"--config=[INSTALLDIR]config.json"</span><span class="punc">);</span>
+    sc<span class="punc">.</span><span class="method">DeleteOnUninstall</span><span class="punc">();</span>
+<span class="punc">});</span></code></pre>
+
+    <p>Notice <code>StopOnInstall()</code> here. During an upgrade, the worker is stopped first, files are updated, then the service is restarted. The <code>Arguments</code> method passes command-line arguments when the service starts. MSI properties like <code>[INSTALLDIR]</code> are resolved at install time.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: MSI service control sequence</summary>
+      <div class="deep-dive-content">
+        <p>Windows Installer runs service operations in a specific order during the execute sequence:</p>
+        <ol>
+          <li><strong>StopServices</strong> &mdash; stops services marked for stopping.</li>
+          <li><strong>DeleteServices</strong> &mdash; removes service registrations marked for deletion.</li>
+          <li><em>(file operations happen here &mdash; copy, remove, overwrite)</em></li>
+          <li><strong>InstallServices</strong> &mdash; registers new services with the Service Control Manager.</li>
+          <li><strong>StartServices</strong> &mdash; starts services marked for starting.</li>
+        </ol>
+        <p>This ordering ensures services are stopped before their files are touched and started only after new files are in place. FalkForge maps your <code>StopOnInstall</code>, <code>StartOnInstall</code>, <code>StopOnUninstall</code>, and <code>DeleteOnUninstall</code> calls to the correct MSI table entries so Windows Installer handles the sequencing automatically.</p>
+        <p>If your service is being <strong>upgraded</strong>, the sequence is: stop old service, delete old registration, copy new files, install new service registration, start new service.</p>
+      </div>
+    </details>
+
+    <!-- Section 4: Failure Recovery -->
+    <h2>Failure Recovery</h2>
+    <p>Services crash. The Windows Service Control Manager can automatically recover from failures. FalkForge exposes this through <code>FailureActions</code>.</p>
+
+    <h3>Restart on failure</h3>
+    <pre><code>svc<span class="punc">.</span><span class="method">FailureActions</span><span class="punc">(</span>fa <span class="punc">=></span>
+<span class="punc">{</span>
+    fa<span class="punc">.</span>OnFirstFailure <span class="punc">=</span> <span class="typ">FailureAction</span><span class="punc">.</span>Restart<span class="punc">;</span>
+    fa<span class="punc">.</span>OnSecondFailure <span class="punc">=</span> <span class="typ">FailureAction</span><span class="punc">.</span>Restart<span class="punc">;</span>
+    fa<span class="punc">.</span>OnSubsequentFailures <span class="punc">=</span> <span class="typ">FailureAction</span><span class="punc">.</span>None<span class="punc">;</span>
+    fa<span class="punc">.</span>ResetPeriod <span class="punc">=</span> <span class="typ">TimeSpan</span><span class="punc">.</span><span class="method">FromDays</span><span class="punc">(</span><span class="num">1</span><span class="punc">);</span>
+    fa<span class="punc">.</span>RestartDelay <span class="punc">=</span> <span class="typ">TimeSpan</span><span class="punc">.</span><span class="method">FromSeconds</span><span class="punc">(</span><span class="num">30</span><span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+
+    <p>This tells Windows: restart the service on the first two failures, then give up. Wait 30 seconds before each restart attempt. After 24 hours without a failure, reset the failure counter.</p>
+
+    <h3>Run a command on failure</h3>
+    <pre><code>svc<span class="punc">.</span><span class="method">FailureActions</span><span class="punc">(</span>fa <span class="punc">=></span>
+<span class="punc">{</span>
+    fa<span class="punc">.</span>OnFirstFailure <span class="punc">=</span> <span class="typ">FailureAction</span><span class="punc">.</span>RunCommand<span class="punc">;</span>
+    fa<span class="punc">.</span>Command <span class="punc">=</span> <span class="str">"[ProgramFilesFolder]Demo\\ServiceDemo\\myservice.exe --diagnose"</span><span class="punc">;</span>
+    fa<span class="punc">.</span>OnSecondFailure <span class="punc">=</span> <span class="typ">FailureAction</span><span class="punc">.</span>Restart<span class="punc">;</span>
+    fa<span class="punc">.</span>OnSubsequentFailures <span class="punc">=</span> <span class="typ">FailureAction</span><span class="punc">.</span>Reboot<span class="punc">;</span>
+    fa<span class="punc">.</span>RebootMessage <span class="punc">=</span> <span class="str">"Demo Worker service has failed repeatedly. Rebooting."</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+
+    <p>This escalates through three stages:</p>
+    <ol>
+      <li><strong>First failure</strong> &mdash; run a diagnostic command to capture state.</li>
+      <li><strong>Second failure</strong> &mdash; restart the service.</li>
+      <li><strong>Subsequent failures</strong> &mdash; reboot the machine (with a message broadcast to logged-in users).</li>
+    </ol>
+
+    <p>Four failure actions are available:</p>
+    <ul>
+      <li><code>None</code> &mdash; do nothing.</li>
+      <li><code>Restart</code> &mdash; restart the service after <code>RestartDelay</code>.</li>
+      <li><code>RunCommand</code> &mdash; execute the program specified by <code>Command</code>.</li>
+      <li><code>Reboot</code> &mdash; reboot the machine. Use with extreme caution.</li>
+    </ul>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Service Control Manager failure recovery model</summary>
+      <div class="deep-dive-content">
+        <p>The Service Control Manager (SCM) tracks a <strong>failure count</strong> for each service. Every time the service process exits unexpectedly, the count increments and the corresponding action fires.</p>
+        <p>The <strong>reset period</strong> controls how long the SCM waits before resetting the failure count to zero. If the service runs successfully for the entire reset period, the next failure is treated as a first failure again. Set this to at least one day. Shorter periods may mask recurring problems.</p>
+        <p>The <strong>restart delay</strong> applies only to the <code>Restart</code> action. It prevents a crash loop from consuming all system resources. A 30-second delay is a reasonable starting point. For services that initialize slowly, use a longer delay.</p>
+        <p><strong>RunCommand</strong> runs in the context of the LocalSystem account, regardless of which account the service runs under. The command has access to the <code>%SystemRoot%</code> environment variable but not the service's environment. Use it for diagnostics, alerting, or cleanup scripts.</p>
+        <p><strong>Reboot</strong> should be reserved for critical infrastructure services. The reboot message is broadcast to all interactive sessions before the machine restarts. Users get a brief window to save work.</p>
+      </div>
+    </details>
+
+    <!-- Section 5: Service Dependencies -->
+    <h2>Service Dependencies</h2>
+    <p>Services often depend on other services. A web server needs TCP/IP. A database client needs the network stack. FalkForge lets you declare these dependencies so Windows starts services in the right order.</p>
+
+    <h3>Depend on a specific service</h3>
+    <pre><code>    svc<span class="punc">.</span><span class="method">DependsOn</span><span class="punc">(</span><span class="str">"Tcpip"</span><span class="punc">);</span></code></pre>
+    <p>The service will not start until the <code>Tcpip</code> service is running. If <code>Tcpip</code> fails to start, your service won't start either.</p>
+
+    <h3>Depend on a service group</h3>
+    <pre><code>    svc<span class="punc">.</span><span class="method">DependsOnGroup</span><span class="punc">(</span><span class="str">"NetworkProvider"</span><span class="punc">);</span></code></pre>
+    <p>Service groups are collections of related services. Depending on a group means your service waits until at least one member of the group has started. Common groups include <code>NetworkProvider</code>, <code>TDI</code>, and <code>NDIS</code>.</p>
+
+    <p>You can combine both. Demo 17's first service depends on the <code>Tcpip</code> service and the <code>NetworkProvider</code> group:</p>
+    <pre><code>    svc<span class="punc">.</span><span class="method">DependsOn</span><span class="punc">(</span><span class="str">"Tcpip"</span><span class="punc">);</span>
+    svc<span class="punc">.</span><span class="method">DependsOnGroup</span><span class="punc">(</span><span class="str">"NetworkProvider"</span><span class="punc">);</span></code></pre>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Service startup order and dependency chains</summary>
+      <div class="deep-dive-content">
+        <p>When Windows boots, the Service Control Manager builds a <strong>dependency graph</strong> of all automatic services. It starts services in topological order &mdash; dependencies first, then dependents.</p>
+        <p>Dependencies are <strong>transitive</strong>. If service A depends on B, and B depends on C, then A won't start until both B and C are running.</p>
+        <p><strong>Circular dependencies</strong> prevent all involved services from starting. Windows logs an error and skips them. Always verify your dependency chain doesn't create a cycle.</p>
+        <p><strong>Timeout</strong>: Windows gives each service 30 seconds to report that it has started. If a dependency doesn't start within this window, dependent services may fail to start. Services that need longer initialization should use <code>SERVICE_START_PENDING</code> with periodic status updates.</p>
+        <p><strong>Group dependencies</strong> are satisfied when <em>any one</em> member of the group starts. This is useful when you need a capability (like network connectivity) but don't care which specific driver or service provides it.</p>
+      </div>
+    </details>
+
+    <!-- Recap -->
+    <h2>Recap</h2>
+    <p>Here are the common service installation patterns:</p>
+    <ul>
+      <li><strong>Web server</strong> &mdash; <code>AutomaticDelayed</code> start, <code>NetworkService</code> account, depends on <code>Tcpip</code>, restart on first two failures.</li>
+      <li><strong>Background worker</strong> &mdash; <code>Manual</code> start, <code>LocalService</code> account, no dependencies, run diagnostic command on failure.</li>
+      <li><strong>System agent</strong> &mdash; <code>Automatic</code> start, <code>LocalSystem</code> account (only if required), depends on service group, escalating failure actions.</li>
+    </ul>
+
+    <p>The full source is in <code>demo/17-services/Program.cs</code>. Run it with:</p>
+    <pre><code>dotnet run --project demo/17-services</code></pre>
+
+    <nav class="tutorial-nav">
+      <a href="msi-basics.html">&larr; Previous: MSI Basics</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
