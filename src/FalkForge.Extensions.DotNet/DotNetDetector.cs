@@ -38,7 +38,7 @@ public sealed class DotNetDetector
                 continue;
 
             var subKey = $@"SOFTWARE\dotnet\Setup\InstalledVersions\{archKey}\sharedfx\{runtimeName}";
-            var versionNames = _registry.GetSubKeyNames("HKLM", subKey);
+            var versionNames = _registry.GetSubKeyNames(RegistryRoot.LocalMachine, subKey);
 
             foreach (var versionName in versionNames)
             {
@@ -47,7 +47,7 @@ public sealed class DotNetDetector
 
                 // Check that the version key exists (value doesn't matter, presence means installed)
                 var versionSubKey = $@"{subKey}\{versionName}";
-                if (!_registry.KeyExists("HKLM", versionSubKey))
+                if (!_registry.KeyExists(RegistryRoot.LocalMachine, versionSubKey))
                     continue;
 
                 var installPath = GetInstallPath(archKey, runtimeName, versionName);
@@ -105,7 +105,7 @@ public sealed class DotNetDetector
     {
         // Try to read the install location from registry
         var subKey = $@"SOFTWARE\dotnet\Setup\InstalledVersions\{archKey}\sharedfx\{runtimeName}\{versionName}";
-        return _registry.GetStringValue("HKLM", subKey, "InstallPath");
+        return _registry.GetStringValue(RegistryRoot.LocalMachine, subKey, "InstallPath");
     }
 
     internal static string PlatformToArchKey(DotNetPlatform platform)

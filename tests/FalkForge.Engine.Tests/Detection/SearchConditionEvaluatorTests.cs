@@ -147,7 +147,7 @@ public sealed class SearchConditionEvaluatorTests
     public void RegistryExists_KeyExists_ReturnsTrue()
     {
         var fs = new MockFileSystemProvider();
-        var registry = new MockRegistry().AddKey("HKLM", @"SOFTWARE\App");
+        var registry = new MockRegistry().AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\App");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition
@@ -188,7 +188,7 @@ public sealed class SearchConditionEvaluatorTests
     {
         var fs = new MockFileSystemProvider();
         var registry = new MockRegistry()
-            .SetStringValue("HKLM", @"SOFTWARE\App", "Version", "2.0.0");
+            .SetStringValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Version", "2.0.0");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition
@@ -209,7 +209,7 @@ public sealed class SearchConditionEvaluatorTests
     public void RegistryExists_ValueNameMissing_ReturnsFalse()
     {
         var fs = new MockFileSystemProvider();
-        var registry = new MockRegistry().AddKey("HKLM", @"SOFTWARE\App");
+        var registry = new MockRegistry().AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\App");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition
@@ -231,7 +231,7 @@ public sealed class SearchConditionEvaluatorTests
     {
         var fs = new MockFileSystemProvider();
         var registry = new MockRegistry()
-            .SetStringValue("HKLM", @"SOFTWARE\App", "Version", "3.1.0");
+            .SetStringValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Version", "3.1.0");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition
@@ -253,7 +253,7 @@ public sealed class SearchConditionEvaluatorTests
     {
         var fs = new MockFileSystemProvider();
         var registry = new MockRegistry()
-            .SetStringValue("HKLM", @"SOFTWARE\App", "Version", "1.0.0");
+            .SetStringValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Version", "1.0.0");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition
@@ -275,7 +275,7 @@ public sealed class SearchConditionEvaluatorTests
     {
         var fs = new MockFileSystemProvider();
         var registry = new MockRegistry()
-            .SetStringValue("HKLM", @"SOFTWARE\App", "Edition", "Enterprise");
+            .SetStringValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Edition", "Enterprise");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition
@@ -297,7 +297,7 @@ public sealed class SearchConditionEvaluatorTests
     {
         var fs = new MockFileSystemProvider();
         var registry = new MockRegistry()
-            .SetStringValue("HKLM", @"SOFTWARE\App", "Edition", "Standard");
+            .SetStringValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Edition", "Standard");
         var evaluator = new SearchConditionEvaluator(fs, registry);
 
         var condition = new SearchCondition

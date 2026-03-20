@@ -55,8 +55,8 @@ public sealed class FeatureDetectorTests
     {
         var registry = new MockRegistry();
         var subKey = $@"SOFTWARE\FalkForge\Burn\{TestBundleIdFormatted}\Features";
-        registry.SetStringValue("HKCU", subKey, "core", "1");
-        registry.SetStringValue("HKCU", subKey, "extras", "0");
+        registry.SetStringValue(RegistryRoot.CurrentUser, subKey, "core", "1");
+        registry.SetStringValue(RegistryRoot.CurrentUser, subKey, "extras", "0");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]
@@ -138,7 +138,7 @@ public sealed class FeatureDetectorTests
     {
         var registry = new MockRegistry();
         var subKey = $@"SOFTWARE\FalkForge\Burn\{TestBundleIdFormatted}\Features";
-        registry.SetStringValue("HKCU", subKey, "required-feat", "0");
+        registry.SetStringValue(RegistryRoot.CurrentUser, subKey, "required-feat", "0");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]
@@ -157,7 +157,7 @@ public sealed class FeatureDetectorTests
     {
         var registry = new MockRegistry();
         var subKey = $@"SOFTWARE\FalkForge\Burn\{TestBundleIdFormatted}\Features";
-        registry.SetStringValue("HKCU", subKey, "core", "1");
+        registry.SetStringValue(RegistryRoot.CurrentUser, subKey, "core", "1");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]
@@ -193,7 +193,7 @@ public sealed class FeatureDetectorTests
         // Features not found in registry default to their IsDefault value.
         var registry = new MockRegistry();
         var subKey = $@"SOFTWARE\FalkForge\Burn\{TestBundleIdFormatted}\Features";
-        registry.SetStringValue("HKLM", subKey, "core", "1");
+        registry.SetStringValue(RegistryRoot.LocalMachine, subKey, "core", "1");
         // "extras" is NOT in registry
 
         var packageResults = new Dictionary<string, InstallState>();
@@ -222,8 +222,8 @@ public sealed class FeatureDetectorTests
         // But the related (old) bundle has selections saved
         var relatedBundleId = new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
         var relatedSubKey = $@"SOFTWARE\FalkForge\Burn\{relatedBundleId:B}\Features";
-        registry.SetStringValue("HKCU", relatedSubKey, "core", "1");
-        registry.SetStringValue("HKCU", relatedSubKey, "extras", "0");
+        registry.SetStringValue(RegistryRoot.CurrentUser, relatedSubKey, "core", "1");
+        registry.SetStringValue(RegistryRoot.CurrentUser, relatedSubKey, "extras", "0");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]
@@ -258,12 +258,12 @@ public sealed class FeatureDetectorTests
         var registry = new MockRegistry();
         // Current bundle has selections
         var currentSubKey = $@"SOFTWARE\FalkForge\Burn\{TestBundleIdFormatted}\Features";
-        registry.SetStringValue("HKCU", currentSubKey, "core", "0");
+        registry.SetStringValue(RegistryRoot.CurrentUser, currentSubKey, "core", "0");
 
         // Related bundle also has selections (different values)
         var relatedBundleId = new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
         var relatedSubKey = $@"SOFTWARE\FalkForge\Burn\{relatedBundleId:B}\Features";
-        registry.SetStringValue("HKCU", relatedSubKey, "core", "1");
+        registry.SetStringValue(RegistryRoot.CurrentUser, relatedSubKey, "core", "1");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]
@@ -296,7 +296,7 @@ public sealed class FeatureDetectorTests
         // Related bundle with Addon relation has selections
         var addonBundleId = new Guid("BBBBBBBB-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
         var addonSubKey = $@"SOFTWARE\FalkForge\Burn\{addonBundleId:B}\Features";
-        registry.SetStringValue("HKCU", addonSubKey, "core", "1");
+        registry.SetStringValue(RegistryRoot.CurrentUser, addonSubKey, "core", "1");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]
@@ -329,7 +329,7 @@ public sealed class FeatureDetectorTests
         // Related bundle says the feature was deselected
         var relatedBundleId = new Guid("CCCCCCCC-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
         var relatedSubKey = $@"SOFTWARE\FalkForge\Burn\{relatedBundleId:B}\Features";
-        registry.SetStringValue("HKCU", relatedSubKey, "required-feat", "0");
+        registry.SetStringValue(RegistryRoot.CurrentUser, relatedSubKey, "required-feat", "0");
 
         var packageResults = new Dictionary<string, InstallState>();
         var features = new[]

@@ -119,7 +119,7 @@ public static class BuiltInVariables
         {
             // Try reading a key that requires admin access; if it exists we have registry access
             // This is a heuristic - the real check happens via Windows API in the engine
-            isAdmin = platform.Registry.KeyExists("HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion");
+            isAdmin = platform.Registry.KeyExists(RegistryRoot.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion");
         }
         store.Set(BuiltInVariableNames.Privileged, isAdmin ? 1L : 0L);
 
@@ -128,7 +128,7 @@ public static class BuiltInVariables
         var isRemoteSession = false;
         if (platform is not null)
         {
-            var tsMode = platform.Registry.GetDWordValue("HKLM",
+            var tsMode = platform.Registry.GetDWordValue(RegistryRoot.LocalMachine,
                 @"SYSTEM\CurrentControlSet\Control\Terminal Server",
                 "TSAppCompat");
             isTerminalServer = tsMode is 1;
@@ -180,8 +180,8 @@ public static class BuiltInVariables
         {
             // Check standard reboot-pending registry keys
             rebootPending =
-                platform.Registry.KeyExists("HKLM", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") ||
-                platform.Registry.KeyExists("HKLM", @"SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations");
+                platform.Registry.KeyExists(RegistryRoot.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") ||
+                platform.Registry.KeyExists(RegistryRoot.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations");
         }
         store.Set(BuiltInVariableNames.RebootPending, rebootPending ? 1L : 0L);
     }

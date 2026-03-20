@@ -16,14 +16,14 @@ public sealed class MsiDetector
     public bool IsProductInstalled(string productCode)
     {
         var uninstallKey = $@"{UninstallKeyPath}\{productCode}";
-        return _registry.KeyExists("HKLM", uninstallKey)
-            || _registry.KeyExists("HKCU", uninstallKey);
+        return _registry.KeyExists(RegistryRoot.LocalMachine, uninstallKey)
+            || _registry.KeyExists(RegistryRoot.CurrentUser, uninstallKey);
     }
 
     public string? GetInstalledVersion(string productCode)
     {
         var uninstallKey = $@"{UninstallKeyPath}\{productCode}";
-        return _registry.GetStringValue("HKLM", uninstallKey, "DisplayVersion")
-            ?? _registry.GetStringValue("HKCU", uninstallKey, "DisplayVersion");
+        return _registry.GetStringValue(RegistryRoot.LocalMachine, uninstallKey, "DisplayVersion")
+            ?? _registry.GetStringValue(RegistryRoot.CurrentUser, uninstallKey, "DisplayVersion");
     }
 }

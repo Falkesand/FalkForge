@@ -34,8 +34,8 @@ public sealed class SearchConditionDetectionTests
         // Product is installed per registry, search condition says file is missing.
         // Default mode should ignore search conditions entirely.
         var registry = new MockRegistry()
-            .AddKey("HKLM", UninstallKey)
-            .SetStringValue("HKLM", UninstallKey, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, UninstallKey)
+            .SetStringValue(RegistryRoot.LocalMachine, UninstallKey, "DisplayVersion", "1.0.0");
         var fs = new MockFileSystemProvider(); // No files exist
 
         var package = CreateMsiWithSearchConditions(
@@ -87,8 +87,8 @@ public sealed class SearchConditionDetectionTests
         // Product IS installed per registry, but search condition file is missing.
         // Combined mode requires both to agree -- should be NotInstalled.
         var registry = new MockRegistry()
-            .AddKey("HKLM", UninstallKey)
-            .SetStringValue("HKLM", UninstallKey, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, UninstallKey)
+            .SetStringValue(RegistryRoot.LocalMachine, UninstallKey, "DisplayVersion", "1.0.0");
         var fs = new MockFileSystemProvider(); // No files
 
         var package = CreateMsiWithSearchConditions(

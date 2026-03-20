@@ -50,8 +50,11 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
         if (separatorIndex < 0)
             return Result<bool>.Failure(ErrorKind.DetectionError, $"Invalid registry path: {condition.Path}");
 
-        var rootKey = condition.Path[..separatorIndex];
+        var rootKeyStr = condition.Path[..separatorIndex];
         var subKey = condition.Path[(separatorIndex + 1)..];
+
+        if (!TryParseRegistryRoot(rootKeyStr, out var rootKey))
+            return Result<bool>.Failure(ErrorKind.DetectionError, $"Unknown registry root key: {rootKeyStr}");
 
         var comparison = condition.Comparison ?? "exists";
 
@@ -61,7 +64,24 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
         return EvaluateRegistryComparison(rootKey, subKey, condition.Value, comparison);
     }
 
-    private Result<bool> EvaluateRegistryExists(string rootKey, string subKey, string? valueName)
+    private static bool TryParseRegistryRoot(string rootKeyStr, out RegistryRoot rootKey)
+    {
+        rootKey = rootKeyStr switch
+        {
+            "HKLM" or "HKEY_LOCAL_MACHINE" => RegistryRoot.LocalMachine,
+            "HKCU" or "HKEY_CURRENT_USER" => RegistryRoot.CurrentUser,
+            "HKCR" or "HKEY_CLASSES_ROOT" => RegistryRoot.ClassesRoot,
+            "HKU" or "HKEY_USERS" => RegistryRoot.Users,
+            _ => default
+        };
+
+        return rootKeyStr is "HKLM" or "HKEY_LOCAL_MACHINE"
+            or "HKCU" or "HKEY_CURRENT_USER"
+            or "HKCR" or "HKEY_CLASSES_ROOT"
+            or "HKU" or "HKEY_USERS";
+    }
+
+    private Result<bool> EvaluateRegistryExists(RegistryRoot rootKey, string subKey, string? valueName)
     {
         if (valueName is null)
             return registry!.KeyExists(rootKey, subKey);
@@ -70,7 +90,7 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
         return value is not null;
     }
 
-    private Result<bool> EvaluateRegistryComparison(string rootKey, string subKey, string? valueName, string comparison)
+    private Result<bool> EvaluateRegistryComparison(RegistryRoot rootKey, string subKey, string? valueName, string comparison)
     {
         if (valueName is null)
             return Result<bool>.Failure(ErrorKind.DetectionError, "Value name required for registry comparison");

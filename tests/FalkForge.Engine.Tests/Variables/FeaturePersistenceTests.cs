@@ -67,8 +67,8 @@ public sealed class FeaturePersistenceTests
             registry, TestBundleId, InstallScope.PerUser, selections);
 
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Features";
-        Assert.Equal("1", registry.GetStringValue("HKCU", keyPath, "selected"));
-        Assert.Equal("0", registry.GetStringValue("HKCU", keyPath, "unselected"));
+        Assert.Equal("1", registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "selected"));
+        Assert.Equal("0", registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "unselected"));
     }
 
     [Fact]
@@ -76,14 +76,14 @@ public sealed class FeaturePersistenceTests
     {
         var registry = new MockRegistry();
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Features";
-        registry.SetStringValue("HKLM", keyPath, "core", "1");
+        registry.SetStringValue(RegistryRoot.LocalMachine, keyPath, "core", "1");
 
-        Assert.True(registry.KeyExists("HKLM", keyPath));
+        Assert.True(registry.KeyExists(RegistryRoot.LocalMachine, keyPath));
 
         FeaturePersistence.ClearFeatureSelections(
             registry, TestBundleId, InstallScope.PerMachine);
 
-        Assert.False(registry.KeyExists("HKLM", keyPath));
+        Assert.False(registry.KeyExists(RegistryRoot.LocalMachine, keyPath));
     }
 
     [Fact]
@@ -96,8 +96,8 @@ public sealed class FeaturePersistenceTests
             registry, TestBundleId, InstallScope.PerMachine, selections);
 
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Features";
-        Assert.Equal("1", registry.GetStringValue("HKLM", keyPath, "core"));
-        Assert.Null(registry.GetStringValue("HKCU", keyPath, "core"));
+        Assert.Equal("1", registry.GetStringValue(RegistryRoot.LocalMachine, keyPath, "core"));
+        Assert.Null(registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "core"));
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public sealed class FeaturePersistenceTests
             registry, TestBundleId, InstallScope.PerUser, selections);
 
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Features";
-        Assert.Equal("1", registry.GetStringValue("HKCU", keyPath, "core"));
-        Assert.Null(registry.GetStringValue("HKLM", keyPath, "core"));
+        Assert.Equal("1", registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "core"));
+        Assert.Null(registry.GetStringValue(RegistryRoot.LocalMachine, keyPath, "core"));
     }
 
     [Fact]
@@ -120,8 +120,8 @@ public sealed class FeaturePersistenceTests
         var registry = new MockRegistry();
         var relatedBundleId = new Guid("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{relatedBundleId:B}\Features";
-        registry.SetStringValue("HKCU", keyPath, "core", "1");
-        registry.SetStringValue("HKCU", keyPath, "extras", "0");
+        registry.SetStringValue(RegistryRoot.CurrentUser, keyPath, "core", "1");
+        registry.SetStringValue(RegistryRoot.CurrentUser, keyPath, "extras", "0");
 
         var features = new ManifestFeature[]
         {

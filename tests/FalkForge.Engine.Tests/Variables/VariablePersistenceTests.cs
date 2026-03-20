@@ -21,8 +21,8 @@ public sealed class VariablePersistenceTests
     {
         var registry = new MockRegistry();
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Variables";
-        registry.SetStringValue("HKCU", keyPath, "Persisted", "loaded-value");
-        registry.SetStringValue("HKCU", keyPath, "NotPersisted", "should-not-load");
+        registry.SetStringValue(RegistryRoot.CurrentUser, keyPath, "Persisted", "loaded-value");
+        registry.SetStringValue(RegistryRoot.CurrentUser, keyPath, "NotPersisted", "should-not-load");
 
         var variables = new ManifestVariable[]
         {
@@ -45,7 +45,7 @@ public sealed class VariablePersistenceTests
     {
         var registry = new MockRegistry();
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Variables";
-        registry.SetStringValue("HKCU", keyPath, "SecretVar", "secret-value");
+        registry.SetStringValue(RegistryRoot.CurrentUser, keyPath, "SecretVar", "secret-value");
 
         var variables = new ManifestVariable[]
         {
@@ -78,8 +78,8 @@ public sealed class VariablePersistenceTests
             store, TestBundleId, InstallScope.PerUser, variables, registry);
 
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Variables";
-        Assert.Equal("save-me", registry.GetStringValue("HKCU", keyPath, "Persisted"));
-        Assert.Null(registry.GetStringValue("HKCU", keyPath, "NotPersisted"));
+        Assert.Equal("save-me", registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "Persisted"));
+        Assert.Null(registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "NotPersisted"));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class VariablePersistenceTests
             store, TestBundleId, InstallScope.PerUser, variables, registry);
 
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Variables";
-        Assert.Null(registry.GetStringValue("HKCU", keyPath, "SecretVar"));
+        Assert.Null(registry.GetStringValue(RegistryRoot.CurrentUser, keyPath, "SecretVar"));
     }
 
     [Fact]
@@ -106,14 +106,14 @@ public sealed class VariablePersistenceTests
     {
         var registry = new MockRegistry();
         var keyPath = $@"SOFTWARE\FalkForge\Burn\{TestBundleId:B}\Variables";
-        registry.SetStringValue("HKLM", keyPath, "SomeVar", "value");
+        registry.SetStringValue(RegistryRoot.LocalMachine, keyPath, "SomeVar", "value");
 
-        Assert.True(registry.KeyExists("HKLM", keyPath));
+        Assert.True(registry.KeyExists(RegistryRoot.LocalMachine, keyPath));
 
         VariablePersistence.ClearPersistedVariables(
             TestBundleId, InstallScope.PerMachine, registry);
 
-        Assert.False(registry.KeyExists("HKLM", keyPath));
+        Assert.False(registry.KeyExists(RegistryRoot.LocalMachine, keyPath));
     }
 
     [Fact]

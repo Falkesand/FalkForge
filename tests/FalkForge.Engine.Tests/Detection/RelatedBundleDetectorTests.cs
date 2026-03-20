@@ -33,10 +33,10 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKLM", entryPath, "DisplayVersion", "1.0.0")
-            .SetStringValue("HKLM", entryPath, "DisplayName", "OldApp");
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayVersion", "1.0.0")
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayName", "OldApp");
 
         var relatedBundles = new[]
         {
@@ -65,9 +65,9 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HkcuUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKCU", entryPath)
-            .SetStringValue("HKCU", entryPath, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKCU", entryPath, "DisplayVersion", "2.5.0");
+            .AddKey(RegistryRoot.CurrentUser, entryPath)
+            .SetStringValue(RegistryRoot.CurrentUser, entryPath, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.CurrentUser, entryPath, "DisplayVersion", "2.5.0");
 
         var relatedBundles = new[]
         {
@@ -95,9 +95,9 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmWow64UninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKLM", entryPath, "DisplayVersion", "1.2.3");
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayVersion", "1.2.3");
 
         var relatedBundles = new[]
         {
@@ -123,9 +123,9 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "BundleUpgradeCode", "{DIFFERENT-CODE-0000-0000-000000000000}")
-            .SetStringValue("HKLM", entryPath, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "BundleUpgradeCode", "{DIFFERENT-CODE-0000-0000-000000000000}")
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayVersion", "1.0.0");
 
         var relatedBundles = new[]
         {
@@ -152,12 +152,12 @@ public sealed class RelatedBundleDetectorTests
         var entry2 = $@"{HkcuUninstallPath}\{subKey2}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entry1)
-            .SetStringValue("HKLM", entry1, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKLM", entry1, "DisplayVersion", "1.0.0")
-            .AddKey("HKCU", entry2)
-            .SetStringValue("HKCU", entry2, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKCU", entry2, "DisplayVersion", "2.0.0");
+            .AddKey(RegistryRoot.LocalMachine, entry1)
+            .SetStringValue(RegistryRoot.LocalMachine, entry1, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.LocalMachine, entry1, "DisplayVersion", "1.0.0")
+            .AddKey(RegistryRoot.CurrentUser, entry2)
+            .SetStringValue(RegistryRoot.CurrentUser, entry2, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.CurrentUser, entry2, "DisplayVersion", "2.0.0");
 
         var relatedBundles = new[]
         {
@@ -182,8 +182,8 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "BundleUpgradeCode", upgradeCode);
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "BundleUpgradeCode", upgradeCode);
 
         var relatedBundles = new[]
         {
@@ -209,9 +209,9 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKLM", entryPath, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayVersion", "1.0.0");
 
         var relatedBundles = new[]
         {
@@ -236,9 +236,9 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "DisplayVersion", "1.0.0")
-            .SetStringValue("HKLM", entryPath, "DisplayName", "Some App");
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayVersion", "1.0.0")
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayName", "Some App");
 
         var relatedBundles = new[]
         {
@@ -263,9 +263,9 @@ public sealed class RelatedBundleDetectorTests
         var entryPath = $@"{HklmUninstallPath}\{subKeyName}";
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", entryPath)
-            .SetStringValue("HKLM", entryPath, "BundleUpgradeCode", upgradeCode)
-            .SetStringValue("HKLM", entryPath, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, entryPath)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "BundleUpgradeCode", upgradeCode)
+            .SetStringValue(RegistryRoot.LocalMachine, entryPath, "DisplayVersion", "1.0.0");
 
         var relatedBundles = new[]
         {
@@ -280,7 +280,7 @@ public sealed class RelatedBundleDetectorTests
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value);
-        Assert.StartsWith("HKLM\\", result.Value[0].RegistryKeyPath);
+        Assert.StartsWith("LocalMachine\\", result.Value[0].RegistryKeyPath);
         Assert.Contains(subKeyName, result.Value[0].RegistryKeyPath);
     }
 }

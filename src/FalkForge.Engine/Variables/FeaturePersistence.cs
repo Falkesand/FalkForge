@@ -14,7 +14,7 @@ internal static class FeaturePersistence
         IReadOnlyDictionary<string, bool> selections)
     {
         var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
-        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
 
         foreach (var (featureId, selected) in selections)
         {
@@ -29,7 +29,7 @@ internal static class FeaturePersistence
         IReadOnlyList<ManifestFeature> features)
     {
         var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
-        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
         var result = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var feature in features)
@@ -57,7 +57,7 @@ internal static class FeaturePersistence
         InstallScope scope)
     {
         var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
-        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
         registry.DeleteKey(rootKey, keyPath);
     }
 }

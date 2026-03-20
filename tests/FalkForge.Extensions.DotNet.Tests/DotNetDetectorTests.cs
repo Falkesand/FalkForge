@@ -10,8 +10,8 @@ public sealed class DotNetDetectorTests
     public void Detect_WithRuntimeInRegistry_ReturnsDetectedVersion()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\8.0.11");
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\8.0.11");
         var fileSystem = new MockFileSystem();
         var detector = new DotNetDetector(registry, fileSystem);
 
@@ -42,9 +42,9 @@ public sealed class DotNetDetectorTests
     public void Detect_MultipleVersions_ReturnsAllVersions()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\6.0.35")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\8.0.11");
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\6.0.35")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\8.0.11");
         var fileSystem = new MockFileSystem();
         var detector = new DotNetDetector(registry, fileSystem);
 
@@ -60,8 +60,8 @@ public sealed class DotNetDetectorTests
     public void Detect_AspNetCoreRuntime_ReturnsCorrectRuntimeType()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.AspNetCore.App")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.AspNetCore.App\8.0.11");
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.AspNetCore.App")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.AspNetCore.App\8.0.11");
         var fileSystem = new MockFileSystem();
         var detector = new DotNetDetector(registry, fileSystem);
 
@@ -78,8 +78,8 @@ public sealed class DotNetDetectorTests
     public void Detect_WindowsDesktopRuntime_ReturnsCorrectRuntimeType()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App\8.0.11");
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App\8.0.11");
         var fileSystem = new MockFileSystem();
         var detector = new DotNetDetector(registry, fileSystem);
 
@@ -96,8 +96,8 @@ public sealed class DotNetDetectorTests
     public void Detect_X86Platform_ReturnsCorrectPlatform()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x86\sharedfx\Microsoft.NETCore.App")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x86\sharedfx\Microsoft.NETCore.App\8.0.11");
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x86\sharedfx\Microsoft.NETCore.App")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x86\sharedfx\Microsoft.NETCore.App\8.0.11");
         var fileSystem = new MockFileSystem();
         var detector = new DotNetDetector(registry, fileSystem);
 
@@ -135,8 +135,8 @@ public sealed class DotNetDetectorTests
     {
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         var registry = new MockRegistry()
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App")
-            .AddKey("HKLM", @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\8.0.11");
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App")
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.NETCore.App\8.0.11");
         var fileSystem = new MockFileSystem()
             .AddDirectory($@"{programFiles}\dotnet\host\fxr")
             .AddDirectory($@"{programFiles}\dotnet\host\fxr\8.0.11")

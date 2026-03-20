@@ -21,7 +21,7 @@ internal static class DependencyDetector
         foreach (var req in requirements)
         {
             var versionPath = $@"SOFTWARE\Classes\Installer\Dependencies\{req.ProviderKey}";
-            var installedVersionStr = registry.GetStringValue("HKLM", versionPath, "Version");
+            var installedVersionStr = registry.GetStringValue(RegistryRoot.LocalMachine, versionPath, "Version");
 
             if (installedVersionStr is null)
             {
@@ -81,7 +81,7 @@ internal static class DependencyDetector
         {
             var dependentsPath = $@"SOFTWARE\Classes\Installer\Dependencies\{provider.Key}\Dependents";
 
-            var dependentKeys = registry.GetSubKeyNames("HKLM", dependentsPath);
+            var dependentKeys = registry.GetSubKeyNames(RegistryRoot.LocalMachine, dependentsPath);
             if (dependentKeys.Count > 0)
             {
                 blockers.Add(new DependencyBlocker(provider.Key, provider.DisplayName, dependentKeys));

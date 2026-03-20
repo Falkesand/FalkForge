@@ -29,8 +29,8 @@ public sealed class PackageDetectorTests
     public void Detect_ProductFoundInHklm_ReturnsInstalled()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", UninstallKey)
-            .SetStringValue("HKLM", UninstallKey, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, UninstallKey)
+            .SetStringValue(RegistryRoot.LocalMachine, UninstallKey, "DisplayVersion", "1.0.0");
 
         var detector = new PackageDetector(registry);
         var manifest = TestManifestFactory.CreateSimple(
@@ -47,8 +47,8 @@ public sealed class PackageDetectorTests
     public void Detect_ProductFoundInHkcu_ReturnsInstalled()
     {
         var registry = new MockRegistry()
-            .AddKey("HKCU", UninstallKey)
-            .SetStringValue("HKCU", UninstallKey, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.CurrentUser, UninstallKey)
+            .SetStringValue(RegistryRoot.CurrentUser, UninstallKey, "DisplayVersion", "1.0.0");
 
         var detector = new PackageDetector(registry);
         var manifest = TestManifestFactory.CreateSimple(
@@ -65,8 +65,8 @@ public sealed class PackageDetectorTests
     public void Detect_OlderVersionInstalled_ReturnsOlderVersion()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", UninstallKey)
-            .SetStringValue("HKLM", UninstallKey, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, UninstallKey)
+            .SetStringValue(RegistryRoot.LocalMachine, UninstallKey, "DisplayVersion", "1.0.0");
 
         var detector = new PackageDetector(registry);
         var manifest = TestManifestFactory.CreateSimple(
@@ -83,8 +83,8 @@ public sealed class PackageDetectorTests
     public void Detect_NewerVersionInstalled_ReturnsNewerVersion()
     {
         var registry = new MockRegistry()
-            .AddKey("HKLM", UninstallKey)
-            .SetStringValue("HKLM", UninstallKey, "DisplayVersion", "3.0.0");
+            .AddKey(RegistryRoot.LocalMachine, UninstallKey)
+            .SetStringValue(RegistryRoot.LocalMachine, UninstallKey, "DisplayVersion", "3.0.0");
 
         var detector = new PackageDetector(registry);
         var manifest = TestManifestFactory.CreateSimple(
@@ -141,8 +141,8 @@ public sealed class PackageDetectorTests
         var uninstallKey2 = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" + productCode2;
 
         var registry = new MockRegistry()
-            .AddKey("HKLM", uninstallKey2)
-            .SetStringValue("HKLM", uninstallKey2, "DisplayVersion", "1.0.0");
+            .AddKey(RegistryRoot.LocalMachine, uninstallKey2)
+            .SetStringValue(RegistryRoot.LocalMachine, uninstallKey2, "DisplayVersion", "1.0.0");
 
         var detector = new PackageDetector(registry);
         var manifest = TestManifestFactory.CreateSimple(

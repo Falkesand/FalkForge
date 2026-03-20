@@ -6,7 +6,7 @@ public sealed class MockRegistry : IRegistry
 {
     private readonly Dictionary<string, Dictionary<string, object?>> _keys = new(StringComparer.OrdinalIgnoreCase);
 
-    public MockRegistry AddKey(string rootKey, string subKey)
+    public MockRegistry AddKey(RegistryRoot rootKey, string subKey)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         if (!_keys.ContainsKey(fullKey))
@@ -17,7 +17,7 @@ public sealed class MockRegistry : IRegistry
         return this;
     }
 
-    public MockRegistry SetStringValue(string rootKey, string subKey, string valueName, string value)
+    public MockRegistry SetStringValue(RegistryRoot rootKey, string subKey, string valueName, string value)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         if (!_keys.TryGetValue(fullKey, out var values))
@@ -30,7 +30,7 @@ public sealed class MockRegistry : IRegistry
         return this;
     }
 
-    public MockRegistry SetDWordValue(string rootKey, string subKey, string valueName, int value)
+    public MockRegistry SetDWordValue(RegistryRoot rootKey, string subKey, string valueName, int value)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         if (!_keys.TryGetValue(fullKey, out var values))
@@ -43,13 +43,13 @@ public sealed class MockRegistry : IRegistry
         return this;
     }
 
-    public bool KeyExists(string rootKey, string subKey)
+    public bool KeyExists(RegistryRoot rootKey, string subKey)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         return _keys.ContainsKey(fullKey);
     }
 
-    public string? GetStringValue(string rootKey, string subKey, string valueName)
+    public string? GetStringValue(RegistryRoot rootKey, string subKey, string valueName)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         if (_keys.TryGetValue(fullKey, out var values) &&
@@ -62,7 +62,7 @@ public sealed class MockRegistry : IRegistry
         return null;
     }
 
-    public int? GetDWordValue(string rootKey, string subKey, string valueName)
+    public int? GetDWordValue(RegistryRoot rootKey, string subKey, string valueName)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         if (_keys.TryGetValue(fullKey, out var values) &&
@@ -75,7 +75,7 @@ public sealed class MockRegistry : IRegistry
         return null;
     }
 
-    public IReadOnlyList<string> GetSubKeyNames(string rootKey, string subKey)
+    public IReadOnlyList<string> GetSubKeyNames(RegistryRoot rootKey, string subKey)
     {
         var prefix = $@"{rootKey}\{subKey}\";
         var result = new List<string>();
@@ -95,12 +95,12 @@ public sealed class MockRegistry : IRegistry
         return result;
     }
 
-    void IRegistry.SetStringValue(string rootKey, string subKey, string valueName, string value)
+    void IRegistry.SetStringValue(RegistryRoot rootKey, string subKey, string valueName, string value)
     {
         SetStringValue(rootKey, subKey, valueName, value);
     }
 
-    public void DeleteKey(string rootKey, string subKey)
+    public void DeleteKey(RegistryRoot rootKey, string subKey)
     {
         var fullKey = $@"{rootKey}\{subKey}";
         var keysToRemove = _keys.Keys

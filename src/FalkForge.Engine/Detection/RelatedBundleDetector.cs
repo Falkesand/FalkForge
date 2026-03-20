@@ -11,17 +11,17 @@ public sealed class RelatedBundleDetector
         @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ];
 
-    private static readonly (string RootKey, string SubKeyPath)[] SearchLocations = BuildSearchLocations();
+    private static readonly (RegistryRoot RootKey, string SubKeyPath)[] SearchLocations = BuildSearchLocations();
 
-    private static (string RootKey, string SubKeyPath)[] BuildSearchLocations()
+    private static (RegistryRoot RootKey, string SubKeyPath)[] BuildSearchLocations()
     {
-        var locations = new List<(string, string)>();
+        var locations = new List<(RegistryRoot, string)>();
         foreach (var path in UninstallPaths)
         {
-            locations.Add(("HKLM", path));
+            locations.Add((RegistryRoot.LocalMachine, path));
         }
 
-        locations.Add(("HKCU", UninstallPaths[0]));
+        locations.Add((RegistryRoot.CurrentUser, UninstallPaths[0]));
         return locations.ToArray();
     }
 

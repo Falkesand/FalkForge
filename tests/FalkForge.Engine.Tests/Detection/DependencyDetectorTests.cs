@@ -22,7 +22,7 @@ public sealed class DependencyDetectorTests
     {
         var registry = new MockRegistry();
         // Provider key exists but no Dependents subkey
-        registry.SetStringValue("HKLM",
+        registry.SetStringValue(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\MyApp",
             "Version", "1.0.0");
 
@@ -40,13 +40,13 @@ public sealed class DependencyDetectorTests
     public void DetectBlockingDependencies_WithDependents_ReturnsBlocker()
     {
         var registry = new MockRegistry();
-        registry.SetStringValue("HKLM",
+        registry.SetStringValue(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\MyApp",
             "Version", "1.0.0");
         // Add the Dependents key and a dependent subkey
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\MyApp\Dependents");
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\MyApp\Dependents\OtherApp");
 
         var providers = new[]
@@ -67,13 +67,13 @@ public sealed class DependencyDetectorTests
     public void DetectBlockingDependencies_MultipleDependents_ReturnsAll()
     {
         var registry = new MockRegistry();
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib\Dependents");
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib\Dependents\AppA");
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib\Dependents\AppB");
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib\Dependents\AppC");
 
         var providers = new[]
@@ -96,9 +96,9 @@ public sealed class DependencyDetectorTests
     {
         var registry = new MockRegistry();
         // First provider has a dependent
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\ProviderA\Dependents");
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\ProviderA\Dependents\ConsumerX");
         // Second provider has no Dependents key at all
 
@@ -119,7 +119,7 @@ public sealed class DependencyDetectorTests
     {
         var registry = new MockRegistry();
         // Create the Dependents key with no subkeys (just a value to make it exist)
-        registry.AddKey("HKLM",
+        registry.AddKey(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\MyApp\Dependents");
 
         var providers = new[]
@@ -163,7 +163,7 @@ public sealed class DependencyDetectorTests
     public void DetectUnsatisfiedProviders_VersionTooLow_ReturnsUnsatisfied()
     {
         var registry = new MockRegistry();
-        registry.SetStringValue("HKLM",
+        registry.SetStringValue(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
             "Version", "1.0.0");
 
@@ -184,7 +184,7 @@ public sealed class DependencyDetectorTests
     public void DetectUnsatisfiedProviders_VersionSatisfied_ReturnsEmpty()
     {
         var registry = new MockRegistry();
-        registry.SetStringValue("HKLM",
+        registry.SetStringValue(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
             "Version", "2.5.0");
 
@@ -202,7 +202,7 @@ public sealed class DependencyDetectorTests
     public void DetectUnsatisfiedProviders_VersionAtMaxExclusive_ReturnsUnsatisfied()
     {
         var registry = new MockRegistry();
-        registry.SetStringValue("HKLM",
+        registry.SetStringValue(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
             "Version", "3.0.0");
 
@@ -220,7 +220,7 @@ public sealed class DependencyDetectorTests
     public void DetectUnsatisfiedProviders_VersionAtMaxInclusive_ReturnsEmpty()
     {
         var registry = new MockRegistry();
-        registry.SetStringValue("HKLM",
+        registry.SetStringValue(RegistryRoot.LocalMachine,
             @"SOFTWARE\Classes\Installer\Dependencies\SharedLib",
             "Version", "3.0.0");
 

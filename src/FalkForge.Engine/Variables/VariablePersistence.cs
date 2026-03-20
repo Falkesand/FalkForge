@@ -15,7 +15,7 @@ internal static class VariablePersistence
         IRegistry registry)
     {
         var keyPath = $@"{RegistryKeyBase}\{bundleId:B}\Variables";
-        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
 
         foreach (var v in variables)
         {
@@ -36,7 +36,7 @@ internal static class VariablePersistence
         IRegistry registry)
     {
         var keyPath = $@"{RegistryKeyBase}\{bundleId:B}\Variables";
-        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
 
         foreach (var v in variables)
         {
@@ -55,7 +55,7 @@ internal static class VariablePersistence
         IRegistry registry)
     {
         var keyPath = $@"{RegistryKeyBase}\{bundleId:B}\Variables";
-        var rootKey = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+        var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
         registry.DeleteKey(rootKey, keyPath);
     }
 }
