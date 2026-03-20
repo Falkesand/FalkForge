@@ -255,6 +255,69 @@ svc<span class="punc">.</span>Password <span class="punc">=</span> <span class="
       </div>
     </details>
 
+    <!-- Section 6: Secure Service Credentials -->
+    <h2>Secure Service Credentials</h2>
+    <p>When a service runs under a domain or custom account, you need to collect and transport the password securely. FalkForge provides a complete secure pipeline: <code>PasswordBridge</code> collects from a <code>PasswordBox</code>, DPAPI protects in memory, <code>SetSecureProperty</code> transports via named pipe, and <code>IMsiApi</code> delivers to Windows Installer &mdash; the password never appears on a command line or in a log file.</p>
+
+    <h3>Step 1: XAML &mdash; Collect with PasswordBridge</h3>
+    <pre><code><span class="punc">&lt;</span><span class="typ">PasswordBox</span> <span class="method">ui:PasswordBridge.Key</span><span class="punc">=</span><span class="str">"ServicePassword"</span> <span class="punc">/&gt;</span></code></pre>
+
+    <p><code>PasswordBridge</code> is an attached property that bridges WPF's <code>PasswordBox</code> (which deliberately doesn't support data binding for security) to FalkForge's secure storage. The password stays in <code>PasswordBox</code>'s internal <code>SecureString</code> &mdash; it's never a C# string.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Why PasswordBox doesn't support binding</summary>
+      <div class="deep-dive-content">
+        <p>WPF's <code>PasswordBox</code> intentionally omits a <code>Password</code> dependency property. This is security by design: .NET strings are immutable and interned, so a password stored as a <code>string</code> persists in memory long after you're done with it. You can't zero it, and the garbage collector may copy it during compaction.</p>
+        <p><code>PasswordBridge</code> works around this by reading the password only when explicitly requested (via <code>GetPassword</code>), wrapping it in <code>SensitiveBytes</code> that zeros memory on disposal. The password exists in managed memory for the shortest possible window.</p>
+      </div>
+    </details>
+
+    <h3>Step 2: Page code &mdash; Store with DPAPI</h3>
+    <pre><code><span class="kw">using</span> <span class="kw">var</span> pw <span class="punc">=</span> <span class="method">GetPassword</span><span class="punc">(</span><span class="str">"ServicePassword"</span><span class="punc">);</span>
+<span class="kw">if</span> <span class="punc">(!</span>pw<span class="punc">.</span>IsEmpty<span class="punc">)</span>
+    SharedState<span class="punc">.</span><span class="method">SetSensitive</span><span class="punc">(</span><span class="str">"ServicePassword"</span><span class="punc">,</span> pw<span class="punc">.</span>Span<span class="punc">);</span></code></pre>
+
+    <p><code>GetPassword</code> returns <code>SensitiveBytes</code> &mdash; a disposable wrapper that zeros memory when done. <code>SetSensitive</code> encrypts with Windows DPAPI before storing in <code>InstallerState</code>.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How DPAPI CurrentUser scope works</summary>
+      <div class="deep-dive-content">
+        <p>The Data Protection API (DPAPI) is a Windows built-in that encrypts data using a key derived from the current user's logon credentials. <code>SetSensitive</code> calls <code>ProtectedData.Protect</code> with <code>DataProtectionScope.CurrentUser</code>, meaning only the same Windows user account on the same machine can decrypt it.</p>
+        <p>This protects the password while it sits in <code>InstallerState</code> between pages. Even if another process reads the installer's memory, it gets ciphertext. The original bytes are zeroed immediately after encryption.</p>
+      </div>
+    </details>
+
+    <h3>Step 3: Progress page &mdash; Transport via named pipe</h3>
+    <pre><code><span class="kw">using</span> <span class="kw">var</span> pw <span class="punc">=</span> SharedState<span class="punc">.</span><span class="method">GetSensitive</span><span class="punc">(</span><span class="str">"ServicePassword"</span><span class="punc">);</span>
+<span class="kw">if</span> <span class="punc">(!</span>pw<span class="punc">.</span>IsEmpty<span class="punc">)</span>
+    Engine<span class="punc">.</span><span class="method">SetSecureProperty</span><span class="punc">(</span><span class="str">"SERVICEPASSWORD"</span><span class="punc">,</span> pw<span class="punc">);</span></code></pre>
+
+    <p><code>SetSecureProperty</code> sends the password over the HMAC-authenticated named pipe as a binary message. It's stored in the engine's <code>VariableStore</code> as a <code>SecureVariable</code> &mdash; pinned memory that's zeroed on dispose. It never appears in logs.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: SetSecureProperty vs SetProperty</summary>
+      <div class="deep-dive-content">
+        <p><code>SetProperty</code> stores the value as a plain <code>string</code>. It's visible in process listings, may appear in MSI log files, and is passed to <code>msiexec.exe</code> command-line arguments where any process on the machine can read it via the Win32 <code>QueryFullProcessImageName</code> / command-line APIs.</p>
+        <p><code>SetSecureProperty</code> stores the value as a <code>SecureVariable</code> &mdash; a disposable wrapper over pinned memory. It's delivered to Windows Installer via the <code>IMsiApi</code> P/Invoke interface (<code>MsiSetProperty</code>), never via command-line arguments. The engine's logger explicitly skips secure properties. When the engine shuts down, <code>SecureVariable.Dispose</code> zeros the memory via <code>CryptographicOperations.ZeroMemory</code>.</p>
+        <p>For any value that is a secret &mdash; passwords, API keys, connection strings with credentials &mdash; always use <code>SetSecureProperty</code>.</p>
+      </div>
+    </details>
+
+    <h3>Step 4: Service definition &mdash; Reference the property</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Service</span><span class="punc">(</span><span class="str">"MyService"</span><span class="punc">,</span> svc <span class="punc">=></span>
+<span class="punc">{</span>
+    svc<span class="punc">.</span><span class="method">AccountProperty</span><span class="punc">(</span><span class="str">".\\"</span> <span class="punc">+</span> <span class="str">"[SERVICEACCOUNT]"</span><span class="punc">);</span>
+    svc<span class="punc">.</span>Password <span class="punc">=</span> <span class="str">"[SERVICEPASSWORD]"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+
+    <p>The service definition references MSI properties with bracket syntax. At install time, the engine resolves <code>[SERVICEPASSWORD]</code> from the secure variable store and passes it to Windows Installer via the <code>IMsiApi</code> P/Invoke &mdash; never via <code>msiexec.exe</code> command-line arguments.</p>
+
+    <div class="warning">
+      <p><strong>Security warning:</strong> Never hardcode passwords in service definitions or MSI property defaults. Never use <code>SetProperty()</code> for passwords &mdash; it stores the value as a plain string visible in process listings. Always use the <code>PasswordBridge</code> &rarr; <code>SetSensitive</code> &rarr; <code>SetSecureProperty</code> pipeline shown above.</p>
+    </div>
+
+    <p>See <code>demo/14-lifecycle-hooks</code> for the complete working example of this pattern.</p>
+
     <!-- Recap -->
     <h2>Recap</h2>
     <p>Here are the common service installation patterns:</p>
