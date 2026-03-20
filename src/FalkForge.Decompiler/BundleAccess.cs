@@ -7,7 +7,7 @@ namespace FalkForge.Decompiler;
 
 internal sealed class BundleAccess : IBundleAccess
 {
-    private static readonly byte[] Magic = "FALKBUNDLE\0\0\0\0\0\0"u8.ToArray();
+    private static readonly byte[] Magic = BundleReader.BundleMagic.ToArray();
 
     private readonly FileStream _stream;
     private readonly BinaryReader _reader;

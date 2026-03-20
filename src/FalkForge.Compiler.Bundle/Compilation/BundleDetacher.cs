@@ -15,7 +15,7 @@ public static class BundleDetacher
     private const int FooterLength = 24; // 16 (magic) + 8 (tocOffset)
     private const int CopyBufferSize = 64 * 1024;
     private const int MaxManifestScanSize = 16 * 1024 * 1024 + 20; // 16MB manifest + magic + length
-    private static ReadOnlySpan<byte> Magic => PayloadEmbedder.BundleMagic;
+    private static ReadOnlySpan<byte> Magic => BundleReader.BundleMagic;
 
     /// <summary>
     ///     Detaches a FALKBUNDLE into a bare PE stub and a data file.
@@ -232,7 +232,7 @@ public static class BundleDetacher
                 }
 
                 // 4. Write footer
-                outputWriter.Write(PayloadEmbedder.BundleMagic.ToArray());
+                outputWriter.Write(BundleReader.BundleMagic.ToArray());
                 outputWriter.Write(newTocOffset);
                 outputWriter.Flush();
 
@@ -288,7 +288,7 @@ public static class BundleDetacher
             stream.Seek(scanStart, SeekOrigin.Begin);
             stream.ReadExactly(buffer, 0, scanSize);
 
-            var magicBytes = PayloadEmbedder.BundleMagic;
+            var magicBytes = BundleReader.BundleMagic;
 
             // Scan backward for magic
             for (var i = scanSize - MagicLength; i >= 0; i--)

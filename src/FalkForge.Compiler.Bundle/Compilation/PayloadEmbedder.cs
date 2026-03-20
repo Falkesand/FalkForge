@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Json;
 using FalkForge.Compiler.Bundle.Compression;
 using FalkForge.Engine.Protocol.Bundle;
@@ -10,9 +9,7 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 #pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class PayloadEmbedder
 {
-    private static readonly byte[] Magic = Encoding.ASCII.GetBytes("FALKBUNDLE\0\0\0\0\0\0");
-
-    public static ReadOnlySpan<byte> BundleMagic => Magic;
+    public static ReadOnlySpan<byte> BundleMagic => BundleReader.BundleMagic;
 
     public Result<Unit> Embed(
         string stubPath,
@@ -28,7 +25,7 @@ public sealed class PayloadEmbedder
             using var writer = new BinaryWriter(stream);
 
             // Write magic marker
-            writer.Write(Magic);
+            writer.Write(BundleMagic);
 
             // Serialize and write manifest
             var manifestJson = JsonSerializer.SerializeToUtf8Bytes(
@@ -93,7 +90,7 @@ public sealed class PayloadEmbedder
             }
 
             // Write footer
-            writer.Write(Magic);
+            writer.Write(BundleMagic);
             writer.Write(tocOffset);
 
             return Unit.Value;
