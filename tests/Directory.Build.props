@@ -1,0 +1,9 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+    <PropertyGroup>
+        <!-- xUnit1051: CancellationToken propagation - suppress during v2→v3 migration, address incrementally -->
+        <NoWarn>$(NoWarn);xUnit1051;MTP0001</NoWarn>
+        <!-- xUnit v3 uses Microsoft Testing Platform; enable dotnet test integration -->
+        <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    </PropertyGroup>
+</Project>
