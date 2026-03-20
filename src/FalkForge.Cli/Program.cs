@@ -40,6 +40,13 @@ app.Configure(config =>
         .WithExample("decompile", "bundle.exe")
         .WithExample("decompile", "bundle.exe", "-o", "installer.cs");
 
+    config.AddCommand<ExtractCommand>("extract")
+        .WithDescription("Extract files from an MSI or payloads from an EXE bundle")
+        .WithExample("extract", "package.msi", "-o", "./output")
+        .WithExample("extract", "bundle.exe", "--list")
+        .WithExample("extract", "bundle.exe", "-o", "./output")
+        .WithExample("extract", "bundle.exe", "-o", "./output", "--package", "ServerMsi");
+
     config.AddBranch("bundle", bundle =>
     {
         bundle.SetDescription("Bundle signing operations (detach/reattach for code signing)");
