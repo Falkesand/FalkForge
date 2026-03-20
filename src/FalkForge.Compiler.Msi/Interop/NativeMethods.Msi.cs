@@ -109,6 +109,12 @@ internal static partial class NativeMethods
     internal static partial int MsiRecordGetInteger(nint hRecord, uint iField);
 
     [LibraryImport("msi.dll")]
+    internal static partial uint MsiRecordDataSize(nint hRecord, uint iField);
+
+    [LibraryImport("msi.dll")]
+    internal static partial uint MsiRecordReadStream(nint hRecord, uint iField, byte[] szDataBuf, ref uint pcbDataBuf);
+
+    [LibraryImport("msi.dll")]
     internal static partial uint MsiRecordGetFieldCount(nint hRecord);
 
     [LibraryImport("msi.dll", EntryPoint = "MsiViewGetColumnInfoW")]

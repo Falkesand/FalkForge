@@ -9,7 +9,7 @@ namespace FalkForge.Compiler.Msi;
 ///     Extracts files from a Windows cabinet (.cab) archive using the FDI (File Decompression Interface) API.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class CabinetExtractor : IDisposable
+public sealed class CabinetExtractor : IDisposable
 {
     // Extracted file data collected during FDICopy via notifications.
     private readonly Dictionary<string, byte[]> _extractedFiles = new();

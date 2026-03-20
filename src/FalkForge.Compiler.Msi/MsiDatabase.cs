@@ -180,6 +180,53 @@ public sealed class MsiDatabase : IDisposable
         return size == 0 ? null : new string(buffer, 0, (int)size);
     }
 
+    /// <summary>
+    /// Reads a binary stream from the database by executing the given SQL query.
+    /// The query must return exactly one row with a stream field at position <paramref name="streamField"/>.
+    /// </summary>
+    public Result<byte[]> ReadStream(string sql, uint fieldCount, uint streamField)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var viewResult = NativeMethods.MsiDatabaseOpenView(_handle.DangerousGetHandle(), sql, out var viewHandle);
+        if (viewResult != NativeMethods.ERROR_SUCCESS)
+            return Result<byte[]>.Failure(ErrorKind.CompilationError,
+                $"Failed to open view for SQL: '{sql}'. Error code: {viewResult}");
+
+        using var view = new MsiViewHandle(viewHandle);
+        var execResult = NativeMethods.MsiViewExecute(view.DangerousGetHandle(), nint.Zero);
+        if (execResult != NativeMethods.ERROR_SUCCESS)
+            return Result<byte[]>.Failure(ErrorKind.CompilationError,
+                $"Failed to execute SQL: '{sql}'. Error code: {execResult}");
+
+        var fetchResult = NativeMethods.MsiViewFetch(view.DangerousGetHandle(), out var recordHandle);
+        if (fetchResult == NativeMethods.ERROR_NO_MORE_ITEMS)
+            return Result<byte[]>.Failure(ErrorKind.FileNotFound, "No matching stream found.");
+        if (fetchResult != NativeMethods.ERROR_SUCCESS)
+            return Result<byte[]>.Failure(ErrorKind.CompilationError,
+                $"Failed to fetch stream row. Error code: {fetchResult}");
+
+        try
+        {
+            var dataSize = NativeMethods.MsiRecordDataSize(recordHandle, streamField);
+            if (dataSize == 0)
+                return Result<byte[]>.Failure(ErrorKind.FileNotFound, "Stream is empty.");
+
+            var buffer = new byte[dataSize];
+            var bufferSize = dataSize;
+            var readResult = NativeMethods.MsiRecordReadStream(recordHandle, streamField, buffer, ref bufferSize);
+            if (readResult != NativeMethods.ERROR_SUCCESS)
+                return Result<byte[]>.Failure(ErrorKind.CompilationError,
+                    $"Failed to read stream data. Error code: {readResult}");
+
+            return buffer;
+        }
+        finally
+        {
+            _ = NativeMethods.MsiCloseHandle(recordHandle);
+        }
+    }
+
     internal nint DangerousGetHandle()
     {
         return _handle.DangerousGetHandle();
