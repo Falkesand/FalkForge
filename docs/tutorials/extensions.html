@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extensions — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Extensions</h1>
+    <div class="tutorial-meta">
+      15 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps demos 29-34
+    </div>
+
+    <!-- Intro -->
+    <h2>What you'll learn</h2>
+    <p>FalkForge ships 8 built-in extensions for common server and infrastructure tasks. No NuGet packages to install &mdash; they're part of the framework. This tutorial walks through each one.</p>
+    <p>Each extension follows the same pattern: create an instance, configure it with a fluent API, validate, then compile alongside your MSI package. The SDK extension pipeline wires everything together at build time.</p>
+
+    <!-- Section 1: Firewall -->
+    <h2>Firewall Rules</h2>
+    <p>The <code>FirewallExtension</code> adds Windows Firewall rules that are installed and removed with your MSI. Open <code>demo/29-ext-firewall/Program.cs</code> to follow along.</p>
+
+    <h3>Adding a rule</h3>
+    <pre><code><span class="kw">var</span> firewall <span class="punc">=</span> <span class="kw">new</span> <span class="typ">FirewallExtension</span><span class="punc">();</span>
+
+firewall<span class="punc">.</span><span class="method">AddRule</span><span class="punc">(</span>rule <span class="punc">=></span> rule
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"AllowHttp"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"My App HTTP"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Description</span><span class="punc">(</span><span class="str">"Allow inbound HTTP on port 8080"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Protocol</span><span class="punc">(</span><span class="typ">FirewallProtocol</span><span class="punc">.</span>Tcp<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Port</span><span class="punc">(</span><span class="str">"8080"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Direction</span><span class="punc">(</span><span class="typ">FirewallDirection</span><span class="punc">.</span>Inbound<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Action</span><span class="punc">(</span><span class="typ">FirewallRuleAction</span><span class="punc">.</span>Allow<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Profile</span><span class="punc">(</span><span class="typ">FirewallProfile</span><span class="punc">.</span>All<span class="punc">));</span></code></pre>
+    <p>Each rule needs an <code>Id</code>, a display <code>Name</code>, and the network settings: protocol, port, direction, and action. The <code>Profile</code> controls which network profiles the rule applies to &mdash; Domain, Private, Public, or All.</p>
+
+    <h3>Validation</h3>
+    <pre><code><span class="kw">var</span> errors <span class="punc">=</span> firewall<span class="punc">.</span><span class="method">ValidateRules</span><span class="punc">();</span></code></pre>
+    <p>Always validate before compiling. Error codes start with <code>FWL</code> (FWL001&ndash;FWL004).</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How MSI installs and removes firewall rules</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge emits custom MSI tables that the extension processes during installation. The firewall rules are created via the Windows Firewall COM API (<code>INetFwPolicy2</code>) during the <em>InstallFinalize</em> phase. On uninstall, the same rules are removed by matching their <code>Id</code>.</p>
+        <p>This means rules are transactional &mdash; if the install rolls back, the rules are cleaned up automatically. Rules persist across reboots because they're stored in Windows Firewall's own configuration, not in the MSI database.</p>
+      </div>
+    </details>
+
+    <!-- Section 2: IIS -->
+    <h2>IIS Configuration</h2>
+    <p>The <code>IisExtension</code> manages application pools, web sites, bindings, and certificates. Open <code>demo/30-ext-iis/Program.cs</code>.</p>
+
+    <h3>Defining an app pool</h3>
+    <pre><code><span class="kw">var</span> iis <span class="punc">=</span> <span class="kw">new</span> <span class="typ">IisExtension</span><span class="punc">();</span>
+
+<span class="kw">var</span> appPool <span class="punc">=</span> iis<span class="punc">.</span><span class="method">DefineAppPool</span><span class="punc">(</span>pool <span class="punc">=></span> pool
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"DemoPool"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"DemoPool"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">NoManagedCode</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">PipelineMode</span><span class="punc">(</span><span class="typ">ManagedPipelineMode</span><span class="punc">.</span>Integrated<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Identity</span><span class="punc">(</span><span class="typ">AppPoolIdentityType</span><span class="punc">.</span>ApplicationPoolIdentity<span class="punc">));</span></code></pre>
+    <p><code>DefineAppPool</code> returns an <code>AppPoolRef</code> &mdash; a typed reference handle you pass to web sites. <code>NoManagedCode()</code> sets the CLR version to empty, which is correct for modern .NET apps running via the ASP.NET Core Module.</p>
+
+    <h3>Adding a web site</h3>
+    <pre><code>iis<span class="punc">.</span><span class="method">AddWebSite</span><span class="punc">(</span>site <span class="punc">=></span> site
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"DemoSite"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Description</span><span class="punc">(</span><span class="str">"Demo Web Site"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Directory</span><span class="punc">(</span><span class="str">"[INSTALLDIR]wwwroot"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">AppPool</span><span class="punc">(</span>appPool<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Binding</span><span class="punc">(</span><span class="num">8080</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">AutoStart</span><span class="punc">(</span><span class="kw">true</span><span class="punc">));</span></code></pre>
+    <p>The <code>AppPool(appPool)</code> call uses the typed <code>AppPoolRef</code> returned by <code>DefineAppPool</code>. This ensures type safety &mdash; you can't accidentally pass a string that doesn't match an existing pool. <code>Binding(8080)</code> sets up an HTTP binding on that port.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: IIS installation order and dependencies</summary>
+      <div class="deep-dive-content">
+        <p>IIS configuration happens in a specific order during MSI execution:</p>
+        <ol>
+          <li><strong>App pools</strong> are created first. They must exist before any site can reference them.</li>
+          <li><strong>Web sites</strong> are created next, bound to their app pools.</li>
+          <li><strong>Bindings</strong> are applied to sites. If a certificate is referenced, it must already be installed.</li>
+        </ol>
+        <p>On uninstall, the order reverses: bindings and sites are removed before app pools. FalkForge handles this sequencing automatically via the <code>AppPoolRef</code> and <code>CertificateRef</code> typed references. Error codes range from IIS001 to IIS011.</p>
+      </div>
+    </details>
+
+    <!-- Section 3: SQL Server -->
+    <h2>SQL Server</h2>
+    <p>The <code>SqlExtension</code> creates databases and runs SQL scripts during installation. Open <code>demo/31-ext-sql/Program.cs</code>.</p>
+
+    <h3>Defining a database</h3>
+    <pre><code><span class="kw">var</span> sql <span class="punc">=</span> <span class="kw">new</span> <span class="typ">SqlExtension</span><span class="punc">();</span>
+
+<span class="kw">var</span> dbRef <span class="punc">=</span> sql<span class="punc">.</span><span class="method">DefineDatabase</span><span class="punc">(</span>db <span class="punc">=></span> db
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"AppDb"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Server</span><span class="punc">(</span><span class="str">"."</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Database</span><span class="punc">(</span><span class="str">"DemoDb"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">CreateOnInstall</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">ConfirmOverwrite</span><span class="punc">());</span></code></pre>
+    <p><code>DefineDatabase</code> returns a <code>Result&lt;SqlDatabaseRef&gt;</code>. The <code>Server(".")</code> targets the local instance. <code>CreateOnInstall()</code> creates the database during installation. <code>ConfirmOverwrite()</code> prompts the user if the database already exists.</p>
+
+    <h3>Running scripts</h3>
+    <pre><code><span class="kw">var</span> script <span class="punc">=</span> <span class="kw">new</span> <span class="typ">SqlScriptBuilder</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"CreateSchema"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Database</span><span class="punc">(</span>dbRef<span class="punc">.</span>Value<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">SourceFile</span><span class="punc">(</span><span class="str">"payload\\schema.sql"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">ExecuteOnInstall</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Sequence</span><span class="punc">(</span><span class="num">1</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Build</span><span class="punc">();</span>
+
+sql<span class="punc">.</span>Scripts<span class="punc">.</span><span class="method">Add</span><span class="punc">(</span>script<span class="punc">.</span>Value<span class="punc">);</span></code></pre>
+    <p>Scripts reference a database via the typed <code>SqlDatabaseRef</code>. The <code>Sequence</code> number controls execution order when you have multiple scripts. <code>ExecuteOnInstall()</code> runs the script during installation only.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: SQL script execution order and error handling</summary>
+      <div class="deep-dive-content">
+        <p>Scripts execute in <code>Sequence</code> order within each database. If a script fails, the MSI installation rolls back. FalkForge validates scripts at compile time for basic issues (SQL001&ndash;SQL013).</p>
+        <p>The connection string is built from the <code>Server</code> and <code>Database</code> values. You can also pass MSI property references like <code>[SQL_SERVER]</code> to let the user configure the server at install time.</p>
+        <p>Both <code>DefineDatabase</code> and <code>SqlScriptBuilder.Build()</code> return <code>Result&lt;T&gt;</code>. Always check <code>IsFailure</code> before accessing <code>.Value</code>.</p>
+      </div>
+    </details>
+
+    <!-- Section 4: .NET Runtime Detection -->
+    <h2>.NET Runtime Detection</h2>
+    <p>The <code>DotNetExtension</code> detects installed .NET runtimes. Combine it with launch conditions to block installation when a required runtime is missing. Open <code>demo/32-ext-dotnet/Program.cs</code>.</p>
+
+    <h3>Searching for a runtime</h3>
+    <pre><code><span class="kw">var</span> dotnet <span class="punc">=</span> <span class="kw">new</span> <span class="typ">DotNetExtension</span><span class="punc">();</span>
+
+<span class="kw">var</span> search <span class="punc">=</span> dotnet<span class="punc">.</span><span class="method">SearchForRuntime</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">RuntimeType</span><span class="punc">(</span><span class="typ">DotNetRuntimeType</span><span class="punc">.</span>Runtime<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Platform</span><span class="punc">(</span><span class="typ">DotNetPlatform</span><span class="punc">.</span>X64<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MinVersion</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">8</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Variable</span><span class="punc">(</span><span class="str">"DOTNET8_FOUND"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Build</span><span class="punc">();</span></code></pre>
+    <p>This searches for the .NET 8+ runtime on x64. The result is stored in the MSI property <code>DOTNET8_FOUND</code>.</p>
+
+    <h3>Using as a launch condition</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Require</span><span class="punc">(</span><span class="str">"DOTNET8_FOUND"</span><span class="punc">,</span>
+    <span class="str">".NET 8.0 Runtime (x64) or later is required."</span><span class="punc">);</span></code></pre>
+    <p><code>Require</code> adds a launch condition. If <code>DOTNET8_FOUND</code> is empty at install time, the MSI shows the error message and aborts. The user must install .NET 8 first.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: .NET version detection strategies</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge uses two detection strategies:</p>
+        <ol>
+          <li><strong>Registry probing</strong> &mdash; checks <code>HKLM\SOFTWARE\dotnet\Setup\InstalledVersions</code> for registered runtimes. Fast and reliable for officially installed runtimes.</li>
+          <li><strong>Filesystem probing</strong> &mdash; scans <code>%ProgramFiles%\dotnet\shared</code> for runtime directories. Catches standalone deployments that may not register in the registry.</li>
+        </ol>
+        <p>You can target different runtime types: <code>Runtime</code> (base), <code>AspNetCore</code>, or <code>WindowsDesktop</code>. Platform options are <code>X64</code>, <code>X86</code>, and <code>Arm64</code>. Error codes are NET001&ndash;NET003.</p>
+      </div>
+    </details>
+
+    <!-- Section 5: Utility Operations -->
+    <h2>Utility Operations</h2>
+    <p>The <code>UtilExtension</code> bundles six common operations into one extension. Open <code>demo/33-ext-util/Program.cs</code> for the XML configuration example.</p>
+
+    <h3>XmlConfig &mdash; modify XML files during install</h3>
+    <pre><code><span class="kw">var</span> util <span class="punc">=</span> <span class="kw">new</span> <span class="typ">UtilExtension</span><span class="punc">();</span>
+
+<span class="kw">var</span> config <span class="punc">=</span> <span class="kw">new</span> <span class="typ">XmlConfigBuilder</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"SetMode"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">File</span><span class="punc">(</span><span class="str">"[INSTALLDIR]app.config"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">XPath</span><span class="punc">(</span><span class="str">"//appSettings/add[@key='Mode']"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">SetAttribute</span><span class="punc">(</span><span class="str">"value"</span><span class="punc">,</span> <span class="str">"production"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Sequence</span><span class="punc">(</span><span class="num">1</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Build</span><span class="punc">();</span>
+
+util<span class="punc">.</span>XmlConfig<span class="punc">.</span><span class="method">Add</span><span class="punc">(</span>config<span class="punc">.</span>Value<span class="punc">);</span></code></pre>
+    <p>Target any XML file with an XPath expression. <code>SetAttribute</code> modifies an existing attribute. The change is applied during install and reverted on uninstall.</p>
+
+    <h3>Other utilities</h3>
+    <ul>
+      <li><strong>UserMgmt</strong> &mdash; create local users and groups during installation.</li>
+      <li><strong>FileShare</strong> &mdash; create Windows file shares pointing to installed directories.</li>
+      <li><strong>QuietExec</strong> &mdash; run a command-line tool silently during install.</li>
+      <li><strong>RemoveFolderEx</strong> &mdash; recursively delete folders on uninstall, including files created after installation.</li>
+      <li><strong>InternetShortcut</strong> &mdash; create <code>.url</code> shortcut files on the desktop or Start Menu.</li>
+    </ul>
+    <p>Validation error codes are XCF001&ndash;XCF009.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use QuietExec vs custom actions</summary>
+      <div class="deep-dive-content">
+        <p><strong>QuietExec</strong> is best for simple, one-shot commands that don't need rollback logic. It runs a command line silently and captures the exit code. Examples: registering a COM server, running <code>netsh</code>, or calling a configuration tool.</p>
+        <p><strong>Custom actions</strong> give you full control. Use them when you need:</p>
+        <ul>
+          <li>Rollback behavior &mdash; undo the action if the install fails.</li>
+          <li>Conditional execution &mdash; run only when a specific MSI property is set.</li>
+          <li>Complex logic &mdash; multiple steps, error handling, or data from MSI properties.</li>
+        </ul>
+        <p>Rule of thumb: if a single command with no rollback is enough, use QuietExec. If you need transactional behavior, write a custom action.</p>
+      </div>
+    </details>
+
+    <!-- Section 6: Dependency Provider/Consumer -->
+    <h2>Dependency Provider/Consumer</h2>
+    <p>The <code>DependencyExtension</code> implements WiX-compatible reference counting between MSI packages. Open <code>demo/34-ext-dependency/Program.cs</code>.</p>
+
+    <h3>Registering as a provider</h3>
+    <pre><code><span class="kw">var</span> dependency <span class="punc">=</span> <span class="kw">new</span> <span class="typ">DependencyExtension</span><span class="punc">();</span>
+
+dependency<span class="punc">.</span><span class="method">Provides</span><span class="punc">(</span><span class="str">"Demo.SharedRuntime"</span><span class="punc">,</span> provider <span class="punc">=></span> provider
+    <span class="punc">.</span><span class="method">Version</span><span class="punc">(</span><span class="str">"1.0.0"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Demo Shared Runtime"</span><span class="punc">));</span></code></pre>
+    <p>This registers your package as a provider of <code>Demo.SharedRuntime</code> version 1.0.0. Other packages can declare a dependency on this key.</p>
+
+    <h3>Declaring a requirement</h3>
+    <pre><code>dependency<span class="punc">.</span><span class="method">Requires</span><span class="punc">(</span><span class="str">"Demo.Framework"</span><span class="punc">,</span> consumer <span class="punc">=></span> consumer
+    <span class="punc">.</span><span class="method">ConsumerKey</span><span class="punc">(</span><span class="str">"Demo.App"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MinVersion</span><span class="punc">(</span><span class="str">"2.0.0"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MinInclusive</span><span class="punc">());</span></code></pre>
+    <p><code>Requires</code> declares that this package needs <code>Demo.Framework</code> at version 2.0.0 or higher. <code>ConsumerKey</code> identifies this package in the dependency graph. <code>MinInclusive()</code> means version 2.0.0 itself satisfies the requirement.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How dependency ref-counting works across MSI packages</summary>
+      <div class="deep-dive-content">
+        <p>The dependency extension writes to the Windows registry under <code>HKLM</code>. Each provider registers a key with its version. Each consumer writes a reference to the provider key.</p>
+        <p>When a user tries to uninstall a provider package, the extension checks the registry for active consumers. If any exist, the uninstall is blocked with a message listing the dependent packages. This prevents the "DLL hell" scenario where removing a shared runtime breaks other applications.</p>
+        <p>This model is fully compatible with WiX's dependency extension. Packages built with WiX and FalkForge can participate in the same dependency graph. Error codes are DEP001&ndash;DEP007.</p>
+      </div>
+    </details>
+
+    <!-- Recap table -->
+    <h2>Recap</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Extension</th>
+          <th>Demo</th>
+          <th>Key Types</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firewall</td>
+          <td><code>demo/29-ext-firewall</code></td>
+          <td><code>FirewallExtension</code>, <code>FirewallProtocol</code>, <code>FirewallDirection</code>, <code>FirewallProfile</code></td>
+        </tr>
+        <tr>
+          <td>IIS</td>
+          <td><code>demo/30-ext-iis</code></td>
+          <td><code>IisExtension</code>, <code>AppPoolRef</code>, <code>CertificateRef</code>, <code>ManagedPipelineMode</code></td>
+        </tr>
+        <tr>
+          <td>SQL</td>
+          <td><code>demo/31-ext-sql</code></td>
+          <td><code>SqlExtension</code>, <code>SqlDatabaseRef</code>, <code>SqlScriptBuilder</code></td>
+        </tr>
+        <tr>
+          <td>.NET</td>
+          <td><code>demo/32-ext-dotnet</code></td>
+          <td><code>DotNetExtension</code>, <code>DotNetRuntimeType</code>, <code>DotNetPlatform</code></td>
+        </tr>
+        <tr>
+          <td>Util</td>
+          <td><code>demo/33-ext-util</code></td>
+          <td><code>UtilExtension</code>, <code>XmlConfigBuilder</code></td>
+        </tr>
+        <tr>
+          <td>Dependency</td>
+          <td><code>demo/34-ext-dependency</code></td>
+          <td><code>DependencyExtension</code>, <code>DependencyProvider</code>, <code>DependencyConsumer</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <nav class="tutorial-nav">
+      <a href="msi-basics.html">&larr; Previous: MSI Basics</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
