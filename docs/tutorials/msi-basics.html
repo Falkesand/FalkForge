@@ -453,6 +453,30 @@ p<span class="punc">.</span><span class="method">Feature</span><span class="punc
     <!-- ================================================================== -->
     <!-- What's Next -->
     <!-- ================================================================== -->
+    <h2>Inspecting Your Installer</h2>
+    <p>Want to see what files are inside an MSI without installing it? Use the extract command:</p>
+    <pre><code>forge extract myapp.msi -o D:\Temp\extracted</code></pre>
+    <p>This extracts all files to disk, mirroring the directory structure as it would be installed. For bundles containing multiple MSIs:</p>
+    <pre><code><span class="cmt"># List packages in a bundle</span>
+forge extract suite.exe --list
+
+<span class="cmt"># Extract all packages</span>
+forge extract suite.exe -o D:\Temp\output
+
+<span class="cmt"># Extract specific packages</span>
+forge extract suite.exe -o D:\Temp\output --package ServerMsi</code></pre>
+
+    <details class="deep-dive">
+      <summary>Bundle self-extraction</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge bundles can extract themselves without the <code>forge</code> CLI tool:</p>
+        <pre><code>myapp.exe --extract-list
+myapp.exe --extract D:\Temp\output
+myapp.exe --extract D:\Temp\output --package ServerMsi</code></pre>
+        <p>This bypasses the installer UI entirely — no elevation, no detection, just extraction. Useful for IT teams inspecting packages before deployment.</p>
+      </div>
+    </details>
+
     <h2>What's next</h2>
     <ul>
       <li><strong>Custom UI</strong> &mdash; build your own WPF installer pages with InstallerPage and InstallerApp (coming soon).</li>

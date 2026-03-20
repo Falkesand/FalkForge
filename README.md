@@ -200,6 +200,7 @@ forge build        Build an installer from .csx or .json definition
 forge validate     Validate an installer definition
 forge inspect      Inspect a compiled MSI (Windows)
 forge decompile    Decompile MSI or EXE bundle to C# (Windows)
+forge extract      Extract files from an MSI or EXE bundle to disk
 forge bundle       Detach/reattach bundles for code signing
 ```
 

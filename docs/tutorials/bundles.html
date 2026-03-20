@@ -362,6 +362,47 @@
     </details>
 
     <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>10. Extracting Bundles</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Sometimes you need to inspect or extract the packages inside a bundle without running the installer. FalkForge supports this from both the CLI and the bundle itself.</p>
+
+    <h3>CLI extraction</h3>
+    <pre><code><span class="cmt"># List packages in a bundle</span>
+forge extract suite.exe --list
+
+<span class="cmt"># Extract all packages to a directory</span>
+forge extract suite.exe -o D:\Temp\output
+
+<span class="cmt"># Extract a specific package by ID</span>
+forge extract suite.exe -o D:\Temp\output --package ServerMsi</code></pre>
+
+    <p>The <code>forge extract</code> command also works on standalone MSI files:</p>
+    <pre><code>forge extract myapp.msi -o D:\Temp\extracted</code></pre>
+
+    <h3>Bundle self-extraction</h3>
+    <p>FalkForge bundles can extract themselves without the <code>forge</code> CLI tool. Pass <code>--extract</code> or <code>--extract-list</code> directly to the bundle EXE:</p>
+    <pre><code>myapp.exe --extract-list
+myapp.exe --extract D:\Temp\output
+myapp.exe --extract D:\Temp\output --package ServerMsi</code></pre>
+
+    <p>Self-extraction bypasses the installer UI entirely — no elevation, no detection, just extraction. This is useful for IT teams inspecting packages before deployment or for automated build verification pipelines.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use extraction</summary>
+      <div class="deep-dive-content">
+        <p>Common scenarios for bundle extraction:</p>
+        <ul>
+          <li><strong>Pre-deployment review</strong> — IT teams extract and scan packages before approving them for deployment.</li>
+          <li><strong>Build verification</strong> — CI pipelines extract the bundle and verify that the expected MSIs and payloads are present.</li>
+          <li><strong>Troubleshooting</strong> — extract individual MSIs from a bundle to test them in isolation.</li>
+          <li><strong>Air-gapped transfer</strong> — extract on a connected machine, copy the files to a disconnected one.</li>
+        </ul>
+        <p>Unlike layout mode (section 8), extraction produces raw MSI/EXE files without the layout manifest. Use layout mode for planned offline installation; use extraction for inspection and ad-hoc access.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
     <h2>Recap</h2>
     <!-- ────────────────────────────────────────────────────────────── -->
 
@@ -381,6 +422,7 @@
         <tr><td>Update feeds</td><td>42</td><td><code>UpdateFeed</code>, <code>UpdatePolicy</code></td></tr>
         <tr><td>Layout / containers</td><td>43</td><td><code>Container</code>, <code>DefineContainer</code></td></tr>
         <tr><td>Advanced (all features)</td><td>10</td><td><code>RelatedBundle</code>, <code>MspPackage</code>, typed refs</td></tr>
+        <tr><td>Extraction / self-extraction</td><td>&mdash;</td><td><code>forge extract</code>, <code>--extract</code>, <code>--extract-list</code></td></tr>
       </tbody>
     </table>
 

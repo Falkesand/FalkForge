@@ -130,6 +130,8 @@ ElevatedHost (args, PID verify + PID recycling defense via parent start time cap
 
 **IInstallerEngine Property Passing**: `SetProperty(name, value)` sends SetPropertyMessage via pipe → EngineHost stores in VariableStore + EngineContext.UserProperties → forwarded to MsiExecutor as `PROPERTY=value`. `SetSecureProperty(name, SensitiveBytes)` sends SetSecurePropertyMessage via pipe → stored as SecureVariable (zeroed on dispose), tracked in EngineContext.SecretPropertyNames → passed to MSI via IMsiApi.SetProperty (never CLI). Use PasswordBridge + GetPassword + SetSecureProperty.
 
+**Self-Extraction**: Bundles support `--extract <dir>` and `--extract-list` command-line switches for extracting embedded payloads without running the installer UI or requiring elevation.
+
 **NativeAOT Constraints**: No reflection/dynamic/BinaryFormatter. Manual DI. PublishAot, InvariantGlobalization, IlcOptimizationPreference=Size. Binary MessageSerializer only.
 
 ## UI (`src/FalkForge.Ui/`)
@@ -174,7 +176,7 @@ LocalizationModel, LocalizationLoader (JSON), CultureFallbackChain (specific→p
 **WiX Burn** (Windows-only): WixBurnAccess (PE parser + UX cab extraction), IWixBurnAccess, WixManifestMapper (v3/v4 XML→BundleModel), WixBundleDecompiler, WixUnmappedFeature. WBD001-006, WMM001.
 
 ## CLI (`src/FalkForge.Cli/`)
-`forge` command (Spectre.Console). `forge build installer.csx|.json`, `forge validate`, `forge inspect` (Windows), `forge decompile` (Windows), `forge bundle detach|reattach`.
+`forge` command (Spectre.Console). `forge build installer.csx|.json`, `forge validate`, `forge inspect` (Windows), `forge decompile` (Windows), `forge extract` (MSI/bundle), `forge bundle detach|reattach`.
 Program.cs, Commands/: Build (Roslyn+JSON), Validate, Inspect, Decompile (.msi→MsiDecompiler, .exe→FALKBUNDLE then WiX Burn), BundleDetach, BundleReattach
 Settings/: Build, Validate, Inspect, Decompile, BundleDetach, BundleReattach Settings
 ExitCodes (0=success, 1=validation, 2=compilation, 3=runtime), IConsoleOutput, SpectreConsoleOutput, ScriptLoader, MsiInspector, MsiInspectionResult
