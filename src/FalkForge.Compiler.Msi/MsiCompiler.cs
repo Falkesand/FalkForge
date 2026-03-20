@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.Validation;
@@ -6,6 +7,7 @@ using FalkForge.Models;
 using FalkForge.Platform;
 using FalkForge.Platform.Windows;
 using FalkForge.Validation;
+using FalkForge.WinGet;
 
 namespace FalkForge.Compiler.Msi;
 
@@ -176,6 +178,20 @@ public sealed class MsiCompiler : ICompiler
         // SBOM failure is non-fatal — log and continue.
         var sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
         _ = sbomResult; // warning suppression; caller may inspect via tooling
+
+        // Step 11: WinGet manifest generation (opt-in via .WinGet() builder)
+        if (package.WinGet is not null)
+        {
+            var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath)));
+            var wingetResult = WinGetManifestWriter.Write(
+                package,
+                package.WinGet,
+                outputPath,
+                sha256,
+                Path.GetFileName(msiPath));
+            if (wingetResult.IsFailure)
+                return Result<string>.Failure(wingetResult.Error);
+        }
 
         return msiPath;
     }

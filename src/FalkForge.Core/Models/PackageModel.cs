@@ -61,4 +61,5 @@ public sealed class PackageModel
     public IReadOnlyList<ComClassModel> ComClasses { get; init; } = [];
     public IReadOnlyList<ComTypeLibModel> TypeLibs { get; init; } = [];
     public IntegrityConfiguration? Integrity { get; init; }
+    public WinGetConfig? WinGet { get; init; }
 }

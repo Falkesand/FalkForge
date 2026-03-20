@@ -64,6 +64,7 @@ public sealed class PackageBuilder
 
     private SbomOptions? _sbomOptions;
     private IceConfiguration? _iceConfiguration;
+    private WinGetConfig? _winGet;
 
     public PackageBuilder Files(Action<FileSetBuilder> configure)
     {
@@ -388,6 +389,14 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder WinGet(Action<WinGetBuilder> configure)
+    {
+        var builder = new WinGetBuilder();
+        configure(builder);
+        _winGet = builder.Build();
+        return this;
+    }
+
     public PackageBuilder Ice(Action<IceConfigurationBuilder> configure)
     {
         var builder = new IceConfigurationBuilder();
@@ -490,7 +499,8 @@ public sealed class PackageBuilder
             IceConfiguration = _iceConfiguration,
             ComClasses = [.. _comClasses],
             TypeLibs = [.. _typeLibs],
-            Integrity = _integrity
+            Integrity = _integrity,
+            WinGet = _winGet
         };
     }
 }

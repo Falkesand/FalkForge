@@ -47,6 +47,11 @@ app.Configure(config =>
         .WithExample("extract", "bundle.exe", "-o", "./output")
         .WithExample("extract", "bundle.exe", "-o", "./output", "--package", "ServerMsi");
 
+    config.AddCommand<WinGetCommand>("winget")
+        .WithDescription("Generate WinGet manifest files from an existing MSI")
+        .WithExample("winget", "package.msi", "--id", "Contoso.MyApp", "--license", "MIT", "--desc", "A tool")
+        .WithExample("winget", "package.msi", "--id", "Contoso.MyApp", "--license", "MIT", "--desc", "A tool", "--url", "https://example.com/app.msi", "-o", "./manifests");
+
     config.AddBranch("bundle", bundle =>
     {
         bundle.SetDescription("Bundle signing operations (detach/reattach for code signing)");
