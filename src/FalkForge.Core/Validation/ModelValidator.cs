@@ -16,6 +16,12 @@ public static class ModelValidator
     private static readonly Regex AssemblyVersionRegex =
         new(@"^\d+\.\d+\.\d+\.\d+$", RegexOptions.Compiled);
 
+    private static readonly Regex MsiPropertyReferenceRegex =
+        new(@"\[([A-Za-z_][A-Za-z0-9_.]*)\]", RegexOptions.Compiled);
+
+    private static readonly string[] SensitiveKeywords =
+        ["PASSWORD", "SECRET", "CREDENTIAL", "TOKEN", "APIKEY", "PASSPHRASE", "PIN"];
+
     public static ValidationResult Validate(PackageModel package)
     {
         var result = new ValidationResult();
@@ -62,6 +68,7 @@ public static class ModelValidator
         ValidateCustomActions(package.CustomActions, result);
         ValidateServiceControls(package.ServiceControls, result);
         ValidateServiceDependencies(package.Services, result);
+        ValidateRegistryEntries(package.RegistryEntries, result);
         ValidateRemoveRegistryEntries(package.RemoveRegistryEntries, result);
         ValidateRemoveFiles(package.RemoveFiles, result);
         ValidateCreateFolders(package.CreateFolders, result);
@@ -235,6 +242,36 @@ public static class ModelValidator
         }
     }
 
+    private static void ValidateRegistryEntries(IReadOnlyList<RegistryEntryModel> entries, ValidationResult result)
+    {
+        foreach (var entry in entries)
+        {
+            if (entry.Value is not string stringValue)
+                continue;
+
+            foreach (var sensitiveProperty in FindSensitivePropertyReferences(stringValue))
+                result.AddWarning("REG007",
+                    $"Registry entry '{entry.Key}\\{entry.ValueName}' references property '[{sensitiveProperty}]' which appears to contain sensitive data. Sensitive values written to the registry are stored in plaintext and visible to any user or process with registry access. Consider using a Windows service account or DPAPI-protected storage instead.");
+        }
+    }
+
+    private static IEnumerable<string> FindSensitivePropertyReferences(string value)
+    {
+        foreach (Match match in MsiPropertyReferenceRegex.Matches(value))
+        {
+            var propertyName = match.Groups[1].Value;
+            var upperName = propertyName.ToUpperInvariant();
+            foreach (var keyword in SensitiveKeywords)
+            {
+                if (upperName.Contains(keyword))
+                {
+                    yield return propertyName;
+                    break;
+                }
+            }
+        }
+    }
+
     private static void ValidateRemoveRegistryEntries(IReadOnlyList<RemoveRegistryModel> entries,
         ValidationResult result)
     {
@@ -390,6 +427,13 @@ public static class ModelValidator
                 if (!isValid)
                     result.AddError("CTB009",
                         $"Custom table '{table.Name}' column '{columnName}' expects type {column.Type} but got {value.GetType().Name}.");
+
+                if (value is string stringValue)
+                {
+                    foreach (var sensitiveProperty in FindSensitivePropertyReferences(stringValue))
+                        result.AddWarning("CTB011",
+                            $"Custom table '{table.Name}' column '{columnName}' references property '[{sensitiveProperty}]' which appears to contain sensitive data. Sensitive values written to custom tables are stored in plaintext inside the MSI. Consider alternative secure storage.");
+                }
             }
         }
     }
