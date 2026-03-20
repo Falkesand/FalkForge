@@ -32,6 +32,9 @@ public sealed class FileAssociationBuilder
         return this;
     }
 
+    public FileAssociationBuilder Verb(ShellVerb verb, string? argument = null, Action<VerbBuilder>? configure = null)
+        => Verb(verb.ToString().ToLowerInvariant(), argument, configure);
+
     internal FileAssociationModel Build()
     {
         return new FileAssociationModel

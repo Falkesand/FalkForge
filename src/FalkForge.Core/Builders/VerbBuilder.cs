@@ -11,6 +11,8 @@ public sealed class VerbBuilder
         _verb = verb;
     }
 
+    internal VerbBuilder(ShellVerb verb) : this(verb.ToString().ToLowerInvariant()) { }
+
     public string? Command { get; set; }
     public string? Argument { get; set; }
     public int Sequence { get; set; }

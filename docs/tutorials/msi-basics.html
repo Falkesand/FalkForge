@@ -217,9 +217,9 @@ p<span class="punc">.</span><span class="method">Feature</span><span class="punc
 <span class="punc">{</span>
     fa<span class="punc">.</span><span class="method">ProgId</span><span class="punc">(</span><span class="str">"FalkTech.FalkProject"</span><span class="punc">);</span>
     fa<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Falk Project File"</span><span class="punc">;</span>
-    fa<span class="punc">.</span><span class="method">Verb</span><span class="punc">(</span><span class="str">"open"</span><span class="punc">,</span> <span class="str">"\"%1\""</span><span class="punc">);</span>
+    fa<span class="punc">.</span><span class="method">Verb</span><span class="punc">(</span><span class="type">ShellVerb</span><span class="punc">.</span>Open<span class="punc">,</span> <span class="str">"\"%1\""</span><span class="punc">);</span>
 <span class="punc">});</span></code></pre>
-    <p>The first argument is the file extension. <code>ProgId</code> is a unique identifier for the association (convention: <code>Company.AppName</code>). <code>Verb</code> defines the action &mdash; <code>"open"</code> is the default double-click action, and <code>"%1"</code> is replaced with the file path.</p>
+    <p>The first argument is the file extension. <code>ProgId</code> is a unique identifier for the association (convention: <code>Company.AppName</code>). <code>Verb</code> defines the action &mdash; <code>ShellVerb.Open</code> is the default double-click action, and <code>"%1"</code> is replaced with the file path.</p>
 
     <details class="deep-dive">
       <summary>How file associations work in the registry</summary>

@@ -383,14 +383,14 @@ return Installer.Build(args, pkg =>
     {
         fa.ProgId("ApexSoftware.ApexProject");
         fa.Description = "Apex Project";
-        fa.Verb("open", "\"%1\"");
+        fa.Verb(ShellVerb.Open, "\"%1\"");
     });
 
     pkg.FileAssociation(".asln", fa =>
     {
         fa.ProgId("ApexSoftware.ApexSolution");
         fa.Description = "Apex Solution";
-        fa.Verb("open", "\"%1\"");
+        fa.Verb(ShellVerb.Open, "\"%1\"");
     });
 
     // ──────────────────────────────────────────────────────────────────

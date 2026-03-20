@@ -96,14 +96,14 @@ return Installer.Build(args, p =>
     {
         fa.ProgId("FalkTech.FalkProject");
         fa.Description = "Falk Project File";
-        fa.Verb("open", "\"%1\"");
+        fa.Verb(ShellVerb.Open, "\"%1\"");
     });
 
     p.FileAssociation(".fks", fa =>
     {
         fa.ProgId("FalkTech.FalkScript");
         fa.Description = "Falk Script";
-        fa.Verb("open", "\"%1\"");
+        fa.Verb(ShellVerb.Open, "\"%1\"");
     });
 
     // Editor shortcuts

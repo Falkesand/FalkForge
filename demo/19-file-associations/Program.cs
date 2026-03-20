@@ -1,5 +1,6 @@
 using FalkForge;
 using FalkForge.Compiler.Msi;
+using FalkForge.Models;
 
 // Register a file extension so double-clicking .demo files opens our app.
 return Installer.Build(args, package =>
@@ -20,6 +21,6 @@ return Installer.Build(args, package =>
         fa.IconFile = "payload/app.exe";
         fa.IconIndex = 0;
 
-        fa.Verb("open", "\"%1\"", verb => { verb.Command = "Open"; });
+        fa.Verb(ShellVerb.Open, "\"%1\"", verb => { verb.Command = "Open"; });
     });
 }, new MsiCompiler());
