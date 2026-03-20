@@ -23,6 +23,9 @@ internal static class Program
         var planOnly = false;
         string? planOutputPath = null;
         string? sbomOutputPath = null;
+        string? extractDir = null;
+        var extractList = false;
+        var extractPackages = new List<string>();
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -53,11 +56,98 @@ internal static class Program
                 case "--sbom":
                     if (i + 1 < args.Length) sbomOutputPath = args[++i];
                     break;
+                case "--extract":
+                    extractDir = args[++i];
+                    break;
+                case "--extract-list":
+                    extractList = true;
+                    break;
+                case "--package":
+                    extractPackages.Add(args[++i]);
+                    break;
             }
         }
 
         // Suppress unused warning until plan-only mode is wired into EngineHost
         _ = planOnly;
+
+        // Self-extraction mode: list or extract payloads and exit
+        if (extractList || extractDir is not null)
+        {
+            var selfPath = Environment.ProcessPath
+                ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+
+            if (selfPath is null)
+            {
+                Console.Error.WriteLine("Error: Could not determine bundle path.");
+                return 3;
+            }
+
+            var contentResult = BundleReader.Extract(selfPath);
+            if (contentResult.IsFailure)
+            {
+                Console.Error.WriteLine($"Error: {contentResult.Error.Message}");
+                return 2;
+            }
+
+            var content = contentResult.Value;
+
+            if (extractList)
+            {
+                Console.WriteLine($"Packages in {Path.GetFileName(selfPath)}:");
+                foreach (var entry in content.TocEntries)
+                {
+                    var size = entry.OriginalSize < 1024 * 1024
+                        ? $"{entry.OriginalSize / 1024.0:F1} KB"
+                        : $"{entry.OriginalSize / (1024.0 * 1024.0):F1} MB";
+                    Console.WriteLine($"  {entry.PackageId,-25} {size,10}");
+                }
+                return 0;
+            }
+
+            Directory.CreateDirectory(extractDir!);
+            var toExtract = content.TocEntries.AsEnumerable();
+
+            if (extractPackages.Count > 0)
+            {
+                var requested = new HashSet<string>(extractPackages, StringComparer.OrdinalIgnoreCase);
+                var available = content.TocEntries.Select(e => e.PackageId)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var missing = requested.Except(available).ToList();
+                if (missing.Count > 0)
+                {
+                    Console.Error.WriteLine($"Package(s) not found: {string.Join(", ", missing)}");
+                    Console.Error.WriteLine("Available:");
+                    foreach (var e in content.TocEntries)
+                        Console.Error.WriteLine($"  {e.PackageId}");
+                    return 1;
+                }
+                toExtract = content.TocEntries.Where(e => requested.Contains(e.PackageId));
+            }
+
+            Console.WriteLine($"Extracting {Path.GetFileName(selfPath)}...");
+            foreach (var entry in toExtract)
+            {
+                var payloadResult = BundleReader.ExtractPayload(selfPath, entry);
+                if (payloadResult.IsFailure)
+                {
+                    Console.Error.WriteLine($"  Failed: {entry.PackageId} — {payloadResult.Error.Message}");
+                    return 2;
+                }
+
+                var packageDir = Path.Combine(extractDir!, entry.PackageId);
+                Directory.CreateDirectory(packageDir);
+                File.WriteAllBytes(Path.Combine(packageDir, $"{entry.PackageId}.dat"), payloadResult.Value);
+
+                var sizeStr = entry.OriginalSize < 1024 * 1024
+                    ? $"{entry.OriginalSize / 1024.0:F1} KB"
+                    : $"{entry.OriginalSize / (1024.0 * 1024.0):F1} MB";
+                Console.WriteLine($"  {entry.PackageId} ({sizeStr}) → {packageDir}");
+            }
+
+            Console.WriteLine($"Extracted to {extractDir}");
+            return 0;
+        }
 
         // Bootstrapper mode: if we ARE the bundle, extract and orchestrate
         if (manifestPath is null && HasEmbeddedBundle())
