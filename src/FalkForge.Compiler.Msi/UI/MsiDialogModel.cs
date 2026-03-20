@@ -8,7 +8,7 @@ internal sealed class MsiDialogModel
     public int Height { get; init; } = 270;
     public int HCentering { get; init; } = 50;
     public int VCentering { get; init; } = 50;
-    public int Attributes { get; init; } = 39; // Visible | Modal | Minimize
+    public MsiDialogAttributes Attributes { get; init; } = MsiDialogAttributes.Visible | MsiDialogAttributes.Modal | MsiDialogAttributes.Minimize | MsiDialogAttributes.TrackDiskSpace;
     public required string FirstControl { get; init; }
     public string? DefaultControl { get; init; }
     public string? CancelControl { get; init; }

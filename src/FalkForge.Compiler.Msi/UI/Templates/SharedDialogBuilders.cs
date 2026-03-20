@@ -17,32 +17,31 @@ internal static class SharedDialogBuilders
                 new MsiControlModel
                 {
                     Name = "Title",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 15, Y = 6, Width = 200, Height = 15,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "{\\DlgFontBold8}!(loc.Dialog.Complete.Title)"
                 },
                 new MsiControlModel
                 {
                     Name = "Description",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 25, Y = 23, Width = 280, Height = 20,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "!(loc.Dialog.Complete.Description)"
                 },
                 new MsiControlModel
                 {
                     Name = "BottomLine",
-                    Type = "Line",
+                    Type = MsiControlType.Line,
                     X = 0, Y = 234, Width = 370, Height = 0,
-                    Attributes = 1
+                    Attributes = MsiControlAttributes.Visible
                 },
                 new MsiControlModel
                 {
                     Name = "Finish",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 304, Y = 243, Width = 56, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Button.Finish)"
                 }
             ],
@@ -52,7 +51,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Finish",
-                    Event = "EndDialog",
+                    Event = MsiControlEvent.EndDialog,
                     Argument = "Return",
                     Ordering = 1
                 }
@@ -69,9 +68,9 @@ internal static class SharedDialogBuilders
             new()
             {
                 Name = "Title",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 15, Y = 6, Width = 200, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "{\\DlgFontBold8}!(loc.Dialog.Progress.Title)"
             }
         };
@@ -81,9 +80,8 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "StatusLabel",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 25, Y = 55, Width = 50, Height = 10,
-                Attributes = 3,
                 Text = "!(loc.Dialog.Progress.Status)"
             });
         }
@@ -93,30 +91,28 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "ActionText",
-                Type = "Text",
-                X = 75, Y = 55, Width = 270, Height = 10,
-                Attributes = 3
+                Type = MsiControlType.Text,
+                X = 75, Y = 55, Width = 270, Height = 10
             },
             new MsiControlModel
             {
                 Name = "ProgressBar",
-                Type = "ProgressBar",
+                Type = MsiControlType.ProgressBar,
                 X = 25, Y = 70, Width = 320, Height = 10,
-                Attributes = 65539
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Progress95
             },
             new MsiControlModel
             {
                 Name = "BottomLine",
-                Type = "Line",
+                Type = MsiControlType.Line,
                 X = 0, Y = 234, Width = 370, Height = 0,
-                Attributes = 1
+                Attributes = MsiControlAttributes.Visible
             },
             new MsiControlModel
             {
                 Name = "Cancel",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 304, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Cancel)"
             }
         ]);
@@ -125,7 +121,7 @@ internal static class SharedDialogBuilders
         {
             Name = dlg,
             Title = "[ProductName] Setup",
-            Attributes = 5,
+            Attributes = MsiDialogAttributes.Visible | MsiDialogAttributes.Minimize,
             FirstControl = "Cancel",
             DefaultControl = "Cancel",
             CancelControl = "Cancel",
@@ -136,7 +132,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
@@ -159,41 +155,39 @@ internal static class SharedDialogBuilders
                 new MsiControlModel
                 {
                     Name = "Title",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 15, Y = 6, Width = 200, Height = 15,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "{\\DlgFontBold8}!(loc.Dialog.Welcome.Title)"
                 },
                 new MsiControlModel
                 {
                     Name = "Description",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 25, Y = 23, Width = 280, Height = 40,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "!(loc.Dialog.Welcome.DescriptionFull)"
                 },
                 new MsiControlModel
                 {
                     Name = "BottomLine",
-                    Type = "Line",
+                    Type = MsiControlType.Line,
                     X = 0, Y = 234, Width = 370, Height = 0,
-                    Attributes = 1
+                    Attributes = MsiControlAttributes.Visible
                 },
                 new MsiControlModel
                 {
                     Name = "Next",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 236, Y = 243, Width = 56, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Button.Next)",
                     NextControl = "Cancel"
                 },
                 new MsiControlModel
                 {
                     Name = "Cancel",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 304, Y = 243, Width = 56, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Button.Cancel)",
                     NextControl = "Next"
                 }
@@ -204,7 +198,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = nextDialog,
                     Ordering = 1
                 },
@@ -212,7 +206,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
@@ -232,9 +226,9 @@ internal static class SharedDialogBuilders
             new()
             {
                 Name = "Title",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 15, Y = 6, Width = 200, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "{\\DlgFontBold8}!(loc.Dialog.License.Title)"
             }
         };
@@ -244,9 +238,9 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "Description",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 25, Y = 23, Width = 280, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.License.Description)"
             });
         }
@@ -256,18 +250,17 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "LicenseText",
-                Type = "ScrollableText",
+                Type = MsiControlType.ScrollableText,
                 X = 20, Y = 60, Width = 330, Height = 140,
-                Attributes = 7,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Sunken,
                 Property = "LicenseText",
                 NextControl = "LicenseAccepted"
             },
             new MsiControlModel
             {
                 Name = "LicenseAccepted",
-                Type = "CheckBox",
+                Type = MsiControlType.CheckBox,
                 X = 20, Y = 207, Width = 330, Height = 18,
-                Attributes = 3,
                 Property = "LicenseAccepted",
                 Text = "!(loc.Dialog.License.Accept)",
                 NextControl = "Back"
@@ -275,34 +268,31 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "BottomLine",
-                Type = "Line",
+                Type = MsiControlType.Line,
                 X = 0, Y = 234, Width = 370, Height = 0,
-                Attributes = 1
+                Attributes = MsiControlAttributes.Visible
             },
             new MsiControlModel
             {
                 Name = "Back",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 180, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Back)",
                 NextControl = "Next"
             },
             new MsiControlModel
             {
                 Name = "Next",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 236, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Next)",
                 NextControl = "Cancel"
             },
             new MsiControlModel
             {
                 Name = "Cancel",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 304, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Cancel)",
                 NextControl = "LicenseText"
             }
@@ -322,7 +312,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Back",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = backDialog,
                     Ordering = 1
                 },
@@ -330,7 +320,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = nextDialog,
                     Condition = "LicenseAccepted = \"1\"",
                     Ordering = 1
@@ -339,7 +329,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
@@ -350,14 +340,14 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Action = "Disable",
+                    Action = MsiConditionAction.Disable,
                     Condition = "NOT LicenseAccepted = \"1\""
                 },
                 new MsiControlConditionModel
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Action = "Enable",
+                    Action = MsiConditionAction.Enable,
                     Condition = "LicenseAccepted = \"1\""
                 }
             ]
@@ -373,9 +363,9 @@ internal static class SharedDialogBuilders
             new()
             {
                 Name = "Title",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 15, Y = 6, Width = 200, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "{\\DlgFontBold8}!(loc.Dialog.InstallDir.Title)"
             }
         };
@@ -385,17 +375,16 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "Description",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 25, Y = 23, Width = 280, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.InstallDir.Description)"
             });
             controls.Add(new MsiControlModel
             {
                 Name = "FolderLabel",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 20, Y = 60, Width = 290, Height = 15,
-                Attributes = 3,
                 Text = "!(loc.Dialog.InstallDir.Label)"
             });
         }
@@ -405,52 +394,47 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "Folder",
-                Type = "PathEdit",
+                Type = MsiControlType.PathEdit,
                 X = 20, Y = 80, Width = 260, Height = 18,
-                Attributes = 3,
                 Property = "WIXUI_INSTALLDIR",
                 NextControl = "ChangeFolder"
             },
             new MsiControlModel
             {
                 Name = "ChangeFolder",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 284, Y = 80, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Dialog.InstallDir.Change)",
                 NextControl = "Back"
             },
             new MsiControlModel
             {
                 Name = "BottomLine",
-                Type = "Line",
+                Type = MsiControlType.Line,
                 X = 0, Y = 234, Width = 370, Height = 0,
-                Attributes = 1
+                Attributes = MsiControlAttributes.Visible
             },
             new MsiControlModel
             {
                 Name = "Back",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 180, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Back)",
                 NextControl = "Next"
             },
             new MsiControlModel
             {
                 Name = "Next",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 236, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Next)",
                 NextControl = "Cancel"
             },
             new MsiControlModel
             {
                 Name = "Cancel",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 304, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Cancel)",
                 NextControl = "Folder"
             }
@@ -470,7 +454,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "ChangeFolder",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Browse,
                     Ordering = 1
                 },
@@ -478,7 +462,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Back",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = backDialog,
                     Ordering = 1
                 },
@@ -486,7 +470,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.Progress,
                     Ordering = 1
                 },
@@ -494,7 +478,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
@@ -511,9 +495,9 @@ internal static class SharedDialogBuilders
             new()
             {
                 Name = "Title",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 15, Y = 6, Width = 200, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "{\\DlgFontBold8}!(loc.Dialog.Customize.Title)"
             }
         };
@@ -523,9 +507,9 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "Description",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 25, Y = 23, Width = 280, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.Customize.Description)"
             });
         }
@@ -535,18 +519,17 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "Tree",
-                Type = "SelectionTree",
+                Type = MsiControlType.SelectionTree,
                 X = 25, Y = 55, Width = 175, Height = 130,
-                Attributes = 7,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Sunken,
                 Property = "_BrowseProperty",
                 NextControl = "DiskCost"
             },
             new MsiControlModel
             {
                 Name = "ItemDescription",
-                Type = "Text",
-                X = 210, Y = 55, Width = 140, Height = 50,
-                Attributes = 3
+                Type = MsiControlType.Text,
+                X = 210, Y = 55, Width = 140, Height = 50
             }
         ]);
 
@@ -555,9 +538,8 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "ItemSize",
-                Type = "Text",
-                X = 210, Y = 110, Width = 140, Height = 15,
-                Attributes = 3
+                Type = MsiControlType.Text,
+                X = 210, Y = 110, Width = 140, Height = 15
             });
         }
 
@@ -566,42 +548,39 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "DiskCost",
-                Type = "VolumeCostList",
+                Type = MsiControlType.VolumeCostList,
                 X = 25, Y = 195, Width = 320, Height = 30,
-                Attributes = 393223,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Sunken | MsiControlAttributes.RemovableMedia | MsiControlAttributes.FixedMedia | MsiControlAttributes.RemoteMedia,
                 NextControl = "Back"
             },
             new MsiControlModel
             {
                 Name = "BottomLine",
-                Type = "Line",
+                Type = MsiControlType.Line,
                 X = 0, Y = 234, Width = 370, Height = 0,
-                Attributes = 1
+                Attributes = MsiControlAttributes.Visible
             },
             new MsiControlModel
             {
                 Name = "Back",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 180, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Back)",
                 NextControl = "Next"
             },
             new MsiControlModel
             {
                 Name = "Next",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 236, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Next)",
                 NextControl = "Cancel"
             },
             new MsiControlModel
             {
                 Name = "Cancel",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 304, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Cancel)",
                 NextControl = "Tree"
             }
@@ -621,7 +600,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Back",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = backDialog,
                     Ordering = 1
                 },
@@ -629,7 +608,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.Progress,
                     Ordering = 1
                 },
@@ -637,7 +616,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
@@ -654,9 +633,9 @@ internal static class SharedDialogBuilders
             new()
             {
                 Name = "Title",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 15, Y = 6, Width = 200, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "{\\DlgFontBold8}!(loc.Dialog.SetupType.Title)"
             }
         };
@@ -666,9 +645,9 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "Description",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 25, Y = 23, Width = 280, Height = 15,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.SetupType.Description)"
             });
         }
@@ -676,9 +655,8 @@ internal static class SharedDialogBuilders
         controls.Add(new MsiControlModel
         {
             Name = "TypicalButton",
-            Type = "PushButton",
+            Type = MsiControlType.PushButton,
             X = 40, Y = 65, Width = 290, Height = 17,
-            Attributes = 3,
             Text = "!(loc.Dialog.SetupType.Typical)",
             NextControl = "CustomButton"
         });
@@ -688,9 +666,9 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "TypicalDesc",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 60, Y = 85, Width = 270, Height = 20,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.SetupType.TypicalDesc)"
             });
         }
@@ -698,9 +676,8 @@ internal static class SharedDialogBuilders
         controls.Add(new MsiControlModel
         {
             Name = "CustomButton",
-            Type = "PushButton",
+            Type = MsiControlType.PushButton,
             X = 40, Y = 115, Width = 290, Height = 17,
-            Attributes = 3,
             Text = "!(loc.Dialog.SetupType.Custom)",
             NextControl = "CompleteButton"
         });
@@ -710,9 +687,9 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "CustomDesc",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 60, Y = 135, Width = 270, Height = 20,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.SetupType.CustomDesc)"
             });
         }
@@ -720,9 +697,8 @@ internal static class SharedDialogBuilders
         controls.Add(new MsiControlModel
         {
             Name = "CompleteButton",
-            Type = "PushButton",
+            Type = MsiControlType.PushButton,
             X = 40, Y = 165, Width = 290, Height = 17,
-            Attributes = 3,
             Text = "!(loc.Dialog.SetupType.Complete)",
             NextControl = "Back"
         });
@@ -732,9 +708,9 @@ internal static class SharedDialogBuilders
             controls.Add(new MsiControlModel
             {
                 Name = "CompleteDesc",
-                Type = "Text",
+                Type = MsiControlType.Text,
                 X = 60, Y = 185, Width = 270, Height = 20,
-                Attributes = 196611,
+                Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                 Text = "!(loc.Dialog.SetupType.CompleteDesc)"
             });
         }
@@ -744,25 +720,23 @@ internal static class SharedDialogBuilders
             new MsiControlModel
             {
                 Name = "BottomLine",
-                Type = "Line",
+                Type = MsiControlType.Line,
                 X = 0, Y = 234, Width = 370, Height = 0,
-                Attributes = 1
+                Attributes = MsiControlAttributes.Visible
             },
             new MsiControlModel
             {
                 Name = "Back",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 180, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Back)",
                 NextControl = "Cancel"
             },
             new MsiControlModel
             {
                 Name = "Cancel",
-                Type = "PushButton",
+                Type = MsiControlType.PushButton,
                 X = 304, Y = 243, Width = 56, Height = 17,
-                Attributes = 3,
                 Text = "!(loc.Button.Cancel)",
                 NextControl = "TypicalButton"
             }
@@ -782,7 +756,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Back",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.LicenseAgreement,
                     Ordering = 1
                 },
@@ -790,7 +764,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "TypicalButton",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.Progress,
                     Ordering = 1
                 },
@@ -798,7 +772,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "CustomButton",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.Customize,
                     Ordering = 1
                 },
@@ -806,7 +780,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "CompleteButton",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.Progress,
                     Ordering = 1
                 },
@@ -814,7 +788,7 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }

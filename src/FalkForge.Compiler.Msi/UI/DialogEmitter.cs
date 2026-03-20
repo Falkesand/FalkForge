@@ -186,7 +186,7 @@ internal sealed class DialogEmitter
                 .SetInteger(3, dialog.VCentering)
                 .SetInteger(4, dialog.Width)
                 .SetInteger(5, dialog.Height)
-                .SetInteger(6, dialog.Attributes)
+                .SetInteger(6, (int)dialog.Attributes)
                 .SetString(7, dialog.Title)
                 .SetString(8, dialog.FirstControl)
                 .SetString(9, dialog.DefaultControl)
@@ -202,12 +202,12 @@ internal sealed class DialogEmitter
                 record => record
                     .SetString(1, dialog.Name)
                     .SetString(2, control.Name)
-                    .SetString(3, control.Type)
+                    .SetString(3, control.Type.ToString())
                     .SetInteger(4, control.X)
                     .SetInteger(5, control.Y)
                     .SetInteger(6, control.Width)
                     .SetInteger(7, control.Height)
-                    .SetInteger(8, control.Attributes)
+                    .SetInteger(8, (int)control.Attributes)
                     .SetString(9, control.Property)
                     .SetString(10, control.Text)
                     .SetString(11, control.NextControl)
@@ -224,7 +224,7 @@ internal sealed class DialogEmitter
                 record => record
                     .SetString(1, evt.DialogName)
                     .SetString(2, evt.ControlName)
-                    .SetString(3, evt.Event)
+                    .SetString(3, evt.Event.Value)
                     .SetString(4, evt.Argument)
                     .SetString(5, evt.Condition ?? "1")
                     .SetInteger(6, evt.Ordering));
@@ -240,7 +240,7 @@ internal sealed class DialogEmitter
                 record => record
                     .SetString(1, cond.DialogName)
                     .SetString(2, cond.ControlName)
-                    .SetString(3, cond.Action)
+                    .SetString(3, cond.Action.ToString())
                     .SetString(4, cond.Condition));
             if (result.IsFailure)
                 return result;

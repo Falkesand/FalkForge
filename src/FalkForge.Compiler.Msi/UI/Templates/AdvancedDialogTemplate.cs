@@ -40,75 +40,71 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 new MsiControlModel
                 {
                     Name = "Title",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 15, Y = 6, Width = 200, Height = 15,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "{\\DlgFontBold8}!(loc.Dialog.InstallScope.Title)"
                 },
                 new MsiControlModel
                 {
                     Name = "Description",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 25, Y = 23, Width = 280, Height = 20,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "!(loc.Dialog.InstallScope.Description)"
                 },
                 new MsiControlModel
                 {
                     Name = "PerMachine",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 40, Y = 75, Width = 290, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Dialog.InstallScope.AllUsers)",
                     NextControl = "PerUser"
                 },
                 new MsiControlModel
                 {
                     Name = "PerMachineDesc",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 60, Y = 95, Width = 270, Height = 20,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "!(loc.Dialog.InstallScope.AllUsersDesc)"
                 },
                 new MsiControlModel
                 {
                     Name = "PerUser",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 40, Y = 125, Width = 290, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Dialog.InstallScope.CurrentUser)",
                     NextControl = "Back"
                 },
                 new MsiControlModel
                 {
                     Name = "PerUserDesc",
-                    Type = "Text",
+                    Type = MsiControlType.Text,
                     X = 60, Y = 145, Width = 270, Height = 20,
-                    Attributes = 196611,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
                     Text = "!(loc.Dialog.InstallScope.CurrentUserDesc)"
                 },
                 new MsiControlModel
                 {
                     Name = "BottomLine",
-                    Type = "Line",
+                    Type = MsiControlType.Line,
                     X = 0, Y = 234, Width = 370, Height = 0,
-                    Attributes = 1
+                    Attributes = MsiControlAttributes.Visible
                 },
                 new MsiControlModel
                 {
                     Name = "Back",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 180, Y = 243, Width = 56, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Button.Back)",
                     NextControl = "Cancel"
                 },
                 new MsiControlModel
                 {
                     Name = "Cancel",
-                    Type = "PushButton",
+                    Type = MsiControlType.PushButton,
                     X = 304, Y = 243, Width = 56, Height = 17,
-                    Attributes = 3,
                     Text = "!(loc.Button.Cancel)",
                     NextControl = "PerMachine"
                 }
@@ -119,7 +115,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 {
                     DialogName = dlg,
                     ControlName = "Back",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.Welcome,
                     Ordering = 1
                 },
@@ -127,7 +123,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 {
                     DialogName = dlg,
                     ControlName = "PerMachine",
-                    Event = "[ALLUSERS]",
+                    Event = MsiControlEvent.SetProperty("ALLUSERS"),
                     Argument = "1",
                     Ordering = 1
                 },
@@ -135,7 +131,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 {
                     DialogName = dlg,
                     ControlName = "PerMachine",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.LicenseAgreement,
                     Ordering = 2
                 },
@@ -143,7 +139,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 {
                     DialogName = dlg,
                     ControlName = "PerUser",
-                    Event = "[ALLUSERS]",
+                    Event = MsiControlEvent.SetProperty("ALLUSERS"),
                     Argument = "{}",
                     Ordering = 1
                 },
@@ -151,7 +147,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 {
                     DialogName = dlg,
                     ControlName = "PerUser",
-                    Event = "NewDialog",
+                    Event = MsiControlEvent.NewDialog,
                     Argument = DialogNames.LicenseAgreement,
                     Ordering = 2
                 },
@@ -159,7 +155,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                 {
                     DialogName = dlg,
                     ControlName = "Cancel",
-                    Event = "SpawnDialog",
+                    Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
