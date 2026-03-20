@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EXE Bundles — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>EXE Bundles</h1>
+    <div class="tutorial-meta">
+      20 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps demos 06, 10, 35&ndash;43
+    </div>
+
+    <p>An MSI installs one product. A bundle installs several &mdash; multiple MSIs, EXEs, patches, and prerequisites &mdash; in a single self-extracting EXE. FalkForge's bundle engine is NativeAOT compiled, so it runs without a .NET runtime.</p>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>1. Your First Bundle</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/35-bundle-simple/Program.cs</code>. The entire bundle definition fits in one screen.</p>
+
+    <h3>Entry point</h3>
+    <pre><code><span class="kw">return</span> <span class="typ">Installer</span><span class="punc">.</span><span class="method">BuildBundle</span><span class="punc">(</span>args<span class="punc">,</span> outputPath <span class="punc">=></span>
+<span class="punc">{</span>
+    <span class="kw">var</span> bundle <span class="punc">=</span> <span class="kw">new</span> <span class="typ">BundleBuilder</span><span class="punc">()</span>
+        <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"Simple Bundle"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Manufacturer</span><span class="punc">(</span><span class="str">"Demo"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Version</span><span class="punc">(</span><span class="str">"1.0.0"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">BundleId</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Guid</span><span class="punc">(</span><span class="str">"..."</span><span class="punc">))</span>
+        <span class="punc">.</span><span class="method">UpgradeCode</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Guid</span><span class="punc">(</span><span class="str">"..."</span><span class="punc">))</span>
+        <span class="punc">.</span><span class="method">Scope</span><span class="punc">(</span><span class="typ">InstallScope</span><span class="punc">.</span>PerMachine<span class="punc">)</span>
+        <span class="punc">.</span><span class="method">UseBuiltInUI</span><span class="punc">(</span>themeColor<span class="punc">:</span> <span class="str">"#0078D4"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Chain</span><span class="punc">(</span>chain <span class="punc">=></span> chain
+            <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"MyApp.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+                <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"MyApp"</span><span class="punc">)</span>
+                <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"My Application"</span><span class="punc">)</span>
+                <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)))</span>
+        <span class="punc">.</span><span class="method">Build</span><span class="punc">();</span>
+
+    <span class="kw">return</span> <span class="kw">new</span> <span class="typ">BundleCompiler</span><span class="punc">().</span><span class="method">Compile</span><span class="punc">(</span>bundle<span class="punc">,</span> outputPath<span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+
+    <p><code>Installer.BuildBundle</code> is the bundle counterpart to <code>Installer.Build</code>. Where an MSI uses <code>PackageBuilder</code> and <code>MsiCompiler</code>, a bundle uses <code>BundleBuilder</code> and <code>BundleCompiler</code>.</p>
+
+    <p>Key points:</p>
+    <ul>
+      <li><strong>BundleId</strong> &mdash; uniquely identifies this specific build of the bundle.</li>
+      <li><strong>UpgradeCode</strong> &mdash; ties all versions together. Never change it after shipping.</li>
+      <li><strong>Chain</strong> &mdash; defines the ordered list of packages to install.</li>
+      <li><strong>Vital(true)</strong> &mdash; if this package fails, the entire bundle fails.</li>
+    </ul>
+
+    <p>The demo also shows <code>.RelatedBundle()</code> and <code>.DependencyProvider()</code> for upgrade detection and dependency tracking. We cover those in section 9.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Bundle format</summary>
+      <div class="deep-dive-content">
+        <p>The compiled bundle is a self-extracting EXE with this layout:</p>
+        <pre><code>[PE stub] [Magic: "FALKBUNDLE"] [Manifest] [Compressed payloads] [TOC] [Footer]</code></pre>
+        <p>The <strong>PE stub</strong> is the NativeAOT-compiled engine. It reads the footer to locate the table of contents, which lists every embedded payload and its offset. The <strong>manifest</strong> is a JSON document describing the bundle metadata, chain, variables, and update feed. Payloads are individually gzip-compressed.</p>
+        <p>Because the engine is NativeAOT, the bundle runs on a clean machine with no .NET runtime installed &mdash; essential for bootstrappers that install .NET as a prerequisite.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>2. Multi-Product Suite</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/06-product-suite/suite-bundle/Program.cs</code>. This bundle installs two MSI products &mdash; an application and a background service &mdash; with rollback boundaries between them.</p>
+
+    <h3>Chaining multiple MSIs</h3>
+    <pre><code><span class="punc">.</span><span class="method">Chain</span><span class="punc">(</span>chain <span class="punc">=></span> chain
+    <span class="punc">.</span><span class="method">RollbackBoundary</span><span class="punc">(</span><span class="str">"Prerequisites"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span>appMsiPath<span class="punc">,</span> p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"AcmeApp"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Acme Application"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">RollbackBoundary</span><span class="punc">(</span><span class="str">"Services"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span>serviceMsiPath<span class="punc">,</span> p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"AcmeService"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Acme Background Service"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)))</span></code></pre>
+
+    <p>Order matters. The engine installs packages top-to-bottom and uninstalls bottom-to-top. Place prerequisites before the packages that need them.</p>
+
+    <p>The <code>UseBuiltInUI</code> call accepts an optional license file and theme color:</p>
+    <pre><code><span class="punc">.</span><span class="method">UseBuiltInUI</span><span class="punc">(</span>licenseFile<span class="punc">,</span> themeColor<span class="punc">:</span> <span class="str">"#2563EB"</span><span class="punc">)</span></code></pre>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How the chain executes</summary>
+      <div class="deep-dive-content">
+        <p>The bundle engine runs three phases for every operation:</p>
+        <ol>
+          <li><strong>Detect</strong> &mdash; checks each package to see if it is already installed, at what version, and whether it needs action.</li>
+          <li><strong>Plan</strong> &mdash; builds an install plan based on detection results: install, uninstall, repair, or skip each package.</li>
+          <li><strong>Apply</strong> &mdash; executes the plan. For MSI packages this calls <code>IMsiApi.InstallProduct</code> (P/Invoke, not msiexec.exe). For EXE packages it launches the process and maps exit codes.</li>
+        </ol>
+        <p>If any vital package fails during Apply, the engine rolls back &mdash; but only within the current rollback boundary. Packages in earlier boundaries that succeeded are left in place.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>3. Package Types</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Bundles support four package types beyond MSI. Each has a dedicated builder method on the chain.</p>
+
+    <h3>EXE packages (demo 36)</h3>
+    <pre><code><span class="punc">.</span><span class="method">ExePackage</span><span class="punc">(</span><span class="str">"vcredist_x64.exe"</span><span class="punc">,</span> p <span class="punc">=></span> p
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"VCRedist"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Visual C++ Redistributable"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">ExitCode</span><span class="punc">(</span><span class="num">0</span><span class="punc">,</span> <span class="typ">ExitCodeBehavior</span><span class="punc">.</span>Success<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">ExitCode</span><span class="punc">(</span><span class="num">3010</span><span class="punc">,</span> <span class="typ">ExitCodeBehavior</span><span class="punc">.</span>ScheduleReboot<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">ExitCode</span><span class="punc">(</span><span class="num">1638</span><span class="punc">,</span> <span class="typ">ExitCodeBehavior</span><span class="punc">.</span>Success<span class="punc">))</span></code></pre>
+    <p>Unlike MSI packages, EXE packages have no standard exit codes. You map each code to a behavior: <code>Success</code>, <code>Failure</code>, <code>ScheduleReboot</code>, or <code>RebootRequired</code>.</p>
+
+    <h3>MSU packages (demo 37)</h3>
+    <pre><code><span class="punc">.</span><span class="method">MsuPackage</span><span class="punc">(</span><span class="str">"windows-hotfix-kb123456.msu"</span><span class="punc">,</span> p <span class="punc">=></span> p
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"KB123456"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Windows Hotfix KB123456"</span><span class="punc">))</span></code></pre>
+    <p>MSU files are Windows Update packages. Use them to install required hotfixes before your application.</p>
+
+    <h3>Nested bundles (demo 38)</h3>
+    <pre><code><span class="punc">.</span><span class="method">BundlePackage</span><span class="punc">(</span><span class="str">"ChildSetup.exe"</span><span class="punc">,</span> p <span class="punc">=></span> p
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"ChildBundle"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Child Application Bundle"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">))</span></code></pre>
+    <p>A bundle can contain other bundles. The parent engine coordinates detection and installation with the child engine via the bundle protocol.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use each package type</summary>
+      <div class="deep-dive-content">
+        <table>
+          <thead><tr><th>Type</th><th>Use when</th><th>Detection</th></tr></thead>
+          <tbody>
+            <tr><td><strong>MsiPackage</strong></td><td>Installing Windows Installer products</td><td>Automatic via ProductCode</td></tr>
+            <tr><td><strong>ExePackage</strong></td><td>Third-party prerequisites (runtimes, redistributables)</td><td>You provide detection conditions</td></tr>
+            <tr><td><strong>MsuPackage</strong></td><td>Windows Update hotfixes</td><td>KB article lookup</td></tr>
+            <tr><td><strong>MspPackage</strong></td><td>MSI patches</td><td>Automatic via PatchCode</td></tr>
+            <tr><td><strong>BundlePackage</strong></td><td>Nesting another FalkForge/WiX bundle</td><td>Via child bundle's UpgradeCode</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>4. Variables &amp; Conditions</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/40-bundle-variables/Program.cs</code>. Bundle variables store values that conditions can reference at install time.</p>
+
+    <h3>Defining variables</h3>
+    <pre><code><span class="punc">.</span><span class="method">Variable</span><span class="punc">(</span><span class="str">"InstallOptionalTools"</span><span class="punc">,</span> v <span class="punc">=></span> v
+    <span class="punc">.</span><span class="method">Numeric</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Default</span><span class="punc">(</span><span class="str">"0"</span><span class="punc">))</span>
+<span class="punc">.</span><span class="method">Variable</span><span class="punc">(</span><span class="str">"InstallPath"</span><span class="punc">,</span> v <span class="punc">=></span> v
+    <span class="punc">.</span><span class="method">String</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Default</span><span class="punc">(</span><span class="str">@"C:\Program Files\Demo"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Persisted</span><span class="punc">())</span></code></pre>
+
+    <p>Three variable types: <code>String()</code>, <code>Numeric()</code>, and <code>Version()</code>. Modifiers control behavior:</p>
+    <ul>
+      <li><strong>Persisted</strong> &mdash; survives repair and modify sessions.</li>
+      <li><strong>Hidden</strong> &mdash; excluded from install logs.</li>
+      <li><strong>Secret</strong> &mdash; excluded from logs <em>and</em> persisted state. Implies Hidden.</li>
+    </ul>
+
+    <h3>Conditional package installation</h3>
+    <pre><code><span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"OptionalTools.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"OptionalTools"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Optional Developer Tools"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">false</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">InstallCondition</span><span class="punc">(</span><span class="str">"InstallOptionalTools = 1"</span><span class="punc">))</span></code></pre>
+
+    <p>The <code>InstallCondition</code> is evaluated during the Plan phase. If it evaluates to false, the package is skipped. The custom UI can set variable values via <code>SetProperty</code> before planning begins.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Condition syntax and operators</summary>
+      <div class="deep-dive-content">
+        <p>Bundle conditions use the same expression language as MSI conditions:</p>
+        <ul>
+          <li><strong>Comparison:</strong> <code>=</code>, <code>&lt;&gt;</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code></li>
+          <li><strong>Logic:</strong> <code>AND</code>, <code>OR</code>, <code>NOT</code></li>
+          <li><strong>Grouping:</strong> parentheses</li>
+        </ul>
+        <p>The engine evaluates conditions using a recursive-descent parser (<code>ConditionEvaluator</code>). Variables are resolved from the <code>VariableStore</code>, which holds 30+ built-in variables alongside your custom ones.</p>
+        <p>Common built-in variables: <code>VersionNT</code> (OS version), <code>NativeMachine</code> (processor architecture), <code>PrivilegedUser</code> (running elevated).</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>5. Rollback Boundaries</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/41-bundle-rollback/Program.cs</code>. Rollback boundaries divide the chain into transaction groups.</p>
+
+    <pre><code><span class="punc">.</span><span class="method">Chain</span><span class="punc">(</span>chain <span class="punc">=></span> chain
+    <span class="punc">.</span><span class="method">RollbackBoundary</span><span class="punc">(</span><span class="str">"Prerequisites"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"Runtime.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"Runtime"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Runtime Prerequisites"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">RollbackBoundary</span><span class="punc">(</span><span class="str">"Application"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"MyApp.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"MyApp"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"My Application"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)))</span></code></pre>
+
+    <p>Each boundary starts a new transaction group. If <code>MyApp.msi</code> fails, only the packages after the "Application" boundary roll back. The runtime prerequisite stays installed.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Rollback behavior when a package fails</summary>
+      <div class="deep-dive-content">
+        <p>When a vital package fails:</p>
+        <ol>
+          <li>The engine marks the current boundary group as failed.</li>
+          <li>All packages <em>within that boundary</em> are rolled back in reverse order using the <code>RollbackJournal</code>.</li>
+          <li>Packages in earlier boundary groups that succeeded are left intact.</li>
+          <li>The engine transitions to the <code>Failed</code> state and reports the error to the UI.</li>
+        </ol>
+        <p>Without rollback boundaries, a failure anywhere rolls back the entire chain. Use boundaries to protect expensive or slow prerequisite installations.</p>
+        <p>For typed references (useful in advanced scenarios), use <code>DefineRollbackBoundary</code> on the builder and pass the reference to <code>RollbackBoundary</code> in the chain. Demo 10 shows this pattern.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>6. Remote Payloads</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/39-bundle-remote-payload/Program.cs</code>. Instead of embedding a package in the EXE, you can download it at install time.</p>
+
+    <pre><code><span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"MyApp.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"MyApp"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"My Application"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">RemotePayload</span><span class="punc">(</span>
+        <span class="str">"https://releases.example.com/myapp/1.0.0/MyApp.msi"</span><span class="punc">,</span>
+        <span class="str">"e3b0c44298fc1c14...7852b855"</span><span class="punc">,</span>  <span class="cmt">// SHA256 hash</span>
+        <span class="num">10485760</span><span class="punc">))</span>                       <span class="cmt">// Size in bytes</span></code></pre>
+
+    <p><code>RemotePayload</code> takes three arguments: the download URL, the expected SHA256 hash, and the file size. The engine downloads the file, verifies the hash, and caches it before installation.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Caching and resume behavior</summary>
+      <div class="deep-dive-content">
+        <p>Downloaded payloads are stored in the package cache (<code>PackageCache</code>). The cache uses a three-layer path traversal defense: allowlist regex, <code>Path.GetFileName</code> sanitization, and <code>Path.GetFullPath</code> containment check.</p>
+        <p>If a download is interrupted, the engine resumes from where it left off using HTTP range requests. If the cached file already exists and its SHA256 matches, the download is skipped entirely.</p>
+        <p>Remote payloads reduce the bootstrapper size dramatically. A 5 MB EXE can orchestrate the installation of hundreds of megabytes of software downloaded on demand.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>7. Update Feeds</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/42-bundle-update-feed/Program.cs</code>. A single method call adds update checking.</p>
+
+    <pre><code><span class="punc">.</span><span class="method">UpdateFeed</span><span class="punc">(</span><span class="str">"https://updates.example.com/myapp/feed.json"</span><span class="punc">)</span></code></pre>
+
+    <p>The engine checks this URL during detection. If a newer version is available, the behavior depends on the <code>UpdatePolicy</code>:</p>
+    <ul>
+      <li><strong>NotifyOnly</strong> &mdash; tells the UI an update exists. The user decides.</li>
+      <li><strong>DownloadAndPrompt</strong> &mdash; downloads the update, then asks the user to apply it.</li>
+      <li><strong>AutoUpdate</strong> &mdash; downloads and applies automatically.</li>
+    </ul>
+
+    <p>Set the policy explicitly with <code>UpdateFeed(url, UpdatePolicy.DownloadAndPrompt)</code>. The default is <code>NotifyOnly</code>.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How the engine checks for updates</summary>
+      <div class="deep-dive-content">
+        <p>The engine fetches the feed URL and parses it using <code>UpdateFeedParser</code> (AOT-safe via <code>UpdateFeedJsonContext</code>). The feed is a JSON array of <code>UpdateFeedEntry</code> objects, each with a version, download URL, and SHA256 hash.</p>
+        <p>During the Detect phase, the engine compares the installed bundle version against feed entries. If a newer entry exists, it sends an <code>UpdateAvailable</code> message to the UI via the named pipe. The UI can then trigger a download, which results in an <code>UpdateReady</code> message when complete.</p>
+        <p>Validation codes <code>UPD002</code> and <code>UPD003</code> catch malformed feed URLs and missing required fields.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>8. Layout Mode</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/43-bundle-layout/Program.cs</code>. Containers group payloads for offline distribution.</p>
+
+    <pre><code><span class="punc">.</span><span class="method">Chain</span><span class="punc">(</span>chain <span class="punc">=></span> chain
+    <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"Core.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"Core"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Core Components"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Container</span><span class="punc">(</span><span class="str">"CoreContainer"</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"Extras.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+        <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"Extras"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Extra Components"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">false</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Container</span><span class="punc">(</span><span class="str">"ExtrasContainer"</span><span class="punc">)))</span>
+<span class="punc">.</span><span class="method">Container</span><span class="punc">(</span><span class="str">"CoreContainer"</span><span class="punc">)</span>
+<span class="punc">.</span><span class="method">Container</span><span class="punc">(</span><span class="str">"ExtrasContainer"</span><span class="punc">)</span></code></pre>
+
+    <p>Each <code>Container</code> becomes a separate compressed archive inside the bundle. When the bundle runs in <strong>layout mode</strong> (<code>/layout &lt;directory&gt;</code>), it extracts all containers to a folder. This folder can then be copied to an air-gapped machine and installed offline.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use layout mode</summary>
+      <div class="deep-dive-content">
+        <p>Layout mode is essential in three scenarios:</p>
+        <ul>
+          <li><strong>Air-gapped environments</strong> &mdash; servers with no internet access.</li>
+          <li><strong>Network share deployment</strong> &mdash; extract once, install from a shared folder across many machines.</li>
+          <li><strong>Build verification</strong> &mdash; extract and inspect every payload without running the installer.</li>
+        </ul>
+        <p>The <code>LayoutManager</code> handles extraction and produces a <code>LayoutJsonContext</code> manifest that lists every file in the layout directory. The engine can install from a layout directory by reading this manifest instead of extracting from the EXE.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>9. Advanced Bundles</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>Open <code>demo/10-advanced-bundle/bundle/Program.cs</code>. This demo combines every bundle feature into a single deployment suite.</p>
+
+    <h3>Related bundles</h3>
+    <pre><code><span class="punc">.</span><span class="method">RelatedBundle</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Guid</span><span class="punc">(</span><span class="str">"C3D4E5F6-..."</span><span class="punc">),</span> rb <span class="punc">=></span> rb
+    <span class="punc">.</span><span class="method">Relation</span><span class="punc">(</span><span class="typ">RelatedBundleRelation</span><span class="punc">.</span>Upgrade<span class="punc">))</span>
+<span class="punc">.</span><span class="method">RelatedBundle</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Guid</span><span class="punc">(</span><span class="str">"D4E5F6A7-..."</span><span class="punc">),</span> rb <span class="punc">=></span> rb
+    <span class="punc">.</span><span class="method">Relation</span><span class="punc">(</span><span class="typ">RelatedBundleRelation</span><span class="punc">.</span>Detect<span class="punc">))</span></code></pre>
+
+    <p>Related bundles declare relationships with other installed bundles. The engine detects them during the Detect phase and factors them into the plan.</p>
+
+    <h3>Typed references</h3>
+    <pre><code><span class="kw">var</span> prereqs <span class="punc">=</span> bundleBuilder<span class="punc">.</span><span class="method">DefineContainer</span><span class="punc">(</span><span class="str">"Prerequisites"</span><span class="punc">,</span> c <span class="punc">=></span> c
+    <span class="punc">.</span><span class="method">DownloadUrl</span><span class="punc">(</span><span class="str">"https://cdn.northwind.example.com/prereqs/"</span><span class="punc">));</span>
+<span class="kw">var</span> prereqBoundary <span class="punc">=</span> bundleBuilder<span class="punc">.</span><span class="method">DefineRollbackBoundary</span><span class="punc">(</span><span class="str">"PrereqBoundary"</span><span class="punc">);</span></code></pre>
+
+    <p><code>DefineContainer</code> and <code>DefineRollbackBoundary</code> return typed references (<code>ContainerRef</code>, <code>RollbackBoundaryRef</code>). Pass them to <code>.Container()</code> and <code>.RollbackBoundary()</code> in the chain. The compiler validates that every reference is used.</p>
+
+    <h3>Mixed package types</h3>
+    <p>The advanced bundle chains an EXE prerequisite, an MSU hotfix, an MSI application, and an MSP patch &mdash; all with install conditions, exit code mappings, and container assignments. This pattern is typical for enterprise deployment suites.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Related bundle detection</summary>
+      <div class="deep-dive-content">
+        <p>Three relation types control how the engine handles detected bundles:</p>
+        <ul>
+          <li><strong>Upgrade</strong> &mdash; the engine uninstalls the related bundle after installing the new one. Use this for major version upgrades that use a different UpgradeCode.</li>
+          <li><strong>Detect</strong> &mdash; the engine notes the related bundle's presence but takes no action. Useful for checking if a companion product is installed.</li>
+          <li><strong>Addon / Patch</strong> &mdash; declares this bundle as an extension or patch for the related bundle.</li>
+        </ul>
+        <p>Detection happens by scanning the Windows registry for installed bundle UpgradeCodes. The engine's <code>DependencyDetector</code> also checks ref-counting entries to prevent uninstalling bundles that other bundles depend on.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>Recap</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <table>
+      <thead>
+        <tr><th>Feature</th><th>Demo</th><th>Key API</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Simple bundle</td><td>35</td><td><code>BundleBuilder</code>, <code>Chain</code>, <code>MsiPackage</code></td></tr>
+        <tr><td>Multi-product suite</td><td>06</td><td><code>MsiPackage</code> (multiple), <code>UseBuiltInUI</code></td></tr>
+        <tr><td>EXE package</td><td>36</td><td><code>ExePackage</code>, <code>ExitCode</code></td></tr>
+        <tr><td>MSU package</td><td>37</td><td><code>MsuPackage</code>, <code>KbArticle</code></td></tr>
+        <tr><td>Nested bundle</td><td>38</td><td><code>BundlePackage</code></td></tr>
+        <tr><td>Variables &amp; conditions</td><td>40</td><td><code>Variable</code>, <code>InstallCondition</code></td></tr>
+        <tr><td>Rollback boundaries</td><td>41</td><td><code>RollbackBoundary</code>, <code>DefineRollbackBoundary</code></td></tr>
+        <tr><td>Remote payloads</td><td>39</td><td><code>RemotePayload</code></td></tr>
+        <tr><td>Update feeds</td><td>42</td><td><code>UpdateFeed</code>, <code>UpdatePolicy</code></td></tr>
+        <tr><td>Layout / containers</td><td>43</td><td><code>Container</code>, <code>DefineContainer</code></td></tr>
+        <tr><td>Advanced (all features)</td><td>10</td><td><code>RelatedBundle</code>, <code>MspPackage</code>, typed refs</td></tr>
+      </tbody>
+    </table>
+
+    <nav class="tutorial-nav">
+      <a href="msi-basics.html">&larr; Previous: MSI Basics</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
