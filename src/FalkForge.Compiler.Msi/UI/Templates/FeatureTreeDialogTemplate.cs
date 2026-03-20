@@ -8,11 +8,11 @@ internal sealed class FeatureTreeDialogTemplate : IDialogTemplate
     {
         return
         [
-            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: "LicenseAgreementDlg"),
+            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: DialogNames.LicenseAgreement),
             SharedDialogBuilders.BuildLicenseAgreementDlg(
-                backDialog: "WelcomeDlg",
-                nextDialog: "CustomizeDlg"),
-            SharedDialogBuilders.BuildCustomizeDlg(backDialog: "LicenseAgreementDlg"),
+                backDialog: DialogNames.Welcome,
+                nextDialog: DialogNames.Customize),
+            SharedDialogBuilders.BuildCustomizeDlg(backDialog: DialogNames.LicenseAgreement),
             SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: false),
             SharedDialogBuilders.BuildExitDlg()
         ];

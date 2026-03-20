@@ -8,14 +8,14 @@ internal sealed class MondoDialogTemplate : IDialogTemplate
     {
         return
         [
-            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: "LicenseAgreementDlg"),
+            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: DialogNames.LicenseAgreement),
             SharedDialogBuilders.BuildLicenseAgreementDlg(
-                backDialog: "WelcomeDlg",
-                nextDialog: "SetupTypeDlg"),
+                backDialog: DialogNames.Welcome,
+                nextDialog: DialogNames.SetupType),
             SharedDialogBuilders.BuildSetupTypeDlg(includeDescriptions: true),
-            SharedDialogBuilders.BuildCustomizeDlg(backDialog: "SetupTypeDlg"),
+            SharedDialogBuilders.BuildCustomizeDlg(backDialog: DialogNames.SetupType),
             SharedDialogBuilders.BuildInstallDirDlg(
-                backDialog: "SetupTypeDlg",
+                backDialog: DialogNames.SetupType,
                 includeDescription: false),
             SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: false),
             SharedDialogBuilders.BuildExitDlg()

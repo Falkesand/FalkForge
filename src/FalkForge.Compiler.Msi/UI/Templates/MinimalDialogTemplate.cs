@@ -16,7 +16,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
 
     private static MsiDialogModel BuildWelcomeDlg()
     {
-        var dlg = "WelcomeDlg";
+        var dlg = DialogNames.Welcome;
         return new MsiDialogModel
         {
             Name = dlg,
@@ -75,7 +75,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     DialogName = dlg,
                     ControlName = "Install",
                     Event = "NewDialog",
-                    Argument = "ProgressDlg",
+                    Argument = DialogNames.Progress,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -83,7 +83,7 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]

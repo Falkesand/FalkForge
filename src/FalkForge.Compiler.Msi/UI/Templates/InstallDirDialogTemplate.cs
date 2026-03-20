@@ -8,12 +8,12 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
     {
         return
         [
-            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: "LicenseAgreementDlg"),
+            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: DialogNames.LicenseAgreement),
             SharedDialogBuilders.BuildLicenseAgreementDlg(
-                backDialog: "WelcomeDlg",
-                nextDialog: "InstallDirDlg",
+                backDialog: DialogNames.Welcome,
+                nextDialog: DialogNames.InstallDir,
                 includeDescription: true),
-            SharedDialogBuilders.BuildInstallDirDlg(backDialog: "LicenseAgreementDlg"),
+            SharedDialogBuilders.BuildInstallDirDlg(backDialog: DialogNames.LicenseAgreement),
             SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: true),
             SharedDialogBuilders.BuildExitDlg()
         ];

@@ -4,7 +4,7 @@ internal static class SharedDialogBuilders
 {
     internal static MsiDialogModel BuildExitDlg()
     {
-        var dlg = "ExitDlg";
+        var dlg = DialogNames.Exit;
         return new MsiDialogModel
         {
             Name = dlg,
@@ -62,7 +62,7 @@ internal static class SharedDialogBuilders
 
     internal static MsiDialogModel BuildProgressDlg(bool includeStatusLabel)
     {
-        var dlg = "ProgressDlg";
+        var dlg = DialogNames.Progress;
 
         var controls = new List<MsiControlModel>
         {
@@ -137,7 +137,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]
@@ -146,7 +146,7 @@ internal static class SharedDialogBuilders
 
     internal static MsiDialogModel BuildWelcomeDlg(string nextDialog)
     {
-        var dlg = "WelcomeDlg";
+        var dlg = DialogNames.Welcome;
         return new MsiDialogModel
         {
             Name = dlg,
@@ -213,7 +213,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]
@@ -225,7 +225,7 @@ internal static class SharedDialogBuilders
         string nextDialog,
         bool includeDescription = false)
     {
-        var dlg = "LicenseAgreementDlg";
+        var dlg = DialogNames.LicenseAgreement;
 
         var controls = new List<MsiControlModel>
         {
@@ -340,7 +340,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ],
@@ -366,7 +366,7 @@ internal static class SharedDialogBuilders
 
     internal static MsiDialogModel BuildInstallDirDlg(string backDialog, bool includeDescription = true)
     {
-        var dlg = "InstallDirDlg";
+        var dlg = DialogNames.InstallDir;
 
         var controls = new List<MsiControlModel>
         {
@@ -471,7 +471,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "ChangeFolder",
                     Event = "SpawnDialog",
-                    Argument = "BrowseDlg",
+                    Argument = DialogNames.Browse,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -487,7 +487,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Next",
                     Event = "NewDialog",
-                    Argument = "ProgressDlg",
+                    Argument = DialogNames.Progress,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -495,7 +495,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]
@@ -504,7 +504,7 @@ internal static class SharedDialogBuilders
 
     internal static MsiDialogModel BuildCustomizeDlg(string backDialog, bool includeDescription = true)
     {
-        var dlg = "CustomizeDlg";
+        var dlg = DialogNames.Customize;
 
         var controls = new List<MsiControlModel>
         {
@@ -630,7 +630,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Next",
                     Event = "NewDialog",
-                    Argument = "ProgressDlg",
+                    Argument = DialogNames.Progress,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -638,7 +638,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]
@@ -647,7 +647,7 @@ internal static class SharedDialogBuilders
 
     internal static MsiDialogModel BuildSetupTypeDlg(bool includeDescriptions)
     {
-        var dlg = "SetupTypeDlg";
+        var dlg = DialogNames.SetupType;
 
         var controls = new List<MsiControlModel>
         {
@@ -783,7 +783,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Back",
                     Event = "NewDialog",
-                    Argument = "LicenseAgreementDlg",
+                    Argument = DialogNames.LicenseAgreement,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -791,7 +791,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "TypicalButton",
                     Event = "NewDialog",
-                    Argument = "ProgressDlg",
+                    Argument = DialogNames.Progress,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -799,7 +799,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "CustomButton",
                     Event = "NewDialog",
-                    Argument = "CustomizeDlg",
+                    Argument = DialogNames.Customize,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -807,7 +807,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "CompleteButton",
                     Event = "NewDialog",
-                    Argument = "ProgressDlg",
+                    Argument = DialogNames.Progress,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -815,7 +815,7 @@ internal static class SharedDialogBuilders
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]

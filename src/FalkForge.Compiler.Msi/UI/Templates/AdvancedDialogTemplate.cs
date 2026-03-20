@@ -8,17 +8,17 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
     {
         return
         [
-            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: "InstallScopeDlg"),
+            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: DialogNames.InstallScope),
             BuildInstallScopeDlg(),
             SharedDialogBuilders.BuildLicenseAgreementDlg(
-                backDialog: "InstallScopeDlg",
-                nextDialog: "SetupTypeDlg"),
+                backDialog: DialogNames.InstallScope,
+                nextDialog: DialogNames.SetupType),
             SharedDialogBuilders.BuildSetupTypeDlg(includeDescriptions: false),
             SharedDialogBuilders.BuildCustomizeDlg(
-                backDialog: "SetupTypeDlg",
+                backDialog: DialogNames.SetupType,
                 includeDescription: false),
             SharedDialogBuilders.BuildInstallDirDlg(
-                backDialog: "SetupTypeDlg",
+                backDialog: DialogNames.SetupType,
                 includeDescription: false),
             SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: false),
             SharedDialogBuilders.BuildExitDlg()
@@ -27,7 +27,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
 
     private static MsiDialogModel BuildInstallScopeDlg()
     {
-        var dlg = "InstallScopeDlg";
+        var dlg = DialogNames.InstallScope;
         return new MsiDialogModel
         {
             Name = dlg,
@@ -120,7 +120,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                     DialogName = dlg,
                     ControlName = "Back",
                     Event = "NewDialog",
-                    Argument = "WelcomeDlg",
+                    Argument = DialogNames.Welcome,
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -136,7 +136,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                     DialogName = dlg,
                     ControlName = "PerMachine",
                     Event = "NewDialog",
-                    Argument = "LicenseAgreementDlg",
+                    Argument = DialogNames.LicenseAgreement,
                     Ordering = 2
                 },
                 new MsiControlEventModel
@@ -152,7 +152,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                     DialogName = dlg,
                     ControlName = "PerUser",
                     Event = "NewDialog",
-                    Argument = "LicenseAgreementDlg",
+                    Argument = DialogNames.LicenseAgreement,
                     Ordering = 2
                 },
                 new MsiControlEventModel
@@ -160,7 +160,7 @@ internal sealed class AdvancedDialogTemplate : IDialogTemplate
                     DialogName = dlg,
                     ControlName = "Cancel",
                     Event = "SpawnDialog",
-                    Argument = "CancelDlg",
+                    Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
             ]
