@@ -38,7 +38,7 @@ return Installer.Build(args, package =>
     package.Property("DB_SERVER", @".\SQLEXPRESS", p => p.IsSecure = true);
     package.Property("DB_DATABASE", "MultiServerEx", p => p.IsSecure = true);
     package.Property("DB_USER", "Multi", p => p.IsSecure = true);
-    package.Property("DB_PASSWORD", "Access", p => p.IsSecure = true);
+    package.Property("DB_PASSWORD", "", p => p.IsSecure = true); // Populated via SetSecureProperty from UI
     package.Property("DB_INTEGRATEDSECURITY", "true", p => p.IsSecure = true);
     package.Property("DB_PORT", "", p => p.IsSecure = true);
 

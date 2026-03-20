@@ -62,7 +62,12 @@ return Installer.Build(args, package =>
         // Use AccountProperty to read the service account from an MSI property at install time.
         // The installer UI or command line sets SERVICEACCOUNT; the engine passes it to the service.
         svc.AccountProperty("[SERVICEACCOUNT]");
-        svc.Password = "[DEMO_PASSWORD]";
+
+        // Service account credentials are passed via MSI properties at install time.
+        // In a custom UI installer, use SetSecureProperty() to securely transport
+        // the password from the UI to the engine without exposing it on the command line.
+        // See demo/14-lifecycle-hooks for the complete secure pattern.
+        svc.Password = "[SERVICEPASSWORD]";
 
         // Run a diagnostic command on failure
         svc.FailureActions(fa =>
