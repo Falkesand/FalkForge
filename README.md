@@ -16,6 +16,7 @@ Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools
 - **Six output formats** -- MSI, MSIX, MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
 - **NativeAOT engine** -- Sub-10ms startup bundle runtime. Three-process architecture with named-pipe IPC.
 - **WPF custom UI** -- Page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
+- **Security validation** -- Compile-time warnings for sensitive property references in registry and custom tables (REG007, CTB011).
 - **Prerequisite management** -- Built-in package groups for .NET Framework, VC++, ODBC drivers, SQL Server Express.
 - **52+ demo projects** -- From hello-world to complex multi-package bundles.
 

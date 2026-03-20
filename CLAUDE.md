@@ -87,7 +87,7 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 
 **Builders** (34+ files): PackageBuilder (main) | MergeModuleBuilder, PatchBuilder, TransformBuilder | FeatureBuilder | FileSetBuilder, MoveFileBuilder, DuplicateFileBuilder, RemoveFileBuilder, CreateFolderBuilder | ServiceBuilder, ServiceControlBuilder, ServiceFailureActionsBuilder | RegistryBuilder, RegistryKeyBuilder, RemoveRegistryBuilder | CustomActionBuilder (incl. simplified DllFromBinary overload) | CustomTableBuilder, ColumnOptions, RowBuilder | SequenceBuilder | ShortcutBuilder, EnvironmentVariableBuilder, AssemblyBuilder, MajorUpgradeBuilder, DowngradeBuilder, MediaTemplateBuilder, UpgradeBuilder, SigningOptionsBuilder, PropertyBuilder, PermissionBuilder, VerbBuilder, FileAssociationBuilder, FontBuilder, IniFileBuilder
 
-**Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-008, REG001-006, CTB001-010, MUP001/003, DNG001-002 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002
+**Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-008, REG001-007, CTB001-011, MUP001/003, DNG001-002 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002
 
 ## Compiler.Msi (`src/FalkForge.Compiler.Msi/`)
 Compilers: MsiCompiler (ICompiler), MsmCompiler, PatchCompiler, TransformCompiler
@@ -129,6 +129,8 @@ Phases: Initializing → Detecting → Planning → Elevating → Applying → C
 ElevatedHost (args, PID verify + PID recycling defense via parent start time capture, HMAC), ElevatedCommandExecutor (whitelisted dispatch), ElevationSecurityLog (file-based security event logger, thread-safe, NativeAOT-compatible), Commands/: MsiInstall, MsiUninstall (both use IMsiApi P/Invoke, not msiexec.exe), ServiceInstall, RegistryWrite, FileWrite
 
 **IInstallerEngine Property Passing**: `SetProperty(name, value)` sends SetPropertyMessage via pipe → EngineHost stores in VariableStore + EngineContext.UserProperties → forwarded to MsiExecutor as `PROPERTY=value`. `SetSecureProperty(name, SensitiveBytes)` sends SetSecurePropertyMessage via pipe → stored as SecureVariable (zeroed on dispose), tracked in EngineContext.SecretPropertyNames → passed to MSI via IMsiApi.SetProperty (never CLI). Use PasswordBridge + GetPassword + SetSecureProperty.
+
+**Compile-Time Security Guards**: REG007 warns when registry values reference MSI properties with sensitive names (PASSWORD, SECRET, CREDENTIAL, TOKEN, APIKEY, PASSPHRASE, PIN). CTB011 does the same for custom table values. These are compile-time warnings — sensitive data written to registry or custom tables is stored in plaintext.
 
 **Self-Extraction**: Bundles support `--extract <dir>` and `--extract-list` command-line switches for extracting embedded payloads without running the installer UI or requiring elevation.
 
