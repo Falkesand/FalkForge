@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Localization — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Localization</h1>
+    <div class="tutorial-meta">
+      10 min read · Prerequisite: <a href="getting-started.html">Getting Started</a> · Wraps <code>demo/08-localization</code>
+    </div>
+
+    <!-- Intro -->
+    <p>FalkForge supports multi-language installers with JSON-based localization and culture fallback chains. Your installer can detect the user's language and display the right strings automatically.</p>
+
+    <!-- Section 1: Built-in Cultures -->
+    <h2>Built-in Cultures</h2>
+    <p>FalkForge ships with two built-in cultures: English (<code>en-US</code>) and Swedish (<code>sv-SE</code>). One method call loads both.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">Localization</span><span class="punc">(</span>loc <span class="punc">=></span>
+<span class="punc">{</span>
+    loc<span class="punc">.</span><span class="method">AddBuiltInCultures</span><span class="punc">();</span>
+    loc<span class="punc">.</span><span class="method">DefaultCulture</span><span class="punc">(</span><span class="str">"en-US"</span><span class="punc">);</span>
+    loc<span class="punc">.</span><span class="method">DetectCulture</span><span class="punc">();</span>
+<span class="punc">});</span></code></pre>
+    <ul>
+      <li><code>AddBuiltInCultures()</code> loads the bundled <code>en-US</code> and <code>sv-SE</code> string tables.</li>
+      <li><code>DefaultCulture("en-US")</code> sets the fallback language. If no match is found, this culture wins.</li>
+      <li><code>DetectCulture()</code> reads the OS locale at build time and selects the closest match.</li>
+    </ul>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Culture fallback chain</summary>
+      <div class="deep-dive-content">
+        <p>When FalkForge resolves a localized string, it walks a fallback chain from most specific to least specific:</p>
+        <ol>
+          <li><strong>Exact match</strong> &mdash; e.g. <code>sv-SE</code></li>
+          <li><strong>Parent culture</strong> &mdash; e.g. <code>sv</code> (the neutral language without a region)</li>
+          <li><strong>Default culture</strong> &mdash; e.g. <code>en-US</code></li>
+        </ol>
+        <p>For example, if the OS reports <code>de-AT</code> (Austrian German), the chain is: <code>de-AT</code> &rarr; <code>de</code> &rarr; <code>en-US</code>. A string defined only in <code>de</code> still appears for Austrian users. A string missing from both falls back to <code>en-US</code>.</p>
+      </div>
+    </details>
+
+    <!-- Section 2: Custom Localization Files -->
+    <h2>Custom Localization Files</h2>
+    <p>Add your own languages with JSON files. Each file is a flat object mapping string IDs to translated text.</p>
+    <pre><code><span class="cmt">// strings.en-US.json</span>
+<span class="punc">{</span>
+  <span class="str">"ProductName"</span><span class="punc">:</span> <span class="str">"Localized App"</span><span class="punc">,</span>
+  <span class="str">"WelcomeMessage"</span><span class="punc">:</span> <span class="str">"Welcome to the installation wizard"</span><span class="punc">,</span>
+  <span class="str">"FeatureCore"</span><span class="punc">:</span> <span class="str">"Core Application"</span><span class="punc">,</span>
+  <span class="str">"FeaturePlugins"</span><span class="punc">:</span> <span class="str">"Optional Plugins"</span><span class="punc">,</span>
+  <span class="str">"FinishMessage"</span><span class="punc">:</span> <span class="str">"Installation complete. Click Finish to exit."</span>
+<span class="punc">}</span></code></pre>
+    <p>Load files with <code>AddJsonFile()</code>. FalkForge infers the culture from the file name. The naming convention is <code>name.culture.json</code>.</p>
+    <pre><code><span class="kw">var</span> langDir <span class="punc">=</span> <span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span><span class="typ">AppContext</span><span class="punc">.</span>BaseDirectory<span class="punc">,</span> <span class="str">"lang"</span><span class="punc">);</span>
+
+loc<span class="punc">.</span><span class="method">AddJsonFile</span><span class="punc">(</span><span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span>langDir<span class="punc">,</span> <span class="str">"strings.en-US.json"</span><span class="punc">));</span>
+loc<span class="punc">.</span><span class="method">AddJsonFile</span><span class="punc">(</span><span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span>langDir<span class="punc">,</span> <span class="str">"strings.de.json"</span><span class="punc">));</span>
+loc<span class="punc">.</span><span class="method">AddJsonFile</span><span class="punc">(</span><span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span>langDir<span class="punc">,</span> <span class="str">"strings.fr.json"</span><span class="punc">));</span></code></pre>
+    <p>Reference localized strings anywhere you use a string property. The syntax is <code>!(loc.StringId)</code>.</p>
+    <pre><code>package<span class="punc">.</span>Name <span class="punc">=</span> <span class="str">"!(loc.ProductName)"</span><span class="punc">;</span>
+package<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"!(loc.WelcomeMessage)"</span><span class="punc">;</span></code></pre>
+    <p>At compile time, FalkForge replaces each <code>!(loc.StringId)</code> reference with the resolved string for the selected culture.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: String resolution and circular reference detection</summary>
+      <div class="deep-dive-content">
+        <p>The <code>LocalizedStringResolver</code> processes every string property in the package model. When it encounters <code>!(loc.StringId)</code>, it looks up the key in the active culture's string table, then walks the fallback chain if needed.</p>
+        <p>Localized strings can reference other localized strings. For example, <code>"AppTitle"</code> could resolve to <code>"!(loc.ProductName) v2"</code>. The resolver follows these references recursively.</p>
+        <p>To prevent infinite loops, the resolver tracks visited keys during each resolution. If it encounters a key it has already seen, it stops and reports a <code>LOC003</code> circular reference error instead of hanging.</p>
+      </div>
+    </details>
+
+    <!-- Section 3: UI Localization -->
+    <h2>UI Localization</h2>
+    <p>For bundle installers with a WPF custom UI, FalkForge provides runtime culture switching. Users can change the language without restarting the installer.</p>
+    <pre><code>loc<span class="punc">.</span><span class="method">AllowLanguageSelection</span><span class="punc">();</span></code></pre>
+    <p>This enables a built-in <code>LanguageSelectorControl</code> in the UI. It displays a dropdown of all loaded cultures. When the user picks a different language, the UI updates immediately.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How WPF strings refresh on culture change</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge's UI localization uses WPF <code>DynamicResource</code> bindings. Each localized string is stored as a resource in the application's resource dictionary.</p>
+        <p>When the user selects a new culture, the <code>UiStringResolver</code> reloads the resource dictionary with strings from the new culture. Because the bindings are dynamic (not static), WPF automatically re-evaluates every bound element.</p>
+        <p>Custom pages built with <code>InstallerPage</code> can call <code>Localize()</code> for O(1) string lookup. The base class also provides <code>NotifyCultureChanged()</code>, which triggers a blanket WPF property refresh so all bound UI elements pick up the new strings.</p>
+      </div>
+    </details>
+
+    <!-- Section 4: The Localization API (demo 08) -->
+    <h2>The Localization API</h2>
+    <p>Demo 08 ties everything together. Here is the full localization setup from <code>demo/08-localization/Program.cs</code>.</p>
+
+    <h3>Configure the LocalizationBuilder</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Localization</span><span class="punc">(</span>loc <span class="punc">=></span>
+<span class="punc">{</span>
+    loc<span class="punc">.</span><span class="method">AddBuiltInCultures</span><span class="punc">();</span>
+    loc<span class="punc">.</span><span class="method">AddJsonFile</span><span class="punc">(</span><span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span>langDir<span class="punc">,</span> <span class="str">"strings.en-US.json"</span><span class="punc">));</span>
+    loc<span class="punc">.</span><span class="method">AddJsonFile</span><span class="punc">(</span><span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span>langDir<span class="punc">,</span> <span class="str">"strings.de.json"</span><span class="punc">));</span>
+    loc<span class="punc">.</span><span class="method">AddJsonFile</span><span class="punc">(</span><span class="typ">Path</span><span class="punc">.</span><span class="method">Combine</span><span class="punc">(</span>langDir<span class="punc">,</span> <span class="str">"strings.fr.json"</span><span class="punc">));</span>
+
+    loc<span class="punc">.</span><span class="method">AddCulture</span><span class="punc">(</span><span class="str">"de-AT"</span><span class="punc">,</span> <span class="kw">new</span> <span class="typ">Dictionary</span><span class="punc">&lt;</span><span class="kw">string</span><span class="punc">,</span> <span class="kw">string</span><span class="punc">&gt;</span>
+    <span class="punc">{</span>
+        <span class="punc">[</span><span class="str">"FinishMessage"</span><span class="punc">]</span> <span class="punc">=</span> <span class="str">"Installation abgeschlossen. Bitte auf Fertigstellen klicken."</span>
+    <span class="punc">});</span>
+
+    loc<span class="punc">.</span><span class="method">DefaultCulture</span><span class="punc">(</span><span class="str">"en-US"</span><span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+    <p>This loads four cultures: two built-in (<code>en-US</code>, <code>sv-SE</code>), three from JSON (<code>en-US</code>, <code>de</code>, <code>fr</code>), and one inline (<code>de-AT</code>). The Austrian German culture only overrides <code>FinishMessage</code>. Every other string falls back to <code>de</code>, then <code>en-US</code>.</p>
+
+    <h3>Use localized strings in metadata</h3>
+    <pre><code>package<span class="punc">.</span>Name <span class="punc">=</span> <span class="str">"!(loc.ProductName)"</span><span class="punc">;</span>
+package<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"!(loc.WelcomeMessage)"</span><span class="punc">;</span></code></pre>
+    <p>The product name appears as "Localized App" in English, "Lokalisierte App" in German, and "Application Localisee" in French.</p>
+
+    <h3>Localized feature titles</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"Core"</span><span class="punc">,</span> f <span class="punc">=></span>
+<span class="punc">{</span>
+    f<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"!(loc.FeatureCore)"</span><span class="punc">;</span>
+    f<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"!(loc.FeatureCore)"</span><span class="punc">;</span>
+    f<span class="punc">.</span>IsRequired <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p>Feature titles in the FeatureTree dialog show the translated text. A German user sees "Kernanwendung" where an English user sees "Core Application".</p>
+
+    <h3>Localized shortcuts</h3>
+    <pre><code>package<span class="punc">.</span><span class="method">Shortcut</span><span class="punc">(</span><span class="str">"!(loc.ProductName)"</span><span class="punc">,</span> <span class="str">"app.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithDescription</span><span class="punc">(</span><span class="str">"!(loc.WelcomeMessage)"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">OnStartMenu</span><span class="punc">(</span><span class="str">"Falk Software"</span><span class="punc">);</span></code></pre>
+    <p>The Start Menu shortcut name and tooltip are localized too. Any string property accepts <code>!(loc.*)</code> references.</p>
+
+    <!-- Try it -->
+    <h2>Try it</h2>
+    <pre><code>dotnet run --project demo/08-localization</code></pre>
+    <p>Build the demo and inspect the output MSI. The dialog text, feature names, and shortcut labels all reflect the resolved culture.</p>
+
+    <!-- Recap -->
+    <h2>Recap</h2>
+    <ul>
+      <li>Always set a <code>DefaultCulture</code>. It is the final fallback when no other culture matches.</li>
+      <li>Use the built-in cultures (<code>en-US</code>, <code>sv-SE</code>) as templates for your own JSON files.</li>
+      <li>Test with multiple languages. Run the demo, change your OS locale, and verify the output.</li>
+      <li>Keep string IDs consistent across all JSON files. A missing key silently falls back &mdash; easy to miss.</li>
+      <li>Use <code>AddCulture()</code> for regional variants that only override a few strings.</li>
+    </ul>
+
+    <nav class="tutorial-nav">
+      <span></span>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
