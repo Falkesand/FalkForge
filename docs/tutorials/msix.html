@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSIX Packaging — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>MSIX Packaging</h1>
+    <div class="tutorial-meta">
+      10 min read &middot; Prerequisite: <a href="getting-started.html">Getting Started</a> &middot; Wraps <code>demo/15-msix-basic</code> and <code>demo/52-msix-advanced</code>
+    </div>
+
+    <!-- Intro -->
+    <h2>What you'll build</h2>
+    <p>MSIX is Microsoft's modern packaging format. It provides container-based isolation, automatic updates, and Windows Store distribution. FalkForge can produce both MSI and MSIX from the same codebase.</p>
+    <p>By the end of this tutorial you will have a working MSIX package, understand the AppxManifest, VFS mapping, code signing, and know how to create multi-architecture bundles.</p>
+
+    <!-- MSIX vs MSI -->
+    <h2>When to use MSIX vs MSI</h2>
+    <p>Both formats install software on Windows. They serve different audiences.</p>
+    <table>
+      <thead><tr><th></th><th>MSI</th><th>MSIX</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Isolation</strong></td><td>Shared system state</td><td>Container-based &mdash; each app gets its own virtualized filesystem and registry</td></tr>
+        <tr><td><strong>Updates</strong></td><td>Manual or via management tools</td><td>Built-in auto-update via <code>.appinstaller</code></td></tr>
+        <tr><td><strong>Distribution</strong></td><td>SCCM, Group Policy, web download</td><td>Microsoft Store, web download, SCCM</td></tr>
+        <tr><td><strong>Uninstall</strong></td><td>Clean when authored correctly</td><td>Always clean &mdash; container is removed entirely</td></tr>
+        <tr><td><strong>Services</strong></td><td>Full Windows service support</td><td>Limited &mdash; background tasks only</td></tr>
+        <tr><td><strong>Admin rights</strong></td><td>Typically required</td><td>Per-user install without elevation</td></tr>
+        <tr><td><strong>OS support</strong></td><td>Windows XP and later</td><td>Windows 10 1809 and later</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Rule of thumb:</strong> Use MSIX for end-user desktop apps. Use MSI for server software, services, or environments that require Group Policy deployment.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: MSIX container isolation</summary>
+      <div class="deep-dive-content">
+        <p>MSIX apps run inside a lightweight container. The container virtualizes the filesystem and registry so the app <em>believes</em> it writes to <code>C:\Program Files</code> or <code>HKLM</code>, but changes stay inside the package's private storage.</p>
+        <p>This means:</p>
+        <ul>
+          <li>Uninstall removes everything &mdash; no leftover files or registry keys.</li>
+          <li>Multiple versions can coexist side-by-side.</li>
+          <li>Apps cannot interfere with each other's files.</li>
+        </ul>
+        <p>The container uses the MSIX Virtual File System (VFS). FalkForge maps your <code>KnownFolder</code> targets to VFS paths automatically.</p>
+      </div>
+    </details>
+
+    <!-- Prerequisites -->
+    <h2>Prerequisites</h2>
+    <ul>
+      <li>.NET 10 SDK installed.</li>
+      <li>Windows 10 SDK (for <code>signtool.exe</code> and the Appx packaging APIs).</li>
+      <li>A code-signing certificate (self-signed is fine for development).</li>
+    </ul>
+
+    <!-- Basic MSIX -->
+    <h2>Creating a basic MSIX package</h2>
+    <p>Open <code>demo/15-msix-basic/msix-basic.csx</code>. This is the entire MSIX installer &mdash; about 28 lines.</p>
+
+    <h3>Imports</h3>
+    <pre><code><span class="kw">using</span> <span class="typ">FalkForge</span><span class="punc">;</span>
+<span class="kw">using</span> <span class="typ">FalkForge<span class="punc">.</span>Compiler<span class="punc">.</span>Msix</span><span class="punc">;</span>
+<span class="kw">using</span> <span class="typ">FalkForge<span class="punc">.</span>Compiler<span class="punc">.</span>Msix<span class="punc">.</span>Builders</span><span class="punc">;</span></code></pre>
+    <p><code>FalkForge</code> provides the entry point. <code>Compiler.Msix</code> contains the MSIX compiler and model types. <code>Builders</code> provides the fluent API.</p>
+
+    <h3>The entry point</h3>
+    <pre><code><span class="typ">InstallerMsix</span><span class="punc">.</span><span class="method">BuildMsix</span><span class="punc">(</span>args<span class="punc">,</span> msix <span class="punc">=></span>
+<span class="punc">{</span>
+    <span class="cmt">// ... MSIX configuration ...</span>
+<span class="punc">},</span> <span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">)</span> <span class="punc">=></span>
+<span class="punc">{</span>
+    <span class="kw">var</span> compiler <span class="punc">=</span> <span class="kw">new</span> <span class="typ">MsixCompiler</span><span class="punc">();</span>
+    <span class="kw">return</span> compiler<span class="punc">.</span><span class="method">Compile</span><span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+    <p><code>InstallerMsix.BuildMsix</code> takes three arguments: command-line args, a builder lambda, and a compile function. The builder lambda configures the package. The compile function receives the validated model and produces the <code>.msix</code> file.</p>
+
+    <h3>Package identity</h3>
+    <pre><code>msix
+    <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"FalkForge.Demo.MsixBasic"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Publisher</span><span class="punc">(</span><span class="str">"CN=FalkForge Demo"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"MSIX Basic Demo"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">PublisherDisplayName</span><span class="punc">(</span><span class="str">"FalkForge"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Version</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">1</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Architecture</span><span class="punc">(</span><span class="typ">ProcessorArchitecture</span><span class="punc">.</span>X64<span class="punc">)</span></code></pre>
+    <p>Every MSIX package has an identity: <code>Name</code>, <code>Publisher</code>, <code>Version</code>, and <code>Architecture</code>. The <code>Publisher</code> must match the subject of your signing certificate and start with <code>CN=</code>. The version requires four parts (Major.Minor.Build.Revision).</p>
+    <p><code>DisplayName</code> and <code>PublisherDisplayName</code> are human-readable labels shown in Settings &gt; Apps.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: MSIX vs MSI identity</summary>
+      <div class="deep-dive-content">
+        <p>MSI uses a GUID-based <code>UpgradeCode</code> to link product versions. MSIX uses a string-based <code>Name</code> + <code>Publisher</code> pair instead. The combination uniquely identifies your app across all versions.</p>
+        <p>Like the MSI UpgradeCode, never change the Name or Publisher after you ship. Doing so creates a new, unrelated package from Windows' perspective.</p>
+      </div>
+    </details>
+
+    <h3>Declaring an application</h3>
+    <pre><code>    <span class="punc">.</span><span class="method">Application</span><span class="punc">(</span><span class="str">"App"</span><span class="punc">,</span> <span class="str">"hello.exe"</span><span class="punc">,</span> app <span class="punc">=></span> app
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Hello World"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square44x44Logo</span><span class="punc">(</span><span class="str">"assets/Square44x44Logo.png"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square150x150Logo</span><span class="punc">(</span><span class="str">"assets/Square150x150Logo.png"</span><span class="punc">))</span></code></pre>
+    <p>An MSIX package must declare at least one application. Each application has an <code>Id</code>, an <code>Executable</code> path, and visual elements. The logos appear on the Start menu tile and taskbar.</p>
+    <p>Required logo sizes: 44x44 (taskbar) and 150x150 (Start menu). An optional 310x150 wide logo enables the wide tile layout.</p>
+
+    <h3>Capabilities and signing</h3>
+    <pre><code>    <span class="punc">.</span><span class="method">Capability</span><span class="punc">(</span><span class="str">"internetClient"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">MinWindowsVersion</span><span class="punc">(</span><span class="str">"10.0.17763.0"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Signing</span><span class="punc">(</span>s <span class="punc">=></span> s<span class="punc">.</span><span class="method">CertificatePath</span><span class="punc">(</span><span class="str">"demo-cert.pfx"</span><span class="punc">));</span></code></pre>
+    <p>Capabilities declare what the app can access. Common values: <code>internetClient</code>, <code>privateNetworkClientServer</code>, <code>webcam</code>, <code>microphone</code>. Restricted capabilities like <code>runFullTrust</code> require Store approval.</p>
+    <p><code>MinWindowsVersion</code> sets the minimum OS version. The default is <code>10.0.17763.0</code> (Windows 10 1809).</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Code signing (required for MSIX)</summary>
+      <div class="deep-dive-content">
+        <p>Unlike MSI, MSIX packages <strong>must</strong> be signed. Windows refuses to install unsigned MSIX packages. FalkForge validates this at build time (rule <code>MSIX008</code>).</p>
+        <p>The <code>Publisher</code> field in the manifest must exactly match the certificate subject. A mismatch causes installation failure.</p>
+        <p>Signing options:</p>
+        <ul>
+          <li><strong>Certificate file:</strong> <code>.CertificatePath("path/to/cert.pfx")</code> &mdash; good for CI/CD pipelines.</li>
+          <li><strong>Certificate store:</strong> <code>.CertificateThumbprint("ABC123...")</code> &mdash; references a certificate in the Windows certificate store.</li>
+          <li><strong>Timestamp:</strong> <code>.TimestampUrl("http://timestamp.digicert.com")</code> &mdash; ensures the signature remains valid after the certificate expires.</li>
+        </ul>
+        <p>For development, create a self-signed certificate:</p>
+        <pre><code>New-SelfSignedCertificate -Type Custom -Subject "CN=FalkForge Demo" `
+  -KeyUsage DigitalSignature -FriendlyName "Dev MSIX" `
+  -CertStoreLocation "Cert:\CurrentUser\My" `
+  -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")</code></pre>
+      </div>
+    </details>
+
+    <!-- Try it -->
+    <h2>Try it</h2>
+    <pre><code>dotnet script demo/15-msix-basic/msix-basic.csx</code></pre>
+    <p>This produces a <code>.msix</code> file in the output directory. You can install it by double-clicking, or use PowerShell:</p>
+    <pre><code>Add-AppxPackage -Path .\output\MSIX_Basic_Demo-1.0.0.0.msix</code></pre>
+
+    <!-- AppxManifest -->
+    <h2>AppxManifest configuration</h2>
+    <p>FalkForge generates the <code>AppxManifest.xml</code> automatically from the builder configuration. The manifest is the heart of an MSIX package &mdash; it declares identity, applications, capabilities, dependencies, and extensions.</p>
+    <p>You never write XML directly. The fluent API maps to manifest elements:</p>
+    <table>
+      <thead><tr><th>Builder method</th><th>Manifest element</th></tr></thead>
+      <tbody>
+        <tr><td><code>.Name()</code></td><td><code>&lt;Identity Name&gt;</code></td></tr>
+        <tr><td><code>.Publisher()</code></td><td><code>&lt;Identity Publisher&gt;</code></td></tr>
+        <tr><td><code>.Application()</code></td><td><code>&lt;Application&gt;</code></td></tr>
+        <tr><td><code>.Capability()</code></td><td><code>&lt;Capability&gt;</code></td></tr>
+        <tr><td><code>.RestrictedCapability()</code></td><td><code>&lt;rescap:Capability&gt;</code></td></tr>
+        <tr><td><code>.Extension()</code></td><td><code>&lt;uap:Extension&gt;</code></td></tr>
+        <tr><td><code>.Dependency()</code></td><td><code>&lt;PackageDependency&gt;</code></td></tr>
+        <tr><td><code>.MinWindowsVersion()</code></td><td><code>&lt;TargetDeviceFamily MinVersion&gt;</code></td></tr>
+      </tbody>
+    </table>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Windows Store requirements</summary>
+      <div class="deep-dive-content">
+        <p>Publishing to the Microsoft Store adds requirements beyond what FalkForge validates:</p>
+        <ul>
+          <li><strong>Store-signed certificate:</strong> Microsoft signs your package during submission. Use your own certificate for sideloading only.</li>
+          <li><strong>Content policies:</strong> No malware, deceptive behavior, or prohibited content.</li>
+          <li><strong>Package identity:</strong> Must match the identity reserved in Partner Center.</li>
+          <li><strong>Restricted capabilities:</strong> Capabilities like <code>runFullTrust</code> require justification and approval.</li>
+          <li><strong>Privacy policy:</strong> Required if the app collects personal data.</li>
+          <li><strong>Age ratings:</strong> All Store apps must declare an age rating.</li>
+        </ul>
+        <p>For enterprise sideloading, these Store requirements do not apply. You sign with your own certificate and distribute directly.</p>
+      </div>
+    </details>
+
+    <!-- VFS -->
+    <h2>VFS (Virtual File System) mapping</h2>
+    <p>MSIX uses a Virtual File System to map traditional install locations into the package container. FalkForge handles this mapping automatically when you target standard folders.</p>
+
+    <h3>Automatic mapping (default)</h3>
+    <p>When <code>VfsMappingMode</code> is <code>Auto</code> (the default), FalkForge maps <code>KnownFolder</code> targets to their VFS equivalents:</p>
+    <table>
+      <thead><tr><th>KnownFolder</th><th>VFS path</th></tr></thead>
+      <tbody>
+        <tr><td><code>ProgramFiles</code></td><td><code>VFS/ProgramFilesX64</code></td></tr>
+        <tr><td><code>CommonAppData</code></td><td><code>VFS/CommonAppData</code></td></tr>
+        <tr><td><code>AppData</code></td><td><code>VFS/AppData</code></td></tr>
+        <tr><td><code>LocalAppData</code></td><td><code>VFS/LocalAppData</code></td></tr>
+        <tr><td><code>System</code></td><td><code>VFS/SystemX64</code></td></tr>
+        <tr><td><code>Windows</code></td><td><code>VFS/Windows</code></td></tr>
+        <tr><td><code>Fonts</code></td><td><code>VFS/Fonts</code></td></tr>
+      </tbody>
+    </table>
+    <p>For x86 packages, <code>ProgramFiles</code> maps to <code>VFS/ProgramFilesX86</code> instead.</p>
+
+    <h3>Manual mapping</h3>
+    <p>Switch to <code>Manual</code> mode and provide explicit overrides:</p>
+    <pre><code>msix
+    <span class="punc">.</span><span class="method">VfsMapping</span><span class="punc">(</span><span class="typ">VfsMappingMode</span><span class="punc">.</span>Manual<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">VfsOverride</span><span class="punc">(</span><span class="str">"bin/release"</span><span class="punc">,</span> <span class="str">"VFS/ProgramFilesX64/MyApp"</span><span class="punc">)</span></code></pre>
+    <p>In <code>Manual</code> mode, files without an override are placed at the package root. Use overrides to place specific source directories at specific VFS paths.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How MSIX container isolation works with VFS</summary>
+      <div class="deep-dive-content">
+        <p>When an MSIX app reads <code>C:\Program Files\MyApp\config.json</code>, Windows intercepts the call and redirects it to the package's <code>VFS/ProgramFilesX64/MyApp/config.json</code>. The app never knows the difference.</p>
+        <p>Writes work the same way. If the app tries to write to <code>C:\Program Files\MyApp\</code>, the write goes to a private copy-on-write layer. The original files remain untouched. On uninstall, the private layer is deleted.</p>
+        <p>This is why MSIX uninstalls are always clean &mdash; there is no shared state to corrupt.</p>
+      </div>
+    </details>
+
+    <!-- Advanced: demo/52 -->
+    <h2>Advanced MSIX packaging</h2>
+    <p>The <code>demo/52-msix-advanced</code> example shows multi-application packages, extensions, dependencies, and auto-update. Here are the key additions.</p>
+
+    <h3>Multiple applications</h3>
+    <pre><code>msix
+    <span class="cmt">// Main editor application</span>
+    <span class="punc">.</span><span class="method">Application</span><span class="punc">(</span><span class="str">"Editor"</span><span class="punc">,</span> <span class="str">"editor.exe"</span><span class="punc">,</span> app <span class="punc">=></span> app
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Demo Editor"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Description</span><span class="punc">(</span><span class="str">"Document editor with file type associations"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">BackgroundColor</span><span class="punc">(</span><span class="str">"#1E1E1E"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square44x44Logo</span><span class="punc">(</span><span class="str">"assets/Square44x44Logo.png"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square150x150Logo</span><span class="punc">(</span><span class="str">"assets/Square150x150Logo.png"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Wide310x150Logo</span><span class="punc">(</span><span class="str">"assets/Wide310x150Logo.png"</span><span class="punc">))</span>
+
+    <span class="cmt">// CLI utility</span>
+    <span class="punc">.</span><span class="method">Application</span><span class="punc">(</span><span class="str">"Cli"</span><span class="punc">,</span> <span class="str">"demotool.exe"</span><span class="punc">,</span> app <span class="punc">=></span> app
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Demo CLI Tool"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square44x44Logo</span><span class="punc">(</span><span class="str">"assets/Square44x44Logo.png"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square150x150Logo</span><span class="punc">(</span><span class="str">"assets/Square150x150Logo.png"</span><span class="punc">))</span>
+
+    <span class="cmt">// Background service</span>
+    <span class="punc">.</span><span class="method">Application</span><span class="punc">(</span><span class="str">"SyncService"</span><span class="punc">,</span> <span class="str">"sync-service.exe"</span><span class="punc">,</span> app <span class="punc">=></span> app
+        <span class="punc">.</span><span class="method">EntryPoint</span><span class="punc">(</span><span class="str">"DemoApp.SyncService"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"Demo Sync Service"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square44x44Logo</span><span class="punc">(</span><span class="str">"assets/Square44x44Logo.png"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Square150x150Logo</span><span class="punc">(</span><span class="str">"assets/Square150x150Logo.png"</span><span class="punc">))</span></code></pre>
+    <p>A single MSIX package can contain multiple executables. Each <code>.Application()</code> call registers a separate entry in the Start menu. The <code>EntryPoint</code> method is used for background tasks and services.</p>
+
+    <h3>Extensions (file types and protocols)</h3>
+    <pre><code>    <span class="cmt">// File type associations</span>
+    <span class="punc">.</span><span class="method">Extension</span><span class="punc">(</span><span class="str">"windows.fileTypeAssociation"</span><span class="punc">,</span> <span class="str">"DemoApp.Editor"</span><span class="punc">)</span>
+
+    <span class="cmt">// Protocol handler (demo:// deep links)</span>
+    <span class="punc">.</span><span class="method">Extension</span><span class="punc">(</span><span class="str">"windows.protocol"</span><span class="punc">,</span> <span class="str">"DemoApp.Editor"</span><span class="punc">)</span></code></pre>
+    <p>MSIX extensions register OS integrations. <code>windows.fileTypeAssociation</code> associates file types with your app. <code>windows.protocol</code> registers a custom URI scheme. The second argument is the entry point class.</p>
+
+    <h3>Restricted capabilities</h3>
+    <pre><code>    <span class="punc">.</span><span class="method">Capability</span><span class="punc">(</span><span class="str">"internetClient"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Capability</span><span class="punc">(</span><span class="str">"privateNetworkClientServer"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">RestrictedCapability</span><span class="punc">(</span><span class="str">"runFullTrust"</span><span class="punc">)</span></code></pre>
+    <p>Standard capabilities are declared with <code>.Capability()</code>. Restricted capabilities use <code>.RestrictedCapability()</code>. The <code>runFullTrust</code> capability lets the app escape some container restrictions &mdash; needed for most desktop apps converted to MSIX.</p>
+
+    <h3>Package dependencies</h3>
+    <pre><code>    <span class="punc">.</span><span class="method">Dependency</span><span class="punc">(</span>
+        <span class="str">"Microsoft.VCLibs.140.00.UWPDesktop"</span><span class="punc">,</span>
+        <span class="str">"CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"</span><span class="punc">,</span>
+        <span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">14</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">30704</span><span class="punc">,</span> <span class="num">0</span><span class="punc">))</span></code></pre>
+    <p>Declare framework dependencies that Windows must install before your app. The VCLibs package is the most common &mdash; it provides the Visual C++ runtime for UWP/MSIX apps.</p>
+
+    <h3>Auto-update via .appinstaller</h3>
+    <pre><code>    <span class="punc">.</span><span class="method">UpdateSettings</span><span class="punc">(</span><span class="str">"https://releases.example.com/demo/Demo.appinstaller"</span><span class="punc">,</span> update <span class="punc">=></span>
+    <span class="punc">{</span>
+        update<span class="punc">.</span><span class="method">HoursBetweenUpdateChecks</span><span class="punc">(</span><span class="num">6</span><span class="punc">);</span>
+        update<span class="punc">.</span><span class="method">ShowPrompt</span><span class="punc">();</span>
+        update<span class="punc">.</span><span class="method">AutomaticBackgroundTask</span><span class="punc">();</span>
+        update<span class="punc">.</span><span class="method">ForceUpdateFromAnyVersion</span><span class="punc">();</span>
+    <span class="punc">})</span></code></pre>
+    <p>FalkForge generates a <code>.appinstaller</code> file alongside the <code>.msix</code>. Host it on a web server and Windows handles the rest. Update options:</p>
+    <ul>
+      <li><code>HoursBetweenUpdateChecks</code> &mdash; how often Windows checks for a new version (default: 24).</li>
+      <li><code>ShowPrompt</code> &mdash; show a dialog before updating.</li>
+      <li><code>AutomaticBackgroundTask</code> &mdash; check for updates even when the app is not running.</li>
+      <li><code>UpdateBlocksActivation</code> &mdash; force the update before the app can launch.</li>
+      <li><code>ForceUpdateFromAnyVersion</code> &mdash; allow downgrades (useful for rollbacks).</li>
+    </ul>
+
+    <!-- MSIX Bundles -->
+    <h2>MSIX bundles for multi-architecture distribution</h2>
+    <p>An MSIX bundle (<code>.msixbundle</code>) combines multiple architecture-specific packages into one download. Windows automatically installs the correct architecture.</p>
+
+    <pre><code><span class="typ">InstallerMsix</span><span class="punc">.</span><span class="method">BuildMsixBundle</span><span class="punc">(</span>args<span class="punc">,</span> bundle <span class="punc">=></span>
+<span class="punc">{</span>
+    bundle
+        <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"FalkForge.Demo.MultiArch"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Publisher</span><span class="punc">(</span><span class="str">"CN=FalkForge Demo"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Version</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">1</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">))</span>
+        <span class="punc">.</span><span class="method">Package</span><span class="punc">(</span><span class="str">"output/MyApp-x64.msix"</span><span class="punc">,</span> <span class="typ">ProcessorArchitecture</span><span class="punc">.</span>X64<span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Package</span><span class="punc">(</span><span class="str">"output/MyApp-arm64.msix"</span><span class="punc">,</span> <span class="typ">ProcessorArchitecture</span><span class="punc">.</span>Arm64<span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Signing</span><span class="punc">(</span>s <span class="punc">=></span> s<span class="punc">.</span><span class="method">CertificatePath</span><span class="punc">(</span><span class="str">"cert.pfx"</span><span class="punc">));</span>
+<span class="punc">},</span> <span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">)</span> <span class="punc">=></span>
+<span class="punc">{</span>
+    <span class="kw">var</span> compiler <span class="punc">=</span> <span class="kw">new</span> <span class="typ">MsixBundleCompiler</span><span class="punc">();</span>
+    <span class="kw">return</span> compiler<span class="punc">.</span><span class="method">Compile</span><span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+    <p>Build each architecture-specific <code>.msix</code> first, then bundle them. The <code>.Package()</code> method adds a pre-built MSIX file to the bundle. Windows selects the matching architecture at install time.</p>
+
+    <!-- Validation rules -->
+    <h2>Validation rules</h2>
+    <p>FalkForge validates your MSIX configuration before compilation. If validation fails, you get a clear error code:</p>
+    <table>
+      <thead><tr><th>Code</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td><code>MSIX001</code></td><td>Package Name is required.</td></tr>
+        <tr><td><code>MSIX002</code></td><td>Publisher is required.</td></tr>
+        <tr><td><code>MSIX003</code></td><td>Publisher must start with <code>CN=</code>.</td></tr>
+        <tr><td><code>MSIX004</code></td><td>Version must have 4 parts (Major.Minor.Build.Revision).</td></tr>
+        <tr><td><code>MSIX005</code></td><td>At least one Application is required.</td></tr>
+        <tr><td><code>MSIX006</code></td><td>DisplayName is required.</td></tr>
+        <tr><td><code>MSIX007</code></td><td>PublisherDisplayName is required.</td></tr>
+        <tr><td><code>MSIX008</code></td><td>MSIX packages must be signed.</td></tr>
+        <tr><td><code>MSIX010</code></td><td>Application Id is required.</td></tr>
+        <tr><td><code>MSIX011</code></td><td>Application Executable is required.</td></tr>
+        <tr><td><code>MSIX012</code></td><td>MinWindowsVersion must be a valid version string.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Compilation pipeline -->
+    <details class="deep-dive">
+      <summary>Deep dive: MSIX compilation pipeline</summary>
+      <div class="deep-dive-content">
+        <p>The <code>MsixCompiler.Compile</code> method runs a seven-step pipeline:</p>
+        <ol>
+          <li><strong>Validate</strong> &mdash; checks the model against the MSIX rules.</li>
+          <li><strong>Resolve VFS layout</strong> &mdash; maps files to their VFS paths based on the mapping mode.</li>
+          <li><strong>Generate AppxManifest.xml</strong> &mdash; produces the manifest from the model.</li>
+          <li><strong>Build registry hive</strong> &mdash; if registry entries are declared, creates the virtual registry hive file.</li>
+          <li><strong>Create MSIX package</strong> &mdash; assembles the package using the Windows Appx packaging APIs.</li>
+          <li><strong>Sign the package</strong> &mdash; invokes <code>signtool.exe</code> with the configured certificate.</li>
+          <li><strong>Generate .appinstaller</strong> &mdash; if auto-update is configured, writes the update manifest alongside the package.</li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- What's next -->
+    <h2>What's next</h2>
+    <ul>
+      <li>Need traditional MSI instead? <a href="msi-basics.html">MSI Basics</a> covers shortcuts, services, and features.</li>
+      <li>Want EXE bundles that chain multiple MSIs? <a href="bundles.html">Bundles</a> covers the bundle compiler.</li>
+      <li>Migrating from WiX? <a href="coming-from-wix.html">Coming from WiX</a>.</li>
+    </ul>
+
+    <nav class="tutorial-nav">
+      <span></span>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
