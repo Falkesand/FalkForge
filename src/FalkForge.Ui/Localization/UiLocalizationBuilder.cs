@@ -30,6 +30,44 @@ public sealed class UiLocalizationBuilder
         return this;
     }
 
+    /// <summary>
+    /// Auto-discovers embedded JSON localization resources across all loaded assemblies.
+    /// Scans for embedded resources matching the pattern "lang.strings.{culture}.json".
+    /// </summary>
+    public UiLocalizationBuilder AddJsonResources()
+    {
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var name = assembly.GetName().Name;
+            if (name is null || name.StartsWith("System", StringComparison.Ordinal) ||
+                name.StartsWith("Microsoft", StringComparison.Ordinal) ||
+                name.StartsWith("netstandard", StringComparison.Ordinal) ||
+                assembly.IsDynamic)
+                continue;
+
+            string[] resourceNames;
+            try
+            {
+                resourceNames = assembly.GetManifestResourceNames();
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var resourceName in resourceNames)
+            {
+                if (resourceName.Contains("lang.strings.", StringComparison.OrdinalIgnoreCase) &&
+                    resourceName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    _resources.Add((assembly, resourceName));
+                }
+            }
+        }
+
+        return this;
+    }
+
     public UiLocalizationBuilder DetectCulture(bool detect = true)
     {
         _detectCulture = detect;

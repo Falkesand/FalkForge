@@ -39,8 +39,7 @@
 <span class="kw">return</span> <span class="typ">InstallerApp</span><span class="punc">.</span><span class="method">Run</span><span class="punc">(</span>args<span class="punc">,</span> app <span class="punc">=></span> app
     <span class="punc">.</span><span class="method">Localization</span><span class="punc">(</span>loc <span class="punc">=></span> loc
         <span class="punc">.</span><span class="method">DefaultCulture</span><span class="punc">(</span><span class="str">"en-US"</span><span class="punc">)</span>
-        <span class="punc">.</span><span class="method">AddJsonResource</span><span class="punc">&lt;</span><span class="typ">WelcomePage</span><span class="punc">&gt;(</span><span class="str">"lang.strings.en-US.json"</span><span class="punc">)</span>
-        <span class="punc">.</span><span class="method">AddJsonResource</span><span class="punc">&lt;</span><span class="typ">WelcomePage</span><span class="punc">&gt;(</span><span class="str">"lang.strings.sv-SE.json"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">AddJsonResources</span><span class="punc">()</span>
         <span class="punc">.</span><span class="method">DetectCulture</span><span class="punc">()</span>
         <span class="punc">.</span><span class="method">AllowLanguageSelection</span><span class="punc">())</span>
     <span class="punc">.</span><span class="method">Window</span><span class="punc">(</span>w <span class="punc">=></span> w
@@ -55,7 +54,7 @@
     <p><code>InstallerApp.Run()</code> is the entry point for every custom UI installer. It launches the WPF application, connects to the engine process, and renders your pages. The <code>return</code> passes the exit code back to the OS.</p>
     <p>Three builders configure the app:</p>
     <ul>
-      <li><strong>Localization</strong> &mdash; loads JSON string files, sets the default culture, and enables a language picker in the UI.</li>
+      <li><strong>Localization</strong> &mdash; loads JSON string files, sets the default culture, and enables a language picker in the UI. <code>AddJsonResources()</code> auto-discovers all embedded <code>lang.strings.*.json</code> resources across loaded assemblies. For explicit control, use <code>AddJsonResource&lt;T&gt;(path)</code> instead.</li>
       <li><strong>Window</strong> &mdash; sets the window size, title bar text, and accent colour.</li>
       <li><strong>Pages</strong> &mdash; registers pages in display order. The installer walks through them sequentially.</li>
     </ul>

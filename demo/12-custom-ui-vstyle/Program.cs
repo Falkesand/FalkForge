@@ -4,8 +4,7 @@ using FalkForge.Ui;
 return InstallerApp.Run(args, app => app
     .Localization(loc => loc
         .DefaultCulture("en-US")
-        .AddJsonResource<ProductPage>("lang.strings.en-US.json")
-        .AddJsonResource<ProductPage>("lang.strings.sv-SE.json")
+        .AddJsonResources()
         .DetectCulture()
         .AllowLanguageSelection())
     .Window(w => w
