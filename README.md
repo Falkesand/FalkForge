@@ -18,6 +18,9 @@ Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools
 - **WPF custom UI** -- Page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
 - **Security validation** -- Compile-time warnings for sensitive property references in registry and custom tables (REG007, CTB011).
 - **Prerequisite management** -- Built-in package groups for .NET Framework, VC++, ODBC drivers, SQL Server Express.
+- **WinGet manifest generation** -- Generate WinGet package manifests alongside MSI output -- `forge winget` CLI or `.WinGet()` fluent API.
+- **Delta updates** -- Binary delta updates for bundles -- only changed bytes downloaded, Octodiff-powered, automatic fallback to full download.
+- **CI/CD pipeline** -- GitHub Actions pipeline with build, test, and Roslynator code quality gates.
 - **52+ demo projects** -- From hello-world to complex multi-package bundles.
 
 ## Quick Start
@@ -203,6 +206,7 @@ forge inspect      Inspect a compiled MSI (Windows)
 forge decompile    Decompile MSI or EXE bundle to C# (Windows)
 forge extract      Extract files from an MSI or EXE bundle to disk
 forge bundle       Detach/reattach bundles for code signing
+forge winget       Generate WinGet manifest from a compiled MSI
 ```
 
 ## Architecture

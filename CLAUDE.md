@@ -64,6 +64,9 @@ Cli exe:       Core + Compiler.Msi/Bundle + Decompiler + Localization + Extensib
 **Unit** (`Core/Unit.cs`) -- `readonly record struct` for `Result<Unit>`.
 **Entry Points** (`Core/Installer.cs`) -- `Installer.Build()` MSI, `.BuildBundle()` EXE, `.BuildMergeModule()` MSM, `.BuildPatch()` MSP, `.BuildTransform()` MST.
 
+**WinGet** (`Core/WinGet/`) -- `PackageBuilder.WinGet(w => w.PackageIdentifier("Publisher.App").License("MIT").ShortDescription("..."))`. Auto-generates 3-file WinGet manifest (version + installer + locale YAML) alongside MSI output. SHA-256 computed at compile time. `forge winget <msi>` CLI for existing MSIs.
+**Delta Updates** (`Compiler.Bundle/Compilation/DeltaBundleCompiler`) -- `BundleBuilder.DeltaFrom(oldBundlePath)` generates delta bundles using Octodiff. Only changed payload bytes are included. Engine downloads delta-first, falls back to full bundle. TOC uses flag byte for backward compatibility.
+
 **MsiProperty** (`Core/MsiProperty.cs`) -- Type-safe MSI property refs. ~45 built-in statics. `Custom(string)` factory. `/` for path composition. Comparison operators return `Condition`.
 **Condition** (`Core/Condition.cs`) -- Type-safe MSI conditions. Pre-composed: Is64BitOS, IsPrivileged, IsAdmin, IsWindows10/11OrLater, IsInstalled/Installing/Uninstalling/Repairing. Operators: `&` AND, `|` OR, `!` NOT. `Property()`, `Raw()` factories. Implicit string conversion.
 **Reference Handles** -- Typed cross-refs: `ContainerRef`, `RollbackBoundaryRef` (Compiler.Bundle), `AppPoolRef`, `CertificateRef` (Extensions.Iis), `SqlDatabaseRef` (Extensions.Sql). `Define*` returns ref; consumer methods accept via overloads.
@@ -86,6 +89,8 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 **Models** (50+ files): PackageModel, FeatureModel, ComponentModel, FileEntryModel, DirectoryModel, BinaryModel | MergeModuleModel, PatchModel, TransformModel | ServiceModel, ServiceControlModel, ServiceDependencyModel | RegistryEntryModel, RemoveRegistryModel, RemoveRegistryAction | MoveFileModel, DuplicateFileModel, RemoveFileModel, CreateFolderModel | CustomActionModel, CustomActionType | CustomTableModel, CustomTableColumnModel, CustomTableColumnType | SequenceTable, SequenceActionModel, SequencePosition | MajorUpgradeModel, DowngradeModel, RemoveExistingProductsSchedule, UpgradeModel | ShortcutModel, EnvironmentVariableModel, AssemblyModel, AssemblyType, MediaTemplateModel, FeatureConditionModel, SigningOptions, ExitCodeBehavior, RelatedBundleRelation, LaunchConditionModel, PropertyModel, LocalizationData, VerbModel, FontModel, IniFileModel, FileAssociationModel, PermissionModel
 
 **Builders** (34+ files): PackageBuilder (main) | MergeModuleBuilder, PatchBuilder, TransformBuilder | FeatureBuilder | FileSetBuilder, MoveFileBuilder, DuplicateFileBuilder, RemoveFileBuilder, CreateFolderBuilder | ServiceBuilder, ServiceControlBuilder, ServiceFailureActionsBuilder | RegistryBuilder, RegistryKeyBuilder, RemoveRegistryBuilder | CustomActionBuilder (incl. simplified DllFromBinary overload) | CustomTableBuilder, ColumnOptions, RowBuilder | SequenceBuilder | ShortcutBuilder, EnvironmentVariableBuilder, AssemblyBuilder, MajorUpgradeBuilder, DowngradeBuilder, MediaTemplateBuilder, UpgradeBuilder, SigningOptionsBuilder, PropertyBuilder, PermissionBuilder, VerbBuilder, FileAssociationBuilder, FontBuilder, IniFileBuilder
+
+**WinGet/** (`Core/WinGet/`): WinGetManifestWriter (3-file YAML manifest generation), WinGetConfig model. PackageBuilder.WinGet() fluent configuration.
 
 **Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-008, REG001-007, CTB001-011, MUP001/003, DNG001-002 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002
 
@@ -113,7 +118,7 @@ Phases: Initializing → Detecting → Planning → Elevating → Applying → C
 - Planning/: Planner, InstallPlan, PlanAction
 - Execution/: PackageExecutor, MsiExecutor (uses IMsiApi P/Invoke InstallProduct/ConfigureProduct instead of msiexec.exe; 3-arg ctor with Func<IMsiApi?> lazy accessor; property value injection defense via ProhibitedValueChars), MsuExecutor, MspExecutor, BundleExecutor, ExitCodeMapping, ExecutionOutcome, IProcessRunner, ProcessRunner
 - Variables/: VariableStore (30+ built-ins), BuiltInVariables, SecureVariable (IDisposable, zeroed on dispose), ConditionEvaluator (recursive-descent), ConditionLexer, ConditionToken, TokenType
-- Download/: PayloadDownloader (HTTP+retry+SHA256), UpdateFeed, UpdateFeedEntry, UpdateInfo, UpdateCheckResult, UpdateFeedJsonContext (AOT), UpdateFeedParser (UPD002-003)
+- Download/: PayloadDownloader (HTTP+retry+SHA256), UpdateFeed, UpdateFeedEntry, UpdateInfo, UpdateCheckResult, UpdateFeedJsonContext (AOT), UpdateFeedParser (UPD002-003), DeltaApplicator (Octodiff delta application with SHA-256 verification), UpdateDownloader (delta-first with full-bundle fallback)
 - Layout/: LayoutManager, LayoutJsonContext | Cache/: PackageCache, CacheLayout (three-layer path traversal defense: allowlist regex, Path.GetFileName sanitization, Path.GetFullPath containment check)
 - Journal/: RollbackJournal, JournalEntry, RollbackExecutor | UndoOperations/: IUndoOperation, MsiUninstallOperation, ExeRollbackOperation, CacheCleanupOperation
 - RestartManager/: IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
@@ -123,7 +128,7 @@ Phases: Initializing → Detecting → Planning → Elevating → Applying → C
 - Messages/ (25 types): Detect/Plan/Apply Begin/Complete, Request Detect/Plan/Apply, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Result, UpdateAvailable/Ready, SetPropertyMessage (0x0208), SetSecurePropertyMessage (0x0209)
 - Serialization/: MessageSerializer, MessageDeserializer -- binary [Version:u16][Type:u16][Length:i32][Payload]
 - Transport/: PipeServer, PipeClient, PipeConnectionOptions, PipeSecurityValidator -- HMAC-SHA256 handshake
-- Manifest/: InstallerManifest, PackageInfo, PackageType, RelatedBundleEntry, RollbackBoundaryInfo, ManifestChainItem, PackageManifestChainItem, RollbackBoundaryManifestChainItem, ManifestDependencyProvider/Consumer, UpdatePolicy (NotifyOnly/DownloadAndPrompt/AutoUpdate), ManifestUpdateFeed
+- Manifest/: InstallerManifest (+ IsDeltaUpdate, BaseVersion, BaseBundleSha256), PackageInfo, PackageType, RelatedBundleEntry, RollbackBoundaryInfo, ManifestChainItem, PackageManifestChainItem, RollbackBoundaryManifestChainItem, ManifestDependencyProvider/Consumer, UpdatePolicy (NotifyOnly/DownloadAndPrompt/AutoUpdate), ManifestUpdateFeed. TocEntry gains IsDelta, BaseSha256Hash, ReconstructedSha256Hash for delta payloads. UpdateFeedEntry gains DeltaUrl, DeltaSha256, DeltaSize.
 
 **Engine.Elevation** (`src/FalkForge.Engine.Elevation/`):
 ElevatedHost (args, PID verify + PID recycling defense via parent start time capture, HMAC), ElevatedCommandExecutor (whitelisted dispatch), ElevationSecurityLog (file-based security event logger, thread-safe, NativeAOT-compatible), Commands/: MsiInstall, MsiUninstall (both use IMsiApi P/Invoke, not msiexec.exe), ServiceInstall, RegistryWrite, FileWrite
@@ -152,7 +157,8 @@ BundleDependencyProviderModel, BundleDependencyConsumerModel
 Models/: ContainerModel, RemotePayloadModel, RelatedBundleModel, RollbackBoundaryModel, ChainItem, PackageChainItem, RollbackBoundaryChainItem
 Compilation/: BundleCompiler, ManifestGenerator, ManifestJsonContext, PayloadEmbedder, PayloadEntry, BundleContent, TocEntry
 BundleDetacher -- Detach/Reattach for code signing (BDS001-003)
-Compression/GzipCompressor | Validation/BundleValidator (BDL001-007, BDL024-025)
+DeltaBundleCompiler -- generates delta bundles from old+new using Octodiff binary diffing. `BundleBuilder.DeltaFrom(oldBundlePath)` enables delta mode.
+Compression/GzipCompressor, Compression/DeltaCompressor (Octodiff rsync-based delta creation/application) | Validation/BundleValidator (BDL001-007, BDL024-025)
 UseCustomUI(uiProjectPath) on BundleBuilder (BDL007)
 EXE format: [PE stub][Magic:"FALKBUNDLE"][Manifest][Compressed payloads][TOC][Footer]
 
@@ -178,7 +184,7 @@ LocalizationModel, LocalizationLoader (JSON), CultureFallbackChain (specific→p
 **WiX Burn** (Windows-only): WixBurnAccess (PE parser + UX cab extraction), IWixBurnAccess, WixManifestMapper (v3/v4 XML→BundleModel), WixBundleDecompiler, WixUnmappedFeature. WBD001-006, WMM001.
 
 ## CLI (`src/FalkForge.Cli/`)
-`forge` command (Spectre.Console). `forge build installer.csx|.json`, `forge validate`, `forge inspect` (Windows), `forge decompile` (Windows), `forge extract` (MSI/bundle), `forge bundle detach|reattach`.
+`forge` command (Spectre.Console). `forge build installer.csx|.json`, `forge validate`, `forge inspect` (Windows), `forge decompile` (Windows), `forge extract` (MSI/bundle), `forge bundle detach|reattach`, `forge winget` (generate WinGet manifest from MSI).
 Program.cs, Commands/: Build (Roslyn+JSON), Validate, Inspect, Decompile (.msi→MsiDecompiler, .exe→FALKBUNDLE then WiX Burn), BundleDetach, BundleReattach
 Settings/: Build, Validate, Inspect, Decompile, BundleDetach, BundleReattach Settings
 ExitCodes (0=success, 1=validation, 2=compilation, 3=runtime), IConsoleOutput, SpectreConsoleOutput, ScriptLoader, MsiInspector, MsiInspectionResult
