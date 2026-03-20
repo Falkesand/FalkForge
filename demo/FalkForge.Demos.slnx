@@ -53,6 +53,7 @@
         <Project Path="41-bundle-rollback/41-bundle-rollback.csproj" />
         <Project Path="42-bundle-update-feed/42-bundle-update-feed.csproj" />
         <Project Path="43-bundle-layout/43-bundle-layout.csproj" />
+        <Project Path="53-delta-updates/53-delta-updates.csproj" />
     </Folder>
     <Folder Name="/output-types/">
         <Project Path="44-merge-module/44-merge-module.csproj" />

@@ -21,7 +21,7 @@
   <main>
     <h1>EXE Bundles</h1>
     <div class="tutorial-meta">
-      20 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps demos 06, 10, 35&ndash;43
+      20 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps demos 06, 10, 35&ndash;43, 53
     </div>
 
     <p>An MSI installs one product. A bundle installs several &mdash; multiple MSIs, EXEs, patches, and prerequisites &mdash; in a single self-extracting EXE. FalkForge's bundle engine is NativeAOT compiled, so it runs without a .NET runtime.</p>
@@ -403,6 +403,58 @@ myapp.exe --extract D:\Temp\output --package ServerMsi</code></pre>
     </details>
 
     <!-- ────────────────────────────────────────────────────────────── -->
+    <h2>11. Delta Updates</h2>
+    <!-- ────────────────────────────────────────────────────────────── -->
+
+    <p>When your users update from v1 to v2, they don't need to re-download the entire bundle. FalkForge can generate a <em>delta bundle</em> that contains only the binary differences between versions. A 50&nbsp;MB bundle update might shrink to 2&nbsp;MB.</p>
+
+    <h3>Generating a delta bundle</h3>
+
+    <p>Build v2 with a reference to the v1 bundle. Use <code>DeltaBundleCompiler</code> instead of <code>BundleCompiler</code>:</p>
+
+    <pre><code><span class="kw">var</span> v2Bundle <span class="punc">=</span> <span class="kw">new</span> <span class="typ">BundleBuilder</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"MyApp"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Version</span><span class="punc">(</span><span class="str">"2.0.0"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DeltaFrom</span><span class="punc">(</span>v1Path<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Chain</span><span class="punc">(</span>chain <span class="punc">=></span> chain
+        <span class="punc">.</span><span class="method">MsiPackage</span><span class="punc">(</span><span class="str">"MyApp.msi"</span><span class="punc">,</span> p <span class="punc">=></span> p
+            <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"MyApp"</span><span class="punc">)</span>
+            <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"My Application"</span><span class="punc">)</span>
+            <span class="punc">.</span><span class="method">Vital</span><span class="punc">(</span><span class="kw">true</span><span class="punc">)))</span>
+    <span class="punc">.</span><span class="method">Build</span><span class="punc">();</span>
+
+<span class="kw">var</span> result <span class="punc">=</span> <span class="kw">new</span> <span class="typ">DeltaBundleCompiler</span><span class="punc">().</span><span class="method">Compile</span><span class="punc">(</span>v2Bundle<span class="punc">,</span> outputPath<span class="punc">,</span> v1Path<span class="punc">);</span></code></pre>
+
+    <p>FalkForge extracts the v1 payloads, computes binary diffs using Octodiff, and embeds only the changed bytes. If a payload is new or the delta is larger than the full file, the full payload is included instead.</p>
+
+    <h3>Update feed with delta URL</h3>
+
+    <p>Add the delta bundle URL to your JSON update feed alongside the full bundle:</p>
+
+    <pre><code><span class="punc">{</span>
+  <span class="str">"version"</span><span class="punc">:</span> <span class="str">"2.0.0"</span><span class="punc">,</span>
+  <span class="str">"url"</span><span class="punc">:</span> <span class="str">"https://releases.example.com/myapp-2.0.0.exe"</span><span class="punc">,</span>
+  <span class="str">"deltaUrl"</span><span class="punc">:</span> <span class="str">"https://releases.example.com/myapp-2.0.0-delta.exe"</span><span class="punc">,</span>
+  <span class="str">"deltaSha256"</span><span class="punc">:</span> <span class="str">"A1B2C3..."</span><span class="punc">,</span>
+  <span class="str">"deltaSize"</span><span class="punc">:</span> <span class="num">2048000</span>
+<span class="punc">}</span></code></pre>
+
+    <p>The engine downloads the delta first. If anything fails &mdash; corrupted delta, missing cached payload, hash mismatch &mdash; it falls back to the full bundle URL automatically.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How delta updates work internally</summary>
+      <div class="deep-dive-content">
+        <p>Delta bundles use the same <code>[PE stub][FALKBUNDLE][Manifest][Payloads][TOC][Footer]</code> format as regular bundles. The difference is in the TOC entries:</p>
+        <ul>
+          <li>Each TOC entry has a <strong>delta flag byte</strong>. Old engines see flag=0 (full payload) and work normally.</li>
+          <li>Delta entries (flag=1) include a <code>BaseSha256Hash</code> that identifies the old payload to diff against, and a <code>ReconstructedSha256Hash</code> for the expected output after applying the diff.</li>
+          <li>The engine finds the old payload in its local package cache, applies the Octodiff binary diff via <code>DeltaApplicator.Apply</code>, and verifies the result against <code>ReconstructedSha256Hash</code>.</li>
+        </ul>
+        <p>Octodiff uses an rsync-style rolling checksum algorithm. It finds matching blocks between old and new files, then encodes the differences. This works well for MSI files where small code changes produce localized binary differences.</p>
+      </div>
+    </details>
+
+    <!-- ────────────────────────────────────────────────────────────── -->
     <h2>Recap</h2>
     <!-- ────────────────────────────────────────────────────────────── -->
 
@@ -423,6 +475,7 @@ myapp.exe --extract D:\Temp\output --package ServerMsi</code></pre>
         <tr><td>Layout / containers</td><td>43</td><td><code>Container</code>, <code>DefineContainer</code></td></tr>
         <tr><td>Advanced (all features)</td><td>10</td><td><code>RelatedBundle</code>, <code>MspPackage</code>, typed refs</td></tr>
         <tr><td>Extraction / self-extraction</td><td>&mdash;</td><td><code>forge extract</code>, <code>--extract</code>, <code>--extract-list</code></td></tr>
+        <tr><td>Delta updates</td><td>53</td><td><code>DeltaFrom</code>, <code>DeltaBundleCompiler</code></td></tr>
       </tbody>
     </table>
 
