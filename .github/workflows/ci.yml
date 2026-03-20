@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Restore
+        run: dotnet restore FalkForge.slnx
+
+      - name: Build
+        run: dotnet build FalkForge.slnx --no-restore -c Release
+
+      - name: Test
+        run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+
+  code-quality:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Build
+        run: dotnet build FalkForge.slnx -c Release
+
+      - name: Install Roslynator
+        run: dotnet tool install -g roslynator.dotnet.cli
+
+      - name: Run Roslynator
+        shell: pwsh
+        run: |
+          $projects = @(
+            "src/FalkForge.Core/FalkForge.Core.csproj",
+            "src/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj",
+            "src/FalkForge.Compiler.Bundle/FalkForge.Compiler.Bundle.csproj",
+            "src/FalkForge.Engine/FalkForge.Engine.csproj",
+            "src/FalkForge.Engine.Protocol/FalkForge.Engine.Protocol.csproj",
+            "src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj",
+            "src/FalkForge.Ui/FalkForge.Ui.csproj",
+            "src/FalkForge.Cli/FalkForge.Cli.csproj",
+            "src/FalkForge.Decompiler/FalkForge.Decompiler.csproj",
+            "src/FalkForge.Platform/FalkForge.Platform.csproj",
+            "src/FalkForge.Platform.Windows/FalkForge.Platform.Windows.csproj",
+            "src/FalkForge.Localization/FalkForge.Localization.csproj"
+          )
+          $failed = $false
+          foreach ($proj in $projects) {
+            Write-Host "Analyzing $proj..."
+            $result = roslynator analyze $proj --severity-level warning --ignore-compiler-diagnostics -v minimal 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::Roslynator found issues in $proj"
+              Write-Host $result
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
