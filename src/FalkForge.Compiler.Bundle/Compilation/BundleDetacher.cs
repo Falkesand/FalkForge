@@ -64,14 +64,37 @@ public static class BundleDetacher
             using var tocReader = new BinaryReader(bundleStream, Encoding.UTF8, true);
             var entries = new TocEntry[entryCount];
             for (var i = 0; i < entryCount; i++)
+            {
+                var packageId = tocReader.ReadString();
+                var offset = tocReader.ReadInt64();
+                var compressedSize = tocReader.ReadInt32();
+                var originalSize = tocReader.ReadInt32();
+                var sha256Hash = tocReader.ReadString();
+
+                var isDelta = false;
+                string? baseSha256Hash = null;
+                string? reconstructedSha256Hash = null;
+
+                var flags = tocReader.ReadByte();
+                if (flags == 1)
+                {
+                    isDelta = true;
+                    baseSha256Hash = tocReader.ReadString();
+                    reconstructedSha256Hash = tocReader.ReadString();
+                }
+
                 entries[i] = new TocEntry
                 {
-                    PackageId = tocReader.ReadString(),
-                    Offset = tocReader.ReadInt64(),
-                    CompressedSize = tocReader.ReadInt32(),
-                    OriginalSize = tocReader.ReadInt32(),
-                    Sha256Hash = tocReader.ReadString()
+                    PackageId = packageId,
+                    Offset = offset,
+                    CompressedSize = compressedSize,
+                    OriginalSize = originalSize,
+                    Sha256Hash = sha256Hash,
+                    IsDelta = isDelta,
+                    BaseSha256Hash = baseSha256Hash,
+                    ReconstructedSha256Hash = reconstructedSha256Hash
                 };
+            }
 
             // Find stub size using footer-based backward scan
             var stubSize = FindStubSize(bundleStream, tocOffset, entries);
@@ -181,14 +204,37 @@ public static class BundleDetacher
 
             var entries = new TocEntry[entryCount];
             for (var i = 0; i < entryCount; i++)
+            {
+                var packageId = dataReader.ReadString();
+                var offset = dataReader.ReadInt64();
+                var compressedSize = dataReader.ReadInt32();
+                var originalSize = dataReader.ReadInt32();
+                var sha256Hash = dataReader.ReadString();
+
+                var isDelta = false;
+                string? baseSha256Hash = null;
+                string? reconstructedSha256Hash = null;
+
+                var flags = dataReader.ReadByte();
+                if (flags == 1)
+                {
+                    isDelta = true;
+                    baseSha256Hash = dataReader.ReadString();
+                    reconstructedSha256Hash = dataReader.ReadString();
+                }
+
                 entries[i] = new TocEntry
                 {
-                    PackageId = dataReader.ReadString(),
-                    Offset = dataReader.ReadInt64(),
-                    CompressedSize = dataReader.ReadInt32(),
-                    OriginalSize = dataReader.ReadInt32(),
-                    Sha256Hash = dataReader.ReadString()
+                    PackageId = packageId,
+                    Offset = offset,
+                    CompressedSize = compressedSize,
+                    OriginalSize = originalSize,
+                    Sha256Hash = sha256Hash,
+                    IsDelta = isDelta,
+                    BaseSha256Hash = baseSha256Hash,
+                    ReconstructedSha256Hash = reconstructedSha256Hash
                 };
+            }
 
             // Determine signed stub size and offset delta
             var newStubSize = new FileInfo(signedStubPath).Length;
@@ -229,6 +275,12 @@ public static class BundleDetacher
                     outputWriter.Write(entry.CompressedSize);
                     outputWriter.Write(entry.OriginalSize);
                     outputWriter.Write(entry.Sha256Hash);
+                    outputWriter.Write(entry.IsDelta ? (byte)1 : (byte)0);
+                    if (entry.IsDelta)
+                    {
+                        outputWriter.Write(entry.BaseSha256Hash ?? string.Empty);
+                        outputWriter.Write(entry.ReconstructedSha256Hash ?? string.Empty);
+                    }
                 }
 
                 // 4. Write footer

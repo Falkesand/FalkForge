@@ -87,6 +87,14 @@ public sealed class PayloadEmbedder
                 writer.Write(entry.CompressedSize);
                 writer.Write(entry.OriginalSize);
                 writer.Write(entry.Sha256Hash);
+
+                // Delta flag byte: 0 = full payload, 1 = delta payload
+                writer.Write(entry.IsDelta ? (byte)1 : (byte)0);
+                if (entry.IsDelta)
+                {
+                    writer.Write(entry.BaseSha256Hash ?? string.Empty);
+                    writer.Write(entry.ReconstructedSha256Hash ?? string.Empty);
+                }
             }
 
             // Write footer

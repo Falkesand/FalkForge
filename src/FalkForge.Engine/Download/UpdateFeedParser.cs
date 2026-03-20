@@ -66,11 +66,26 @@ internal static class UpdateFeedParser
                 $"UPD004: Update entry download URL is not a valid HTTPS URI: '{best.Url}'.");
         }
 
+        // Validate delta URL if present
+        string? validDeltaUrl = null;
+        if (best.DeltaUrl is not null)
+        {
+            if (Uri.TryCreate(best.DeltaUrl, UriKind.Absolute, out var deltaUri)
+                && deltaUri.Scheme == Uri.UriSchemeHttps
+                && !string.IsNullOrWhiteSpace(best.DeltaSha256))
+            {
+                validDeltaUrl = best.DeltaUrl;
+            }
+        }
+
         return new UpdateCheckResult(new UpdateInfo(
             best.Version,
             best.Url,
             best.Sha256,
             best.Size,
-            best.ReleaseNotes));
+            best.ReleaseNotes,
+            validDeltaUrl,
+            validDeltaUrl is not null ? best.DeltaSha256 : null,
+            validDeltaUrl is not null ? best.DeltaSize : null));
     }
 }

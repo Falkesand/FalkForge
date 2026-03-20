@@ -16,4 +16,7 @@ internal sealed class UpdateFeedEntry
     /// <summary>ISO 8601 publication date. Reserved for future UI display; not used by the parser.</summary>
     public string? Published { get; init; }
     public string? MinVersion { get; init; }
+    public string? DeltaUrl { get; init; }
+    public string? DeltaSha256 { get; init; }
+    public long? DeltaSize { get; init; }
 }

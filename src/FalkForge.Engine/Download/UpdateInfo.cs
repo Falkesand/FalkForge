@@ -5,4 +5,7 @@ internal sealed record UpdateInfo(
     string DownloadUrl,
     string Sha256,
     long? Size,
-    string? ReleaseNotes);
+    string? ReleaseNotes,
+    string? DeltaUrl = null,
+    string? DeltaSha256 = null,
+    long? DeltaSize = null);

@@ -149,13 +149,34 @@ internal sealed class BundleAccess : IBundleAccess
 
             for (var i = 0; i < entryCount; i++)
             {
+                var packageId = _reader.ReadString();
+                var offset = _reader.ReadInt64();
+                var compressedSize = _reader.ReadInt32();
+                var originalSize = _reader.ReadInt32();
+                var sha256Hash = _reader.ReadString();
+
+                var isDelta = false;
+                string? baseSha256Hash = null;
+                string? reconstructedSha256Hash = null;
+
+                var flags = _reader.ReadByte();
+                if (flags == 1)
+                {
+                    isDelta = true;
+                    baseSha256Hash = _reader.ReadString();
+                    reconstructedSha256Hash = _reader.ReadString();
+                }
+
                 entries[i] = new TocEntry
                 {
-                    PackageId = _reader.ReadString(),
-                    Offset = _reader.ReadInt64(),
-                    CompressedSize = _reader.ReadInt32(),
-                    OriginalSize = _reader.ReadInt32(),
-                    Sha256Hash = _reader.ReadString()
+                    PackageId = packageId,
+                    Offset = offset,
+                    CompressedSize = compressedSize,
+                    OriginalSize = originalSize,
+                    Sha256Hash = sha256Hash,
+                    IsDelta = isDelta,
+                    BaseSha256Hash = baseSha256Hash,
+                    ReconstructedSha256Hash = reconstructedSha256Hash
                 };
             }
 

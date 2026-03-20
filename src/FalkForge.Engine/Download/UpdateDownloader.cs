@@ -57,8 +57,42 @@ internal sealed class UpdateDownloader
             });
         });
 
-        var result = await _download(
-            update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+        // Try delta download first if available, then fall back to full download
+        Result<string> result;
+        if (update.DeltaUrl is not null && update.DeltaSha256 is not null)
+        {
+            var deltaPath = Path.Combine(cacheDir, $"{update.Version}_{update.DeltaSha256}.delta");
+            var deltaResult = await _download(
+                update.DeltaUrl, update.DeltaSha256, deltaPath, progress, _allowResume, ct);
+
+            if (deltaResult.IsSuccess)
+            {
+                _logger.Info("UpdateDownloader", $"Delta update downloaded ({update.DeltaSize ?? 0} bytes).");
+                // The delta bundle is a complete runnable bundle; rename to final path
+                try
+                {
+                    File.Move(deltaResult.Value, destPath, overwrite: true);
+                    result = destPath;
+                }
+                catch (IOException ex)
+                {
+                    _logger.Warning("UpdateDownloader", $"Failed to move delta bundle: {ex.Message}. Falling back to full download.");
+                    result = await _download(
+                        update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+                }
+            }
+            else
+            {
+                _logger.Warning("UpdateDownloader", $"Delta download failed: {deltaResult.Error.Message}. Falling back to full download.");
+                result = await _download(
+                    update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+            }
+        }
+        else
+        {
+            result = await _download(
+                update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+        }
 
         // Send all accumulated progress messages before the ready notification.
         foreach (var snapshot in progressSnapshots)

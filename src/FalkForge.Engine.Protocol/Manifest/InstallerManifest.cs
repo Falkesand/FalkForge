@@ -26,4 +26,7 @@ public sealed class InstallerManifest
     public string[] UnsupportedExtensions { get; init; } = [];
     public string? ManifestSignature { get; init; }
     public string? SbomAttestation { get; init; }
+    public bool IsDeltaUpdate { get; init; }
+    public string? BaseVersion { get; init; }
+    public string? BaseBundleSha256 { get; init; }
 }

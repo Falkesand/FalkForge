@@ -42,6 +42,21 @@ public static class BundleReader
                 var originalSize = reader.ReadInt32();
                 var sha256Hash = reader.ReadString();
 
+                // Delta flag byte: 0 = full payload, 1 = delta payload
+                // Older bundles without this field will hit the catch block
+                // on EndOfStreamException and be handled gracefully.
+                var isDelta = false;
+                string? baseSha256Hash = null;
+                string? reconstructedSha256Hash = null;
+
+                var flags = reader.ReadByte();
+                if (flags == 1)
+                {
+                    isDelta = true;
+                    baseSha256Hash = reader.ReadString();
+                    reconstructedSha256Hash = reader.ReadString();
+                }
+
                 // Validate fields from untrusted binary data to prevent
                 // ArgumentOutOfRangeException in ReadBytes or OutOfMemoryException
                 // from excessively large allocations.
@@ -55,7 +70,10 @@ public static class BundleReader
                     Offset = offset,
                     CompressedSize = compressedSize,
                     OriginalSize = originalSize,
-                    Sha256Hash = sha256Hash
+                    Sha256Hash = sha256Hash,
+                    IsDelta = isDelta,
+                    BaseSha256Hash = baseSha256Hash,
+                    ReconstructedSha256Hash = reconstructedSha256Hash
                 };
             }
 

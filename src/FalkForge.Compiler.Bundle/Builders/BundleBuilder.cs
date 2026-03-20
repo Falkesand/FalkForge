@@ -31,6 +31,7 @@ public sealed class BundleBuilder
     private SbomOptions? _sbomOptions;
     private IntegrityConfiguration? _integrity;
     private bool _isDryRun;
+    private string? _deltaBaseBundlePath;
 
     public BundleBuilder Name(string name)
     {
@@ -274,6 +275,23 @@ public sealed class BundleBuilder
         _integrity = builder.Build();
         return this;
     }
+
+    /// <summary>
+    /// Configures delta bundle compilation against a previous bundle version.
+    /// When set, <see cref="FalkForge.Compiler.Bundle.Compilation.DeltaBundleCompiler"/>
+    /// is used to produce a smaller update bundle containing only binary deltas.
+    /// </summary>
+    public BundleBuilder DeltaFrom(string oldBundlePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldBundlePath);
+        _deltaBaseBundlePath = oldBundlePath;
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the path to the old bundle for delta compilation, or null for full builds.
+    /// </summary>
+    internal string? DeltaBaseBundlePath => _deltaBaseBundlePath;
 
     /// <summary>
     /// Marks this bundle as a dry-run installer. The engine Apply phase will
