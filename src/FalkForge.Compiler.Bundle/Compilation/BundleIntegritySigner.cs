@@ -15,7 +15,7 @@ internal static class BundleIntegritySigner
         if (model.Integrity is null)
             return manifest;
 
-        if (!BundleSigilDetector.IsAvailable())
+        if (!FalkForge.Signing.SigilDetector.IsAvailable())
             return manifest;
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN")))

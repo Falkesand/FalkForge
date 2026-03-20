@@ -140,7 +140,7 @@ public sealed class MsiCompiler : ICompiler
         }
 
         // Step 8.5: Integrity signing (opportunistic -- only if Sigil is on PATH)
-        if (!IsIntegritySigningDisabled() && SigilDetector.IsAvailable() && package.Integrity is not null)
+        if (!IsIntegritySigningDisabled() && FalkForge.Signing.SigilDetector.IsAvailable() && package.Integrity is not null)
         {
             var integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
             if (integrityResult.IsFailure)

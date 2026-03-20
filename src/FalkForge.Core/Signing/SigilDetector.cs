@@ -1,10 +1,15 @@
 using System.Diagnostics;
 
-namespace FalkForge.Compiler.Bundle.Compilation;
+namespace FalkForge.Signing;
 
-internal static class BundleSigilDetector
+/// <summary>
+/// Detects whether the sigil CLI tool is available on the system PATH.
+/// Caches the result after first probe. Shared by MSI and Bundle compilers.
+/// </summary>
+internal static class SigilDetector
 {
     private static bool? _isAvailable;
+    private static string? _version;
 
     internal static bool IsAvailable()
     {
@@ -28,7 +33,7 @@ internal static class BundleSigilDetector
                 return false;
             }
 
-            _ = process.StandardOutput.ReadToEnd();
+            _version = process.StandardOutput.ReadToEnd().Trim();
             process.WaitForExit(5000);
             _isAvailable = process.ExitCode == 0;
         }
@@ -40,8 +45,15 @@ internal static class BundleSigilDetector
         return _isAvailable.Value;
     }
 
+    internal static string? GetVersion()
+    {
+        IsAvailable();
+        return _version;
+    }
+
     internal static void Reset()
     {
         _isAvailable = null;
+        _version = null;
     }
 }

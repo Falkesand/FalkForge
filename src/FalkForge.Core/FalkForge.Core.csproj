@@ -6,6 +6,8 @@
     <ItemGroup>
         <InternalsVisibleTo Include="FalkForge.Core.Tests"/>
         <InternalsVisibleTo Include="FalkForge.Compiler.Bundle"/>
+        <InternalsVisibleTo Include="FalkForge.Compiler.Msi"/>
+        <InternalsVisibleTo Include="FalkForge.Compiler.Msi.Tests"/>
         <InternalsVisibleTo Include="FalkForge.Compiler.Msix"/>
     </ItemGroup>
 </Project>

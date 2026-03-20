@@ -1,6 +1,6 @@
 namespace FalkForge.Compiler.Msi.Tests.Signing;
 
-using FalkForge.Compiler.Msi.Signing;
+using FalkForge.Signing;
 using Xunit;
 
 public sealed class SigilDetectorTests : IDisposable
