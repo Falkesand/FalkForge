@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coming from WiX — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Coming from WiX</h1>
+    <div class="tutorial-meta">
+      15 min read &middot; For WiX v4/v5/v6 users &middot; Migration reference
+    </div>
+
+    <p>If you know WiX, you already know MSI. FalkForge targets the same Windows Installer tables &mdash; it just uses C# instead of XML. This guide translates the WiX patterns you know into FalkForge equivalents.</p>
+
+    <!-- Section 1: Concepts Mapping -->
+    <h2>Concepts mapping</h2>
+    <table>
+      <thead>
+        <tr><th>WiX</th><th>FalkForge</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>.wxs</code> source file</td><td><code>Program.cs</code></td><td>C# replaces XML</td></tr>
+        <tr><td><code>&lt;Package&gt;</code> element</td><td><code>PackageBuilder</code> lambda</td><td>Fluent API in a lambda</td></tr>
+        <tr><td><code>&lt;Fragment&gt;</code></td><td>C# methods or classes</td><td>Just organize your code normally</td></tr>
+        <tr><td><code>&lt;Component&gt;</code></td><td>Auto-generated</td><td>FalkForge creates components automatically</td></tr>
+        <tr><td><code>&lt;ComponentGroup&gt;</code></td><td>Not needed</td><td>No indirection required</td></tr>
+        <tr><td><code>&lt;Feature&gt;</code> / <code>&lt;ComponentRef&gt;</code></td><td><code>.WithFeature("name")</code></td><td>Chain onto any file, registry entry, or service</td></tr>
+        <tr><td><code>&lt;Directory&gt;</code> tree</td><td>Auto-resolved from paths</td><td>Specify target path, directories are inferred</td></tr>
+        <tr><td><code>WixUI_Mondo</code> etc.</td><td><code>DialogTemplate.Mondo</code></td><td>Same 5 templates</td></tr>
+        <tr><td><code>&lt;Property&gt;</code></td><td><code>MsiProperty</code> class</td><td>Type-safe with comparison operators</td></tr>
+        <tr><td><code>&lt;Condition&gt;</code></td><td><code>Condition</code> class</td><td><code>&amp;</code>, <code>|</code>, <code>!</code> operators</td></tr>
+        <tr><td><code>.wxl</code> localization files</td><td>JSON localization</td><td>Culture fallback chain</td></tr>
+        <tr><td>Burn bootstrapper</td><td>Bundle engine</td><td>NativeAOT compiled, DPAPI secure properties</td></tr>
+        <tr><td><code>wix build</code> CLI</td><td><code>forge build</code> or <code>dotnet run</code></td><td></td></tr>
+        <tr><td><code>wix msi decompile</code></td><td><code>forge decompile</code></td><td>Also decompiles WiX Burn bundles</td></tr>
+        <tr><td>Extension NuGet packages</td><td>Built-in extensions</td><td>No extra packages to install</td></tr>
+        <tr><td><code>wix.exe</code></td><td><code>forge</code> CLI</td><td>build, validate, inspect, decompile commands</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Section 2: Common Patterns -->
+    <h2>Common patterns</h2>
+    <p>Each pattern shows WiX v4 XML on the left and FalkForge C# on the right.</p>
+
+    <!-- Pattern a: Adding Files -->
+    <h3>Adding files</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Component</span> <span class="xml-attr">Directory</span>=<span class="xml-val">"INSTALLFOLDER"</span><span class="xml-tag">&gt;</span>
+  <span class="xml-tag">&lt;File</span> <span class="xml-attr">Source</span>=<span class="xml-val">"app.exe"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;/Component&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddFile</span><span class="punc">(</span><span class="str">"payload/app.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">To</span><span class="punc">(</span><span class="str">"INSTALLFOLDER"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithFeature</span><span class="punc">(</span><span class="str">"Main"</span><span class="punc">);</span></code></pre>
+      </div>
+    </div>
+    <details class="deep-dive">
+      <summary>Deep dive: Automatic components</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge auto-creates the component. In WiX you must define Component + File + assign to a Feature via ComponentRef. In FalkForge, <code>.WithFeature()</code> handles all of that.</p>
+      </div>
+    </details>
+
+    <!-- Pattern b: Registry Entries -->
+    <h3>Registry entries</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Component</span> <span class="xml-attr">Directory</span>=<span class="xml-val">"INSTALLFOLDER"</span><span class="xml-tag">&gt;</span>
+  <span class="xml-tag">&lt;RegistryValue</span> <span class="xml-attr">Root</span>=<span class="xml-val">"HKLM"</span>
+    <span class="xml-attr">Key</span>=<span class="xml-val">"SOFTWARE\MyApp"</span>
+    <span class="xml-attr">Name</span>=<span class="xml-val">"InstallDir"</span>
+    <span class="xml-attr">Type</span>=<span class="xml-val">"string"</span>
+    <span class="xml-attr">Value</span>=<span class="xml-val">"[INSTALLFOLDER]"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;/Component&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddRegistryEntry</span><span class="punc">(</span>
+    <span class="typ">RegistryHive</span><span class="punc">.</span>LocalMachine<span class="punc">,</span>
+    <span class="str">@"SOFTWARE\MyApp"</span><span class="punc">,</span>
+    <span class="str">"InstallDir"</span><span class="punc">,</span>
+    <span class="str">"[INSTALLFOLDER]"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithFeature</span><span class="punc">(</span><span class="str">"Main"</span><span class="punc">);</span></code></pre>
+      </div>
+    </div>
+
+    <!-- Pattern c: Windows Services -->
+    <h3>Windows services</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Component</span> <span class="xml-attr">Directory</span>=<span class="xml-val">"INSTALLFOLDER"</span><span class="xml-tag">&gt;</span>
+  <span class="xml-tag">&lt;File</span> <span class="xml-attr">Source</span>=<span class="xml-val">"myservice.exe"</span> <span class="xml-tag">/&gt;</span>
+  <span class="xml-tag">&lt;ServiceInstall</span>
+    <span class="xml-attr">Name</span>=<span class="xml-val">"MyService"</span>
+    <span class="xml-attr">DisplayName</span>=<span class="xml-val">"My Service"</span>
+    <span class="xml-attr">Start</span>=<span class="xml-val">"auto"</span>
+    <span class="xml-attr">Type</span>=<span class="xml-val">"ownProcess"</span>
+    <span class="xml-attr">Account</span>=<span class="xml-val">"LocalSystem"</span> <span class="xml-tag">/&gt;</span>
+  <span class="xml-tag">&lt;ServiceControl</span>
+    <span class="xml-attr">Id</span>=<span class="xml-val">"StartMyService"</span>
+    <span class="xml-attr">Name</span>=<span class="xml-val">"MyService"</span>
+    <span class="xml-attr">Start</span>=<span class="xml-val">"install"</span>
+    <span class="xml-attr">Stop</span>=<span class="xml-val">"both"</span>
+    <span class="xml-attr">Remove</span>=<span class="xml-val">"uninstall"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;/Component&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddFile</span><span class="punc">(</span><span class="str">"payload/myservice.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">To</span><span class="punc">(</span><span class="str">"INSTALLFOLDER"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithFeature</span><span class="punc">(</span><span class="str">"Server"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">AddService</span><span class="punc">(</span><span class="str">"MyService"</span><span class="punc">,</span> svc <span class="punc">=&gt;</span> svc
+        <span class="punc">.</span><span class="method">DisplayName</span><span class="punc">(</span><span class="str">"My Service"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">StartType</span><span class="punc">(</span><span class="typ">ServiceStartType</span><span class="punc">.</span>Automatic<span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Account</span><span class="punc">(</span><span class="typ">ServiceAccount</span><span class="punc">.</span>LocalSystem<span class="punc">));</span></code></pre>
+      </div>
+    </div>
+    <details class="deep-dive">
+      <summary>Deep dive: Automatic service control</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge generates both ServiceInstall and ServiceControl rows automatically. In WiX you must author both explicitly.</p>
+      </div>
+    </details>
+
+    <!-- Pattern d: Shortcuts -->
+    <h3>Shortcuts</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Component</span> <span class="xml-attr">Directory</span>=<span class="xml-val">"ProgramMenuFolder"</span><span class="xml-tag">&gt;</span>
+  <span class="xml-tag">&lt;Shortcut</span> <span class="xml-attr">Id</span>=<span class="xml-val">"StartMenuShortcut"</span>
+    <span class="xml-attr">Name</span>=<span class="xml-val">"My App"</span>
+    <span class="xml-attr">Target</span>=<span class="xml-val">"[INSTALLFOLDER]app.exe"</span>
+    <span class="xml-attr">WorkingDirectory</span>=<span class="xml-val">"INSTALLFOLDER"</span> <span class="xml-tag">/&gt;</span>
+  <span class="xml-tag">&lt;RemoveFolder</span> <span class="xml-attr">Id</span>=<span class="xml-val">"RemovePMF"</span>
+    <span class="xml-attr">On</span>=<span class="xml-val">"uninstall"</span> <span class="xml-tag">/&gt;</span>
+  <span class="xml-tag">&lt;RegistryValue</span> <span class="xml-attr">Root</span>=<span class="xml-val">"HKCU"</span>
+    <span class="xml-attr">Key</span>=<span class="xml-val">"SOFTWARE\MyApp"</span>
+    <span class="xml-attr">Name</span>=<span class="xml-val">"installed"</span>
+    <span class="xml-attr">Type</span>=<span class="xml-val">"integer"</span>
+    <span class="xml-attr">Value</span>=<span class="xml-val">"1"</span>
+    <span class="xml-attr">KeyPath</span>=<span class="xml-val">"yes"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;/Component&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddShortcut</span><span class="punc">(</span><span class="str">"My App"</span><span class="punc">,</span>
+    <span class="str">"[INSTALLFOLDER]app.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">ToStartMenu</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">WithFeature</span><span class="punc">(</span><span class="str">"Main"</span><span class="punc">);</span></code></pre>
+      </div>
+    </div>
+    <details class="deep-dive">
+      <summary>Deep dive: KeyPath and RemoveFolder</summary>
+      <div class="deep-dive-content">
+        <p>In WiX, a shortcut component needs a registry KeyPath because shortcuts can't be key paths. FalkForge handles this automatically.</p>
+      </div>
+    </details>
+
+    <!-- Pattern e: Features -->
+    <h3>Features</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Feature</span> <span class="xml-attr">Id</span>=<span class="xml-val">"Main"</span>
+  <span class="xml-attr">Title</span>=<span class="xml-val">"Main Application"</span>
+  <span class="xml-attr">Level</span>=<span class="xml-val">"1"</span><span class="xml-tag">&gt;</span>
+  <span class="xml-tag">&lt;ComponentRef</span> <span class="xml-attr">Id</span>=<span class="xml-val">"AppComponent"</span> <span class="xml-tag">/&gt;</span>
+  <span class="xml-tag">&lt;Feature</span> <span class="xml-attr">Id</span>=<span class="xml-val">"Plugins"</span>
+    <span class="xml-attr">Title</span>=<span class="xml-val">"Optional Plugins"</span>
+    <span class="xml-attr">Level</span>=<span class="xml-val">"1"</span><span class="xml-tag">&gt;</span>
+    <span class="xml-tag">&lt;ComponentRef</span> <span class="xml-attr">Id</span>=<span class="xml-val">"Plugin1"</span> <span class="xml-tag">/&gt;</span>
+  <span class="xml-tag">&lt;/Feature&gt;</span>
+<span class="xml-tag">&lt;/Feature&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddFile</span><span class="punc">(</span><span class="str">"payload/app.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithFeature</span><span class="punc">(</span><span class="str">"Main"</span><span class="punc">);</span>
+
+package<span class="punc">.</span><span class="method">AddFile</span><span class="punc">(</span><span class="str">"payload/plugin1.dll"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithFeature</span><span class="punc">(</span><span class="str">"Plugins"</span><span class="punc">,</span> parent<span class="punc">:</span> <span class="str">"Main"</span><span class="punc">);</span></code></pre>
+      </div>
+    </div>
+
+    <!-- Pattern f: Custom Actions -->
+    <h3>Custom actions</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;CustomAction</span> <span class="xml-attr">Id</span>=<span class="xml-val">"SetInstallDir"</span>
+  <span class="xml-attr">Property</span>=<span class="xml-val">"INSTALLFOLDER"</span>
+  <span class="xml-attr">Value</span>=<span class="xml-val">"C:\MyApp"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;InstallExecuteSequence&gt;</span>
+  <span class="xml-tag">&lt;Custom</span> <span class="xml-attr">Action</span>=<span class="xml-val">"SetInstallDir"</span>
+    <span class="xml-attr">Before</span>=<span class="xml-val">"CostFinalize"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;/InstallExecuteSequence&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddSetPropertyAction</span><span class="punc">(</span>
+    <span class="str">"INSTALLFOLDER"</span><span class="punc">,</span> <span class="str">@"C:\MyApp"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Before</span><span class="punc">(</span><span class="typ">SequenceAction</span><span class="punc">.</span>CostFinalize<span class="punc">);</span></code></pre>
+      </div>
+    </div>
+
+    <!-- Pattern g: Properties & Conditions -->
+    <h3>Properties and conditions</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Property</span> <span class="xml-attr">Id</span>=<span class="xml-val">"MYPROP"</span>
+  <span class="xml-attr">Value</span>=<span class="xml-val">"default"</span> <span class="xml-tag">/&gt;</span>
+<span class="xml-tag">&lt;Condition</span> <span class="xml-attr">Message</span>=<span class="xml-val">"Requires Windows 10"</span><span class="xml-tag">&gt;</span>
+  &lt;![CDATA[VersionNT &gt;= 1000]]&gt;
+<span class="xml-tag">&lt;/Condition&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"MYPROP"</span><span class="punc">,</span> <span class="str">"default"</span><span class="punc">);</span>
+package<span class="punc">.</span><span class="method">AddLaunchCondition</span><span class="punc">(</span>
+    <span class="typ">Condition</span><span class="punc">.</span>IsWindows10OrLater<span class="punc">,</span>
+    <span class="str">"Requires Windows 10"</span><span class="punc">);</span></code></pre>
+      </div>
+    </div>
+    <details class="deep-dive">
+      <summary>Deep dive: Type-safe conditions</summary>
+      <div class="deep-dive-content">
+        <p><code>Condition</code> provides pre-built checks like <code>IsWindows10OrLater</code>, <code>Is64BitOS</code>, <code>IsAdmin</code>. You can combine them with <code>&amp;</code>, <code>|</code>, <code>!</code> operators.</p>
+      </div>
+    </details>
+
+    <!-- Pattern h: Major Upgrade -->
+    <h3>Major upgrade</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;MajorUpgrade</span>
+  <span class="xml-attr">DowngradeErrorMessage</span>=<span class="xml-val">"A newer version is installed."</span> <span class="xml-tag">/&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">MajorUpgrade</span><span class="punc">(</span>upgrade <span class="punc">=&gt;</span> upgrade
+    <span class="punc">.</span><span class="method">BlockDowngrades</span><span class="punc">(</span>
+        <span class="str">"A newer version is installed."</span><span class="punc">));</span></code></pre>
+      </div>
+    </div>
+
+    <!-- Pattern i: Localization -->
+    <h3>Localization</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX (<code>.wxl</code> file)</h4>
+        <pre><code><span class="xml-tag">&lt;WixLocalization</span>
+  <span class="xml-attr">Culture</span>=<span class="xml-val">"en-US"</span>
+  <span class="xml-attr">xmlns</span>=<span class="xml-val">"http://wixtoolset.org/schemas/v4/wxl"</span><span class="xml-tag">&gt;</span>
+  <span class="xml-tag">&lt;String</span> <span class="xml-attr">Id</span>=<span class="xml-val">"WelcomeTitle"</span><span class="xml-tag">&gt;</span>Welcome<span class="xml-tag">&lt;/String&gt;</span>
+<span class="xml-tag">&lt;/WixLocalization&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">Localization</span><span class="punc">(</span>loc <span class="punc">=&gt;</span> loc
+    <span class="punc">.</span><span class="method">AddBuiltInCultures</span><span class="punc">()</span>
+    <span class="punc">.</span><span class="method">DefaultCulture</span><span class="punc">(</span><span class="str">"en-US"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DetectCulture</span><span class="punc">());</span></code></pre>
+      </div>
+    </div>
+    <details class="deep-dive">
+      <summary>Deep dive: JSON localization</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge uses JSON localization files instead of WiX's XML <code>.wxl</code> format. Built-in cultures ship with en-US and sv-SE. Custom cultures use the same JSON format.</p>
+      </div>
+    </details>
+
+    <!-- Pattern j: Launch Conditions -->
+    <h3>Launch conditions</h3>
+    <div class="comparison">
+      <div>
+        <h4>WiX</h4>
+        <pre><code><span class="xml-tag">&lt;Launch</span>
+  <span class="xml-attr">Condition</span>=<span class="xml-val">"Privileged"</span>
+  <span class="xml-attr">Message</span>=<span class="xml-val">"Administrator privileges required."</span> <span class="xml-tag">/&gt;</span></code></pre>
+      </div>
+      <div>
+        <h4>FalkForge</h4>
+        <pre><code>package<span class="punc">.</span><span class="method">AddLaunchCondition</span><span class="punc">(</span>
+    <span class="typ">Condition</span><span class="punc">.</span>IsPrivileged<span class="punc">,</span>
+    <span class="str">"Administrator privileges required."</span><span class="punc">);</span></code></pre>
+      </div>
+    </div>
+
+    <!-- Section 3: Extension Mapping -->
+    <h2>Extension mapping</h2>
+    <table>
+      <thead>
+        <tr><th>WiX Extension</th><th>FalkForge</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>WixToolset.Firewall.wixext</td><td>Extensions.Firewall</td><td>Built-in, no package needed</td></tr>
+        <tr><td>WixToolset.Iis.wixext</td><td>Extensions.Iis</td><td>AppPool, WebSite, Bindings, Certificates</td></tr>
+        <tr><td>WixToolset.Sql.wixext</td><td>Extensions.Sql</td><td>DB creation, script execution</td></tr>
+        <tr><td>WixToolset.Netfx.wixext</td><td>Extensions.DotNet</td><td>Registry + filesystem probing</td></tr>
+        <tr><td>WixToolset.Util.wixext</td><td>Extensions.Util</td><td>XmlConfig, UserMgmt, FileShare, QuietExec</td></tr>
+        <tr><td>WixToolset.Dependency.wixext</td><td>Extensions.Dependency</td><td>WiX-compatible provider/consumer model</td></tr>
+        <tr><td>WixToolset.Http.wixext</td><td>Extensions.Http</td><td>SNI/SSL bindings, URL reservations</td></tr>
+        <tr><td>WixToolset.UI.wixext</td><td>DialogTemplate (built-in)</td><td>5 built-in templates</td></tr>
+        <tr><td>WixToolset.Bal.wixext</td><td>InstallerApp + InstallerPage&lt;T&gt;</td><td>Built-in WPF UI framework</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Section 4: Bundle Migration -->
+    <h2>Bundle migration</h2>
+    <p>WiX Burn and FalkForge bundles serve the same purpose &mdash; chaining multiple packages into a single installer. Key differences:</p>
+    <ul>
+      <li><strong>NativeAOT engine</strong> &mdash; no .NET runtime needed at install time. The bundle engine is a self-contained native executable.</li>
+      <li><strong>DPAPI secure property passing</strong> &mdash; properties never appear as plaintext command-line arguments. Secure values are passed via named pipe IPC and protected with Windows DPAPI.</li>
+      <li><strong>IMsiApi P/Invoke</strong> &mdash; MSI packages are installed via direct Windows Installer API calls, not by spawning <code>msiexec.exe</code> as a subprocess.</li>
+      <li><strong>Built-in WPF UI</strong> &mdash; no need to write a custom bootstrapper application from scratch. Use <code>InstallerPage&lt;TView&gt;</code> with ReactiveUI for custom installer pages.</li>
+      <li><strong>JSON update feeds</strong> &mdash; simpler than Atom XML. Configure with <code>UpdatePolicy</code> for notify-only, download-and-prompt, or auto-update.</li>
+      <li><strong>Same package types</strong> &mdash; MSI, MSP, MSU, EXE, and nested Bundle are all supported.</li>
+    </ul>
+
+    <!-- Section 5: What You Gain -->
+    <h2>What you gain</h2>
+    <ul>
+      <li><strong>Compile-time validation</strong> &mdash; typos caught at build, not install time.</li>
+      <li><strong>MSIX output</strong> &mdash; build MSI and MSIX from the same codebase.</li>
+      <li><strong>SBOM generation</strong> &mdash; CycloneDX format for supply chain security.</li>
+      <li><strong>Triple decompiler</strong> &mdash; decompile MSI, FalkForge bundles, and WiX Burn bundles.</li>
+      <li><strong>NativeAOT engine</strong> &mdash; smaller, faster, no runtime dependency.</li>
+      <li><strong>Built-in WPF custom UI</strong> &mdash; <code>InstallerPage&lt;TView&gt;</code> with ReactiveUI.</li>
+      <li><strong>Sigil payload signing</strong> &mdash; embedded integrity verification.</li>
+    </ul>
+
+    <!-- Section 6: Quick Start -->
+    <h2>Quick start &mdash; decompile your existing MSI</h2>
+    <pre><code>forge decompile your-product.msi</code></pre>
+    <p>This generates C# source code from your existing MSI. It won't be perfect &mdash; you'll clean up the output &mdash; but it gives you a working starting point.</p>
+
+    <nav class="tutorial-nav">
+      <a href="index.html">&larr; Back to Tutorials</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
