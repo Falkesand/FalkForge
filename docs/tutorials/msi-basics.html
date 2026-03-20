@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSI Basics — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>MSI Basics</h1>
+    <div class="tutorial-meta">
+      20 min read · Prerequisite: <a href="getting-started.html">Getting Started</a> · Wraps demos 02&ndash;05
+    </div>
+
+    <p>The Getting Started tutorial built a minimal installer. Real installers need shortcuts, services, registry entries, and features. This tutorial covers the building blocks you'll use in every project.</p>
+
+    <!-- ================================================================== -->
+    <!-- Section 1: Shortcuts & Upgrades -->
+    <!-- ================================================================== -->
+    <h2>Shortcuts &amp; Upgrades</h2>
+    <p>Demo 02 (<code>demo/02-notepad-clone</code>) creates a text editor installer with desktop shortcuts, registry entries, and major-upgrade support.</p>
+
+    <h3>Desktop, Start Menu, and Startup shortcuts</h3>
+    <p>FalkForge provides a fluent <code>Shortcut</code> API. Each call targets a different location.</p>
+    <pre><code><span class="cmt">// Desktop shortcut with icon</span>
+package<span class="punc">.</span><span class="method">Shortcut</span><span class="punc">(</span><span class="str">"FalkPad"</span><span class="punc">,</span> <span class="str">"falkpad.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithIcon</span><span class="punc">(</span><span class="str">"payload/falkpad.ico"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithDescription</span><span class="punc">(</span><span class="str">"Launch FalkPad text editor"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">OnDesktop</span><span class="punc">();</span>
+
+<span class="cmt">// Start menu shortcut under a company subfolder</span>
+package<span class="punc">.</span><span class="method">Shortcut</span><span class="punc">(</span><span class="str">"FalkPad"</span><span class="punc">,</span> <span class="str">"falkpad.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithIcon</span><span class="punc">(</span><span class="str">"payload/falkpad.ico"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">OnStartMenu</span><span class="punc">(</span><span class="str">"Falk Software"</span><span class="punc">);</span>
+
+<span class="cmt">// Startup shortcut &mdash; launches on Windows login</span>
+package<span class="punc">.</span><span class="method">Shortcut</span><span class="punc">(</span><span class="str">"FalkPad Startup"</span><span class="punc">,</span> <span class="str">"falkpad.exe"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">WithArguments</span><span class="punc">(</span><span class="str">"--minimized"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">OnStartup</span><span class="punc">();</span></code></pre>
+    <p>The first argument is the shortcut name visible to the user. The second is the target executable. Chain <code>OnDesktop()</code>, <code>OnStartMenu()</code>, or <code>OnStartup()</code> to place the shortcut. You can also chain multiple locations on a single shortcut call.</p>
+
+    <details class="deep-dive">
+      <summary>How Windows shortcuts work in MSI</summary>
+      <div class="deep-dive-content">
+        <p>MSI shortcuts are not <code>.lnk</code> files created by your code. Windows Installer writes them to the <code>Shortcut</code> table in the MSI database. During installation, the installer creates the actual <code>.lnk</code> files in the right folders. During uninstall, it removes them automatically.</p>
+        <p>This is a key advantage over script-based installers: Windows tracks every shortcut and guarantees clean removal.</p>
+      </div>
+    </details>
+
+    <h3>Registry entries</h3>
+    <p>Use <code>Registry</code> to write keys and values during installation.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">Registry</span><span class="punc">(</span>reg <span class="punc">=></span> reg
+    <span class="punc">.</span><span class="method">Key</span><span class="punc">(</span><span class="typ">RegistryRoot</span><span class="punc">.</span>LocalMachine<span class="punc">,</span> <span class="str">@"Software\FalkSoftware\FalkPad"</span><span class="punc">,</span> key <span class="punc">=></span>
+    <span class="punc">{</span>
+        key<span class="punc">.</span><span class="method">Value</span><span class="punc">(</span><span class="str">"Version"</span><span class="punc">,</span> <span class="str">"2.1.0"</span><span class="punc">);</span>
+        key<span class="punc">.</span><span class="method">Value</span><span class="punc">(</span><span class="str">"InstallPath"</span><span class="punc">,</span> <span class="typ">MsiProperty</span><span class="punc">.</span>InstallDir<span class="punc">);</span>
+        key<span class="punc">.</span><span class="method">DWord</span><span class="punc">(</span><span class="str">"EditorFlags"</span><span class="punc">,</span> <span class="num">3</span><span class="punc">);</span>
+        key<span class="punc">.</span><span class="method">DefaultValue</span><span class="punc">(</span><span class="str">"FalkPad Text Editor"</span><span class="punc">);</span>
+    <span class="punc">}));</span></code></pre>
+    <p><code>Value</code> writes a string. <code>DWord</code> writes a 32-bit integer. <code>DefaultValue</code> sets the key's <code>(Default)</code> entry. You can reference MSI properties like <code>MsiProperty.InstallDir</code> &mdash; the installer resolves them at install time.</p>
+
+    <h3>Removing registry on uninstall</h3>
+    <p>Registry entries created by the installer are removed automatically. To clean up entries created by your application at runtime, use <code>RemoveRegistry</code>.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">RemoveRegistry</span><span class="punc">(</span>rr <span class="punc">=></span> rr
+    <span class="punc">.</span><span class="method">Id</span><span class="punc">(</span><span class="str">"RemoveFalkPadRegKey"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Root</span><span class="punc">(</span><span class="typ">RegistryRoot</span><span class="punc">.</span>LocalMachine<span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Key</span><span class="punc">(</span><span class="str">@"Software\FalkSoftware\FalkPad"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">RemoveKey</span><span class="punc">());</span></code></pre>
+    <p><code>RemoveKey()</code> deletes the entire key and its values on uninstall. This catches any values your application added after installation.</p>
+
+    <h3>Major upgrade strategy</h3>
+    <p>When you release version 2.1 to replace version 2.0, Windows needs to know it's the same product. The <em>major upgrade</em> pattern handles this.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">MajorUpgrade</span><span class="punc">(</span>_ <span class="punc">=></span> <span class="punc">{</span> <span class="punc">});</span>
+package<span class="punc">.</span><span class="method">Downgrade</span><span class="punc">(</span>d <span class="punc">=></span> d<span class="punc">.</span><span class="method">Block</span><span class="punc">(</span><span class="str">"A newer version is already installed."</span><span class="punc">));</span></code></pre>
+    <p><code>MajorUpgrade</code> tells Windows Installer to uninstall the previous version before installing the new one. <code>Downgrade(...).Block()</code> prevents users from installing an older version over a newer one, showing the provided message instead.</p>
+
+    <details class="deep-dive">
+      <summary>Major upgrade vs patch</summary>
+      <div class="deep-dive-content">
+        <p>Windows Installer supports three update strategies:</p>
+        <ul>
+          <li><strong>Major upgrade</strong> &mdash; uninstalls the old version, installs the new one. Simplest and most common. Use for any version bump.</li>
+          <li><strong>Minor upgrade</strong> &mdash; updates in-place without a full uninstall. Riskier and rarely needed.</li>
+          <li><strong>Patch (MSP)</strong> &mdash; ships only the changed files. Smallest download, but complex to create and test.</li>
+        </ul>
+        <p>For most products, major upgrade is the right choice. FalkForge makes it a one-liner.</p>
+      </div>
+    </details>
+
+    <h3>License agreement</h3>
+    <p>Demo 02 uses the <code>InstallDir</code> dialog set, which includes a license page. Point it at an RTF file.</p>
+    <pre><code>package<span class="punc">.</span>LicenseFile <span class="punc">=</span> <span class="str">"payload/license.rtf"</span><span class="punc">;</span>
+package<span class="punc">.</span><span class="method">UseDialogSet</span><span class="punc">(</span><span class="typ">MsiDialogSet</span><span class="punc">.</span>InstallDir<span class="punc">);</span></code></pre>
+    <p>The installer shows the license text and requires acceptance before proceeding. The file must be RTF format &mdash; that is a Windows Installer requirement.</p>
+
+    <!-- ================================================================== -->
+    <!-- Section 2: Services & Launch Conditions -->
+    <!-- ================================================================== -->
+    <h2>Services &amp; Launch Conditions</h2>
+    <p>Demo 03 (<code>demo/03-client-server</code>) installs a client application, a Windows service, and documentation as three selectable features.</p>
+
+    <h3>Multiple features</h3>
+    <p>You saw features in the Getting Started tutorial. Here's how to define multiple named features so users can pick what to install.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"Client"</span><span class="punc">,</span> f <span class="punc">=></span>
+<span class="punc">{</span>
+    f<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Client Application"</span><span class="punc">;</span>
+    f<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Desktop client with user interface"</span><span class="punc">;</span>
+    f<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+    f<span class="punc">.</span>IsRequired <span class="punc">=</span> <span class="kw">false</span><span class="punc">;</span>
+<span class="punc">});</span>
+
+p<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"Server"</span><span class="punc">,</span> f <span class="punc">=></span>
+<span class="punc">{</span>
+    f<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Server Application"</span><span class="punc">;</span>
+    f<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Background service for data processing"</span><span class="punc">;</span>
+    f<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+    f<span class="punc">.</span>IsRequired <span class="punc">=</span> <span class="kw">false</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p><code>IsDefault</code> means the feature is selected by default. <code>IsRequired</code> prevents the user from deselecting it. Pair this with <code>MsiDialogSet.FeatureTree</code> to show a feature picker.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">UseDialogSet</span><span class="punc">(</span><span class="typ">MsiDialogSet</span><span class="punc">.</span>FeatureTree<span class="punc">);</span></code></pre>
+
+    <h3>Windows service installation</h3>
+    <p>The <code>Service</code> API registers a Windows service. The installer creates, starts, stops, and removes it automatically.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">Service</span><span class="punc">(</span><span class="str">"AcmeServer"</span><span class="punc">,</span> svc <span class="punc">=></span>
+<span class="punc">{</span>
+    svc<span class="punc">.</span>DisplayName <span class="punc">=</span> <span class="str">"Acme Server"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Acme Client-Server Suite background service"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>Executable <span class="punc">=</span> <span class="str">"server.exe"</span><span class="punc">;</span>
+    svc<span class="punc">.</span>StartMode <span class="punc">=</span> <span class="typ">ServiceStartMode</span><span class="punc">.</span>Automatic<span class="punc">;</span>
+    svc<span class="punc">.</span>Account <span class="punc">=</span> <span class="typ">ServiceAccount</span><span class="punc">.</span>LocalSystem<span class="punc">;</span>
+    svc<span class="punc">.</span>Arguments <span class="punc">=</span> <span class="str">"--port=8080 --config=appsettings.json"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p>The first argument is the service name (used by <code>sc.exe</code> and the Services console). <code>StartMode</code> controls when the service starts: <code>Automatic</code>, <code>Manual</code>, or <code>Disabled</code>. <code>Account</code> sets the identity: <code>LocalSystem</code>, <code>LocalService</code>, or <code>NetworkService</code>.</p>
+
+    <details class="deep-dive">
+      <summary>How MSI handles Windows Services lifecycle</summary>
+      <div class="deep-dive-content">
+        <p>Windows Installer has built-in service management via the <code>ServiceInstall</code> and <code>ServiceControl</code> tables. During install, it creates the service and optionally starts it. During uninstall, it stops and deletes it. During upgrade, it stops the old service before file replacement and starts the new one after.</p>
+        <p>This is safer than scripting <code>sc.exe</code> commands in custom actions. The installer handles error recovery and rollback automatically. If the install fails midway, Windows Installer rolls back the service registration.</p>
+      </div>
+    </details>
+
+    <h3>Launch conditions</h3>
+    <p>Launch conditions block installation if prerequisites are missing. The installer checks them before copying any files.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">Require</span><span class="punc">(</span><span class="typ">Condition</span><span class="punc">.</span>IsWindows10OrLater<span class="punc">,</span>
+    <span class="str">"This application requires Windows 10 or later."</span><span class="punc">);</span></code></pre>
+    <p>FalkForge provides typed conditions like <code>Condition.IsWindows10OrLater</code>, <code>Condition.IsPrivileged</code>, and <code>Condition.Is64BitOS</code>. You can also pass a raw property name as a string.</p>
+
+    <h3>Environment variables</h3>
+    <p>Set or append system environment variables during installation.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">EnvironmentVariable</span><span class="punc">(</span><span class="str">"ACME_SERVER_PORT"</span><span class="punc">,</span> <span class="str">"8080"</span><span class="punc">,</span> ev <span class="punc">=></span>
+<span class="punc">{</span>
+    ev<span class="punc">.</span>IsSystem <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+    ev<span class="punc">.</span>Action <span class="punc">=</span> <span class="typ">EnvironmentVariableAction</span><span class="punc">.</span>Set<span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p><code>Set</code> creates or overwrites the variable. <code>Append</code> adds to an existing value (useful for PATH). <code>IsSystem = true</code> writes a machine-level variable; <code>false</code> writes a per-user one. The installer removes the variable on uninstall.</p>
+
+    <p>Demo 03 also shows how to use <code>MsiProperty</code> as a value &mdash; the install directory resolves at install time:</p>
+    <pre><code>p<span class="punc">.</span><span class="method">EnvironmentVariable</span><span class="punc">(</span><span class="str">"ACME_INSTALL_DIR"</span><span class="punc">,</span> <span class="typ">MsiProperty</span><span class="punc">.</span>InstallFolder<span class="punc">,</span> ev <span class="punc">=></span>
+<span class="punc">{</span>
+    ev<span class="punc">.</span>IsSystem <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+    ev<span class="punc">.</span>Action <span class="punc">=</span> <span class="typ">EnvironmentVariableAction</span><span class="punc">.</span>Set<span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+
+    <details class="deep-dive">
+      <summary>Feature tree design</summary>
+      <div class="deep-dive-content">
+        <p>Good feature trees follow a few rules:</p>
+        <ul>
+          <li><strong>Keep it shallow.</strong> One or two levels deep. Users won't expand a five-level tree.</li>
+          <li><strong>Name features for users, not developers.</strong> "Client Application" beats "ClientModule".</li>
+          <li><strong>Make the required feature obvious.</strong> Mark the core feature as <code>IsRequired = true</code> so users can't accidentally break the install.</li>
+          <li><strong>Default to useful.</strong> Set <code>IsDefault = true</code> for features most users want. Opt-in features like debugging tools can default to off.</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- ================================================================== -->
+    <!-- Section 3: File Associations & Custom Actions -->
+    <!-- ================================================================== -->
+    <h2>File Associations &amp; Custom Actions</h2>
+    <p>Demo 04 (<code>demo/04-dev-toolkit</code>) builds a developer toolkit with nested features, file type registration, PATH modification, and a custom action.</p>
+
+    <h3>Nested features</h3>
+    <p>Features can contain child features. Define them inside the parent's lambda.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"Editor"</span><span class="punc">,</span> f <span class="punc">=></span>
+<span class="punc">{</span>
+    f<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Editor"</span><span class="punc">;</span>
+    f<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Source code editor with syntax highlighting"</span><span class="punc">;</span>
+    f<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+
+    <span class="cmt">// Nested feature: Editor Plugins</span>
+    f<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"EditorPlugins"</span><span class="punc">,</span> child <span class="punc">=></span>
+    <span class="punc">{</span>
+        child<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Editor Plugins"</span><span class="punc">;</span>
+        child<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Linter, formatter, and Git integration"</span><span class="punc">;</span>
+        child<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+    <span class="punc">});</span>
+<span class="punc">});</span></code></pre>
+    <p>In the feature tree UI, "Editor Plugins" appears indented under "Editor". Deselecting the parent deselects all children. Selecting a child auto-selects the parent.</p>
+
+    <h3>File associations</h3>
+    <p>Register your application as the handler for a file type.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">FileAssociation</span><span class="punc">(</span><span class="str">".falk"</span><span class="punc">,</span> fa <span class="punc">=></span>
+<span class="punc">{</span>
+    fa<span class="punc">.</span><span class="method">ProgId</span><span class="punc">(</span><span class="str">"FalkTech.FalkProject"</span><span class="punc">);</span>
+    fa<span class="punc">.</span>Description <span class="punc">=</span> <span class="str">"Falk Project File"</span><span class="punc">;</span>
+    fa<span class="punc">.</span><span class="method">Verb</span><span class="punc">(</span><span class="str">"open"</span><span class="punc">,</span> <span class="str">"\"%1\""</span><span class="punc">);</span>
+<span class="punc">});</span></code></pre>
+    <p>The first argument is the file extension. <code>ProgId</code> is a unique identifier for the association (convention: <code>Company.AppName</code>). <code>Verb</code> defines the action &mdash; <code>"open"</code> is the default double-click action, and <code>"%1"</code> is replaced with the file path.</p>
+
+    <details class="deep-dive">
+      <summary>How file associations work in the registry</summary>
+      <div class="deep-dive-content">
+        <p>Windows file associations live in the registry under <code>HKEY_CLASSES_ROOT</code>. The MSI writes several entries:</p>
+        <ol>
+          <li><code>.falk</code> key &mdash; maps the extension to a ProgId.</li>
+          <li><code>FalkTech.FalkProject</code> key &mdash; contains the description and default icon.</li>
+          <li><code>FalkTech.FalkProject\shell\open\command</code> &mdash; the command line to execute.</li>
+        </ol>
+        <p>FalkForge writes all of this from the <code>FileAssociation</code> call. On uninstall, the entries are removed and Windows reverts to the previous handler.</p>
+      </div>
+    </details>
+
+    <h3>PATH modification</h3>
+    <p>Add your tool's directory to the system PATH so users can run it from any command prompt.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">EnvironmentVariable</span><span class="punc">(</span><span class="str">"PATH"</span><span class="punc">,</span> <span class="str">"[INSTALLFOLDER]bin"</span><span class="punc">,</span> ev <span class="punc">=></span>
+<span class="punc">{</span>
+    ev<span class="punc">.</span>IsSystem <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+    ev<span class="punc">.</span>Action <span class="punc">=</span> <span class="typ">EnvironmentVariableAction</span><span class="punc">.</span>Append<span class="punc">;</span>
+    ev<span class="punc">.</span>Separator <span class="punc">=</span> <span class="str">";"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p><code>Append</code> adds your directory to the existing PATH value, separated by <code>;</code>. The installer removes just your entry on uninstall &mdash; it does not overwrite the entire PATH variable.</p>
+
+    <h3>Custom actions</h3>
+    <p>Custom actions run logic during the install sequence. The simplest form sets an MSI property.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"SetFalkVersion"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"FALK_VERSION"</span><span class="punc">,</span> <span class="str">"5.0.0"</span><span class="punc">);</span>
+    ca<span class="punc">.</span>After <span class="punc">=</span> <span class="str">"InstallValidate"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p>The <code>After</code> property controls when the action runs. MSI has a fixed sequence of standard actions (<code>CostInitialize</code>, <code>CostFinalize</code>, <code>InstallValidate</code>, etc.). Your custom action slots in relative to these.</p>
+
+    <details class="deep-dive">
+      <summary>Custom action execution timing</summary>
+      <div class="deep-dive-content">
+        <p>MSI runs actions in two phases:</p>
+        <ul>
+          <li><strong>UI sequence</strong> &mdash; runs with the user's permissions. Collects input, validates conditions.</li>
+          <li><strong>Execute sequence</strong> &mdash; runs with elevated permissions (if per-machine). Actually modifies the system.</li>
+        </ul>
+        <p><code>SetProperty</code> actions are safe in both sequences because they only set a value in memory. Actions that modify files or the registry must run in the execute sequence. FalkForge places <code>SetProperty</code> actions in the correct sequence automatically.</p>
+      </div>
+    </details>
+
+    <h3>The Mondo dialog</h3>
+    <p>Demo 04 uses <code>MsiDialogSet.Mondo</code> &mdash; the most full-featured built-in dialog set. It combines directory selection with a feature tree, giving the user maximum control over what gets installed and where.</p>
+    <pre><code>p<span class="punc">.</span><span class="method">UseDialogSet</span><span class="punc">(</span><span class="typ">MsiDialogSet</span><span class="punc">.</span>Mondo<span class="punc">);</span></code></pre>
+
+    <!-- ================================================================== -->
+    <!-- Section 4: Enterprise Feature Trees -->
+    <!-- ================================================================== -->
+    <h2>Enterprise Feature Trees</h2>
+    <p>Demo 05 (<code>demo/05-enterprise-suite</code>) is a 500-line installer for a large product. Rather than walk through every line, let's focus on the patterns you'll reuse.</p>
+
+    <h3>Large feature hierarchies</h3>
+    <p>Demo 05 defines eight top-level features. Several have nested children. Here's the "Database Tools" branch:</p>
+    <pre><code>pkg<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"DatabaseTools"</span><span class="punc">,</span> db <span class="punc">=></span>
+<span class="punc">{</span>
+    db<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Database Tools"</span><span class="punc">;</span>
+    db<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+
+    db<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"SqlExplorer"</span><span class="punc">,</span> se <span class="punc">=></span> <span class="punc">{</span>
+        se<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"SQL Explorer"</span><span class="punc">;</span>
+        se<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">true</span><span class="punc">;</span>
+        se<span class="punc">.</span><span class="method">Files</span><span class="punc">(</span>f <span class="punc">=></span> f<span class="punc">.</span><span class="method">Add</span><span class="punc">(</span><span class="punc">...</span><span class="punc">).</span><span class="method">To</span><span class="punc">(</span>dbExplorerDir<span class="punc">));</span>
+    <span class="punc">});</span>
+
+    db<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"SchemaDesigner"</span><span class="punc">,</span> sd <span class="punc">=></span> <span class="punc">{</span> <span class="cmt">/* ... */</span> <span class="punc">});</span>
+
+    <span class="cmt">// Opt-in: not selected by default</span>
+    db<span class="punc">.</span><span class="method">Feature</span><span class="punc">(</span><span class="str">"DbProfiler"</span><span class="punc">,</span> dp <span class="punc">=></span> <span class="punc">{</span>
+        dp<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Performance Profiler"</span><span class="punc">;</span>
+        dp<span class="punc">.</span>IsDefault <span class="punc">=</span> <span class="kw">false</span><span class="punc">;</span>
+    <span class="punc">});</span>
+<span class="punc">});</span></code></pre>
+    <p>Notice that files are added directly inside the feature lambda using <code>se.Files(...)</code>. This scopes those files to the feature &mdash; they only install when the user selects "SQL Explorer".</p>
+
+    <details class="deep-dive">
+      <summary>Feature tree design patterns</summary>
+      <div class="deep-dive-content">
+        <p>Demo 05 follows a consistent pattern worth copying:</p>
+        <ul>
+          <li><strong>One required root</strong> &mdash; the IDE feature is <code>IsRequired = true</code>. Every installer needs a core that always installs.</li>
+          <li><strong>Default-on for common features</strong> &mdash; Web Tools, Database Tools, Cloud Tools, and Documentation all default to selected.</li>
+          <li><strong>Opt-in for heavy or niche features</strong> &mdash; Mobile SDK and Diagnostics default to off. This keeps the default install size reasonable.</li>
+          <li><strong>Two-level nesting maximum</strong> &mdash; Top-level categories with one level of children. Deeper trees confuse users.</li>
+        </ul>
+      </div>
+    </details>
+
+    <h3>Font registration</h3>
+    <p>Install a font so it's available system-wide.</p>
+    <pre><code>pkg<span class="punc">.</span><span class="method">Font</span><span class="punc">(</span><span class="str">"payload/fonts/ApexMono.ttf"</span><span class="punc">,</span> f <span class="punc">=></span>
+<span class="punc">{</span>
+    f<span class="punc">.</span>Title <span class="punc">=</span> <span class="str">"Apex Mono"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p>FalkForge copies the font file to the Windows Fonts folder and registers it. The font is available to all applications immediately after install.</p>
+
+    <h3>Custom tables</h3>
+    <p>Store arbitrary metadata inside the MSI database. Custom actions or external tools can read it later.</p>
+    <pre><code>pkg<span class="punc">.</span><span class="method">CustomTable</span><span class="punc">(</span>ct <span class="punc">=></span>
+<span class="punc">{</span>
+    ct<span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"ApexComponents"</span><span class="punc">);</span>
+    ct<span class="punc">.</span><span class="method">Column</span><span class="punc">(</span><span class="str">"ComponentId"</span><span class="punc">,</span> <span class="typ">CustomTableColumnType</span><span class="punc">.</span>String<span class="punc">,</span>
+        c <span class="punc">=></span> c<span class="punc">.</span><span class="method">PrimaryKey</span><span class="punc">().</span><span class="method">Width</span><span class="punc">(</span><span class="num">72</span><span class="punc">));</span>
+    ct<span class="punc">.</span><span class="method">Column</span><span class="punc">(</span><span class="str">"Category"</span><span class="punc">,</span> <span class="typ">CustomTableColumnType</span><span class="punc">.</span>String<span class="punc">,</span>
+        c <span class="punc">=></span> c<span class="punc">.</span><span class="method">Width</span><span class="punc">(</span><span class="num">64</span><span class="punc">));</span>
+    ct<span class="punc">.</span><span class="method">Column</span><span class="punc">(</span><span class="str">"Priority"</span><span class="punc">,</span> <span class="typ">CustomTableColumnType</span><span class="punc">.</span>Int32<span class="punc">);</span>
+
+    ct<span class="punc">.</span><span class="method">Row</span><span class="punc">(</span>r <span class="punc">=></span> r
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"ComponentId"</span><span class="punc">,</span> <span class="str">"apex.core.dll"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Category"</span><span class="punc">,</span> <span class="str">"IDE"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Priority"</span><span class="punc">,</span> <span class="num">1</span><span class="punc">));</span>
+<span class="punc">});</span></code></pre>
+    <p>Define columns with types and constraints, then add rows. The table becomes part of the MSI database and survives installation &mdash; you can query it with <code>forge inspect</code>.</p>
+
+    <details class="deep-dive">
+      <summary>When to use custom tables</summary>
+      <div class="deep-dive-content">
+        <p>Custom tables are useful for:</p>
+        <ul>
+          <li><strong>Metadata for custom actions</strong> &mdash; store configuration that your DLL custom action reads at install time.</li>
+          <li><strong>Audit and tracking</strong> &mdash; embed component manifests, version mappings, or dependency metadata.</li>
+          <li><strong>Extension data</strong> &mdash; FalkForge extensions (Firewall, IIS, SQL) use custom tables internally to store their configuration.</li>
+        </ul>
+        <p>Avoid using custom tables for data that changes at runtime. The MSI database is read-only after installation. For runtime configuration, use registry entries or config files instead.</p>
+      </div>
+    </details>
+
+    <h3>The Advanced dialog</h3>
+    <p>Demo 05 uses <code>MsiDialogSet.Advanced</code> &mdash; the most complete built-in dialog. It adds Typical, Custom, and Complete install types on top of directory and feature selection. Users who want a quick install pick Typical; power users pick Custom to fine-tune features.</p>
+    <pre><code>pkg<span class="punc">.</span><span class="method">UseDialogSet</span><span class="punc">(</span><span class="typ">MsiDialogSet</span><span class="punc">.</span>Advanced<span class="punc">);</span></code></pre>
+
+    <!-- ================================================================== -->
+    <!-- Recap Table -->
+    <!-- ================================================================== -->
+    <h2>Recap</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Concept</th>
+          <th>Demo</th>
+          <th>Key API</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Shortcuts (Desktop, Start Menu, Startup)</td>
+          <td>02</td>
+          <td><code>Shortcut().OnDesktop() / OnStartMenu() / OnStartup()</code></td>
+        </tr>
+        <tr>
+          <td>Registry entries</td>
+          <td>02</td>
+          <td><code>Registry()</code>, <code>RemoveRegistry()</code></td>
+        </tr>
+        <tr>
+          <td>Major upgrade</td>
+          <td>02</td>
+          <td><code>MajorUpgrade()</code>, <code>Downgrade().Block()</code></td>
+        </tr>
+        <tr>
+          <td>License agreement</td>
+          <td>02</td>
+          <td><code>LicenseFile</code>, <code>UseDialogSet(InstallDir)</code></td>
+        </tr>
+        <tr>
+          <td>Multiple features</td>
+          <td>03</td>
+          <td><code>Feature()</code>, <code>UseDialogSet(FeatureTree)</code></td>
+        </tr>
+        <tr>
+          <td>Windows services</td>
+          <td>03</td>
+          <td><code>Service()</code></td>
+        </tr>
+        <tr>
+          <td>Launch conditions</td>
+          <td>03</td>
+          <td><code>Require()</code></td>
+        </tr>
+        <tr>
+          <td>Environment variables</td>
+          <td>03</td>
+          <td><code>EnvironmentVariable()</code></td>
+        </tr>
+        <tr>
+          <td>Nested features</td>
+          <td>04</td>
+          <td><code>f.Feature()</code> inside parent</td>
+        </tr>
+        <tr>
+          <td>File associations</td>
+          <td>04</td>
+          <td><code>FileAssociation()</code></td>
+        </tr>
+        <tr>
+          <td>PATH modification</td>
+          <td>04</td>
+          <td><code>EnvironmentVariable("PATH", ..., Append)</code></td>
+        </tr>
+        <tr>
+          <td>Custom actions</td>
+          <td>04</td>
+          <td><code>CustomAction()</code></td>
+        </tr>
+        <tr>
+          <td>Feature hierarchy</td>
+          <td>05</td>
+          <td><code>Feature()</code> with nested <code>Feature()</code></td>
+        </tr>
+        <tr>
+          <td>Font registration</td>
+          <td>05</td>
+          <td><code>Font()</code></td>
+        </tr>
+        <tr>
+          <td>Custom tables</td>
+          <td>05</td>
+          <td><code>CustomTable()</code></td>
+        </tr>
+        <tr>
+          <td>Advanced dialog</td>
+          <td>05</td>
+          <td><code>UseDialogSet(Advanced)</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ================================================================== -->
+    <!-- What's Next -->
+    <!-- ================================================================== -->
+    <h2>What's next</h2>
+    <ul>
+      <li><strong>Custom UI</strong> &mdash; build your own WPF installer pages with InstallerPage and InstallerApp (coming soon).</li>
+      <li><strong>Bundles</strong> &mdash; wrap multiple MSIs into a single EXE with a bootstrapper (coming soon).</li>
+      <li><strong>Extensions</strong> &mdash; Firewall rules, IIS sites, SQL databases, and more (coming soon).</li>
+    </ul>
+
+    <nav class="tutorial-nav">
+      <a href="getting-started.html">&larr; Previous: Getting Started</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
