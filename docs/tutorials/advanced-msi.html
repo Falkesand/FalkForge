@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced MSI — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Advanced MSI</h1>
+    <div class="tutorial-meta">
+      20 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps demos 09, 20, 26, 28, 44&ndash;46
+    </div>
+
+    <!-- Intro -->
+    <p>Beyond files and features, MSI supports custom actions, custom tables, install sequence control, merge modules, patches, and transforms. This tutorial covers the advanced authoring features.</p>
+
+    <!-- ================================================================ -->
+    <!-- Section 1: Custom Actions -->
+    <!-- ================================================================ -->
+    <h2>Custom Actions</h2>
+    <p>Custom actions let you run code during installation. FalkForge supports several types: DLL entry points, embedded EXEs, and property-setting actions. Each type serves a different purpose.</p>
+
+    <h3>SetProperty actions</h3>
+    <p>The simplest custom action sets a property value. Use it to pass data between installation phases or configure behavior based on conditions.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"SetInstallMode"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"INSTALL_MODE"</span><span class="punc">,</span> <span class="str">"standard"</span><span class="punc">);</span>
+    ca<span class="punc">.</span>Condition <span class="punc">=</span> <span class="typ">Condition</span><span class="punc">.</span>IsInstalling<span class="punc">.</span><span class="method">ToString</span><span class="punc">();</span>
+<span class="punc">});</span></code></pre>
+    <p>The <code>Condition</code> property controls when the action runs. Here it fires only during a fresh install, not during repair or uninstall.</p>
+
+    <h3>DLL custom actions</h3>
+    <p>For complex logic, embed a native DLL and call a C entry point. First, register the binary. Then reference it in the custom action.</p>
+    <pre><code><span class="cmt">// Embed the DLL as a binary resource</span>
+package<span class="punc">.</span><span class="method">Binary</span><span class="punc">(</span><span class="str">"CustomActionsDll"</span><span class="punc">,</span> <span class="str">"payload/CustomActions.dll"</span><span class="punc">);</span>
+
+<span class="cmt">// Call a C entry point from the embedded DLL</span>
+package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"CheckSystemRequirements"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">DllFromBinary</span><span class="punc">(</span><span class="str">"CustomActionsDll"</span><span class="punc">,</span> <span class="str">"CheckRequirements"</span><span class="punc">);</span>
+    ca<span class="punc">.</span>After <span class="punc">=</span> <span class="str">"CostFinalize"</span><span class="punc">;</span>
+    ca<span class="punc">.</span>Condition <span class="punc">=</span> <span class="typ">Condition</span><span class="punc">.</span>IsInstalling<span class="punc">.</span><span class="method">ToString</span><span class="punc">();</span>
+<span class="punc">});</span></code></pre>
+    <p>The first argument to <code>DllFromBinary</code> is the binary name. The second is the exported function name in the DLL.</p>
+
+    <h3>EXE custom actions</h3>
+    <p>You can also run an embedded executable. Pass command-line arguments via the <code>Target</code> property.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"RunSetupTool"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">ExeFromBinary</span><span class="punc">(</span><span class="str">"CustomActionsDll"</span><span class="punc">);</span>
+    ca<span class="punc">.</span>Target <span class="punc">=</span> <span class="str">"--setup --silent"</span><span class="punc">;</span>
+    ca<span class="punc">.</span><span class="method">Deferred</span><span class="punc">();</span>
+    ca<span class="punc">.</span><span class="method">NoImpersonate</span><span class="punc">();</span>
+    ca<span class="punc">.</span>After <span class="punc">=</span> <span class="str">"InstallFiles"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+
+    <h3>Deferred, rollback, and commit actions</h3>
+    <p>Actions that modify the system must be <em>deferred</em>. Pair them with a <em>rollback</em> action to undo changes on failure. A <em>commit</em> action runs only after successful completion.</p>
+    <pre><code><span class="cmt">// Deferred action &mdash; runs during the execution phase</span>
+package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"ConfigureApp"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"CONFIGURE_CMD"</span><span class="punc">,</span> <span class="str">"[ProgramFilesFolder]Demo\\app.exe --configure"</span><span class="punc">);</span>
+    ca<span class="punc">.</span><span class="method">Deferred</span><span class="punc">();</span>
+    ca<span class="punc">.</span><span class="method">NoImpersonate</span><span class="punc">();</span>
+    ca<span class="punc">.</span>After <span class="punc">=</span> <span class="str">"InstallFiles"</span><span class="punc">;</span>
+<span class="punc">});</span>
+
+<span class="cmt">// Rollback action &mdash; undoes ConfigureApp on failure</span>
+package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"UndoConfigureApp"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"UNDO_CMD"</span><span class="punc">,</span> <span class="str">"[ProgramFilesFolder]Demo\\app.exe --unconfigure"</span><span class="punc">);</span>
+    ca<span class="punc">.</span><span class="method">Rollback</span><span class="punc">();</span>
+    ca<span class="punc">.</span><span class="method">NoImpersonate</span><span class="punc">();</span>
+    ca<span class="punc">.</span>Before <span class="punc">=</span> <span class="str">"ConfigureApp"</span><span class="punc">;</span>
+<span class="punc">});</span>
+
+<span class="cmt">// Commit action &mdash; runs only on success</span>
+package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"NotifySuccess"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"NOTIFY_CMD"</span><span class="punc">,</span> <span class="str">"[ProgramFilesFolder]Demo\\app.exe --notify-complete"</span><span class="punc">);</span>
+    ca<span class="punc">.</span><span class="method">Commit</span><span class="punc">();</span>
+    ca<span class="punc">.</span><span class="method">NoImpersonate</span><span class="punc">();</span>
+    ca<span class="punc">.</span>After <span class="punc">=</span> <span class="str">"ConfigureApp"</span><span class="punc">;</span>
+<span class="punc">});</span></code></pre>
+    <p>Schedule the rollback action <em>before</em> the deferred action it protects. Windows Installer records rollback actions in reverse order so they run correctly during a rollback.</p>
+
+    <h3>ContinueOnError</h3>
+    <p>For non-critical actions like telemetry, call <code>ContinueOnError()</code>. The installer proceeds even if the action fails.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">CustomAction</span><span class="punc">(</span><span class="str">"OptionalTelemetry"</span><span class="punc">,</span> ca <span class="punc">=></span>
+<span class="punc">{</span>
+    ca<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"TELEMETRY_CMD"</span><span class="punc">,</span> <span class="str">"..."</span><span class="punc">);</span>
+    ca<span class="punc">.</span><span class="method">Deferred</span><span class="punc">();</span>
+    ca<span class="punc">.</span><span class="method">ContinueOnError</span><span class="punc">();</span>
+<span class="punc">});</span></code></pre>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Custom action types and security implications</summary>
+      <div class="deep-dive-content">
+        <p>MSI defines over 50 custom action types. FalkForge exposes the most common ones safely:</p>
+        <ul>
+          <li><strong>Type 1 (DLL)</strong> &mdash; calls an exported C function from an embedded DLL. Runs in-process with the installer.</li>
+          <li><strong>Type 2 (EXE)</strong> &mdash; launches an embedded executable as a separate process.</li>
+          <li><strong>Type 51 (SetProperty)</strong> &mdash; sets a property value. No code execution. Safest option.</li>
+        </ul>
+        <p><strong>Security considerations:</strong></p>
+        <ul>
+          <li><code>NoImpersonate()</code> runs the action as LocalSystem in per-machine installs. Only use it when elevated access is required.</li>
+          <li>Deferred actions cannot read properties directly. Pass data via <code>SetProperty</code> on a property with the same name as the custom action.</li>
+          <li>Always pair deferred actions with rollback actions. A failed install without rollback leaves the system in a partially configured state.</li>
+          <li>DLL custom actions run in the installer process &mdash; a crash takes down the entire install. Prefer EXE actions for unreliable third-party code.</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- ================================================================ -->
+    <!-- Section 2: Custom Tables -->
+    <!-- ================================================================ -->
+    <h2>Custom Tables</h2>
+    <p>Custom tables store structured data inside the MSI database. Custom actions can read them at install time. They are also useful for embedding metadata that external tools query after deployment.</p>
+
+    <h3>Defining a schema</h3>
+    <p>Define columns with types and constraints. Mark at least one column as the primary key.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">CustomTable</span><span class="punc">(</span>ct <span class="punc">=></span> ct
+    <span class="punc">.</span><span class="method">Name</span><span class="punc">(</span><span class="str">"AppConfig"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Column</span><span class="punc">(</span><span class="str">"Key"</span><span class="punc">,</span> <span class="typ">CustomTableColumnType</span><span class="punc">.</span>String<span class="punc">,</span> col <span class="punc">=></span> col<span class="punc">.</span><span class="method">PrimaryKey</span><span class="punc">().</span><span class="method">Width</span><span class="punc">(</span><span class="num">72</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Column</span><span class="punc">(</span><span class="str">"Value"</span><span class="punc">,</span> <span class="typ">CustomTableColumnType</span><span class="punc">.</span>String<span class="punc">,</span> col <span class="punc">=></span> col<span class="punc">.</span><span class="method">Width</span><span class="punc">(</span><span class="num">255</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Column</span><span class="punc">(</span><span class="str">"Priority"</span><span class="punc">,</span> <span class="typ">CustomTableColumnType</span><span class="punc">.</span>Int32<span class="punc">)</span></code></pre>
+    <p>Supported column types: <code>String</code>, <code>Int16</code>, <code>Int32</code>. Use <code>Nullable()</code> for optional columns and <code>Width()</code> to set the maximum string length.</p>
+
+    <h3>Adding rows</h3>
+    <p>Chain <code>Row()</code> calls to populate the table with data.</p>
+    <pre><code>    <span class="punc">.</span><span class="method">Row</span><span class="punc">(</span>row <span class="punc">=></span> row
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Key"</span><span class="punc">,</span> <span class="str">"Theme"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Value"</span><span class="punc">,</span> <span class="str">"Dark"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Priority"</span><span class="punc">,</span> <span class="num">1</span><span class="punc">))</span>
+    <span class="punc">.</span><span class="method">Row</span><span class="punc">(</span>row <span class="punc">=></span> row
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Key"</span><span class="punc">,</span> <span class="str">"Language"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Value"</span><span class="punc">,</span> <span class="str">"en-US"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Set</span><span class="punc">(</span><span class="str">"Priority"</span><span class="punc">,</span> <span class="num">2</span><span class="punc">))</span>
+<span class="punc">);</span></code></pre>
+
+    <h3>When to use custom tables</h3>
+    <p>Use custom tables when you need to:</p>
+    <ul>
+      <li>Store configuration data that custom actions read at install time.</li>
+      <li>Embed deployment metadata (environment names, health-check endpoints, feature flags).</li>
+      <li>Drive install-time logic from data rather than hard-coded conditions.</li>
+    </ul>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How custom tables are stored in the MSI database</summary>
+      <div class="deep-dive-content">
+        <p>An MSI file is a structured storage database (COM Structured Storage). Each table becomes a stream inside this file. Custom tables are no different from built-in tables like <code>File</code> or <code>Registry</code> &mdash; they follow the same column definition format and are queryable via the Windows Installer SQL API.</p>
+        <p>FalkForge validates custom table identifiers to prevent SQL injection. Table and column names must be valid MSI identifiers: alphanumeric characters, underscores, and periods only. The <code>TableEmitter</code> performs defense-in-depth validation before writing any custom table to the database.</p>
+        <p>You can inspect custom tables after compilation:</p>
+        <pre><code>forge inspect output.msi</code></pre>
+        <p>The inspect command lists all tables, including custom ones, with their schemas and row counts.</p>
+      </div>
+    </details>
+
+    <!-- ================================================================ -->
+    <!-- Section 3: Sequence Scheduling -->
+    <!-- ================================================================ -->
+    <h2>Sequence Scheduling</h2>
+    <p>MSI runs actions in a defined order called a <em>sequence</em>. FalkForge lets you position custom actions relative to built-in actions using <code>Before()</code> and <code>After()</code>.</p>
+
+    <h3>ExecuteSequence</h3>
+    <p>The execute sequence runs during the actual installation &mdash; file copies, registry writes, service operations. Schedule custom actions here when they modify the system.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">ExecuteSequence</span><span class="punc">(</span>seq <span class="punc">=></span> seq
+    <span class="punc">.</span><span class="method">Action</span><span class="punc">(</span><span class="str">"SetInstallMode"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">After</span><span class="punc">(</span><span class="str">"CostFinalize"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Condition</span><span class="punc">(</span><span class="str">"NOT Installed"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Action</span><span class="punc">(</span><span class="str">"RollbackDatabase"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Before</span><span class="punc">(</span><span class="str">"ConfigureDatabase"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Condition</span><span class="punc">(</span><span class="str">"NOT Installed"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Action</span><span class="punc">(</span><span class="str">"ConfigureDatabase"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">After</span><span class="punc">(</span><span class="str">"InstallFiles"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">Condition</span><span class="punc">(</span><span class="str">"NOT Installed"</span><span class="punc">)</span>
+<span class="punc">);</span></code></pre>
+    <p>Each <code>Action()</code> call references a previously defined custom action by name. The <code>Condition()</code> call is optional and controls whether the action runs for a given install scenario.</p>
+
+    <h3>UISequence</h3>
+    <p>The UI sequence runs during the user interaction phase &mdash; dialogs, property collection, validation. Use it for actions that gather or display information without modifying the system.</p>
+    <pre><code>package<span class="punc">.</span><span class="method">UISequence</span><span class="punc">(</span>seq <span class="punc">=></span> seq
+    <span class="punc">.</span><span class="method">Action</span><span class="punc">(</span><span class="str">"PostInstallCleanup"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">After</span><span class="punc">(</span><span class="str">"ExecuteAction"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Condition</span><span class="punc">(</span><span class="typ">Condition</span><span class="punc">.</span>IsInstalling<span class="punc">)</span>
+<span class="punc">);</span></code></pre>
+
+    <h3>Sequence tables</h3>
+    <p>MSI defines four sequence tables:</p>
+    <ul>
+      <li><strong>InstallExecuteSequence</strong> &mdash; the main installation sequence. File copies, registry, services.</li>
+      <li><strong>InstallUISequence</strong> &mdash; the UI phase. Dialogs and property validation.</li>
+      <li><strong>AdminExecuteSequence</strong> &mdash; administrative installations (network image creation).</li>
+      <li><strong>AdvtExecuteSequence</strong> &mdash; advertised installations (shortcuts and file associations without files).</li>
+    </ul>
+    <p>FalkForge exposes <code>ExecuteSequence()</code> and <code>UISequence()</code> for the two most common tables. The admin and advertise sequences are rarely needed.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: The MSI installation sequence model</summary>
+      <div class="deep-dive-content">
+        <p>An MSI installation runs in two phases:</p>
+        <ol>
+          <li><strong>UI phase</strong> &mdash; gathers user input, validates conditions, collects properties. No system changes. Runs the InstallUISequence table.</li>
+          <li><strong>Execute phase</strong> &mdash; performs the actual installation. Runs the InstallExecuteSequence table. Actions here run with elevated privileges in per-machine installs.</li>
+        </ol>
+        <p>Within each phase, actions run in order of their sequence number. <code>After("CostFinalize")</code> places your action immediately after <code>CostFinalize</code> in the sequence. <code>Before("InstallFiles")</code> places it just before <code>InstallFiles</code>.</p>
+        <p>Key built-in actions and their approximate order:</p>
+        <ol>
+          <li><code>AppSearch</code> &mdash; searches for existing installations.</li>
+          <li><code>LaunchConditions</code> &mdash; checks prerequisites.</li>
+          <li><code>FindRelatedProducts</code> &mdash; detects prior versions.</li>
+          <li><code>CostFinalize</code> &mdash; calculates disk space.</li>
+          <li><code>InstallInitialize</code> &mdash; begins the transaction.</li>
+          <li><code>RemoveExistingProducts</code> &mdash; uninstalls old versions (if scheduled here).</li>
+          <li><code>InstallFiles</code> &mdash; copies files to disk.</li>
+          <li><code>WriteRegistryValues</code> &mdash; writes registry entries.</li>
+          <li><code>InstallFinalize</code> &mdash; commits the transaction.</li>
+        </ol>
+        <p>Deferred actions must be scheduled between <code>InstallInitialize</code> and <code>InstallFinalize</code>. Immediate actions can run anywhere but cannot modify the system.</p>
+      </div>
+    </details>
+
+    <!-- ================================================================ -->
+    <!-- Section 4: Merge Modules -->
+    <!-- ================================================================ -->
+    <h2>Merge Modules</h2>
+    <p>A merge module (<code>.msm</code>) packages reusable components that multiple MSI installers can consume. It is the MSI equivalent of a shared library.</p>
+
+    <h3>Creating a merge module</h3>
+    <p>Use <code>Installer.BuildMergeModule()</code> as the entry point. The API mirrors <code>Installer.Build()</code> but targets the MSM format.</p>
+    <pre><code><span class="kw">return</span> <span class="typ">Installer</span><span class="punc">.</span><span class="method">BuildMergeModule</span><span class="punc">(</span>args<span class="punc">,</span> module <span class="punc">=></span>
+<span class="punc">{</span>
+    module<span class="punc">.</span><span class="method">Version</span><span class="punc">(</span><span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">1</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">));</span>
+    module<span class="punc">.</span><span class="method">Manufacturer</span><span class="punc">(</span><span class="str">"Demo"</span><span class="punc">);</span>
+    module<span class="punc">.</span><span class="method">Language</span><span class="punc">(</span><span class="num">1033</span><span class="punc">);</span>
+    module<span class="punc">.</span><span class="method">Description</span><span class="punc">(</span><span class="str">"Shared components merge module"</span><span class="punc">);</span>
+
+    <span class="cmt">// A merge module must include at least one component</span>
+    module<span class="punc">.</span><span class="method">Component</span><span class="punc">(</span><span class="str">"SharedRuntime"</span><span class="punc">);</span>
+
+    module<span class="punc">.</span><span class="method">Dependency</span><span class="punc">(</span><span class="str">"SharedRuntime_1.0"</span><span class="punc">);</span>
+<span class="punc">},</span> <span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">)</span> <span class="punc">=></span> <span class="kw">new</span> <span class="typ">MsmCompiler</span><span class="punc">().</span><span class="method">Compile</span><span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">));</span></code></pre>
+    <p>The second argument is a compile delegate. <code>MsmCompiler</code> generates the <code>.msm</code> file. The <code>Dependency()</code> call declares a module dependency identifier that consuming MSIs can verify.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use MSM vs shared components</summary>
+      <div class="deep-dive-content">
+        <p>Merge modules were the original MSI mechanism for sharing components across products. They work by literally merging tables into the consuming MSI at build time. This has tradeoffs:</p>
+        <ul>
+          <li><strong>Pros:</strong> Self-contained, no runtime dependency resolution, works with any MSI tool chain.</li>
+          <li><strong>Cons:</strong> No independent servicing. To update the shared component, you must rebuild and redistribute every consuming MSI.</li>
+        </ul>
+        <p>For modern projects, consider alternatives:</p>
+        <ul>
+          <li><strong>Bundles</strong> &mdash; chain multiple MSIs together. Each MSI can be updated independently.</li>
+          <li><strong>Dependency extension</strong> &mdash; FalkForge's <code>Extensions.Dependency</code> provides WiX-compatible reference counting via registry keys, allowing shared components to be installed as a separate MSI.</li>
+        </ul>
+        <p>Use merge modules when you need to redistribute a single MSI that includes shared components, or when your deployment infrastructure requires it.</p>
+      </div>
+    </details>
+
+    <!-- ================================================================ -->
+    <!-- Section 5: Patches -->
+    <!-- ================================================================ -->
+    <h2>Patches</h2>
+    <p>A patch (<code>.msp</code>) updates an installed MSI without requiring a full reinstall. It contains only the differences between two MSI versions.</p>
+
+    <h3>Creating a patch</h3>
+    <p>Use <code>Installer.BuildPatch()</code>. Provide the baseline MSI (what the user has installed) and the target MSI (the updated version).</p>
+    <pre><code><span class="kw">return</span> <span class="typ">Installer</span><span class="punc">.</span><span class="method">BuildPatch</span><span class="punc">(</span>args<span class="punc">,</span> patch <span class="punc">=></span>
+<span class="punc">{</span>
+    patch<span class="punc">.</span><span class="method">Manufacturer</span><span class="punc">(</span><span class="str">"Demo"</span><span class="punc">);</span>
+    patch<span class="punc">.</span><span class="method">Description</span><span class="punc">(</span><span class="str">"Updates App from 1.0 to 1.1"</span><span class="punc">);</span>
+    patch<span class="punc">.</span><span class="method">TargetMsi</span><span class="punc">(</span><span class="str">"payload/app-v1.msi"</span><span class="punc">);</span>
+    patch<span class="punc">.</span><span class="method">UpdatedMsi</span><span class="punc">(</span><span class="str">"payload/app-v2.msi"</span><span class="punc">);</span>
+    patch<span class="punc">.</span><span class="method">Classification</span><span class="punc">(</span><span class="typ">PatchClassification</span><span class="punc">.</span>Hotfix<span class="punc">);</span>
+    patch<span class="punc">.</span><span class="method">AllowRemoval</span><span class="punc">();</span>
+<span class="punc">},</span> <span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">)</span> <span class="punc">=></span> <span class="kw">new</span> <span class="typ">PatchCompiler</span><span class="punc">().</span><span class="method">Compile</span><span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">));</span></code></pre>
+    <p><code>TargetMsi()</code> specifies the baseline. <code>UpdatedMsi()</code> specifies the new version. The compiler diffs the two and produces the patch. <code>AllowRemoval()</code> lets users uninstall the patch to revert to the baseline.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Patch classification and versioning rules</summary>
+      <div class="deep-dive-content">
+        <p>MSI patches have three classifications:</p>
+        <ul>
+          <li><strong>Hotfix</strong> &mdash; a targeted fix. Changes only specific files or registry entries. Does not bump the product version.</li>
+          <li><strong>ServicePack</strong> &mdash; a cumulative update. May change many files. Typically bumps the minor version.</li>
+          <li><strong>Update</strong> &mdash; a general-purpose update. Broadest scope.</li>
+        </ul>
+        <p><strong>Versioning rules for patches:</strong></p>
+        <ul>
+          <li>The <code>PackageCode</code> (GUID) must differ between the baseline and target MSIs.</li>
+          <li>The <code>ProductVersion</code> should change. The first three fields (<code>Major.Minor.Build</code>) are significant to Windows Installer.</li>
+          <li>The <code>UpgradeCode</code> must remain the same.</li>
+          <li>The <code>ProductCode</code> can stay the same for minor updates or change for major updates.</li>
+        </ul>
+        <p>Patches are applied via <code>msiexec /p patch.msp</code> or programmatically through the Windows Installer API.</p>
+      </div>
+    </details>
+
+    <!-- ================================================================ -->
+    <!-- Section 6: Transforms -->
+    <!-- ================================================================ -->
+    <h2>Transforms</h2>
+    <p>A transform (<code>.mst</code>) modifies an MSI's properties and behavior without changing the MSI file itself. IT departments use transforms to customize vendor MSIs for their environment.</p>
+
+    <h3>Creating a transform</h3>
+    <p>Use <code>Installer.BuildTransform()</code>. Reference the base MSI and override properties as needed.</p>
+    <pre><code><span class="kw">return</span> <span class="typ">Installer</span><span class="punc">.</span><span class="method">BuildTransform</span><span class="punc">(</span>args<span class="punc">,</span> transform <span class="punc">=></span>
+<span class="punc">{</span>
+    transform<span class="punc">.</span><span class="method">BaseMsi</span><span class="punc">(</span><span class="str">"payload/base.msi"</span><span class="punc">);</span>
+    transform<span class="punc">.</span><span class="method">Description</span><span class="punc">(</span><span class="str">"Enterprise Customization"</span><span class="punc">);</span>
+
+    <span class="cmt">// Override properties for enterprise deployment</span>
+    transform<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"ALLUSERS"</span><span class="punc">,</span> <span class="str">"1"</span><span class="punc">);</span>
+    transform<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"INSTALLDIR"</span><span class="punc">,</span> <span class="str">@"D:\Apps\MyApp"</span><span class="punc">);</span>
+    transform<span class="punc">.</span><span class="method">SetProperty</span><span class="punc">(</span><span class="str">"REBOOT"</span><span class="punc">,</span> <span class="str">"ReallySuppress"</span><span class="punc">);</span>
+<span class="punc">},</span> <span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">)</span> <span class="punc">=></span> <span class="kw">new</span> <span class="typ">TransformCompiler</span><span class="punc">().</span><span class="method">Compile</span><span class="punc">(</span>model<span class="punc">,</span> outputPath<span class="punc">));</span></code></pre>
+    <p><code>BaseMsi()</code> identifies the MSI to customize. <code>SetProperty()</code> overrides property values. Common overrides include install directory, per-user vs per-machine scope, and reboot suppression.</p>
+
+    <h3>Applying transforms</h3>
+    <p>Apply a transform during installation via the command line:</p>
+    <pre><code>msiexec /i product.msi TRANSFORMS=enterprise.mst</code></pre>
+    <p>Or via Group Policy by attaching the MST to the MSI deployment. The transform modifies the MSI's behavior without altering the original file.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Enterprise deployment with transforms</summary>
+      <div class="deep-dive-content">
+        <p>Transforms are the standard mechanism for customizing vendor MSIs in enterprise environments. Common use cases:</p>
+        <ul>
+          <li><strong>Silent deployment</strong> &mdash; set <code>REBOOT=ReallySuppress</code> and <code>ALLUSERS=1</code> for SCCM/Intune deployment.</li>
+          <li><strong>Custom install paths</strong> &mdash; override <code>INSTALLDIR</code> to match your organization's directory structure.</li>
+          <li><strong>Feature selection</strong> &mdash; pre-select or deselect features so users get a standardized configuration.</li>
+          <li><strong>License keys</strong> &mdash; embed license information so users are not prompted.</li>
+        </ul>
+        <p>Transforms preserve the vendor's digital signature on the MSI. Since the MSI file is not modified, its signature remains valid. The transform is a separate file that Windows Installer applies at runtime.</p>
+        <p>You can stack multiple transforms: <code>TRANSFORMS=base.mst;dept.mst</code>. They apply in order, with later transforms overriding earlier ones.</p>
+      </div>
+    </details>
+
+    <!-- ================================================================ -->
+    <!-- Recap -->
+    <!-- ================================================================ -->
+    <h2>Recap</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Demo</th>
+          <th>Entry Point / Key API</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Custom Actions</td>
+          <td>09, 20</td>
+          <td><code>package.CustomAction()</code> &mdash; SetProperty, DllFromBinary, ExeFromBinary, Deferred, Rollback, Commit</td>
+        </tr>
+        <tr>
+          <td>Custom Tables</td>
+          <td>09, 26</td>
+          <td><code>package.CustomTable()</code> &mdash; Name, Column, Row</td>
+        </tr>
+        <tr>
+          <td>Sequence Scheduling</td>
+          <td>09, 28</td>
+          <td><code>package.ExecuteSequence()</code>, <code>package.UISequence()</code> &mdash; Action, Before, After, Condition</td>
+        </tr>
+        <tr>
+          <td>Merge Modules</td>
+          <td>44</td>
+          <td><code>Installer.BuildMergeModule()</code> &mdash; MsmCompiler</td>
+        </tr>
+        <tr>
+          <td>Patches</td>
+          <td>45</td>
+          <td><code>Installer.BuildPatch()</code> &mdash; TargetMsi, UpdatedMsi, PatchCompiler</td>
+        </tr>
+        <tr>
+          <td>Transforms</td>
+          <td>46</td>
+          <td><code>Installer.BuildTransform()</code> &mdash; BaseMsi, SetProperty, TransformCompiler</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Navigation -->
+    <nav class="tutorial-nav">
+      <a href="msi-basics.html">&larr; Previous: MSI Basics</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
