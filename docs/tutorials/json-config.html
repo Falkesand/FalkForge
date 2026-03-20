@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON Configuration — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>JSON Configuration</h1>
+    <div class="tutorial-meta">
+      10 min read · No prerequisites · Wraps <code>demo/json/</code> demos
+    </div>
+
+    <!-- Intro -->
+    <p>Not every team writes C#. FalkForge can build installers from JSON configuration files &mdash; no code required. Define your product, files, features, and extensions in JSON; run <code>forge build config.json</code> to produce an MSI.</p>
+
+    <!-- Section 1: Minimal JSON Installer -->
+    <h2>1. Minimal JSON Installer</h2>
+    <p>Open <code>demo/json/01-minimal.json</code>. This is the simplest possible JSON installer &mdash; 17 lines.</p>
+
+    <pre><code><span class="punc">{</span>
+  <span class="str">"product"</span><span class="punc">:</span> <span class="punc">{</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"MinimalApp"</span><span class="punc">,</span>
+    <span class="str">"manufacturer"</span><span class="punc">:</span> <span class="str">"Contoso"</span><span class="punc">,</span>
+    <span class="str">"version"</span><span class="punc">:</span> <span class="str">"1.0.0"</span>
+  <span class="punc">},</span>
+  <span class="str">"ui"</span><span class="punc">:</span> <span class="str">"Minimal"</span><span class="punc">,</span>
+  <span class="str">"features"</span><span class="punc">:</span> <span class="punc">[</span>
+    <span class="punc">{</span>
+      <span class="str">"id"</span><span class="punc">:</span> <span class="str">"Complete"</span><span class="punc">,</span>
+      <span class="str">"title"</span><span class="punc">:</span> <span class="str">"Complete"</span><span class="punc">,</span>
+      <span class="str">"files"</span><span class="punc">:</span> <span class="punc">[</span>
+        <span class="punc">{</span> <span class="str">"source"</span><span class="punc">:</span> <span class="str">"payload/MinimalApp.exe"</span> <span class="punc">}</span>
+      <span class="punc">]</span>
+    <span class="punc">}</span>
+  <span class="punc">]</span>
+<span class="punc">}</span></code></pre>
+
+    <p>Three things make up every JSON installer:</p>
+    <ul>
+      <li><strong><code>product</code></strong> &mdash; name, manufacturer, and version. These appear in Programs &amp; Features.</li>
+      <li><strong><code>ui</code></strong> &mdash; the dialog template. <code>"Minimal"</code> shows a single Install button.</li>
+      <li><strong><code>features</code></strong> &mdash; at least one feature containing the files to install.</li>
+    </ul>
+
+    <p>Build it:</p>
+    <pre><code>forge build demo/json/01-minimal.json</code></pre>
+    <p>FalkForge reads the JSON, validates the structure, and produces an MSI. No C# project, no compilation step.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: JSON schema and validation</summary>
+      <div class="deep-dive-content">
+        <p>FalkForge validates JSON configs with the same rigor as C# builds. The <code>JsonConfigLoader</code> maps your JSON to internal <code>PackageBuilder</code> calls and runs the full validation pipeline. Errors use the <code>JSN</code> prefix:</p>
+        <ul>
+          <li><strong>JSN001</strong> &mdash; Invalid or missing JSON file.</li>
+          <li><strong>JSN002</strong> &mdash; Missing required <code>product</code> section.</li>
+          <li><strong>JSN003</strong> &mdash; Missing required <code>product.name</code>.</li>
+          <li><strong>JSN004</strong> &mdash; Missing required <code>product.manufacturer</code>.</li>
+          <li><strong>JSN005</strong> &mdash; Missing required <code>product.version</code>.</li>
+          <li><strong>JSN006</strong> &mdash; Invalid version format.</li>
+          <li><strong>JSN007&ndash;JSN014</strong> &mdash; Feature, file, registry, service, and extension validation.</li>
+        </ul>
+        <p>After JSON-specific checks pass, the standard <code>PKG</code>, <code>FEA</code>, and <code>SVC</code> validators run too. You get the same safety net as a C# build.</p>
+      </div>
+    </details>
+
+    <!-- Section 2: Install Directory Selection -->
+    <h2>2. Install Directory Selection</h2>
+    <p>Open <code>demo/json/02-installdir.json</code>. This adds directory selection and upgrade handling.</p>
+
+    <pre><code><span class="punc">{</span>
+  <span class="str">"product"</span><span class="punc">:</span> <span class="punc">{</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"NotepadClone"</span><span class="punc">,</span>
+    <span class="str">"manufacturer"</span><span class="punc">:</span> <span class="str">"Contoso"</span><span class="punc">,</span>
+    <span class="str">"version"</span><span class="punc">:</span> <span class="str">"2.1.0"</span><span class="punc">,</span>
+    <span class="str">"description"</span><span class="punc">:</span> <span class="str">"A simple text editor"</span><span class="punc">,</span>
+    <span class="str">"upgradeCode"</span><span class="punc">:</span> <span class="str">"12345678-1234-1234-1234-123456789012"</span>
+  <span class="punc">},</span>
+  <span class="str">"ui"</span><span class="punc">:</span> <span class="str">"InstallDir"</span><span class="punc">,</span>
+  <span class="str">"installDirectory"</span><span class="punc">:</span> <span class="str">"Contoso/NotepadClone"</span><span class="punc">,</span>
+  <span class="str">"majorUpgrade"</span><span class="punc">:</span> <span class="punc">{</span>
+    <span class="str">"downgradeMessage"</span><span class="punc">:</span> <span class="str">"A newer version is already installed."</span>
+  <span class="punc">},</span>
+  <span class="str">"features"</span><span class="punc">:</span> <span class="punc">[</span> <span class="cmt">...</span> <span class="punc">]</span>
+<span class="punc">}</span></code></pre>
+
+    <p>Key additions over the minimal example:</p>
+    <ul>
+      <li><strong><code>ui: "InstallDir"</code></strong> &mdash; shows a directory chooser dialog so users can pick where files go.</li>
+      <li><strong><code>installDirectory</code></strong> &mdash; the default install path under Program Files. <code>"Contoso/NotepadClone"</code> becomes <code>C:\Program Files\Contoso\NotepadClone</code>.</li>
+      <li><strong><code>majorUpgrade</code></strong> &mdash; enables automatic upgrade detection. Windows removes the old version before installing the new one.</li>
+      <li><strong><code>upgradeCode</code></strong> &mdash; a fixed GUID that ties all versions together. Set this once and never change it.</li>
+    </ul>
+
+    <p>Features can also contain <code>registry</code> entries and <code>shortcut</code> definitions on files:</p>
+    <pre><code><span class="str">"files"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"source"</span><span class="punc">:</span> <span class="str">"payload/NotepadClone.exe"</span><span class="punc">,</span>
+    <span class="str">"shortcut"</span><span class="punc">:</span> <span class="punc">{</span>
+      <span class="str">"name"</span><span class="punc">:</span> <span class="str">"NotepadClone"</span><span class="punc">,</span>
+      <span class="str">"location"</span><span class="punc">:</span> <span class="str">"Desktop"</span><span class="punc">,</span>
+      <span class="str">"description"</span><span class="punc">:</span> <span class="str">"Launch NotepadClone"</span>
+    <span class="punc">}</span>
+  <span class="punc">}</span>
+<span class="punc">],</span>
+<span class="str">"registry"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"root"</span><span class="punc">:</span> <span class="str">"HKCU"</span><span class="punc">,</span>
+    <span class="str">"key"</span><span class="punc">:</span> <span class="str">"Software\\Contoso\\NotepadClone"</span><span class="punc">,</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"Version"</span><span class="punc">,</span>
+    <span class="str">"value"</span><span class="punc">:</span> <span class="str">"2.1.0"</span>
+  <span class="punc">}</span>
+<span class="punc">]</span></code></pre>
+
+    <details class="deep-dive">
+      <summary>Deep dive: How JSON maps to PackageBuilder</summary>
+      <div class="deep-dive-content">
+        <p>Internally, <code>forge build</code> delegates to <code>JsonConfigLoader</code>, which maps each JSON property to the equivalent <code>PackageBuilder</code> call:</p>
+        <ul>
+          <li><code>"ui": "InstallDir"</code> &rarr; <code>package.UseDialogSet(MsiDialogSet.InstallDir)</code></li>
+          <li><code>"installDirectory": "Contoso/NotepadClone"</code> &rarr; <code>KnownFolder.ProgramFiles / "Contoso" / "NotepadClone"</code></li>
+          <li><code>"majorUpgrade"</code> &rarr; <code>package.MajorUpgrade(mu =&gt; ...)</code></li>
+          <li><code>"shortcut"</code> on a file &rarr; <code>files.Add(...).WithShortcut(s =&gt; ...)</code></li>
+          <li><code>"registry"</code> &rarr; <code>package.Registry(r =&gt; ...)</code></li>
+        </ul>
+        <p>The JSON format covers the most common scenarios. For anything it can't express &mdash; custom actions, sequence manipulation, conditional logic &mdash; use the C# API directly.</p>
+      </div>
+    </details>
+
+    <!-- Section 3: Feature Trees -->
+    <h2>3. Feature Trees</h2>
+    <p>Open <code>demo/json/03-featuretree.json</code>. This installer defines a tree of selectable features.</p>
+
+    <pre><code><span class="str">"features"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"id"</span><span class="punc">:</span> <span class="str">"CoreTools"</span><span class="punc">,</span>
+    <span class="str">"title"</span><span class="punc">:</span> <span class="str">"Core Tools"</span><span class="punc">,</span>
+    <span class="str">"description"</span><span class="punc">:</span> <span class="str">"Essential developer tools"</span><span class="punc">,</span>
+    <span class="str">"required"</span><span class="punc">:</span> <span class="kw">true</span><span class="punc">,</span>
+    <span class="str">"files"</span><span class="punc">:</span> <span class="punc">[</span> <span class="cmt">...</span> <span class="punc">]</span>
+  <span class="punc">},</span>
+  <span class="punc">{</span>
+    <span class="str">"id"</span><span class="punc">:</span> <span class="str">"Plugins"</span><span class="punc">,</span>
+    <span class="str">"title"</span><span class="punc">:</span> <span class="str">"Plugins"</span><span class="punc">,</span>
+    <span class="str">"features"</span><span class="punc">:</span> <span class="punc">[</span>
+      <span class="punc">{</span> <span class="str">"id"</span><span class="punc">:</span> <span class="str">"GitPlugin"</span><span class="punc">,</span> <span class="str">"title"</span><span class="punc">:</span> <span class="str">"Git Integration"</span><span class="punc">,</span> <span class="cmt">...</span> <span class="punc">},</span>
+      <span class="punc">{</span> <span class="str">"id"</span><span class="punc">:</span> <span class="str">"DockerPlugin"</span><span class="punc">,</span> <span class="str">"title"</span><span class="punc">:</span> <span class="str">"Docker Support"</span><span class="punc">,</span> <span class="str">"default"</span><span class="punc">:</span> <span class="kw">false</span><span class="punc">,</span> <span class="cmt">...</span> <span class="punc">}</span>
+    <span class="punc">]</span>
+  <span class="punc">},</span>
+  <span class="punc">{</span>
+    <span class="str">"id"</span><span class="punc">:</span> <span class="str">"BackgroundService"</span><span class="punc">,</span>
+    <span class="str">"title"</span><span class="punc">:</span> <span class="str">"Background Service"</span><span class="punc">,</span>
+    <span class="str">"default"</span><span class="punc">:</span> <span class="kw">false</span><span class="punc">,</span>
+    <span class="str">"services"</span><span class="punc">:</span> <span class="punc">[</span> <span class="cmt">...</span> <span class="punc">]</span>
+  <span class="punc">}</span>
+<span class="punc">]</span></code></pre>
+
+    <p>Feature properties:</p>
+    <ul>
+      <li><strong><code>required: true</code></strong> &mdash; always installed; the user cannot deselect it.</li>
+      <li><strong><code>default: true</code></strong> (the default) &mdash; selected by default but the user can turn it off.</li>
+      <li><strong><code>default: false</code></strong> &mdash; not selected by default; the user opts in.</li>
+      <li><strong>Nested <code>features</code></strong> &mdash; child features appear indented in the tree. Deselecting the parent deselects all children.</li>
+    </ul>
+
+    <p>The <code>"services"</code> array on the BackgroundService feature installs a Windows service:</p>
+    <pre><code><span class="str">"services"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"DevToolkitSvc"</span><span class="punc">,</span>
+    <span class="str">"displayName"</span><span class="punc">:</span> <span class="str">"DevToolkit File Watcher"</span><span class="punc">,</span>
+    <span class="str">"executable"</span><span class="punc">:</span> <span class="str">"[INSTALLDIR]devtoolkit-svc.exe"</span><span class="punc">,</span>
+    <span class="str">"startType"</span><span class="punc">:</span> <span class="str">"Manual"</span><span class="punc">,</span>
+    <span class="str">"account"</span><span class="punc">:</span> <span class="str">"LocalService"</span>
+  <span class="punc">}</span>
+<span class="punc">]</span></code></pre>
+
+    <p>Use <code>ui: "FeatureTree"</code> to show the selection dialog.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Feature nesting &mdash; JSON vs C#</summary>
+      <div class="deep-dive-content">
+        <p>In C#, features are nested by calling <code>feature.AddChild(child =&gt; ...)</code> inside a parent feature builder. In JSON, you nest them by placing a <code>features</code> array inside a feature object. The result is identical &mdash; same MSI feature tree.</p>
+        <p>JSON supports arbitrary nesting depth. Each level appears as a child row in the FeatureTree dialog. Keep hierarchies shallow (2&ndash;3 levels) for usability.</p>
+        <p>The <code>launchConditions</code> array at the top level blocks installation when conditions are not met:</p>
+        <pre><code>"launchConditions": [
+  {
+    "condition": "VersionNT64",
+    "message": "This application requires a 64-bit operating system."
+  }
+]</code></pre>
+        <p>Conditions use standard MSI property expressions.</p>
+      </div>
+    </details>
+
+    <!-- Section 4: Advanced Configuration -->
+    <h2>4. Advanced Configuration</h2>
+    <p>Open <code>demo/json/05-advanced.json</code>. This demo exercises most JSON features: registry, shortcuts, services, environment variables, license files, and multiple launch conditions.</p>
+
+    <h3>Registry entries</h3>
+    <pre><code><span class="str">"registry"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"root"</span><span class="punc">:</span> <span class="str">"HKLM"</span><span class="punc">,</span>
+    <span class="str">"key"</span><span class="punc">:</span> <span class="str">"Software\\Contoso\\AdvancedDemo"</span><span class="punc">,</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"InstallDir"</span><span class="punc">,</span>
+    <span class="str">"value"</span><span class="punc">:</span> <span class="str">"[INSTALLDIR]"</span>
+  <span class="punc">}</span>
+<span class="punc">]</span></code></pre>
+    <p>The <code>root</code> accepts <code>HKLM</code>, <code>HKCU</code>, <code>HKCR</code>, <code>HKU</code>, and <code>HKMU</code>. Values can reference MSI properties like <code>[INSTALLDIR]</code>.</p>
+
+    <h3>Environment variables</h3>
+    <pre><code><span class="str">"environmentVariables"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"ADVANCED_HOME"</span><span class="punc">,</span>
+    <span class="str">"value"</span><span class="punc">:</span> <span class="str">"[INSTALLDIR]"</span><span class="punc">,</span>
+    <span class="str">"action"</span><span class="punc">:</span> <span class="str">"Set"</span><span class="punc">,</span>
+    <span class="str">"system"</span><span class="punc">:</span> <span class="kw">true</span>
+  <span class="punc">},</span>
+  <span class="punc">{</span>
+    <span class="str">"name"</span><span class="punc">:</span> <span class="str">"PATH"</span><span class="punc">,</span>
+    <span class="str">"value"</span><span class="punc">:</span> <span class="str">"[INSTALLDIR]bin"</span><span class="punc">,</span>
+    <span class="str">"action"</span><span class="punc">:</span> <span class="str">"Append"</span><span class="punc">,</span>
+    <span class="str">"system"</span><span class="punc">:</span> <span class="kw">true</span>
+  <span class="punc">}</span>
+<span class="punc">]</span></code></pre>
+    <p>Actions: <code>Set</code> (overwrite), <code>Append</code> (add to existing), <code>Remove</code> (delete on install). Set <code>system: false</code> for per-user variables.</p>
+
+    <h3>Services and nested features</h3>
+    <p>The advanced config defines two services under a parent "Background Services" feature, each with its own <code>startType</code>: <code>"Automatic"</code>, <code>"DelayedAutomatic"</code>, or <code>"Manual"</code>. Services are cleanly removed on uninstall.</p>
+
+    <h3>License and UI template</h3>
+    <pre><code><span class="str">"ui"</span><span class="punc">:</span> <span class="str">"Advanced"</span><span class="punc">,</span>
+<span class="str">"license"</span><span class="punc">:</span> <span class="str">"payload/eula.rtf"</span></code></pre>
+    <p>The <code>"Advanced"</code> template adds typical/custom/complete install types. The license file is shown in a scrollable panel before the user can proceed.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: When to use JSON vs C#</summary>
+      <div class="deep-dive-content">
+        <p>Use <strong>JSON</strong> when:</p>
+        <ul>
+          <li>Your installer is data-driven &mdash; files, registry, services, shortcuts.</li>
+          <li>Your CI/CD pipeline generates or transforms the config.</li>
+          <li>Your team doesn't use C# and you want a low-barrier format.</li>
+          <li>You need fast iteration without a compile step.</li>
+        </ul>
+        <p>Use <strong>C#</strong> when:</p>
+        <ul>
+          <li>You need custom actions (DLL, EXE, or script execution during install).</li>
+          <li>You have conditional features based on detected system state.</li>
+          <li>You need custom sequence table manipulation.</li>
+          <li>You are building merge modules, patches, or transforms.</li>
+          <li>You want compile-time type safety and IDE refactoring support.</li>
+        </ul>
+        <p>You can start with JSON and migrate to C# later. The JSON format covers roughly 80% of typical installer scenarios.</p>
+      </div>
+    </details>
+
+    <!-- Section 5: Web Server Installer -->
+    <h2>5. Web Server Installer</h2>
+    <p>Open <code>demo/json/06-web-server.json</code>. This config installs a web application with IIS and firewall rules &mdash; no C# needed.</p>
+
+    <h3>Firewall rules</h3>
+    <pre><code><span class="str">"extensions"</span><span class="punc">:</span> <span class="punc">{</span>
+  <span class="str">"firewall"</span><span class="punc">:</span> <span class="punc">[</span>
+    <span class="punc">{</span>
+      <span class="str">"id"</span><span class="punc">:</span> <span class="str">"HttpRule"</span><span class="punc">,</span>
+      <span class="str">"name"</span><span class="punc">:</span> <span class="str">"WebServerApp HTTP"</span><span class="punc">,</span>
+      <span class="str">"protocol"</span><span class="punc">:</span> <span class="str">"Tcp"</span><span class="punc">,</span>
+      <span class="str">"port"</span><span class="punc">:</span> <span class="str">"80"</span><span class="punc">,</span>
+      <span class="str">"direction"</span><span class="punc">:</span> <span class="str">"Inbound"</span><span class="punc">,</span>
+      <span class="str">"action"</span><span class="punc">:</span> <span class="str">"Allow"</span><span class="punc">,</span>
+      <span class="str">"profile"</span><span class="punc">:</span> <span class="str">"All"</span>
+    <span class="punc">}</span>
+  <span class="punc">]</span>
+<span class="punc">}</span></code></pre>
+    <p>Each rule gets a unique <code>id</code>. The rule is created on install and removed on uninstall. Supported profiles: <code>All</code>, <code>Domain</code>, <code>Private</code>, <code>Public</code>.</p>
+
+    <h3>IIS app pools and web sites</h3>
+    <pre><code><span class="str">"iis"</span><span class="punc">:</span> <span class="punc">{</span>
+  <span class="str">"appPools"</span><span class="punc">:</span> <span class="punc">[</span>
+    <span class="punc">{</span>
+      <span class="str">"id"</span><span class="punc">:</span> <span class="str">"WebAppPool"</span><span class="punc">,</span>
+      <span class="str">"name"</span><span class="punc">:</span> <span class="str">"WebServerAppPool"</span><span class="punc">,</span>
+      <span class="str">"runtimeVersion"</span><span class="punc">:</span> <span class="str">"v4.0"</span><span class="punc">,</span>
+      <span class="str">"pipelineMode"</span><span class="punc">:</span> <span class="str">"Integrated"</span><span class="punc">,</span>
+      <span class="str">"identity"</span><span class="punc">:</span> <span class="str">"ApplicationPoolIdentity"</span>
+    <span class="punc">}</span>
+  <span class="punc">],</span>
+  <span class="str">"webSites"</span><span class="punc">:</span> <span class="punc">[</span>
+    <span class="punc">{</span>
+      <span class="str">"id"</span><span class="punc">:</span> <span class="str">"WebSite"</span><span class="punc">,</span>
+      <span class="str">"description"</span><span class="punc">:</span> <span class="str">"WebServerApp Site"</span><span class="punc">,</span>
+      <span class="str">"directory"</span><span class="punc">:</span> <span class="str">"[INSTALLDIR]"</span><span class="punc">,</span>
+      <span class="str">"appPool"</span><span class="punc">:</span> <span class="str">"WebAppPool"</span><span class="punc">,</span>
+      <span class="str">"bindings"</span><span class="punc">:</span> <span class="punc">[</span>
+        <span class="punc">{</span> <span class="str">"protocol"</span><span class="punc">:</span> <span class="str">"http"</span><span class="punc">,</span> <span class="str">"port"</span><span class="punc">:</span> <span class="num">80</span><span class="punc">,</span> <span class="str">"host"</span><span class="punc">:</span> <span class="str">"localhost"</span> <span class="punc">},</span>
+        <span class="punc">{</span> <span class="str">"protocol"</span><span class="punc">:</span> <span class="str">"https"</span><span class="punc">,</span> <span class="str">"port"</span><span class="punc">:</span> <span class="num">443</span><span class="punc">,</span> <span class="str">"host"</span><span class="punc">:</span> <span class="str">"localhost"</span> <span class="punc">}</span>
+      <span class="punc">]</span>
+    <span class="punc">}</span>
+  <span class="punc">]</span>
+<span class="punc">}</span></code></pre>
+    <p>The <code>appPool</code> field on a web site references an app pool by its <code>id</code>. FalkForge wires the relationship automatically. Bindings support <code>http</code> and <code>https</code> protocols with configurable port and host header.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Extension-specific JSON schemas</summary>
+      <div class="deep-dive-content">
+        <p>Each extension has its own section under <code>"extensions"</code>:</p>
+        <ul>
+          <li><strong><code>firewall</code></strong> &mdash; array of rule objects (<code>id</code>, <code>name</code>, <code>protocol</code>, <code>port</code>, <code>direction</code>, <code>action</code>, <code>profile</code>).</li>
+          <li><strong><code>iis</code></strong> &mdash; object with <code>appPools</code> and <code>webSites</code> arrays. Sites reference pools by id.</li>
+          <li><strong><code>sql</code></strong> &mdash; array of database objects with connection info and scripts.</li>
+          <li><strong><code>dotnet</code></strong> &mdash; array of runtime detection checks.</li>
+        </ul>
+        <p>Extension validation uses the same error code families as C#: <code>FWL</code> for firewall, <code>IIS</code> for IIS, <code>SQL</code> for SQL, <code>NET</code> for .NET detection. Invalid JSON extension configs fail fast with clear messages.</p>
+      </div>
+    </details>
+
+    <!-- Section 6: Database Application -->
+    <h2>6. Database Application</h2>
+    <p>Open <code>demo/json/07-database-app.json</code>. This config provisions a SQL Server database and detects .NET runtimes.</p>
+
+    <h3>SQL database creation</h3>
+    <pre><code><span class="str">"extensions"</span><span class="punc">:</span> <span class="punc">{</span>
+  <span class="str">"sql"</span><span class="punc">:</span> <span class="punc">[</span>
+    <span class="punc">{</span>
+      <span class="str">"id"</span><span class="punc">:</span> <span class="str">"AppDatabase"</span><span class="punc">,</span>
+      <span class="str">"server"</span><span class="punc">:</span> <span class="str">"[SQLSERVER]"</span><span class="punc">,</span>
+      <span class="str">"database"</span><span class="punc">:</span> <span class="str">"ContosoDb"</span><span class="punc">,</span>
+      <span class="str">"createOnInstall"</span><span class="punc">:</span> <span class="kw">true</span><span class="punc">,</span>
+      <span class="str">"dropOnUninstall"</span><span class="punc">:</span> <span class="kw">false</span><span class="punc">,</span>
+      <span class="str">"scripts"</span><span class="punc">:</span> <span class="punc">[</span>
+        <span class="punc">{</span>
+          <span class="str">"id"</span><span class="punc">:</span> <span class="str">"CreateSchema"</span><span class="punc">,</span>
+          <span class="str">"sourceFile"</span><span class="punc">:</span> <span class="str">"payload/sql/create-schema.sql"</span><span class="punc">,</span>
+          <span class="str">"executeOnInstall"</span><span class="punc">:</span> <span class="kw">true</span><span class="punc">,</span>
+          <span class="str">"sequence"</span><span class="punc">:</span> <span class="num">1</span>
+        <span class="punc">},</span>
+        <span class="punc">{</span>
+          <span class="str">"id"</span><span class="punc">:</span> <span class="str">"SeedData"</span><span class="punc">,</span>
+          <span class="str">"sourceFile"</span><span class="punc">:</span> <span class="str">"payload/sql/seed-data.sql"</span><span class="punc">,</span>
+          <span class="str">"executeOnInstall"</span><span class="punc">:</span> <span class="kw">true</span><span class="punc">,</span>
+          <span class="str">"sequence"</span><span class="punc">:</span> <span class="num">2</span>
+        <span class="punc">}</span>
+      <span class="punc">]</span>
+    <span class="punc">}</span>
+  <span class="punc">]</span>
+<span class="punc">}</span></code></pre>
+    <p>Key fields:</p>
+    <ul>
+      <li><strong><code>server</code></strong> &mdash; the SQL Server instance. <code>[SQLSERVER]</code> is an MSI property the user sets at install time (via the UI or command line: <code>msiexec /i app.msi SQLSERVER=.\SQLEXPRESS</code>).</li>
+      <li><strong><code>createOnInstall</code></strong> &mdash; creates the database if it doesn't exist.</li>
+      <li><strong><code>dropOnUninstall</code></strong> &mdash; set to <code>false</code> to preserve data after uninstall. Use <code>true</code> only for development or disposable databases.</li>
+      <li><strong><code>scripts</code></strong> &mdash; SQL files executed in <code>sequence</code> order. Schema first, then seed data.</li>
+    </ul>
+
+    <h3>.NET runtime detection</h3>
+    <pre><code><span class="str">"dotnet"</span><span class="punc">:</span> <span class="punc">[</span>
+  <span class="punc">{</span>
+    <span class="str">"runtimeType"</span><span class="punc">:</span> <span class="str">"Runtime"</span><span class="punc">,</span>
+    <span class="str">"platform"</span><span class="punc">:</span> <span class="str">"X64"</span><span class="punc">,</span>
+    <span class="str">"minimumVersion"</span><span class="punc">:</span> <span class="str">"8.0.0"</span><span class="punc">,</span>
+    <span class="str">"variableName"</span><span class="punc">:</span> <span class="str">"DOTNET8_INSTALLED"</span>
+  <span class="punc">}</span>
+<span class="punc">]</span></code></pre>
+    <p>FalkForge probes the registry and filesystem for the specified .NET runtime. The result is stored in the MSI property named by <code>variableName</code>, which you can use in launch conditions or feature conditions.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: Connection string handling in JSON config</summary>
+      <div class="deep-dive-content">
+        <p>The <code>server</code> field accepts MSI property references like <code>[SQLSERVER]</code>. At install time, Windows Installer resolves these to the actual values. This keeps connection strings out of the JSON file and lets the user (or admin deploying silently) provide the server name.</p>
+        <p>For silent deployments, pass the property on the command line:</p>
+        <pre><code>msiexec /i DatabaseApp.msi /qn SQLSERVER=dbserver\SQLEXPRESS</code></pre>
+        <p>For interactive installs, use the <code>"InstallDir"</code> or <code>"Advanced"</code> UI template. The SQL plugin can display a server selection dialog if you use the C# API with the custom UI system.</p>
+        <p>Authentication uses Windows Integrated Security by default. For SQL authentication, combine with a custom UI page that collects credentials via <code>SetSecureProperty</code> &mdash; but that requires the C# API.</p>
+      </div>
+    </details>
+
+    <!-- Recap -->
+    <h2>Recap: JSON vs C# decision guide</h2>
+    <table style="width:100%;border-collapse:collapse;margin:1rem 0">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:0.5rem;border-bottom:2px solid var(--border)">Scenario</th>
+          <th style="text-align:center;padding:0.5rem;border-bottom:2px solid var(--border)">JSON</th>
+          <th style="text-align:center;padding:0.5rem;border-bottom:2px solid var(--border)">C#</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Files, shortcuts, registry</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Feature trees</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Services, environment variables</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">IIS, Firewall, SQL, .NET extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">CI/CD pipeline generation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Ideal</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Possible</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Custom actions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Sequence table manipulation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Merge modules, patches, transforms</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Custom UI (WPF pages)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Conditional logic / dynamic features</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+      </tbody>
+    </table>
+
+    <p>Start with JSON for straightforward installers and CI/CD pipelines. Move to C# when you need custom actions, conditional features, or advanced MSI capabilities. Both produce identical MSI output.</p>
+
+    <nav class="tutorial-nav">
+      <span></span>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
