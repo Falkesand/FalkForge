@@ -16,6 +16,7 @@ using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.RestartManager;
+using FalkForge.Engine.Variables;
 using FalkForge.Platform;
 using FalkForge.Platform.Windows;
 
@@ -35,17 +36,7 @@ public sealed partial class EngineHost : IAsyncDisposable
     /// Built-in variable names populated by the engine. These cannot be overwritten
     /// by UI SetProperty/SetSecureProperty messages.
     /// </summary>
-    private static readonly HashSet<string> BuiltInVariableNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "VersionNT", "VersionNTMajor", "VersionNTMinor", "ServicePackLevel", "WindowsBuildNumber",
-        "NativeMachine", "ProcessorArchitecture", "ProcessArchitecture", "Is64BitOperatingSystem",
-        "SystemFolder", "WindowsFolder", "ProgramFilesFolder", "CommonFilesFolder", "TempFolder",
-        "DesktopFolder", "AdminToolsFolder", "LocalAppDataFolder", "AppDataFolder",
-        "StartMenuFolder", "StartupFolder", "PersonalFolder", "FontsFolder", "ProgramFiles64Folder",
-        "Privileged", "TerminalServer", "RemoteSession", "ComputerName", "LogonUser",
-        "InstalledCulture", "UserLanguageID", "SystemLanguageID", "VersionMsi",
-        "Date", "Time", "RebootPending"
-    };
+    private static readonly HashSet<string> BuiltInNames = BuiltInVariableNames.All;
 
     private readonly InstallerManifest _manifest;
     private readonly IPlatformServices _platform;
@@ -379,7 +370,7 @@ public sealed partial class EngineHost : IAsyncDisposable
 
         // Check built-in names before format validation because built-in names
         // (e.g. "VersionNT") use mixed case and would fail the public property regex.
-        if (BuiltInVariableNames.Contains(propertyName))
+        if (BuiltInNames.Contains(propertyName))
         {
             logger.Warning("EngineHost",
                 string.Concat("SetProperty rejected: '", propertyName, "' is a built-in variable and cannot be overwritten"));
