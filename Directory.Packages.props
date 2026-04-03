@@ -13,7 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- CLI dependencies -->
-    <PackageVersion Include="Spectre.Console" Version="0.54.0" />
+    <PackageVersion Include="Spectre.Console" Version="0.53.1" />
     <PackageVersion Include="Spectre.Console.Cli" Version="0.53.1" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="5.3.0" />
   </ItemGroup>
@@ -26,5 +26,15 @@
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="Xunit.StaFact" Version="3.0.13" />
     <PackageVersion Include="coverlet.collector" Version="8.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Analyzers -->
+    <PackageVersion Include="ClrHeapAllocationAnalyzer" Version="3.0.0" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.7.0.110445" />
+    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
+    <PackageVersion Include="IDisposableAnalyzers" Version="4.0.8" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.43" />
+    <PackageVersion Include="SecurityCodeScan.VS2019" Version="5.6.7" />
+    <PackageVersion Include="WpfAnalyzers" Version="4.1.1" />
   </ItemGroup>
 </Project>
