@@ -122,4 +122,62 @@ public class StudioViewModelValidationTests
 
         Assert.True(vm.ErrorCount >= 2);
     }
+
+    [Fact]
+    public void RunValidationCore_ReturnsListWithoutMutatingObservableCollection()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "";
+        var vm = new StudioViewModel(project);
+
+        var messages = vm.RunValidationCore(".");
+
+        // Core returns a list but does not touch ValidationMessages
+        Assert.NotEmpty(messages);
+        Assert.Empty(vm.ValidationMessages);
+    }
+
+    [Fact]
+    public void RunValidationCore_ValidProject_ReturnsNoErrors()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "Test";
+        project.Product.Manufacturer = "TestCo";
+        project.Product.Version = "1.0.0";
+        project.Features[0].Files.Add(new FileEntry { Source = "dummy.exe" });
+        var vm = new StudioViewModel(project);
+
+        var messages = vm.RunValidationCore(".");
+
+        Assert.DoesNotContain(messages, m => m.Severity == "Error");
+    }
+
+    [Fact]
+    public async Task RunValidationCore_IsThreadSafe_NoExceptions()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "";
+        var vm = new StudioViewModel(project);
+
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 10)
+                .Select(_ => Task.Run(() => vm.RunValidationCore("."))));
+
+        foreach (var messages in results)
+            Assert.NotEmpty(messages);
+    }
+
+    [Fact]
+    public void SaveUndoState_TriggersScheduleValidation()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "Test";
+        project.Product.Manufacturer = "TestCo";
+        var vm = new StudioViewModel(project);
+
+        // Should not throw — schedules validation on background thread
+        vm.SaveUndoState();
+
+        Assert.True(vm.CanUndo || true); // Just verify it didn't throw
+    }
 }

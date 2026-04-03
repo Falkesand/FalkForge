@@ -73,8 +73,47 @@
         <Border DockPanel.Dock="Bottom" Height="150" BorderThickness="0,1,0,0" BorderBrush="Gray">
             <TabControl>
                 <TabItem Header="Output">
-                    <TextBox Text="{Binding OutputText, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas"
-                             VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" BorderThickness="0" />
+                    <DockPanel>
+                        <ProgressBar DockPanel.Dock="Top" Height="4" Minimum="0" Maximum="100"
+                                     Value="{Binding BuildProgress, Mode=OneWay}" BorderThickness="0">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowBuildProgress}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
+                        <Border DockPanel.Dock="Bottom" Padding="6,3" BorderThickness="0,1,0,0" BorderBrush="Gray">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasBuildSummary}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding BuildSummary}" FontSize="11">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="Red" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding BuildSucceeded}" Value="True">
+                                                <Setter Property="Foreground" Value="Green" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+                        <TextBox Text="{Binding OutputText, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas"
+                                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" BorderThickness="0" />
+                    </DockPanel>
                 </TabItem>
                 <TabItem>
                     <TabItem.Header>

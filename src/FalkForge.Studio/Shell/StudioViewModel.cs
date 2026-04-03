@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
+using System.Windows.Threading;
 using FalkForge;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.BundleChain;
@@ -36,11 +37,17 @@ public sealed class StudioViewModel : ViewModelBase
     private StudioProject _project;
     private readonly Dictionary<string, ViewModelBase> _editors = new();
     private readonly UndoManager _undoManager = new();
+    private CancellationTokenSource? _validationDebounce;
     private string? _projectPath;
+    private string _baseDirectory = ".";
     private ViewModelBase? _currentEditor;
     private string _outputText = string.Empty;
     private string _title = "FalkForge Studio";
     private bool _isBuildInProgress;
+    private string? _buildSummary;
+    private bool _buildSucceeded;
+    private int _buildProgress;
+    private bool _showBuildProgress;
 
     public ObservableCollection<TreeNodeViewModel> TreeNodes { get; } = [];
     public ObservableCollection<ValidationMessage> ValidationMessages { get; } = [];
@@ -70,6 +77,36 @@ public sealed class StudioViewModel : ViewModelBase
     {
         get => _isBuildInProgress;
         private set => SetProperty(ref _isBuildInProgress, value);
+    }
+
+    public string? BuildSummary
+    {
+        get => _buildSummary;
+        private set
+        {
+            SetProperty(ref _buildSummary, value);
+            OnPropertyChanged(nameof(HasBuildSummary));
+        }
+    }
+
+    public bool HasBuildSummary => _buildSummary is not null;
+
+    public bool BuildSucceeded
+    {
+        get => _buildSucceeded;
+        private set => SetProperty(ref _buildSucceeded, value);
+    }
+
+    public int BuildProgress
+    {
+        get => _buildProgress;
+        private set => SetProperty(ref _buildProgress, value);
+    }
+
+    public bool ShowBuildProgress
+    {
+        get => _showBuildProgress;
+        private set => SetProperty(ref _showBuildProgress, value);
     }
 
     public string? ProjectPath => _projectPath;
@@ -136,31 +173,51 @@ public sealed class StudioViewModel : ViewModelBase
 
     public async Task BuildAsync(string baseDirectory)
     {
+        _baseDirectory = baseDirectory;
         IsBuildInProgress = true;
-        OutputText = $"Build started at {DateTime.Now:HH:mm:ss}\n";
+        ShowBuildProgress = true;
+        BuildProgress = 0;
+        BuildSummary = null;
+        var startTime = DateTime.Now;
+        OutputText = $"[{startTime:HH:mm:ss}] Build started\n";
 
         try
         {
-            var result = await Task.Run(() => StudioBuildService.Compile(_project, baseDirectory));
+            OutputText += $"[{DateTime.Now:HH:mm:ss}] Validating...\n";
+            BuildProgress = 10;
 
+            var result = await Task.Run(() =>
+            {
+                var compiled = StudioBuildService.Compile(_project, baseDirectory);
+                return compiled;
+            });
+
+            BuildProgress = 100;
+
+            var duration = DateTime.Now - startTime;
             if (result.IsSuccess)
             {
-                OutputText += $"Build succeeded: {result.Value}\n";
-                OutputText += $"Completed at {DateTime.Now:HH:mm:ss}\n";
+                OutputText += $"[{DateTime.Now:HH:mm:ss}] Output: {result.Value}\n";
+                BuildSummary = $"Build succeeded in {duration.TotalSeconds:F1}s";
+                BuildSucceeded = true;
             }
             else
             {
-                OutputText += $"Build failed: {result.Error.Message}\n";
-                OutputText += $"Failed at {DateTime.Now:HH:mm:ss}\n";
+                OutputText += $"[{DateTime.Now:HH:mm:ss}] Error: {result.Error.Message}\n";
+                BuildSummary = $"Build failed — {result.Error.Message}";
+                BuildSucceeded = false;
             }
         }
         catch (Exception ex)
         {
-            OutputText += $"Build error: {ex.Message}\n";
+            OutputText += $"[{DateTime.Now:HH:mm:ss}] Exception: {ex.Message}\n";
+            BuildSummary = $"Build failed — {ex.Message}";
+            BuildSucceeded = false;
         }
         finally
         {
             IsBuildInProgress = false;
+            ShowBuildProgress = false;
         }
 
         RunValidation(baseDirectory);
@@ -168,47 +225,53 @@ public sealed class StudioViewModel : ViewModelBase
 
     public void RunValidation(string baseDirectory = ".")
     {
-        ValidationMessages.Clear();
+        _baseDirectory = baseDirectory;
+        var messages = RunValidationCore(baseDirectory);
+        ApplyValidationResults(messages);
+    }
+
+    internal List<ValidationMessage> RunValidationCore(string baseDirectory)
+    {
+        var messages = new List<ValidationMessage>();
 
         if (string.IsNullOrWhiteSpace(_project.Product.Name))
-            ValidationMessages.Add(new ValidationMessage { Code = "STU001", Severity = "Error", Message = "Product name is empty.", EditorKey = "product" });
+            messages.Add(new ValidationMessage { Code = "STU001", Severity = "Error", Message = "Product name is empty.", EditorKey = "product" });
 
         if (string.IsNullOrWhiteSpace(_project.Product.Manufacturer))
-            ValidationMessages.Add(new ValidationMessage { Code = "STU002", Severity = "Error", Message = "Manufacturer is empty.", EditorKey = "product" });
+            messages.Add(new ValidationMessage { Code = "STU002", Severity = "Error", Message = "Manufacturer is empty.", EditorKey = "product" });
 
         if (!Version.TryParse(_project.Product.Version, out _))
-            ValidationMessages.Add(new ValidationMessage { Code = "STU003", Severity = "Error", Message = $"Version '{_project.Product.Version}' is not valid.", EditorKey = "product" });
+            messages.Add(new ValidationMessage { Code = "STU003", Severity = "Error", Message = $"Version '{_project.Product.Version}' is not valid.", EditorKey = "product" });
 
         if (_project.Features.Count == 0)
-            ValidationMessages.Add(new ValidationMessage { Code = "STU004", Severity = "Error", Message = "No features defined.", EditorKey = "features" });
+            messages.Add(new ValidationMessage { Code = "STU004", Severity = "Error", Message = "No features defined.", EditorKey = "features" });
 
         foreach (var feature in _project.Features)
-            CheckFeatureFiles(feature);
+            CheckFeatureFiles(messages, feature);
 
         if (!string.IsNullOrWhiteSpace(_project.Product.UpgradeCode) && !Guid.TryParse(_project.Product.UpgradeCode, out _))
-            ValidationMessages.Add(new ValidationMessage { Code = "STU006", Severity = "Error", Message = $"Upgrade code '{_project.Product.UpgradeCode}' is not a valid GUID.", EditorKey = "product" });
+            messages.Add(new ValidationMessage { Code = "STU006", Severity = "Error", Message = $"Upgrade code '{_project.Product.UpgradeCode}' is not a valid GUID.", EditorKey = "product" });
 
         var modelResult = StudioBuildService.BuildModel(_project, baseDirectory);
         if (modelResult.IsFailure)
         {
-            var alreadyCovered = ValidationMessages.Any(m => modelResult.Error.Message.Contains(m.Message, StringComparison.OrdinalIgnoreCase));
+            var alreadyCovered = messages.Any(m => modelResult.Error.Message.Contains(m.Message, StringComparison.OrdinalIgnoreCase));
             if (!alreadyCovered)
-                ValidationMessages.Add(new ValidationMessage { Code = "STU099", Severity = "Error", Message = modelResult.Error.Message });
+                messages.Add(new ValidationMessage { Code = "STU099", Severity = "Error", Message = modelResult.Error.Message });
         }
 
-        OnPropertyChanged(nameof(ErrorCount));
-        OnPropertyChanged(nameof(WarningCount));
+        return messages;
     }
 
-    private void CheckFeatureFiles(Project.FeatureSection feature)
+    private static void CheckFeatureFiles(List<ValidationMessage> messages, Project.FeatureSection feature)
     {
         if (feature.Files.Count == 0 && (feature.Features is null || feature.Features.Count == 0))
-            ValidationMessages.Add(new ValidationMessage { Code = "STU005", Severity = "Warning", Message = $"Feature '{feature.Id}' has no files.", EditorKey = "features" });
+            messages.Add(new ValidationMessage { Code = "STU005", Severity = "Warning", Message = $"Feature '{feature.Id}' has no files.", EditorKey = "features" });
 
         if (feature.Features is not null)
         {
             foreach (var sub in feature.Features)
-                CheckFeatureFiles(sub);
+                CheckFeatureFiles(messages, sub);
         }
     }
 
@@ -265,6 +328,7 @@ public sealed class StudioViewModel : ViewModelBase
         OutputText = $"Opened: {path}";
         Title = $"FalkForge Studio - {Path.GetFileName(path)}";
         _projectPath = path;
+        _baseDirectory = Path.GetDirectoryName(path) ?? ".";
         _undoManager.Clear();
         _undoManager.SaveState(_project);
         OnPropertyChanged(nameof(CanUndo));
@@ -339,6 +403,35 @@ public sealed class StudioViewModel : ViewModelBase
         _undoManager.SaveState(_project);
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
+        ScheduleValidation();
+    }
+
+    public void ScheduleValidation()
+    {
+        _validationDebounce?.Cancel();
+        _validationDebounce = new CancellationTokenSource();
+        var ct = _validationDebounce.Token;
+        var baseDir = _baseDirectory;
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300, ct);
+            if (ct.IsCancellationRequested) return;
+
+            var messages = RunValidationCore(baseDir);
+
+            if (!ct.IsCancellationRequested)
+                Dispatcher.CurrentDispatcher.InvokeAsync(() => ApplyValidationResults(messages));
+        }, ct);
+    }
+
+    private void ApplyValidationResults(List<ValidationMessage> messages)
+    {
+        ValidationMessages.Clear();
+        foreach (var msg in messages)
+            ValidationMessages.Add(msg);
+        OnPropertyChanged(nameof(ErrorCount));
+        OnPropertyChanged(nameof(WarningCount));
     }
 
     private void Undo()

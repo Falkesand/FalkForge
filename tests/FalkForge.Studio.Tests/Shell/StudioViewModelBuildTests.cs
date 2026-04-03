@@ -34,78 +34,48 @@ public class StudioViewModelBuildTests
     }
 
     [Fact]
-    public async Task BuildAsync_SuccessfulBuild_ShowsSuccessMessage()
+    public async Task BuildAsync_OutputContainsTimestampedLines()
     {
         var vm = new StudioViewModel();
-        // Default project from NewProject() has valid product/features for BuildModel
-        // but Compile will fail because there are no actual files on disk.
-        // To get a success path, we'd need real files. Instead, test the failure path
-        // and verify the output format separately.
-        // For a true success test, we need to create a project that compiles.
-        // The default project has features with files, so Compile will fail at MSI level.
-        // Let's verify the output contains timestamps and structured info.
 
         await vm.BuildAsync(".");
 
-        Assert.Contains("Build started at", vm.OutputText);
-        Assert.Contains("at ", vm.OutputText);
+        Assert.Contains("Build started", vm.OutputText);
+        Assert.Matches(@"\[\d{2}:\d{2}:\d{2}\]", vm.OutputText);
     }
 
     [Fact]
-    public async Task BuildAsync_FailedBuild_ShowsErrorMessage()
+    public async Task BuildAsync_SetsBuildSummary()
     {
         var vm = new StudioViewModel();
-        // Force a validation failure by clearing product name
-        vm.NewProject();
-        // Access the internal project via LoadProject/SaveProject roundtrip
-        // or just build with defaults that will fail at compile stage
 
         await vm.BuildAsync(".");
 
-        // The build should complete (success or failure) and show structured output
-        Assert.False(vm.IsBuildInProgress);
-        Assert.NotEmpty(vm.OutputText);
-        Assert.Contains("Build started at", vm.OutputText);
+        Assert.NotNull(vm.BuildSummary);
+        Assert.True(vm.HasBuildSummary);
     }
 
     [Fact]
-    public async Task BuildAsync_FailedValidation_ShowsFailureDetails()
+    public async Task BuildAsync_FailedBuild_BuildSucceededIsFalse()
+    {
+        var project = StudioProjectLoader.NewProject();
+        project.Product.Name = "";
+        var vm = new StudioViewModel(project);
+
+        await vm.BuildAsync(".");
+
+        Assert.False(vm.BuildSucceeded);
+        Assert.Contains("failed", vm.BuildSummary!);
+    }
+
+    [Fact]
+    public async Task BuildAsync_ShowBuildProgress_ResetAfterBuild()
     {
         var vm = new StudioViewModel();
 
-        // Create a project with empty product name to force validation failure
-        var project = new StudioProject
-        {
-            Product = new ProductSection
-            {
-                Name = "",
-                Manufacturer = "Test",
-                Version = "1.0.0",
-                Architecture = "x64",
-                Scope = "perMachine"
-            },
-            Ui = new UiSection { DialogSet = "Minimal" },
-            Build = new BuildSection { OutputPath = "out/", Compression = "High" }
-        };
+        await vm.BuildAsync(".");
 
-        // Save and load to set up the VM with our test project
-        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.ffstudio");
-        try
-        {
-            StudioProjectLoader.SaveToFile(project, tempFile);
-            vm.LoadProject(tempFile);
-
-            await vm.BuildAsync(Path.GetTempPath());
-
-            Assert.False(vm.IsBuildInProgress);
-            Assert.Contains("Build failed", vm.OutputText);
-            Assert.Contains("Failed at", vm.OutputText);
-        }
-        finally
-        {
-            if (File.Exists(tempFile))
-                File.Delete(tempFile);
-        }
+        Assert.False(vm.ShowBuildProgress);
     }
 
     [Fact]
