@@ -1,0 +1,144 @@
+# EditorConfig — FalkForge
+# https://editorconfig.org
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.{json,yaml,yml}]
+indent_size = 2
+
+[*.cs]
+
+# ─────────────────────────────────────────────────────────────
+# ClrHeapAllocationAnalyzer — informational only, not bugs
+# These guide optimization but must not block builds
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.HAA0101.severity = suggestion  # Array allocation for params
+dotnet_diagnostic.HAA0102.severity = suggestion  # Non-overridden virtual on value type
+dotnet_diagnostic.HAA0201.severity = suggestion  # Implicit string concatenation allocation
+dotnet_diagnostic.HAA0202.severity = suggestion  # Value type to reference type conversion (explicit)
+dotnet_diagnostic.HAA0301.severity = suggestion  # Closure allocation
+dotnet_diagnostic.HAA0302.severity = suggestion  # Display class allocation (closure captures)
+dotnet_diagnostic.HAA0303.severity = suggestion  # Lambda/delegate allocation in generic method
+dotnet_diagnostic.HAA0401.severity = suggestion  # Non-ValueType enumerator allocation
+dotnet_diagnostic.HAA0601.severity = suggestion  # Boxing allocation
+dotnet_diagnostic.HAA0602.severity = suggestion  # Delegate on struct instance method
+dotnet_diagnostic.HAA0603.severity = suggestion  # Delegate allocation from method group
+
+# ─────────────────────────────────────────────────────────────
+# Meziantou.Analyzer — code quality, fix incrementally
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.MA0002.severity = suggestion   # IEqualityComparer/IComparer parameter
+dotnet_diagnostic.MA0004.severity = suggestion   # Use ConfigureAwait
+dotnet_diagnostic.MA0006.severity = suggestion   # Use string.Equals instead of == operator
+dotnet_diagnostic.MA0009.severity = suggestion   # Regex DoS — internal validation on trusted builder input
+dotnet_diagnostic.MA0015.severity = suggestion   # ArgumentException with parameter name
+dotnet_diagnostic.MA0021.severity = suggestion   # Explicit StringComparer for hash codes
+dotnet_diagnostic.MA0011.severity = suggestion   # IFormatProvider parameter
+dotnet_diagnostic.MA0016.severity = suggestion   # Prefer collection abstraction
+dotnet_diagnostic.MA0023.severity = suggestion   # RegexOptions.ExplicitCapture
+dotnet_diagnostic.MA0048.severity = none         # File name must match type name — conflicts with project conventions
+dotnet_diagnostic.MA0051.severity = suggestion   # Method is too long
+dotnet_diagnostic.MA0074.severity = none         # Avoid implicit culture-sensitive ToString — false positives on test params
+dotnet_diagnostic.MA0076.severity = suggestion   # Do not use implicit culture-sensitive ToString in interpolated strings
+dotnet_diagnostic.MA0017.severity = suggestion   # Abstract types should not have public constructors
+dotnet_diagnostic.MA0046.severity = suggestion   # Use EventHandler<T> to declare events
+dotnet_diagnostic.MA0055.severity = suggestion   # Do not use finalizer
+dotnet_diagnostic.MA0134.severity = suggestion   # Observe result of async calls
+dotnet_diagnostic.MA0158.severity = suggestion   # Use System.Threading.Lock
+
+# ─────────────────────────────────────────────────────────────
+# SonarAnalyzer — code smells, fix incrementally
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.S101.severity = suggestion     # Type naming convention
+dotnet_diagnostic.S1075.severity = suggestion    # URIs should not be hardcoded
+dotnet_diagnostic.S1144.severity = suggestion    # Unused private members
+dotnet_diagnostic.S1121.severity = suggestion    # Extract assignment from expression
+dotnet_diagnostic.S1125.severity = suggestion    # Unnecessary boolean literal
+dotnet_diagnostic.S1172.severity = suggestion    # Unused method parameter
+dotnet_diagnostic.S1199.severity = suggestion    # Nested code blocks
+dotnet_diagnostic.S2094.severity = suggestion    # Remove empty class
+dotnet_diagnostic.S2325.severity = suggestion    # Make member static
+dotnet_diagnostic.S2344.severity = suggestion    # Enum name should not match member
+dotnet_diagnostic.S3011.severity = suggestion    # Reflection accessibility bypass
+dotnet_diagnostic.S3241.severity = suggestion    # Method return type more derived
+dotnet_diagnostic.S3267.severity = suggestion    # Loop simplified with LINQ Where
+dotnet_diagnostic.S3358.severity = suggestion    # Ternary complexity
+dotnet_diagnostic.S3869.severity = suggestion    # Parameter names should match base
+dotnet_diagnostic.S3878.severity = none          # Remove unused parameter — false positive on xUnit v3 test data
+dotnet_diagnostic.S3923.severity = suggestion    # Identical branches
+dotnet_diagnostic.S3973.severity = suggestion    # Use curly braces for conditionally executed code
+dotnet_diagnostic.S4050.severity = suggestion    # Provide operator== and operator!=
+dotnet_diagnostic.S4136.severity = suggestion    # Equals overloads should be adjacent
+dotnet_diagnostic.S4144.severity = suggestion    # Methods returning identical values
+dotnet_diagnostic.S4220.severity = suggestion    # Events should use EventHandler<T>
+dotnet_diagnostic.S5445.severity = suggestion    # Insecure temporary file creation
+dotnet_diagnostic.S6588.severity = suggestion    # Use span-based string.Split overload
+dotnet_diagnostic.S6608.severity = suggestion    # Prefer indexing from end
+dotnet_diagnostic.S6966.severity = suggestion    # Await CancelAsync instead
+dotnet_diagnostic.S3427.severity = suggestion    # Method overloads with default parameter
+dotnet_diagnostic.S108.severity = suggestion     # Nested block should not be empty
+dotnet_diagnostic.S125.severity = suggestion     # Commented-out code
+dotnet_diagnostic.S127.severity = suggestion     # Do not update loop counter in body
+dotnet_diagnostic.S1066.severity = suggestion    # Collapsible if statements
+dotnet_diagnostic.S1481.severity = suggestion    # Unused local variables
+dotnet_diagnostic.S1643.severity = suggestion    # Use StringBuilder instead
+dotnet_diagnostic.S1854.severity = suggestion    # Unused assignments
+dotnet_diagnostic.S1871.severity = suggestion    # Branches with identical implementation
+dotnet_diagnostic.S2486.severity = suggestion    # Generic exceptions should not be silenced
+dotnet_diagnostic.S3442.severity = suggestion    # Abstract class constructor visibility
+dotnet_diagnostic.S3604.severity = suggestion    # Member initializer duplicates constructor
+dotnet_diagnostic.S6562.severity = suggestion    # Always set a timeout for HttpClient
+dotnet_diagnostic.S927.severity = suggestion     # Parameter name mismatch
+
+# ─────────────────────────────────────────────────────────────
+# IDisposableAnalyzers — track as suggestions, fix incrementally
+# Promoted to warning once existing violations are cleaned up
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.IDISP001.severity = suggestion # Dispose created
+dotnet_diagnostic.IDISP003.severity = suggestion # Dispose previous before re-assigning
+dotnet_diagnostic.IDISP004.severity = suggestion # Don't ignore created IDisposable
+dotnet_diagnostic.IDISP005.severity = suggestion # Return type should indicate IDisposable
+dotnet_diagnostic.IDISP006.severity = suggestion # Implement IDisposable
+dotnet_diagnostic.IDISP007.severity = suggestion # Don't dispose injected
+dotnet_diagnostic.IDISP008.severity = suggestion # Don't mix injected and created
+dotnet_diagnostic.IDISP016.severity = suggestion # Don't use disposed instance
+dotnet_diagnostic.IDISP017.severity = suggestion # Prefer using
+dotnet_diagnostic.IDISP002.severity = suggestion # Dispose member
+dotnet_diagnostic.IDISP023.severity = suggestion # Don't use reference types in finalizer
+dotnet_diagnostic.IDISP026.severity = suggestion # Sealed disposable should suppress finalizer
+
+# ─────────────────────────────────────────────────────────────
+# Threading Analyzers — keep most as warnings (real bugs)
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.VSTHRD002.severity = suggestion # Avoid problematic synchronous waits
+dotnet_diagnostic.VSTHRD001.severity = suggestion # Avoid awaiting non-joinable tasks
+dotnet_diagnostic.VSTHRD003.severity = suggestion # Avoid awaiting foreign tasks
+dotnet_diagnostic.VSTHRD100.severity = suggestion # Avoid async void methods
+dotnet_diagnostic.VSTHRD101.severity = suggestion # Avoid unsupported async delegates
+dotnet_diagnostic.VSTHRD103.severity = suggestion # Call async methods when in async method
+dotnet_diagnostic.VSTHRD110.severity = suggestion # Observe result of async calls
+dotnet_diagnostic.VSTHRD200.severity = suggestion # Use Async suffix for async methods
+
+# ─────────────────────────────────────────────────────────────
+# WpfAnalyzers
+# ─────────────────────────────────────────────────────────────
+# ───────────────────────────────���─────────────────────────────
+# SecurityCodeScan — security, review individually
+# ─────────────────────────────────────────���───────────────────
+dotnet_diagnostic.SCS0005.severity = suggestion  # Weak random — many are in test code, not security-critical
+
+# ───────────────���────────────────────���────────────────────────
+# WpfAnalyzers
+# ──────────���──────────────────────────────────────────────────
+dotnet_diagnostic.WPF0041.severity = suggestion  # Set mutable dependency property using SetCurrentValue
