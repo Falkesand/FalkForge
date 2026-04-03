@@ -16,7 +16,7 @@ public sealed class InspectCommandTests
         var command = new InspectCommand(console);
         var settings = new Settings.InspectSettings { MsiPath = "nonexistent_file_xyz.msi" };
 
-        var result = command.Execute(CreateContext(), settings);
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
     }
@@ -28,7 +28,7 @@ public sealed class InspectCommandTests
         var command = new InspectCommand(console);
         var settings = new Settings.InspectSettings { MsiPath = "missing.msi" };
 
-        command.Execute(CreateContext(), settings);
+        command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Contains(console.Errors, e => e.Contains("File not found"));
     }

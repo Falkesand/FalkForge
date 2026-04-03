@@ -16,7 +16,7 @@ public sealed class DecompileCommandTests
         var command = new DecompileCommand(console);
         var settings = new Settings.DecompileSettings { FilePath = "nonexistent_file_xyz.msi" };
 
-        var result = command.Execute(CreateContext(), settings);
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
     }
@@ -28,7 +28,7 @@ public sealed class DecompileCommandTests
         var command = new DecompileCommand(console);
         var settings = new Settings.DecompileSettings { FilePath = "missing.msi" };
 
-        command.Execute(CreateContext(), settings);
+        command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Contains(console.Errors, e => e.Contains("File not found"));
     }

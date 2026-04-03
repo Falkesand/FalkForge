@@ -20,7 +20,7 @@ public sealed class InspectCommand : Command<InspectSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] InspectSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] InspectSettings settings, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
         {

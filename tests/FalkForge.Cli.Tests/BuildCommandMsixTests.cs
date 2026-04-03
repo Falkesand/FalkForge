@@ -26,7 +26,7 @@ public sealed class BuildCommandMsixTests
             };
 
             // Act
-            command.Execute(CreateContext(), settings);
+            command.Execute(CreateContext(), settings, CancellationToken.None);
 
             // Assert
             Assert.Contains(console.MarkupLines,
@@ -70,7 +70,7 @@ public sealed class BuildCommandMsixTests
             };
 
             // Act
-            var result = command.Execute(CreateContext(), settings);
+            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
             // Assert
             Assert.Equal(ExitCodes.ValidationFailure, result);

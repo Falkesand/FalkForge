@@ -22,7 +22,7 @@ public sealed class PlanCommand : Command<PlanSettings>
         _output = output;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] PlanSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] PlanSettings settings, CancellationToken cancellationToken)
     {
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 

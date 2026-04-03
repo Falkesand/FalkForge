@@ -25,7 +25,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         _gitWorkingDirectory = gitWorkingDirectory;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
     {
         if (settings.Reproducible)
         {

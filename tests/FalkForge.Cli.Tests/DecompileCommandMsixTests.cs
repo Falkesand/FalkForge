@@ -30,7 +30,7 @@ public sealed class DecompileCommandMsixTests : IDisposable
         var command = new DecompileCommand(console);
         var settings = new Settings.DecompileSettings { FilePath = _tempFile };
 
-        var result = command.Execute(CreateContext(), settings);
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
         Assert.Contains(console.Errors, e => e.Contains("not yet supported"));

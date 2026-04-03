@@ -17,7 +17,7 @@ public sealed class BuildCommandTests
         var command = new BuildCommand(console);
         var settings = new Settings.BuildSettings { ProjectPath = "nonexistent_file_xyz.cs" };
 
-        var result = command.Execute(CreateContext(), settings);
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
         Assert.Contains(console.Errors, e => e.Contains("File not found"));
@@ -30,7 +30,7 @@ public sealed class BuildCommandTests
         var command = new BuildCommand(console);
         var settings = new Settings.BuildSettings { ProjectPath = "missing.cs" };
 
-        command.Execute(CreateContext(), settings);
+        command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Single(console.Errors);
         Assert.Contains("File not found", console.Errors[0]);
@@ -133,7 +133,7 @@ public sealed class BuildCommandTests
                 Reproducible = true
             };
 
-            var result = command.Execute(CreateContext(), settings);
+            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.RuntimeError, result);
             Assert.Contains(console.Errors, e => e.Contains("RPR001"));

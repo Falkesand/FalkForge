@@ -23,7 +23,7 @@ public sealed class DecompileCommand : Command<DecompileSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] DecompileSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] DecompileSettings settings, CancellationToken cancellationToken)
     {
         var filePath = Path.GetFullPath(settings.FilePath);
 

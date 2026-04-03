@@ -23,7 +23,7 @@ public sealed class WinGetCommand : Command<WinGetSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] WinGetSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] WinGetSettings settings, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
         {

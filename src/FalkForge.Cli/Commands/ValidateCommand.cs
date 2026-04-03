@@ -23,7 +23,7 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] ValidateSettings settings)
+    public override int Execute([NotNull] CommandContext context, [NotNull] ValidateSettings settings, CancellationToken cancellationToken)
     {
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 

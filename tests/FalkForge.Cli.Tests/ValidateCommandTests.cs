@@ -16,7 +16,7 @@ public sealed class ValidateCommandTests
         var command = new ValidateCommand(console);
         var settings = new Settings.ValidateSettings { ProjectPath = "nonexistent_file_xyz.cs" };
 
-        var result = command.Execute(CreateContext(), settings);
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
         Assert.Contains(console.Errors, e => e.Contains("File not found"));
@@ -29,7 +29,7 @@ public sealed class ValidateCommandTests
         var command = new ValidateCommand(console);
         var settings = new Settings.ValidateSettings { ProjectPath = "missing.cs" };
 
-        command.Execute(CreateContext(), settings);
+        command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Single(console.Errors);
         Assert.Contains("File not found", console.Errors[0]);
