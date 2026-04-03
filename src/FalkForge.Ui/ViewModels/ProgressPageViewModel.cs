@@ -85,15 +85,15 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
     public override Task OnNavigatedToAsync(CancellationToken ct = default)
     {
         _progressSubscription = Engine.Progress
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(OnProgress);
 
         _statusSubscription = Engine.StatusMessage
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(msg => StatusText = msg);
 
         _phaseSubscription = Engine.Phase
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(OnPhaseChanged);
 
         return Task.CompletedTask;
