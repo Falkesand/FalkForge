@@ -4,56 +4,58 @@ namespace FalkForge.Plugins.Sql.Tests;
 
 public sealed class SqlServerDiscoveryTests
 {
+    private static SqlServerDiscovery CreateDiscovery(
+        IEnumerable<string>? registryServers = null,
+        IEnumerable<string>? networkServers = null) =>
+        new(
+            registrySource: _ => registryServers ?? [],
+            networkSource: _ => networkServers ?? []);
+
     [Fact]
-    public async Task DiscoverServersAsync_returns_result()
+    public async Task DiscoverServersAsync_returns_success()
     {
-        var discovery = new SqlServerDiscovery();
+        var discovery = CreateDiscovery();
+
         var result = await discovery.DiscoverServersAsync();
+
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
     }
 
     [Fact]
-    public async Task DiscoverServersAsync_supports_cancellation()
+    public async Task DiscoverServersAsync_combines_registry_and_network_sources()
     {
-        var discovery = new SqlServerDiscovery();
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => discovery.DiscoverServersAsync(cts.Token));
-    }
+        var discovery = CreateDiscovery(
+            registryServers: ["SERVER1"],
+            networkServers: ["SERVER2"]);
 
-    [Fact]
-    public async Task DiscoverServersAsync_WhenServersDiscovered_AllNamesAreNonEmpty()
-    {
-        // Kills server name instance-check mutation (line 34: !IsNullOrEmpty guard).
-        // If the guard were inverted, empty/null entries would be added, causing this to fail.
-        var discovery = new SqlServerDiscovery();
         var result = await discovery.DiscoverServersAsync();
 
         Assert.True(result.IsSuccess);
-        Assert.All(result.Value, name =>
-            Assert.False(string.IsNullOrWhiteSpace(name)));
+        Assert.Contains("SERVER1", result.Value);
+        Assert.Contains("SERVER2", result.Value);
     }
 
     [Fact]
-    public async Task DiscoverServersAsync_WhenMultipleSourcesYieldSameServer_DeduplicatesEntries()
+    public async Task DiscoverServersAsync_deduplicates_case_insensitive()
     {
-        // Kills deduplication mutations; the internal HashSet should ensure no duplicates.
-        var discovery = new SqlServerDiscovery();
+        var discovery = CreateDiscovery(
+            registryServers: ["MyServer", "ANOTHER"],
+            networkServers: ["MYSERVER", "another"]);
+
         var result = await discovery.DiscoverServersAsync();
 
         Assert.True(result.IsSuccess);
-        var list = result.Value.ToList();
-        var distinctCount = list.Distinct(StringComparer.OrdinalIgnoreCase).Count();
-        Assert.Equal(list.Count, distinctCount);
+        Assert.Equal(2, result.Value.Count);
     }
 
     [Fact]
-    public async Task DiscoverServersAsync_WhenServersDiscovered_ReturnsAlphabeticallySorted()
+    public async Task DiscoverServersAsync_returns_sorted_results()
     {
-        // Kills the .Order() mutation: result must be sorted alphabetically.
-        var discovery = new SqlServerDiscovery();
+        var discovery = CreateDiscovery(
+            registryServers: ["Zebra", "Alpha"],
+            networkServers: ["Middle"]);
+
         var result = await discovery.DiscoverServersAsync();
 
         Assert.True(result.IsSuccess);
@@ -63,13 +65,67 @@ public sealed class SqlServerDiscoveryTests
     }
 
     [Fact]
-    public void SqlClientFactory_CanCreateDataSourceEnumerator_IsTrue()
+    public async Task DiscoverServersAsync_filters_empty_names()
     {
-        // Kills the CanCreateDataSourceEnumerator negation mutation (SqlServerDiscovery line 25).
-        // When the mutant negates the guard, the condition becomes `!true = false` and the
-        // enumeration block is skipped. This test directly verifies the property is true,
-        // causing the mutant's code path to diverge from the original.
-        Assert.True(Microsoft.Data.SqlClient.SqlClientFactory.Instance.CanCreateDataSourceEnumerator);
+        var discovery = CreateDiscovery(
+            registryServers: ["Server1", "", null!],
+            networkServers: ["", "Server2"]);
+
+        var result = await discovery.DiscoverServersAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.All(result.Value, name =>
+            Assert.False(string.IsNullOrWhiteSpace(name)));
+        Assert.Equal(2, result.Value.Count);
     }
 
+    [Fact]
+    public async Task DiscoverServersAsync_supports_cancellation()
+    {
+        var discovery = CreateDiscovery();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => discovery.DiscoverServersAsync(cts.Token));
+    }
+
+    [Fact]
+    public async Task DiscoverServersAsync_network_exception_is_swallowed()
+    {
+        var discovery = new SqlServerDiscovery(
+            registrySource: _ => ["FromRegistry"],
+            networkSource: _ => throw new InvalidOperationException("network down"));
+
+        var result = await discovery.DiscoverServersAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value);
+        Assert.Equal("FromRegistry", result.Value[0]);
+    }
+
+    [Fact]
+    public async Task DiscoverServersAsync_empty_sources_returns_empty_list()
+    {
+        var discovery = CreateDiscovery();
+
+        var result = await discovery.DiscoverServersAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public async Task DiscoverServersAsync_with_instances_formats_correctly()
+    {
+        var discovery = CreateDiscovery(
+            registryServers: [@"SERVER1\SQLEXPRESS"],
+            networkServers: ["SERVER2"]);
+
+        var result = await discovery.DiscoverServersAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(@"SERVER1\SQLEXPRESS", result.Value);
+        Assert.Contains("SERVER2", result.Value);
+    }
 }
