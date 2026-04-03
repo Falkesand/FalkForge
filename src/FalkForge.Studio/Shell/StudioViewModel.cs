@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
-using System.Windows.Threading;
 using FalkForge;
 using FalkForge.Studio.Editors.BuildSettingsEditor;
 using FalkForge.Studio.Editors.BundleChain;
@@ -178,27 +178,23 @@ public sealed class StudioViewModel : ViewModelBase
         ShowBuildProgress = true;
         BuildProgress = 0;
         BuildSummary = null;
-        var startTime = DateTime.Now;
-        OutputText = $"[{startTime:HH:mm:ss}] Build started\n";
+        var sw = Stopwatch.StartNew();
+        OutputText = $"[{DateTime.Now:HH:mm:ss}] Build started\n";
 
         try
         {
             OutputText += $"[{DateTime.Now:HH:mm:ss}] Validating...\n";
             BuildProgress = 10;
 
-            var result = await Task.Run(() =>
-            {
-                var compiled = StudioBuildService.Compile(_project, baseDirectory);
-                return compiled;
-            });
+            var result = await Task.Run(() => StudioBuildService.Compile(_project, baseDirectory));
 
             BuildProgress = 100;
+            sw.Stop();
 
-            var duration = DateTime.Now - startTime;
             if (result.IsSuccess)
             {
                 OutputText += $"[{DateTime.Now:HH:mm:ss}] Output: {result.Value}\n";
-                BuildSummary = $"Build succeeded in {duration.TotalSeconds:F1}s";
+                BuildSummary = $"Build succeeded in {sw.Elapsed.TotalSeconds:F1}s";
                 BuildSucceeded = true;
             }
             else
@@ -409,20 +405,30 @@ public sealed class StudioViewModel : ViewModelBase
     public void ScheduleValidation()
     {
         _validationDebounce?.Cancel();
-        _validationDebounce = new CancellationTokenSource();
-        var ct = _validationDebounce.Token;
+        _validationDebounce?.Dispose();
+        var cts = new CancellationTokenSource();
+        _validationDebounce = cts;
+        var ct = cts.Token;
         var baseDir = _baseDirectory;
 
-        _ = Task.Run(async () =>
+#pragma warning disable CS4014 // Fire-and-forget is intentional for debounced background validation
+        Task.Run(async () =>
         {
-            await Task.Delay(300, ct);
-            if (ct.IsCancellationRequested) return;
+            try
+            {
+                await Task.Delay(300, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
 
             var messages = RunValidationCore(baseDir);
 
             if (!ct.IsCancellationRequested)
-                Dispatcher.CurrentDispatcher.InvokeAsync(() => ApplyValidationResults(messages));
+                System.Windows.Application.Current?.Dispatcher.InvokeAsync(() => ApplyValidationResults(messages));
         }, ct);
+#pragma warning restore CS4014
     }
 
     private void ApplyValidationResults(List<ValidationMessage> messages)
