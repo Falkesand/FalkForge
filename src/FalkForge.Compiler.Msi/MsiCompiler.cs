@@ -74,16 +74,29 @@ public sealed class MsiCompiler : ICompiler
             // Step 5.5: Build cabinet and embed into MSI
             if (resolved.Files.Count > 0)
             {
+                // Cabinet stream name must match the Media.Cabinet column written by
+                // TableEmitter — otherwise the installer fails with error 2356 at
+                // install time. When a MediaTemplate is set TableEmitter formats the
+                // cabinet names using its CabinetTemplate, so derive the same name here.
+                // Multi-cabinet payloads are not yet supported: TableEmitter may emit
+                // Media rows for disk 2, 3, … when a large payload is split, but this
+                // compiler always embeds a single disk-1 cabinet. Oversize payloads
+                // should be rejected by a validator rule until the compiler can flush
+                // and embed each cabinet the emitter describes.
+                var cabinetFileName = package.MediaTemplate?.CabinetTemplate is { } template
+                    ? string.Format(template, 1)
+                    : CabinetBuilder.DefaultCabinetFileName;
+
                 var tempCabPath = Path.Combine(Path.GetTempPath(), $"FalkForge_{Guid.NewGuid():N}");
                 Directory.CreateDirectory(tempCabPath);
                 try
                 {
                     using var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
-                    var cabResult = cabBuilder.BuildCabinet(resolved.Files, tempCabPath, package.Compression);
+                    var cabResult = cabBuilder.BuildCabinet(resolved.Files, tempCabPath, package.Compression, cabinetFileName);
                     if (cabResult.IsFailure)
                         return Result<string>.Failure(cabResult.Error);
 
-                    var embedResult = EmbedCabinet(database, cabResult.Value);
+                    var embedResult = EmbedCabinet(database, cabResult.Value, cabinetFileName);
                     if (embedResult.IsFailure)
                         return Result<string>.Failure(embedResult.Error);
                 }
@@ -212,7 +225,7 @@ public sealed class MsiCompiler : ICompiler
         };
     }
 
-    private static Result<Unit> EmbedCabinet(MsiDatabase database, string cabPath)
+    private static Result<Unit> EmbedCabinet(MsiDatabase database, string cabPath, string streamName)
     {
         // The _Streams table is a special MSI table for embedded streams.
         // Ignore errors from CREATE since the table may already exist.
@@ -222,7 +235,7 @@ public sealed class MsiCompiler : ICompiler
         return database.InsertRow(
             "SELECT `Name`, `Data` FROM `_Streams`",
             record => record
-                .SetString(1, "Data.cab")
+                .SetString(1, streamName)
                 .SetStream(2, cabPath));
     }
 }

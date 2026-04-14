@@ -9,7 +9,7 @@ namespace FalkForge.Compiler.Msi;
 [SupportedOSPlatform("windows")]
 public sealed class CabinetBuilder : IDisposable
 {
-    private const string CabinetFileName = "Data.cab";
+    public const string DefaultCabinetFileName = "Data.cab";
 
     private readonly DateTime? _normalizedTimestamp;
 
@@ -46,7 +46,8 @@ public sealed class CabinetBuilder : IDisposable
     public Result<string> BuildCabinet(
         IReadOnlyList<ResolvedFile> files,
         string outputPath,
-        CompressionLevel compression)
+        CompressionLevel compression,
+        string cabinetFileName = DefaultCabinetFileName)
     {
         if (files.Count == 0)
             return Result<string>.Failure(ErrorKind.InvalidOperation, "Cannot build a cabinet with no files.");
@@ -69,7 +70,7 @@ public sealed class CabinetBuilder : IDisposable
             fFailOnIncompressible = 0,
             setID = 0,
             szDisk = "",
-            szCab = CabinetFileName,
+            szCab = cabinetFileName,
             szCabPath = cabPath
         };
 
@@ -133,7 +134,7 @@ public sealed class CabinetBuilder : IDisposable
             CleanupOpenStreams();
         }
 
-        var resultPath = Path.Combine(outputPath, CabinetFileName);
+        var resultPath = Path.Combine(outputPath, cabinetFileName);
         if (!File.Exists(resultPath))
             return Result<string>.Failure(
                 ErrorKind.CompilationError,

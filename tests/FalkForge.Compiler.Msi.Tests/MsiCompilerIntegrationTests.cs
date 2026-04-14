@@ -310,6 +310,64 @@ public sealed class MsiCompilerIntegrationTests
     }
 
     [Fact]
+    public void Compile_MediaTemplate_CabinetStreamNameMatchesMediaRow()
+    {
+        // MSI error 2356: "Couldn't locate cabinet in stream: data1.cab".
+        // CabinetBuilder embedded the cab under the literal "Data.cab" while
+        // EmitMediaFromTemplate wrote "data1.cab" (or whatever the template
+        // produced) into Media.Cabinet — the installer looked up the stream
+        // by the Media row name and found nothing.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake content for cab stream test");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "CabNameApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "CabNameApp"));
+                p.MediaTemplate(mt => mt
+                    .CabinetTemplate("data{0}.cab")
+                    .EmbedCabinet(true));
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess);
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            var mediaCabs = db.QueryRows("SELECT `Cabinet` FROM `Media`", 1).Value
+                .Select(r => r[0]!)
+                .Select(name => name.StartsWith('#') ? name[1..] : name)
+                .ToList();
+            var streamNames = db.QueryRows("SELECT `Name` FROM `_Streams`", 1).Value
+                .Select(r => r[0]!)
+                .ToHashSet(StringComparer.Ordinal);
+
+            // Pin the literal template expansion so a silent refactor of the format
+            // evaluation cannot slip the contract while both sides still agree.
+            Assert.Equal("data1.cab", Assert.Single(mediaCabs));
+            Assert.Contains("data1.cab", streamNames);
+
+            foreach (var cab in mediaCabs)
+                Assert.True(streamNames.Contains(cab),
+                    $"Media row references cabinet '{cab}' but no matching _Streams entry exists. Streams: [{string.Join(", ", streamNames)}]");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void Compile_ShortcutsWithSubfoldersCollidingAfterSanitize_GetDistinctDirectoryRows()
     {
         // "My App" and "My-App" both sanitize to "My_App". Without hash disambiguation

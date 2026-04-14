@@ -384,7 +384,7 @@ internal sealed class TableEmitter
                 .SetInteger(1, 1)
                 .SetInteger(2, lastSequence)
                 .SetString(3, "")
-                .SetString(4, "#Data.cab")
+                .SetString(4, "#" + CabinetBuilder.DefaultCabinetFileName)
                 .SetString(5, "")
                 .SetString(6, ""));
     }
