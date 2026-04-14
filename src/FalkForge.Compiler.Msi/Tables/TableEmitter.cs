@@ -175,7 +175,7 @@ internal sealed class TableEmitter
         foreach (var component in resolved.Components)
         {
             var compDirId = GetDirectoryId(component.Directory);
-            if (!emittedDirs.Add(compDirId)) continue;
+            if (emittedDirs.Contains(compDirId)) continue;
 
             // Build path to this directory
             var compParent = component.Directory.Root.Token;
