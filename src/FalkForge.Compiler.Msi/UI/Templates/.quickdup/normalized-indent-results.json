@@ -1,0 +1,1420 @@
+{
+  "total_patterns": 83,
+  "patterns": [
+    {
+      "hash": "0fa842883410d8aa",
+      "score": 14,
+      "lines": 68,
+      "similarity": 0.9122807017543859,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 424
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 575
+        }
+      ]
+    },
+    {
+      "hash": "10bdd8e2c16b2b89",
+      "score": 14,
+      "lines": 74,
+      "similarity": 0.8955223880597015,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 18
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 148
+        }
+      ]
+    },
+    {
+      "hash": "2dfaa22044f66a81",
+      "score": 14,
+      "lines": 61,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 431
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 582
+        }
+      ]
+    },
+    {
+      "hash": "526bbd673d2c2e69",
+      "score": 14,
+      "lines": 70,
+      "similarity": 0.9122807017543859,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 422
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 573
+        }
+      ]
+    },
+    {
+      "hash": "739f946f780f7740",
+      "score": 14,
+      "lines": 73,
+      "similarity": 0.8955223880597015,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 19
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 149
+        }
+      ]
+    },
+    {
+      "hash": "7b0b60ec94ed1183",
+      "score": 14,
+      "lines": 67,
+      "similarity": 0.9122807017543859,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 425
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 576
+        }
+      ]
+    },
+    {
+      "hash": "822af47f728358d2",
+      "score": 14,
+      "lines": 63,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 429
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 580
+        }
+      ]
+    },
+    {
+      "hash": "87b03ee5ae6d1981",
+      "score": 14,
+      "lines": 65,
+      "similarity": 0.9090909090909091,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 427
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 578
+        }
+      ]
+    },
+    {
+      "hash": "91d310a13e7d2829",
+      "score": 14,
+      "lines": 62,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 430
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 581
+        }
+      ]
+    },
+    {
+      "hash": "a38acdba2cbc2934",
+      "score": 14,
+      "lines": 60,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 432
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 583
+        }
+      ]
+    },
+    {
+      "hash": "bdb00cc0fa6208c2",
+      "score": 14,
+      "lines": 69,
+      "similarity": 0.9122807017543859,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 423
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 574
+        }
+      ]
+    },
+    {
+      "hash": "d94d9b783b04e0f5",
+      "score": 14,
+      "lines": 71,
+      "similarity": 0.9122807017543859,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 421
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 572
+        }
+      ]
+    },
+    {
+      "hash": "e391db7b4441b845",
+      "score": 14,
+      "lines": 66,
+      "similarity": 0.9107142857142857,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 426
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 577
+        }
+      ]
+    },
+    {
+      "hash": "fc5b0e26cb760087",
+      "score": 14,
+      "lines": 64,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 428
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 579
+        }
+      ]
+    },
+    {
+      "hash": "31972daf8e05686e",
+      "score": 13,
+      "lines": 59,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 433
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 584
+        }
+      ]
+    },
+    {
+      "hash": "96feb32788878254",
+      "score": 13,
+      "lines": 72,
+      "similarity": 0.8923076923076924,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 20
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 150
+        }
+      ]
+    },
+    {
+      "hash": "c21b5d30226b6c5a",
+      "score": 13,
+      "lines": 58,
+      "similarity": 0.9038461538461539,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 434
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 585
+        }
+      ]
+    },
+    {
+      "hash": "1d9a16e7a6a24957",
+      "score": 12,
+      "lines": 69,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 153
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 23
+        }
+      ]
+    },
+    {
+      "hash": "2d4beffa34ce6f26",
+      "score": 12,
+      "lines": 71,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 21
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 151
+        }
+      ]
+    },
+    {
+      "hash": "48a2d853948fc5e4",
+      "score": 12,
+      "lines": 55,
+      "similarity": 0.9019607843137255,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 437
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 588
+        }
+      ]
+    },
+    {
+      "hash": "4cfa882c3c4972f1",
+      "score": 12,
+      "lines": 70,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 152
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 22
+        }
+      ]
+    },
+    {
+      "hash": "d7af6a6672ec2799",
+      "score": 12,
+      "lines": 56,
+      "similarity": 0.9019607843137255,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 436
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 587
+        }
+      ]
+    },
+    {
+      "hash": "efc385897b589e78",
+      "score": 12,
+      "lines": 57,
+      "similarity": 0.9019607843137255,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 435
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 586
+        }
+      ]
+    },
+    {
+      "hash": "8f7b3908cdace8a4",
+      "score": 11,
+      "lines": 67,
+      "similarity": 0.8833333333333333,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 155
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 25
+        }
+      ]
+    },
+    {
+      "hash": "e19bf8b4a306f01f",
+      "score": 11,
+      "lines": 68,
+      "similarity": 0.8852459016393442,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 24
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 154
+        }
+      ]
+    },
+    {
+      "hash": "bdd80130fdfdf58a",
+      "score": 10,
+      "lines": 66,
+      "similarity": 0.8813559322033898,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 156
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 26
+        }
+      ]
+    },
+    {
+      "hash": "76a66950f18e41f7",
+      "score": 9,
+      "lines": 47,
+      "similarity": 0.9047619047619048,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 175
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 45
+        }
+      ]
+    },
+    {
+      "hash": "8993869980d6a538",
+      "score": 9,
+      "lines": 61,
+      "similarity": 0.8771929824561403,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 161
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 31
+        }
+      ]
+    },
+    {
+      "hash": "8ea6d2170a61a407",
+      "score": 9,
+      "lines": 64,
+      "similarity": 0.8771929824561403,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 28
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 158
+        }
+      ]
+    },
+    {
+      "hash": "af32f9f5c238139f",
+      "score": 9,
+      "lines": 46,
+      "similarity": 0.9047619047619048,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 176
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 46
+        }
+      ]
+    },
+    {
+      "hash": "d75af6ae965ea661",
+      "score": 9,
+      "lines": 65,
+      "similarity": 0.8793103448275862,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 157
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 27
+        }
+      ]
+    },
+    {
+      "hash": "d77a88d3f5945b82",
+      "score": 9,
+      "lines": 62,
+      "similarity": 0.8360655737704918,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 272
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 420
+        }
+      ]
+    },
+    {
+      "hash": "e1c5166e28d82964",
+      "score": 9,
+      "lines": 45,
+      "similarity": 0.9047619047619048,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 177
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 47
+        }
+      ]
+    },
+    {
+      "hash": "fa54a6258ce21a3f",
+      "score": 9,
+      "lines": 62,
+      "similarity": 0.8771929824561403,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 160
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 30
+        }
+      ]
+    },
+    {
+      "hash": "fc374340c83598a4",
+      "score": 9,
+      "lines": 63,
+      "similarity": 0.8771929824561403,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 159
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 29
+        }
+      ]
+    },
+    {
+      "hash": "66286b0ec302cebe",
+      "score": 8,
+      "lines": 40,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 52
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 182
+        }
+      ]
+    },
+    {
+      "hash": "bce7c033d9853836",
+      "score": 8,
+      "lines": 43,
+      "similarity": 0.9,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 179
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 49
+        }
+      ]
+    },
+    {
+      "hash": "c1f97f701482152e",
+      "score": 8,
+      "lines": 60,
+      "similarity": 0.8771929824561403,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 162
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 32
+        }
+      ]
+    },
+    {
+      "hash": "efaef9dfd1017b82",
+      "score": 8,
+      "lines": 44,
+      "similarity": 0.9024390243902439,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 48
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 178
+        }
+      ]
+    },
+    {
+      "hash": "fb04617f9e8ab2c0",
+      "score": 8,
+      "lines": 42,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 50
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 180
+        }
+      ]
+    },
+    {
+      "hash": "fb1cde4a6a3eb37e",
+      "score": 8,
+      "lines": 48,
+      "similarity": 0.9047619047619048,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 44
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 174
+        }
+      ]
+    },
+    {
+      "hash": "fbc1c489f58d7e67",
+      "score": 8,
+      "lines": 41,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 181
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 51
+        }
+      ]
+    },
+    {
+      "hash": "046cbb7efc03b0db",
+      "score": 7,
+      "lines": 29,
+      "similarity": 0.8857142857142857,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 63
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 193
+        }
+      ]
+    },
+    {
+      "hash": "06c84b257ceb03da",
+      "score": 7,
+      "lines": 30,
+      "similarity": 0.8857142857142857,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 62
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 192
+        }
+      ]
+    },
+    {
+      "hash": "094bd72b1037984e",
+      "score": 7,
+      "lines": 34,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 58
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 188
+        }
+      ]
+    },
+    {
+      "hash": "0f5be7f01dff6b36",
+      "score": 7,
+      "lines": 39,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 53
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 183
+        }
+      ]
+    },
+    {
+      "hash": "15727179cb9fb524",
+      "score": 7,
+      "lines": 58,
+      "similarity": 0.8703703703703703,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 34
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 164
+        }
+      ]
+    },
+    {
+      "hash": "336e8eaeba789a27",
+      "score": 7,
+      "lines": 54,
+      "similarity": 0.8653846153846154,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 168
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 38
+        }
+      ]
+    },
+    {
+      "hash": "3b27288dbf3e9b5b",
+      "score": 7,
+      "lines": 37,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 55
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 185
+        }
+      ]
+    },
+    {
+      "hash": "66f081e7580c0028",
+      "score": 7,
+      "lines": 56,
+      "similarity": 0.8653846153846154,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 36
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 166
+        }
+      ]
+    },
+    {
+      "hash": "8705fec307931d71",
+      "score": 7,
+      "lines": 32,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 60
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 190
+        }
+      ]
+    },
+    {
+      "hash": "8f74b9dddbf83aef",
+      "score": 7,
+      "lines": 36,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 56
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 186
+        }
+      ]
+    },
+    {
+      "hash": "99bbbcb47e200bee",
+      "score": 7,
+      "lines": 53,
+      "similarity": 0.8653846153846154,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 39
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 169
+        }
+      ]
+    },
+    {
+      "hash": "ba53c6c970d25dff",
+      "score": 7,
+      "lines": 49,
+      "similarity": 0.8695652173913043,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 173
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 43
+        }
+      ]
+    },
+    {
+      "hash": "c06567825e03bab5",
+      "score": 7,
+      "lines": 33,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 189
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 59
+        }
+      ]
+    },
+    {
+      "hash": "d0a554909e973dd2",
+      "score": 7,
+      "lines": 31,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 191
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 61
+        }
+      ]
+    },
+    {
+      "hash": "d51c57c09073e282",
+      "score": 7,
+      "lines": 50,
+      "similarity": 0.8723404255319149,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 42
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 172
+        }
+      ]
+    },
+    {
+      "hash": "e4ec6089744f29e5",
+      "score": 7,
+      "lines": 38,
+      "similarity": 0.8918918918918919,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 184
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 54
+        }
+      ]
+    },
+    {
+      "hash": "eb1ed1d476fb4c47",
+      "score": 7,
+      "lines": 57,
+      "similarity": 0.8703703703703703,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 165
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 35
+        }
+      ]
+    },
+    {
+      "hash": "ebe845ae7eb15da1",
+      "score": 7,
+      "lines": 35,
+      "similarity": 0.8888888888888888,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 57
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 187
+        }
+      ]
+    },
+    {
+      "hash": "f054054160556a72",
+      "score": 7,
+      "lines": 59,
+      "similarity": 0.8771929824561403,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 33
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 163
+        }
+      ]
+    },
+    {
+      "hash": "f0577d528cd52c6f",
+      "score": 7,
+      "lines": 55,
+      "similarity": 0.8653846153846154,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 167
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 37
+        }
+      ]
+    },
+    {
+      "hash": "6271a96c18c20725",
+      "score": 6,
+      "lines": 28,
+      "similarity": 0.8823529411764706,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 64
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 194
+        }
+      ]
+    },
+    {
+      "hash": "7f7d6508b1042024",
+      "score": 6,
+      "lines": 52,
+      "similarity": 0.8461538461538461,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 170
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 40
+        }
+      ]
+    },
+    {
+      "hash": "d0cd64153a77d710",
+      "score": 6,
+      "lines": 51,
+      "similarity": 0.8461538461538461,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 171
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 41
+        }
+      ]
+    },
+    {
+      "hash": "09bb8a27658054e2",
+      "score": 5,
+      "lines": 51,
+      "similarity": 0.7735849056603774,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 449
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 761
+        }
+      ]
+    },
+    {
+      "hash": "0b20979be1c9e6bf",
+      "score": 5,
+      "lines": 62,
+      "similarity": 0.75,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 438
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 750
+        }
+      ]
+    },
+    {
+      "hash": "18f59a2aea413b9b",
+      "score": 5,
+      "lines": 50,
+      "similarity": 0.7735849056603774,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 450
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 762
+        }
+      ]
+    },
+    {
+      "hash": "2a0339a4b7d971de",
+      "score": 5,
+      "lines": 55,
+      "similarity": 0.7777777777777778,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 445
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 757
+        }
+      ]
+    },
+    {
+      "hash": "2a97197300fbe7f9",
+      "score": 5,
+      "lines": 53,
+      "similarity": 0.7777777777777778,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 447
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 759
+        }
+      ]
+    },
+    {
+      "hash": "3961855ad9ae8ce9",
+      "score": 5,
+      "lines": 56,
+      "similarity": 0.7777777777777778,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 444
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 756
+        }
+      ]
+    },
+    {
+      "hash": "3975d607789cb725",
+      "score": 5,
+      "lines": 52,
+      "similarity": 0.8103448275862069,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 478
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 621
+        }
+      ]
+    },
+    {
+      "hash": "43a37013bcff9b09",
+      "score": 5,
+      "lines": 27,
+      "similarity": 0.875,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 195
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 65
+        }
+      ]
+    },
+    {
+      "hash": "541754288d8fca3a",
+      "score": 5,
+      "lines": 52,
+      "similarity": 0.7777777777777778,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 448
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 760
+        }
+      ]
+    },
+    {
+      "hash": "63bfb73e4b00b012",
+      "score": 5,
+      "lines": 12,
+      "similarity": 1,
+      "occurrences": 3,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\MinimalDialogTemplate.cs",
+          "line_start": 81
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\AdvancedDialogTemplate.cs",
+          "line_start": 158
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 813
+        }
+      ]
+    },
+    {
+      "hash": "65427bc16e58695c",
+      "score": 5,
+      "lines": 50,
+      "similarity": 0.8103448275862069,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 480
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 623
+        }
+      ]
+    },
+    {
+      "hash": "6af3fbae4b900cb8",
+      "score": 5,
+      "lines": 49,
+      "similarity": 0.8070175438596491,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 481
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 624
+        }
+      ]
+    },
+    {
+      "hash": "75a21418e53cbcfe",
+      "score": 5,
+      "lines": 48,
+      "similarity": 0.8070175438596491,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 482
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 625
+        }
+      ]
+    },
+    {
+      "hash": "9f98130a5a2e454e",
+      "score": 5,
+      "lines": 61,
+      "similarity": 0.75,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 439
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 751
+        }
+      ]
+    },
+    {
+      "hash": "b6d25266c6f0465e",
+      "score": 5,
+      "lines": 51,
+      "similarity": 0.8103448275862069,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 479
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 622
+        }
+      ]
+    },
+    {
+      "hash": "d0074c5bdae29445",
+      "score": 5,
+      "lines": 49,
+      "similarity": 0.7735849056603774,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 451
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 763
+        }
+      ]
+    },
+    {
+      "hash": "de67c383131bf0d5",
+      "score": 5,
+      "lines": 54,
+      "similarity": 0.7777777777777778,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 446
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 758
+        }
+      ]
+    },
+    {
+      "hash": "edee66872eb8f346",
+      "score": 5,
+      "lines": 60,
+      "similarity": 0.75,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 440
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\src\\FalkForge.Compiler.Msi\\UI\\Templates\\SharedDialogBuilders.cs",
+          "line_start": 752
+        }
+      ]
+    }
+  ]
+}
