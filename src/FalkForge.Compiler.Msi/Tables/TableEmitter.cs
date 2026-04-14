@@ -24,6 +24,7 @@ internal sealed class TableEmitter
     };
 
     private readonly MsiDatabase _database;
+    private InstallPath? _installDir;
 
     internal TableEmitter(MsiDatabase database)
     {
@@ -32,6 +33,11 @@ internal sealed class TableEmitter
 
     internal Result<Unit> EmitAllTables(ResolvedPackage resolved)
     {
+        // Capture the configured install directory up front so every emitter
+        // that computes directory IDs sees the same view of which path maps
+        // to the well-known "INSTALLDIR" identifier.
+        _installDir = resolved.Package.DefaultInstallDirectory;
+
         var results = new[]
         {
             CreateTables(resolved),
@@ -166,22 +172,34 @@ internal sealed class TableEmitter
         // Collect all unique directories to avoid duplicate primary key inserts
         var emittedDirs = new HashSet<string> { "TARGETDIR", installDir.Root.Token };
 
-        // Build directory tree from install path segments
+        // Build directory tree from install path segments. The leaf of the install
+        // path becomes the Directory row literally named "INSTALLDIR" so MSI
+        // Formatted strings like "[INSTALLDIR]bin\tool.exe" resolve in a single
+        // step. Emitting a D_* leaf ID plus a Property(INSTALLDIR)=D_* row does
+        // NOT work — the Formatted evaluator will not recursively resolve a
+        // property value that happens to be another Directory primary key.
         var parentId = installDir.Root.Token;
-        foreach (var segment in installDir.Segments)
+        var segments = installDir.Segments;
+        for (var i = 0; i < segments.Count; i++)
         {
-            var dirId = $"D_{SanitizeId(segment)}_{StableHash(parentId)}";
-            if (dirId.Length > 72) dirId = dirId[..72];
+            var segment = segments[i];
+            var isLeaf = i == segments.Count - 1;
+            string dirId;
+            if (isLeaf)
+            {
+                dirId = WellKnownDirectoryIds.InstallDir;
+            }
+            else
+            {
+                dirId = $"D_{SanitizeId(segment)}_{StableHash(parentId)}";
+                if (dirId.Length > 72) dirId = dirId[..72];
+            }
 
             result = InsertDirectoryRow(dirId, parentId, segment);
             if (result.IsFailure) return result;
             emittedDirs.Add(dirId);
             parentId = dirId;
         }
-
-        // Emit INSTALLDIR property pointing to the leaf directory
-        var installDirResult = InsertPropertyRow("INSTALLDIR", parentId);
-        if (installDirResult.IsFailure) return installDirResult;
 
         foreach (var component in resolved.Components)
         {
@@ -197,16 +215,21 @@ internal sealed class TableEmitter
                 emittedDirs.Add(compParent);
             }
 
-            var segments = component.Directory.Segments;
+            var compSegments = component.Directory.Segments;
             var currentParent = compParent;
-            for (var i = 0; i < segments.Count; i++)
+            for (var i = 0; i < compSegments.Count; i++)
             {
-                var segDirId = $"D_{SanitizeId(segments[i])}_{StableHash(currentParent)}";
-                if (segDirId.Length > 72) segDirId = segDirId[..72];
+                // Build the prefix path corresponding to segments[0..=i] so
+                // ComputeDirectoryId can decide whether this level coincides with
+                // the configured install directory leaf (→ "INSTALLDIR"). Using
+                // ComputeDirectoryId here keeps the emitted Directory rows in
+                // sync with what GetDirectoryId returns for component lookups.
+                var prefixPath = BuildPrefixPath(component.Directory, i + 1);
+                var segDirId = ComputeDirectoryId(prefixPath, installDir);
 
                 if (emittedDirs.Add(segDirId))
                 {
-                    result = InsertDirectoryRow(segDirId, currentParent, segments[i]);
+                    result = InsertDirectoryRow(segDirId, currentParent, compSegments[i]);
                     if (result.IsFailure) return result;
                 }
 
@@ -1769,19 +1792,73 @@ internal sealed class TableEmitter
         return id.Length > 72 ? id[..72] : id;
     }
 
-    private static string GetDirectoryId(InstallPath path)
+    private string GetDirectoryId(InstallPath path)
+    {
+        return ComputeDirectoryId(path, _installDir);
+    }
+
+    // Computes the MSI Directory table primary key for the given install path.
+    // When the path matches the package's configured install directory (either
+    // exactly or as an ancestor of a deeper subdirectory) the leaf-or-ancestor
+    // position uses the well-known "INSTALLDIR" identifier instead of the
+    // generated D_* hash. Deeper segments still hash from their parent, which
+    // means segments beneath the install dir hash from "INSTALLDIR" — matching
+    // what EmitDirectories writes so component rows reference emitted rows.
+    private static string ComputeDirectoryId(InstallPath path, InstallPath? installDir)
     {
         var segments = path.Segments;
         if (segments.Count == 0) return path.Root.Token;
 
+        var installSegments = installDir?.Segments;
+        var sameRoot = installDir is not null && path.Root.Token == installDir.Root.Token;
+
         var parentId = path.Root.Token;
         for (var i = 0; i < segments.Count; i++)
         {
-            parentId = $"D_{SanitizeId(segments[i])}_{StableHash(parentId)}";
-            if (parentId.Length > 72) parentId = parentId[..72];
+            var atInstallLeaf =
+                sameRoot &&
+                installSegments is not null &&
+                installSegments.Count > 0 &&
+                i == installSegments.Count - 1 &&
+                SegmentsMatch(segments, installSegments, installSegments.Count);
+
+            if (atInstallLeaf)
+            {
+                parentId = WellKnownDirectoryIds.InstallDir;
+            }
+            else
+            {
+                parentId = $"D_{SanitizeId(segments[i])}_{StableHash(parentId)}";
+                if (parentId.Length > 72) parentId = parentId[..72];
+            }
         }
 
         return parentId;
+    }
+
+    // Returns an InstallPath rooted at the same KnownFolder whose RelativePath
+    // covers only the first <count> segments. Used to ask ComputeDirectoryId
+    // "what ID does level N of this component path get?" without regenerating
+    // the hash walk inline.
+    private static InstallPath BuildPrefixPath(InstallPath path, int count)
+    {
+        var segments = path.Segments;
+        if (count >= segments.Count) return path;
+        if (count <= 0) return path.Root / string.Empty;
+
+        var prefix = path.Root / segments[0];
+        for (var i = 1; i < count; i++)
+            prefix /= segments[i];
+        return prefix;
+    }
+
+    private static bool SegmentsMatch(IReadOnlyList<string> a, IReadOnlyList<string> b, int count)
+    {
+        if (a.Count < count || b.Count < count) return false;
+        for (var i = 0; i < count; i++)
+            if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
+                return false;
+        return true;
     }
 
     private static string SanitizeId(string name)
