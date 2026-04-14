@@ -11,8 +11,9 @@ using Spectre.Console.Cli;
 namespace FalkForge.Cli.Commands;
 
 /// <summary>
-/// Compiles an installer definition (.cs or .json) into an MSI or bundle.
-/// Uses Roslyn scripting for .cs files and JsonConfigLoader for .json files.
+/// Compiles an installer definition (.cs, .csx, or .json) into an MSI.
+/// Uses Roslyn scripting for .cs/.csx files and JsonConfigLoader for .json files.
+/// Dispatch lives in <see cref="BuildInputResolver"/>.
 /// </summary>
 public sealed class BuildCommand : Command<BuildSettings>
 {
@@ -56,54 +57,19 @@ public sealed class BuildCommand : Command<BuildSettings>
             _console.MarkupLine($"[grey]Loading project: {Markup.Escape(projectPath)}[/]");
 
         var outputPath = settings.OutputPath ?? Directory.GetCurrentDirectory();
+        var isJson = projectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
 
-        if (projectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        // MSIX is a separate output format with its own compiler path. JSON input
+        // cannot produce MSIX today; script input would need Installer.BuildMsix()
+        // inside the script, which BuildCommand does not invoke on its behalf.
+        if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
         {
-            var jsonResult = JsonConfigLoader.LoadFromFile(projectPath);
-            if (jsonResult.IsFailure)
-            {
-                _console.WriteError(jsonResult.Error.Message);
-                return ExitCodes.FromErrorKind(jsonResult.Error.Kind);
-            }
-
-            var package = jsonResult.Value;
-            _console.MarkupLine($"[green]Loaded JSON config:[/] {Markup.Escape(package.Name)} v{package.Version}");
-
-            if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
+            if (isJson)
             {
                 _console.WriteError("MSIX packages cannot be built from JSON configuration. Use the C# script API with Installer.BuildMsix() instead. See demo/15-msix-basic for an example.");
                 return ExitCodes.ValidationFailure;
             }
 
-            if (!OperatingSystem.IsWindows())
-            {
-                _console.WriteError("MSI compilation requires Windows.");
-                return ExitCodes.RuntimeError;
-            }
-
-            var jsonCompileResult = CompilePackage(package, outputPath);
-            if (jsonCompileResult.IsFailure)
-            {
-                _console.WriteError(jsonCompileResult.Error.Message);
-                return ExitCodes.FromErrorKind(jsonCompileResult.Error.Kind);
-            }
-
-            _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(jsonCompileResult.Value)}");
-
-            if (settings.GenerateWinGet)
-            {
-                var wingetResult = GenerateWinGetManifest(jsonCompileResult.Value, package, settings);
-                if (wingetResult.IsFailure)
-                    _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
-                else
-                    _console.MarkupLine("[green]WinGet manifest written alongside installer[/]");
-            }
-
-            return ExitCodes.Success;
-        }
-
-        if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
-        {
             if (!OperatingSystem.IsWindows())
             {
                 _console.WriteError("MSIX compilation requires Windows.");
@@ -114,12 +80,16 @@ public sealed class BuildCommand : Command<BuildSettings>
             _console.MarkupLine("[grey]Use --format msi (default) for MSI output.[/]");
         }
 
-        var packageResult = ScriptLoader.LoadPackageModel(projectPath);
-        if (packageResult.IsFailure)
+        var loadResult = BuildInputResolver.Load(projectPath);
+        if (loadResult.IsFailure)
         {
-            _console.WriteError(packageResult.Error.Message);
-            return ExitCodes.FromErrorKind(packageResult.Error.Kind);
+            _console.WriteError(loadResult.Error.Message);
+            return ExitCodes.FromErrorKind(loadResult.Error.Kind);
         }
+
+        var package = loadResult.Value;
+        if (isJson)
+            _console.MarkupLine($"[green]Loaded JSON config:[/] {Markup.Escape(package.Name)} v{package.Version}");
 
         if (!OperatingSystem.IsWindows())
         {
@@ -127,18 +97,18 @@ public sealed class BuildCommand : Command<BuildSettings>
             return ExitCodes.RuntimeError;
         }
 
-        var scriptCompileResult = CompilePackage(packageResult.Value, outputPath);
-        if (scriptCompileResult.IsFailure)
+        var compileResult = CompilePackage(package, outputPath);
+        if (compileResult.IsFailure)
         {
-            _console.WriteError(scriptCompileResult.Error.Message);
-            return ExitCodes.FromErrorKind(scriptCompileResult.Error.Kind);
+            _console.WriteError(compileResult.Error.Message);
+            return ExitCodes.FromErrorKind(compileResult.Error.Kind);
         }
 
-        _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(scriptCompileResult.Value)}");
+        _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(compileResult.Value)}");
 
         if (settings.GenerateWinGet)
         {
-            var wingetResult = GenerateWinGetManifest(scriptCompileResult.Value, packageResult.Value, settings);
+            var wingetResult = GenerateWinGetManifest(compileResult.Value, package, settings);
             if (wingetResult.IsFailure)
                 _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
             else
