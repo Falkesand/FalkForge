@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Interop;
 
 namespace FalkForge.Compiler.Msi;
@@ -34,6 +35,11 @@ public sealed class CabinetExtractor : IDisposable
     // resolves continuation names against this directory so span chains work.
     // Null when extracting from a stream (spanning is unsupported in that mode).
     private string? _cabinetDirectory;
+
+    // Span-resolution policy. Default is the filesystem resolver; tests can
+    // swap it for a stub that injects unsafe names or missing files without
+    // needing to drive real Windows FDI.
+    private readonly ICabinetChainResolver _chainResolver = new FileSystemCabinetChainResolver();
     private int _nextInputHandle = 1;
     private int _nextOutputHandle = 10_000;
     private NativeMethods.FnFdiNotify? _notifyCallback;
@@ -438,13 +444,8 @@ public sealed class CabinetExtractor : IDisposable
 
             case NativeMethods.FdintNextCabinet:
             {
-                // FDI asks where to find the next cabinet in the span. psz1 is
-                // the continuation file name taken from the current cab's header
-                // (attacker-controlled), psz3 is the disk path FDI will try. We
-                // must (1) validate the continuation name, (2) verify the
-                // resolved sibling file exists on disk, and (3) overwrite the
-                // psz3 buffer with our directory so FDI opens the right file.
-                // Streams mode (no _cabinetDirectory) cannot span — abort.
+                // FDI asks where to find the next cabinet in the span. Streams
+                // mode (no _cabinetDirectory) cannot span — abort explicitly.
                 if (_cabinetDirectory is null)
                 {
                     _lastCallbackError = "Spanned cabinets require ExtractFromPath; the stream-based Extract overload cannot resolve continuations.";
@@ -452,31 +453,26 @@ public sealed class CabinetExtractor : IDisposable
                 }
 
                 var continuationName = Marshal.PtrToStringAnsi(pfdin.psz1);
-                if (!IsSafeContinuationName(continuationName))
+                var resolveResult = _chainResolver.Resolve(_cabinetDirectory, continuationName);
+                if (resolveResult.IsFailure)
                 {
-                    _lastCallbackError = $"Rejected unsafe cabinet continuation name '{continuationName}'.";
+                    _lastCallbackError = resolveResult.Error.Message;
                     return -1;
                 }
 
-                var siblingPath = Path.Combine(_cabinetDirectory, continuationName!);
-                if (!File.Exists(siblingPath))
-                {
-                    _lastCallbackError = $"Cabinet continuation '{continuationName}' not found next to primary cab at '{_cabinetDirectory}'.";
-                    return -1;
-                }
-
-                // Overwrite the psz3 buffer with our directory (ANSI). FDI
-                // supplies a 256-char writable buffer for the callback to
-                // redirect. Path + trailing backslash + NUL must fit; the spec
-                // limit is MAX_PATH (260 bytes) for cab path fields.
-                var dirWithSep = EnsureTrailingBackslash(_cabinetDirectory);
+                // Overwrite the psz3 buffer with the resolved cab's directory
+                // (ANSI). FDI supplies a 256-char writable buffer for the
+                // callback to redirect. Path + trailing backslash + NUL must
+                // fit; the spec limit is MAX_PATH (260 bytes) for cab path
+                // fields. Refuse rather than truncate so we never hand FDI a
+                // corrupt path.
+                var resolvedDir = Path.GetDirectoryName(resolveResult.Value) ?? _cabinetDirectory;
+                var dirWithSep = EnsureTrailingBackslash(resolvedDir);
                 var bytes = System.Text.Encoding.Default.GetBytes(dirWithSep);
-                // Leave one byte for the NUL terminator; refuse rather than
-                // truncate so we never hand FDI a corrupt path.
                 const int maxCabPathBytes = 255;
                 if (bytes.Length > maxCabPathBytes)
                 {
-                    _lastCallbackError = $"Cabinet directory path '{_cabinetDirectory}' exceeds FDI's {maxCabPathBytes}-byte cab-path limit.";
+                    _lastCallbackError = $"Cabinet directory path '{resolvedDir}' exceeds FDI's {maxCabPathBytes}-byte cab-path limit.";
                     return -1;
                 }
 
