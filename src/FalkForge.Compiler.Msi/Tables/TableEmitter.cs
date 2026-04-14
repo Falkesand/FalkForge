@@ -213,6 +213,46 @@ internal sealed class TableEmitter
             }
         }
 
+        // Shortcut locations reference system Directory IDs (DesktopFolder, ProgramMenuFolder,
+        // StartupFolder, SM_<subfolder>) that are not derived from component paths. MSI error 2756
+        // fires at install time if a shortcut references a directory with no row, so ensure the
+        // required system folder rows — and any Start Menu subfolders — are materialized.
+        foreach (var shortcut in package.Shortcuts)
+        foreach (var location in shortcut.Locations)
+            switch (location)
+            {
+                case ShortcutLocation.Desktop:
+                    if (emittedDirs.Add("DesktopFolder"))
+                    {
+                        result = InsertDirectoryRow("DesktopFolder", "TARGETDIR", ".");
+                        if (result.IsFailure) return result;
+                    }
+                    break;
+                case ShortcutLocation.StartMenu:
+                    if (emittedDirs.Add("ProgramMenuFolder"))
+                    {
+                        result = InsertDirectoryRow("ProgramMenuFolder", "TARGETDIR", ".");
+                        if (result.IsFailure) return result;
+                    }
+                    if (shortcut.StartMenuSubfolder is not null)
+                    {
+                        var smId = GetStartMenuSubfolderId(shortcut.StartMenuSubfolder);
+                        if (emittedDirs.Add(smId))
+                        {
+                            result = InsertDirectoryRow(smId, "ProgramMenuFolder", shortcut.StartMenuSubfolder);
+                            if (result.IsFailure) return result;
+                        }
+                    }
+                    break;
+                case ShortcutLocation.Startup:
+                    if (emittedDirs.Add("StartupFolder"))
+                    {
+                        result = InsertDirectoryRow("StartupFolder", "TARGETDIR", ".");
+                        if (result.IsFailure) return result;
+                    }
+                    break;
+            }
+
         return Unit.Value;
     }
 
@@ -501,7 +541,7 @@ internal sealed class TableEmitter
             {
                 ShortcutLocation.Desktop => "DesktopFolder",
                 ShortcutLocation.StartMenu => shortcut.StartMenuSubfolder is not null
-                    ? $"SM_{SanitizeId(shortcut.StartMenuSubfolder)}"
+                    ? GetStartMenuSubfolderId(shortcut.StartMenuSubfolder)
                     : "ProgramMenuFolder",
                 ShortcutLocation.Startup => "StartupFolder",
                 _ => "DesktopFolder"
@@ -1723,6 +1763,16 @@ internal sealed class TableEmitter
             record => record
                 .SetString(1, condition)
                 .SetString(2, description));
+    }
+
+    // Include a stable hash of the raw subfolder name so that two distinct inputs
+    // which sanitize to the same identifier (for example "My App" and "My-App" both
+    // becoming "My_App") produce different Directory primary keys instead of silently
+    // collapsing onto the same row.
+    private static string GetStartMenuSubfolderId(string subfolder)
+    {
+        var id = $"SM_{SanitizeId(subfolder)}_{StableHash(subfolder)}";
+        return id.Length > 72 ? id[..72] : id;
     }
 
     private static string GetDirectoryId(InstallPath path)

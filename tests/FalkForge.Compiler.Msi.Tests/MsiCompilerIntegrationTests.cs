@@ -252,6 +252,108 @@ public sealed class MsiCompilerIntegrationTests
     }
 
     [Fact]
+    public void Compile_ShortcutOnStartMenuSubfolder_EmitsSubfolderAndParentDirectoryRows()
+    {
+        // MSI error 2756: "property 'SM_PlugWarden' used as directory but never assigned"
+        // OnStartMenu("name") and OnStartup() previously referenced Directory IDs
+        // (SM_<subfolder>, ProgramMenuFolder, StartupFolder, DesktopFolder) that
+        // were never emitted into the Directory table.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "ShortcutApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "ShortcutApp"));
+                p.Shortcut("App", "app.exe").OnStartMenu("MyAppFolder");
+                p.Shortcut("App Autostart", "app.exe").OnStartup();
+                p.Shortcut("App Desktop", "app.exe").OnDesktop();
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            var dirRows = db.QueryRows("SELECT `Directory` FROM `Directory`", 1).Value
+                .Select(r => r[0]!)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var shortcutDirRefs = db.QueryRows("SELECT `Shortcut`, `Directory_` FROM `Shortcut`", 2).Value;
+            foreach (var row in shortcutDirRefs)
+            {
+                var shortcutId = row[0]!;
+                var directoryRef = row[1]!;
+                Assert.True(dirRows.Contains(directoryRef),
+                    $"Shortcut '{shortcutId}' references Directory '{directoryRef}' but no such row exists (MSI error 2756).");
+            }
+
+            Assert.Contains("ProgramMenuFolder", dirRows);
+            Assert.Contains("StartupFolder", dirRows);
+            Assert.Contains("DesktopFolder", dirRows);
+            Assert.Contains(dirRows, id => id.StartsWith("SM_MyAppFolder_", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_ShortcutsWithSubfoldersCollidingAfterSanitize_GetDistinctDirectoryRows()
+    {
+        // "My App" and "My-App" both sanitize to "My_App". Without hash disambiguation
+        // one subfolder's Directory row would silently claim both shortcuts.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "SubfolderCollisionApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SubCollApp"));
+                p.Shortcut("First", "app.exe").OnStartMenu("My App");
+                p.Shortcut("Second", "app.exe").OnStartMenu("My-App");
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess);
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            var shortcutRefs = db.QueryRows("SELECT `Directory_` FROM `Shortcut`", 1).Value
+                .Select(r => r[0]!)
+                .Distinct()
+                .ToList();
+
+            Assert.Equal(2, shortcutRefs.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void Compile_PackageWithSddlPermission_EmitsOnlyMsiLockPermissionsExTable()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
@@ -269,15 +371,7 @@ public sealed class MsiCompilerIntegrationTests
                 p.Manufacturer = "TestCorp";
                 p.Version = new Version(1, 0, 0);
                 p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SddlApp"));
-                p.Permissions =
-                [
-                    new PermissionModel
-                    {
-                        LockObject = "SddlApp",
-                        Table = "File",
-                        Sddl = "D:(A;;RPWP;;;WD)"
-                    }
-                ];
+                p.Permission("SddlApp", perm => { perm.ForTable("File"); perm.Sddl = "D:(A;;RPWP;;;WD)"; });
             });
 
             var fileSystem = new WindowsFileSystem();
@@ -313,16 +407,7 @@ public sealed class MsiCompilerIntegrationTests
                 p.Manufacturer = "TestCorp";
                 p.Version = new Version(1, 0, 0);
                 p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "UserApp"));
-                p.Permissions =
-                [
-                    new PermissionModel
-                    {
-                        LockObject = "UserApp",
-                        Table = "File",
-                        User = "Everyone",
-                        Permission = 0x10000000
-                    }
-                ];
+                p.Permission("UserApp", perm => { perm.ForTable("File"); perm.User = "Everyone"; perm.Permission = 0x10000000; });
             });
 
             var fileSystem = new WindowsFileSystem();
