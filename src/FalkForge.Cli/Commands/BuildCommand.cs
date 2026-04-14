@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Versioning;
 using FalkForge.Cli.Settings;
 using FalkForge.Cli.WinGet;
+using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -73,7 +75,30 @@ public sealed class BuildCommand : Command<BuildSettings>
                 return ExitCodes.ValidationFailure;
             }
 
-            _console.MarkupLine("[yellow]MSI compilation from JSON is not yet supported.[/]");
+            if (!OperatingSystem.IsWindows())
+            {
+                _console.WriteError("MSI compilation requires Windows.");
+                return ExitCodes.RuntimeError;
+            }
+
+            var jsonCompileResult = CompilePackage(package, outputPath);
+            if (jsonCompileResult.IsFailure)
+            {
+                _console.WriteError(jsonCompileResult.Error.Message);
+                return ExitCodes.FromErrorKind(jsonCompileResult.Error.Kind);
+            }
+
+            _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(jsonCompileResult.Value)}");
+
+            if (settings.GenerateWinGet)
+            {
+                var wingetResult = GenerateWinGetManifest(jsonCompileResult.Value, package, settings);
+                if (wingetResult.IsFailure)
+                    _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
+                else
+                    _console.MarkupLine("[green]WinGet manifest written alongside installer[/]");
+            }
+
             return ExitCodes.Success;
         }
 
@@ -115,6 +140,16 @@ public sealed class BuildCommand : Command<BuildSettings>
         }
 
         return ExitCodes.Success;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Result<string> CompilePackage(PackageModel package, string outputPath)
+    {
+        if (!Directory.Exists(outputPath))
+            Directory.CreateDirectory(outputPath);
+
+        var compiler = new MsiCompiler();
+        return compiler.Compile(package, outputPath);
     }
 
     private static Result<Unit> GenerateWinGetManifest(
