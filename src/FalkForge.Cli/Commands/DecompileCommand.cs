@@ -44,8 +44,14 @@ public sealed class DecompileCommand : Command<DecompileSettings>
         if (extension.Equals(".msix", StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(".msixbundle", StringComparison.OrdinalIgnoreCase))
         {
-            _console.WriteError("MSIX decompilation is not yet supported.");
-            return ExitCodes.RuntimeError;
+            // MSIX is a different package format (AppxManifest.xml + payload), not MSI tables.
+            // A lossy projection to PackageModel/BundleModel would mislead users, so we reject
+            // with NotSupported per docs/decompile.md (Gap 3 decision: option B, reject + docs).
+            var error = new Error(
+                ErrorKind.NotSupported,
+                "MSIX decompile is not supported; see docs/decompile.md");
+            _console.WriteError(error.Message);
+            return ExitCodes.FromErrorKind(error.Kind);
         }
 
         _console.WriteError($"Unsupported file extension '{extension}'. Expected .msi, .exe, .msix, or .msixbundle.");
