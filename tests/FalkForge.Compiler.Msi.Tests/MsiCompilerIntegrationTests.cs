@@ -369,6 +369,76 @@ public sealed class MsiCompilerIntegrationTests
     }
 
     [Fact]
+    public void Compile_ServiceExecutableWithFullMsiPath_ResolvesComponentByFileName()
+    {
+        // Bug: EmitServices keyed the filename->component dictionary by FileName
+        // but looked up service.Executable which holds a full MSI path (e.g.
+        // "[INSTALLFOLDER]Service\PlugWarden.Service.exe"). The miss fell back
+        // to the first component in the package, so the service's ImagePath in
+        // the registry pointed at an unrelated file (in PlugWarden's case the
+        // native sqlite helper), preventing the service from ever starting.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceDir = Path.Combine(tempDir, "source");
+            Directory.CreateDirectory(sourceDir);
+            // Two files — a "sqlite helper" and the real service exe. FromDirectory
+            // harvests in filesystem enumeration order (alphabetical on NTFS), so
+            // 'e_sqlite3.dll' sorts ahead of 'PlugWarden.Service.exe' and becomes
+            // the first component = defaultComponentId. Under the bug the service
+            // fell through to that first component, pointing ImagePath at the
+            // wrong file.
+            File.WriteAllText(Path.Combine(sourceDir, "e_sqlite3.dll"), "native helper");
+            File.WriteAllText(Path.Combine(sourceDir, "PlugWarden.Service.exe"), "service executable");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var installDir = KnownFolder.ProgramFiles / "TestCorp" / "SvcApp" / "Service";
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "SvcApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.DefaultInstallDirectory = installDir;
+                p.Files(f => f.FromDirectory(sourceDir).To(installDir));
+                p.Service("MyService", svc =>
+                {
+                    svc.DisplayName = "My Service";
+                    svc.Executable = "[INSTALLFOLDER]Service\\PlugWarden.Service.exe";
+                    svc.StartMode = ServiceStartMode.Automatic;
+                    svc.Account = ServiceAccount.LocalSystem;
+                });
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            var serviceComponentId = db.QueryRows(
+                    "SELECT `Component_` FROM `ServiceInstall`", 1).Value
+                .Select(r => r[0]!)
+                .Single();
+
+            var componentFileName = db.QueryRows(
+                    "SELECT `Component_`, `FileName` FROM `File`", 2).Value
+                .Single(r => string.Equals(r[0], serviceComponentId, StringComparison.Ordinal))[1]!;
+
+            // Strip MSI short|long encoding to get the installed filename.
+            var longName = componentFileName.Split('|').Last();
+
+            Assert.Equal("PlugWarden.Service.exe", longName);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void Compile_MediaTemplate_PayloadExceedingMaxCabSize_EmitsMultipleCabinetsWithMatchingStreams()
     {
         // Previously MsiCompiler always embedded a single disk-1 cabinet regardless

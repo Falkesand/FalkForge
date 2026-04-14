@@ -584,7 +584,14 @@ internal sealed class TableEmitter
                 _ => "LocalSystem"
             };
 
-            var componentId = executableToComponentId.GetValueOrDefault(service.Executable ?? string.Empty)
+            // service.Executable typically carries an MSI-formatted path such as
+            // "[INSTALLFOLDER]Service\MyService.exe"; the component lookup table is
+            // keyed by bare filename, so strip the directory portion before probing.
+            // Falling through to defaultComponentId (the first component in the
+            // package) silently produced a wrong ImagePath — whichever file was
+            // harvested first became the service binary at install time.
+            var executableFileName = Path.GetFileName(service.Executable ?? string.Empty);
+            var componentId = executableToComponentId.GetValueOrDefault(executableFileName)
                               ?? defaultComponentId;
 
             var svcId = $"SVC_{SanitizeId(service.Name)}";
