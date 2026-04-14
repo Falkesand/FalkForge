@@ -188,6 +188,9 @@ public static class ModelValidator
 
     private static void ValidatePermissions(IReadOnlyList<PermissionModel> permissions, ValidationResult result)
     {
+        var hasSddl = false;
+        var hasUser = false;
+
         foreach (var perm in permissions)
         {
             if (string.IsNullOrWhiteSpace(perm.LockObject))
@@ -198,7 +201,19 @@ public static class ModelValidator
             if (!string.IsNullOrEmpty(perm.Table) && !ValidPermissionTables.Contains(perm.Table))
                 result.AddError("PRM003",
                     $"Permission for '{perm.LockObject}' has invalid Table '{perm.Table}'. Valid tables: {string.Join(", ", ValidPermissionTables)}.");
+
+            if (!string.IsNullOrEmpty(perm.Sddl))
+                hasSddl = true;
+            else if (!string.IsNullOrEmpty(perm.User))
+                hasUser = true;
         }
+
+        // MSI validation error 1941: LockPermissions (User/Domain) and MsiLockPermissionsEx (SDDL)
+        // cannot both be present in the same package. Reject the mix at compile time.
+        if (hasSddl && hasUser)
+            result.AddError("PRM004",
+                "Cannot mix SDDL permissions and User/Domain permissions in the same package. " +
+                "MSI allows only one of LockPermissions or MsiLockPermissionsEx per database.");
     }
 
     private static void ValidateFileAssociations(IReadOnlyList<FileAssociationModel> associations,

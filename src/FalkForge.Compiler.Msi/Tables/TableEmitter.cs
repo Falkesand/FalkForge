@@ -33,7 +33,7 @@ internal sealed class TableEmitter
     {
         var results = new[]
         {
-            CreateTables(),
+            CreateTables(resolved),
             EmitDirectories(resolved),
             EmitComponents(resolved),
             EmitFiles(resolved),
@@ -86,9 +86,16 @@ internal sealed class TableEmitter
         return dialogEmitter.EmitDialogTables(dialogSet, resolved.Package);
     }
 
-    private Result<Unit> CreateTables()
+    private Result<Unit> CreateTables(ResolvedPackage resolved)
     {
-        var tableStatements = new[]
+        // LockPermissions and MsiLockPermissionsEx are mutually exclusive per the MSI spec
+        // (ICE validation 1941 rejects a database that materializes both). Emit whichever
+        // matches the Permission entries present, or neither when none are set.
+        var perms = resolved.Package.Permissions;
+        var needsLockPermissions = perms.Any(p => string.IsNullOrEmpty(p.Sddl) && !string.IsNullOrEmpty(p.User));
+        var needsMsiLockPermissionsEx = perms.Any(p => !string.IsNullOrEmpty(p.Sddl));
+
+        var tableStatements = new List<string>
         {
             MsiTableDefinitions.CreateDirectoryTable,
             MsiTableDefinitions.CreateComponentTable,
@@ -109,8 +116,6 @@ internal sealed class TableEmitter
             MsiTableDefinitions.CreateFontTable,
             MsiTableDefinitions.CreateIniFileTable,
             MsiTableDefinitions.CreateRemoveIniFileTable,
-            MsiTableDefinitions.CreateLockPermissionsTable,
-            MsiTableDefinitions.CreateMsiLockPermissionsExTable,
             MsiTableDefinitions.CreateExtensionTable,
             MsiTableDefinitions.CreateVerbTable,
             MsiTableDefinitions.CreateMimeTable,
@@ -128,6 +133,11 @@ internal sealed class TableEmitter
             MsiTableDefinitions.CreateClassTable,
             MsiTableDefinitions.CreateTypeLibTable
         };
+
+        if (needsLockPermissions)
+            tableStatements.Add(MsiTableDefinitions.CreateLockPermissionsTable);
+        if (needsMsiLockPermissionsEx)
+            tableStatements.Add(MsiTableDefinitions.CreateMsiLockPermissionsExTable);
 
         foreach (var sql in tableStatements)
         {

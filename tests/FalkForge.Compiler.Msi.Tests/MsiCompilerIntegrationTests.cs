@@ -207,6 +207,144 @@ public sealed class MsiCompilerIntegrationTests
         }
     }
 
+    [Fact]
+    public void Compile_PackageWithoutPermissions_DoesNotEmitLockPermissionTables()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake content");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "NoPermsApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "NoPermsApp"));
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compiler = new MsiCompiler(fileSystem);
+
+            var compileResult = compiler.Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            var dbResult = MsiDatabase.Open(compileResult.Value, readOnly: true);
+            Assert.True(dbResult.IsSuccess);
+            using var db = dbResult.Value;
+
+            // MSI validation error 1941: LockPermissions and MsiLockPermissionsEx must not both exist.
+            // When the package has no Permission entries neither table should be materialized.
+            Assert.False(TableExists(db, "LockPermissions"),
+                "LockPermissions table emitted for a package with no permissions.");
+            Assert.False(TableExists(db, "MsiLockPermissionsEx"),
+                "MsiLockPermissionsEx table emitted for a package with no permissions.");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_PackageWithSddlPermission_EmitsOnlyMsiLockPermissionsExTable()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "SddlApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SddlApp"));
+                p.Permissions =
+                [
+                    new PermissionModel
+                    {
+                        LockObject = "SddlApp",
+                        Table = "File",
+                        Sddl = "D:(A;;RPWP;;;WD)"
+                    }
+                ];
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess);
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+            Assert.True(TableExists(db, "MsiLockPermissionsEx"));
+            Assert.False(TableExists(db, "LockPermissions"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_PackageWithUserPermission_EmitsOnlyLockPermissionsTable()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "UserApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "UserApp"));
+                p.Permissions =
+                [
+                    new PermissionModel
+                    {
+                        LockObject = "UserApp",
+                        Table = "File",
+                        User = "Everyone",
+                        Permission = 0x10000000
+                    }
+                ];
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess);
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+            Assert.True(TableExists(db, "LockPermissions"));
+            Assert.False(TableExists(db, "MsiLockPermissionsEx"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    private static bool TableExists(MsiDatabase db, string tableName)
+    {
+        return db.Execute($"SELECT * FROM `{tableName}`").IsSuccess;
+    }
+
     private static void AssertTableExists(MsiDatabase db, string tableName)
     {
         var result = db.Execute($"SELECT * FROM `{tableName}`");
