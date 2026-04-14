@@ -643,6 +643,80 @@ public sealed class MsiCompilerIntegrationTests
         }
     }
 
+    [Fact]
+    public void Compile_InstallDirectory_LeafDirectoryNamedInstallDirNotGeneratedId()
+    {
+        // Bug: TableEmitter named the leaf install directory with a generated
+        // D_* hash ID and pointed a Property named INSTALLDIR at that ID. MSI
+        // Formatted strings then resolved "[INSTALLDIR]bin\tool.exe" to the
+        // raw directory-ID token rather than the installed path because the
+        // Formatted evaluator does not recursively resolve a property value
+        // that is itself a directory-ID. The canonical MSI pattern is to name
+        // the leaf Directory row "INSTALLDIR" directly so the evaluator does
+        // the path resolution in one step.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "tool.exe");
+            File.WriteAllText(sourceFile, "fake tool content");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var installDir = KnownFolder.ProgramFiles / "TestCorp" / "PlugWarden";
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "PlugWarden";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.DefaultInstallDirectory = installDir;
+                p.Files(f => f.Add(sourceFile).To(installDir));
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            // 1. Directory table must contain a row named "INSTALLDIR".
+            var directoryRows = db.QueryRows("SELECT `Directory` FROM `Directory`", 1).Value
+                .Select(r => r[0]!)
+                .ToHashSet(StringComparer.Ordinal);
+            Assert.Contains("INSTALLDIR", directoryRows);
+
+            // 2. No Property row named INSTALLDIR whose value is a generated D_* ID.
+            //    (A canonical installer either has no such property at all, or carries
+            //    a path override — never a pointer to another Directory row's primary key.)
+            var propertyRows = db.QueryRows("SELECT `Property`, `Value` FROM `Property`", 2).Value;
+            foreach (var row in propertyRows)
+            {
+                if (!string.Equals(row[0], "INSTALLDIR", StringComparison.Ordinal))
+                    continue;
+                Assert.False(
+                    row[1]!.StartsWith("D_", StringComparison.Ordinal),
+                    $"Property 'INSTALLDIR' points at a generated directory ID '{row[1]}' instead of a real path; formatted strings like [INSTALLDIR]bin will not resolve.");
+            }
+
+            // 3. Components installed into the configured install folder must reference
+            //    the INSTALLDIR directory key, not a generated D_* leaf ID.
+            var componentDirs = db.QueryRows("SELECT `Component`, `Directory_` FROM `Component`", 2).Value;
+            Assert.Contains(componentDirs, r => string.Equals(r[1], "INSTALLDIR", StringComparison.Ordinal));
+            foreach (var row in componentDirs)
+            {
+                var dirRef = row[1]!;
+                Assert.False(
+                    dirRef.StartsWith("D_PlugWarden_", StringComparison.Ordinal),
+                    $"Component '{row[0]}' references generated leaf id '{dirRef}' for the install directory; expected 'INSTALLDIR'.");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
     private static bool TableExists(MsiDatabase db, string tableName)
     {
         return db.Execute($"SELECT * FROM `{tableName}`").IsSuccess;
