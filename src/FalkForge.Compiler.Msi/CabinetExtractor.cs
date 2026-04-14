@@ -29,6 +29,11 @@ public sealed class CabinetExtractor : IDisposable
 
     // Tracks the last callback error for diagnostic messages on failure.
     private string? _lastCallbackError;
+
+    // Directory that contains the primary cabinet on disk. fdintNEXT_CABINET
+    // resolves continuation names against this directory so span chains work.
+    // Null when extracting from a stream (spanning is unsupported in that mode).
+    private string? _cabinetDirectory;
     private int _nextInputHandle = 1;
     private int _nextOutputHandle = 10_000;
     private NativeMethods.FnFdiNotify? _notifyCallback;
@@ -96,11 +101,61 @@ public sealed class CabinetExtractor : IDisposable
 
     private Result<Dictionary<string, byte[]>> ExtractFromPathCore(string cabinetPath)
     {
-        // RED stub: the real implementation wires fdintNEXT_CABINET for span
-        // resolution. This stub falls back to the existing stream-based path
-        // which aborts on the first span boundary.
-        using var fs = File.OpenRead(cabinetPath);
-        return ExtractCore(fs);
+        var fullPath = Path.GetFullPath(cabinetPath);
+        var cabName = Path.GetFileName(fullPath);
+        var cabDir = Path.GetDirectoryName(fullPath)
+                     ?? throw new InvalidOperationException($"Cabinet path '{fullPath}' has no directory component.");
+
+        // Remember the directory so fdintNEXT_CABINET can resolve continuations
+        // against it. Every continuation name is validated through
+        // IsSafeContinuationName before being joined to this directory.
+        _cabinetDirectory = cabDir;
+
+        InitializeCallbacks();
+
+        var erf = new NativeMethods.ERF();
+        using var hfdi = new FdiHandle(NativeMethods.FDICreate(
+            _allocCallback!,
+            _freeCallback!,
+            _openCallback!,
+            _readCallback!,
+            _writeCallback!,
+            _closeCallback!,
+            _seekCallback!,
+            -1, // cpuAUTO
+            ref erf));
+
+        if (hfdi.IsInvalid)
+            return Result<Dictionary<string, byte[]>>.Failure(
+                ErrorKind.CompilationError,
+                $"FDICreate failed. ERF: oper={erf.erfOper}, type={erf.erfType}");
+
+        try
+        {
+            var cabPathWithSep = EnsureTrailingBackslash(cabDir);
+            var success = NativeMethods.FDICopy(
+                hfdi.DangerousGetHandle(),
+                cabName,
+                cabPathWithSep,
+                0,
+                _notifyCallback!,
+                nint.Zero,
+                nint.Zero);
+
+            if (!success)
+            {
+                var detail = _lastCallbackError is not null ? $" Detail: {_lastCallbackError}" : "";
+                return Result<Dictionary<string, byte[]>>.Failure(
+                    ErrorKind.CompilationError,
+                    $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}.{detail}");
+            }
+        }
+        finally
+        {
+            CleanupOpenStreams();
+        }
+
+        return new Dictionary<string, byte[]>(_extractedFiles);
     }
 
     private Result<Dictionary<string, byte[]>> ExtractCore(Stream cabinetStream)
@@ -204,6 +259,7 @@ public sealed class CabinetExtractor : IDisposable
         foreach (var stream in _openStreams.Values) stream.Dispose();
         _openStreams.Clear();
         _outputHandleNames.Clear();
+        _cabinetDirectory = null;
     }
 
     // ── Callback implementations ────────────────────────────────────────
@@ -381,7 +437,53 @@ public sealed class CabinetExtractor : IDisposable
                 return nint.Zero; // Continue
 
             case NativeMethods.FdintNextCabinet:
-                return -1; // Cabinet spanning not supported
+            {
+                // FDI asks where to find the next cabinet in the span. psz1 is
+                // the continuation file name taken from the current cab's header
+                // (attacker-controlled), psz3 is the disk path FDI will try. We
+                // must (1) validate the continuation name, (2) verify the
+                // resolved sibling file exists on disk, and (3) overwrite the
+                // psz3 buffer with our directory so FDI opens the right file.
+                // Streams mode (no _cabinetDirectory) cannot span — abort.
+                if (_cabinetDirectory is null)
+                {
+                    _lastCallbackError = "Spanned cabinets require ExtractFromPath; the stream-based Extract overload cannot resolve continuations.";
+                    return -1;
+                }
+
+                var continuationName = Marshal.PtrToStringAnsi(pfdin.psz1);
+                if (!IsSafeContinuationName(continuationName))
+                {
+                    _lastCallbackError = $"Rejected unsafe cabinet continuation name '{continuationName}'.";
+                    return -1;
+                }
+
+                var siblingPath = Path.Combine(_cabinetDirectory, continuationName!);
+                if (!File.Exists(siblingPath))
+                {
+                    _lastCallbackError = $"Cabinet continuation '{continuationName}' not found next to primary cab at '{_cabinetDirectory}'.";
+                    return -1;
+                }
+
+                // Overwrite the psz3 buffer with our directory (ANSI). FDI
+                // supplies a 256-char writable buffer for the callback to
+                // redirect. Path + trailing backslash + NUL must fit; the spec
+                // limit is MAX_PATH (260 bytes) for cab path fields.
+                var dirWithSep = EnsureTrailingBackslash(_cabinetDirectory);
+                var bytes = System.Text.Encoding.Default.GetBytes(dirWithSep);
+                // Leave one byte for the NUL terminator; refuse rather than
+                // truncate so we never hand FDI a corrupt path.
+                const int maxCabPathBytes = 255;
+                if (bytes.Length > maxCabPathBytes)
+                {
+                    _lastCallbackError = $"Cabinet directory path '{_cabinetDirectory}' exceeds FDI's {maxCabPathBytes}-byte cab-path limit.";
+                    return -1;
+                }
+
+                Marshal.Copy(bytes, 0, pfdin.psz3, bytes.Length);
+                Marshal.WriteByte(pfdin.psz3, bytes.Length, 0);
+                return nint.Zero; // Continue with the new path
+            }
 
             default:
                 return nint.Zero;
