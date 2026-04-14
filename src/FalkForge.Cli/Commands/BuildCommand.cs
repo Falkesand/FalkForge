@@ -121,18 +121,24 @@ public sealed class BuildCommand : Command<BuildSettings>
             return ExitCodes.FromErrorKind(packageResult.Error.Kind);
         }
 
-        var loadResult = ScriptLoader.LoadAndBuild(projectPath, outputPath, settings.Configuration);
-        if (loadResult.IsFailure)
+        if (!OperatingSystem.IsWindows())
         {
-            _console.WriteError(loadResult.Error.Message);
-            return ExitCodes.FromErrorKind(loadResult.Error.Kind);
+            _console.WriteError("MSI compilation requires Windows.");
+            return ExitCodes.RuntimeError;
         }
 
-        _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(loadResult.Value)}");
+        var scriptCompileResult = CompilePackage(packageResult.Value, outputPath);
+        if (scriptCompileResult.IsFailure)
+        {
+            _console.WriteError(scriptCompileResult.Error.Message);
+            return ExitCodes.FromErrorKind(scriptCompileResult.Error.Kind);
+        }
+
+        _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(scriptCompileResult.Value)}");
 
         if (settings.GenerateWinGet)
         {
-            var wingetResult = GenerateWinGetManifest(loadResult.Value, packageResult.Value, settings);
+            var wingetResult = GenerateWinGetManifest(scriptCompileResult.Value, packageResult.Value, settings);
             if (wingetResult.IsFailure)
                 _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
             else

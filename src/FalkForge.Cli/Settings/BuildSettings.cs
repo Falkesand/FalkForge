@@ -87,8 +87,9 @@ public sealed class BuildSettings : CommandSettings
             return CliValidationResult.Error("Project path contains invalid characters.");
 
         if (!ProjectPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) &&
+            !ProjectPath.EndsWith(".csx", StringComparison.OrdinalIgnoreCase) &&
             !ProjectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            return CliValidationResult.Error("Project path must be a .cs or .json file.");
+            return CliValidationResult.Error("Project path must be a .cs, .csx, or .json file.");
 
         if (OutputPath is not null && OutputPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
             return CliValidationResult.Error("Output path contains invalid characters.");
