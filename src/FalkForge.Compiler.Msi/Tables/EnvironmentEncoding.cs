@@ -5,31 +5,43 @@ namespace FalkForge.Compiler.Msi.Tables;
 internal static class EnvironmentEncoding
 {
     /// <summary>
-    ///     Encodes the MSI Environment table Name column value.
-    ///     MSI prefixes: =-NAME (set/replace, remove on uninstall), +NAME (create/set), *NAME (create if absent), -NAME
-    ///     (remove).
+    ///     Encodes the MSI Environment table Name column per the MSI SDK "Environment Table" topic.
+    ///     Prefix characters:
+    ///       <c>=</c> set, overwriting existing value (causes MSI to ignore <c>[~]</c> in Value);
+    ///       <c>+</c> set only if not already present;
+    ///       <c>-</c> remove on uninstall (modifier);
+    ///       <c>!</c> remove matching value on install;
+    ///       <c>*</c> variable scope is system (otherwise user).
+    ///     Canonical shapes emitted here:
+    ///       Set     user   -> <c>=Name</c>      Set     system -> <c>=*Name</c>
+    ///       Append  user   -> <c>-Name</c>      Append  system -> <c>-*Name</c>
+    ///       Prepend user   -> <c>-Name</c>      Prepend system -> <c>-*Name</c>
+    ///     Append and Prepend deliberately omit the <c>=</c> prefix so that the <c>[~]</c>
+    ///     token in the Value column is honored at install time. The leading <c>-</c> on
+    ///     append/prepend also schedules the variable for removal on uninstall, matching
+    ///     the established WiX behavior for these actions.
     /// </summary>
     internal static string EncodeName(string variableName, EnvironmentVariableAction action, bool isSystem)
     {
-        // NOTE: intentional stub — real encoding lives in the GREEN commit. This keeps the build green
-        // while the new tests (which pass isSystem) fail against the wrong "=-" prefix.
-        _ = isSystem;
-        var prefix = action switch
+        var actionPrefix = action switch
         {
-            EnvironmentVariableAction.Set => "=-",
-            EnvironmentVariableAction.Append => "=-",
-            EnvironmentVariableAction.Prepend => "=-",
-            _ => "=-"
+            EnvironmentVariableAction.Set => "=",
+            EnvironmentVariableAction.Append => "-",
+            EnvironmentVariableAction.Prepend => "-",
+            _ => "="
         };
 
-        return $"{prefix}{variableName}";
+        var scopePrefix = isSystem ? "*" : string.Empty;
+
+        return string.Concat(actionPrefix, scopePrefix, variableName);
     }
 
     /// <summary>
-    ///     Encodes the MSI Environment table Value column value.
-    ///     For Set: just the raw value.
-    ///     For Append: [~]separator + value (appends separator+value to existing).
-    ///     For Prepend: value + separator + [~] (prepends value+separator to existing).
+    ///     Encodes the MSI Environment table Value column.
+    ///     For <see cref="EnvironmentVariableAction.Set"/>: the raw value (no <c>[~]</c> token).
+    ///     For <see cref="EnvironmentVariableAction.Append"/>: <c>[~]&lt;separator&gt;&lt;value&gt;</c>.
+    ///     For <see cref="EnvironmentVariableAction.Prepend"/>: <c>&lt;value&gt;&lt;separator&gt;[~]</c>.
+    ///     Default separator is <c>;</c>.
     /// </summary>
     internal static string EncodeValue(string value, EnvironmentVariableAction action, string? separator)
     {
