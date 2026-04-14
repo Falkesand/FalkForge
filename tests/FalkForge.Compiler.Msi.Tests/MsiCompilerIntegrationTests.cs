@@ -727,4 +727,83 @@ public sealed class MsiCompilerIntegrationTests
         var result = db.Execute($"SELECT * FROM `{tableName}`");
         Assert.True(result.IsSuccess, $"Table '{tableName}' not found in MSI database: {(result.IsFailure ? result.Error.Message : "")}");
     }
+
+    [Fact]
+    public void Compile_MediaTemplate_EmbedCabinetFalse_WritesCabNextToMsi()
+    {
+        // Gap 4: When EmbedCabinet(false) is set, the Media row references the cab
+        // without the '#' prefix (external cab), but previously the compiler never
+        // wrote the .cab to disk, so the MSI installed-time lookup failed with
+        // "cabinet not found". The fix must drop the cab next to the .msi and
+        // keep the Media row clean (no '#' prefix, matching file name).
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "payload.bin");
+            var payloadBytes = new byte[32 * 1024];
+            new Random(54321).NextBytes(payloadBytes);
+            File.WriteAllBytes(sourceFile, payloadBytes);
+
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "ExternalCabApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "ExternalCabApp"));
+                p.MediaTemplate(mt => mt
+                    .CabinetTemplate("cab{0}.cab")
+                    .EmbedCabinet(false));
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess,
+                $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            var expectedCabPath = Path.Combine(outputDir, "cab1.cab");
+            Assert.True(File.Exists(expectedCabPath),
+                $"Expected external cabinet '{expectedCabPath}' to exist on disk next to the MSI.");
+
+            // Round-trip the cab through the extractor to prove it is a real, readable cabinet
+            // containing the original payload bytes.
+            using (var cabStream = File.OpenRead(expectedCabPath))
+            {
+                var extracted = CabinetExtractor.Extract(cabStream);
+                Assert.True(extracted.IsSuccess,
+                    $"External cab extraction failed: {(extracted.IsFailure ? extracted.Error.Message : "")}");
+                Assert.Single(extracted.Value);
+                var entry = Assert.Single(extracted.Value);
+                Assert.Equal(payloadBytes, entry.Value);
+            }
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            var mediaCabs = db.QueryRows("SELECT `Cabinet` FROM `Media`", 1).Value
+                .Select(r => r[0]!)
+                .ToList();
+
+            var mediaCab = Assert.Single(mediaCabs);
+            Assert.False(mediaCab.StartsWith('#'),
+                $"Media.Cabinet must be external (no '#' prefix) but got '{mediaCab}'.");
+            Assert.Equal("cab1.cab", mediaCab);
+
+            // The external cab must NOT be embedded in the _Streams table — that would
+            // bloat the MSI and contradict the Media row's external reference.
+            var streamsResult = db.QueryRows("SELECT `Name` FROM `_Streams`", 1);
+            if (streamsResult.IsSuccess)
+            {
+                var streamNames = streamsResult.Value.Select(r => r[0]!);
+                Assert.DoesNotContain("cab1.cab", streamNames);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }
