@@ -162,15 +162,15 @@ internal sealed class TableEmitter
         var installDir = package.DefaultInstallDirectory!;
 
         // TARGETDIR is the root
-        var result = InsertDirectoryRow("TARGETDIR", null, "SourceDir");
+        var result = InsertDirectoryRow(WellKnownDirectoryIds.TargetDir, null, "SourceDir");
         if (result.IsFailure) return result;
 
         // Well-known folder
-        result = InsertDirectoryRow(installDir.Root.Token, "TARGETDIR", ".");
+        result = InsertDirectoryRow(installDir.Root.Token, WellKnownDirectoryIds.TargetDir, ".");
         if (result.IsFailure) return result;
 
         // Collect all unique directories to avoid duplicate primary key inserts
-        var emittedDirs = new HashSet<string> { "TARGETDIR", installDir.Root.Token };
+        var emittedDirs = new HashSet<string> { WellKnownDirectoryIds.TargetDir, installDir.Root.Token };
 
         // Build directory tree from install path segments. The leaf of the install
         // path becomes the Directory row literally named "INSTALLDIR" so MSI
@@ -210,7 +210,7 @@ internal sealed class TableEmitter
             var compParent = component.Directory.Root.Token;
             if (!emittedDirs.Contains(compParent))
             {
-                result = InsertDirectoryRow(compParent, "TARGETDIR", ".");
+                result = InsertDirectoryRow(compParent, WellKnownDirectoryIds.TargetDir, ".");
                 if (result.IsFailure) return result;
                 emittedDirs.Add(compParent);
             }
@@ -248,14 +248,14 @@ internal sealed class TableEmitter
                 case ShortcutLocation.Desktop:
                     if (emittedDirs.Add("DesktopFolder"))
                     {
-                        result = InsertDirectoryRow("DesktopFolder", "TARGETDIR", ".");
+                        result = InsertDirectoryRow("DesktopFolder", WellKnownDirectoryIds.TargetDir, ".");
                         if (result.IsFailure) return result;
                     }
                     break;
                 case ShortcutLocation.StartMenu:
                     if (emittedDirs.Add("ProgramMenuFolder"))
                     {
-                        result = InsertDirectoryRow("ProgramMenuFolder", "TARGETDIR", ".");
+                        result = InsertDirectoryRow("ProgramMenuFolder", WellKnownDirectoryIds.TargetDir, ".");
                         if (result.IsFailure) return result;
                     }
                     if (shortcut.StartMenuSubfolder is not null)
@@ -271,7 +271,7 @@ internal sealed class TableEmitter
                 case ShortcutLocation.Startup:
                     if (emittedDirs.Add("StartupFolder"))
                     {
-                        result = InsertDirectoryRow("StartupFolder", "TARGETDIR", ".");
+                        result = InsertDirectoryRow("StartupFolder", WellKnownDirectoryIds.TargetDir, ".");
                         if (result.IsFailure) return result;
                     }
                     break;
