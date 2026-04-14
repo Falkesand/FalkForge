@@ -717,7 +717,7 @@ internal sealed class TableEmitter
         {
             var envVar = envVars[index];
             var envId = $"ENV_{index:D4}";
-            var encodedName = EnvironmentEncoding.EncodeName(envVar.Name, envVar.Action);
+            var encodedName = EnvironmentEncoding.EncodeName(envVar.Name, envVar.Action, envVar.IsSystem);
             var encodedValue = EnvironmentEncoding.EncodeValue(envVar.Value, envVar.Action, envVar.Separator);
 
             var result = _database.InsertRow(

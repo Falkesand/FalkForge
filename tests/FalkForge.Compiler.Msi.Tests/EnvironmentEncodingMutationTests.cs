@@ -119,8 +119,16 @@ public sealed class EnvironmentEncodingMutationTests
     [Fact]
     public void EncodeName_EmptyName_StillPrefixed()
     {
-        var result = EnvironmentEncoding.EncodeName("", EnvironmentVariableAction.Set);
+        var result = EnvironmentEncoding.EncodeName("", EnvironmentVariableAction.Set, isSystem: false);
 
-        Assert.Equal("=-", result);
+        Assert.Equal("=", result);
+    }
+
+    [Fact]
+    public void EncodeName_EmptyName_SystemScope_StillPrefixed()
+    {
+        var result = EnvironmentEncoding.EncodeName("", EnvironmentVariableAction.Set, isSystem: true);
+
+        Assert.Equal("=*", result);
     }
 }

@@ -9,8 +9,11 @@ internal static class EnvironmentEncoding
     ///     MSI prefixes: =-NAME (set/replace, remove on uninstall), +NAME (create/set), *NAME (create if absent), -NAME
     ///     (remove).
     /// </summary>
-    internal static string EncodeName(string variableName, EnvironmentVariableAction action)
+    internal static string EncodeName(string variableName, EnvironmentVariableAction action, bool isSystem)
     {
+        // NOTE: intentional stub — real encoding lives in the GREEN commit. This keeps the build green
+        // while the new tests (which pass isSystem) fail against the wrong "=-" prefix.
+        _ = isSystem;
         var prefix = action switch
         {
             EnvironmentVariableAction.Set => "=-",
