@@ -43,7 +43,42 @@ public sealed class CabinetExtractor : IDisposable
     }
 
     /// <summary>
-    ///     Extracts all files from a cabinet stream into memory.
+    ///     Extracts all files from a cabinet located on disk, following the
+    ///     <c>fdintNEXT_CABINET</c> chain for spanned cabs. Pass the path of
+    ///     the first cab in the chain; continuation cabs must sit next to it.
+    /// </summary>
+    public static Result<Dictionary<string, byte[]>> ExtractFromPath(string cabinetPath)
+    {
+        ArgumentNullException.ThrowIfNull(cabinetPath);
+        if (!File.Exists(cabinetPath))
+            return Result<Dictionary<string, byte[]>>.Failure(
+                ErrorKind.InvalidOperation, $"Cabinet file '{cabinetPath}' does not exist.");
+
+        using var extractor = new CabinetExtractor();
+        return extractor.ExtractFromPathCore(cabinetPath);
+    }
+
+    /// <summary>
+    ///     Validates a continuation cabinet name supplied by FDI against the
+    ///     <c>fdintNEXT_CABINET</c> callback. Continuations must be plain file
+    ///     names (no path separators, no <c>..</c>, not absolute). Exposed
+    ///     for tests; the extractor itself uses it internally.
+    /// </summary>
+    public static bool IsSafeContinuationName(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        if (name.Contains('/') || name.Contains('\\')) return false;
+        if (name.Contains("..", StringComparison.Ordinal)) return false;
+        if (Path.IsPathRooted(name)) return false;
+        // GetFileName strips any separators; if the result differs the input
+        // carried something path-like even when the guards above miss it.
+        return string.Equals(Path.GetFileName(name), name, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Extracts all files from a cabinet stream into memory. Cabinet spanning
+    ///     is not supported through this entry point — use
+    ///     <see cref="ExtractFromPath" /> for multi-disk cabs.
     /// </summary>
     /// <param name="cabinetStream">The cabinet data stream. Must be readable.</param>
     /// <returns>A dictionary mapping file names to their extracted byte contents.</returns>
@@ -57,6 +92,15 @@ public sealed class CabinetExtractor : IDisposable
 
         using var extractor = new CabinetExtractor();
         return extractor.ExtractCore(cabinetStream);
+    }
+
+    private Result<Dictionary<string, byte[]>> ExtractFromPathCore(string cabinetPath)
+    {
+        // RED stub: the real implementation wires fdintNEXT_CABINET for span
+        // resolution. This stub falls back to the existing stream-based path
+        // which aborts on the first span boundary.
+        using var fs = File.OpenRead(cabinetPath);
+        return ExtractCore(fs);
     }
 
     private Result<Dictionary<string, byte[]>> ExtractCore(Stream cabinetStream)

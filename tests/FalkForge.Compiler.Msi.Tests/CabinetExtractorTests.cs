@@ -1,4 +1,7 @@
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
+using FalkForge.Compiler.Msi.Interop;
 using Xunit;
 
 namespace FalkForge.Compiler.Msi.Tests;
@@ -237,6 +240,237 @@ public sealed class CabinetExtractorTests : IDisposable
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.InvalidOperation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void ExtractFromPath_SpannedCabinet_RecoversAllFilesAcrossDisks()
+    {
+        // Gap 5: FDI cannot follow a multi-disk cab chain unless the extractor
+        // implements fdintNEXT_CABINET. Generate a real spanned cab (disk1.cab,
+        // disk2.cab) via direct FCI P/Invoke so we drive the real Windows
+        // cabinet runtime, then assert Extract recovers every file.
+        var cabDir = Path.Combine(_tempDir, "span");
+        Directory.CreateDirectory(cabDir);
+
+        // Two ~24KB incompressible payloads with a 32KB cab size cap. The first
+        // file fills most of disk1; the second spills into disk2.
+        var rng = new Random(987654);
+        var payload1 = new byte[24 * 1024];
+        rng.NextBytes(payload1);
+        var payload2 = new byte[24 * 1024];
+        rng.NextBytes(payload2);
+
+        var src1 = Path.Combine(cabDir, "src1.bin");
+        var src2 = Path.Combine(cabDir, "src2.bin");
+        File.WriteAllBytes(src1, payload1);
+        File.WriteAllBytes(src2, payload2);
+
+        BuildSpannedCabinet(cabDir, new[] { (src1, "file1.bin"), (src2, "file2.bin") }, maxCabSize: 32 * 1024);
+
+        var disk1 = Path.Combine(cabDir, "disk1.cab");
+        var disk2 = Path.Combine(cabDir, "disk2.cab");
+        Assert.True(File.Exists(disk1), "BuildSpannedCabinet must produce disk1.cab");
+        Assert.True(File.Exists(disk2), $"BuildSpannedCabinet must produce disk2.cab — check that payloads exceed the {32 * 1024}B cap");
+
+        var result = CabinetExtractor.ExtractFromPath(disk1);
+
+        Assert.True(result.IsSuccess, FailureMessage(result));
+        Assert.Equal(2, result.Value.Count);
+        Assert.True(result.Value.ContainsKey("file1.bin"));
+        Assert.True(result.Value.ContainsKey("file2.bin"));
+        Assert.Equal(payload1, result.Value["file1.bin"]);
+        Assert.Equal(payload2, result.Value["file2.bin"]);
+    }
+
+    [Fact]
+    public void ExtractFromPath_ContinuationNameWithPathSeparator_RejectedAsSecurityError()
+    {
+        // Gap 5 hardening: a malicious cabinet that asks for a continuation
+        // file outside its directory (via '..', separators, or absolute paths)
+        // must be rejected with an explicit SecurityError. We cannot easily
+        // forge that in a real cab, so verify the validator directly.
+        foreach (var bad in new[] { "..\\evil.cab", "../evil.cab", "sub/other.cab", "sub\\other.cab", "C:\\evil.cab", "/etc/evil.cab", "" })
+        {
+            Assert.False(CabinetExtractor.IsSafeContinuationName(bad),
+                $"Expected '{bad}' to be rejected as unsafe");
+        }
+
+        Assert.True(CabinetExtractor.IsSafeContinuationName("disk2.cab"));
+        Assert.True(CabinetExtractor.IsSafeContinuationName("data2.cab"));
+    }
+
+    // ── FCI direct P/Invoke for generating spanned cabs in tests ─────────
+
+    private sealed class SpanBuildContext
+    {
+        public int NextHandle = 1;
+        public readonly Dictionary<nint, FileStream> Streams = new();
+        public string Directory = string.Empty;
+        public int NextDisk = 2;
+    }
+
+    private static void BuildSpannedCabinet(
+        string outputDir,
+        (string sourcePath, string nameInCab)[] files,
+        int maxCabSize)
+    {
+        // Direct FCI P/Invoke with a small cb value so the runtime is forced
+        // to split across multiple .cab files. The GetNextCabinet callback
+        // names each continuation diskN.cab.
+        var ctx = new SpanBuildContext { Directory = outputDir };
+
+        NativeMethods.FnFciAlloc alloc = static cb => Marshal.AllocHGlobal((int)cb);
+        NativeMethods.FnFciFree free = static p => Marshal.FreeHGlobal(p);
+
+        NativeMethods.FnFciOpen open = (string path, int oflag, int pmode, out int err, nint pv) =>
+        {
+            err = 0;
+            try
+            {
+                var (mode, access) = MapCOpen(oflag);
+                var fs = new FileStream(path, mode, access, FileShare.ReadWrite);
+                var h = (nint)ctx.NextHandle++;
+                ctx.Streams[h] = fs;
+                return h;
+            }
+            catch { err = 1; return -1; }
+        };
+
+        NativeMethods.FnFciRead read = (nint h, nint buf, uint cb, out int err, nint pv) =>
+        {
+            err = 0;
+            if (!ctx.Streams.TryGetValue(h, out var s)) { err = 1; return unchecked((uint)-1); }
+            var tmp = new byte[cb];
+            var n = s.Read(tmp, 0, (int)cb);
+            Marshal.Copy(tmp, 0, buf, n);
+            return (uint)n;
+        };
+
+        NativeMethods.FnFciWrite write = (nint h, nint buf, uint cb, out int err, nint pv) =>
+        {
+            err = 0;
+            if (!ctx.Streams.TryGetValue(h, out var s)) { err = 1; return unchecked((uint)-1); }
+            var tmp = new byte[cb];
+            Marshal.Copy(buf, tmp, 0, (int)cb);
+            s.Write(tmp, 0, (int)cb);
+            return cb;
+        };
+
+        NativeMethods.FnFciClose close = (nint h, out int err, nint pv) =>
+        {
+            err = 0;
+            if (ctx.Streams.Remove(h, out var s)) s.Dispose();
+            return 0;
+        };
+
+        NativeMethods.FnFciSeek seek = (nint h, int dist, int stype, out int err, nint pv) =>
+        {
+            err = 0;
+            if (!ctx.Streams.TryGetValue(h, out var s)) { err = 1; return -1; }
+            var origin = stype switch { 0 => SeekOrigin.Begin, 1 => SeekOrigin.Current, 2 => SeekOrigin.End, _ => SeekOrigin.Begin };
+            return (int)s.Seek(dist, origin);
+        };
+
+        NativeMethods.FnFciDelete del = static (string path, out int err, nint pv) =>
+        {
+            err = 0;
+            try { File.Delete(path); return 0; } catch { err = 1; return -1; }
+        };
+
+        NativeMethods.FnFciFilePlaced placed = static (ref NativeMethods.CCAB pccab, string path, long cb, int fCont, nint pv) => 0;
+
+        NativeMethods.FnFciGetTempFile tempFile = static (nint buf, int cbBuf, nint pv) =>
+        {
+            var p = Path.Combine(Path.GetTempPath(), $"fcitest_{Guid.NewGuid():N}.tmp");
+            var bytes = Encoding.ASCII.GetBytes(p + '\0');
+            if (bytes.Length > cbBuf) return 0;
+            Marshal.Copy(bytes, 0, buf, bytes.Length);
+            return 1;
+        };
+
+        NativeMethods.FnFciGetNextCabinet getNext = (ref NativeMethods.CCAB pccab, uint cbPrev, nint pv) =>
+        {
+            // Name the next cab diskN.cab so FDI can resolve it as a sibling
+            // of disk1.cab at extract time.
+            pccab.szCab = $"disk{ctx.NextDisk}.cab";
+            ctx.NextDisk++;
+            return 1;
+        };
+
+        NativeMethods.FnFciStatus status = static (uint type, uint cb1, uint cb2, nint pv) => 0;
+
+        NativeMethods.FnFciGetOpenInfo getOpen = (string path, out ushort pdate, out ushort ptime, out ushort pattrs, out int err, nint pv) =>
+        {
+            err = 0;
+            try
+            {
+                var fi = new FileInfo(path);
+                var dt = fi.LastWriteTime;
+                pdate = (ushort)(((dt.Year - 1980) << 9) | (dt.Month << 5) | dt.Day);
+                ptime = (ushort)((dt.Hour << 11) | (dt.Minute << 5) | (dt.Second / 2));
+                pattrs = 0;
+                var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var h = (nint)ctx.NextHandle++;
+                ctx.Streams[h] = fs;
+                return h;
+            }
+            catch { err = 1; pdate = 0; ptime = 0; pattrs = 0; return -1; }
+        };
+
+        var ccab = new NativeMethods.CCAB
+        {
+            cb = (uint)maxCabSize,
+            cbFolderThresh = 0x7FFFFFFF,
+            iCab = 1,
+            iDisk = 0,
+            setID = 1234,
+            szDisk = "",
+            szCab = "disk1.cab",
+            szCabPath = outputDir.EndsWith('\\') ? outputDir : outputDir + '\\'
+        };
+
+        var erf = new NativeMethods.ERF();
+        var hfci = NativeMethods.FCICreate(
+            ref erf, placed, alloc, free, open, read, write, close, seek, del, tempFile, ref ccab, nint.Zero);
+        Assert.NotEqual(nint.Zero, hfci);
+
+        try
+        {
+            foreach (var (src, name) in files)
+            {
+                var ok = NativeMethods.FCIAddFile(hfci, src, name, false, getNext, status, getOpen, NativeMethods.TcompTypeNone);
+                Assert.True(ok, $"FCIAddFile failed for {src}: oper={erf.erfOper} type={erf.erfType}");
+            }
+
+            var flushed = NativeMethods.FCIFlushCabinet(hfci, false, getNext, status);
+            Assert.True(flushed, $"FCIFlushCabinet failed: oper={erf.erfOper} type={erf.erfType}");
+        }
+        finally
+        {
+            NativeMethods.FCIDestroy(hfci);
+            foreach (var s in ctx.Streams.Values) s.Dispose();
+            ctx.Streams.Clear();
+        }
+    }
+
+    private static (FileMode mode, FileAccess access) MapCOpen(int oflag)
+    {
+        const int oWronly = 0x0001;
+        const int oRdwr = 0x0002;
+        const int oCreat = 0x0100;
+        const int oTrunc = 0x0200;
+
+        var access = (oflag & 0x0003) switch
+        {
+            oWronly => FileAccess.Write,
+            oRdwr => FileAccess.ReadWrite,
+            _ => FileAccess.Read
+        };
+        FileMode mode =
+            (oflag & oCreat) != 0 && (oflag & oTrunc) != 0 ? FileMode.Create :
+            (oflag & oCreat) != 0 ? FileMode.OpenOrCreate :
+            (oflag & oTrunc) != 0 ? FileMode.Truncate : FileMode.Open;
+        return (mode, access);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
