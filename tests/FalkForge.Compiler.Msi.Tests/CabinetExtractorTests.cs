@@ -196,7 +196,10 @@ public sealed class CabinetExtractorTests : IDisposable
                 FileName = "binary.bin",
                 FileSize = binaryContent.Length,
                 ComponentId = "C_bin",
-                FileId = "F_bin",
+                // In production the FileId is the sanitized File table key; for this
+                // test we set FileId = FileName so the extracted cabinet key matches
+                // the expected dictionary lookup.
+                FileId = "binary.bin",
             },
         };
 
@@ -257,7 +260,9 @@ public sealed class CabinetExtractorTests : IDisposable
                 FileName = name,
                 FileSize = new FileInfo(sourcePath).Length,
                 ComponentId = $"C_{i}",
-                FileId = $"F_{i}",
+                // The cabinet stores entries under the FileId (MSI lookup key).
+                // These tests assert by source filename, so align the two here.
+                FileId = name,
             };
         }
 

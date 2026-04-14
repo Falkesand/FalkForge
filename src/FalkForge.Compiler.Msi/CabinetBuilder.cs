@@ -101,10 +101,14 @@ public sealed class CabinetBuilder : IDisposable
         {
             foreach (var file in files)
             {
+                // MSI looks up cabinet entries by the File table's File key (the sanitized
+                // FileId), not the on-disk source filename, so the in-cabinet name must be
+                // the FileId. Otherwise the installer aborts with error 1334 'file cannot
+                // be found in cabinet' whenever the two differ.
                 var success = NativeMethods.FCIAddFile(
                     hfci,
                     file.SourcePath,
-                    file.FileName,
+                    file.FileId,
                     false,
                     _getNextCabinetCallback!,
                     _statusCallback!,

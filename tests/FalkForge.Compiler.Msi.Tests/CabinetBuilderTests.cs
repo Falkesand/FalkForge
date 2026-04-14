@@ -58,6 +58,42 @@ public sealed class CabinetBuilderTests : IDisposable
     }
 
     [Fact]
+    public void BuildCabinet_KeysEntriesByFileIdNotSourceFileName()
+    {
+        // MSI installs look up cabinet entries by File.File (the FileId), so the
+        // entry inside the cabinet must be named with the FileId — not the source
+        // path's filename. Previously CabinetBuilder passed file.FileName to
+        // FCIAddFile, which caused MSI error 1334 whenever the source filename
+        // differed from the sanitized FileId (e.g. 'e_sqlite3.dll' vs
+        // 'F_e_sqlite3_dll_17218B31').
+        var sourceFile = CreateTempFile("e_sqlite3.dll", "native dependency bytes");
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[]
+        {
+            new ResolvedFile
+            {
+                SourcePath = sourceFile,
+                TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
+                FileName = "e_sqlite3.dll",
+                FileSize = new FileInfo(sourceFile).Length,
+                ComponentId = "C_e_sqlite3_dll",
+                FileId = "F_e_sqlite3_dll_17218B31",
+            },
+        };
+
+        using var builder = new CabinetBuilder();
+        var cabResult = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+        Assert.True(cabResult.IsSuccess, $"BuildCabinet failed: {(cabResult.IsFailure ? cabResult.Error.Message : "")}");
+
+        using var cabStream = File.OpenRead(cabResult.Value);
+        var extractResult = CabinetExtractor.Extract(cabStream);
+        Assert.True(extractResult.IsSuccess, $"Extract failed: {(extractResult.IsFailure ? extractResult.Error.Message : "")}");
+
+        Assert.Contains("F_e_sqlite3_dll_17218B31", extractResult.Value.Keys);
+        Assert.DoesNotContain("e_sqlite3.dll", extractResult.Value.Keys);
+    }
+
+    [Fact]
     public void BuildCabinet_SingleFile_OutputHasMscfHeader()
     {
         var sourceFile = CreateTempFile("data.bin", "Binary content here");
@@ -315,8 +351,13 @@ public sealed class CabinetBuilderTests : IDisposable
         File.SetLastWriteTime(src1, new DateTime(2020, 3, 15, 12, 0, 0));
         File.SetLastWriteTime(src2, new DateTime(2023, 11, 30, 23, 59, 58));
 
-        var files1 = new[] { MakeResolvedFile(src1, "payload.txt", "C_p1", "F_p1") };
-        var files2 = new[] { MakeResolvedFile(src2, "payload.txt", "C_p2", "F_p2") };
+        // Reproducibility contract compares cabinets that describe the same logical
+        // payload, so the File/Component keys must match across both runs. The MSI
+        // compiler generates these deterministically from the target path and name,
+        // so differing IDs here would be an artefact of the test setup, not a real
+        // difference in what the cabinet represents.
+        var files1 = new[] { MakeResolvedFile(src1, "payload.txt", "C_payload", "F_payload") };
+        var files2 = new[] { MakeResolvedFile(src2, "payload.txt", "C_payload", "F_payload") };
 
         var out1 = Path.Combine(_tempDir, "out1");
         var out2 = Path.Combine(_tempDir, "out2");
