@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.Versioning;
 using FalkForge.Models;
 using FalkForge.Platform.Windows;
@@ -359,6 +360,95 @@ public sealed class MsiCompilerIntegrationTests
             foreach (var cab in mediaCabs)
                 Assert.True(streamNames.Contains(cab),
                     $"Media row references cabinet '{cab}' but no matching _Streams entry exists. Streams: [{string.Join(", ", streamNames)}]");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_MediaTemplate_PayloadExceedingMaxCabSize_EmitsMultipleCabinetsWithMatchingStreams()
+    {
+        // Previously MsiCompiler always embedded a single disk-1 cabinet regardless
+        // of how many Media rows TableEmitter emitted. Any payload large enough to
+        // trigger the template's MaximumCabinetSizeInMB split produced an MSI whose
+        // data2.cab, data3.cab, ... rows pointed at streams that did not exist.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            // Three ~500KB files with a 1MB cap → two files fit in disk 1, the
+            // third spills to disk 2.
+            var payload = new byte[500 * 1024];
+            new Random(12345).NextBytes(payload);
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var targetDir = KnownFolder.ProgramFiles / "TestCorp" / "MultiCab";
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "MultiCabApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.DefaultInstallDirectory = targetDir;
+                p.MediaTemplate(mt => mt
+                    .CabinetTemplate("data{0}.cab")
+                    .MaxCabinetSizeMB(1)
+                    .EmbedCabinet(true));
+
+                for (var i = 0; i < 3; i++)
+                {
+                    var path = Path.Combine(tempDir, $"payload{i}.bin");
+                    File.WriteAllBytes(path, payload);
+                    p.Files(f => f.Add(path).To(targetDir));
+                }
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+
+            var mediaCabs = db.QueryRows("SELECT `Cabinet` FROM `Media`", 1).Value
+                .Select(r => r[0]!)
+                .Select(n => n.StartsWith('#') ? n[1..] : n)
+                .ToList();
+            var streamNames = db.QueryRows("SELECT `Name` FROM `_Streams`", 1).Value
+                .Select(r => r[0]!)
+                .ToHashSet(StringComparer.Ordinal);
+
+            // Planner must have split the payload into at least two cabinets.
+            Assert.True(mediaCabs.Count >= 2,
+                $"Expected multi-cab split but only got: [{string.Join(", ", mediaCabs)}]");
+            Assert.Contains("data1.cab", mediaCabs);
+            Assert.Contains("data2.cab", mediaCabs);
+
+            // Every Media row must have a matching embedded stream.
+            foreach (var cab in mediaCabs)
+                Assert.True(streamNames.Contains(cab),
+                    $"Media row references cabinet '{cab}' but no matching _Streams entry exists. Streams: [{string.Join(", ", streamNames)}]");
+
+            // Every File.Sequence must fall inside exactly one Media row's
+            // [previousLastSequence+1 .. LastSequence] range. Guards against an
+            // off-by-one between the planner's exclusive FileEndIndex and MSI's
+            // inclusive LastSequence.
+            var mediaBounds = db.QueryRows("SELECT `DiskId`, `LastSequence` FROM `Media`", 2).Value
+                .Select(r => (DiskId: int.Parse(r[0]!, CultureInfo.InvariantCulture),
+                              LastSequence: int.Parse(r[1]!, CultureInfo.InvariantCulture)))
+                .OrderBy(x => x.DiskId)
+                .ToList();
+            var fileSequences = db.QueryRows("SELECT `Sequence` FROM `File`", 1).Value
+                .Select(r => int.Parse(r[0]!, CultureInfo.InvariantCulture))
+                .ToList();
+            foreach (var seq in fileSequences)
+            {
+                var matches = mediaBounds.Count(b => seq <= b.LastSequence);
+                Assert.True(matches >= 1,
+                    $"File.Sequence {seq} falls outside every Media row's LastSequence bound [{string.Join(", ", mediaBounds.Select(b => b.LastSequence))}]");
+            }
         }
         finally
         {

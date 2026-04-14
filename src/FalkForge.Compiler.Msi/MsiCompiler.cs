@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.Validation;
@@ -71,39 +72,45 @@ public sealed class MsiCompiler : ICompiler
             if (emitResult.IsFailure)
                 return Result<string>.Failure(emitResult.Error);
 
-            // Step 5.5: Build cabinet and embed into MSI
+            // Step 5.5: Build cabinets and embed them into the MSI. The planner is the
+            // single source of truth for how files are split across disks so that the
+            // Media rows emitted by TableEmitter and the _Streams entries embedded here
+            // cannot drift (the two sides previously produced Data.cab vs data1.cab,
+            // which triggered MSI error 2356 at install time).
             if (resolved.Files.Count > 0)
             {
-                // Cabinet stream name must match the Media.Cabinet column written by
-                // TableEmitter — otherwise the installer fails with error 2356 at
-                // install time. When a MediaTemplate is set TableEmitter formats the
-                // cabinet names using its CabinetTemplate, so derive the same name here.
-                // Multi-cabinet payloads are not yet supported: TableEmitter may emit
-                // Media rows for disk 2, 3, … when a large payload is split, but this
-                // compiler always embeds a single disk-1 cabinet. Oversize payloads
-                // should be rejected by a validator rule until the compiler can flush
-                // and embed each cabinet the emitter describes.
-                var cabinetFileName = package.MediaTemplate?.CabinetTemplate is { } template
-                    ? string.Format(template, 1)
-                    : CabinetBuilder.DefaultCabinetFileName;
+                var plans = CabinetPlanner.Plan(resolved.Files, package.MediaTemplate);
 
-                var tempCabPath = Path.Combine(Path.GetTempPath(), $"FalkForge_{Guid.NewGuid():N}");
-                Directory.CreateDirectory(tempCabPath);
+                var tempCabRoot = Path.Combine(Path.GetTempPath(), $"FalkForge_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(tempCabRoot);
                 try
                 {
-                    using var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
-                    var cabResult = cabBuilder.BuildCabinet(resolved.Files, tempCabPath, package.Compression, cabinetFileName);
-                    if (cabResult.IsFailure)
-                        return Result<string>.Failure(cabResult.Error);
+                    foreach (var plan in plans)
+                    {
+                        var slice = new List<ResolvedFile>(plan.FileEndIndex - plan.FileStartIndex);
+                        for (var i = plan.FileStartIndex; i < plan.FileEndIndex; i++)
+                            slice.Add(resolved.Files[i]);
 
-                    var embedResult = EmbedCabinet(database, cabResult.Value, cabinetFileName);
-                    if (embedResult.IsFailure)
-                        return Result<string>.Failure(embedResult.Error);
+                        var cabOutputDir = Path.Combine(tempCabRoot, $"disk{plan.DiskId}");
+                        Directory.CreateDirectory(cabOutputDir);
+
+                        using var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
+                        var cabResult = cabBuilder.BuildCabinet(slice, cabOutputDir, package.Compression, plan.CabinetFileName);
+                        if (cabResult.IsFailure)
+                            return Result<string>.Failure(cabResult.Error);
+
+                        if (plan.Embedded)
+                        {
+                            var embedResult = EmbedCabinet(database, cabResult.Value, plan.CabinetFileName);
+                            if (embedResult.IsFailure)
+                                return Result<string>.Failure(embedResult.Error);
+                        }
+                    }
                 }
                 finally
                 {
-                    if (Directory.Exists(tempCabPath))
-                        Directory.Delete(tempCabPath, true);
+                    if (Directory.Exists(tempCabRoot))
+                        Directory.Delete(tempCabRoot, true);
                 }
             }
 

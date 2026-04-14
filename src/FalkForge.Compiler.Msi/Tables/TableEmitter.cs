@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.UI;
 using FalkForge.Models;
 
@@ -391,38 +392,24 @@ internal sealed class TableEmitter
 
     private Result<Unit> EmitMediaFromTemplate(ResolvedPackage resolved, MediaTemplateModel template, int lastSequence)
     {
-        var maxCabSizeBytes = template.MaximumCabinetSizeInMB > 0
-            ? (long)template.MaximumCabinetSizeInMB * 1024 * 1024
-            : 0;
+        _ = lastSequence;
 
-        // Calculate total file size to determine cabinet splitting
-        var totalSize = resolved.Files.Sum(f => f.FileSize);
+        // The cabinet plan is the single source of truth for how the payload is
+        // split across cabs. The compiler consumes the same plan when it builds
+        // and embeds the cabinets so Media rows and _Streams entries cannot drift.
+        // Zero-file packages intentionally produce zero Media rows — the previous
+        // fallback that synthesised a single empty-cabinet row was vestigial and
+        // re-introduced the same format/prefix logic the planner already owns.
+        var plans = CabinetPlanner.Plan(resolved.Files, template);
 
-        // Determine how many cabinets we need
-        int cabinetCount;
-        if (maxCabSizeBytes > 0 && totalSize > maxCabSizeBytes)
-            cabinetCount = (int)Math.Ceiling((double)totalSize / maxCabSizeBytes);
-        else
-            cabinetCount = 1;
-
-        var filesPerCabinet = lastSequence > 0
-            ? (int)Math.Ceiling((double)lastSequence / cabinetCount)
-            : 1;
-
-        for (var i = 0; i < cabinetCount; i++)
+        foreach (var plan in plans)
         {
-            var diskId = i + 1;
-            var cabLastSeq = Math.Min((i + 1) * filesPerCabinet, lastSequence);
-            var cabinetName = string.Format(template.CabinetTemplate, diskId);
-
-            // Prefix with # for embedded cabinets
-            if (template.EmbedCabinet) cabinetName = $"#{cabinetName}";
-
+            var cabinetName = plan.Embedded ? "#" + plan.CabinetFileName : plan.CabinetFileName;
             var result = _database.InsertRow(
                 "SELECT `DiskId`, `LastSequence`, `DiskPrompt`, `Cabinet`, `VolumeLabel`, `Source` FROM `Media`",
                 record => record
-                    .SetInteger(1, diskId)
-                    .SetInteger(2, cabLastSeq)
+                    .SetInteger(1, plan.DiskId)
+                    .SetInteger(2, plan.LastSequence)
                     .SetString(3, "")
                     .SetString(4, cabinetName)
                     .SetString(5, "")
