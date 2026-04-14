@@ -64,6 +64,18 @@ public sealed class BuildSettingsTests
     }
 
     [Fact]
+    public void Validate_CsxExtension_ReturnsSuccess()
+    {
+        // CLAUDE.md advertises `forge build installer.csx` as a supported path; the
+        // validator must accept the Roslyn script extension alongside `.cs`/`.json`.
+        var settings = new BuildSettings { ProjectPath = "installer.csx" };
+
+        var result = settings.Validate();
+
+        Assert.True(result.Successful);
+    }
+
+    [Fact]
     public void Validate_WhitespaceOnlyProjectPath_ReturnsRequiredError()
     {
         var settings = new BuildSettings { ProjectPath = "   " };
