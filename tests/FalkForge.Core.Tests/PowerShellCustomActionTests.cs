@@ -21,7 +21,7 @@ public sealed class PowerShellCustomActionTests
 
         var action = package.CustomActions[0];
         Assert.Equal(CustomActionType.ExeInDir, action.Type);
-        Assert.Equal("[SystemFolder]", action.SourceRef);
+        Assert.Equal("SystemFolder", action.SourceRef);
         Assert.Contains("powershell.exe", action.Target);
         Assert.Contains("-NoProfile", action.Target);
         Assert.Contains("-NonInteractive", action.Target);
@@ -66,7 +66,7 @@ public sealed class PowerShellCustomActionTests
 
             var action = package.CustomActions[0];
             Assert.Equal(CustomActionType.ExeInDir, action.Type);
-            Assert.Equal("[SystemFolder]", action.SourceRef);
+            Assert.Equal("SystemFolder", action.SourceRef);
             Assert.Contains("Get-Service | Stop-Service", action.Target);
         }
         finally

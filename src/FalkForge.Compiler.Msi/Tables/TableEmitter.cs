@@ -277,6 +277,21 @@ internal sealed class TableEmitter
                     break;
             }
 
+        // Custom actions with the Directory-source bit (0x20) require their Source
+        // column to be a Directory table key AND that key must have a row. MSI
+        // error 2727 fires at install time otherwise. The only system folder the
+        // built-in builders reference today is SystemFolder (via PowerShellScript);
+        // emit it under TARGETDIR on demand so msi.dll can resolve it.
+        const int directorySourceBit = 0x20;
+        foreach (var ca in package.CustomActions)
+        {
+            if ((ca.Type & directorySourceBit) == 0) continue;
+            if (ca.SourceRef != "SystemFolder") continue;
+            if (!emittedDirs.Add("SystemFolder")) continue;
+            result = InsertDirectoryRow("SystemFolder", WellKnownDirectoryIds.TargetDir, ".");
+            if (result.IsFailure) return result;
+        }
+
         return Unit.Value;
     }
 

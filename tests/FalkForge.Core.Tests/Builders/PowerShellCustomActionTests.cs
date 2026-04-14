@@ -23,7 +23,7 @@ public sealed class PowerShellCustomActionTests
 
         var action = package.CustomActions[0];
         Assert.Equal(CustomActionType.ExeInDir, action.Type);
-        Assert.Equal("[SystemFolder]", action.SourceRef);
+        Assert.Equal("SystemFolder", action.SourceRef);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class PowerShellCustomActionTests
 
             var action = package.CustomActions[0];
             Assert.Equal(CustomActionType.ExeInDir, action.Type);
-            Assert.Equal("[SystemFolder]", action.SourceRef);
+            Assert.Equal("SystemFolder", action.SourceRef);
             Assert.NotNull(action.Target);
             Assert.Contains("Get-Service | Stop-Service", action.Target);
             Assert.Contains("-Command", action.Target);

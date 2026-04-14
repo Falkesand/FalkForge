@@ -45,13 +45,16 @@ public sealed class CustomActionBuilder
 
     /// <summary>
     ///     Creates a custom action that runs a PowerShell script inline.
-    ///     Uses ExeInDir (type 34) targeting powershell.exe in [SystemFolder].
+    ///     Uses ExeInDir (type 34) targeting powershell.exe located in the SystemFolder
+    ///     directory. The Source column on an ExeInDir custom action must be a Directory
+    ///     table key (not a formatted expression), so the compiler emits a Directory row
+    ///     for SystemFolder under TARGETDIR when any CustomAction references it.
     /// </summary>
     public CustomActionBuilder PowerShellScript(string script)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(script);
         _baseType = CustomActionType.ExeInDir;
-        _sourceRef = "[SystemFolder]";
+        _sourceRef = "SystemFolder";
         var escapedScript = script.Replace("\"", "\\\"");
         Target = $"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{escapedScript}\"";
         return this;
