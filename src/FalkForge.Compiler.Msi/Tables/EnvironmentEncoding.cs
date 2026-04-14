@@ -22,19 +22,7 @@ internal static class EnvironmentEncoding
     ///     the established WiX behavior for these actions.
     /// </summary>
     internal static string EncodeName(string variableName, EnvironmentVariableAction action, bool isSystem)
-    {
-        var actionPrefix = action switch
-        {
-            EnvironmentVariableAction.Set => "=",
-            EnvironmentVariableAction.Append => "-",
-            EnvironmentVariableAction.Prepend => "-",
-            _ => "="
-        };
-
-        var scopePrefix = isSystem ? "*" : string.Empty;
-
-        return string.Concat(actionPrefix, scopePrefix, variableName);
-    }
+        => EnvironmentNameEncoder.Encode(action, isSystem, variableName);
 
     /// <summary>
     ///     Encodes the MSI Environment table Value column.
