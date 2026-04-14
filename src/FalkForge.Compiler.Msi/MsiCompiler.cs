@@ -105,6 +105,15 @@ public sealed class MsiCompiler : ICompiler
                             if (embedResult.IsFailure)
                                 return Result<string>.Failure(embedResult.Error);
                         }
+                        else
+                        {
+                            // Gap 4: external cab — the Media row references the cab file name
+                            // without the '#' prefix, so the compiler must drop the cab on disk
+                            // next to the MSI for the installer to resolve at run time.
+                            var copyResult = CopyCabinetToOutput(cabResult.Value, outputPath, plan.CabinetFileName);
+                            if (copyResult.IsFailure)
+                                return Result<string>.Failure(copyResult.Error);
+                        }
                     }
                 }
                 finally
@@ -230,6 +239,57 @@ public sealed class MsiCompiler : ICompiler
             ProcessorArchitecture.Arm64 => "Arm64;1033",
             _ => "x64;1033"
         };
+    }
+
+    private static Result<Unit> CopyCabinetToOutput(string sourceCabPath, string outputDir, string cabinetFileName)
+    {
+        // Security: confine the destination to the configured output directory.
+        // Validate that the resolved final path is physically inside the resolved output
+        // directory (defends against a crafted cabinet file name containing separators,
+        // '..', or absolute paths). Mirrors CacheLayout's three-layer containment pattern.
+        if (cabinetFileName.Length == 0
+            || cabinetFileName.Contains('/')
+            || cabinetFileName.Contains('\\')
+            || cabinetFileName.Contains("..", StringComparison.Ordinal)
+            || Path.IsPathRooted(cabinetFileName)
+            || !string.Equals(Path.GetFileName(cabinetFileName), cabinetFileName, StringComparison.Ordinal))
+        {
+            return Result<Unit>.Failure(
+                ErrorKind.SecurityError,
+                $"Rejected external cabinet file name '{cabinetFileName}': must be a plain file name with no path components.");
+        }
+
+        var resolvedOutput = Path.GetFullPath(outputDir);
+        var candidate = Path.GetFullPath(Path.Combine(resolvedOutput, cabinetFileName));
+        var outputWithSeparator = resolvedOutput.EndsWith(Path.DirectorySeparatorChar)
+            ? resolvedOutput
+            : resolvedOutput + Path.DirectorySeparatorChar;
+
+        if (!candidate.StartsWith(outputWithSeparator, StringComparison.OrdinalIgnoreCase))
+            return Result<Unit>.Failure(
+                ErrorKind.SecurityError,
+                $"External cabinet destination '{candidate}' is outside the output directory '{resolvedOutput}'.");
+
+        try
+        {
+            if (!Directory.Exists(resolvedOutput))
+                Directory.CreateDirectory(resolvedOutput);
+
+            File.Copy(sourceCabPath, candidate, overwrite: true);
+            return Unit.Value;
+        }
+        catch (IOException ex)
+        {
+            return Result<Unit>.Failure(
+                ErrorKind.CompilationError,
+                $"Failed to write external cabinet '{candidate}': {ex.Message}");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Result<Unit>.Failure(
+                ErrorKind.SecurityError,
+                $"Failed to write external cabinet '{candidate}': {ex.Message}");
+        }
     }
 
     private static Result<Unit> EmbedCabinet(MsiDatabase database, string cabPath, string streamName)
