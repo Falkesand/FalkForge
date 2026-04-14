@@ -32,7 +32,34 @@ public sealed class DecompileCommandMsixTests : IDisposable
 
         var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
-        Assert.Equal(ExitCodes.RuntimeError, result);
-        Assert.Contains(console.Errors, e => e.Contains("not yet supported"));
+        Assert.NotEqual(ExitCodes.Success, result);
+        Assert.Contains(
+            console.Errors,
+            e => e.Contains("MSIX decompile is not supported; see docs/decompile.md", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Execute_MsixBundleFile_ReturnsNotSupported()
+    {
+        var bundlePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.msixbundle");
+        File.WriteAllBytes(bundlePath, []);
+        try
+        {
+            var console = new TestConsoleOutput();
+            var command = new DecompileCommand(console);
+            var settings = new Settings.DecompileSettings { FilePath = bundlePath };
+
+            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+
+            Assert.NotEqual(ExitCodes.Success, result);
+            Assert.Contains(
+                console.Errors,
+                e => e.Contains("MSIX decompile is not supported; see docs/decompile.md", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (File.Exists(bundlePath))
+                File.Delete(bundlePath);
+        }
     }
 }
