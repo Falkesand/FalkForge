@@ -17,7 +17,9 @@ namespace FalkForge.Cli.Commands;
 /// </summary>
 public sealed class BuildCommand : Command<BuildSettings>
 {
-    private readonly IConsoleOutput _console;
+    // _console is swapped to a JsonConsoleOutput buffer when settings.Json is set so the
+    // entire build run accumulates messages into a single envelope rendered at the end.
+    private IConsoleOutput _console;
     private readonly string? _gitWorkingDirectory;
 
     public BuildCommand() : this(new SpectreConsoleOutput()) { }
@@ -29,6 +31,26 @@ public sealed class BuildCommand : Command<BuildSettings>
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
+    {
+        var originalConsole = _console;
+        var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
+        if (jsonOutput is not null)
+            _console = jsonOutput;
+
+        try
+        {
+            var exitCode = ExecuteInternal(settings, cancellationToken);
+            if (jsonOutput is not null)
+                Console.Out.WriteLine(jsonOutput.WriteEnvelope("build", exitCode));
+            return exitCode;
+        }
+        finally
+        {
+            _console = originalConsole;
+        }
+    }
+
+    private int ExecuteInternal(BuildSettings settings, CancellationToken cancellationToken)
     {
         if (settings.Reproducible)
         {

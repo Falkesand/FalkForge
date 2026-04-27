@@ -26,6 +26,11 @@ public sealed class BuildSettings : CommandSettings
     [DefaultValue(false)]
     public bool Verbose { get; init; }
 
+    [Description("Emit machine-readable JSON envelope to stdout instead of Spectre markup. Suppresses interactive output for CI/automation use.")]
+    [CommandOption("--json")]
+    [DefaultValue(false)]
+    public bool Json { get; init; }
+
     [Description("Enable reproducible output. Reads SOURCE_DATE_EPOCH env var or falls back to git HEAD timestamp.")]
     [CommandOption("--reproducible")]
     [DefaultValue(false)]

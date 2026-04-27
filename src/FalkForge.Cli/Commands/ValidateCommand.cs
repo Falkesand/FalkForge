@@ -25,11 +25,26 @@ public sealed class ValidateCommand : Command<ValidateSettings>
 
     public override int Execute([NotNull] CommandContext context, [NotNull] ValidateSettings settings, CancellationToken cancellationToken)
     {
+        var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
+        var output = (IConsoleOutput?)jsonOutput ?? _console;
+
+        var exitCode = ExecuteCore(settings, output);
+
+        if (jsonOutput is not null)
+        {
+            Console.Out.WriteLine(jsonOutput.WriteEnvelope("validate", exitCode));
+        }
+
+        return exitCode;
+    }
+
+    private int ExecuteCore(ValidateSettings settings, IConsoleOutput output)
+    {
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 
         if (!File.Exists(projectPath))
         {
-            _console.WriteError($"File not found: {projectPath}");
+            output.WriteError($"File not found: {projectPath}");
             return ExitCodes.RuntimeError;
         }
 
@@ -38,21 +53,21 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         {
             if (!settings.Ice)
             {
-                _console.MarkupLine("[yellow]Use --ice flag to run ICE validation on .msi files.[/]");
+                output.MarkupLine("[yellow]Use --ice flag to run ICE validation on .msi files.[/]");
                 return ExitCodes.Success;
             }
 
             if (!OperatingSystem.IsWindows())
             {
-                _console.WriteError("ICE validation requires Windows.");
+                output.WriteError("ICE validation requires Windows.");
                 return ExitCodes.RuntimeError;
             }
 
-            return RunIceValidation(projectPath, settings);
+            return RunIceValidation(projectPath, settings, output);
         }
 
         if (settings.Verbose)
-            _console.MarkupLine($"[grey]Loading project: {Markup.Escape(projectPath)}[/]");
+            output.MarkupLine($"[grey]Loading project: {Markup.Escape(projectPath)}[/]");
 
         Result<FalkForge.Models.PackageModel> loadResult;
 
@@ -63,7 +78,7 @@ public sealed class ValidateCommand : Command<ValidateSettings>
 
         if (loadResult.IsFailure)
         {
-            _console.WriteError(loadResult.Error.Message);
+            output.WriteError(loadResult.Error.Message);
             return ExitCodes.FromErrorKind(loadResult.Error.Kind);
         }
 
@@ -72,26 +87,26 @@ public sealed class ValidateCommand : Command<ValidateSettings>
 
         foreach (var warning in validation.Warnings)
         {
-            _console.MarkupLine($"[yellow]Warning {warning.Code}:[/] {Markup.Escape(warning.Message)}");
+            output.MarkupLine($"[yellow]Warning {warning.Code}:[/] {Markup.Escape(warning.Message)}");
         }
 
         foreach (var error in validation.Errors)
         {
-            _console.MarkupLine($"[red]Error {error.Code}:[/] {Markup.Escape(error.Message)}");
+            output.MarkupLine($"[red]Error {error.Code}:[/] {Markup.Escape(error.Message)}");
         }
 
         if (!validation.IsValid)
         {
-            _console.MarkupLine($"[red]Validation failed with {validation.Errors.Count()} error(s).[/]");
+            output.MarkupLine($"[red]Validation failed with {validation.Errors.Count()} error(s).[/]");
             return ExitCodes.ValidationFailure;
         }
 
-        _console.MarkupLine("[green]Validation passed.[/]");
+        output.MarkupLine("[green]Validation passed.[/]");
         return ExitCodes.Success;
     }
 
     [SupportedOSPlatform("windows")]
-    private int RunIceValidation(string msiPath, ValidateSettings settings)
+    private int RunIceValidation(string msiPath, ValidateSettings settings, IConsoleOutput output)
     {
         var config = new IceConfiguration
         {
@@ -107,7 +122,7 @@ public sealed class ValidateCommand : Command<ValidateSettings>
 
         if (result.IsFailure)
         {
-            _console.WriteError($"ICE validation failed: {result.Error.Message}");
+            output.WriteError($"ICE validation failed: {result.Error.Message}");
             return ExitCodes.RuntimeError;
         }
 
@@ -118,7 +133,7 @@ public sealed class ValidateCommand : Command<ValidateSettings>
 
         if (iceResult.Messages.Count == 0)
         {
-            _console.MarkupLine("[green]ICE validation passed with no issues.[/]");
+            output.MarkupLine("[green]ICE validation passed with no issues.[/]");
             return ExitCodes.Success;
         }
 
@@ -133,12 +148,12 @@ public sealed class ValidateCommand : Command<ValidateSettings>
             };
 
             var table = msg.Table is not null ? $" ({Markup.Escape(msg.Table)})" : string.Empty;
-            _console.MarkupLine($"[{severityColor}]{msg.Severity} {Markup.Escape(msg.IceName)}:[/] {Markup.Escape(msg.Description)}{table}");
+            output.MarkupLine($"[{severityColor}]{msg.Severity} {Markup.Escape(msg.IceName)}:[/] {Markup.Escape(msg.Description)}{table}");
         }
 
         var errorCount = iceResult.Errors.Count + iceResult.Failures.Count;
         var warnCount = iceResult.Warnings.Count;
-        _console.MarkupLine(iceResult.IsValid
+        output.MarkupLine(iceResult.IsValid
             ? $"[green]{iceResult.Messages.Count} issue(s) ({warnCount} warning(s)). Validation PASSED.[/]"
             : $"[red]{iceResult.Messages.Count} issue(s) ({errorCount} error(s), {warnCount} warning(s)). Validation FAILED.[/]");
 
