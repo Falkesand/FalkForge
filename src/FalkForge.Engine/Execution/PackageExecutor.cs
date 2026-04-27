@@ -11,6 +11,7 @@ public sealed class PackageExecutor
     private readonly BundleExecutor _bundleExecutor;
     private readonly ExeExecutor _exeExecutor;
     private readonly NetRuntimeExecutor _netRuntimeExecutor;
+    private readonly TimeProvider _timeProvider;
 
     public PackageExecutor(
         MsiExecutor msiExecutor,
@@ -18,7 +19,8 @@ public sealed class PackageExecutor
         MspExecutor mspExecutor,
         BundleExecutor bundleExecutor,
         ExeExecutor exeExecutor,
-        NetRuntimeExecutor netRuntimeExecutor)
+        NetRuntimeExecutor netRuntimeExecutor,
+        TimeProvider? timeProvider = null)
     {
         _msiExecutor = msiExecutor;
         _msuExecutor = msuExecutor;
@@ -26,6 +28,7 @@ public sealed class PackageExecutor
         _bundleExecutor = bundleExecutor;
         _exeExecutor = exeExecutor;
         _netRuntimeExecutor = netRuntimeExecutor;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -72,13 +75,14 @@ public sealed class PackageExecutor
     public Task<Result<ExecutionOutcome>> ExecuteAsync(PlanAction action, CancellationToken ct) =>
         ExecuteAsync(action, isDryRun: false, dryRunLogPath: null, ct);
 
-    private static async Task<Result<ExecutionOutcome>> SimulateDryRunAsync(
+    private async Task<Result<ExecutionOutcome>> SimulateDryRunAsync(
         PlanAction action,
         string? logPath,
         CancellationToken ct)
     {
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var logLine = string.Concat(
-            "[", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), "] ",
+            "[", nowUtc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture), "] ",
             "DRY RUN: Would ", action.ActionType.ToString().ToUpperInvariant(),
             " ", action.Package.Type, " package '", action.PackageId, "'",
             " (", action.Package.DisplayName ?? action.PackageId, ")");

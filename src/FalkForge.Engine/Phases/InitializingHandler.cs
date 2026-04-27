@@ -6,6 +6,13 @@ using FalkForge.Engine.Variables;
 
 public sealed class InitializingHandler : IEnginePhaseHandler
 {
+    private readonly TimeProvider _timeProvider;
+
+    public InitializingHandler(TimeProvider? timeProvider = null)
+    {
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
     public EnginePhase Phase => EnginePhase.Initializing;
 
     public Task<EnginePhase> ExecuteAsync(EngineContext context, CancellationToken ct)
@@ -21,9 +28,13 @@ public sealed class InitializingHandler : IEnginePhaseHandler
         if (context.Manifest.IsDryRun)
         {
             context.IsDryRun = true;
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             context.DryRunLogPath = Path.Combine(
                 Path.GetTempPath(),
-                $"FalkForge-DryRun-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+                string.Concat(
+                    "FalkForge-DryRun-",
+                    nowUtc.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture),
+                    ".log"));
         }
 
         // Populate built-in variables
