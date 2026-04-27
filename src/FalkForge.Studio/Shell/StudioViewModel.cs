@@ -37,6 +37,7 @@ public sealed class StudioViewModel : ViewModelBase
     private StudioProject _project;
     private readonly Dictionary<string, ViewModelBase> _editors = new();
     private readonly UndoManager _undoManager = new();
+    private readonly TimeProvider _timeProvider;
     private CancellationTokenSource? _validationDebounce;
     private string? _projectPath;
     private string _baseDirectory = ".";
@@ -118,22 +119,27 @@ public sealed class StudioViewModel : ViewModelBase
     public ICommand RedoCommand { get; }
 
     public StudioViewModel()
+        : this(StudioProjectLoader.NewProject(), timeProvider: null)
     {
-        _project = StudioProjectLoader.NewProject();
+    }
+
+    public StudioViewModel(StudioProject project)
+        : this(project, timeProvider: null)
+    {
+    }
+
+    public StudioViewModel(StudioProject project, TimeProvider? timeProvider)
+    {
+        _project = project;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         UndoCommand = new RelayCommand(Undo, () => CanUndo);
         RedoCommand = new RelayCommand(Redo, () => CanRedo);
         BuildDefaultTree();
         _undoManager.SaveState(_project);
     }
 
-    public StudioViewModel(StudioProject project)
-    {
-        _project = project;
-        UndoCommand = new RelayCommand(Undo, () => CanUndo);
-        RedoCommand = new RelayCommand(Redo, () => CanRedo);
-        BuildDefaultTree();
-        _undoManager.SaveState(_project);
-    }
+    private string LocalNowHms()
+        => _timeProvider.GetLocalNow().LocalDateTime.ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
 
     private void BuildDefaultTree()
     {
@@ -179,11 +185,11 @@ public sealed class StudioViewModel : ViewModelBase
         BuildProgress = 0;
         BuildSummary = null;
         var sw = Stopwatch.StartNew();
-        OutputText = $"[{DateTime.Now:HH:mm:ss}] Build started\n";
+        OutputText = $"[{LocalNowHms()}] Build started\n";
 
         try
         {
-            OutputText += $"[{DateTime.Now:HH:mm:ss}] Validating...\n";
+            OutputText += $"[{LocalNowHms()}] Validating...\n";
             BuildProgress = 10;
 
             var result = await Task.Run(() => StudioBuildService.Compile(_project, baseDirectory));
@@ -193,20 +199,20 @@ public sealed class StudioViewModel : ViewModelBase
 
             if (result.IsSuccess)
             {
-                OutputText += $"[{DateTime.Now:HH:mm:ss}] Output: {result.Value}\n";
+                OutputText += $"[{LocalNowHms()}] Output: {result.Value}\n";
                 BuildSummary = $"Build succeeded in {sw.Elapsed.TotalSeconds:F1}s";
                 BuildSucceeded = true;
             }
             else
             {
-                OutputText += $"[{DateTime.Now:HH:mm:ss}] Error: {result.Error.Message}\n";
+                OutputText += $"[{LocalNowHms()}] Error: {result.Error.Message}\n";
                 BuildSummary = $"Build failed — {result.Error.Message}";
                 BuildSucceeded = false;
             }
         }
         catch (Exception ex)
         {
-            OutputText += $"[{DateTime.Now:HH:mm:ss}] Exception: {ex.Message}\n";
+            OutputText += $"[{LocalNowHms()}] Exception: {ex.Message}\n";
             BuildSummary = $"Build failed — {ex.Message}";
             BuildSucceeded = false;
         }
