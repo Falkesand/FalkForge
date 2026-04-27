@@ -84,6 +84,19 @@ public static class ModelValidator
         return result;
     }
 
+    /// <summary>
+    /// Iterates a collection and applies a per-item validator. Centralises the foreach +
+    /// result-passing boilerplate that recurs across the per-item validators in this class.
+    /// </summary>
+    private static void ValidateCollection<T>(
+        IReadOnlyList<T> items,
+        ValidationResult result,
+        Action<T, ValidationResult> validate)
+    {
+        foreach (var item in items)
+            validate(item, result);
+    }
+
     private static void ValidateFeatures(IReadOnlyList<FeatureModel> features, ValidationResult result)
     {
         var ids = new HashSet<string>();
@@ -114,73 +127,75 @@ public static class ModelValidator
     }
 
     private static void ValidateServices(IReadOnlyList<ServiceModel> services, ValidationResult result)
+        => ValidateCollection(services, result, ValidateService);
+
+    private static void ValidateService(ServiceModel service, ValidationResult result)
     {
-        foreach (var service in services)
-        {
-            if (string.IsNullOrWhiteSpace(service.Name))
-                result.AddError("SVC001", "Service Name is required.");
+        if (string.IsNullOrWhiteSpace(service.Name))
+            result.AddError("SVC001", "Service Name is required.");
 
-            if (string.IsNullOrWhiteSpace(service.Executable))
-                result.AddError("SVC002", $"Service '{service.Name}' must have an Executable.");
+        if (string.IsNullOrWhiteSpace(service.Executable))
+            result.AddError("SVC002", $"Service '{service.Name}' must have an Executable.");
 
-            if (service.Account == ServiceAccount.User && string.IsNullOrWhiteSpace(service.UserName))
-                result.AddError("SVC003", $"Service '{service.Name}' uses User account but no UserName specified.");
+        if (service.Account == ServiceAccount.User && string.IsNullOrWhiteSpace(service.UserName))
+            result.AddError("SVC003", $"Service '{service.Name}' uses User account but no UserName specified.");
 
-            if (service.Name.Length > 256)
-                result.AddError("SVC004", $"Service name '{service.Name}' exceeds 256 characters.");
+        if (service.Name.Length > 256)
+            result.AddError("SVC004", $"Service name '{service.Name}' exceeds 256 characters.");
 
-            if (!string.IsNullOrEmpty(service.Password))
-                result.AddWarning("SVC005",
-                    $"Service '{service.Name}' has a plaintext password. Consider using a managed service account or store the password securely.");
+        if (!string.IsNullOrEmpty(service.Password))
+            result.AddWarning("SVC005",
+                $"Service '{service.Name}' has a plaintext password. Consider using a managed service account or store the password securely.");
 
-            if (service.Arguments is not null && service.Arguments.Length == 0)
-                result.AddWarning("SVC009",
-                    $"Service '{service.Name}' has empty Arguments. Use null to omit arguments.");
+        if (service.Arguments is not null && service.Arguments.Length == 0)
+            result.AddWarning("SVC009",
+                $"Service '{service.Name}' has empty Arguments. Use null to omit arguments.");
 
-            if (service.AccountProperty is not null && service.Account == ServiceAccount.User &&
-                !string.IsNullOrWhiteSpace(service.UserName))
-                result.AddWarning("SVC010",
-                    $"Service '{service.Name}' has both AccountProperty and UserName set. AccountProperty will take precedence.");
+        if (service.AccountProperty is not null && service.Account == ServiceAccount.User &&
+            !string.IsNullOrWhiteSpace(service.UserName))
+            result.AddWarning("SVC010",
+                $"Service '{service.Name}' has both AccountProperty and UserName set. AccountProperty will take precedence.");
 
-            if (service.ComponentCondition is not null && service.ComponentCondition.Length == 0)
-                result.AddError("SVC011",
-                    $"Service '{service.Name}' has empty ComponentCondition. Use null to omit condition.");
-        }
+        if (service.ComponentCondition is not null && service.ComponentCondition.Length == 0)
+            result.AddError("SVC011",
+                $"Service '{service.Name}' has empty ComponentCondition. Use null to omit condition.");
     }
 
     private static void ValidateShortcuts(IReadOnlyList<ShortcutModel> shortcuts, ValidationResult result)
+        => ValidateCollection(shortcuts, result, ValidateShortcut);
+
+    private static void ValidateShortcut(ShortcutModel shortcut, ValidationResult result)
     {
-        foreach (var shortcut in shortcuts)
-        {
-            if (string.IsNullOrWhiteSpace(shortcut.Name))
-                result.AddError("SHC001", "Shortcut Name is required.");
+        if (string.IsNullOrWhiteSpace(shortcut.Name))
+            result.AddError("SHC001", "Shortcut Name is required.");
 
-            if (string.IsNullOrWhiteSpace(shortcut.TargetFile))
-                result.AddError("SHC002", $"Shortcut '{shortcut.Name}' must have a TargetFile.");
+        if (string.IsNullOrWhiteSpace(shortcut.TargetFile))
+            result.AddError("SHC002", $"Shortcut '{shortcut.Name}' must have a TargetFile.");
 
-            if (shortcut.Locations.Count == 0)
-                result.AddWarning("SHC003", $"Shortcut '{shortcut.Name}' has no locations specified.");
-        }
+        if (shortcut.Locations.Count == 0)
+            result.AddWarning("SHC003", $"Shortcut '{shortcut.Name}' has no locations specified.");
     }
 
     private static void ValidateFonts(IReadOnlyList<FontModel> fonts, ValidationResult result)
+        => ValidateCollection(fonts, result, ValidateFont);
+
+    private static void ValidateFont(FontModel font, ValidationResult result)
     {
-        foreach (var font in fonts)
-            if (string.IsNullOrWhiteSpace(font.FileName))
-                result.AddError("FNT001", "Font FileName is required.");
+        if (string.IsNullOrWhiteSpace(font.FileName))
+            result.AddError("FNT001", "Font FileName is required.");
     }
 
     private static void ValidateIniFiles(IReadOnlyList<IniFileModel> iniFiles, ValidationResult result)
+        => ValidateCollection(iniFiles, result, ValidateIniFile);
+
+    private static void ValidateIniFile(IniFileModel ini, ValidationResult result)
     {
-        foreach (var ini in iniFiles)
-        {
-            if (string.IsNullOrWhiteSpace(ini.FileName))
-                result.AddError("INI001", "INI file FileName is required.");
-            if (string.IsNullOrWhiteSpace(ini.Section))
-                result.AddError("INI002", $"INI file '{ini.FileName}' must have a Section.");
-            if (string.IsNullOrWhiteSpace(ini.Key))
-                result.AddError("INI003", $"INI file '{ini.FileName}' must have a Key.");
-        }
+        if (string.IsNullOrWhiteSpace(ini.FileName))
+            result.AddError("INI001", "INI file FileName is required.");
+        if (string.IsNullOrWhiteSpace(ini.Section))
+            result.AddError("INI002", $"INI file '{ini.FileName}' must have a Section.");
+        if (string.IsNullOrWhiteSpace(ini.Key))
+            result.AddError("INI003", $"INI file '{ini.FileName}' must have a Key.");
     }
 
     private static readonly HashSet<string> ValidPermissionTables =
@@ -218,56 +233,56 @@ public static class ModelValidator
 
     private static void ValidateFileAssociations(IReadOnlyList<FileAssociationModel> associations,
         ValidationResult result)
+        => ValidateCollection(associations, result, ValidateFileAssociation);
+
+    private static void ValidateFileAssociation(FileAssociationModel assoc, ValidationResult result)
     {
-        foreach (var assoc in associations)
-        {
-            if (string.IsNullOrWhiteSpace(assoc.Extension))
-                result.AddError("FAS001", "File association Extension is required.");
-            if (string.IsNullOrWhiteSpace(assoc.ProgId))
-                result.AddError("FAS002", $"File association '{assoc.Extension}' must have a ProgId.");
-            if (assoc.Verbs.Count == 0)
-                result.AddWarning("FAS003", $"File association '{assoc.Extension}' has no verbs defined.");
-        }
+        if (string.IsNullOrWhiteSpace(assoc.Extension))
+            result.AddError("FAS001", "File association Extension is required.");
+        if (string.IsNullOrWhiteSpace(assoc.ProgId))
+            result.AddError("FAS002", $"File association '{assoc.Extension}' must have a ProgId.");
+        if (assoc.Verbs.Count == 0)
+            result.AddWarning("FAS003", $"File association '{assoc.Extension}' has no verbs defined.");
     }
 
     private static void ValidateCustomActions(IReadOnlyList<CustomActionModel> customActions, ValidationResult result)
+        => ValidateCollection(customActions, result, ValidateCustomAction);
+
+    private static void ValidateCustomAction(CustomActionModel ca, ValidationResult result)
     {
-        foreach (var ca in customActions)
-        {
-            if (string.IsNullOrWhiteSpace(ca.Id))
-                result.AddError("CA001", "Custom action Id is required.");
-            if (ca.Type == 0)
-                result.AddError("CA002", $"Custom action '{ca.Id}' must have a Type specified.");
-            if (string.IsNullOrWhiteSpace(ca.SourceRef))
-                result.AddError("CA003", $"Custom action '{ca.Id}' must have a SourceRef.");
+        if (string.IsNullOrWhiteSpace(ca.Id))
+            result.AddError("CA001", "Custom action Id is required.");
+        if (ca.Type == 0)
+            result.AddError("CA002", $"Custom action '{ca.Id}' must have a Type specified.");
+        if (string.IsNullOrWhiteSpace(ca.SourceRef))
+            result.AddError("CA003", $"Custom action '{ca.Id}' must have a SourceRef.");
 
-            var hasRollback = (ca.Type & CustomActionType.Rollback) != 0;
-            var hasCommit = (ca.Type & CustomActionType.Commit) != 0;
+        var hasRollback = (ca.Type & CustomActionType.Rollback) != 0;
+        var hasCommit = (ca.Type & CustomActionType.Commit) != 0;
 
-            if (hasRollback && hasCommit)
-                result.AddError("CA004",
-                    $"Custom action '{ca.Id}' cannot be both Rollback and Commit. These are mutually exclusive scheduling options.");
+        if (hasRollback && hasCommit)
+            result.AddError("CA004",
+                $"Custom action '{ca.Id}' cannot be both Rollback and Commit. These are mutually exclusive scheduling options.");
 
-            var hasInScript = (ca.Type & CustomActionType.InScript) != 0;
-            var hasNoImpersonate = (ca.Type & CustomActionType.NoImpersonate) != 0;
+        var hasInScript = (ca.Type & CustomActionType.InScript) != 0;
+        var hasNoImpersonate = (ca.Type & CustomActionType.NoImpersonate) != 0;
 
-            if (hasNoImpersonate && !hasInScript)
-                result.AddWarning("CA005",
-                    $"Custom action '{ca.Id}' has NoImpersonate set but is not a deferred/rollback/commit action. NoImpersonate only applies to in-script actions.");
-        }
+        if (hasNoImpersonate && !hasInScript)
+            result.AddWarning("CA005",
+                $"Custom action '{ca.Id}' has NoImpersonate set but is not a deferred/rollback/commit action. NoImpersonate only applies to in-script actions.");
     }
 
     private static void ValidateRegistryEntries(IReadOnlyList<RegistryEntryModel> entries, ValidationResult result)
-    {
-        foreach (var entry in entries)
-        {
-            if (entry.Value is not string stringValue)
-                continue;
+        => ValidateCollection(entries, result, ValidateRegistryEntry);
 
-            foreach (var sensitiveProperty in FindSensitivePropertyReferences(stringValue))
-                result.AddWarning("REG007",
-                    $"Registry entry '{entry.Key}\\{entry.ValueName}' references property '[{sensitiveProperty}]' which appears to contain sensitive data. Sensitive values written to the registry are stored in plaintext and visible to any user or process with registry access. Consider using a Windows service account or DPAPI-protected storage instead.");
-        }
+    private static void ValidateRegistryEntry(RegistryEntryModel entry, ValidationResult result)
+    {
+        if (entry.Value is not string stringValue)
+            return;
+
+        foreach (var sensitiveProperty in FindSensitivePropertyReferences(stringValue))
+            result.AddWarning("REG007",
+                $"Registry entry '{entry.Key}\\{entry.ValueName}' references property '[{sensitiveProperty}]' which appears to contain sensitive data. Sensitive values written to the registry are stored in plaintext and visible to any user or process with registry access. Consider using a Windows service account or DPAPI-protected storage instead.");
     }
 
     private static IEnumerable<string> FindSensitivePropertyReferences(string value)
@@ -289,74 +304,78 @@ public static class ModelValidator
 
     private static void ValidateRemoveRegistryEntries(IReadOnlyList<RemoveRegistryModel> entries,
         ValidationResult result)
+        => ValidateCollection(entries, result, ValidateRemoveRegistryEntry);
+
+    private static void ValidateRemoveRegistryEntry(RemoveRegistryModel entry, ValidationResult result)
     {
-        foreach (var entry in entries)
-        {
-            if (string.IsNullOrWhiteSpace(entry.Id))
-                result.AddError("RRG001", "RemoveRegistry Id is required.");
+        if (string.IsNullOrWhiteSpace(entry.Id))
+            result.AddError("RRG001", "RemoveRegistry Id is required.");
 
-            if (string.IsNullOrWhiteSpace(entry.Key))
-                result.AddError("RRG002", $"RemoveRegistry '{entry.Id}' must have a Key.");
+        if (string.IsNullOrWhiteSpace(entry.Key))
+            result.AddError("RRG002", $"RemoveRegistry '{entry.Id}' must have a Key.");
 
-            if (entry.Action == RemoveRegistryAction.RemoveValue && string.IsNullOrWhiteSpace(entry.Name))
-                result.AddError("RRG003",
-                    $"RemoveRegistry '{entry.Id}' uses RemoveValue action but no Name specified.");
-        }
+        if (entry.Action == RemoveRegistryAction.RemoveValue && string.IsNullOrWhiteSpace(entry.Name))
+            result.AddError("RRG003",
+                $"RemoveRegistry '{entry.Id}' uses RemoveValue action but no Name specified.");
     }
 
     private static void ValidateRemoveFiles(IReadOnlyList<RemoveFileModel> removeFiles, ValidationResult result)
-    {
-        foreach (var rf in removeFiles)
-        {
-            if (string.IsNullOrWhiteSpace(rf.DirectoryRef))
-                result.AddError("RMF001", $"RemoveFile '{rf.Id}' must have a DirectoryRef.");
+        => ValidateCollection(removeFiles, result, ValidateRemoveFile);
 
-            if (!rf.OnInstall && !rf.OnUninstall)
-                result.AddError("RMF002",
-                    $"RemoveFile '{rf.Id}' must specify at least one of OnInstall or OnUninstall.");
-        }
+    private static void ValidateRemoveFile(RemoveFileModel rf, ValidationResult result)
+    {
+        if (string.IsNullOrWhiteSpace(rf.DirectoryRef))
+            result.AddError("RMF001", $"RemoveFile '{rf.Id}' must have a DirectoryRef.");
+
+        if (!rf.OnInstall && !rf.OnUninstall)
+            result.AddError("RMF002",
+                $"RemoveFile '{rf.Id}' must specify at least one of OnInstall or OnUninstall.");
     }
 
     private static void ValidateCreateFolders(IReadOnlyList<CreateFolderModel> createFolders, ValidationResult result)
+        => ValidateCollection(createFolders, result, ValidateCreateFolder);
+
+    private static void ValidateCreateFolder(CreateFolderModel cf, ValidationResult result)
     {
-        foreach (var cf in createFolders)
-            if (string.IsNullOrWhiteSpace(cf.DirectoryRef))
-                result.AddError("CRF001", $"CreateFolder '{cf.Id}' must have a DirectoryRef.");
+        if (string.IsNullOrWhiteSpace(cf.DirectoryRef))
+            result.AddError("CRF001", $"CreateFolder '{cf.Id}' must have a DirectoryRef.");
     }
 
     private static void ValidateMoveFiles(IReadOnlyList<MoveFileModel> moveFiles, ValidationResult result)
+        => ValidateCollection(moveFiles, result, ValidateMoveFile);
+
+    private static void ValidateMoveFile(MoveFileModel mf, ValidationResult result)
     {
-        foreach (var mf in moveFiles)
-        {
-            if (string.IsNullOrWhiteSpace(mf.SourceDirectory))
-                result.AddError("MVF001", $"MoveFile '{mf.Id}' must have a SourceDirectory.");
+        if (string.IsNullOrWhiteSpace(mf.SourceDirectory))
+            result.AddError("MVF001", $"MoveFile '{mf.Id}' must have a SourceDirectory.");
 
-            if (string.IsNullOrWhiteSpace(mf.SourceFileName))
-                result.AddError("MVF002", $"MoveFile '{mf.Id}' must have a SourceFileName.");
+        if (string.IsNullOrWhiteSpace(mf.SourceFileName))
+            result.AddError("MVF002", $"MoveFile '{mf.Id}' must have a SourceFileName.");
 
-            if (string.IsNullOrWhiteSpace(mf.DestDirectory))
-                result.AddError("MVF003", $"MoveFile '{mf.Id}' must have a DestDirectory.");
-        }
+        if (string.IsNullOrWhiteSpace(mf.DestDirectory))
+            result.AddError("MVF003", $"MoveFile '{mf.Id}' must have a DestDirectory.");
     }
 
     private static void ValidateDuplicateFiles(IReadOnlyList<DuplicateFileModel> duplicateFiles,
         ValidationResult result)
+        => ValidateCollection(duplicateFiles, result, ValidateDuplicateFile);
+
+    private static void ValidateDuplicateFile(DuplicateFileModel df, ValidationResult result)
     {
-        foreach (var df in duplicateFiles)
-            if (string.IsNullOrWhiteSpace(df.FileRef))
-                result.AddError("DPF001", $"DuplicateFile '{df.Id}' must have a FileRef.");
+        if (string.IsNullOrWhiteSpace(df.FileRef))
+            result.AddError("DPF001", $"DuplicateFile '{df.Id}' must have a FileRef.");
     }
 
     private static void ValidateServiceControls(IReadOnlyList<ServiceControlModel> controls, ValidationResult result)
-    {
-        foreach (var control in controls)
-        {
-            if (string.IsNullOrWhiteSpace(control.ServiceName))
-                result.AddError("SCT001", $"ServiceControl '{control.Id}' must have a ServiceName.");
+        => ValidateCollection(controls, result, ValidateServiceControl);
 
-            if (control.Events == ServiceControlEvent.None)
-                result.AddError("SCT002", $"ServiceControl '{control.Id}' must have at least one event specified.");
-        }
+    private static void ValidateServiceControl(ServiceControlModel control, ValidationResult result)
+    {
+        if (string.IsNullOrWhiteSpace(control.ServiceName))
+            result.AddError("SCT001", $"ServiceControl '{control.Id}' must have a ServiceName.");
+
+        if (control.Events == ServiceControlEvent.None)
+            result.AddError("SCT002", $"ServiceControl '{control.Id}' must have at least one event specified.");
     }
 
     private static void ValidateServiceDependencies(IReadOnlyList<ServiceModel> services, ValidationResult result)
@@ -454,20 +473,20 @@ public static class ModelValidator
     }
 
     private static void ValidateAssemblies(IReadOnlyList<AssemblyModel> assemblies, ValidationResult result)
+        => ValidateCollection(assemblies, result, ValidateAssembly);
+
+    private static void ValidateAssembly(AssemblyModel assembly, ValidationResult result)
     {
-        foreach (var assembly in assemblies)
-        {
-            if (string.IsNullOrWhiteSpace(assembly.FileRef))
-                result.AddError("ASM001", "Assembly FileRef is required.");
+        if (string.IsNullOrWhiteSpace(assembly.FileRef))
+            result.AddError("ASM001", "Assembly FileRef is required.");
 
-            if (assembly.ApplicationFileRef is null && string.IsNullOrWhiteSpace(assembly.AssemblyPublicKeyToken))
-                result.AddWarning("ASM002", $"GAC assembly '{assembly.FileRef}' should have a PublicKeyToken.");
+        if (assembly.ApplicationFileRef is null && string.IsNullOrWhiteSpace(assembly.AssemblyPublicKeyToken))
+            result.AddWarning("ASM002", $"GAC assembly '{assembly.FileRef}' should have a PublicKeyToken.");
 
-            if (!string.IsNullOrEmpty(assembly.AssemblyVersion) &&
-                !AssemblyVersionRegex.IsMatch(assembly.AssemblyVersion))
-                result.AddError("ASM003",
-                    $"Assembly '{assembly.FileRef}' has invalid version format '{assembly.AssemblyVersion}'. Expected format: x.x.x.x.");
-        }
+        if (!string.IsNullOrEmpty(assembly.AssemblyVersion) &&
+            !AssemblyVersionRegex.IsMatch(assembly.AssemblyVersion))
+            result.AddError("ASM003",
+                $"Assembly '{assembly.FileRef}' has invalid version format '{assembly.AssemblyVersion}'. Expected format: x.x.x.x.");
     }
 
     private static void ValidateMediaTemplate(MediaTemplateModel? mediaTemplate, ValidationResult result)
