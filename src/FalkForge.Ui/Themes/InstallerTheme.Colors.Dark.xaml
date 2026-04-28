@@ -1,0 +1,49 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        InstallerTheme.Colors.Dark.xaml — Windows 11 Fluent dark-mode palette.
+        All brush keys consumed by InstallerTheme.xaml structural templates.
+        Merged at runtime by App.xaml.cs via ThemeDetector.
+    -->
+
+    <!-- Window and surface -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#202020" />
+    <SolidColorBrush x:Key="SurfaceBrush"          Color="#2D2D2D" />
+    <SolidColorBrush x:Key="BorderBrush"            Color="#454545" />
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="PrimaryTextBrush"  Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SubtleTextBrush"   Color="#9E9E9E" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="#5A5A5A" />
+
+    <!-- Accent (slightly brighter in dark context) -->
+    <SolidColorBrush x:Key="AccentBrush"                    Color="#0078D4" />
+    <SolidColorBrush x:Key="AccentForegroundBrush"          Color="#FFFFFF" />
+    <SolidColorBrush x:Key="AccentHoverBrush"               Color="#1084D8" />
+    <SolidColorBrush x:Key="AccentPressedBrush"             Color="#006CBD" />
+    <SolidColorBrush x:Key="AccentDisabledBrush"            Color="#1F4E79" />
+    <SolidColorBrush x:Key="AccentDisabledForegroundBrush"  Color="#6BAAD4" />
+
+    <!-- Secondary button states -->
+    <SolidColorBrush x:Key="ButtonHoverBrush"    Color="#3A3A3A" />
+    <SolidColorBrush x:Key="ButtonPressedBrush"  Color="#444444" />
+    <SolidColorBrush x:Key="DisabledBorderBrush" Color="#3A3A3A" />
+
+    <!-- Semantic -->
+    <SolidColorBrush x:Key="SuccessTextBrush" Color="#6CCB5F" />
+    <SolidColorBrush x:Key="ErrorTextBrush"   Color="#FC99A0" />
+    <SolidColorBrush x:Key="ErrorBorderBrush" Color="#D25057" />
+
+    <!-- TextBox states -->
+    <SolidColorBrush x:Key="TextBoxReadOnlyBrush" Color="#272727" />
+    <SolidColorBrush x:Key="TextBoxDisabledBrush" Color="#252525" />
+
+    <!-- CheckBox checkmark stroke (white on accent fill) -->
+    <SolidColorBrush x:Key="CheckmarkStrokeBrush" Color="#FFFFFF" />
+
+    <!-- Exterior page watermark panel (left 180px) and banner icon -->
+    <SolidColorBrush x:Key="WatermarkBrush"  Color="#1A1A1A" />
+    <SolidColorBrush x:Key="BannerIconBrush" Color="#0078D4" />
+
+</ResourceDictionary>

@@ -3,38 +3,51 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <DockPanel>
         <!-- Banner -->
-        <Border DockPanel.Dock="Top" Height="59"
-                Background="White" BorderThickness="0,0,0,1" BorderBrush="#A0A0A0">
+        <Border DockPanel.Dock="Top"
+                Height="72"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource BorderBrush}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Title}" Style="{StaticResource BannerTitle}" />
-                    <TextBlock Text="{Binding Description}" Style="{StaticResource BannerSubtitle}" />
+                    <TextBlock Text="{Binding Title}"       Style="{DynamicResource BannerTitle}" />
+                    <TextBlock Text="{Binding Description}" Style="{DynamicResource BannerSubtitle}" />
                 </StackPanel>
-                <Grid Grid.Column="1" Width="49" Height="49" Margin="0,0,8,0">
-                    <Rectangle Fill="{DynamicResource BannerIconBrush}" />
-                    <Image Source="{DynamicResource BannerIconImage}" Stretch="Fill" />
-                </Grid>
+
+                <Border Grid.Column="1"
+                        Width="44" Height="44"
+                        CornerRadius="6"
+                        Margin="0,0,14,0"
+                        ClipToBounds="True">
+                    <Grid>
+                        <Rectangle Fill="{DynamicResource BannerIconBrush}" />
+                        <Image Source="{DynamicResource BannerIconImage}" Stretch="Fill" />
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
 
         <!-- Content -->
-        <StackPanel Margin="20,16,16,16">
+        <StackPanel Margin="24,20,20,18">
             <ProgressBar Minimum="0"
                          Maximum="{Binding ProgressTotal}"
                          Value="{Binding ProgressCurrent, Mode=OneWay}"
-                         Height="20"
-                         Margin="0,0,0,10" />
+                         Margin="0,0,0,14" />
 
             <TextBlock Text="{Binding CurrentPackage}"
-                       FontSize="9"
-                       Margin="0,0,0,4" />
+                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                       FontSize="13"
+                       Foreground="{DynamicResource PrimaryTextBrush}"
+                       Margin="0,0,0,6" />
             <TextBlock Text="{Binding StatusText}"
-                       FontSize="9"
-                       Foreground="Gray" />
+                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                       FontSize="12"
+                       Foreground="{DynamicResource SubtleTextBrush}" />
         </StackPanel>
     </DockPanel>
 </UserControl>

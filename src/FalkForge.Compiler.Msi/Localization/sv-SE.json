@@ -38,5 +38,13 @@
   "Button.UpdateNow": "&Uppdatera nu",
   "Button.UpdateLater": "&Senare",
   "Dialog.Update.Title": "Uppdatering tillgänglig",
-  "Dialog.Update.Description": "En nyare version ({0}) finns tillgänglig. Vill du uppdatera nu?"
+  "Dialog.Update.Description": "En nyare version ({0}) finns tillgänglig. Vill du uppdatera nu?",
+  "Dialog.Cancel.Text": "Är du säker på att du vill avbryta installationen av [ProductName]?",
+  "Dialog.Browse.Title": "Ändra målmapp",
+  "Dialog.Browse.PathLabel": "Titta i:",
+  "Button.Yes": "&Ja",
+  "Button.No": "&Nej",
+  "Button.OK": "OK",
+  "Button.Up": "&Upp",
+  "Button.NewFolder": "&Ny mapp"
 }

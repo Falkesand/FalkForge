@@ -38,5 +38,13 @@
   "Button.UpdateNow": "&Update Now",
   "Button.UpdateLater": "&Later",
   "Dialog.Update.Title": "Update Available",
-  "Dialog.Update.Description": "A newer version ({0}) is available. Would you like to update now?"
+  "Dialog.Update.Description": "A newer version ({0}) is available. Would you like to update now?",
+  "Dialog.Cancel.Text": "Are you sure you want to cancel [ProductName] installation?",
+  "Dialog.Browse.Title": "Change Current Destination Folder",
+  "Dialog.Browse.PathLabel": "Look in:",
+  "Button.Yes": "&Yes",
+  "Button.No": "&No",
+  "Button.OK": "OK",
+  "Button.Up": "&Up",
+  "Button.NewFolder": "&New Folder"
 }

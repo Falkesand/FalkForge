@@ -8,17 +8,17 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="164" />
+            <ColumnDefinition Width="180" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- Watermark panel -->
+        <!-- Dark accent panel -->
         <Grid Grid.Column="0" Background="{DynamicResource WatermarkBrush}">
             <Image Source="{DynamicResource WatermarkImage}" Stretch="Fill" />
         </Grid>
 
         <!-- Content panel -->
-        <DockPanel Grid.Column="1" Margin="20,16,16,16">
+        <DockPanel Grid.Column="1" Margin="24,20,20,20">
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Title}"
                        Style="{DynamicResource ExteriorTitle}" />
@@ -26,16 +26,19 @@
                        Text="{Binding Description}"
                        Style="{DynamicResource ExteriorDescription}" />
 
-            <!-- Buttons at the bottom -->
+            <!-- Action buttons at bottom -->
             <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
                 <Button Content="Update Now"
                         Command="{Binding UpdateNowCommand}"
-                        Width="100" Height="26"
-                        HorizontalAlignment="Left"
-                        Margin="0,0,0,6" />
+                        Style="{DynamicResource WizardButtonPrimary}"
+                        Width="120"
+                        Margin="0,0,0,8"
+                        HorizontalAlignment="Left" />
                 <Button Content="Later"
                         Command="{Binding LaterCommand}"
-                        Width="100" Height="26"
+                        Style="{DynamicResource WizardButton}"
+                        Width="120"
+                        Margin="0"
                         HorizontalAlignment="Left" />
             </StackPanel>
 
@@ -45,7 +48,8 @@
                           HorizontalScrollBarVisibility="Disabled">
                 <TextBlock Text="{Binding ReleaseNotes}"
                            TextWrapping="Wrap"
-                           FontSize="12"
+                           FontFamily="Segoe UI Variable Text, Segoe UI"
+                           FontSize="13"
                            Foreground="{DynamicResource SubtleTextBrush}" />
             </ScrollViewer>
         </DockPanel>

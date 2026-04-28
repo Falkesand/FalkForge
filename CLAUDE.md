@@ -234,3 +234,86 @@ FalkForge.Decompiler{,.TableReaders}         MSI/Bundle decompiler
 FalkForge.Cli{,.Commands,.Models,.Settings}  CLI tool
 FalkForge.Sdk                                MSBuild SDK (netstandard2.0)
 ```
+
+## Communication Mode
+
+Default to caveman mode for user-facing chat text (invoked via `Skill: caveman`). Caveman applies to chat responses, status updates, subagent prompts and subagent final reports, TodoWrite items, end-of-turn summaries. It does NOT apply to file content: source code, comments, commit messages, PR descriptions, docs, tests, XML doc, or CLAUDE.md edits — those stay normal English. Default intensity `full`; use `ultra` for long status dumps; use `lite` only if user pushes back on readability.
+
+Subagent dispatches MUST include this propagation line:
+> COMMUNICATION: Invoke the `caveman` skill before your final report. Return your final message in caveman `full` mode. File contents (code, commits, docs) stay in normal English — caveman applies only to chat text.
+
+## HARD LIMITS — Non-Negotiable Gates
+
+Violating any gate means STOP, undo, and redo correctly.
+
+### GATE 1: TDD — Test Before Code, Always
+
+**No production code without a failing test first.**
+
+1. **RED** — Write failing test. Run it. Confirm fail. Commit: `test: <description>`
+2. **GREEN** — Minimal implementation to pass. Confirm pass. Commit: `feat/fix: <description>`
+3. **REFACTOR** — Clean up. All tests green. Commit: `refactor: <description>`
+
+Hard violations (STOP and redo):
+- Implementation before failing test → DELETE it, test first
+- Test + implementation in same commit → SPLIT into two commits
+- Skipping "confirm RED" → RUN it, see it fail
+- Plan step combining "write test + implement" → SPLIT into two steps
+
+Applies to: bug fixes, features, behavior-changing refactors, new classes/methods.
+Does NOT apply to: XAML-only cosmetic changes, config files, docs.
+
+### GATE 2: Full Solution Build After Every File Edit
+
+After every .cs or .xaml edit, `dotnet build <solution>.slnx`. Not the project — the solution.
+- Fix failures IMMEDIATELY before touching another file
+- Do not batch edits hoping they'll "work together"
+- Zero warnings policy
+- After build succeeds: `csharp-roslyn` MCP → `get_diagnostics` on changed files
+
+### GATE 3: All Tests Must Pass Before Any Commit
+
+`dotnet test <solution>.slnx` before every commit. No `--filter`, no exceptions.
+
+### GATE 4: Code Review Before Every Commit
+
+Run `superpowers:code-reviewer` with two models (Opus + Sonnet). Both approve.
+
+### GATE 5: Security & Quality Audit Before Every Commit
+
+In order: `roslynator` → `quickdup` → OWASP scan (injection, secrets, deserialization, SSRF) → Performance review (heap allocs, N+1, blocking async, disposal, unbounded collections).
+
+### GATE 6: Memory Efficiency — Zero-Waste Code
+
+Code must be readable AND allocation-efficient:
+- `stackalloc` for small fixed buffers (<1KB) in sync methods
+- `Span<T>`/`ReadOnlySpan<T>` for slicing/parsing instead of substrings
+- `Memory<T>` when data crosses async boundaries
+- `ArrayPool<T>.Shared` for temp arrays
+- `StringBuilder` in loops, never `+=`
+- `ValueTask<T>` for hot async paths completing synchronously
+- `struct` records for small immutable value types
+- Avoid LINQ in hot paths (allocates enumerators/delegates)
+- Avoid closures in hot paths (captured variables allocate)
+- `FrozenDictionary`/`FrozenSet` for read-only lookup tables
+
+If optimization reduces readability, add a one-line comment explaining WHY.
+
+## Commit Sequence — The Full Pipeline
+
+Execute IN ORDER. If any step fails, fix and restart from step 1.
+
+```
+1. dotnet build <solution>.slnx              → zero errors/warnings
+2. dotnet test <solution>.slnx --logger trx  → all pass
+3. csharp-roslyn: get_diagnostics            → clean
+4. csharp-roslyn: analyze_change_impact      → review blast radius
+5. jb inspectcode (if XAML changed)          → clean
+6. roslynator                                → clean
+7. quickdup                                  → no new duplication
+8. superpowers:code-reviewer (Opus)          → approved
+9. superpowers:code-reviewer (Sonnet)        → approved
+10. Security audit (OWASP checklist)         → no findings
+11. git commit                               → only after ALL above pass
+```
+

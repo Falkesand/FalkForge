@@ -1,4 +1,5 @@
 using System.Windows;
+using FalkForge.Ui.Themes;
 
 namespace FalkForge.Ui;
 
@@ -13,7 +14,20 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        MergeColorDictionary(ThemeDetector.DetectFromSystem());
         RequestedAction = ParseCommandLineAction(e.Args);
+    }
+
+    private void MergeColorDictionary(InstallerColorTheme theme)
+    {
+        var uri = theme switch
+        {
+            InstallerColorTheme.Dark          => new Uri("Themes/InstallerTheme.Colors.Dark.xaml", UriKind.Relative),
+            InstallerColorTheme.HighContrast  => new Uri("Themes/InstallerTheme.Colors.HighContrast.xaml", UriKind.Relative),
+            _                                 => new Uri("Themes/InstallerTheme.Colors.Light.xaml", UriKind.Relative),
+        };
+
+        Resources.MergedDictionaries.Add(new ResourceDictionary { Source = uri });
     }
 
     internal static InstallAction? ParseCommandLineAction(string[] args)

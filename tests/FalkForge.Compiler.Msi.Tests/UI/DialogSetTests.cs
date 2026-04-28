@@ -105,7 +105,7 @@ public sealed class DialogSetTests
             using var db = OpenMsi(msiPath);
             var rows = db.QueryRows("SELECT `Dialog` FROM `Dialog`", 1);
             Assert.True(rows.IsSuccess, FailMsg(rows));
-            Assert.Equal(5, rows.Value.Count); // Welcome, License, InstallDir, Progress, Exit
+            Assert.Equal(7, rows.Value.Count); // Welcome, License, InstallDir, Progress, Exit, CancelDlg, BrowseDlg
         }
         finally
         {
