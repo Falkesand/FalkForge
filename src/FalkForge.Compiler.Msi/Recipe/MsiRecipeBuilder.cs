@@ -1,4 +1,7 @@
 using System.Collections.Immutable;
+using System.Text;
+using FalkForge.Compiler.Msi.Recipe.Producers;
+using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Extensibility;
 
 namespace FalkForge.Compiler.Msi.Recipe;
@@ -7,19 +10,18 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Pure function that turns a <see cref="ResolvedPackage"/> plus any extension
 /// table contributors into an immutable <see cref="MsiDatabaseRecipe"/>.
 ///
-/// Phase 3 ships an empty pipeline: no producers run, no tables are emitted,
-/// no streams are registered. The skeleton exists so phase 4+ can plug in
-/// individual <see cref="ITableProducer"/> implementations against a stable
-/// public surface and a tested orchestration shell.
+/// Phase 4 wires in the first batch of built-in producers (Property, Directory,
+/// Component, File, Feature). Each producer emits one <see cref="RecipeTable"/>
+/// — even when the source data is empty — so downstream phases can rely on a
+/// stable table set. Pruning of empty tables is deliberately deferred.
 /// </summary>
 public static class MsiRecipeBuilder
 {
     /// <summary>
     /// Build a recipe from the resolved package, extension contributors, and
     /// build options. Returns <see cref="ErrorKind.Validation"/> failure for
-    /// any null argument; otherwise returns a success result wrapping a recipe
-    /// with empty tables, an empty stream dictionary, an empty sequencing
-    /// array, default zero-valued summary info, and an empty content hash.
+    /// any null argument; otherwise runs the built-in producer pipeline in a
+    /// fixed order and aggregates the resulting tables.
     /// </summary>
     public static Result<MsiDatabaseRecipe> Build(
         ResolvedPackage resolved,
@@ -47,10 +49,49 @@ public static class MsiRecipeBuilder
                 "Options cannot be null.");
         }
 
-        // Phase 3: empty pipeline. Real producers wire in later phases via
-        // RecipeBuildContext + ITableProducer; for now the builder validates
-        // inputs and returns a structurally-valid empty recipe so downstream
-        // executor scaffolding can be developed in parallel.
+        RecipeBuildContext context = new(
+            resolved,
+            options,
+            new NoOpFileSequencer(),
+            new DictionaryStreamRegistry());
+
+        // Fixed producer order. The order matches the natural foreign-key
+        // dependency direction (Directory before Component, Component before
+        // File, Feature last) so future cross-producer FK validators can rely
+        // on referenced tables being present in BuiltTables.
+        ITableProducer[] producers =
+        {
+            new PropertyTableProducer(),
+            new DirectoryTableProducer(),
+            new ComponentTableProducer(),
+            new FileTableProducer(),
+            new FeatureTableProducer(),
+        };
+
+        ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);
+        foreach (ITableProducer producer in producers)
+        {
+            Result<ImmutableArray<RecipeRow>> producerResult = producer.Produce(context);
+            if (producerResult.IsFailure)
+            {
+                return Result<MsiDatabaseRecipe>.Failure(producerResult.Error);
+            }
+
+            ImmutableArray<RecipeRow> rows = producerResult.Value;
+            context.AddBuiltTable(producer.Schema.Name, rows);
+
+            RecipeTable table = new()
+            {
+                Name = producer.Schema.Name,
+                Columns = producer.Schema.Columns,
+                Rows = rows,
+                PrimaryKey = producer.Schema.PrimaryKey,
+                CreateTableSql = LookupCreateTableSql(producer.Schema.Name),
+                InsertViewSql = BuildInsertViewSql(producer.Schema),
+            };
+            tableBuilder.Add(table);
+        }
+
         SummaryInfoRecipe summaryInfo = new()
         {
             Title = string.Empty,
@@ -65,7 +106,7 @@ public static class MsiRecipeBuilder
 
         MsiDatabaseRecipe recipe = new()
         {
-            Tables = ImmutableArray<RecipeTable>.Empty,
+            Tables = tableBuilder.MoveToImmutable(),
             SummaryInfo = summaryInfo,
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
@@ -74,5 +115,44 @@ public static class MsiRecipeBuilder
         };
 
         return Result<MsiDatabaseRecipe>.Success(recipe);
+    }
+
+    private static string LookupCreateTableSql(TableId table)
+    {
+        // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships only the
+        // five tables emitted by the first producer batch; later phases will
+        // either extend this lookup or migrate to a contributor-driven map.
+        return table.Value switch
+        {
+            "Property" => MsiTableDefinitions.CreatePropertyTable,
+            "Directory" => MsiTableDefinitions.CreateDirectoryTable,
+            "Component" => MsiTableDefinitions.CreateComponentTable,
+            "File" => MsiTableDefinitions.CreateFileTable,
+            "Feature" => MsiTableDefinitions.CreateFeatureTable,
+            _ => throw new InvalidOperationException(
+                $"No CREATE TABLE SQL registered for table '{table.Value}'."),
+        };
+    }
+
+    private static string BuildInsertViewSql(TableSchema schema)
+    {
+        // Mirrors the SQL string TableEmitter passes to MsiDatabase.InsertRow:
+        //   "SELECT `c1`, `c2` FROM `Table`"
+        // Identifiers are validated at TableId/RecipeColumn construction so
+        // direct interpolation is safe.
+        StringBuilder builder = new("SELECT ");
+        ImmutableArray<RecipeColumn> columns = schema.Columns;
+        for (int i = 0; i < columns.Length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(", ");
+            }
+
+            builder.Append('`').Append(columns[i].Name).Append('`');
+        }
+
+        builder.Append(" FROM `").Append(schema.Name.Value).Append('`');
+        return builder.ToString();
     }
 }
