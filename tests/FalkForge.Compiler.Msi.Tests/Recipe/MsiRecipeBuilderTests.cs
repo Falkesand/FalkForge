@@ -59,15 +59,24 @@ public sealed class MsiRecipeBuilderTests
     }
 
     [Fact]
-    public void Build_empty_pipeline_emits_empty_tables()
+    public void Build_empty_pipeline_emits_built_in_tables_with_no_rows()
     {
+        // Phase 4 wires in five built-in producers (Property/Directory/Component/
+        // File/Feature). With an empty resolved package each producer emits zero
+        // rows but the table itself is still present so downstream phases see a
+        // stable table set. The recipe's Tables array therefore contains five
+        // tables, not zero.
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
             new List<IMsiTableContributor>(),
             new MsiRecipeBuildOptions()).Value;
 
-        Assert.True(recipe.Tables.IsEmpty);
         Assert.False(recipe.Tables.IsDefault);
+        Assert.Equal(5, recipe.Tables.Length);
+        foreach (RecipeTable table in recipe.Tables)
+        {
+            Assert.True(table.Rows.IsEmpty);
+        }
     }
 
     [Fact]
