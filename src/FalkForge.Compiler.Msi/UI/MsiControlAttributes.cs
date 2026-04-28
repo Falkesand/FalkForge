@@ -35,4 +35,7 @@ internal enum MsiControlAttributes
     RemovableMedia = 0x00010000,
     FixedMedia = 0x00020000,
     RemoteMedia = 0x00040000,
+
+    // Icon control
+    FixedSize = 0x00100000,
 }

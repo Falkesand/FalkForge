@@ -136,6 +136,25 @@ internal static class SharedDialogBuilders
                     Argument = DialogNames.Cancel,
                     Ordering = 1
                 }
+            ],
+            EventMappings =
+            [
+                // Bind ProgressBar to SetProgress event so it tracks installation progress
+                new MsiEventMappingModel
+                {
+                    DialogName = dlg,
+                    ControlName = "ProgressBar",
+                    Event = "SetProgress",
+                    Attribute = "Progress"
+                },
+                // Bind ActionText to ActionText event so it shows current install action
+                new MsiEventMappingModel
+                {
+                    DialogName = dlg,
+                    ControlName = "ActionText",
+                    Event = "ActionText",
+                    Attribute = "Text"
+                }
             ]
         };
     }
@@ -396,7 +415,7 @@ internal static class SharedDialogBuilders
                 Name = "Folder",
                 Type = MsiControlType.PathEdit,
                 X = 20, Y = 80, Width = 260, Height = 18,
-                Property = "WIXUI_INSTALLDIR",
+                Property = "INSTALLDIR",
                 NextControl = "ChangeFolder"
             },
             new MsiControlModel
@@ -450,13 +469,31 @@ internal static class SharedDialogBuilders
             Controls = controls,
             Events =
             [
+                // Set _BrowseProperty to INSTALLDIR before spawning BrowseDlg
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "ChangeFolder",
+                    Event = MsiControlEvent.SetProperty("_BrowseProperty"),
+                    Argument = "[INSTALLDIR]",
+                    Ordering = 1
+                },
                 new MsiControlEventModel
                 {
                     DialogName = dlg,
                     ControlName = "ChangeFolder",
                     Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Browse,
-                    Ordering = 1
+                    Ordering = 2
+                },
+                // Copy _BrowseProperty back to INSTALLDIR after dialog returns
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "ChangeFolder",
+                    Event = MsiControlEvent.SetProperty("INSTALLDIR"),
+                    Argument = "[_BrowseProperty]",
+                    Ordering = 3
                 },
                 new MsiControlEventModel
                 {
@@ -470,8 +507,8 @@ internal static class SharedDialogBuilders
                 {
                     DialogName = dlg,
                     ControlName = "Next",
-                    Event = MsiControlEvent.NewDialog,
-                    Argument = DialogNames.Progress,
+                    Event = MsiControlEvent.EndDialog,
+                    Argument = "Return",
                     Ordering = 1
                 },
                 new MsiControlEventModel
@@ -790,6 +827,190 @@ internal static class SharedDialogBuilders
                     ControlName = "Cancel",
                     Event = MsiControlEvent.SpawnDialog,
                     Argument = DialogNames.Cancel,
+                    Ordering = 1
+                }
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Builds the Cancel confirmation dialog. This dialog is spawned when the user clicks
+    /// Cancel on any wizard page, asking for confirmation before aborting the install.
+    /// </summary>
+    internal static MsiDialogModel BuildCancelDlg()
+    {
+        var dlg = DialogNames.Cancel;
+        return new MsiDialogModel
+        {
+            Name = dlg,
+            Title = "[ProductName] Setup",
+            Width = 260,
+            Height = 85,
+            HCentering = 50,
+            VCentering = 50,
+            Attributes = MsiDialogAttributes.Visible | MsiDialogAttributes.Modal,
+            FirstControl = "No",
+            DefaultControl = "No",
+            CancelControl = "No",
+            Controls =
+            [
+                new MsiControlModel
+                {
+                    Name = "Text",
+                    Type = MsiControlType.Text,
+                    X = 48, Y = 15, Width = 194, Height = 30,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
+                    Text = "!(loc.Dialog.Cancel.Text)"
+                },
+                new MsiControlModel
+                {
+                    Name = "Yes",
+                    Type = MsiControlType.PushButton,
+                    X = 72, Y = 57, Width = 56, Height = 17,
+                    Text = "!(loc.Button.Yes)",
+                    NextControl = "No"
+                },
+                new MsiControlModel
+                {
+                    Name = "No",
+                    Type = MsiControlType.PushButton,
+                    X = 132, Y = 57, Width = 56, Height = 17,
+                    Text = "!(loc.Button.No)",
+                    NextControl = "Yes"
+                }
+            ],
+            Events =
+            [
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "Yes",
+                    Event = MsiControlEvent.EndDialog,
+                    Argument = "Exit",
+                    Ordering = 1
+                },
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "No",
+                    Event = MsiControlEvent.EndDialog,
+                    Argument = "Return",
+                    Ordering = 1
+                }
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Builds the Browse dialog for folder selection. This dialog is spawned when the user
+    /// clicks "Change..." on the InstallDir dialog to select a different install location.
+    /// </summary>
+    internal static MsiDialogModel BuildBrowseDlg()
+    {
+        var dlg = DialogNames.Browse;
+        return new MsiDialogModel
+        {
+            Name = dlg,
+            Title = "!(loc.Dialog.Browse.Title)",
+            Width = 240,
+            Height = 281,
+            HCentering = 50,
+            VCentering = 50,
+            Attributes = MsiDialogAttributes.Visible | MsiDialogAttributes.Modal,
+            FirstControl = "DirectoryList",
+            DefaultControl = "OK",
+            CancelControl = "Cancel",
+            Controls =
+            [
+                new MsiControlModel
+                {
+                    Name = "PathLabel",
+                    Type = MsiControlType.Text,
+                    X = 10, Y = 6, Width = 220, Height = 10,
+                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent,
+                    Text = "!(loc.Dialog.Browse.PathLabel)"
+                },
+                new MsiControlModel
+                {
+                    Name = "PathEdit",
+                    Type = MsiControlType.PathEdit,
+                    X = 10, Y = 18, Width = 220, Height = 18,
+                    Property = "_BrowseProperty",
+                    NextControl = "DirectoryList"
+                },
+                new MsiControlModel
+                {
+                    Name = "DirectoryList",
+                    Type = MsiControlType.DirectoryList,
+                    X = 10, Y = 40, Width = 220, Height = 180,
+                    Property = "_BrowseProperty",
+                    NextControl = "Up"
+                },
+                new MsiControlModel
+                {
+                    Name = "Up",
+                    Type = MsiControlType.PushButton,
+                    X = 10, Y = 225, Width = 56, Height = 17,
+                    Text = "!(loc.Button.Up)",
+                    NextControl = "NewFolder"
+                },
+                new MsiControlModel
+                {
+                    Name = "NewFolder",
+                    Type = MsiControlType.PushButton,
+                    X = 70, Y = 225, Width = 80, Height = 17,
+                    Text = "!(loc.Button.NewFolder)",
+                    NextControl = "OK"
+                },
+                new MsiControlModel
+                {
+                    Name = "OK",
+                    Type = MsiControlType.PushButton,
+                    X = 120, Y = 255, Width = 56, Height = 17,
+                    Text = "!(loc.Button.OK)",
+                    NextControl = "Cancel"
+                },
+                new MsiControlModel
+                {
+                    Name = "Cancel",
+                    Type = MsiControlType.PushButton,
+                    X = 180, Y = 255, Width = 56, Height = 17,
+                    Text = "!(loc.Button.Cancel)",
+                    NextControl = "PathEdit"
+                }
+            ],
+            Events =
+            [
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "Up",
+                    Event = MsiControlEvent.DirectoryListUp,
+                    Argument = "0",
+                    Ordering = 1
+                },
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "NewFolder",
+                    Event = MsiControlEvent.DirectoryListNew,
+                    Argument = "0",
+                    Ordering = 1
+                },
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "OK",
+                    Event = MsiControlEvent.EndDialog,
+                    Argument = "Return",
+                    Ordering = 1
+                },
+                new MsiControlEventModel
+                {
+                    DialogName = dlg,
+                    ControlName = "Cancel",
+                    Event = MsiControlEvent.EndDialog,
+                    Argument = "Return",
                     Ordering = 1
                 }
             ]

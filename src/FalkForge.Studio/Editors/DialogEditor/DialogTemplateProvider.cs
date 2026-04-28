@@ -72,7 +72,7 @@ internal static class DialogTemplateProvider
             [
                 new DialogControlDefinition { Type = DialogControlType.Text, X = 15, Y = 6, Width = 200, Height = 15, Text = "Installation Folder" },
                 new DialogControlDefinition { Type = DialogControlType.Text, X = 25, Y = 23, Width = 280, Height = 15, Text = "Choose the folder to install to." },
-                new DialogControlDefinition { Type = DialogControlType.PathEdit, X = 20, Y = 80, Width = 260, Height = 18, Property = "WIXUI_INSTALLDIR" },
+                new DialogControlDefinition { Type = DialogControlType.PathEdit, X = 20, Y = 80, Width = 260, Height = 18, Property = "INSTALLDIR" },
                 new DialogControlDefinition { Type = DialogControlType.PushButton, X = 284, Y = 80, Width = 56, Height = 17, Text = "Change..." },
                 new DialogControlDefinition { Type = DialogControlType.Line, X = 0, Y = 234, Width = 370, Height = 0 },
                 new DialogControlDefinition { Type = DialogControlType.PushButton, X = 180, Y = 243, Width = 56, Height = 17, Text = "Back" },

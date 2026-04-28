@@ -246,6 +246,20 @@ internal sealed class DialogEmitter
                 return result;
         }
 
+        // EventMapping table rows
+        foreach (var mapping in dialog.EventMappings)
+        {
+            result = _database.InsertRow(
+                "SELECT `Dialog_`, `Control_`, `Event`, `Attribute` FROM `EventMapping`",
+                record => record
+                    .SetString(1, mapping.DialogName)
+                    .SetString(2, mapping.ControlName)
+                    .SetString(3, mapping.Event)
+                    .SetString(4, mapping.Attribute));
+            if (result.IsFailure)
+                return result;
+        }
+
         return Unit.Value;
     }
 
@@ -271,6 +285,56 @@ internal sealed class DialogEmitter
                     .SetString(1, action)
                     .SetString(2, condition ?? "")
                     .SetInteger(3, sequence));
+            if (result.IsFailure)
+                return result;
+        }
+
+        // Add specific dialogs to the sequence:
+        // 1. First wizard dialog (entry point) — users navigate by sequence (EndDialog Return) or NewDialog
+        // 2. ProgressDlg (at 1200, before ExecuteAction at 1300) — shows install progress
+        // 3. ExitDlg (at 1310, after ExecuteAction completes)
+        // Support dialogs (CancelDlg, BrowseDlg) are spawned, not sequenced.
+        var supportDialogs = new HashSet<string> { DialogNames.Cancel, DialogNames.Browse };
+        var firstDialog = dialogs.FirstOrDefault(d =>
+            !supportDialogs.Contains(d.Name) &&
+            d.Name != DialogNames.Progress &&
+            d.Name != DialogNames.Exit);
+        var exitDialog = dialogs.FirstOrDefault(d => d.Name == DialogNames.Exit);
+
+        if (firstDialog is not null)
+        {
+            var result = _database.InsertRow(
+                "SELECT `Action`, `Condition`, `Sequence` FROM `InstallUISequence`",
+                record => record
+                    .SetString(1, firstDialog.Name)
+                    .SetString(2, "")
+                    .SetInteger(3, 1100));
+            if (result.IsFailure)
+                return result;
+        }
+
+        var progressDialog = dialogs.FirstOrDefault(d => d.Name == DialogNames.Progress);
+        if (progressDialog is not null)
+        {
+            var result = _database.InsertRow(
+                "SELECT `Action`, `Condition`, `Sequence` FROM `InstallUISequence`",
+                record => record
+                    .SetString(1, progressDialog.Name)
+                    .SetString(2, "")
+                    .SetInteger(3, 1200));
+            if (result.IsFailure)
+                return result;
+        }
+
+        if (exitDialog is not null)
+        {
+            // ExitDlg shows after ExecuteAction completes
+            var result = _database.InsertRow(
+                "SELECT `Action`, `Condition`, `Sequence` FROM `InstallUISequence`",
+                record => record
+                    .SetString(1, exitDialog.Name)
+                    .SetString(2, "")
+                    .SetInteger(3, 1310));
             if (result.IsFailure)
                 return result;
         }

@@ -15,7 +15,10 @@ internal sealed class InstallDirDialogTemplate : IDialogTemplate
                 includeDescription: true),
             SharedDialogBuilders.BuildInstallDirDlg(backDialog: DialogNames.LicenseAgreement),
             SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: true),
-            SharedDialogBuilders.BuildExitDlg()
+            SharedDialogBuilders.BuildExitDlg(),
+            // Support dialogs (spawned by other dialogs, not in sequence)
+            SharedDialogBuilders.BuildCancelDlg(),
+            SharedDialogBuilders.BuildBrowseDlg()
         ];
     }
 }

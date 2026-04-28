@@ -22,6 +22,9 @@ internal readonly record struct MsiControlEvent
     internal static readonly MsiControlEvent Remove = new("Remove");
     internal static readonly MsiControlEvent Reset = new("Reset");
     internal static readonly MsiControlEvent SelectionBrowse = new("SelectionBrowse");
+    internal static readonly MsiControlEvent DirectoryListUp = new("DirectoryListUp");
+    internal static readonly MsiControlEvent DirectoryListNew = new("DirectoryListNew");
+    internal static readonly MsiControlEvent DirectoryListOpen = new("DirectoryListOpen");
 
     /// <summary>
     /// Creates a property-setting event that writes a value to an MSI property.
