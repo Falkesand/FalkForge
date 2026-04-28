@@ -895,8 +895,13 @@ internal sealed class TableEmitter
         var upgradeCode = package.UpgradeCode.ToString("B").ToUpperInvariant();
         var versionStr = package.Version.ToString(3);
 
-        // Row to detect older versions (remove them)
-        var attributes = majorUpgrade.AllowSameVersionUpgrades ? 0 : 256; // 256 = VersionMaxInclusive
+        // Row to detect older versions (remove them).
+        // MSI Upgrade table attribute bits:
+        //   256 (0x100) = msidbUpgradeAttributesVersionMinInclusive → VersionMin comparison is >= (inclusive)
+        //   512 (0x200) = msidbUpgradeAttributesVersionMaxInclusive → VersionMax comparison is <= (inclusive)
+        // Default (256): matches >= 0.0.0 AND < currentVersion  → upgrades only older installs.
+        // AllowSameVersionUpgrades (768 = 256|512): matches >= 0.0.0 AND <= currentVersion → includes same-version reinstall.
+        var attributes = majorUpgrade.AllowSameVersionUpgrades ? 256 | 512 : 256;
         var result = _database.InsertRow(
             "SELECT `UpgradeCode`, `VersionMin`, `VersionMax`, `Language`, `Attributes`, `Remove`, `ActionProperty` FROM `Upgrade`",
             record => record
