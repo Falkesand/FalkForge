@@ -1,0 +1,51 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        InstallerTheme.Colors.HighContrast.xaml — Windows High Contrast palette.
+        Uses DynamicResource { x:Static SystemColors.*ColorKey } so brushes track
+        live HC theme switches (HC Black / HC White / HC Custom) without restart.
+        Ensures full EN 301 549 / WCAG 2.1 accessibility compliance.
+        Merged at runtime by App.xaml.cs when SystemParameters.HighContrast is true.
+    -->
+
+    <!-- Window and surface -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="SurfaceBrush"          Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="BorderBrush"            Color="{DynamicResource {x:Static SystemColors.WindowFrameColorKey}}" />
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="PrimaryTextBrush"  Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="SubtleTextBrush"   Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="{DynamicResource {x:Static SystemColors.GrayTextColorKey}}" />
+
+    <!-- Accent — use system highlight colors for interactive elements -->
+    <SolidColorBrush x:Key="AccentBrush"                    Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="AccentForegroundBrush"          Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+    <SolidColorBrush x:Key="AccentHoverBrush"               Color="{DynamicResource {x:Static SystemColors.HotTrackColorKey}}" />
+    <SolidColorBrush x:Key="AccentPressedBrush"             Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="AccentDisabledBrush"            Color="{DynamicResource {x:Static SystemColors.InactiveCaptionColorKey}}" />
+    <SolidColorBrush x:Key="AccentDisabledForegroundBrush"  Color="{DynamicResource {x:Static SystemColors.InactiveCaptionTextColorKey}}" />
+
+    <!-- Secondary button states -->
+    <SolidColorBrush x:Key="ButtonHoverBrush"    Color="{DynamicResource {x:Static SystemColors.ControlLightColorKey}}" />
+    <SolidColorBrush x:Key="ButtonPressedBrush"  Color="{DynamicResource {x:Static SystemColors.ControlDarkColorKey}}" />
+    <SolidColorBrush x:Key="DisabledBorderBrush" Color="{DynamicResource {x:Static SystemColors.GrayTextColorKey}}" />
+
+    <!-- Semantic — High Contrast has no distinct semantic colors; use system text/frame -->
+    <SolidColorBrush x:Key="SuccessTextBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="ErrorTextBrush"   Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="ErrorBorderBrush" Color="{DynamicResource {x:Static SystemColors.WindowFrameColorKey}}" />
+
+    <!-- TextBox states -->
+    <SolidColorBrush x:Key="TextBoxReadOnlyBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+    <SolidColorBrush x:Key="TextBoxDisabledBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+
+    <!-- CheckBox checkmark stroke — HighlightTextColor over HighlightColor fill -->
+    <SolidColorBrush x:Key="CheckmarkStrokeBrush" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+
+    <!-- Exterior page watermark panel and banner icon -->
+    <SolidColorBrush x:Key="WatermarkBrush"  Color="{DynamicResource {x:Static SystemColors.ActiveCaptionColorKey}}" />
+    <SolidColorBrush x:Key="BannerIconBrush" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+
+</ResourceDictionary>

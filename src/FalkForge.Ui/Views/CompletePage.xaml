@@ -8,29 +8,37 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="164" />
+            <ColumnDefinition Width="180" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- Watermark panel -->
+        <!-- Dark accent panel -->
         <Grid Grid.Column="0" Background="{DynamicResource WatermarkBrush}">
             <Image Source="{DynamicResource WatermarkImage}" Stretch="Fill" />
         </Grid>
 
         <!-- Content panel -->
-        <DockPanel Grid.Column="1" Margin="20,16,16,16" LastChildFill="False">
+        <DockPanel Grid.Column="1"
+                   Margin="24,20,20,20"
+                   LastChildFill="False">
+
             <TextBlock DockPanel.Dock="Top"
                        Text="{Binding Title}"
                        Style="{DynamicResource ExteriorTitle}" />
 
+            <!-- Success / failure status line -->
             <TextBlock DockPanel.Dock="Top"
                        Text="Installation completed successfully."
-                       FontSize="10" Foreground="Green"
+                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                       FontSize="13"
+                       Foreground="{DynamicResource SuccessTextBrush}"
                        Visibility="{Binding IsSuccess, Converter={StaticResource BoolToVisibility}}"
                        Margin="0,0,0,8" />
             <TextBlock DockPanel.Dock="Top"
                        Text="Installation failed."
-                       FontSize="10" Foreground="Red"
+                       FontFamily="Segoe UI Variable Text, Segoe UI"
+                       FontSize="13"
+                       Foreground="{DynamicResource ErrorTextBrush}"
                        Visibility="{Binding IsSuccess, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
                        Margin="0,0,0,8" />
 
@@ -46,7 +54,7 @@
 
             <Button DockPanel.Dock="Bottom"
                     Content="Close"
-                    Style="{StaticResource WizardButton}"
+                    Style="{DynamicResource WizardButtonPrimary}"
                     HorizontalAlignment="Right"
                     Click="OnCloseClick" />
         </DockPanel>

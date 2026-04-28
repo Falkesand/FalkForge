@@ -8,45 +8,57 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="164" />
+            <!-- Wider left panel (180 px) for modern proportions -->
+            <ColumnDefinition Width="180" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- Watermark panel -->
+        <!-- Dark accent panel — product identity / watermark image -->
         <Grid Grid.Column="0" Background="{DynamicResource WatermarkBrush}">
             <Image Source="{DynamicResource WatermarkImage}" Stretch="Fill" />
         </Grid>
 
-        <!-- Content panel -->
-        <StackPanel Grid.Column="1" Margin="20,16,16,16">
+        <!-- Content panel — light Mica-like surface -->
+        <StackPanel Grid.Column="1"
+                    Margin="24,20,20,20"
+                    VerticalAlignment="Center">
+
             <TextBlock Text="{Binding Title}"
                        Style="{DynamicResource ExteriorTitle}" />
             <TextBlock Text="{Binding Description}"
                        Style="{DynamicResource ExteriorDescription}" />
 
-            <StackPanel Margin="0,20,0,0">
+            <StackPanel Margin="0,16,0,0">
                 <Button Content="Install"
-                        Width="100" Height="26"
+                        Style="{DynamicResource WizardButtonPrimary}"
+                        Width="110"
+                        Margin="0,0,0,8"
                         HorizontalAlignment="Left"
-                        Margin="0,0,0,6"
                         Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}" />
                 <Button Content="Uninstall"
-                        Width="100" Height="26"
+                        Style="{DynamicResource WizardButton}"
+                        Width="110"
+                        Margin="0,0,0,8"
                         HorizontalAlignment="Left"
-                        Margin="0,0,0,6"
                         Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVisibility}}" />
                 <Button Content="Repair"
-                        Width="100" Height="26"
+                        Style="{DynamicResource WizardButton}"
+                        Width="110"
                         HorizontalAlignment="Left"
                         Visibility="{Binding CanRepair, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Margin="0,16,0,0"
+            <!-- Update download progress (shown while checking / downloading) -->
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,16,0,0"
                         Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVisibility}}">
-                <ProgressBar Width="120" Height="16" Minimum="0" Maximum="100"
+                <ProgressBar Width="130"
+                             Minimum="0" Maximum="100"
                              Value="{Binding DownloadPercent, Mode=OneWay}" />
-                <TextBlock Text="Downloading update..." Margin="8,0,0,0"
-                           VerticalAlignment="Center" FontSize="11"
+                <TextBlock Text="Downloading update..."
+                           Margin="10,0,0,0"
+                           VerticalAlignment="Center"
+                           FontSize="12"
                            Foreground="{DynamicResource SubtleTextBrush}" />
             </StackPanel>
         </StackPanel>
