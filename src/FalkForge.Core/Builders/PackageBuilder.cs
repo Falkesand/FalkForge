@@ -35,6 +35,7 @@ public sealed class PackageBuilder
     private readonly List<SequenceActionModel> _uiSequenceActions = [];
 
     private MsiDialogSet _dialogSet = MsiDialogSet.None;
+    private DialogCustomization? _dialogCustomization;
     private DowngradeModel? _downgrade;
     private IntegrityConfiguration? _integrity;
     private MajorUpgradeModel? _majorUpgrade;
@@ -353,6 +354,16 @@ public sealed class PackageBuilder
         return this;
     }
 
+    public PackageBuilder UseDialogSet(MsiDialogSet dialogSet, Action<DialogCustomization> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _dialogSet = dialogSet;
+        DialogCustomization customization = new();
+        configure(customization);
+        _dialogCustomization = customization;
+        return this;
+    }
+
     public PackageBuilder SetLocalizationData(IReadOnlyList<LocalizationData> data)
     {
         _localizationData.Clear();
@@ -492,6 +503,7 @@ public sealed class PackageBuilder
             MajorUpgrade = _majorUpgrade,
             Downgrade = _downgrade,
             DialogSet = _dialogSet,
+            DialogCustomization = _dialogCustomization?.ToModel(),
             CabinetThreadCount = CabinetThreadCount,
             LocalizationData = _localizationData,
             ReproducibleOptions = _reproducibleOptions,
