@@ -16,9 +16,63 @@ internal static class InstallDirDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "InstallDirDlg";
 
-    /// <summary>Builds the declarative content for the InstallDir dialog.</summary>
-    public static DialogContent Build()
+    /// <summary>Builds the declarative content for the InstallDir dialog with default flow context.</summary>
+    public static DialogContent Build() => Build(new DialogFlowContext());
+
+    /// <summary>Builds the declarative content for the InstallDir dialog with explicit flow targets.</summary>
+    /// <param name="flow">Navigation targets for ChangeFolder/Back/Next/Cancel events.</param>
+    public static DialogContent Build(DialogFlowContext flow)
     {
+        System.ArgumentNullException.ThrowIfNull(flow);
+
+        // Mirrors legacy SharedDialogBuilders.BuildInstallDirDlg event set:
+        //   ChangeFolder #1: SetProperty[_BrowseProperty] = [INSTALLDIR]
+        //   ChangeFolder #2: SpawnDialog BrowseDlg
+        //   ChangeFolder #3: SetProperty[INSTALLDIR] = [_BrowseProperty]
+        //   Back: NewDialog flow.BackDialog
+        //   Next: EndDialog Return
+        //   Cancel: SpawnDialog flow.CancelDialog
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "ChangeFolder",
+                Event = "[_BrowseProperty]",
+                Argument = "[INSTALLDIR]",
+                Order = 1,
+            },
+            new DialogControlEvent
+            {
+                Control = "ChangeFolder",
+                Event = "SpawnDialog",
+                Argument = "BrowseDlg",
+                Order = 2,
+            },
+            new DialogControlEvent
+            {
+                Control = "ChangeFolder",
+                Event = "[INSTALLDIR]",
+                Argument = "[_BrowseProperty]",
+                Order = 3,
+            },
+            new DialogControlEvent
+            {
+                Control = "Back",
+                Event = "NewDialog",
+                Argument = flow.BackDialog ?? string.Empty,
+            },
+            new DialogControlEvent
+            {
+                Control = "Next",
+                Event = "EndDialog",
+                Argument = "Return",
+            },
+            new DialogControlEvent
+            {
+                Control = "Cancel",
+                Event = "SpawnDialog",
+                Argument = flow.CancelDialog,
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -27,6 +81,7 @@ internal static class InstallDirDlgBuilder
             DefaultControl = "Next",
             CancelControl = "Cancel",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
