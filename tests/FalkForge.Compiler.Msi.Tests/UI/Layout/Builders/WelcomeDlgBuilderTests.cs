@@ -42,7 +42,9 @@ public sealed class WelcomeDlgBuilderTests
         var buttonRow = content.Placements.Single(p => p.RegionName == "ButtonRow");
         var names = buttonRow.Controls.Select(c => c.Name).ToArray();
 
-        Assert.Equal(new[] { "Next", "Cancel" }, names);
+        // RightPacked policy lays out controls right-to-left, so the declarative order is
+        // rightmost-first: Cancel (rightmost) precedes Next.
+        Assert.Equal(new[] { "Cancel", "Next" }, names);
     }
 
     [Fact]
