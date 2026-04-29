@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using FalkForge.Engine.Protocol.Messages;
+using FalkForge.Engine.Protocol.Serialization.Codecs;
 
 namespace FalkForge.Engine.Protocol.Serialization;
 
@@ -15,8 +16,11 @@ namespace FalkForge.Engine.Protocol.Serialization;
 /// </remarks>
 public static class MessageCodecRegistry
 {
-    // Registration site, populate phase 5+.
-    private static readonly IMessageCodec[] s_codecs = [];
+    // Registration site. Phase 5 codecs land one per feature commit.
+    private static readonly IMessageCodec[] s_codecs =
+    [
+        CancelCodec.Instance,
+    ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
 

@@ -1,38 +1,43 @@
+using System.Globalization;
 using System.Text;
 using FalkForge.Engine.Protocol.Messages;
 
 namespace FalkForge.Engine.Protocol.Serialization;
 
 /// <summary>
-/// Codec-routing deserializer facade. Reads the framing header
-/// (<see cref="MessageSerializer.CurrentWireVersion"/> + <see cref="MessageType"/>),
-/// resolves the read-side codec from <see cref="MessageCodecRegistry"/>, and produces
-/// a typed <see cref="EngineMessage"/>.
+/// Codec-routing deserializer facade. Reads the wire framing header
+/// (<see cref="MessageSerializer.CurrentWireVersion"/>, <see cref="MessageType"/>,
+/// payload length), resolves the read-side codec from
+/// <see cref="MessageCodecRegistry"/>, and produces a typed
+/// <see cref="EngineMessage"/>. The codec body is required to begin with the
+/// inherited <see cref="EngineMessage.SequenceId"/>.
 /// </summary>
 /// <remarks>
-/// Phase 4 stand-up: the registry is empty so any well-formed frame surfaces a
-/// <c>Result&lt;EngineMessage&gt;.Failure</c> rather than throwing. Real codec
-/// resolution arrives in phase 5+. Callers that need byte-for-byte legacy semantics
-/// continue to use <see cref="LegacyMessageDeserializer"/> until phase 10.
+/// The header layout matches <see cref="LegacyMessageDeserializer"/> exactly so a
+/// caller swapped over in phase 10 can read frames produced by either implementation.
 /// </remarks>
 public static class MessageDeserializer
 {
-    private const int HeaderSize = 4; // wire version (u16) + message type (u16)
+    /// <summary>Maximum payload length accepted from the wire (1 MiB).</summary>
+    internal const int MaxPayloadSize = 1 * 1024 * 1024;
+
+    /// <summary>Header size: wire version (u16) + type (u16) + payload length (i32).</summary>
+    private const int HeaderSize = 8;
 
     /// <summary>
     /// Deserializes a framed message. Returns a failure result for short buffers,
-    /// unknown message types, unregistered codecs, or codec read errors. The facade
-    /// never throws for malformed wire input.
+    /// unsupported wire versions, unknown message types, unregistered codecs,
+    /// truncated payloads, or codec read errors. The facade never throws for
+    /// malformed wire input.
     /// </summary>
     public static Result<EngineMessage> Deserialize(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < HeaderSize)
         {
-            return Result<EngineMessage>.Failure(ErrorKind.Validation, "Wire frame too short");
+            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Message too short");
         }
 
         // Span cannot cross into BinaryReader directly; copy once into a local buffer.
-        // Sized by the caller's slice, capped by HeaderSize + payload, so no unbounded alloc.
         var buffer = bytes.ToArray();
 
         using var ms = new MemoryStream(buffer, writable: false);
@@ -40,6 +45,20 @@ public static class MessageDeserializer
 
         var wireVersion = br.ReadUInt16();
         var typeValue = br.ReadUInt16();
+        var payloadLength = br.ReadInt32();
+
+        if (payloadLength < 0 || payloadLength > MaxPayloadSize)
+        {
+            return Result<EngineMessage>.Failure(
+                ErrorKind.ProtocolError,
+                string.Format(CultureInfo.InvariantCulture, "Invalid payload length: {0}", payloadLength));
+        }
+
+        if (ms.Length - ms.Position < payloadLength)
+        {
+            return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Payload truncated");
+        }
+
         var type = (MessageType)typeValue;
 
         var codecResult = MessageCodecRegistry.ForRead(type, wireVersion);
@@ -57,7 +76,7 @@ public static class MessageDeserializer
         {
             return Result<EngineMessage>.Failure(
                 ErrorKind.Validation,
-                $"Codec read failed: {ex.Message}");
+                string.Format(CultureInfo.InvariantCulture, "Codec read failed: {0}", ex.Message));
         }
     }
 }

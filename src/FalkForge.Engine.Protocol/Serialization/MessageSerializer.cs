@@ -6,15 +6,18 @@ namespace FalkForge.Engine.Protocol.Serialization;
 /// <summary>
 /// Codec-routing serializer facade. Resolves a write-side <see cref="IMessageCodec"/>
 /// from the <see cref="MessageCodecRegistry"/> by the runtime CLR type of the message,
-/// then writes a small framing header (<see cref="CurrentWireVersion"/> +
-/// <see cref="MessageType"/>) followed by the codec body.
+/// then writes the wire framing header
+/// (<see cref="CurrentWireVersion"/>, <see cref="MessageType"/>, payload length)
+/// followed by the codec body. The body is required to begin with the
+/// inherited <see cref="EngineMessage.SequenceId"/> so the bytes emitted by this
+/// facade are byte-for-byte identical to <see cref="LegacyMessageSerializer"/>.
 /// </summary>
 /// <remarks>
-/// Phase 4 stand-up: the registry is intentionally empty, so calling <see cref="Serialize"/>
-/// for any real message currently throws <see cref="InvalidOperationException"/>. Real
-/// codecs land in phase 5+; the legacy byte-for-byte path remains available via
-/// <see cref="LegacyMessageSerializer"/> until phase 9 byte parity and phase 10 caller
-/// swap retire it.
+/// The header layout intentionally matches <see cref="LegacyMessageSerializer"/>
+/// (<c>[wireVersion:u16][type:u16][payloadLength:i32]</c>) so that callers swapped
+/// over in phase 10 produce identical wire bytes for every registered message.
+/// Bytes for messages without a registered codec surface as
+/// <see cref="InvalidOperationException"/>.
 /// </remarks>
 public static class MessageSerializer
 {
@@ -36,11 +39,23 @@ public static class MessageSerializer
         using var ms = new MemoryStream();
         using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
         {
-            // Header: [WireVersion: u16][MessageType: u16]
+            // Header: [WireVersion: u16][MessageType: u16][PayloadLength: i32 placeholder]
             bw.Write(codec.WireVersion);
             bw.Write((ushort)codec.Type);
+            var lengthPosition = ms.Position;
+            bw.Write(0); // placeholder for payload length
+
+            // Body: codec writes [SequenceId: u32][fields...].
             codec.WriteErased(bw, message);
             bw.Flush();
+
+            // Patch the payload length to the bytes written after the placeholder.
+            var endPosition = ms.Position;
+            var payloadLength = (int)(endPosition - lengthPosition - sizeof(int));
+            ms.Position = lengthPosition;
+            bw.Write(payloadLength);
+            bw.Flush();
+            ms.Position = endPosition;
         }
 
         return ms.ToArray();
