@@ -20,6 +20,7 @@ public static class MessageCodecRegistry
     private static readonly IMessageCodec[] s_codecs =
     [
         CancelCodec.Instance,
+        LogCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
