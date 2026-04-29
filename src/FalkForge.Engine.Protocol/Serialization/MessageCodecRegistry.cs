@@ -38,6 +38,7 @@ public static class MessageCodecRegistry
         SetInstallDirectoryCodec.Instance,
         SetFeatureSelectionCodec.Instance,
         SetPropertyCodec.Instance,
+        SetSecurePropertyCodec.Instance,
         LicenseCodec.Instance,
         LaunchUpdateCodec.Instance,
         UpdateAvailableCodec.Instance,
