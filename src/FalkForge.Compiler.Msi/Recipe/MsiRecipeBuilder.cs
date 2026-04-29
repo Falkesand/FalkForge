@@ -10,8 +10,9 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Pure function that turns a <see cref="ResolvedPackage"/> plus any extension
 /// table contributors into an immutable <see cref="MsiDatabaseRecipe"/>.
 ///
-/// Phase 4 wires in the first batch of built-in producers (Property, Directory,
-/// Component, File, Feature). Each producer emits one <see cref="RecipeTable"/>
+/// Phase 4 wires in the first ten built-in producers (Property, Directory,
+/// Feature, Component, File, FeatureComponents, Media, Registry,
+/// ServiceInstall, Shortcut). Each producer emits one <see cref="RecipeTable"/>
 /// — even when the source data is empty — so downstream phases can rely on a
 /// stable table set. Pruning of empty tables is deliberately deferred.
 /// </summary>
@@ -56,16 +57,24 @@ public static class MsiRecipeBuilder
             new DictionaryStreamRegistry());
 
         // Fixed producer order. The order matches the natural foreign-key
-        // dependency direction (Directory before Component, Component before
-        // File, Feature last) so future cross-producer FK validators can rely
-        // on referenced tables being present in BuiltTables.
+        // dependency direction so future cross-producer FK validators can
+        // rely on referenced tables being present in BuiltTables. Feature
+        // is emitted before Component so the FeatureComponents junction can
+        // see both parent tables; Media has no FK dependencies but is kept
+        // adjacent to File for readability; Registry/ServiceInstall/Shortcut
+        // all reference Component.
         ITableProducer[] producers =
         {
             new PropertyTableProducer(),
             new DirectoryTableProducer(),
+            new FeatureTableProducer(),
             new ComponentTableProducer(),
             new FileTableProducer(),
-            new FeatureTableProducer(),
+            new FeatureComponentsTableProducer(),
+            new MediaTableProducer(),
+            new RegistryTableProducer(),
+            new ServiceInstallTableProducer(),
+            new ShortcutTableProducer(),
         };
 
         ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);
@@ -119,9 +128,9 @@ public static class MsiRecipeBuilder
 
     private static string LookupCreateTableSql(TableId table)
     {
-        // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships only the
-        // five tables emitted by the first producer batch; later phases will
-        // either extend this lookup or migrate to a contributor-driven map.
+        // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships ten
+        // tables across two producer batches; later phases will either
+        // extend this lookup or migrate to a contributor-driven map.
         return table.Value switch
         {
             "Property" => MsiTableDefinitions.CreatePropertyTable,
@@ -129,6 +138,11 @@ public static class MsiRecipeBuilder
             "Component" => MsiTableDefinitions.CreateComponentTable,
             "File" => MsiTableDefinitions.CreateFileTable,
             "Feature" => MsiTableDefinitions.CreateFeatureTable,
+            "FeatureComponents" => MsiTableDefinitions.CreateFeatureComponentsTable,
+            "Media" => MsiTableDefinitions.CreateMediaTable,
+            "Registry" => MsiTableDefinitions.CreateRegistryTable,
+            "ServiceInstall" => MsiTableDefinitions.CreateServiceInstallTable,
+            "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
             _ => throw new InvalidOperationException(
                 $"No CREATE TABLE SQL registered for table '{table.Value}'."),
         };
