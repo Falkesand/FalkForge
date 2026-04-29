@@ -21,9 +21,25 @@ internal static class CancelDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "CancelDlg";
 
-    /// <summary>Builds the declarative content for the Cancel modal.</summary>
+    /// <summary>Builds the declarative content for the Cancel modal. Yes ends the wizard with
+    /// status "Exit"; No returns to the spawning dialog with status "Return". The modal is
+    /// self-contained, so no flow context is needed.</summary>
     public static DialogContent Build()
     {
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Yes",
+                Event = "EndDialog",
+                Argument = "Exit",
+            },
+            new DialogControlEvent
+            {
+                Control = "No",
+                Event = "EndDialog",
+                Argument = "Return",
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -32,6 +48,7 @@ internal static class CancelDlgBuilder
             DefaultControl = "No",
             CancelControl = "No",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
