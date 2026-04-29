@@ -21,9 +21,37 @@ internal static class BrowseDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "BrowseDlg";
 
-    /// <summary>Builds the declarative content for the Browse modal.</summary>
+    /// <summary>Builds the declarative content for the Browse modal. Up and NewFolder use the
+    /// MSI directory-list verbs; OK and Cancel both end the dialog with "Return" so the caller
+    /// dialog reads the resolved <c>_BrowseProperty</c>. The modal is self-contained.</summary>
     public static DialogContent Build()
     {
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Up",
+                Event = "DirectoryListUp",
+                Argument = "0",
+            },
+            new DialogControlEvent
+            {
+                Control = "NewFolder",
+                Event = "DirectoryListNew",
+                Argument = "0",
+            },
+            new DialogControlEvent
+            {
+                Control = "OK",
+                Event = "EndDialog",
+                Argument = "Return",
+            },
+            new DialogControlEvent
+            {
+                Control = "Cancel",
+                Event = "EndDialog",
+                Argument = "Return",
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -32,6 +60,7 @@ internal static class BrowseDlgBuilder
             DefaultControl = "OK",
             CancelControl = "Cancel",
             TitleLocKey = "!(loc.Dialog.Browse.Title)",
+            Events = events,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
