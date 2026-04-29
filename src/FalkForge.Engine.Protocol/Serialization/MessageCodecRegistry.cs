@@ -34,6 +34,7 @@ public static class MessageCodecRegistry
         ShutdownResponseCodec.Instance,
         SetInstallDirectoryCodec.Instance,
         SetFeatureSelectionCodec.Instance,
+        SetPropertyCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
