@@ -105,4 +105,60 @@ public sealed class LicenseDlgBuilderTests
         Assert.Equal(304, cancel.X);
         Assert.Equal(243, cancel.Y);
     }
+
+    [Fact]
+    public void Build_emits_events_for_each_button()
+    {
+        // Legacy BuildLicenseAgreementDlg emits three ControlEvent rows: Back NewDialog,
+        // Next NewDialog (gated by LicenseAccepted), Cancel SpawnDialog.
+        var ctx = new DialogFlowContext { BackDialog = "WelcomeDlg", NextDialog = "InstallDirDlg" };
+
+        var content = LicenseDlgBuilder.Build(ctx);
+
+        Assert.Equal(3, content.Events.Length);
+    }
+
+    [Fact]
+    public void Build_event_targets_match_flow_context()
+    {
+        var ctx = new DialogFlowContext
+        {
+            BackDialog = "WelcomeDlg",
+            NextDialog = "InstallDirDlg",
+            CancelDialog = "MyCancelDlg",
+        };
+
+        var content = LicenseDlgBuilder.Build(ctx);
+
+        var back = content.Events.Single(e => e.Control == "Back");
+        Assert.Equal("NewDialog", back.Event);
+        Assert.Equal("WelcomeDlg", back.Argument);
+
+        var next = content.Events.Single(e => e.Control == "Next");
+        Assert.Equal("NewDialog", next.Event);
+        Assert.Equal("InstallDirDlg", next.Argument);
+        Assert.Equal("LicenseAccepted = \"1\"", next.Condition);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("SpawnDialog", cancel.Event);
+        Assert.Equal("MyCancelDlg", cancel.Argument);
+    }
+
+    [Fact]
+    public void Build_conditions_match_legacy()
+    {
+        // Legacy ControlCondition rows: Next Disable when LicenseAccepted != "1",
+        // Next Enable when LicenseAccepted == "1".
+        var content = LicenseDlgBuilder.Build(new DialogFlowContext { BackDialog = "B", NextDialog = "N" });
+
+        Assert.Equal(2, content.Conditions.Length);
+
+        var disable = content.Conditions.Single(c => c.Action == "Disable");
+        Assert.Equal("Next", disable.Control);
+        Assert.Equal("NOT LicenseAccepted = \"1\"", disable.Condition);
+
+        var enable = content.Conditions.Single(c => c.Action == "Enable");
+        Assert.Equal("Next", enable.Control);
+        Assert.Equal("LicenseAccepted = \"1\"", enable.Condition);
+    }
 }
