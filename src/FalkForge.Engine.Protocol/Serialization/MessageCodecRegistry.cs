@@ -26,6 +26,7 @@ public static class MessageCodecRegistry
         RequestApplyCodec.Instance,
         DetectBeginCodec.Instance,
         PlanBeginCodec.Instance,
+        ApplyBeginCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
