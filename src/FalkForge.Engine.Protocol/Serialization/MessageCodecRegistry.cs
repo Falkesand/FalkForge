@@ -27,6 +27,7 @@ public static class MessageCodecRegistry
         DetectBeginCodec.Instance,
         DetectCompleteCodec.Instance,
         PlanBeginCodec.Instance,
+        PlanCompleteCodec.Instance,
         ApplyBeginCodec.Instance,
         PhaseChangedCodec.Instance,
         ErrorCodec.Instance,
