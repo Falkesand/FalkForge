@@ -126,14 +126,19 @@ public sealed class MsiRecipeBuilderTests
     }
 
     [Fact]
-    public void Build_empty_pipeline_has_empty_content_hash()
+    public void Build_empty_pipeline_populates_content_hash()
     {
+        // Phase 6 wires RecipeContentHasher into the builder. Even an empty
+        // resolved package produces a non-empty 32-byte SHA-256 digest over
+        // the canonical recipe content (table identities, schema metadata,
+        // summary info, etc.). The digest is stable across repeated builds.
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
             new List<IMsiTableContributor>(),
             new MsiRecipeBuildOptions()).Value;
 
-        Assert.True(recipe.ContentHash.IsEmpty);
+        Assert.False(recipe.ContentHash.IsEmpty);
+        Assert.Equal(32, recipe.ContentHash.Length);
     }
 
     [Fact]

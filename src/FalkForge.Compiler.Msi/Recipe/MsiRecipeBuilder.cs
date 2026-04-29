@@ -142,6 +142,10 @@ public static class MsiRecipeBuilder
             CodePage = 1252,
         };
 
+        // Construct the recipe with an empty ContentHash placeholder, then
+        // rebuild it via a with-expression carrying the digest. The hashing
+        // payload deliberately excludes ContentHash itself, so the placeholder
+        // never affects the output digest.
         MsiDatabaseRecipe recipe = new()
         {
             Tables = validatedTables,
@@ -152,6 +156,7 @@ public static class MsiRecipeBuilder
             ContentHash = ReadOnlyMemory<byte>.Empty,
         };
 
+        recipe = recipe with { ContentHash = RecipeContentHasher.Compute(recipe) };
         return Result<MsiDatabaseRecipe>.Success(recipe);
     }
 
