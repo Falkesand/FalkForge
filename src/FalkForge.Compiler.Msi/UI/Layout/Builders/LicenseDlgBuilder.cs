@@ -18,9 +18,50 @@ internal static class LicenseDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "LicenseAgreementDlg";
 
-    /// <summary>Builds the declarative content for the License dialog.</summary>
-    public static DialogContent Build()
+    /// <summary>Builds the declarative content for the License dialog with default flow context.</summary>
+    public static DialogContent Build() => Build(new DialogFlowContext());
+
+    /// <summary>Builds the declarative content for the License dialog with explicit flow targets.</summary>
+    /// <param name="flow">Navigation targets for Back/Next/Cancel events.</param>
+    public static DialogContent Build(DialogFlowContext flow)
     {
+        System.ArgumentNullException.ThrowIfNull(flow);
+
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Back",
+                Event = "NewDialog",
+                Argument = flow.BackDialog ?? string.Empty,
+            },
+            new DialogControlEvent
+            {
+                Control = "Next",
+                Event = "NewDialog",
+                Argument = flow.NextDialog ?? string.Empty,
+                Condition = "LicenseAccepted = \"1\"",
+            },
+            new DialogControlEvent
+            {
+                Control = "Cancel",
+                Event = "SpawnDialog",
+                Argument = flow.CancelDialog,
+            });
+
+        var conditions = ImmutableArray.Create(
+            new DialogControlCondition
+            {
+                Control = "Next",
+                Action = "Disable",
+                Condition = "NOT LicenseAccepted = \"1\"",
+            },
+            new DialogControlCondition
+            {
+                Control = "Next",
+                Action = "Enable",
+                Condition = "LicenseAccepted = \"1\"",
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -29,6 +70,8 @@ internal static class LicenseDlgBuilder
             DefaultControl = "Next",
             CancelControl = "Cancel",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
+            Conditions = conditions,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
