@@ -38,6 +38,7 @@ public static class MessageCodecRegistry
         LicenseCodec.Instance,
         LaunchUpdateCodec.Instance,
         UpdateAvailableCodec.Instance,
+        UpdateReadyCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
