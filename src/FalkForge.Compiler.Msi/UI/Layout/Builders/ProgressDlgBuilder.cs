@@ -16,9 +16,38 @@ internal static class ProgressDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "ProgressDlg";
 
-    /// <summary>Builds the declarative content for the Progress dialog.</summary>
-    public static DialogContent Build()
+    /// <summary>Builds the declarative content for the Progress dialog with default flow context.</summary>
+    public static DialogContent Build() => Build(new DialogFlowContext());
+
+    /// <summary>Builds the declarative content for the Progress dialog with explicit flow context.</summary>
+    /// <param name="flow">Carries the cancel-dialog target for the Cancel SpawnDialog event.</param>
+    public static DialogContent Build(DialogFlowContext flow)
     {
+        System.ArgumentNullException.ThrowIfNull(flow);
+
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Cancel",
+                Event = "SpawnDialog",
+                Argument = flow.CancelDialog,
+            });
+
+        // Mirrors legacy: ProgressBar tracks SetProgress, ActionText tracks ActionText.
+        var eventMappings = ImmutableArray.Create(
+            new DialogEventMapping
+            {
+                Control = "ProgressBar",
+                Event = "SetProgress",
+                Attribute = "Progress",
+            },
+            new DialogEventMapping
+            {
+                Control = "ActionText",
+                Event = "ActionText",
+                Attribute = "Text",
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -27,6 +56,8 @@ internal static class ProgressDlgBuilder
             DefaultControl = "Cancel",
             CancelControl = "Cancel",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
+            EventMappings = eventMappings,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
