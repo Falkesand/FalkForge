@@ -74,4 +74,17 @@ public sealed class ExitDlgBuilderTests
         Assert.Equal(280, description.Width);
         Assert.Equal(20, description.Height);
     }
+
+    [Fact]
+    public void Build_emits_finish_end_dialog_event()
+    {
+        // Legacy BuildExitDlg emits a single ControlEvent: Finish EndDialog Return.
+        var content = ExitDlgBuilder.Build();
+
+        Assert.Single(content.Events);
+        var finish = content.Events[0];
+        Assert.Equal("Finish", finish.Control);
+        Assert.Equal("EndDialog", finish.Event);
+        Assert.Equal("Return", finish.Argument);
+    }
 }
