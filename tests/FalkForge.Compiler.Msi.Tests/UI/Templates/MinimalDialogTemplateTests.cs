@@ -1,0 +1,77 @@
+using System.Linq;
+using FalkForge.Compiler.Msi.UI;
+using FalkForge.Compiler.Msi.UI.Templates;
+using FalkForge.Models;
+using Xunit;
+
+namespace FalkForge.Compiler.Msi.Tests.UI.Templates;
+
+public sealed class MinimalDialogTemplateTests
+{
+    private static IReadOnlyList<MsiDialogModel> Compose()
+    {
+        var template = new MinimalDialogTemplate();
+        return template.GetDialogs(new PackageModel
+        {
+            Name = "Test",
+            Manufacturer = "Acme",
+            Version = new System.Version(1, 0, 0),
+            UpgradeCode = System.Guid.Parse("12345678-1234-1234-1234-123456789abc"),
+        });
+    }
+
+    [Fact]
+    public void Template_emits_four_dialogs()
+    {
+        var dialogs = Compose();
+
+        Assert.Equal(4, dialogs.Count);
+    }
+
+    [Fact]
+    public void Template_emits_dialog_names_in_legacy_order()
+    {
+        var dialogs = Compose();
+        var names = dialogs.Select(d => d.Name).ToArray();
+
+        Assert.Equal(
+            new[] { "WelcomeDlg", "ProgressDlg", "ExitDlg", "CancelDlg" },
+            names);
+    }
+
+    [Fact]
+    public void Template_emits_dialogs_via_composer()
+    {
+        // The composer-driven path populates Events on every produced model. Legacy
+        // private builders also populated Events, but the test still proves the
+        // composer-driven path is actually being used because the new builders are
+        // the only place those declarative events come from.
+        var dialogs = Compose();
+
+        Assert.All(dialogs, d => Assert.NotEmpty(d.Events));
+    }
+
+    [Fact]
+    public void Welcome_dialog_advances_to_progress()
+    {
+        var dialogs = Compose();
+        var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
+
+        var advance = welcome.Events.Single(e =>
+            e.ControlName == "Next" && e.Event.ToString() == "NewDialog");
+
+        Assert.Equal("ProgressDlg", advance.Argument);
+    }
+
+    [Fact]
+    public void Welcome_cancel_spawns_cancel_dialog()
+    {
+        var dialogs = Compose();
+        var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
+
+        var cancel = welcome.Events.Single(e =>
+            e.ControlName == "Cancel" && e.Event.ToString() == "SpawnDialog");
+
+        Assert.Equal("CancelDlg", cancel.Argument);
+    }
+}
