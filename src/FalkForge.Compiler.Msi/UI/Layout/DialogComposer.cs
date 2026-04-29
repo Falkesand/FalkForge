@@ -2,6 +2,7 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.UI.Layout;
 
@@ -12,8 +13,19 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// <remarks>
 /// Phase 5: every <see cref="RegionPlacement"/> in <see cref="DialogContent.Placements"/> is
 /// resolved through its region's <see cref="IRegionLayoutPolicy"/>. Resolved bounds are mapped
-/// onto <see cref="MsiControlModel"/> entries which preserve the input order. Customization
-/// (events, conditions, per-template builders) lands in phase 6+.
+/// onto <see cref="MsiControlModel"/> entries which preserve the input order.
+/// <para>
+/// Phase 9: the three-arg overload accepts an optional <see cref="DialogCustomizationModel"/>
+/// and applies four customization verbs to the produced model: <see cref="DialogCustomizationModel.WindowTitle"/>
+/// overrides <see cref="MsiDialogModel.Title"/>, <see cref="DialogCustomizationModel.BannerBitmap"/>
+/// rewrites the <c>Text</c> of every <c>Bitmap</c>-typed control, <see cref="DialogCustomizationModel.HeaderIcon"/>
+/// rewrites the <c>Text</c> of every <c>Icon</c>-typed control, and entries in
+/// <see cref="DialogCustomizationModel.ButtonLabelOverrides"/> rewrite the <c>Text</c> of
+/// the matching <c>PushButton</c> identified through <see cref="DialogButtonNames.Map"/>.
+/// Suppression of stock dialogs (<see cref="DialogCustomizationModel.SuppressedDialogs"/>) is
+/// not applied here — that is a dialog-set-level concern handled by the emitter that decides
+/// which dialogs to compose at all.
+/// </para>
 /// <see cref="MsiDialogModel"/> is internal so this composer is internal as well.
 /// </remarks>
 internal static class DialogComposer
@@ -34,18 +46,30 @@ internal static class DialogComposer
     /// to produce a concrete <see cref="MsiDialogModel"/>.
     /// </summary>
     public static MsiDialogModel Compose(DialogContent content, DialogLayout layout)
+        => Compose(content, layout, customization: null);
+
+    /// <summary>
+    /// Compose a declarative <see cref="DialogContent"/> against a <paramref name="layout"/>,
+    /// then apply branding and button-label overrides from an optional
+    /// <paramref name="customization"/>.
+    /// </summary>
+    public static MsiDialogModel Compose(DialogContent content, DialogLayout layout, DialogCustomizationModel? customization)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(layout);
 
         var resolvedFirst = content.FirstControl ?? FindFallbackFirstControl(content);
 
+        var title = !string.IsNullOrEmpty(customization?.WindowTitle)
+            ? customization.WindowTitle
+            : content.TitleLocKey ?? string.Empty;
+
         var model = new MsiDialogModel
         {
             Name = content.Name,
             Width = layout.CanvasWidth,
             Height = layout.CanvasHeight,
-            Title = content.TitleLocKey ?? string.Empty,
+            Title = title,
             FirstControl = resolvedFirst ?? string.Empty,
             DefaultControl = content.DefaultControl,
             CancelControl = content.CancelControl,
@@ -79,7 +103,65 @@ internal static class DialogComposer
             }
         }
 
+        ApplyCustomization(model, customization);
+
         return model;
+    }
+
+    private static void ApplyCustomization(MsiDialogModel model, DialogCustomizationModel? customization)
+    {
+        if (customization is null)
+        {
+            return;
+        }
+
+        // Build a button-name -> override-label map keyed by the canonical MSI control Name.
+        // FrozenDictionary lookup keeps the per-control hot loop allocation-free.
+        Dictionary<string, string>? buttonOverrides = null;
+        if (customization.ButtonLabelOverrides.Count > 0)
+        {
+            buttonOverrides = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in customization.ButtonLabelOverrides)
+            {
+                if (DialogButtonNames.Map.TryGetValue(pair.Key, out var controlName))
+                {
+                    buttonOverrides[controlName] = pair.Value;
+                }
+            }
+        }
+
+        var bannerBitmap = customization.BannerBitmap;
+        var headerIcon = customization.HeaderIcon;
+        var hasBanner = !string.IsNullOrEmpty(bannerBitmap);
+        var hasIcon = !string.IsNullOrEmpty(headerIcon);
+        var hasButtonOverrides = buttonOverrides is { Count: > 0 };
+
+        if (!hasBanner && !hasIcon && !hasButtonOverrides)
+        {
+            return;
+        }
+
+        foreach (var control in model.Controls)
+        {
+            if (hasBanner && control.Type == MsiControlType.Bitmap)
+            {
+                control.Text = bannerBitmap;
+                continue;
+            }
+
+            if (hasIcon && control.Type == MsiControlType.Icon)
+            {
+                control.Text = headerIcon;
+                continue;
+            }
+
+            if (hasButtonOverrides
+                && control.Type == MsiControlType.PushButton
+                && buttonOverrides!.TryGetValue(control.Name, out var label))
+            {
+                control.Text = label;
+            }
+        }
     }
 
     private static IRegionLayoutPolicy SelectPolicy(RegionPolicy policy) => policy switch
