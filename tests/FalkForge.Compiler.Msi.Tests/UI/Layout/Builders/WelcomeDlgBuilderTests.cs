@@ -125,4 +125,36 @@ public sealed class WelcomeDlgBuilderTests
         Assert.Equal(56, cancel.Width);
         Assert.Equal(17, cancel.Height);
     }
+
+    [Fact]
+    public void Build_emits_events_for_each_button()
+    {
+        // Legacy BuildWelcomeDlg emits exactly two ControlEvent rows: Next NewDialog and
+        // Cancel SpawnDialog. The phase-6.5 builder must reproduce both.
+        var ctx = new DialogFlowContext { NextDialog = "InstallDirDlg" };
+
+        var content = WelcomeDlgBuilder.Build(ctx);
+
+        Assert.Equal(2, content.Events.Length);
+    }
+
+    [Fact]
+    public void Build_event_targets_match_flow_context()
+    {
+        var ctx = new DialogFlowContext
+        {
+            NextDialog = "TargetDlg",
+            CancelDialog = "MyCancelDlg",
+        };
+
+        var content = WelcomeDlgBuilder.Build(ctx);
+
+        var next = content.Events.Single(e => e.Control == "Next");
+        Assert.Equal("NewDialog", next.Event);
+        Assert.Equal("TargetDlg", next.Argument);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("SpawnDialog", cancel.Event);
+        Assert.Equal("MyCancelDlg", cancel.Argument);
+    }
 }
