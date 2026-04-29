@@ -69,4 +69,21 @@ public sealed class CancelDlgBuilderTests
         Assert.Contains(model.Controls, c => c.Name == "Yes" && c.Type == MsiControlType.PushButton);
         Assert.Contains(model.Controls, c => c.Name == "No" && c.Type == MsiControlType.PushButton);
     }
+
+    [Fact]
+    public void Build_emits_yes_and_no_end_dialog_events()
+    {
+        // Legacy BuildCancelDlg emits two ControlEvent rows: Yes EndDialog Exit, No EndDialog Return.
+        var content = CancelDlgBuilder.Build();
+
+        Assert.Equal(2, content.Events.Length);
+
+        var yes = content.Events.Single(e => e.Control == "Yes");
+        Assert.Equal("EndDialog", yes.Event);
+        Assert.Equal("Exit", yes.Argument);
+
+        var no = content.Events.Single(e => e.Control == "No");
+        Assert.Equal("EndDialog", no.Event);
+        Assert.Equal("Return", no.Argument);
+    }
 }
