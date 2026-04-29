@@ -11,7 +11,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class MsiRecipeBuilderProducersTests
 {
     [Fact]
-    public void Build_with_simple_resolved_package_emits_ten_tables_in_order()
+    public void Build_with_simple_resolved_package_emits_fifteen_tables_in_order()
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
@@ -19,7 +19,7 @@ public sealed class MsiRecipeBuilderProducersTests
             new MsiRecipeBuildOptions());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(10, result.Value.Tables.Length);
+        Assert.Equal(15, result.Value.Tables.Length);
     }
 
     [Fact]
@@ -36,10 +36,15 @@ public sealed class MsiRecipeBuilderProducersTests
         Assert.Equal("Component", recipe.Tables[3].Name.Value);
         Assert.Equal("File", recipe.Tables[4].Name.Value);
         Assert.Equal("FeatureComponents", recipe.Tables[5].Name.Value);
-        Assert.Equal("Media", recipe.Tables[6].Name.Value);
-        Assert.Equal("Registry", recipe.Tables[7].Name.Value);
-        Assert.Equal("ServiceInstall", recipe.Tables[8].Name.Value);
-        Assert.Equal("Shortcut", recipe.Tables[9].Name.Value);
+        Assert.Equal("Condition", recipe.Tables[6].Name.Value);
+        Assert.Equal("Upgrade", recipe.Tables[7].Name.Value);
+        Assert.Equal("Media", recipe.Tables[8].Name.Value);
+        Assert.Equal("Registry", recipe.Tables[9].Name.Value);
+        Assert.Equal("ServiceInstall", recipe.Tables[10].Name.Value);
+        Assert.Equal("Shortcut", recipe.Tables[11].Name.Value);
+        Assert.Equal("Environment", recipe.Tables[12].Name.Value);
+        Assert.Equal("MoveFile", recipe.Tables[13].Name.Value);
+        Assert.Equal("RemoveFile", recipe.Tables[14].Name.Value);
     }
 
     [Fact]
