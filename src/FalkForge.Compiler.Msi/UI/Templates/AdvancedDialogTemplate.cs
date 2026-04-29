@@ -1,165 +1,89 @@
+using FalkForge.Compiler.Msi.UI.Layout;
+using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.UI.Templates;
 
+/// <summary>
+/// Advanced dialog template: Welcome → InstallScope → License → SetupType → (Customize /
+/// InstallDir) → Progress → Exit, plus the Cancel and Browse support modals.
+/// </summary>
+/// <remarks>
+/// Phase 10 of the dialog deepening RFC: composes via <see cref="DialogComposer"/> and the
+/// stock layout-based builders, including the new <see cref="InstallScopeDlgBuilder"/> for
+/// the per-machine vs. per-user scope dialog. The template now also emits the
+/// <c>CancelDlg</c> and <c>BrowseDlg</c> support dialogs.
+/// </remarks>
 internal sealed class AdvancedDialogTemplate : IDialogTemplate
 {
     public IReadOnlyList<MsiDialogModel> GetDialogs(PackageModel package)
     {
+        ArgumentNullException.ThrowIfNull(package);
+
+        var customization = package.DialogCustomization;
+        var layout = Layouts.Standard370x270;
+
         return
         [
-            SharedDialogBuilders.BuildWelcomeDlg(nextDialog: DialogNames.InstallScope),
-            BuildInstallScopeDlg(),
-            SharedDialogBuilders.BuildLicenseAgreementDlg(
-                backDialog: DialogNames.InstallScope,
-                nextDialog: DialogNames.SetupType),
-            SharedDialogBuilders.BuildSetupTypeDlg(includeDescriptions: false),
-            SharedDialogBuilders.BuildCustomizeDlg(
-                backDialog: DialogNames.SetupType,
-                includeDescription: false),
-            SharedDialogBuilders.BuildInstallDirDlg(
-                backDialog: DialogNames.SetupType,
-                includeDescription: false),
-            SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: false),
-            SharedDialogBuilders.BuildExitDlg()
+            DialogComposer.Compose(
+                WelcomeDlgBuilder.Build(new DialogFlowContext { NextDialog = DialogNames.InstallScope }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                InstallScopeDlgBuilder.Build(new DialogFlowContext
+                {
+                    BackDialog = DialogNames.Welcome,
+                    NextDialog = DialogNames.LicenseAgreement,
+                }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                LicenseDlgBuilder.Build(new DialogFlowContext
+                {
+                    BackDialog = DialogNames.InstallScope,
+                    NextDialog = DialogNames.SetupType,
+                }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                SetupTypeDlgBuilder.Build(new DialogFlowContext
+                {
+                    BackDialog = DialogNames.LicenseAgreement,
+                }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                CustomizeDlgBuilder.Build(new DialogFlowContext
+                {
+                    BackDialog = DialogNames.SetupType,
+                    NextDialog = DialogNames.Progress,
+                }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                InstallDirDlgBuilder.Build(new DialogFlowContext
+                {
+                    BackDialog = DialogNames.SetupType,
+                }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                ProgressDlgBuilder.Build(new DialogFlowContext { IncludeStatusLabel = false }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                ExitDlgBuilder.Build(),
+                layout,
+                customization),
+            // Support dialogs (spawned by other dialogs, not in sequence)
+            DialogComposer.Compose(
+                CancelDlgBuilder.Build(),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                BrowseDlgBuilder.Build(),
+                layout,
+                customization),
         ];
-    }
-
-    private static MsiDialogModel BuildInstallScopeDlg()
-    {
-        var dlg = DialogNames.InstallScope;
-        return new MsiDialogModel
-        {
-            Name = dlg,
-            Title = "[ProductName] Setup",
-            FirstControl = "PerMachine",
-            DefaultControl = "PerMachine",
-            CancelControl = "Cancel",
-            Controls =
-            [
-                new MsiControlModel
-                {
-                    Name = "Title",
-                    Type = MsiControlType.Text,
-                    X = 15, Y = 6, Width = 200, Height = 15,
-                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
-                    Text = "{\\DlgFontBold8}!(loc.Dialog.InstallScope.Title)"
-                },
-                new MsiControlModel
-                {
-                    Name = "Description",
-                    Type = MsiControlType.Text,
-                    X = 25, Y = 23, Width = 280, Height = 20,
-                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
-                    Text = "!(loc.Dialog.InstallScope.Description)"
-                },
-                new MsiControlModel
-                {
-                    Name = "PerMachine",
-                    Type = MsiControlType.PushButton,
-                    X = 40, Y = 75, Width = 290, Height = 17,
-                    Text = "!(loc.Dialog.InstallScope.AllUsers)",
-                    NextControl = "PerUser"
-                },
-                new MsiControlModel
-                {
-                    Name = "PerMachineDesc",
-                    Type = MsiControlType.Text,
-                    X = 60, Y = 95, Width = 270, Height = 20,
-                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
-                    Text = "!(loc.Dialog.InstallScope.AllUsersDesc)"
-                },
-                new MsiControlModel
-                {
-                    Name = "PerUser",
-                    Type = MsiControlType.PushButton,
-                    X = 40, Y = 125, Width = 290, Height = 17,
-                    Text = "!(loc.Dialog.InstallScope.CurrentUser)",
-                    NextControl = "Back"
-                },
-                new MsiControlModel
-                {
-                    Name = "PerUserDesc",
-                    Type = MsiControlType.Text,
-                    X = 60, Y = 145, Width = 270, Height = 20,
-                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
-                    Text = "!(loc.Dialog.InstallScope.CurrentUserDesc)"
-                },
-                new MsiControlModel
-                {
-                    Name = "BottomLine",
-                    Type = MsiControlType.Line,
-                    X = 0, Y = 234, Width = 370, Height = 0,
-                    Attributes = MsiControlAttributes.Visible
-                },
-                new MsiControlModel
-                {
-                    Name = "Back",
-                    Type = MsiControlType.PushButton,
-                    X = 180, Y = 243, Width = 56, Height = 17,
-                    Text = "!(loc.Button.Back)",
-                    NextControl = "Cancel"
-                },
-                new MsiControlModel
-                {
-                    Name = "Cancel",
-                    Type = MsiControlType.PushButton,
-                    X = 304, Y = 243, Width = 56, Height = 17,
-                    Text = "!(loc.Button.Cancel)",
-                    NextControl = "PerMachine"
-                }
-            ],
-            Events =
-            [
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "Back",
-                    Event = MsiControlEvent.NewDialog,
-                    Argument = DialogNames.Welcome,
-                    Ordering = 1
-                },
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "PerMachine",
-                    Event = MsiControlEvent.SetProperty("ALLUSERS"),
-                    Argument = "1",
-                    Ordering = 1
-                },
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "PerMachine",
-                    Event = MsiControlEvent.NewDialog,
-                    Argument = DialogNames.LicenseAgreement,
-                    Ordering = 2
-                },
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "PerUser",
-                    Event = MsiControlEvent.SetProperty("ALLUSERS"),
-                    Argument = "{}",
-                    Ordering = 1
-                },
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "PerUser",
-                    Event = MsiControlEvent.NewDialog,
-                    Argument = DialogNames.LicenseAgreement,
-                    Ordering = 2
-                },
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "Cancel",
-                    Event = MsiControlEvent.SpawnDialog,
-                    Argument = DialogNames.Cancel,
-                    Ordering = 1
-                }
-            ]
-        };
     }
 }
