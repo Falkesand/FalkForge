@@ -16,9 +16,18 @@ internal static class ExitDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "ExitDlg";
 
-    /// <summary>Builds the declarative content for the Exit dialog.</summary>
+    /// <summary>Builds the declarative content for the Exit dialog. The Exit modal is self-contained
+    /// — Finish ends the wizard with status "Return" — so no flow context is needed.</summary>
     public static DialogContent Build()
     {
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Finish",
+                Event = "EndDialog",
+                Argument = "Return",
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -27,6 +36,7 @@ internal static class ExitDlgBuilder
             DefaultControl = "Finish",
             CancelControl = "Finish",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
