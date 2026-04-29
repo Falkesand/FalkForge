@@ -80,4 +80,45 @@ public sealed class ProgressDlgBuilderTests
         Assert.Equal(56, cancel.Width);
         Assert.Equal(17, cancel.Height);
     }
+
+    [Fact]
+    public void Build_emits_cancel_event_only()
+    {
+        // Legacy BuildProgressDlg emits a single ControlEvent row: Cancel SpawnDialog.
+        var content = ProgressDlgBuilder.Build(new DialogFlowContext());
+
+        Assert.Single(content.Events);
+        var cancel = content.Events[0];
+        Assert.Equal("Cancel", cancel.Control);
+        Assert.Equal("SpawnDialog", cancel.Event);
+    }
+
+    [Fact]
+    public void Build_event_targets_match_flow_context()
+    {
+        var ctx = new DialogFlowContext { CancelDialog = "MyCancelDlg" };
+
+        var content = ProgressDlgBuilder.Build(ctx);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("MyCancelDlg", cancel.Argument);
+    }
+
+    [Fact]
+    public void Build_event_mappings_match_legacy()
+    {
+        // Legacy emits two EventMapping rows: ProgressBar SetProgress -> Progress,
+        // ActionText ActionText -> Text.
+        var content = ProgressDlgBuilder.Build();
+
+        Assert.Equal(2, content.EventMappings.Length);
+
+        var progressMapping = content.EventMappings.Single(m => m.Control == "ProgressBar");
+        Assert.Equal("SetProgress", progressMapping.Event);
+        Assert.Equal("Progress", progressMapping.Attribute);
+
+        var actionMapping = content.EventMappings.Single(m => m.Control == "ActionText");
+        Assert.Equal("ActionText", actionMapping.Event);
+        Assert.Equal("Text", actionMapping.Attribute);
+    }
 }
