@@ -1,90 +1,46 @@
+using FalkForge.Compiler.Msi.UI.Layout;
+using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.UI.Templates;
 
+/// <summary>
+/// Minimal dialog template: Welcome → Progress → Exit, plus the Cancel confirmation modal.
+/// </summary>
+/// <remarks>
+/// Phase 10 of the dialog deepening RFC: this template now composes its dialogs via
+/// <see cref="DialogComposer"/> against the stock layout-based builders rather than
+/// calling the legacy hand-coded <c>SharedDialogBuilders</c> entry points. The dialog
+/// set is also expanded to include the <c>CancelDlg</c> modal (previously referenced
+/// via SpawnDialog from Welcome but never emitted — a pre-existing template bug).
+/// </remarks>
 internal sealed class MinimalDialogTemplate : IDialogTemplate
 {
     public IReadOnlyList<MsiDialogModel> GetDialogs(PackageModel package)
     {
+        ArgumentNullException.ThrowIfNull(package);
+
+        var customization = package.DialogCustomization;
+        var layout = Layouts.Standard370x270;
+
         return
         [
-            BuildWelcomeDlg(),
-            SharedDialogBuilders.BuildProgressDlg(includeStatusLabel: true),
-            SharedDialogBuilders.BuildExitDlg()
+            DialogComposer.Compose(
+                WelcomeDlgBuilder.Build(new DialogFlowContext { NextDialog = DialogNames.Progress }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                ProgressDlgBuilder.Build(new DialogFlowContext { IncludeStatusLabel = true }),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                ExitDlgBuilder.Build(),
+                layout,
+                customization),
+            DialogComposer.Compose(
+                CancelDlgBuilder.Build(),
+                layout,
+                customization),
         ];
-    }
-
-    private static MsiDialogModel BuildWelcomeDlg()
-    {
-        var dlg = DialogNames.Welcome;
-        return new MsiDialogModel
-        {
-            Name = dlg,
-            Title = "[ProductName] Setup",
-            FirstControl = "Install",
-            DefaultControl = "Install",
-            CancelControl = "Cancel",
-            Controls =
-            [
-                new MsiControlModel
-                {
-                    Name = "Title",
-                    Type = MsiControlType.Text,
-                    X = 15, Y = 6, Width = 200, Height = 15,
-                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
-                    Text = "{\\DlgFontBold8}!(loc.Dialog.Welcome.Title)"
-                },
-                new MsiControlModel
-                {
-                    Name = "Description",
-                    Type = MsiControlType.Text,
-                    X = 25, Y = 23, Width = 280, Height = 20,
-                    Attributes = MsiControlAttributes.Visible | MsiControlAttributes.Enabled | MsiControlAttributes.Transparent | MsiControlAttributes.NoPrefix,
-                    Text = "!(loc.Dialog.Welcome.Description)"
-                },
-                new MsiControlModel
-                {
-                    Name = "BottomLine",
-                    Type = MsiControlType.Line,
-                    X = 0, Y = 234, Width = 370, Height = 0,
-                    Attributes = MsiControlAttributes.Visible
-                },
-                new MsiControlModel
-                {
-                    Name = "Install",
-                    Type = MsiControlType.PushButton,
-                    X = 236, Y = 243, Width = 56, Height = 17,
-                    Text = "!(loc.Button.Install)",
-                    NextControl = "Cancel"
-                },
-                new MsiControlModel
-                {
-                    Name = "Cancel",
-                    Type = MsiControlType.PushButton,
-                    X = 304, Y = 243, Width = 56, Height = 17,
-                    Text = "!(loc.Button.Cancel)",
-                    NextControl = "Install"
-                }
-            ],
-            Events =
-            [
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "Install",
-                    Event = MsiControlEvent.NewDialog,
-                    Argument = DialogNames.Progress,
-                    Ordering = 1
-                },
-                new MsiControlEventModel
-                {
-                    DialogName = dlg,
-                    ControlName = "Cancel",
-                    Event = MsiControlEvent.SpawnDialog,
-                    Argument = DialogNames.Cancel,
-                    Ordering = 1
-                }
-            ]
-        };
     }
 }

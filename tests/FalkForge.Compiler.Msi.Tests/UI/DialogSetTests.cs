@@ -88,7 +88,7 @@ public sealed class DialogSetTests
             using var db = OpenMsi(msiPath);
             var rows = db.QueryRows("SELECT `Dialog` FROM `Dialog`", 1);
             Assert.True(rows.IsSuccess, FailMsg(rows));
-            Assert.Equal(3, rows.Value.Count); // WelcomeDlg, ProgressDlg, ExitDlg
+            Assert.Equal(4, rows.Value.Count); // WelcomeDlg, ProgressDlg, ExitDlg, CancelDlg
         }
         finally
         {
