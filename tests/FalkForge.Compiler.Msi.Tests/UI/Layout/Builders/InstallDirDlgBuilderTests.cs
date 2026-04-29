@@ -78,4 +78,57 @@ public sealed class InstallDirDlgBuilderTests
 
         Assert.Equal(304, cancel.X);
     }
+
+    [Fact]
+    public void Build_emits_events_for_each_button()
+    {
+        // Legacy BuildInstallDirDlg emits six ControlEvent rows: ChangeFolder x3 (SetProperty,
+        // SpawnDialog, SetProperty), Back NewDialog, Next EndDialog, Cancel SpawnDialog.
+        var ctx = new DialogFlowContext { BackDialog = "WelcomeDlg" };
+
+        var content = InstallDirDlgBuilder.Build(ctx);
+
+        Assert.Equal(6, content.Events.Length);
+    }
+
+    [Fact]
+    public void Build_event_targets_match_flow_context()
+    {
+        var ctx = new DialogFlowContext { BackDialog = "BackTarget", CancelDialog = "MyCancelDlg" };
+
+        var content = InstallDirDlgBuilder.Build(ctx);
+
+        var back = content.Events.Single(e => e.Control == "Back");
+        Assert.Equal("NewDialog", back.Event);
+        Assert.Equal("BackTarget", back.Argument);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("SpawnDialog", cancel.Event);
+        Assert.Equal("MyCancelDlg", cancel.Argument);
+
+        var next = content.Events.Single(e => e.Control == "Next");
+        Assert.Equal("EndDialog", next.Event);
+        Assert.Equal("Return", next.Argument);
+    }
+
+    [Fact]
+    public void Build_change_folder_emits_three_ordered_events()
+    {
+        // Legacy ChangeFolder sequence: SetProperty[_BrowseProperty]=[INSTALLDIR],
+        // SpawnDialog BrowseDlg, SetProperty[INSTALLDIR]=[_BrowseProperty].
+        var content = InstallDirDlgBuilder.Build(new DialogFlowContext { BackDialog = "B" });
+
+        var changeFolderEvents = content.Events.Where(e => e.Control == "ChangeFolder")
+            .OrderBy(e => e.Order).ToArray();
+        Assert.Equal(3, changeFolderEvents.Length);
+
+        Assert.Equal("[_BrowseProperty]", changeFolderEvents[0].Event);
+        Assert.Equal("[INSTALLDIR]", changeFolderEvents[0].Argument);
+
+        Assert.Equal("SpawnDialog", changeFolderEvents[1].Event);
+        Assert.Equal("BrowseDlg", changeFolderEvents[1].Argument);
+
+        Assert.Equal("[INSTALLDIR]", changeFolderEvents[2].Event);
+        Assert.Equal("[_BrowseProperty]", changeFolderEvents[2].Argument);
+    }
 }
