@@ -41,6 +41,7 @@ public static class MessageCodecRegistry
         UpdateReadyCodec.Instance,
         UpdateDownloadProgressCodec.Instance,
         ElevateExecuteCodec.Instance,
+        ElevateProgressCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
