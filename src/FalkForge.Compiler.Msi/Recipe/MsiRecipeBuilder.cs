@@ -10,11 +10,13 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Pure function that turns a <see cref="ResolvedPackage"/> plus any extension
 /// table contributors into an immutable <see cref="MsiDatabaseRecipe"/>.
 ///
-/// Phase 4 wires in the first ten built-in producers (Property, Directory,
-/// Feature, Component, File, FeatureComponents, Media, Registry,
-/// ServiceInstall, Shortcut). Each producer emits one <see cref="RecipeTable"/>
-/// — even when the source data is empty — so downstream phases can rely on a
-/// stable table set. Pruning of empty tables is deliberately deferred.
+/// Phase 4 wires in the first fifteen built-in producers (Property,
+/// Directory, Feature, Component, File, FeatureComponents,
+/// FeatureCondition, Upgrade, Media, Registry, ServiceInstall, Shortcut,
+/// Environment, MoveFile, RemoveFile). Each producer emits one
+/// <see cref="RecipeTable"/> — even when the source data is empty — so
+/// downstream phases can rely on a stable table set. Pruning of empty
+/// tables is deliberately deferred.
 /// </summary>
 public static class MsiRecipeBuilder
 {
@@ -60,9 +62,12 @@ public static class MsiRecipeBuilder
         // dependency direction so future cross-producer FK validators can
         // rely on referenced tables being present in BuiltTables. Feature
         // is emitted before Component so the FeatureComponents junction can
-        // see both parent tables; Media has no FK dependencies but is kept
-        // adjacent to File for readability; Registry/ServiceInstall/Shortcut
-        // all reference Component.
+        // see both parent tables; FeatureCondition (Condition table) sits
+        // immediately after Feature because it FKs back to Feature; Upgrade
+        // has no FK dependencies and is emitted before any Component-bound
+        // producer for grouping; Environment/MoveFile/RemoveFile all
+        // reference Component (and Directory in MoveFile/RemoveFile cases)
+        // and therefore follow the parent producers.
         ITableProducer[] producers =
         {
             new PropertyTableProducer(),
@@ -71,10 +76,15 @@ public static class MsiRecipeBuilder
             new ComponentTableProducer(),
             new FileTableProducer(),
             new FeatureComponentsTableProducer(),
+            new FeatureConditionTableProducer(),
+            new UpgradeTableProducer(),
             new MediaTableProducer(),
             new RegistryTableProducer(),
             new ServiceInstallTableProducer(),
             new ShortcutTableProducer(),
+            new EnvironmentTableProducer(),
+            new MoveFileTableProducer(),
+            new RemoveFileTableProducer(),
         };
 
         ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);
@@ -128,9 +138,9 @@ public static class MsiRecipeBuilder
 
     private static string LookupCreateTableSql(TableId table)
     {
-        // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships ten
-        // tables across two producer batches; later phases will either
-        // extend this lookup or migrate to a contributor-driven map.
+        // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships
+        // fifteen tables across three producer batches; later phases will
+        // either extend this lookup or migrate to a contributor-driven map.
         return table.Value switch
         {
             "Property" => MsiTableDefinitions.CreatePropertyTable,
@@ -139,10 +149,15 @@ public static class MsiRecipeBuilder
             "File" => MsiTableDefinitions.CreateFileTable,
             "Feature" => MsiTableDefinitions.CreateFeatureTable,
             "FeatureComponents" => MsiTableDefinitions.CreateFeatureComponentsTable,
+            "Condition" => MsiTableDefinitions.CreateConditionTable,
+            "Upgrade" => MsiTableDefinitions.CreateUpgradeTable,
             "Media" => MsiTableDefinitions.CreateMediaTable,
             "Registry" => MsiTableDefinitions.CreateRegistryTable,
             "ServiceInstall" => MsiTableDefinitions.CreateServiceInstallTable,
             "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
+            "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
+            "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
+            "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
             _ => throw new InvalidOperationException(
                 $"No CREATE TABLE SQL registered for table '{table.Value}'."),
         };
