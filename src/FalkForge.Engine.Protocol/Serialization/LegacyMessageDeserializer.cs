@@ -2,7 +2,7 @@ using FalkForge.Engine.Protocol.Messages;
 
 namespace FalkForge.Engine.Protocol.Serialization;
 
-public static class MessageDeserializer
+public static class LegacyMessageDeserializer
 {
     private const ushort ProtocolVersion = 1;
     internal const int MaxPayloadSize = 1 * 1024 * 1024; // 1MB

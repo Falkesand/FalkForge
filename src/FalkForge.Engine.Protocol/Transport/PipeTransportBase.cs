@@ -38,7 +38,7 @@ public abstract class PipeTransportBase : IAsyncDisposable
         if (_pipe is null || !_pipe.IsConnected)
             return Result<Unit>.Failure(ErrorKind.TransportError, "Not connected");
 
-        var data = MessageSerializer.Serialize(message);
+        var data = LegacyMessageSerializer.Serialize(message);
         if (data.Length > _options.MaxMessageSize)
             return Result<Unit>.Failure(ErrorKind.TransportError,
                 $"Message exceeds max size: {data.Length} > {_options.MaxMessageSize}");
@@ -80,7 +80,7 @@ public abstract class PipeTransportBase : IAsyncDisposable
                     if (!await ReadExactAsync(_pipe, messageBuffer, messageLength, ct))
                         break;
 
-                    var result = MessageDeserializer.Deserialize(messageBuffer, messageLength);
+                    var result = LegacyMessageDeserializer.Deserialize(messageBuffer, messageLength);
                     if (result.IsSuccess)
                         await _messageHandler(result.Value);
                     else

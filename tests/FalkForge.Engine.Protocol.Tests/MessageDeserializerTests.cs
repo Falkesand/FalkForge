@@ -5,7 +5,7 @@ using Xunit;
 namespace FalkForge.Engine.Protocol.Tests;
 
 /// <summary>
-/// Boundary tests for MessageDeserializer targeting surviving Stryker mutants:
+/// Boundary tests for LegacyMessageDeserializer targeting surviving Stryker mutants:
 /// - MinHeaderSize boundary (< vs <=)
 /// - Payload length condition (|| vs &&)
 /// - MaxPayloadSize boundary (> vs >=)
@@ -24,7 +24,7 @@ public class MessageDeserializerTests
         // with <=, length==7 would still fail (7 <= 8), so this test alone is not enough.
         // Combined with the 8-byte test below it constrains both sides of the boundary.
         var data = new byte[7];
-        var result = MessageDeserializer.Deserialize(data, 7);
+        var result = LegacyMessageDeserializer.Deserialize(data, 7);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -55,7 +55,7 @@ public class MessageDeserializerTests
         // The "too short" guard passed (length==8 >= MinHeaderSize==8), so processing continues
         // into the body where ReadUInt32 for sequenceId throws EndOfStreamException.
         // This proves the length guard evaluated correctly (did not reject 8 bytes).
-        Assert.Throws<EndOfStreamException>(() => MessageDeserializer.Deserialize(header, 8));
+        Assert.Throws<EndOfStreamException>(() => LegacyMessageDeserializer.Deserialize(header, 8));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class MessageDeserializerTests
         bw.Write(0u);  // sequenceId
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         // Must succeed — DetectBegin has no additional payload fields.
         Assert.True(result.IsSuccess);
@@ -95,7 +95,7 @@ public class MessageDeserializerTests
         bw.Write(0u);
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -112,11 +112,11 @@ public class MessageDeserializerTests
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
         bw.Write((ushort)MessageType.DetectBegin);
-        bw.Write(MessageDeserializer.MaxPayloadSize + 1);
+        bw.Write(LegacyMessageDeserializer.MaxPayloadSize + 1);
         bw.Write(0u);
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -134,11 +134,11 @@ public class MessageDeserializerTests
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
         bw.Write((ushort)MessageType.DetectBegin);
-        bw.Write(MessageDeserializer.MaxPayloadSize);  // exactly at the limit
+        bw.Write(LegacyMessageDeserializer.MaxPayloadSize);  // exactly at the limit
         bw.Write(0u);              // sequenceId (4 bytes), but payload claims 1MB beyond this
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         // Must fail with "truncated", not "Invalid payload length"
         Assert.True(result.IsFailure);
@@ -163,7 +163,7 @@ public class MessageDeserializerTests
         bw.Write(1u);  // sequenceId
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         // DetectBegin has no further fields — should succeed.
         Assert.True(result.IsSuccess);
@@ -185,7 +185,7 @@ public class MessageDeserializerTests
         bw.Write(0u);  // only 4 bytes actually present
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -222,7 +222,7 @@ public class MessageDeserializerTests
 
         var data = ms.ToArray();
 
-        var result = MessageDeserializer.Deserialize(data);
+        var result = LegacyMessageDeserializer.Deserialize(data);
 
         // The EndOfStreamException must be caught and converted to a failure result.
         Assert.True(result.IsFailure);

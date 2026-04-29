@@ -2,7 +2,7 @@ using FalkForge.Engine.Protocol.Messages;
 
 namespace FalkForge.Engine.Protocol.Serialization;
 
-public static class MessageSerializer
+public static class LegacyMessageSerializer
 {
     private const ushort ProtocolVersion = 1;
 

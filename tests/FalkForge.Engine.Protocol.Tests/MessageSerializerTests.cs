@@ -11,7 +11,7 @@ public class MessageSerializerTests
     {
         var message = new DetectBeginMessage { SequenceId = 42 };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -30,7 +30,7 @@ public class MessageSerializerTests
     {
         var message = new DetectBeginMessage { SequenceId = 99 };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -60,7 +60,7 @@ public class MessageSerializerTests
             _ => throw new ArgumentException($"Unexpected type: {expectedType}")
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         // Header is 8 bytes (version:2 + type:2 + length:4), payload is just SequenceId (4 bytes)
         Assert.Equal(12, bytes.Length);
@@ -81,7 +81,7 @@ public class MessageSerializerTests
             Progress = new InstallProgress(5, 20, "package-a", 42)
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -118,7 +118,7 @@ public class MessageSerializerTests
             Features = features
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -163,7 +163,7 @@ public class MessageSerializerTests
             CommandPayload = payload
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -192,7 +192,7 @@ public class MessageSerializerTests
             ResultPayload = resultPayload
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -225,7 +225,7 @@ public class MessageSerializerTests
             ResultPayload = null
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -253,7 +253,7 @@ public class MessageSerializerTests
             PackageIds = ["pkg-a", "pkg-b", "pkg-c"]
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -283,7 +283,7 @@ public class MessageSerializerTests
             Level = LogLevel.Info
         };
 
-        var bytes = MessageSerializer.Serialize(message);
+        var bytes = LegacyMessageSerializer.Serialize(message);
 
         using var stream = new MemoryStream(bytes);
         using var reader = new BinaryReader(stream);
@@ -306,8 +306,8 @@ public class MessageSerializerTests
             TotalBytes = 2_000_000,
             PercentComplete = 25
         };
-        var bytes = MessageSerializer.Serialize(msg);
-        var result = MessageDeserializer.Deserialize(bytes);
+        var bytes = LegacyMessageSerializer.Serialize(msg);
+        var result = LegacyMessageDeserializer.Deserialize(bytes);
         Assert.True(result.IsSuccess);
         var deserialized = Assert.IsType<UpdateDownloadProgressMessage>(result.Value);
         Assert.Equal(42u, deserialized.SequenceId);
@@ -326,8 +326,8 @@ public class MessageSerializerTests
             TotalBytes = -1,
             PercentComplete = 0
         };
-        var bytes = MessageSerializer.Serialize(msg);
-        var result = MessageDeserializer.Deserialize(bytes);
+        var bytes = LegacyMessageSerializer.Serialize(msg);
+        var result = LegacyMessageDeserializer.Deserialize(bytes);
         Assert.True(result.IsSuccess);
         var deserialized = Assert.IsType<UpdateDownloadProgressMessage>(result.Value);
         Assert.Equal(-1, deserialized.TotalBytes);
@@ -338,8 +338,8 @@ public class MessageSerializerTests
     public void RoundTrip_LaunchUpdateMessage_PreservesSequenceId()
     {
         var msg = new LaunchUpdateMessage { SequenceId = 99 };
-        var bytes = MessageSerializer.Serialize(msg);
-        var result = MessageDeserializer.Deserialize(bytes);
+        var bytes = LegacyMessageSerializer.Serialize(msg);
+        var result = LegacyMessageDeserializer.Deserialize(bytes);
         Assert.True(result.IsSuccess);
         var deserialized = Assert.IsType<LaunchUpdateMessage>(result.Value);
         Assert.Equal(99u, deserialized.SequenceId);
