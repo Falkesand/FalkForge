@@ -81,4 +81,30 @@ public sealed class BrowseDlgBuilderTests
         Assert.Contains(model.Controls, c => c.Name == "Up" && c.Type == MsiControlType.PushButton);
         Assert.Contains(model.Controls, c => c.Name == "NewFolder" && c.Type == MsiControlType.PushButton);
     }
+
+    [Fact]
+    public void Build_emits_directory_navigation_and_close_events()
+    {
+        // Legacy BuildBrowseDlg emits four ControlEvent rows: Up DirectoryListUp,
+        // NewFolder DirectoryListNew, OK EndDialog Return, Cancel EndDialog Return.
+        var content = BrowseDlgBuilder.Build();
+
+        Assert.Equal(4, content.Events.Length);
+
+        var up = content.Events.Single(e => e.Control == "Up");
+        Assert.Equal("DirectoryListUp", up.Event);
+        Assert.Equal("0", up.Argument);
+
+        var newFolder = content.Events.Single(e => e.Control == "NewFolder");
+        Assert.Equal("DirectoryListNew", newFolder.Event);
+        Assert.Equal("0", newFolder.Argument);
+
+        var ok = content.Events.Single(e => e.Control == "OK");
+        Assert.Equal("EndDialog", ok.Event);
+        Assert.Equal("Return", ok.Argument);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("EndDialog", cancel.Event);
+        Assert.Equal("Return", cancel.Argument);
+    }
 }
