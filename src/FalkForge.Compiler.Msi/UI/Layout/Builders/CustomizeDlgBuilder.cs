@@ -17,9 +17,35 @@ internal static class CustomizeDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "CustomizeDlg";
 
-    /// <summary>Builds the declarative content for the Customize dialog.</summary>
-    public static DialogContent Build()
+    /// <summary>Builds the declarative content for the Customize dialog with default flow context.</summary>
+    public static DialogContent Build() => Build(new DialogFlowContext());
+
+    /// <summary>Builds the declarative content for the Customize dialog with explicit flow targets.</summary>
+    /// <param name="flow">Navigation targets for Back/Next/Cancel events. Next routes to ProgressDlg per legacy.</param>
+    public static DialogContent Build(DialogFlowContext flow)
     {
+        System.ArgumentNullException.ThrowIfNull(flow);
+
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Back",
+                Event = "NewDialog",
+                Argument = flow.BackDialog ?? string.Empty,
+            },
+            new DialogControlEvent
+            {
+                Control = "Next",
+                Event = "NewDialog",
+                Argument = flow.NextDialog ?? "ProgressDlg",
+            },
+            new DialogControlEvent
+            {
+                Control = "Cancel",
+                Event = "SpawnDialog",
+                Argument = flow.CancelDialog,
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -28,6 +54,7 @@ internal static class CustomizeDlgBuilder
             DefaultControl = "Next",
             CancelControl = "Cancel",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
