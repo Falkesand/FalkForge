@@ -107,8 +107,27 @@ public static class MsiRecipeBuilder
                 PrimaryKey = producer.Schema.PrimaryKey,
                 CreateTableSql = LookupCreateTableSql(producer.Schema.Name),
                 InsertViewSql = BuildInsertViewSql(producer.Schema),
+                ForeignKeys = producer.Schema.ForeignKeys,
             };
             tableBuilder.Add(table);
+        }
+
+        // Phase 5: run recipe-level validators after every producer has
+        // emitted rows. Both validators are pure functions over the
+        // already-built tables, so failure here unambiguously indicates a
+        // producer-level bug or a malformed input package — never a transient
+        // condition that retrying would fix.
+        ImmutableArray<RecipeTable> validatedTables = tableBuilder.ToImmutable();
+        Result<Unit> pkResult = PrimaryKeyValidator.Validate(validatedTables);
+        if (pkResult.IsFailure)
+        {
+            return Result<MsiDatabaseRecipe>.Failure(pkResult.Error);
+        }
+
+        Result<Unit> fkResult = ForeignKeyValidator.Validate(validatedTables);
+        if (fkResult.IsFailure)
+        {
+            return Result<MsiDatabaseRecipe>.Failure(fkResult.Error);
         }
 
         SummaryInfoRecipe summaryInfo = new()
@@ -125,7 +144,7 @@ public static class MsiRecipeBuilder
 
         MsiDatabaseRecipe recipe = new()
         {
-            Tables = tableBuilder.MoveToImmutable(),
+            Tables = validatedTables,
             SummaryInfo = summaryInfo,
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
