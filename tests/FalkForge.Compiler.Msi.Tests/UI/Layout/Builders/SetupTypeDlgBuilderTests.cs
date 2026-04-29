@@ -83,4 +83,46 @@ public sealed class SetupTypeDlgBuilderTests
         Assert.Contains(model.Controls, c => c.Name == "CustomDesc");
         Assert.Contains(model.Controls, c => c.Name == "CompleteDesc");
     }
+
+    [Fact]
+    public void Build_emits_events_for_each_button()
+    {
+        // Legacy BuildSetupTypeDlg emits five ControlEvent rows: Back NewDialog,
+        // TypicalButton, CustomButton, CompleteButton (each NewDialog), Cancel SpawnDialog.
+        var content = SetupTypeDlgBuilder.Build(new DialogFlowContext { BackDialog = "LicenseAgreementDlg" });
+
+        Assert.Equal(5, content.Events.Length);
+    }
+
+    [Fact]
+    public void Build_event_targets_match_flow_context_and_legacy_routes()
+    {
+        var ctx = new DialogFlowContext
+        {
+            BackDialog = "LicenseAgreementDlg",
+            CancelDialog = "MyCancelDlg",
+        };
+
+        var content = SetupTypeDlgBuilder.Build(ctx);
+
+        var back = content.Events.Single(e => e.Control == "Back");
+        Assert.Equal("NewDialog", back.Event);
+        Assert.Equal("LicenseAgreementDlg", back.Argument);
+
+        var typical = content.Events.Single(e => e.Control == "TypicalButton");
+        Assert.Equal("NewDialog", typical.Event);
+        Assert.Equal("ProgressDlg", typical.Argument);
+
+        var custom = content.Events.Single(e => e.Control == "CustomButton");
+        Assert.Equal("NewDialog", custom.Event);
+        Assert.Equal("CustomizeDlg", custom.Argument);
+
+        var complete = content.Events.Single(e => e.Control == "CompleteButton");
+        Assert.Equal("NewDialog", complete.Event);
+        Assert.Equal("ProgressDlg", complete.Argument);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("SpawnDialog", cancel.Event);
+        Assert.Equal("MyCancelDlg", cancel.Argument);
+    }
 }
