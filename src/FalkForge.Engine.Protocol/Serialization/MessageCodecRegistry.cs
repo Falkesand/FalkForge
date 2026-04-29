@@ -31,6 +31,7 @@ public static class MessageCodecRegistry
         ErrorCodec.Instance,
         ProgressCodec.Instance,
         ShutdownRequestCodec.Instance,
+        ShutdownResponseCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
