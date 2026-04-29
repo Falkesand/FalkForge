@@ -77,4 +77,41 @@ public sealed class CustomizeDlgBuilderTests
         Assert.Contains(model.Controls, c => c.Name == "ItemDescription");
         Assert.Contains(model.Controls, c => c.Name == "ItemSize");
     }
+
+    [Fact]
+    public void Build_emits_events_for_each_button()
+    {
+        // Legacy BuildCustomizeDlg emits three ControlEvent rows: Back NewDialog, Next NewDialog,
+        // Cancel SpawnDialog.
+        var ctx = new DialogFlowContext { BackDialog = "WelcomeDlg", NextDialog = "ProgressDlg" };
+
+        var content = CustomizeDlgBuilder.Build(ctx);
+
+        Assert.Equal(3, content.Events.Length);
+    }
+
+    [Fact]
+    public void Build_event_targets_match_flow_context()
+    {
+        var ctx = new DialogFlowContext
+        {
+            BackDialog = "BackTarget",
+            NextDialog = "NextTarget",
+            CancelDialog = "MyCancelDlg",
+        };
+
+        var content = CustomizeDlgBuilder.Build(ctx);
+
+        var back = content.Events.Single(e => e.Control == "Back");
+        Assert.Equal("NewDialog", back.Event);
+        Assert.Equal("BackTarget", back.Argument);
+
+        var next = content.Events.Single(e => e.Control == "Next");
+        Assert.Equal("NewDialog", next.Event);
+        Assert.Equal("NextTarget", next.Argument);
+
+        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        Assert.Equal("SpawnDialog", cancel.Event);
+        Assert.Equal("MyCancelDlg", cancel.Argument);
+    }
 }
