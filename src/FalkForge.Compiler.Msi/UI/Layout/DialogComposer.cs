@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Frozen;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace FalkForge.Compiler.Msi.UI.Layout;
 
@@ -7,14 +10,25 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// to produce a concrete <see cref="MsiDialogModel"/>.
 /// </summary>
 /// <remarks>
-/// This is the phase-4 skeleton: the returned model carries the dialog name, canvas size
-/// from the layout, and the title key, but holds no controls. Region policy resolution,
-/// control placement, and customization are added in phases 5+.
-/// <see cref="MsiDialogModel"/> is internal so this composer is internal as well; the public
-/// surface for end-users will land in phase 7+ via fluent builders.
+/// Phase 5: every <see cref="RegionPlacement"/> in <see cref="DialogContent.Placements"/> is
+/// resolved through its region's <see cref="IRegionLayoutPolicy"/>. Resolved bounds are mapped
+/// onto <see cref="MsiControlModel"/> entries which preserve the input order. Customization
+/// (events, conditions, per-template builders) lands in phase 6+.
+/// <see cref="MsiDialogModel"/> is internal so this composer is internal as well.
 /// </remarks>
 internal static class DialogComposer
 {
+    // Cached single-instance policies — they are stateless, allocation-free reuse.
+    private static readonly AbsoluteRegionLayout AbsolutePolicy = new();
+    private static readonly RightPackedRegionLayout RightPackedPolicy = new();
+    private static readonly TopStackedRegionLayout TopStackedPolicy = new();
+    private static readonly SingleControlRegionLayout SingleControlPolicy = new();
+
+    // Frozen lookup keyed by the MSI control type string used in PlacedControl.Type. The
+    // member-name spelling is the exact string the Windows Installer Control table expects, so
+    // keying off the string keeps the declarative DSL string-typed and the model strongly typed.
+    private static readonly FrozenDictionary<string, MsiControlType> ControlTypeLookup = BuildControlTypeLookup();
+
     /// <summary>
     /// Compose a declarative <see cref="DialogContent"/> against a <paramref name="layout"/>
     /// to produce a concrete <see cref="MsiDialogModel"/>.
@@ -24,15 +38,133 @@ internal static class DialogComposer
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(layout);
 
-        return new MsiDialogModel
+        var resolvedFirst = content.FirstControl ?? FindFallbackFirstControl(content);
+
+        var model = new MsiDialogModel
         {
             Name = content.Name,
             Width = layout.CanvasWidth,
             Height = layout.CanvasHeight,
             Title = content.TitleLocKey ?? string.Empty,
-            FirstControl = content.FirstControl ?? string.Empty,
+            FirstControl = resolvedFirst ?? string.Empty,
             DefaultControl = content.DefaultControl,
             CancelControl = content.CancelControl,
         };
+
+        if (content.Placements.IsDefaultOrEmpty)
+        {
+            return model;
+        }
+
+        foreach (var placement in content.Placements)
+        {
+            if (!layout.TryGetRegion(placement.RegionName, out var region))
+            {
+                throw new InvalidOperationException(
+                    $"Region '{placement.RegionName}' is not defined in layout '{layout.Name}'.");
+            }
+
+            var controls = placement.Controls;
+            if (controls.IsDefaultOrEmpty)
+            {
+                continue;
+            }
+
+            var policy = SelectPolicy(region.Policy);
+            var resolved = policy.Resolve(region, controls);
+
+            foreach (var entry in resolved)
+            {
+                model.Controls.Add(BuildControlModel(entry));
+            }
+        }
+
+        return model;
+    }
+
+    private static IRegionLayoutPolicy SelectPolicy(RegionPolicy policy) => policy switch
+    {
+        RegionPolicy.Absolute => AbsolutePolicy,
+        RegionPolicy.RightPacked => RightPackedPolicy,
+        RegionPolicy.TopStacked => TopStackedPolicy,
+        RegionPolicy.SingleControl => SingleControlPolicy,
+        _ => throw new InvalidOperationException($"Unsupported region policy '{policy}'."),
+    };
+
+    private static MsiControlModel BuildControlModel(ResolvedControlPlacement entry)
+    {
+        var source = entry.Source;
+        if (!ControlTypeLookup.TryGetValue(source.Type, out var controlType))
+        {
+            throw new InvalidOperationException(
+                $"Unknown MSI control type '{source.Type}' on placed control '{source.Name}'.");
+        }
+
+        return new MsiControlModel
+        {
+            Name = source.Name,
+            Type = controlType,
+            X = entry.Bounds.X,
+            Y = entry.Bounds.Y,
+            Width = entry.Bounds.Width,
+            Height = entry.Bounds.Height,
+            Property = source.Property,
+            Text = string.IsNullOrEmpty(source.TextOrLocKey) ? null : source.TextOrLocKey,
+        };
+    }
+
+    private static string? FindFallbackFirstControl(DialogContent content)
+    {
+        if (content.Placements.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        foreach (var placement in content.Placements)
+        {
+            if (!string.Equals(placement.RegionName, "ButtonRow", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (var control in placement.Controls)
+            {
+                if (string.Equals(control.Type, "PushButton", StringComparison.Ordinal))
+                {
+                    return control.Name;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static FrozenDictionary<string, MsiControlType> BuildControlTypeLookup()
+    {
+        // Member-name spelling matches the exact Control table Type column string for each enum value.
+        var entries = new Dictionary<string, MsiControlType>(StringComparer.Ordinal)
+        {
+            ["Text"] = MsiControlType.Text,
+            ["PushButton"] = MsiControlType.PushButton,
+            ["Line"] = MsiControlType.Line,
+            ["CheckBox"] = MsiControlType.CheckBox,
+            ["ScrollableText"] = MsiControlType.ScrollableText,
+            ["PathEdit"] = MsiControlType.PathEdit,
+            ["SelectionTree"] = MsiControlType.SelectionTree,
+            ["VolumeCostList"] = MsiControlType.VolumeCostList,
+            ["ProgressBar"] = MsiControlType.ProgressBar,
+            ["Bitmap"] = MsiControlType.Bitmap,
+            ["RadioButtonGroup"] = MsiControlType.RadioButtonGroup,
+            ["ComboBox"] = MsiControlType.ComboBox,
+            ["Edit"] = MsiControlType.Edit,
+            ["ListBox"] = MsiControlType.ListBox,
+            ["DirectoryCombo"] = MsiControlType.DirectoryCombo,
+            ["DirectoryList"] = MsiControlType.DirectoryList,
+            ["MaskedEdit"] = MsiControlType.MaskedEdit,
+            ["Icon"] = MsiControlType.Icon,
+            ["GroupBox"] = MsiControlType.GroupBox,
+        };
+
+        return entries.ToFrozenDictionary(StringComparer.Ordinal);
     }
 }
