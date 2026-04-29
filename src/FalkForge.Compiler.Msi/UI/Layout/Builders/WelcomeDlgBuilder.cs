@@ -17,9 +17,29 @@ internal static class WelcomeDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "WelcomeDlg";
 
-    /// <summary>Builds the declarative content for the Welcome dialog.</summary>
-    public static DialogContent Build()
+    /// <summary>Builds the declarative content for the Welcome dialog with default flow context.</summary>
+    public static DialogContent Build() => Build(new DialogFlowContext());
+
+    /// <summary>Builds the declarative content for the Welcome dialog with explicit flow targets.</summary>
+    /// <param name="flow">Navigation targets for the Next and Cancel events.</param>
+    public static DialogContent Build(DialogFlowContext flow)
     {
+        System.ArgumentNullException.ThrowIfNull(flow);
+
+        var events = ImmutableArray.Create(
+            new DialogControlEvent
+            {
+                Control = "Next",
+                Event = "NewDialog",
+                Argument = flow.NextDialog ?? string.Empty,
+            },
+            new DialogControlEvent
+            {
+                Control = "Cancel",
+                Event = "SpawnDialog",
+                Argument = flow.CancelDialog,
+            });
+
         return new DialogContent
         {
             Name = DialogName,
@@ -28,6 +48,7 @@ internal static class WelcomeDlgBuilder
             DefaultControl = "Next",
             CancelControl = "Cancel",
             TitleLocKey = "[ProductName] Setup",
+            Events = events,
             Placements = ImmutableArray.Create(
                 new RegionPlacement
                 {
