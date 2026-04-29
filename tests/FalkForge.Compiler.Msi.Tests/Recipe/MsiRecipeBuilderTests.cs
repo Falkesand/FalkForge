@@ -72,10 +72,20 @@ public sealed class MsiRecipeBuilderTests
             new MsiRecipeBuildOptions()).Value;
 
         Assert.False(recipe.Tables.IsDefault);
-        Assert.Equal(5, recipe.Tables.Length);
+        Assert.Equal(10, recipe.Tables.Length);
         foreach (RecipeTable table in recipe.Tables)
         {
-            Assert.True(table.Rows.IsEmpty);
+            // Media always emits a single header row even when the resolved
+            // package has no files. Every other producer is data-driven and
+            // emits zero rows for an empty package.
+            if (table.Name.Value == "Media")
+            {
+                Assert.Single(table.Rows);
+            }
+            else
+            {
+                Assert.True(table.Rows.IsEmpty);
+            }
         }
     }
 

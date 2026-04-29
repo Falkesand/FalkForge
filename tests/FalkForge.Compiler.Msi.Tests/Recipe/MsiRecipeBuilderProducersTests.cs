@@ -11,7 +11,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class MsiRecipeBuilderProducersTests
 {
     [Fact]
-    public void Build_with_simple_resolved_package_emits_five_tables_in_order()
+    public void Build_with_simple_resolved_package_emits_ten_tables_in_order()
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
@@ -19,11 +19,11 @@ public sealed class MsiRecipeBuilderProducersTests
             new MsiRecipeBuildOptions());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(5, result.Value.Tables.Length);
+        Assert.Equal(10, result.Value.Tables.Length);
     }
 
     [Fact]
-    public void Build_table_order_is_property_directory_component_file_feature()
+    public void Build_table_order_is_fk_safe_topological()
     {
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
@@ -32,9 +32,14 @@ public sealed class MsiRecipeBuilderProducersTests
 
         Assert.Equal("Property", recipe.Tables[0].Name.Value);
         Assert.Equal("Directory", recipe.Tables[1].Name.Value);
-        Assert.Equal("Component", recipe.Tables[2].Name.Value);
-        Assert.Equal("File", recipe.Tables[3].Name.Value);
-        Assert.Equal("Feature", recipe.Tables[4].Name.Value);
+        Assert.Equal("Feature", recipe.Tables[2].Name.Value);
+        Assert.Equal("Component", recipe.Tables[3].Name.Value);
+        Assert.Equal("File", recipe.Tables[4].Name.Value);
+        Assert.Equal("FeatureComponents", recipe.Tables[5].Name.Value);
+        Assert.Equal("Media", recipe.Tables[6].Name.Value);
+        Assert.Equal("Registry", recipe.Tables[7].Name.Value);
+        Assert.Equal("ServiceInstall", recipe.Tables[8].Name.Value);
+        Assert.Equal("Shortcut", recipe.Tables[9].Name.Value);
     }
 
     [Fact]
