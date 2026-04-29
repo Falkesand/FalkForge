@@ -21,6 +21,7 @@ public static class MessageCodecRegistry
     [
         CancelCodec.Instance,
         LogCodec.Instance,
+        RequestDetectCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
