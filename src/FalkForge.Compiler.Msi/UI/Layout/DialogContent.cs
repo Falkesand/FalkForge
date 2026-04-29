@@ -52,4 +52,23 @@ public sealed record DialogContent
 
     /// <summary>Localization key for the dialog title bar; null leaves the title empty.</summary>
     public string? TitleLocKey { get; init; }
+
+    /// <summary>
+    /// Declarative ControlEvent rows fired from this dialog. The composer translates
+    /// each entry to an internal <c>MsiControlEventModel</c> on the produced
+    /// <see cref="MsiDialogModel"/>. Empty by default.
+    /// </summary>
+    public ImmutableArray<DialogControlEvent> Events { get; init; } = ImmutableArray<DialogControlEvent>.Empty;
+
+    /// <summary>
+    /// Declarative ControlCondition rows that toggle control state via MSI conditions.
+    /// Empty by default.
+    /// </summary>
+    public ImmutableArray<DialogControlCondition> Conditions { get; init; } = ImmutableArray<DialogControlCondition>.Empty;
+
+    /// <summary>
+    /// Declarative EventMapping rows subscribing controls to runtime MSI events
+    /// such as <c>SetProgress</c> or <c>ActionText</c>. Empty by default.
+    /// </summary>
+    public ImmutableArray<DialogEventMapping> EventMappings { get; init; } = ImmutableArray<DialogEventMapping>.Empty;
 }

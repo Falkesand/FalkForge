@@ -77,6 +77,7 @@ internal static class DialogComposer
 
         if (content.Placements.IsDefaultOrEmpty)
         {
+            AppendDeclarativeEvents(model, content);
             return model;
         }
 
@@ -105,7 +106,69 @@ internal static class DialogComposer
 
         ApplyCustomization(model, customization);
 
+        AppendDeclarativeEvents(model, content);
+
         return model;
+    }
+
+    private static void AppendDeclarativeEvents(MsiDialogModel model, DialogContent content)
+    {
+        if (!content.Events.IsDefaultOrEmpty)
+        {
+            foreach (var declarative in content.Events)
+            {
+                model.Events.Add(new MsiControlEventModel
+                {
+                    DialogName = content.Name,
+                    ControlName = declarative.Control,
+                    Event = MsiControlEvent.Parse(declarative.Event),
+                    Argument = declarative.Argument,
+                    Condition = declarative.Condition ?? "1",
+                    Ordering = declarative.Order,
+                });
+            }
+        }
+
+        if (!content.Conditions.IsDefaultOrEmpty)
+        {
+            foreach (var declarative in content.Conditions)
+            {
+                model.Conditions.Add(new MsiControlConditionModel
+                {
+                    DialogName = content.Name,
+                    ControlName = declarative.Control,
+                    Action = ParseConditionAction(declarative.Action),
+                    Condition = declarative.Condition,
+                });
+            }
+        }
+
+        if (!content.EventMappings.IsDefaultOrEmpty)
+        {
+            foreach (var declarative in content.EventMappings)
+            {
+                model.EventMappings.Add(new MsiEventMappingModel
+                {
+                    DialogName = content.Name,
+                    ControlName = declarative.Control,
+                    Event = declarative.Event,
+                    Attribute = declarative.Attribute,
+                });
+            }
+        }
+    }
+
+    private static MsiConditionAction ParseConditionAction(string action)
+    {
+        // Use Ordinal comparisons — MSI ControlCondition Action column is exact-match.
+        if (string.Equals(action, "Disable", StringComparison.Ordinal)) return MsiConditionAction.Disable;
+        if (string.Equals(action, "Enable", StringComparison.Ordinal)) return MsiConditionAction.Enable;
+        if (string.Equals(action, "Hide", StringComparison.Ordinal)) return MsiConditionAction.Hide;
+        if (string.Equals(action, "Show", StringComparison.Ordinal)) return MsiConditionAction.Show;
+        if (string.Equals(action, "Default", StringComparison.Ordinal)) return MsiConditionAction.Default;
+
+        throw new InvalidOperationException(
+            $"Unknown MSI condition action '{action}'. Expected Enable/Disable/Show/Hide/Default.");
     }
 
     private static void ApplyCustomization(MsiDialogModel model, DialogCustomizationModel? customization)

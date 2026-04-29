@@ -32,5 +32,20 @@ internal readonly record struct MsiControlEvent
     /// </summary>
     internal static MsiControlEvent SetProperty(string propertyName) => new($"[{propertyName}]");
 
+    /// <summary>
+    /// Parses a raw ControlEvent string into an <see cref="MsiControlEvent"/>. Any
+    /// non-empty value is accepted verbatim — Windows Installer accepts arbitrary
+    /// custom-action names alongside the standard verbs and the <c>[Property]</c> form.
+    /// </summary>
+    internal static MsiControlEvent Parse(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            throw new System.ArgumentException("Event value must not be empty.", nameof(value));
+        }
+
+        return new MsiControlEvent(value);
+    }
+
     public override string ToString() => Value;
 }
