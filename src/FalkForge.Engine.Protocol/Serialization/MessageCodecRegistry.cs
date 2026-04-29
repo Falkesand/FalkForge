@@ -29,6 +29,7 @@ public static class MessageCodecRegistry
         ApplyBeginCodec.Instance,
         PhaseChangedCodec.Instance,
         ErrorCodec.Instance,
+        ProgressCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
