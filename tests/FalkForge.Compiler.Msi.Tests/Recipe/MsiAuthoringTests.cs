@@ -42,7 +42,7 @@ public sealed class MsiAuthoringTests : IDisposable
         }
     }
 
-    [Fact(Skip = "Round-trip requires DirectoryTableProducer synthesis (later phase). Re-enable once Directory tree synthesis lands.")]
+    [Fact]
     public void Compile_with_minimal_hello_world_produces_msi_at_output_path()
     {
         string sourceDir = Path.Combine(_tempDir, "src");
@@ -92,7 +92,7 @@ public sealed class MsiAuthoringTests : IDisposable
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 
-    [Fact(Skip = "Round-trip requires DirectoryTableProducer synthesis (later phase). Re-enable once Directory tree synthesis lands.")]
+    [Fact]
     public void Compile_with_simple_package_round_trips_property_table()
     {
         string sourceDir = Path.Combine(_tempDir, "src");
