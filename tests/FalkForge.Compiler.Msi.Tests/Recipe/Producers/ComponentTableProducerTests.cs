@@ -34,6 +34,10 @@ public sealed class ComponentTableProducerTests
     [Fact]
     public void Produce_with_one_component_emits_one_row_matching_resolved_shape()
     {
+        // No install directory configured → component leaf id falls through to
+        // the deterministic D_<segment>_<hash> synthesis. The Directory_ FK
+        // must point at that synthesized id, not at the bare KnownFolder root
+        // token, so it lines up with the rows DirectoryTableProducer emits.
         Guid componentGuid = new("11111111-2222-3333-4444-555555555555");
         ResolvedComponent component = new()
         {
@@ -57,11 +61,88 @@ public sealed class ComponentTableProducerTests
             ((CellValue.StringValue)rows[0].Cells[1]).Value);
         CellValue.ForeignKey dirFk = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[2]);
         Assert.Equal("Directory", dirFk.TargetTable.Value);
-        Assert.Equal("ProgramFilesFolder", dirFk.TargetKey);
+        // No install dir → leaf id = D_App_<hash(ProgramFilesFolder)>.
+        Assert.StartsWith("D_App_", dirFk.TargetKey);
         // 256 = 64-bit; no NeverOverwrite or Permanent bits.
         Assert.Equal(256, ((CellValue.IntValue)rows[0].Cells[3]).Value);
         Assert.Equal(string.Empty, ((CellValue.StringValue)rows[0].Cells[4]).Value);
         Assert.Equal("MainExe", ((CellValue.StringValue)rows[0].Cells[5]).Value);
+    }
+
+    [Fact]
+    public void Component_at_install_directory_leaf_uses_INSTALLDIR_id()
+    {
+        // When the component directory equals the package's configured install
+        // directory, the leaf id collapses to the canonical "INSTALLDIR"
+        // identifier so MSI Formatted strings like "[INSTALLDIR]bin\tool.exe"
+        // resolve correctly.
+        InstallPath installDir = KnownFolder.ProgramFiles / "App";
+        ResolvedComponent component = new()
+        {
+            Id = "C1",
+            Guid = Guid.NewGuid(),
+            Directory = installDir,
+            KeyPath = "key1",
+            Files = new List<ResolvedFile>(),
+        };
+        ResolvedPackage resolved = MakeResolved(
+            new[] { component },
+            ProcessorArchitecture.X64,
+            installDir);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        CellValue.ForeignKey dirFk = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[2]);
+        Assert.Equal("INSTALLDIR", dirFk.TargetKey);
+    }
+
+    [Fact]
+    public void Component_under_known_folder_root_uses_root_token_id()
+    {
+        // Components whose directory has zero segments below the KnownFolder
+        // root collapse to the root token id (e.g. ProgramFilesFolder),
+        // matching the Directory row the producer emits at depth zero.
+        InstallPath rootOnly = KnownFolder.ProgramFiles / "";
+        ResolvedComponent component = new()
+        {
+            Id = "C1",
+            Guid = Guid.NewGuid(),
+            Directory = rootOnly,
+            KeyPath = "key1",
+            Files = new List<ResolvedFile>(),
+        };
+        ResolvedPackage resolved = MakeResolved(new[] { component }, ProcessorArchitecture.X64);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        CellValue.ForeignKey dirFk = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[2]);
+        Assert.Equal("ProgramFilesFolder", dirFk.TargetKey);
+    }
+
+    [Fact]
+    public void Component_below_install_directory_uses_D_segment_hash_id()
+    {
+        // For paths nested under the install dir leaf, the synthesizer hashes
+        // each subdirectory off "INSTALLDIR" so component FKs resolve to
+        // intermediate D_* directory rows DirectoryTableProducer emits.
+        InstallPath installDir = KnownFolder.ProgramFiles / "App";
+        ResolvedComponent component = new()
+        {
+            Id = "C1",
+            Guid = Guid.NewGuid(),
+            Directory = installDir / "bin",
+            KeyPath = "key1",
+            Files = new List<ResolvedFile>(),
+        };
+        ResolvedPackage resolved = MakeResolved(
+            new[] { component },
+            ProcessorArchitecture.X64,
+            installDir);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        CellValue.ForeignKey dirFk = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[2]);
+        Assert.StartsWith("D_bin_", dirFk.TargetKey);
     }
 
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
@@ -79,7 +160,8 @@ public sealed class ComponentTableProducerTests
 
     private static ResolvedPackage MakeResolved(
         IReadOnlyList<ResolvedComponent> components,
-        ProcessorArchitecture architecture)
+        ProcessorArchitecture architecture,
+        InstallPath? installDir = null)
     {
         return new ResolvedPackage
         {
@@ -89,6 +171,7 @@ public sealed class ComponentTableProducerTests
                 Manufacturer = "M",
                 Version = new Version(1, 0, 0),
                 Architecture = architecture,
+                DefaultInstallDirectory = installDir,
             },
             Components = components,
             Files = new List<ResolvedFile>(),
