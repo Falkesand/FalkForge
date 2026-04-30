@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Models;
@@ -5,12 +6,16 @@ using FalkForge.Models;
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
 
 /// <summary>
-/// Producer for the MSI <c>Property</c> table. Walks
-/// <see cref="PackageModel.Properties"/> in dictionary insertion order and
-/// emits one row per property whose value is non-null. The column shape and
-/// row projection mirror <see cref="TableEmitter"/>'s
-/// <c>InsertPropertyRow</c> helper so the recipe pipeline produces the same
-/// MSI bits as the legacy emitter.
+/// Producer for the MSI <c>Property</c> table. Synthesizes the MSI built-in
+/// properties (<c>ProductName</c>, <c>Manufacturer</c>, <c>ProductVersion</c>,
+/// <c>ProductCode</c>, <c>UpgradeCode</c>, <c>ProductLanguage</c>,
+/// <c>ALLUSERS</c>, optional <c>MSIRMSHUTDOWN</c>) from the
+/// <see cref="PackageModel"/> headline fields, then layers the user-supplied
+/// <see cref="PackageModel.Properties"/> on top — matching the order and
+/// override semantics of the legacy
+/// <see cref="TableEmitter"/>.<c>EmitProperties</c> dictionary build:
+/// built-ins seeded first, user properties overwrite by key, empty values
+/// skipped at the end.
 /// </summary>
 internal sealed class PropertyTableProducer : ITableProducer
 {
@@ -23,20 +28,50 @@ internal sealed class PropertyTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
-        foreach (PropertyModel property in context.Resolved.Package.Properties)
+        PackageModel package = context.Resolved.Package;
+
+        // Mirror TableEmitter.EmitProperties: keyed dictionary preserves
+        // insertion order, user props overwrite built-ins by key, then a
+        // final pass skips entries with null/empty values.
+        Dictionary<string, string> props = new(StringComparer.Ordinal)
         {
-            // Property rows with a null value are skipped: the MSI Property table's
-            // Value column is NOT NULL, and TableEmitter's InsertPropertyRow uses
-            // SetString which would error on null.
+            ["ProductName"] = package.Name,
+            ["Manufacturer"] = package.Manufacturer,
+            ["ProductVersion"] = package.Version.ToString(3),
+            ["ProductCode"] = package.ProductCode.ToString("B").ToUpperInvariant(),
+            ["UpgradeCode"] = package.UpgradeCode.ToString("B").ToUpperInvariant(),
+            ["ProductLanguage"] = "1033",
+            ["ALLUSERS"] = package.Scope == InstallScope.PerMachine ? "1" : string.Empty,
+        };
+
+        if (package.EnableRestartManager)
+        {
+            props["MSIRMSHUTDOWN"] = "2";
+        }
+
+        foreach (PropertyModel property in package.Properties)
+        {
             if (property.Value is null)
             {
                 continue;
             }
 
+            props[property.Name] = property.Value;
+        }
+
+        ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>(props.Count);
+        foreach (KeyValuePair<string, string> entry in props)
+        {
+            // Legacy parity: empty (or null) values are dropped at emission time.
+            // The MSI Property.Value column is NOT NULL.
+            if (string.IsNullOrEmpty(entry.Value))
+            {
+                continue;
+            }
+
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
-                new CellValue.StringValue(property.Name),
-                new CellValue.StringValue(property.Value));
+                new CellValue.StringValue(entry.Key),
+                new CellValue.StringValue(entry.Value));
             rows.Add(new RecipeRow { Cells = cells });
         }
 
