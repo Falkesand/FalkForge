@@ -54,18 +54,25 @@ public sealed class MsiRecipeBuilderValidatorIntegrationTests
     }
 
     [Fact]
-    public void Build_propagates_fk_validator_failure_when_orphan_directory_ref()
+    public void Build_propagates_fk_validator_failure_when_orphan_feature_ref()
     {
-        // A Component whose Directory.Root token is not in the package's
-        // Directories list produces a Component row with an orphan FK into
-        // the Directory table. ForeignKeyValidator must reject the recipe
-        // and MsiRecipeBuilder.Build must surface that failure.
+        // A Component referencing a non-existent Feature ("Complete" — the
+        // FeatureComponents producer's fallback name when the package
+        // declares no features) produces a FeatureComponents row whose
+        // Feature_ column points at a missing Feature primary key.
+        // ForeignKeyValidator must reject the recipe and
+        // MsiRecipeBuilder.Build must surface that failure.
+        // Note: as of phase 4b the Directory tree is fully synthesized inside
+        // DirectoryTableProducer, so a component referencing
+        // KnownFolder.ProgramFiles is no longer an orphan FK — the producer
+        // materializes ProgramFilesFolder automatically. This test now
+        // exercises the FeatureComponents orphan path instead.
         PackageModel package = new()
         {
             Name = "Test",
             Manufacturer = "M",
             Version = new System.Version(1, 0, 0),
-            Directories = new List<DirectoryModel>(),
+            Features = new List<FeatureModel>(),
         };
 
         ResolvedComponent component = new()
@@ -91,7 +98,6 @@ public sealed class MsiRecipeBuilderValidatorIntegrationTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
-        Assert.Contains("Component", result.Error.Message, System.StringComparison.Ordinal);
-        Assert.Contains("ProgramFilesFolder", result.Error.Message, System.StringComparison.Ordinal);
+        Assert.Contains("FeatureComponents", result.Error.Message, System.StringComparison.Ordinal);
     }
 }
