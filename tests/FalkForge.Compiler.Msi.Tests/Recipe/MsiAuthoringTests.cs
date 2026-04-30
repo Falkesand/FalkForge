@@ -92,7 +92,7 @@ public sealed class MsiAuthoringTests : IDisposable
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 
-    [Fact(Skip = "PropertyTableProducer does not yet synthesize MSI built-ins (ProductName, Manufacturer, ProductVersion, ProductCode, UpgradeCode, ProductLanguage, ALLUSERS) the way TableEmitter.EmitProperties does. Phase 4b directory-tree synthesis lets MsiAuthoring.Compile produce a real MSI on disk and the hello-world test now passes; the property round-trip needs the property producer to be promoted next.")]
+    [Fact]
     public void Compile_with_simple_package_round_trips_property_table()
     {
         string sourceDir = Path.Combine(_tempDir, "src");
