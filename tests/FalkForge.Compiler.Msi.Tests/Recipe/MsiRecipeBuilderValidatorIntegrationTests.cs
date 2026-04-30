@@ -18,20 +18,24 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class MsiRecipeBuilderValidatorIntegrationTests
 {
     [Fact]
-    public void Build_propagates_pk_validator_failure_when_duplicate_property()
+    public void Build_propagates_pk_validator_failure_when_duplicate_feature()
     {
-        // Two PropertyModel rows with the same Name produce two Property
-        // table rows with the same PK; PrimaryKeyValidator must reject the
-        // recipe and MsiRecipeBuilder.Build must surface that failure.
+        // Two FeatureModel rows with the same Id produce two Feature table
+        // rows with the same PK; PrimaryKeyValidator must reject the recipe
+        // and MsiRecipeBuilder.Build must surface that failure.
+        // (Property table built-in synthesis collapses same-named
+        // PropertyModel entries via dictionary semantics — matching legacy
+        // TableEmitter.EmitProperties — so it is no longer a viable PK
+        // duplication driver.)
         PackageModel package = new()
         {
             Name = "Test",
             Manufacturer = "M",
             Version = new System.Version(1, 0, 0),
-            Properties = new List<PropertyModel>
+            Features = new List<FeatureModel>
             {
-                new() { Name = "ProductCode", Value = "{A}" },
-                new() { Name = "ProductCode", Value = "{B}" },
+                new() { Id = "Dup", Title = "First", Description = "F" },
+                new() { Id = "Dup", Title = "Second", Description = "S" },
             },
         };
 
@@ -49,8 +53,8 @@ public sealed class MsiRecipeBuilderValidatorIntegrationTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
-        Assert.Contains("Property", result.Error.Message, System.StringComparison.Ordinal);
-        Assert.Contains("ProductCode", result.Error.Message, System.StringComparison.Ordinal);
+        Assert.Contains("Feature", result.Error.Message, System.StringComparison.Ordinal);
+        Assert.Contains("Dup", result.Error.Message, System.StringComparison.Ordinal);
     }
 
     [Fact]

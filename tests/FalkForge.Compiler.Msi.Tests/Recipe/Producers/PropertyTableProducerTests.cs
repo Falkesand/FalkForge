@@ -32,48 +32,123 @@ public sealed class PropertyTableProducerTests
     }
 
     [Fact]
-    public void Produce_with_three_properties_emits_three_rows_in_dictionary_order()
+    public void Produce_emits_synthesized_builtins_for_default_package()
+    {
+        System.Guid productCode = System.Guid.Parse("11111111-2222-3333-4444-555555555555");
+        System.Guid upgradeCode = System.Guid.Parse("66666666-7777-8888-9999-AAAAAAAAAAAA");
+
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            name: "MyApp",
+            manufacturer: "Acme",
+            version: new System.Version(2, 1, 0),
+            productCode: productCode,
+            upgradeCode: upgradeCode,
+            scope: InstallScope.PerMachine);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "ProductName", "MyApp");
+        AssertRow(rows, "Manufacturer", "Acme");
+        AssertRow(rows, "ProductVersion", "2.1.0");
+        AssertRow(rows, "ProductCode", productCode.ToString("B").ToUpperInvariant());
+        AssertRow(rows, "UpgradeCode", upgradeCode.ToString("B").ToUpperInvariant());
+        AssertRow(rows, "ProductLanguage", "1033");
+        AssertRow(rows, "ALLUSERS", "1");
+    }
+
+    [Fact]
+    public void Produce_with_per_user_package_skips_allusers_row()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            scope: InstallScope.PerUser);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "ALLUSERS");
+    }
+
+    [Fact]
+    public void Produce_with_restart_manager_emits_msirmshutdown()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            enableRestartManager: true);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "MSIRMSHUTDOWN", "2");
+    }
+
+    [Fact]
+    public void Produce_without_restart_manager_skips_msirmshutdown()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            enableRestartManager: false);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "MSIRMSHUTDOWN");
+    }
+
+    [Fact]
+    public void Produce_appends_user_properties_after_builtins()
     {
         ResolvedPackage resolved = MakeResolved(new[]
         {
             new PropertyModel { Name = "ARPCONTACT", Value = "support@example.com" },
             new PropertyModel { Name = "REINSTALLMODE", Value = "amus" },
-            new PropertyModel { Name = "ALLUSERS", Value = "1" },
         });
 
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
-        Assert.Equal(3, rows.Length);
-        Assert.Equal("ARPCONTACT", ((CellValue.StringValue)rows[0].Cells[0]).Value);
-        Assert.Equal("support@example.com", ((CellValue.StringValue)rows[0].Cells[1]).Value);
-        Assert.Equal("REINSTALLMODE", ((CellValue.StringValue)rows[1].Cells[0]).Value);
-        Assert.Equal("ALLUSERS", ((CellValue.StringValue)rows[2].Cells[0]).Value);
+        AssertRow(rows, "ARPCONTACT", "support@example.com");
+        AssertRow(rows, "REINSTALLMODE", "amus");
+        AssertRow(rows, "ProductName", "T");
     }
 
     [Fact]
-    public void Produce_with_no_properties_returns_empty()
+    public void Produce_user_property_overrides_builtin_value()
     {
-        ResolvedPackage resolved = MakeResolved(System.Array.Empty<PropertyModel>());
+        // Legacy EmitProperties writes builtins first, then user props into the same
+        // dictionary, so a user-supplied ProductLanguage (for example) overrides.
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "ProductLanguage", Value = "1053" },
+        });
 
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
-        Assert.True(rows.IsEmpty);
+        AssertRow(rows, "ProductLanguage", "1053");
+        Assert.Single(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "ProductLanguage");
     }
 
     [Fact]
-    public void Produce_skips_property_with_null_value()
+    public void Produce_skips_property_with_null_or_empty_value()
     {
-        // Use a derived holder that defeats the required-init-only validation
-        // since PropertyModel.Value is non-nullable in the public surface.
+        // PropertyModel.Value is non-nullable in the public surface; smuggle a null
+        // through and also include an empty-string user value, both should be skipped.
         PropertyModel keep = new() { Name = "Keep", Value = "yes" };
-        PropertyModel drop = new() { Name = "Drop", Value = null! };
+        PropertyModel dropNull = new() { Name = "DropNull", Value = null! };
+        PropertyModel dropEmpty = new() { Name = "DropEmpty", Value = string.Empty };
 
-        ResolvedPackage resolved = MakeResolved(new[] { keep, drop });
+        ResolvedPackage resolved = MakeResolved(new[] { keep, dropNull, dropEmpty });
 
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
-        Assert.Single(rows);
-        Assert.Equal("Keep", ((CellValue.StringValue)rows[0].Cells[0]).Value);
+        AssertRow(rows, "Keep", "yes");
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "DropNull");
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "DropEmpty");
+    }
+
+    private static void AssertRow(ImmutableArray<RecipeRow> rows, string name, string value)
+    {
+        RecipeRow row = Assert.Single(
+            rows,
+            r => ((CellValue.StringValue)r.Cells[0]).Value == name);
+        Assert.Equal(value, ((CellValue.StringValue)row.Cells[1]).Value);
     }
 
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
@@ -89,15 +164,27 @@ public sealed class PropertyTableProducerTests
         return result.Value;
     }
 
-    private static ResolvedPackage MakeResolved(IReadOnlyList<PropertyModel> properties)
+    private static ResolvedPackage MakeResolved(
+        IReadOnlyList<PropertyModel> properties,
+        string name = "T",
+        string manufacturer = "M",
+        System.Version? version = null,
+        System.Guid productCode = default,
+        System.Guid upgradeCode = default,
+        InstallScope scope = InstallScope.PerMachine,
+        bool enableRestartManager = false)
     {
         return new ResolvedPackage
         {
             Package = new PackageModel
             {
-                Name = "T",
-                Manufacturer = "M",
-                Version = new System.Version(1, 0, 0),
+                Name = name,
+                Manufacturer = manufacturer,
+                Version = version ?? new System.Version(1, 0, 0),
+                ProductCode = productCode,
+                UpgradeCode = upgradeCode,
+                Scope = scope,
+                EnableRestartManager = enableRestartManager,
                 Properties = properties,
             },
             Components = new List<ResolvedComponent>(),

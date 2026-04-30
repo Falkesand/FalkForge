@@ -80,7 +80,11 @@ public sealed class MsiRecipeBuilderTests
             // Media always emits a single header row even when the resolved
             // package has no files. Directory unconditionally emits the
             // implicit TARGETDIR root row so msi.dll has a valid Formatted
-            // anchor. Every other producer is data-driven and emits zero rows.
+            // anchor. Property synthesizes the MSI built-ins (ProductName,
+            // Manufacturer, ProductVersion, ProductCode, UpgradeCode,
+            // ProductLanguage, ALLUSERS) from the package headline fields,
+            // matching legacy TableEmitter.EmitProperties. Every other
+            // producer is data-driven and emits zero rows.
             if (table.Name.Value == "Media")
             {
                 Assert.Single(table.Rows);
@@ -88,6 +92,14 @@ public sealed class MsiRecipeBuilderTests
             else if (table.Name.Value == "Directory")
             {
                 Assert.Single(table.Rows);
+            }
+            else if (table.Name.Value == "Property")
+            {
+                // 7 built-ins for a default per-machine package: ProductName,
+                // Manufacturer, ProductVersion, ProductCode, UpgradeCode,
+                // ProductLanguage, ALLUSERS. EnableRestartManager is false so
+                // MSIRMSHUTDOWN is omitted.
+                Assert.Equal(7, table.Rows.Length);
             }
             else
             {
