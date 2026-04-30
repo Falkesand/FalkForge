@@ -10,13 +10,12 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Pure function that turns a <see cref="ResolvedPackage"/> plus any extension
 /// table contributors into an immutable <see cref="MsiDatabaseRecipe"/>.
 ///
-/// Phase 4 wires in the first fifteen built-in producers (Property,
-/// Directory, Feature, Component, File, FeatureComponents,
-/// FeatureCondition, Upgrade, Media, Registry, ServiceInstall, Shortcut,
-/// Environment, MoveFile, RemoveFile). Each producer emits one
-/// <see cref="RecipeTable"/> — even when the source data is empty — so
-/// downstream phases can rely on a stable table set. Pruning of empty
-/// tables is deliberately deferred.
+/// Phase 4 wires in the built-in producers (Property, Directory, Feature,
+/// Component, File, FeatureComponents, FeatureCondition, Upgrade, Media,
+/// Registry, ServiceInstall, ServiceControl, Shortcut, Environment, MoveFile,
+/// RemoveFile). Each producer emits one <see cref="RecipeTable"/> — even when
+/// the source data is empty — so downstream phases can rely on a stable
+/// table set. Pruning of empty tables is deliberately deferred.
 /// </summary>
 public static class MsiRecipeBuilder
 {
@@ -81,6 +80,7 @@ public static class MsiRecipeBuilder
             new MediaTableProducer(),
             new RegistryTableProducer(),
             new ServiceInstallTableProducer(),
+            new ServiceControlTableProducer(),
             new ShortcutTableProducer(),
             new EnvironmentTableProducer(),
             new MoveFileTableProducer(),
@@ -163,7 +163,7 @@ public static class MsiRecipeBuilder
     private static string LookupCreateTableSql(TableId table)
     {
         // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships
-        // fifteen tables across three producer batches; later phases will
+        // sixteen tables across three producer batches; later phases will
         // either extend this lookup or migrate to a contributor-driven map.
         return table.Value switch
         {
@@ -178,6 +178,7 @@ public static class MsiRecipeBuilder
             "Media" => MsiTableDefinitions.CreateMediaTable,
             "Registry" => MsiTableDefinitions.CreateRegistryTable,
             "ServiceInstall" => MsiTableDefinitions.CreateServiceInstallTable,
+            "ServiceControl" => MsiTableDefinitions.CreateServiceControlTable,
             "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
             "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
             "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
