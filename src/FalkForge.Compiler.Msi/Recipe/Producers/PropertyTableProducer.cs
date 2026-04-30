@@ -17,6 +17,13 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// built-ins seeded first, user properties overwrite by key, empty values
 /// skipped at the end.
 /// </summary>
+/// <remarks>
+/// Round-trip parity is exercised end-to-end by
+/// <c>MsiAuthoringTests.Compile_with_simple_package_round_trips_property_table</c>,
+/// which compiles a minimal package through <see cref="MsiAuthoring"/> and
+/// reads the resulting MSI's Property table back via msi.dll, asserting the
+/// synthesized <c>ProductName</c> and <c>Manufacturer</c> rows are present.
+/// </remarks>
 internal sealed class PropertyTableProducer : ITableProducer
 {
     /// <summary>Static schema describing the <c>Property</c> table layout.</summary>
