@@ -1,5 +1,14 @@
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using FalkForge.Compiler.Msi.Cabinets;
+using FalkForge.Compiler.Msi.Signing;
+using FalkForge.Compiler.Msi.Validation;
+using FalkForge.Extensibility;
 using FalkForge.Models;
+using FalkForge.Platform;
+using FalkForge.Platform.Windows;
+using FalkForge.Validation;
+using FalkForge.WinGet;
 
 namespace FalkForge.Compiler.Msi.Recipe;
 
@@ -15,6 +24,13 @@ namespace FalkForge.Compiler.Msi.Recipe;
 [SupportedOSPlatform("windows")]
 public static class MsiAuthoring
 {
+    // The Media producer hard-codes the embedded cabinet stream name as
+    // "#cab1.cab"; the cabinet on disk must therefore be named "cab1.cab"
+    // so the stream embedded under that name actually contains the cab the
+    // installer will look up at runtime.
+    private const string RecipeCabinetFileName = "cab1.cab";
+    private const string RecipeCabinetStreamName = "#" + RecipeCabinetFileName;
+
     /// <summary>
     /// Compiles <paramref name="package"/> through the recipe pipeline and
     /// writes the resulting MSI under <paramref name="outputPath"/>. Returns
@@ -22,11 +38,259 @@ public static class MsiAuthoring
     /// </summary>
     public static Result<string> Compile(PackageModel package, string outputPath)
     {
-        // Phase 8 implementation arrives in the GREEN commit. Stub returns
-        // NotSupported so the test commit can build and tests genuinely fail
-        // against the missing pipeline rather than against a missing symbol.
-        return Result<string>.Failure(
-            ErrorKind.NotSupported,
-            "MsiAuthoring.Compile is not yet wired (phase 8 stub).");
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(outputPath);
+
+        // Step 1: Validate the package up front. Produces the same error
+        // shape the legacy compiler emits so callers can swap implementations
+        // without rewriting their error-handling.
+        var validation = ModelValidator.Validate(package);
+        if (!validation.IsValid)
+        {
+            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
+            return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
+        }
+
+        // Step 2: Resolve components. ComponentResolver materializes
+        // PackageModel.Files into ResolvedComponent / ResolvedFile records
+        // with deterministic IDs and component GUIDs.
+        IFileSystem fileSystem = new WindowsFileSystem();
+        ComponentResolver resolver = new(fileSystem);
+        Result<ResolvedPackage> resolveResult = resolver.Resolve(package);
+        if (resolveResult.IsFailure)
+        {
+            return Result<string>.Failure(resolveResult.Error);
+        }
+
+        ResolvedPackage resolved = resolveResult.Value;
+
+        // Step 3: Determine the output MSI path and prepare the output dir.
+        string msiFileName = $"{FileNameSanitizer.Sanitize(package.Name)}-{package.Version.ToString(3)}.msi";
+        string msiPath = Path.Combine(outputPath, msiFileName);
+
+        string? outputDir = Path.GetDirectoryName(msiPath);
+        if (outputDir is not null && !Directory.Exists(outputDir))
+        {
+            Directory.CreateDirectory(outputDir);
+        }
+
+        if (File.Exists(msiPath))
+        {
+            File.Delete(msiPath);
+        }
+
+        // Step 4: Build the recipe via the producer pipeline. No contributors
+        // wired in yet — phase 11 will route IMsiTableContributor through here.
+        Result<MsiDatabaseRecipe> recipeResult = MsiRecipeBuilder.Build(
+            resolved,
+            contributors: Array.Empty<IMsiTableContributor>(),
+            options: new MsiRecipeBuildOptions());
+        if (recipeResult.IsFailure)
+        {
+            return Result<string>.Failure(recipeResult.Error);
+        }
+
+        MsiDatabaseRecipe recipe = recipeResult.Value;
+
+        // Step 5: Build the cabinet on disk if there are files to pack, then
+        // attach it to the recipe via CabinetEmbedding so the executor will
+        // register it as the #cab1.cab stream the Media row points at.
+        string? cabTempDir = null;
+        try
+        {
+            if (resolved.Files.Count > 0)
+            {
+                cabTempDir = Path.Combine(Path.GetTempPath(), $"FalkForge_recipe_{Guid.NewGuid():N}");
+                Directory.CreateDirectory(cabTempDir);
+
+                using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp);
+                Result<string> cabResult = cabBuilder.BuildCabinet(
+                    resolved.Files,
+                    cabTempDir,
+                    package.Compression,
+                    RecipeCabinetFileName);
+                if (cabResult.IsFailure)
+                {
+                    return Result<string>.Failure(cabResult.Error);
+                }
+
+                string cabPath = cabResult.Value;
+                long cabLength = new FileInfo(cabPath).Length;
+                ReadOnlyMemory<byte> cabSha;
+                using (FileStream cabStream = File.OpenRead(cabPath))
+                {
+                    cabSha = SHA256.HashData(cabStream);
+                }
+
+                StreamSource cabSource = new StreamSource.FilePath(cabPath, cabSha, cabLength);
+                recipe = recipe with
+                {
+                    CabinetEmbedding = new CabinetEmbedding(RecipeCabinetStreamName, cabSource),
+                };
+            }
+
+            // Step 6: Open the MSI database, apply the recipe, commit. The
+            // executor commits inside Apply, so the using-block here is just
+            // about releasing the file handle before post-processing.
+            Result<MsiDatabase> dbResult = MsiDatabase.Create(msiPath);
+            if (dbResult.IsFailure)
+            {
+                return Result<string>.Failure(dbResult.Error);
+            }
+
+            using (MsiDatabase database = dbResult.Value)
+            {
+                MsiRecipeExecutor executor = new(database);
+                Result<Unit> applyResult = executor.Apply(recipe);
+                if (applyResult.IsFailure)
+                {
+                    return Result<string>.Failure(applyResult.Error);
+                }
+
+                // Step 6.5: Overwrite SummaryInfo with the human-readable
+                // values MsiCompiler used. The recipe currently emits a
+                // skeleton SummaryInfo; until phase 11 promotes the legacy
+                // metadata into the recipe builder, the facade replays the
+                // legacy field set so the produced MSI advertises the right
+                // platform template, comments, codepage, etc.
+                Result<Unit> summaryResult = database.SetSummaryInfo(summary =>
+                {
+                    summary
+                        .Title("Installation Database")
+                        .Subject(package.Name)
+                        .Author(package.Manufacturer)
+                        .Keywords("Installer")
+                        .Comments(package.Description ??
+                                  $"This installer database contains the logic and data required to install {package.Name}.")
+                        .Template(GetPlatformTemplate(package.Architecture))
+                        .RevisionNumber(package.ProductCode.ToString("B").ToUpperInvariant())
+                        .CreatingApplication("FalkForge")
+                        .WordCount(2)
+                        .PageCount(200)
+                        .Security(2)
+                        .Codepage(1252);
+                });
+                if (summaryResult.IsFailure)
+                {
+                    return Result<string>.Failure(summaryResult.Error);
+                }
+
+                Result<Unit> commitResult = database.Commit();
+                if (commitResult.IsFailure)
+                {
+                    return Result<string>.Failure(commitResult.Error);
+                }
+            }
+        }
+        finally
+        {
+            if (cabTempDir is not null && Directory.Exists(cabTempDir))
+            {
+                try
+                {
+                    Directory.Delete(cabTempDir, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // Best-effort cleanup; the temp directory will be reclaimed
+                    // by routine OS cleanup if msi.dll is still holding the cab.
+                }
+            }
+        }
+
+        // Step 7: Reproducible timestamp patching — Windows MsiSummaryInfoPersist
+        // always stamps PID_LASTSAVE_DTM with current time, so for reproducible
+        // builds the patcher walks the OLE compound document and overwrites the
+        // FILETIME values in place.
+        if (package.ReproducibleOptions is { } reproducibleOpts)
+        {
+            Result<Unit> patchResult = SummaryInfoPatcher.PatchTimestamps(msiPath, reproducibleOpts.Timestamp);
+            if (patchResult.IsFailure)
+            {
+                return Result<string>.Failure(patchResult.Error);
+            }
+        }
+
+        // Step 8: Code signing.
+        if (package.Signing is not null)
+        {
+            CodeSigner signer = new();
+            Result<Unit> signResult = signer.Sign(msiPath, package.Signing);
+            if (signResult.IsFailure)
+            {
+                return Result<string>.Failure(signResult.Error);
+            }
+        }
+
+        // Step 8.5: Integrity signing — opportunistic (only when Sigil is on PATH).
+        if (!IsIntegritySigningDisabled() &&
+            FalkForge.Signing.SigilDetector.IsAvailable() &&
+            package.Integrity is not null)
+        {
+            Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
+            if (integrityResult.IsFailure)
+            {
+                return Result<string>.Failure(integrityResult.Error);
+            }
+        }
+
+        // Step 9: ICE validation. Reproducible builds skip ICE because ICE
+        // dialog boxes can perturb the file in ways that drift the digest.
+        IceConfiguration iceConfig = package.IceConfiguration ?? new IceConfiguration();
+        if (iceConfig.Enabled && package.ReproducibleOptions is null)
+        {
+            IceValidator iceValidator = new();
+            Result<IceValidationResult> iceResult = iceValidator.Validate(msiPath, iceConfig);
+            if (iceResult.IsSuccess)
+            {
+                if (iceConfig.ReportPath is not null)
+                {
+                    IceReportExporter.Export(iceResult.Value, iceConfig.ReportPath);
+                }
+
+                if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
+                {
+                    string iceErrors = string.Join("; ", iceResult.Value.Messages
+                        .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
+                        .Select(m => $"{m.IceName}: {m.Description}"));
+                    return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
+                }
+            }
+            // ICE infrastructure failure is non-fatal — mirror MsiCompiler.
+        }
+
+        // Step 10: SBOM sidecar (opt-in). SBOM failure is non-fatal.
+        Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
+        _ = sbomResult;
+
+        // Step 11: WinGet manifest (opt-in via PackageBuilder.WinGet()).
+        if (package.WinGet is not null)
+        {
+            string sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath)));
+            Result<string> wingetResult = WinGetManifestWriter.Write(
+                package,
+                package.WinGet,
+                outputPath,
+                sha256,
+                Path.GetFileName(msiPath));
+            if (wingetResult.IsFailure)
+            {
+                return Result<string>.Failure(wingetResult.Error);
+            }
+        }
+
+        return Result<string>.Success(msiPath);
     }
+
+    private static bool IsIntegritySigningDisabled()
+        => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN"));
+
+    private static string GetPlatformTemplate(ProcessorArchitecture architecture)
+        => architecture switch
+        {
+            ProcessorArchitecture.X86 => "Intel;1033",
+            ProcessorArchitecture.X64 => "x64;1033",
+            ProcessorArchitecture.Arm64 => "Arm64;1033",
+            _ => "x64;1033",
+        };
 }
