@@ -31,6 +31,7 @@ internal sealed class ComponentTableProducer : ITableProducer
         TableId directoryTable = TableId.Create("Directory").Value;
         bool sixtyFourBit =
             resolved.Package.Architecture is ProcessorArchitecture.X64 or ProcessorArchitecture.Arm64;
+        InstallPath? installDir = resolved.Package.DefaultInstallDirectory;
 
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         foreach (ResolvedComponent component in resolved.Components)
@@ -47,7 +48,15 @@ internal sealed class ComponentTableProducer : ITableProducer
             }
 
             string guidString = component.Guid.ToString("B").ToUpperInvariant();
-            string directoryId = component.Directory.Root.Token;
+            // Resolve the component's directory FK against the synthesized
+            // tree. Using the bare KnownFolder root (e.g. ProgramFilesFolder)
+            // would be wrong whenever the component sits below the install dir
+            // because DirectoryTableProducer emits intermediate D_* and the
+            // canonical INSTALLDIR rows; the FK must point at the leaf row,
+            // not at the root.
+            string directoryId = DirectoryTreeSynthesizer.ComputeDirectoryId(
+                component.Directory,
+                installDir);
             // Component.Condition is nullable in MSI but TableEmitter writes empty
             // string when no condition is set; mirror that to keep recipe row
             // shape identical.
