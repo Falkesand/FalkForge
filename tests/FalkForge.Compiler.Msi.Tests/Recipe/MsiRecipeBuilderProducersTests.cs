@@ -11,7 +11,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class MsiRecipeBuilderProducersTests
 {
     [Fact]
-    public void Build_with_simple_resolved_package_emits_twenty_one_tables_in_order()
+    public void Build_with_simple_resolved_package_emits_twenty_two_tables_in_order()
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
@@ -19,7 +19,7 @@ public sealed class MsiRecipeBuilderProducersTests
             new MsiRecipeBuildOptions());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(21, result.Value.Tables.Length);
+        Assert.Equal(22, result.Value.Tables.Length);
     }
 
     [Fact]
@@ -49,8 +49,9 @@ public sealed class MsiRecipeBuilderProducersTests
         Assert.Equal("LaunchCondition", recipe.Tables[16].Name.Value);
         Assert.Equal("IniFile", recipe.Tables[17].Name.Value);
         Assert.Equal("CreateFolder", recipe.Tables[18].Name.Value);
-        Assert.Equal("MoveFile", recipe.Tables[19].Name.Value);
-        Assert.Equal("RemoveFile", recipe.Tables[20].Name.Value);
+        Assert.Equal("DuplicateFile", recipe.Tables[19].Name.Value);
+        Assert.Equal("MoveFile", recipe.Tables[20].Name.Value);
+        Assert.Equal("RemoveFile", recipe.Tables[21].Name.Value);
     }
 
     [Fact]
