@@ -84,6 +84,7 @@ public static class MsiRecipeBuilder
             new ServiceControlTableProducer(),
             new ShortcutTableProducer(),
             new EnvironmentTableProducer(),
+            new FontTableProducer(),
             new MoveFileTableProducer(),
             new RemoveFileTableProducer(),
         };
@@ -183,6 +184,7 @@ public static class MsiRecipeBuilder
             "ServiceControl" => MsiTableDefinitions.CreateServiceControlTable,
             "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
             "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
+            "Font" => MsiTableDefinitions.CreateFontTable,
             "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
             "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
             _ => throw new InvalidOperationException(
