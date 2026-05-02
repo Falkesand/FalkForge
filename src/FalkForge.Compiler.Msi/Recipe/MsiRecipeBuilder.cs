@@ -13,10 +13,10 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Phase 4 wires in the built-in producers (Property, Directory, Feature,
 /// Component, File, FeatureComponents, FeatureCondition, Upgrade, Media,
 /// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
-/// Environment, Font, LaunchCondition, MoveFile, RemoveFile). Each producer
-/// emits one <see cref="RecipeTable"/> — even when the source data is empty
-/// — so downstream phases can rely on a stable table set. Pruning of empty
-/// tables is deliberately deferred.
+/// Environment, Font, LaunchCondition, IniFile, MoveFile, RemoveFile). Each
+/// producer emits one <see cref="RecipeTable"/> — even when the source data
+/// is empty — so downstream phases can rely on a stable table set. Pruning
+/// of empty tables is deliberately deferred.
 /// </summary>
 public static class MsiRecipeBuilder
 {
@@ -87,6 +87,7 @@ public static class MsiRecipeBuilder
             new EnvironmentTableProducer(),
             new FontTableProducer(),
             new LaunchConditionTableProducer(),
+            new IniFileTableProducer(),
             new MoveFileTableProducer(),
             new RemoveFileTableProducer(),
         };
@@ -189,6 +190,7 @@ public static class MsiRecipeBuilder
             "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
             "Font" => MsiTableDefinitions.CreateFontTable,
             "LaunchCondition" => MsiTableDefinitions.CreateLaunchConditionTable,
+            "IniFile" => MsiTableDefinitions.CreateIniFileTable,
             "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
             "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
             _ => throw new InvalidOperationException(
