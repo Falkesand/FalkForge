@@ -12,10 +12,11 @@ namespace FalkForge.Compiler.Msi.Recipe;
 ///
 /// Phase 4 wires in the built-in producers (Property, Directory, Feature,
 /// Component, File, FeatureComponents, FeatureCondition, Upgrade, Media,
-/// Registry, ServiceInstall, ServiceControl, Shortcut, Environment, MoveFile,
-/// RemoveFile). Each producer emits one <see cref="RecipeTable"/> — even when
-/// the source data is empty — so downstream phases can rely on a stable
-/// table set. Pruning of empty tables is deliberately deferred.
+/// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
+/// Environment, Font, LaunchCondition, MoveFile, RemoveFile). Each producer
+/// emits one <see cref="RecipeTable"/> — even when the source data is empty
+/// — so downstream phases can rely on a stable table set. Pruning of empty
+/// tables is deliberately deferred.
 /// </summary>
 public static class MsiRecipeBuilder
 {
@@ -85,6 +86,7 @@ public static class MsiRecipeBuilder
             new ShortcutTableProducer(),
             new EnvironmentTableProducer(),
             new FontTableProducer(),
+            new LaunchConditionTableProducer(),
             new MoveFileTableProducer(),
             new RemoveFileTableProducer(),
         };
@@ -164,9 +166,10 @@ public static class MsiRecipeBuilder
 
     private static string LookupCreateTableSql(TableId table)
     {
-        // Hard-wired lookup against MsiTableDefinitions. Phase 4 ships
-        // sixteen tables across three producer batches; later phases will
-        // either extend this lookup or migrate to a contributor-driven map.
+        // Hard-wired lookup against MsiTableDefinitions. Each producer
+        // registered in the pipeline above must have its CREATE TABLE SQL
+        // wired here; later phases will either extend this lookup or migrate
+        // to a contributor-driven map.
         return table.Value switch
         {
             "Property" => MsiTableDefinitions.CreatePropertyTable,
@@ -185,6 +188,7 @@ public static class MsiRecipeBuilder
             "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
             "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
             "Font" => MsiTableDefinitions.CreateFontTable,
+            "LaunchCondition" => MsiTableDefinitions.CreateLaunchConditionTable,
             "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
             "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
             _ => throw new InvalidOperationException(
