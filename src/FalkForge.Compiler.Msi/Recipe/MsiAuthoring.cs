@@ -82,13 +82,15 @@ public static class MsiAuthoring
 
         // Step 4: Build the recipe via the producer pipeline. CustomTablesProducer
         // handles user-defined dynamic-schema tables (one RecipeTable per
-        // CustomTableModel). No other contributors wired in yet — phase 11 will
-        // route IMsiTableContributor through here.
+        // CustomTableModel). DialogSetProducer emits all MSI UI dialog tables
+        // (Dialog, Control, ControlEvent, ControlCondition, EventMapping,
+        // TextStyle, UIText) when a DialogSet is active. No other contributors
+        // wired in yet — phase 11 will route IMsiTableContributor through here.
         Result<MsiDatabaseRecipe> recipeResult = MsiRecipeBuilder.Build(
             resolved,
             contributors: Array.Empty<IMsiTableContributor>(),
             options: new MsiRecipeBuildOptions(),
-            multiProducers: [new CustomTablesProducer()]);
+            multiProducers: [new CustomTablesProducer(), new DialogSetProducer()]);
         if (recipeResult.IsFailure)
         {
             return Result<string>.Failure(recipeResult.Error);
