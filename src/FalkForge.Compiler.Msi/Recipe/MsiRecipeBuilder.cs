@@ -28,12 +28,43 @@ public static class MsiRecipeBuilder
     /// Build a recipe from the resolved package, extension contributors, and
     /// build options. Returns <see cref="ErrorKind.Validation"/> failure for
     /// any null argument; otherwise runs the built-in producer pipeline in a
+    /// fixed order and aggregates the resulting tables. Multi-table producers
+    /// (e.g. <c>CustomTablesProducer</c>) are appended after the fixed pipeline
+    /// and after primary-key / foreign-key validation of the built-in tables.
+    /// </summary>
+    internal static Result<MsiDatabaseRecipe> Build(
+        ResolvedPackage resolved,
+        IReadOnlyList<IMsiTableContributor> contributors,
+        MsiRecipeBuildOptions options,
+        IReadOnlyList<IMultiTableProducer> multiProducers)
+    {
+        if (multiProducers is null)
+        {
+            return Result<MsiDatabaseRecipe>.Failure(
+                ErrorKind.Validation,
+                "Multi-table producers list cannot be null.");
+        }
+
+        return BuildCore(resolved, contributors, options, multiProducers);
+    }
+
+    /// <summary>
+    /// Build a recipe from the resolved package, extension contributors, and
+    /// build options. Returns <see cref="ErrorKind.Validation"/> failure for
+    /// any null argument; otherwise runs the built-in producer pipeline in a
     /// fixed order and aggregates the resulting tables.
     /// </summary>
     public static Result<MsiDatabaseRecipe> Build(
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options)
+        => BuildCore(resolved, contributors, options, []);
+
+    private static Result<MsiDatabaseRecipe> BuildCore(
+        ResolvedPackage resolved,
+        IReadOnlyList<IMsiTableContributor> contributors,
+        MsiRecipeBuildOptions options,
+        IReadOnlyList<IMultiTableProducer> multiProducers)
     {
         if (resolved is null)
         {
@@ -155,6 +186,37 @@ public static class MsiRecipeBuilder
             return Result<MsiDatabaseRecipe>.Failure(fkResult.Error);
         }
 
+        // Phase 5b: run multi-table producers. These emit dynamic-schema tables
+        // (e.g. user-defined custom tables) and are appended after the built-in
+        // pipeline. They are intentionally excluded from PK/FK validation because
+        // their schemas are not known at compile time and have no FK relationships
+        // to the fixed built-in tables.
+        ImmutableArray<RecipeTable> finalTables;
+        if (multiProducers.Count == 0)
+        {
+            finalTables = validatedTables;
+        }
+        else
+        {
+            // Pre-size: known fixed count plus a reasonable estimate for dynamic tables.
+            ImmutableArray<RecipeTable>.Builder multiBuilder =
+                ImmutableArray.CreateBuilder<RecipeTable>(validatedTables.Length + multiProducers.Count);
+            multiBuilder.AddRange(validatedTables);
+
+            foreach (IMultiTableProducer multiProducer in multiProducers)
+            {
+                Result<ImmutableArray<RecipeTable>> multiResult = multiProducer.Produce(context);
+                if (multiResult.IsFailure)
+                {
+                    return Result<MsiDatabaseRecipe>.Failure(multiResult.Error);
+                }
+
+                multiBuilder.AddRange(multiResult.Value);
+            }
+
+            finalTables = multiBuilder.ToImmutable();
+        }
+
         SummaryInfoRecipe summaryInfo = new()
         {
             Title = string.Empty,
@@ -182,7 +244,7 @@ public static class MsiRecipeBuilder
 
         MsiDatabaseRecipe recipe = new()
         {
-            Tables = validatedTables,
+            Tables = finalTables,
             SummaryInfo = summaryInfo,
             Streams = streams,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
