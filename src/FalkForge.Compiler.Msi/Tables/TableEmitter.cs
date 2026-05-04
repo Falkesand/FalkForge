@@ -1314,19 +1314,6 @@ internal sealed class TableEmitter
                 if (mimeResult.IsFailure) return mimeResult;
             }
 
-            // Verb table
-            foreach (var verb in assoc.Verbs)
-            {
-                var verbResult = _database.InsertRow(
-                    "SELECT `Extension_`, `Verb`, `Sequence`, `Command`, `Argument` FROM `Verb`",
-                    record => record
-                        .SetString(1, ext)
-                        .SetString(2, verb.Verb)
-                        .SetInteger(3, verb.Sequence)
-                        .SetString(4, verb.Command)
-                        .SetString(5, verb.Argument));
-                if (verbResult.IsFailure) return verbResult;
-            }
         }
 
         return Unit.Value;

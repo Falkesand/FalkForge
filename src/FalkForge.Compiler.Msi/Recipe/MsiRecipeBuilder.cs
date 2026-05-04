@@ -15,7 +15,7 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
 /// Environment, Font, LaunchCondition, IniFile, CreateFolder, DuplicateFile,
 /// CustomAction, LockPermissions, MsiLockPermissionsEx, MIME, ProgId,
-/// Extension, MoveFile, RemoveFile). Each producer emits one
+/// Extension, Verb, MoveFile, RemoveFile). Each producer emits one
 /// <see cref="RecipeTable"/> — even when the source data is empty — so
 /// downstream phases can rely on a stable table set. Pruning of empty
 /// tables is deliberately deferred.
@@ -98,6 +98,7 @@ public static class MsiRecipeBuilder
             new MIMETableProducer(),
             new ProgIdTableProducer(),
             new ExtensionTableProducer(),
+            new VerbTableProducer(),
             new MoveFileTableProducer(),
             new RemoveFileTableProducer(),
         };
@@ -209,6 +210,7 @@ public static class MsiRecipeBuilder
             "MIME" => MsiTableDefinitions.CreateMimeTable,
             "ProgId" => MsiTableDefinitions.CreateProgIdTable,
             "Extension" => MsiTableDefinitions.CreateExtensionTable,
+            "Verb" => MsiTableDefinitions.CreateVerbTable,
             "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
             "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
             _ => throw new InvalidOperationException(

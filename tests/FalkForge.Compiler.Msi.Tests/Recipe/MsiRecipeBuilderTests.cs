@@ -61,23 +61,23 @@ public sealed class MsiRecipeBuilderTests
     [Fact]
     public void Build_empty_pipeline_emits_built_in_tables_with_no_rows()
     {
-        // Phase 4 wires in twenty-eight built-in producers (Property,
+        // Phase 4 wires in twenty-nine built-in producers (Property,
         // Directory, Feature, Component, File, FeatureComponents, Condition,
         // Upgrade, Media, Registry, RemoveRegistry, ServiceInstall,
         // ServiceControl, Shortcut, Environment, Font, LaunchCondition,
         // IniFile, CreateFolder, DuplicateFile, CustomAction, LockPermissions,
-        // MsiLockPermissionsEx, MIME, ProgId, Extension, MoveFile,
+        // MsiLockPermissionsEx, MIME, ProgId, Extension, Verb, MoveFile,
         // RemoveFile). With an empty resolved package each producer emits
         // zero rows but the table itself is still present so downstream
         // phases see a stable table set. The recipe's Tables array therefore
-        // contains twenty-eight tables, not zero.
+        // contains twenty-nine tables, not zero.
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
             new List<IMsiTableContributor>(),
             new MsiRecipeBuildOptions()).Value;
 
         Assert.False(recipe.Tables.IsDefault);
-        Assert.Equal(28, recipe.Tables.Length);
+        Assert.Equal(29, recipe.Tables.Length);
         foreach (RecipeTable table in recipe.Tables)
         {
             // Media always emits a single header row even when the resolved
