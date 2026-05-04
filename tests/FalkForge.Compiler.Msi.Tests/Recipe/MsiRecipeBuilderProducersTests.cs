@@ -11,7 +11,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class MsiRecipeBuilderProducersTests
 {
     [Fact]
-    public void Build_with_simple_resolved_package_emits_thirty_three_tables_in_order()
+    public void Build_with_simple_resolved_package_emits_thirty_four_tables_in_order()
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
@@ -19,7 +19,7 @@ public sealed class MsiRecipeBuilderProducersTests
             new MsiRecipeBuildOptions());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(33, result.Value.Tables.Length);
+        Assert.Equal(34, result.Value.Tables.Length);
     }
 
     [Fact]
@@ -56,13 +56,14 @@ public sealed class MsiRecipeBuilderProducersTests
         Assert.Equal("MsiLockPermissionsEx", recipe.Tables[23].Name.Value);
         Assert.Equal("MIME", recipe.Tables[24].Name.Value);
         Assert.Equal("ProgId", recipe.Tables[25].Name.Value);
-        Assert.Equal("Extension", recipe.Tables[26].Name.Value);
-        Assert.Equal("TypeLib", recipe.Tables[27].Name.Value);
-        Assert.Equal("MsiAssembly",     recipe.Tables[28].Name.Value);
-        Assert.Equal("MsiAssemblyName", recipe.Tables[29].Name.Value);
-        Assert.Equal("Verb",            recipe.Tables[30].Name.Value);
-        Assert.Equal("MoveFile",        recipe.Tables[31].Name.Value);
-        Assert.Equal("RemoveFile",      recipe.Tables[32].Name.Value);
+        Assert.Equal("Extension",       recipe.Tables[26].Name.Value);
+        Assert.Equal("Class",           recipe.Tables[27].Name.Value);
+        Assert.Equal("TypeLib",         recipe.Tables[28].Name.Value);
+        Assert.Equal("MsiAssembly",     recipe.Tables[29].Name.Value);
+        Assert.Equal("MsiAssemblyName", recipe.Tables[30].Name.Value);
+        Assert.Equal("Verb",            recipe.Tables[31].Name.Value);
+        Assert.Equal("MoveFile",        recipe.Tables[32].Name.Value);
+        Assert.Equal("RemoveFile",      recipe.Tables[33].Name.Value);
     }
 
     [Fact]
