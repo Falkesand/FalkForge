@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Cabinets;
+using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Validation;
 using FalkForge.Extensibility;
@@ -79,12 +80,15 @@ public static class MsiAuthoring
             File.Delete(msiPath);
         }
 
-        // Step 4: Build the recipe via the producer pipeline. No contributors
-        // wired in yet — phase 11 will route IMsiTableContributor through here.
+        // Step 4: Build the recipe via the producer pipeline. CustomTablesProducer
+        // handles user-defined dynamic-schema tables (one RecipeTable per
+        // CustomTableModel). No other contributors wired in yet — phase 11 will
+        // route IMsiTableContributor through here.
         Result<MsiDatabaseRecipe> recipeResult = MsiRecipeBuilder.Build(
             resolved,
             contributors: Array.Empty<IMsiTableContributor>(),
-            options: new MsiRecipeBuildOptions());
+            options: new MsiRecipeBuildOptions(),
+            multiProducers: [new CustomTablesProducer()]);
         if (recipeResult.IsFailure)
         {
             return Result<string>.Failure(recipeResult.Error);
