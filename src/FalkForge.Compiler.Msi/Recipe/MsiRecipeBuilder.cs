@@ -14,7 +14,7 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Component, File, FeatureComponents, FeatureCondition, Upgrade, Media,
 /// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
 /// Environment, Font, LaunchCondition, IniFile, CreateFolder, DuplicateFile,
-/// CustomAction, LockPermissions, MsiLockPermissionsEx, MIME, ProgId,
+/// Binary, CustomAction, LockPermissions, MsiLockPermissionsEx, MIME, ProgId,
 /// Extension, Verb, MoveFile, RemoveFile). Each producer emits one
 /// <see cref="RecipeTable"/> — even when the source data is empty — so
 /// downstream phases can rely on a stable table set. Pruning of empty
@@ -92,6 +92,7 @@ public static class MsiRecipeBuilder
             new IniFileTableProducer(),
             new CreateFolderTableProducer(),
             new DuplicateFileTableProducer(),
+            new BinaryTableProducer(),
             new CustomActionTableProducer(),
             new LockPermissionsTableProducer(),
             new MsiLockPermissionsExTableProducer(),
@@ -162,11 +163,20 @@ public static class MsiRecipeBuilder
         // rebuild it via a with-expression carrying the digest. The hashing
         // payload deliberately excludes ContentHash itself, so the placeholder
         // never affects the output digest.
+        // Collect all streams registered by producers (e.g. BinaryTableProducer)
+        // into an immutable dictionary for the recipe. The registry uses ordinal
+        // string comparison; ToImmutableDictionary preserves that comparer.
+        ImmutableDictionary<string, StreamSource> streams =
+            context.Streams.Snapshot().ToImmutableDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value,
+                StringComparer.Ordinal);
+
         MsiDatabaseRecipe recipe = new()
         {
             Tables = validatedTables,
             SummaryInfo = summaryInfo,
-            Streams = ImmutableDictionary<string, StreamSource>.Empty,
+            Streams = streams,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
             CabinetEmbedding = null,
             ContentHash = ReadOnlyMemory<byte>.Empty,
@@ -204,6 +214,7 @@ public static class MsiRecipeBuilder
             "IniFile" => MsiTableDefinitions.CreateIniFileTable,
             "CreateFolder" => MsiTableDefinitions.CreateCreateFolderTable,
             "DuplicateFile" => MsiTableDefinitions.CreateDuplicateFileTable,
+            "Binary" => MsiTableDefinitions.CreateBinaryTable,
             "CustomAction" => MsiTableDefinitions.CreateCustomActionTable,
             "LockPermissions" => MsiTableDefinitions.CreateLockPermissionsTable,
             "MsiLockPermissionsEx" => MsiTableDefinitions.CreateMsiLockPermissionsExTable,
