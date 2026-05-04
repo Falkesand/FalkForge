@@ -11,7 +11,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class MsiRecipeBuilderProducersTests
 {
     [Fact]
-    public void Build_with_simple_resolved_package_emits_thirty_four_tables_in_order()
+    public void Build_with_simple_resolved_package_emits_thirty_five_tables_in_order()
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
@@ -19,7 +19,7 @@ public sealed class MsiRecipeBuilderProducersTests
             new MsiRecipeBuildOptions());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(34, result.Value.Tables.Length);
+        Assert.Equal(35, result.Value.Tables.Length);
     }
 
     [Fact]
@@ -62,8 +62,9 @@ public sealed class MsiRecipeBuilderProducersTests
         Assert.Equal("MsiAssembly",     recipe.Tables[29].Name.Value);
         Assert.Equal("MsiAssemblyName", recipe.Tables[30].Name.Value);
         Assert.Equal("Verb",            recipe.Tables[31].Name.Value);
-        Assert.Equal("MoveFile",        recipe.Tables[32].Name.Value);
-        Assert.Equal("RemoveFile",      recipe.Tables[33].Name.Value);
+        Assert.Equal("MoveFile",            recipe.Tables[32].Name.Value);
+        Assert.Equal("RemoveFile",          recipe.Tables[33].Name.Value);
+        Assert.Equal("InstallUISequence",   recipe.Tables[34].Name.Value);
     }
 
     [Fact]

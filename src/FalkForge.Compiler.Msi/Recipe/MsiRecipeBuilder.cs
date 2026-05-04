@@ -15,7 +15,8 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
 /// Environment, Font, LaunchCondition, IniFile, CreateFolder, DuplicateFile,
 /// Binary, CustomAction, LockPermissions, MsiLockPermissionsEx, MIME, ProgId,
-/// Extension, Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb, MoveFile, RemoveFile).
+/// Extension, Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb, MoveFile,
+/// RemoveFile, InstallUISequence).
 /// Each producer emits one
 /// <see cref="RecipeTable"/> — even when the source data is empty — so
 /// downstream phases can rely on a stable table set. Pruning of empty
@@ -107,6 +108,7 @@ public static class MsiRecipeBuilder
             new VerbTableProducer(),
             new MoveFileTableProducer(),
             new RemoveFileTableProducer(),
+            new InstallUISequenceTableProducer(),
         };
 
         ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);
@@ -233,6 +235,7 @@ public static class MsiRecipeBuilder
             "Verb" => MsiTableDefinitions.CreateVerbTable,
             "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
             "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
+            "InstallUISequence" => MsiTableDefinitions.CreateInstallUISequenceTable,
             _ => throw new InvalidOperationException(
                 $"No CREATE TABLE SQL registered for table '{table.Value}'."),
         };
