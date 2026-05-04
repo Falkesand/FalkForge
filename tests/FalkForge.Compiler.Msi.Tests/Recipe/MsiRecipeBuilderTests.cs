@@ -79,7 +79,7 @@ public sealed class MsiRecipeBuilderTests
             new MsiRecipeBuildOptions()).Value;
 
         Assert.False(recipe.Tables.IsDefault);
-        Assert.Equal(35, recipe.Tables.Length);
+        Assert.Equal(36, recipe.Tables.Length);
         foreach (RecipeTable table in recipe.Tables)
         {
             // Media always emits a single header row even when the resolved
@@ -105,6 +105,13 @@ public sealed class MsiRecipeBuilderTests
                 // ProductLanguage, ALLUSERS. EnableRestartManager is false so
                 // MSIRMSHUTDOWN is omitted.
                 Assert.Equal(7, table.Rows.Length);
+            }
+            else if (table.Name.Value == "InstallExecuteSequence")
+            {
+                // InstallExecuteSequence always emits its unconditional baseline
+                // (21 rows) regardless of how empty the package is, matching the
+                // legacy TableEmitter.EmitInstallSequences baseline list.
+                Assert.NotEmpty(table.Rows);
             }
             else
             {
