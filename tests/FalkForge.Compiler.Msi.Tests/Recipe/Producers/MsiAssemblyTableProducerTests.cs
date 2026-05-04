@@ -80,8 +80,8 @@ public sealed class MsiAssemblyTableProducerTests
         // MSI DDL: PRIMARY KEY `Component_` (index 0).
         MsiAssemblyTableProducer producer = new();
 
-        Assert.Equal(1, producer.Schema.PrimaryKey.Length);
-        Assert.Equal(0, producer.Schema.PrimaryKey[0].Value);
+        ColumnIndex pk = Assert.Single(producer.Schema.PrimaryKey);
+        Assert.Equal(0, pk.Value);
     }
 
     [Fact]
