@@ -55,9 +55,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </para>
 ///
 /// <para>
-/// Condition cells: baseline actions emit <see cref="CellValue.Null"/>; user
-/// actions emit <see cref="CellValue.StringValue"/> when the condition string is
-/// non-null, otherwise <see cref="CellValue.Null"/>.
+/// Condition cells: baseline actions emit <see cref="CellValue.StringValue"/> with
+/// an empty string to match the legacy <c>TableEmitter</c> which calls
+/// <c>SetString(field, "")</c> for every baseline row — empty string and null differ
+/// at the MSI byte level and must agree for phase-9 diff parity. User-supplied
+/// actions emit <see cref="CellValue.StringValue"/> when the condition is non-null,
+/// otherwise <see cref="CellValue.Null"/>.
 /// </para>
 /// </summary>
 internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
@@ -259,10 +262,17 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
             {
                 conditionCell = new CellValue.StringValue(cond);
             }
+            else if (userActionNames.Contains(actionName))
+            {
+                // User action with null condition → Null cell (MSI convention: no condition).
+                conditionCell = new CellValue.Null();
+            }
             else
             {
-                // Baseline actions and user actions with null condition → Null cell.
-                conditionCell = new CellValue.Null();
+                // Baseline actions → empty-string cell to match legacy TableEmitter
+                // which calls SetString(2, "") for every baseline row. Empty string
+                // and null differ at byte level; "" must be written for parity.
+                conditionCell = new CellValue.StringValue(string.Empty);
             }
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(

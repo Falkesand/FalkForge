@@ -39,9 +39,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 ///
 /// <para>
 /// Baseline action <c>Condition</c> cells are written as
-/// <see cref="CellValue.Null"/> (legacy writes empty string to the DB column,
-/// but the MSI convention for a null Condition is to omit the value —
-/// the recipe layer uses <c>CellValue.Null</c> consistently).
+/// <see cref="CellValue.StringValue"/> with an empty string, matching the legacy
+/// <c>TableEmitter</c> and <c>DialogEmitter</c> which call <c>SetString(field, "")</c>
+/// for every baseline and dialog-flow row. Empty string and null differ at the MSI
+/// byte level; the producer must write <c>""</c> for phase-9 diff parity.
+/// User-supplied actions with a non-null condition receive a string cell; those with
+/// a null condition receive <see cref="CellValue.Null"/>.
 /// </para>
 /// </summary>
 internal sealed class InstallUISequenceTableProducer : ITableProducer
@@ -146,10 +149,18 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             {
                 conditionCell = new CellValue.StringValue(cond);
             }
+            else if (userActionNames.Contains(actionName))
+            {
+                // User action with null condition → Null cell (MSI convention: no condition).
+                conditionCell = new CellValue.Null();
+            }
             else
             {
-                // Baseline rows and user actions with null condition → Null cell.
-                conditionCell = new CellValue.Null();
+                // Baseline rows and dialog-flow rows → empty-string cell to match legacy
+                // TableEmitter/DialogEmitter which call SetString(field, "") for every
+                // such row. Empty string and null differ at byte level; "" must be written
+                // for phase-9 diff parity.
+                conditionCell = new CellValue.StringValue(string.Empty);
             }
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
@@ -175,9 +186,9 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
     /// The dialog list is obtained from the template, then filtered using the same
     /// support-dialog exclusion set as the legacy
     /// <c>DialogEmitter.EmitInstallUISequence</c>: Cancel and Browse dialogs are
-    /// excluded from the first-dialog search. Conditions are omitted (null) for all
-    /// three rows — matching the legacy empty-string convention mapped to
-    /// <see cref="CellValue.Null"/> by the recipe layer.
+    /// excluded from the first-dialog search. Conditions are written as empty string
+    /// for all three rows — matching the legacy <c>DialogEmitter</c> which calls
+    /// <c>SetString(field, "")</c> for dialog-flow row conditions.
     /// </remarks>
     private static (string Action, int Sequence)[] GetDialogFlowRows(PackageModel package)
     {
