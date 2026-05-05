@@ -28,11 +28,15 @@ public sealed class MsiDatabaseRecipeTests
             Title = "T",
             Subject = "S",
             Author = "A",
-            Template = ";1033",
+            Template = "x64;1033",
             Keywords = "K",
             Comments = "C",
-            RevisionNumber = 200,
-            CodePage = 1252
+            RevisionNumber = "{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}",
+            CodePage = 1252,
+            CreatingApplication = "FalkForge",
+            WordCount = 2,
+            PageCount = 200,
+            Security = 2,
         };
 
         ReadOnlyMemory<byte> hash = SHA256.HashData(ReadOnlySpan<byte>.Empty);
@@ -67,14 +71,18 @@ public sealed class MsiDatabaseRecipeTests
             Tables = ImmutableArray<RecipeTable>.Empty,
             SummaryInfo = new SummaryInfoRecipe
             {
-                Title = "",
-                Subject = "",
-                Author = "",
-                Template = "",
-                Keywords = "",
-                Comments = "",
-                RevisionNumber = 0,
-                CodePage = 1252
+                Title = string.Empty,
+                Subject = string.Empty,
+                Author = string.Empty,
+                Template = string.Empty,
+                Keywords = string.Empty,
+                Comments = string.Empty,
+                RevisionNumber = string.Empty,
+                CodePage = 1252,
+                CreatingApplication = string.Empty,
+                WordCount = 0,
+                PageCount = 0,
+                Security = 0,
             },
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,

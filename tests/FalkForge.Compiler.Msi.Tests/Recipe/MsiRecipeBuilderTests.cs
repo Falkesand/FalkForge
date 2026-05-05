@@ -171,22 +171,94 @@ public sealed class MsiRecipeBuilderTests
     }
 
     [Fact]
-    public void Build_default_summary_info_has_empty_strings_and_zero_revision()
+    public void Build_summary_info_is_fully_populated_from_package()
     {
+        // Phase 9 Step 2: SummaryInfoRecipe must be fully populated in
+        // MsiRecipeBuilder.BuildCore so the recipe alone is the single source
+        // of truth for the OLE summary stream — no post-apply patch required.
+        var productCode = Guid.Parse("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE");
+        ResolvedPackage resolved = new()
+        {
+            Package = new PackageModel
+            {
+                Name = "MyProduct",
+                Manufacturer = "Acme Corp",
+                Version = new Version(2, 0, 0),
+                ProductCode = productCode,
+            },
+            Components = new List<ResolvedComponent>(),
+            Files = new List<ResolvedFile>(),
+        };
+
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
-            MakeResolvedPackage(),
+            resolved,
             new List<IMsiTableContributor>(),
             new MsiRecipeBuildOptions()).Value;
 
         SummaryInfoRecipe info = recipe.SummaryInfo;
-        Assert.Equal(string.Empty, info.Title);
-        Assert.Equal(string.Empty, info.Subject);
-        Assert.Equal(string.Empty, info.Author);
-        Assert.Equal(string.Empty, info.Template);
-        Assert.Equal(string.Empty, info.Keywords);
-        Assert.Equal(string.Empty, info.Comments);
-        Assert.Equal(0, info.RevisionNumber);
+        Assert.Equal("Installation Database", info.Title);
+        Assert.Equal("MyProduct", info.Subject);
+        Assert.Equal("Acme Corp", info.Author);
+        Assert.Equal("Installer", info.Keywords);
+        // Comments default: no Description on package → generated from Name.
+        Assert.Contains("MyProduct", info.Comments, StringComparison.Ordinal);
+        // Template defaults to x64;1033 for ProcessorArchitecture.X64.
+        Assert.Equal("x64;1033", info.Template);
+        // RevisionNumber is the ProductCode GUID in upper-case registry-format braces.
+        Assert.Equal(productCode.ToString("B").ToUpperInvariant(), info.RevisionNumber);
         Assert.Equal(1252, info.CodePage);
+        Assert.Equal("FalkForge", info.CreatingApplication);
+        Assert.Equal(2, info.WordCount);
+        Assert.Equal(200, info.PageCount);
+        Assert.Equal(2, info.Security);
+    }
+
+    [Fact]
+    public void Build_summary_info_uses_package_description_when_provided()
+    {
+        ResolvedPackage resolved = new()
+        {
+            Package = new PackageModel
+            {
+                Name = "MyProduct",
+                Manufacturer = "Acme Corp",
+                Version = new Version(1, 0, 0),
+                Description = "Custom description text.",
+            },
+            Components = new List<ResolvedComponent>(),
+            Files = new List<ResolvedFile>(),
+        };
+
+        MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
+            resolved,
+            new List<IMsiTableContributor>(),
+            new MsiRecipeBuildOptions()).Value;
+
+        Assert.Equal("Custom description text.", recipe.SummaryInfo.Comments);
+    }
+
+    [Fact]
+    public void Build_summary_info_template_reflects_processor_architecture()
+    {
+        ResolvedPackage x86Resolved = new()
+        {
+            Package = new PackageModel
+            {
+                Name = "P",
+                Manufacturer = "M",
+                Version = new Version(1, 0, 0),
+                Architecture = ProcessorArchitecture.X86,
+            },
+            Components = new List<ResolvedComponent>(),
+            Files = new List<ResolvedFile>(),
+        };
+
+        MsiDatabaseRecipe x86Recipe = MsiRecipeBuilder.Build(
+            x86Resolved,
+            new List<IMsiTableContributor>(),
+            new MsiRecipeBuildOptions()).Value;
+
+        Assert.Equal("Intel;1033", x86Recipe.SummaryInfo.Template);
     }
 
     private static ResolvedPackage MakeResolvedPackage()
