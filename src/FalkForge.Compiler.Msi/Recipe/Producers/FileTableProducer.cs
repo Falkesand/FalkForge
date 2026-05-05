@@ -12,6 +12,10 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// producer uses ordinal index. Version/Language are emitted as null since
 /// <see cref="ResolvedFile"/> exposes neither today; Attributes is set to
 /// 512 (msidbFileAttributesVital) to match the legacy emitter.
+/// The FileName column uses the MSI short|long format when the name requires
+/// 8.3 truncation — identical to the encoding in
+/// <see cref="TableEmitter.EmitFiles"/> so both pipelines produce the same
+/// File table row content.
 /// </summary>
 internal sealed class FileTableProducer : ITableProducer
 {
@@ -31,10 +35,18 @@ internal sealed class FileTableProducer : ITableProducer
         int sequence = 1;
         foreach (ResolvedFile file in context.Resolved.Files)
         {
+            // Mirror the legacy EmitFiles short|long file name encoding:
+            // if the name requires 8.3 truncation the FileName column stores
+            // "SHORTNA~1.EXT|LongName.ext"; otherwise just "LongName.ext".
+            string shortName = GetShortFileName(file.FileName);
+            string msiFileName = shortName == file.FileName
+                ? file.FileName
+                : string.Concat(shortName, "|", file.FileName);
+
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(file.FileId),
                 new CellValue.ForeignKey(componentTable, file.ComponentId),
-                new CellValue.StringValue(file.FileName),
+                new CellValue.StringValue(msiFileName),
                 new CellValue.IntValue(checked((int)file.FileSize)),
                 new CellValue.Null(),
                 new CellValue.Null(),
@@ -45,6 +57,29 @@ internal sealed class FileTableProducer : ITableProducer
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Generates an 8.3 short file name for <paramref name="longName"/> using
+    /// the same algorithm as <c>TableEmitter.GetShortFileName</c>. Returns
+    /// <paramref name="longName"/> unchanged when no truncation is required
+    /// (name ≤ 8 chars, extension ≤ 4 chars, no spaces).
+    /// </summary>
+    private static string GetShortFileName(string longName)
+    {
+        string name = Path.GetFileNameWithoutExtension(longName);
+        string ext = Path.GetExtension(longName);
+
+        if (name.Length <= 8 && ext.Length <= 4 && !name.Contains(' '))
+            return longName;
+
+        string shortName = name.Replace(" ", string.Empty, StringComparison.Ordinal)
+                               .Replace(".", string.Empty, StringComparison.Ordinal);
+        if (shortName.Length > 6)
+            shortName = string.Concat(shortName.AsSpan(0, 6), "~1");
+        string shortExt = ext.Length > 4 ? ext[..4] : ext;
+
+        return string.Concat(shortName, shortExt).ToUpperInvariant();
     }
 
     private static TableSchema BuildSchema()
