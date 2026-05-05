@@ -95,55 +95,58 @@ public static class MsiRecipeBuilder
             new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
-        // Fixed producer order. The order matches the natural foreign-key
-        // dependency direction so future cross-producer FK validators can
-        // rely on referenced tables being present in BuiltTables. Feature
-        // is emitted before Component so the FeatureComponents junction can
-        // see both parent tables; FeatureCondition (Condition table) sits
-        // immediately after Feature because it FKs back to Feature; Upgrade
-        // has no FK dependencies and is emitted before any Component-bound
-        // producer for grouping; Environment/MoveFile/RemoveFile all
-        // reference Component (and Directory in MoveFile/RemoveFile cases)
-        // and therefore follow the parent producers.
+        // Fixed producer order. Order matches legacy TableEmitter.CreateTables exactly so that
+        // the two-phase executor (CREATE all → INSERT all) writes tables in the same sequence
+        // as legacy, producing byte-identical OLE compound document page allocation.
+        // Legacy order: Directory → Component → File → Feature → FeatureComponents → Media →
+        //   Property → Registry → Shortcut → ServiceInstall → ServiceControl → Upgrade →
+        //   LaunchCondition → InstallExecuteSequence → InstallUISequence → Environment →
+        //   Font → IniFile → RemoveIniFile → Extension → Verb → MIME → ProgId →
+        //   CustomAction → Binary → RemoveRegistry → RemoveFile → CreateFolder →
+        //   MoveFile → DuplicateFile → MsiAssembly → MsiAssemblyName → Condition →
+        //   Class → TypeLib → [LockPermissions] → [MsiLockPermissionsEx]
+        // All producers whose tables appear unconditionally in legacy are listed in the
+        // same order; LockPermissions and MsiLockPermissionsEx are at the end with
+        // EmitWhenEmpty=false so they are suppressed when no permission entries exist.
         ITableProducer[] producers =
         {
-            new PropertyTableProducer(),
             new DirectoryTableProducer(),
-            new FeatureTableProducer(),
             new ComponentTableProducer(),
             new FileTableProducer(),
+            new FeatureTableProducer(),
             new FeatureComponentsTableProducer(),
-            new FeatureConditionTableProducer(),
-            new UpgradeTableProducer(),
             new MediaTableProducer(),
+            new PropertyTableProducer(),
             new RegistryTableProducer(),
-            new RemoveRegistryTableProducer(),
+            new ShortcutTableProducer(),
             new ServiceInstallTableProducer(),
             new ServiceControlTableProducer(),
-            new ShortcutTableProducer(),
+            new UpgradeTableProducer(),
+            new LaunchConditionTableProducer(),
+            new InstallExecuteSequenceTableProducer(),
+            new InstallUISequenceTableProducer(),
             new EnvironmentTableProducer(),
             new FontTableProducer(),
-            new LaunchConditionTableProducer(),
             new IniFileTableProducer(),
             new RemoveIniFileTableProducer(),
-            new CreateFolderTableProducer(),
-            new DuplicateFileTableProducer(),
-            new BinaryTableProducer(),
-            new CustomActionTableProducer(),
-            new LockPermissionsTableProducer(),
-            new MsiLockPermissionsExTableProducer(),
+            new ExtensionTableProducer(),
+            new VerbTableProducer(),
             new MIMETableProducer(),
             new ProgIdTableProducer(),
-            new ExtensionTableProducer(),
-            new ClassTableProducer(),
-            new TypeLibTableProducer(),
+            new CustomActionTableProducer(),
+            new BinaryTableProducer(),
+            new RemoveRegistryTableProducer(),
+            new RemoveFileTableProducer(),
+            new CreateFolderTableProducer(),
+            new MoveFileTableProducer(),
+            new DuplicateFileTableProducer(),
             new MsiAssemblyTableProducer(),
             new MsiAssemblyNameTableProducer(),
-            new VerbTableProducer(),
-            new MoveFileTableProducer(),
-            new RemoveFileTableProducer(),
-            new InstallUISequenceTableProducer(),
-            new InstallExecuteSequenceTableProducer(),
+            new FeatureConditionTableProducer(),
+            new ClassTableProducer(),
+            new TypeLibTableProducer(),
+            new LockPermissionsTableProducer(),
+            new MsiLockPermissionsExTableProducer(),
         };
 
         ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);

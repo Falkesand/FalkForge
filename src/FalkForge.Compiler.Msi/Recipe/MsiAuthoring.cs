@@ -150,7 +150,10 @@ public static class MsiAuthoring
                         }
 
                         StreamSource cabSource = new StreamSource.FilePath(cabPath, cabSha, cabLength);
-                        embeddingsBuilder.Add(new CabinetEmbedding("#" + plan.CabinetFileName, cabSource));
+                        // Stream name in _Streams must NOT carry the '#' prefix — that prefix appears
+                        // only in the Media.Cabinet column to signal embedding. Legacy EmbeddedStreamCabinetSink
+                        // uses the bare cabinet file name (e.g. "Data.cab"), so we must match that exactly.
+                        embeddingsBuilder.Add(new CabinetEmbedding(plan.CabinetFileName, cabSource));
                     }
                     else
                     {

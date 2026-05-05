@@ -42,19 +42,36 @@ public sealed class MsiRecipeExecutor
                 "Recipe cannot be null.");
         }
 
+        // Two-phase table application mirrors legacy TableEmitter's operation order:
+        // Phase 1 — CREATE TABLE for every table (matches TableEmitter.CreateTables batch).
+        // Phase 2 — INSERT rows for every table (matches TableEmitter.Emit* methods).
+        // Separating CREATE from INSERT ensures the OLE compound document's internal
+        // page allocation follows the same sequence as legacy, which is required for
+        // byte-identical output.
         foreach (RecipeTable table in recipe.Tables)
         {
-            Result<Unit> tableResult = ApplyTable(table, recipe.Streams);
-            if (tableResult.IsFailure)
+            Result<Unit> createResult = CreateTable(table);
+            if (createResult.IsFailure)
             {
-                return tableResult;
+                return createResult;
             }
         }
 
-        Result<Unit> summaryResult = ApplySummaryInfo(recipe.SummaryInfo);
-        if (summaryResult.IsFailure)
+        foreach (RecipeTable table in recipe.Tables)
         {
-            return summaryResult;
+            Result<Unit> insertResult = InsertTableRows(table, recipe.Streams);
+            if (insertResult.IsFailure)
+            {
+                return insertResult;
+            }
+        }
+
+        // Cabinets are embedded before SummaryInfo, matching the legacy compiler's
+        // step order: (1) emit tables, (2) embed cabs, (3) set summary info, (4) commit.
+        Result<Unit> cabinetResult = ApplyCabinetEmbeddings(recipe.CabinetEmbeddings);
+        if (cabinetResult.IsFailure)
+        {
+            return cabinetResult;
         }
 
         Result<Unit> streamsResult = ApplyExtraStreams(recipe);
@@ -63,18 +80,16 @@ public sealed class MsiRecipeExecutor
             return streamsResult;
         }
 
-        Result<Unit> cabinetResult = ApplyCabinetEmbeddings(recipe.CabinetEmbeddings);
-        if (cabinetResult.IsFailure)
+        Result<Unit> summaryResult = ApplySummaryInfo(recipe.SummaryInfo);
+        if (summaryResult.IsFailure)
         {
-            return cabinetResult;
+            return summaryResult;
         }
 
         return _database.Commit();
     }
 
-    private Result<Unit> ApplyTable(
-        RecipeTable table,
-        System.Collections.Immutable.ImmutableDictionary<string, StreamSource> streams)
+    private Result<Unit> CreateTable(RecipeTable table)
     {
         Result<Unit> createResult = _database.Execute(table.CreateTableSql);
         if (createResult.IsFailure)
@@ -84,6 +99,13 @@ public sealed class MsiRecipeExecutor
                 $"msi.dll error during {table.Name.Value} CREATE TABLE: {createResult.Error.Message}");
         }
 
+        return Unit.Value;
+    }
+
+    private Result<Unit> InsertTableRows(
+        RecipeTable table,
+        System.Collections.Immutable.ImmutableDictionary<string, StreamSource> streams)
+    {
         for (int rowIndex = 0; rowIndex < table.Rows.Length; rowIndex++)
         {
             RecipeRow row = table.Rows[rowIndex];
@@ -95,6 +117,22 @@ public sealed class MsiRecipeExecutor
         }
 
         return Unit.Value;
+    }
+
+    // Kept for backward compatibility with callers that may invoke ApplyTable directly.
+    // Internal use; the primary Apply() path now calls CreateTable + InsertTableRows
+    // separately to match the two-phase write order of the legacy TableEmitter.
+    private Result<Unit> ApplyTable(
+        RecipeTable table,
+        System.Collections.Immutable.ImmutableDictionary<string, StreamSource> streams)
+    {
+        Result<Unit> createResult = CreateTable(table);
+        if (createResult.IsFailure)
+        {
+            return createResult;
+        }
+
+        return InsertTableRows(table, streams);
     }
 
     private Result<Unit> InsertRow(
@@ -172,10 +210,13 @@ public sealed class MsiRecipeExecutor
 
     private Result<Unit> ApplySummaryInfo(SummaryInfoRecipe summary)
     {
+        // Property order matches MsiCompiler (legacy) exactly so that
+        // MsiSummaryInfoSetProperty writes properties to the OLE PropertySetStorage
+        // in the same sequence — this affects the binary layout of the
+        // SummaryInformation stream and is required for byte-identical output.
         return _database.SetSummaryInfo(writer =>
         {
             writer
-                .Codepage(summary.CodePage)
                 .Title(summary.Title)
                 .Subject(summary.Subject)
                 .Author(summary.Author)
@@ -186,7 +227,8 @@ public sealed class MsiRecipeExecutor
                 .CreatingApplication(summary.CreatingApplication)
                 .WordCount(summary.WordCount)
                 .PageCount(summary.PageCount)
-                .Security(summary.Security);
+                .Security(summary.Security)
+                .Codepage(summary.CodePage);
         });
     }
 
