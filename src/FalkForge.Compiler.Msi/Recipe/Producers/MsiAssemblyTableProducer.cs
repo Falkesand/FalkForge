@@ -98,7 +98,6 @@ internal sealed class MsiAssemblyTableProducer : ITableProducer
     {
         TableId componentTable = TableId.Create("Component").Value;
         TableId featureTable = TableId.Create("Feature").Value;
-        TableId fileTable = TableId.Create("File").Value;
 
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
             new RecipeColumn
@@ -149,6 +148,9 @@ internal sealed class MsiAssemblyTableProducer : ITableProducer
             Name = TableId.Create("MsiAssembly").Value,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
+            // File_Manifest (col 2) is always null — FK omitted to avoid misleading
+            // validators into expecting a File table row for a column never populated.
+            // File_Application (col 3) is optional; no FK declared for nullable refs.
             ForeignKeys = ImmutableArray.Create(
                 new ForeignKeySpec
                 {
@@ -159,16 +161,6 @@ internal sealed class MsiAssemblyTableProducer : ITableProducer
                 {
                     SourceColumn = new ColumnIndex(1),
                     TargetTable = featureTable,
-                },
-                new ForeignKeySpec
-                {
-                    SourceColumn = new ColumnIndex(2),
-                    TargetTable = fileTable,
-                },
-                new ForeignKeySpec
-                {
-                    SourceColumn = new ColumnIndex(3),
-                    TargetTable = fileTable,
                 }),
         };
     }

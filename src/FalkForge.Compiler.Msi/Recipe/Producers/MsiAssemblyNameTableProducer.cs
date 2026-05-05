@@ -61,9 +61,9 @@ internal sealed class MsiAssemblyNameTableProducer : ITableProducer
             }
         }
 
-        // Each assembly may produce 0–6 rows; pre-allocate conservatively.
+        // Each assembly may produce 0–6 rows (5 attrs + Win32 "type" row); pre-allocate for worst case.
         ImmutableArray<RecipeRow>.Builder rows =
-            ImmutableArray.CreateBuilder<RecipeRow>(assemblies.Count * 4);
+            ImmutableArray.CreateBuilder<RecipeRow>(assemblies.Count * 6);
 
         foreach (AssemblyModel assembly in assemblies)
         {
