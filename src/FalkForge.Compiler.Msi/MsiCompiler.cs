@@ -36,10 +36,9 @@ public sealed class MsiCompiler : ICompiler
 
     /// <summary>
     /// Compiles <paramref name="package"/> to an MSI file under <paramref name="outputPath"/>.
-    /// Forwards to <see cref="MsiAuthoring.Compile"/> — the recipe-driven pipeline that
-    /// replaced the legacy <c>TableEmitter</c> path in Phase 9. Legacy source
-    /// (<c>TableEmitter</c>, <c>DialogEmitter</c>, etc.) is retained for reference
-    /// until Phase 12 cleanup.
+    /// Forwards to <see cref="MsiAuthoring.Compile"/> — the recipe-driven pipeline
+    /// (<see cref="MsiRecipeBuilder"/>, <see cref="MsiDatabaseRecipe"/>, <c>IMultiTableProducer</c>
+    /// implementations under <c>Recipe/Producers/</c>) that replaced the legacy emitter path in Phase 9.
     /// </summary>
     public Result<string> Compile(PackageModel package, string outputPath)
         => MsiAuthoring.Compile(package, outputPath);

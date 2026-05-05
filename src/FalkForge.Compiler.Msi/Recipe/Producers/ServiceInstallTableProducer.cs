@@ -7,7 +7,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <summary>
 /// Producer for the MSI <c>ServiceInstall</c> table. Walks
 /// <see cref="PackageModel.Services"/> and projects each service onto the
-/// 13-column row shape used by <see cref="TableEmitter"/>'s
+/// 13-column row shape used by the legacy <c>TableEmitter</c> (deleted in Phase 9)
 /// <c>EmitServices</c>. The component lookup mirrors the legacy emitter:
 /// look up the service executable's bare filename in the file→component
 /// map and fall back to the first resolved component (or

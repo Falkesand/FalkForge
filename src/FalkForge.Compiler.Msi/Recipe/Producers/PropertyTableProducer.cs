@@ -12,8 +12,8 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <c>ALLUSERS</c>, optional <c>MSIRMSHUTDOWN</c>) from the
 /// <see cref="PackageModel"/> headline fields, then layers the user-supplied
 /// <see cref="PackageModel.Properties"/> on top — matching the order and
-/// override semantics of the legacy
-/// <see cref="TableEmitter"/>.<c>EmitProperties</c> dictionary build:
+/// override semantics of the legacy <c>TableEmitter</c> (deleted in Phase 9)
+/// <c>EmitProperties</c> dictionary build:
 /// built-ins seeded first, user properties overwrite by key, empty values
 /// skipped at the end.
 /// </summary>
@@ -37,7 +37,7 @@ internal sealed class PropertyTableProducer : ITableProducer
 
         PackageModel package = context.Resolved.Package;
 
-        // Mirror TableEmitter.EmitProperties: keyed dictionary preserves
+        // Mirror legacy TableEmitter.EmitProperties (deleted in Phase 9): keyed dictionary preserves
         // insertion order, user props overwrite built-ins by key, then a
         // final pass skips entries with null/empty values.
         Dictionary<string, string> props = new(StringComparer.Ordinal)

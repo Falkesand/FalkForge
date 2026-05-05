@@ -7,12 +7,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <summary>
 /// Producer for the MSI <c>Shortcut</c> table. Walks
 /// <see cref="PackageModel.Shortcuts"/> and emits one row per
-/// (shortcut, location) pairing, mirroring <see cref="TableEmitter"/>'s
+/// (shortcut, location) pairing, mirroring the legacy <c>TableEmitter</c> (deleted in Phase 9)
 /// <c>EmitShortcuts</c>. The 12-column shape covers the standard
 /// Shortcut columns through <c>WkDir</c>; the four optional
 /// DisplayResource* / DescriptionResource* columns are out of scope for
-/// this batch — they're rarely populated in practice and TableEmitter
-/// itself does not emit them.
+/// this batch — they're rarely populated in practice and the legacy <c>TableEmitter</c>
+/// did not emit them.
 /// </summary>
 internal sealed class ShortcutTableProducer : ITableProducer
 {

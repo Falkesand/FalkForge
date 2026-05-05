@@ -23,13 +23,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <see cref="IDialogTemplate.GetDialogs"/> returns pure <see cref="MsiDialogModel"/>
 /// data — no live database handle is involved — so the producer simply maps
 /// those models into <see cref="RecipeTable"/> instances. The legacy
-/// <see cref="DialogEmitter"/> remains untouched; this producer is a parallel
-/// recipe-pipeline track.
+/// <c>DialogEmitter</c> (deleted in Phase 9); this producer is its recipe-pipeline replacement.
 /// </para>
 ///
 /// <para>
 /// Localization: <c>!(loc.X)</c> references in control text are resolved via
-/// the built-in en-US strings (same fallback <see cref="DialogEmitter"/> uses)
+/// the built-in en-US strings (same fallback the legacy <c>DialogEmitter</c> used)
 /// before the rows are frozen into immutable cells. The resolver runs on the
 /// mutable <see cref="MsiDialogModel"/> list returned by the template, so the
 /// resolution is non-destructive to the original model objects.
@@ -41,7 +40,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </summary>
 internal sealed class DialogSetProducer : IMultiTableProducer
 {
-    // ── Fixed text style rows — identical to DialogEmitter.EmitTextStyles ──────
+    // ── Fixed text style rows — identical to legacy DialogEmitter.EmitTextStyles ──────
     // Tuple: (Name, FaceName, Size, Color, StyleBits)
     private static readonly (string Name, string FaceName, int Size, int? Color, int StyleBits)[]
         TextStyles =
@@ -53,7 +52,7 @@ internal sealed class DialogSetProducer : IMultiTableProducer
             ("VerdanaBold13", "Verdana", 13, null, 1),
         ];
 
-    // ── Fixed UIText rows — identical to DialogEmitter.EmitUIText ─────────────
+    // ── Fixed UIText rows — identical to legacy DialogEmitter.EmitUIText ─────────────
     private static readonly (string Key, string Text)[] UiTextEntries =
     [
         ("AbsentPath",             ""),
@@ -217,7 +216,7 @@ internal sealed class DialogSetProducer : IMultiTableProducer
             }
         }
 
-        // TextStyle rows — fixed set, same as DialogEmitter.EmitTextStyles.
+        // TextStyle rows — fixed set, same as legacy DialogEmitter.EmitTextStyles.
         ImmutableArray<RecipeRow>.Builder tsRows = ImmutableArray.CreateBuilder<RecipeRow>(TextStyles.Length);
         for (int i = 0; i < TextStyles.Length; i++)
         {
@@ -233,7 +232,7 @@ internal sealed class DialogSetProducer : IMultiTableProducer
             });
         }
 
-        // UIText rows — fixed set, same as DialogEmitter.EmitUIText.
+        // UIText rows — fixed set, same as legacy DialogEmitter.EmitUIText.
         ImmutableArray<RecipeRow>.Builder uitRows = ImmutableArray.CreateBuilder<RecipeRow>(UiTextEntries.Length);
         for (int i = 0; i < UiTextEntries.Length; i++)
         {
@@ -259,7 +258,7 @@ internal sealed class DialogSetProducer : IMultiTableProducer
         return Result<ImmutableArray<RecipeTable>>.Success(tableBuilder.ToImmutable());
     }
 
-    // ── Template selection (mirrors DialogEmitter.GetTemplate) ────────────────
+    // ── Template selection (mirrors legacy DialogEmitter.GetTemplate) ────────────────
 
     private static IDialogTemplate GetTemplate(MsiDialogSet dialogSet)
         => dialogSet switch
@@ -272,7 +271,7 @@ internal sealed class DialogSetProducer : IMultiTableProducer
             _                        => new MinimalDialogTemplate(),
         };
 
-    // ── Localization resolution (mirrors DialogEmitter.BuildStringResolver) ────
+    // ── Localization resolution (mirrors legacy DialogEmitter.BuildStringResolver) ────
 
     private static Result<Unit> ResolveLocalizationRefs(
         IReadOnlyList<MsiDialogModel> dialogs,

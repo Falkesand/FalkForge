@@ -7,8 +7,8 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// Producer for the MSI <c>Feature</c> table. Walks
 /// <see cref="PackageModel.Features"/> recursively and emits a row per
 /// feature, threading the parent feature ID through the foreign-key column.
-/// The Display/Level/Attributes derivation matches
-/// <see cref="TableEmitter"/>'s <c>EmitFeature</c> helper so the recipe
+/// The Display/Level/Attributes derivation matches the legacy
+/// <c>TableEmitter</c> (deleted in Phase 9) <c>EmitFeature</c> helper so the recipe
 /// produces identical rows. The Directory_ column is hard-wired to
 /// <c>"INSTALLDIR"</c> to mirror the legacy emitter; later phases that
 /// surface explicit feature directories will override.

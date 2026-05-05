@@ -6,7 +6,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <summary>
 /// Producer for the MSI <c>MoveFile</c> table. Walks
 /// <see cref="PackageModel.MoveFiles"/> and projects each entry onto the
-/// column shape used by <see cref="TableEmitter"/>'s <c>EmitMoveFiles</c>.
+/// column shape used by the legacy <c>TableEmitter</c> (deleted in Phase 9) <c>EmitMoveFiles</c>.
 /// SourceFolder and DestFolder are emitted as foreign keys into the
 /// <c>Directory</c> table so future cross-producer FK validation can verify
 /// both endpoints. ComponentRef falls back to the first resolved component
@@ -47,8 +47,8 @@ internal sealed class MoveFileTableProducer : ITableProducer
             // SourceFolder and DestFolder in the MoveFile table accept either a Directory
             // table key or a Windows Installer property name (e.g. "INSTALLDIR", "LogFolder").
             // They are NOT strict FK references at compile time — MSI resolves them at
-            // install time. Emit as plain strings to mirror legacy TableEmitter.EmitMoveFiles
-            // which uses SetString (no FK lookup) for these columns.
+            // install time. Emit as plain strings to mirror the legacy TableEmitter.EmitMoveFiles
+            // (deleted in Phase 9) which used SetString (no FK lookup) for these columns.
             CellValue sourceFolderCell = mf.SourceDirectory is null
                 ? new CellValue.Null()
                 : new CellValue.StringValue(mf.SourceDirectory);

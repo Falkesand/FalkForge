@@ -6,7 +6,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <summary>
 /// Producer for the MSI <c>RemoveFile</c> table. Walks
 /// <see cref="PackageModel.RemoveFiles"/> and projects each entry onto the
-/// column shape used by <see cref="TableEmitter"/>'s <c>EmitRemoveFiles</c>.
+/// column shape used by the legacy <c>TableEmitter</c> (deleted in Phase 9) <c>EmitRemoveFiles</c>.
 /// <see cref="RemoveFileModel.OnInstall"/> and <see cref="RemoveFileModel.OnUninstall"/>
 /// are packed into the MSI <c>InstallMode</c> bitmask (1 = install, 2 = uninstall).
 /// ComponentRef falls back to the first resolved component (or
@@ -51,8 +51,8 @@ internal sealed class RemoveFileTableProducer : ITableProducer
 
             // DirProperty accepts a Directory key or a Windows Installer property name
             // (e.g. "LOGSDIR", "INSTALLDIR") resolved at install time — not a strict
-            // compile-time FK. Emit as plain string to mirror legacy TableEmitter.EmitRemoveFiles
-            // which uses SetString for this column.
+            // compile-time FK. Emit as plain string to mirror the legacy TableEmitter.EmitRemoveFiles
+            // (deleted in Phase 9) which used SetString for this column.
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(rf.Id),
                 new CellValue.ForeignKey(componentTable, componentId),

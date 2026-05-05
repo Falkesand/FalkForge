@@ -7,8 +7,8 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// Producer for the MSI <c>Condition</c> table (feature gating). Walks
 /// <see cref="PackageModel.Features"/> recursively (including
 /// <see cref="FeatureModel.Children"/>) and emits one row per
-/// <see cref="FeatureConditionModel"/>, mirroring
-/// <see cref="TableEmitter"/>'s <c>EmitFeatureConditions</c>. The composite
+/// <see cref="FeatureConditionModel"/>, mirroring the legacy
+/// <c>TableEmitter</c> (deleted in Phase 9) <c>EmitFeatureConditions</c>. The composite
 /// primary key on <c>(Feature_, Level)</c> matches the legacy schema in
 /// <c>MsiTableDefinitions.CreateConditionTable</c>.
 /// </summary>

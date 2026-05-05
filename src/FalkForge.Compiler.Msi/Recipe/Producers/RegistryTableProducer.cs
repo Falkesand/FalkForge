@@ -7,7 +7,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <summary>
 /// Producer for the MSI <c>Registry</c> table. Walks
 /// <see cref="PackageModel.RegistryEntries"/> and projects each entry onto
-/// the column shape used by <see cref="TableEmitter"/>'s
+/// the column shape used by the legacy <c>TableEmitter</c> (deleted in Phase 9)
 /// <c>EmitRegistry</c>. Synthesises sequential <c>Reg_NNNN</c> identifiers
 /// matching the legacy emitter and falls back to the first resolved
 /// component (or <c>"MainComponent"</c>) when an entry omits an explicit

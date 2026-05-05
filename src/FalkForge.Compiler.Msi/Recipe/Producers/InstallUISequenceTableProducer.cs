@@ -10,9 +10,9 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// UI sequence baseline plus any user-supplied custom actions.
 ///
 /// <para>
-/// Divergence from the legacy <see cref="Tables.TableEmitter.EmitUISequence"/>:
-/// the legacy emitter defers the baseline rows to <c>DialogEmitter</c> when a
-/// <see cref="MsiDialogSet"/> is active and only emits custom actions on top.
+/// Divergence from the legacy <c>TableEmitter.EmitUISequence</c> (deleted in Phase 9):
+/// the legacy emitter deferred the baseline rows to <c>DialogEmitter</c> (also deleted in Phase 9)
+/// when a <see cref="MsiDialogSet"/> is active and only emitted custom actions on top.
 /// Because the recipe pipeline has no <c>DialogEmitter</c> side-channel, this
 /// producer is solely responsible for the full baseline (<c>AppSearch</c>,
 /// <c>LaunchConditions</c>, <c>ValidateProductID</c>, <c>CostInitialize</c>,
@@ -40,9 +40,9 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <para>
 /// Baseline action <c>Condition</c> cells are written as
 /// <see cref="CellValue.StringValue"/> with an empty string, matching the legacy
-/// <c>TableEmitter</c> and <c>DialogEmitter</c> which call <c>SetString(field, "")</c>
-/// for every baseline and dialog-flow row. Empty string and null differ at the MSI
-/// byte level; the producer must write <c>""</c> for phase-9 diff parity.
+/// <c>TableEmitter</c> and <c>DialogEmitter</c> (both deleted in Phase 9) which called
+/// <c>SetString(field, "")</c> for every baseline and dialog-flow row. Empty string and
+/// null differ at the MSI byte level; the producer must write <c>""</c> for phase-9 diff parity.
 /// User-supplied actions with a non-null condition receive a string cell; those with
 /// a null condition receive <see cref="CellValue.Null"/>.
 /// </para>
@@ -100,7 +100,7 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
         };
 
         // Append dialog-flow rows (firstDialog/Progress/Exit) when DialogSet is active.
-        // These mirror the rows emitted by the legacy DialogEmitter.EmitInstallUISequence.
+        // These mirror the rows emitted by the legacy DialogEmitter.EmitInstallUISequence (deleted in Phase 9).
         for (int i = 0; i < dialogFlowRows.Length; i++)
         {
             actions.Add(dialogFlowRows[i]);
@@ -167,8 +167,8 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             }
             else
             {
-                // Baseline rows and dialog-flow rows → empty-string cell to match legacy
-                // TableEmitter/DialogEmitter which call SetString(field, "") for every
+                // Baseline rows and dialog-flow rows → empty-string cell to match the legacy
+                // TableEmitter/DialogEmitter (deleted in Phase 9) which called SetString(field, "") for every
                 // such row. Empty string and null differ at byte level; "" must be written
                 // for phase-9 diff parity.
                 conditionCell = new CellValue.StringValue(string.Empty);
@@ -196,9 +196,9 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
     /// <remarks>
     /// The dialog list is obtained from the template, then filtered using the same
     /// support-dialog exclusion set as the legacy
-    /// <c>DialogEmitter.EmitInstallUISequence</c>: Cancel and Browse dialogs are
+    /// <c>DialogEmitter.EmitInstallUISequence</c> (deleted in Phase 9): Cancel and Browse dialogs are
     /// excluded from the first-dialog search. Conditions are written as empty string
-    /// for all three rows — matching the legacy <c>DialogEmitter</c> which calls
+    /// for all three rows — matching the legacy <c>DialogEmitter</c> (deleted in Phase 9) which called
     /// <c>SetString(field, "")</c> for dialog-flow row conditions.
     /// </remarks>
     private static (string Action, int Sequence)[] GetDialogFlowRows(PackageModel package)
@@ -255,7 +255,7 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
 
     /// <summary>
     /// Returns the <see cref="IDialogTemplate"/> for the given
-    /// <see cref="MsiDialogSet"/>. Mirrors <c>DialogEmitter.GetTemplate</c>.
+    /// <see cref="MsiDialogSet"/>. Mirrors the legacy <c>DialogEmitter.GetTemplate</c> (deleted in Phase 9).
     /// </summary>
     private static IDialogTemplate GetDialogTemplate(MsiDialogSet dialogSet) =>
         dialogSet switch
@@ -268,7 +268,7 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             _                        => new MinimalDialogTemplate(),
         };
 
-    // ── Sequence resolution helpers (mirror TableEmitter static helpers) ─────
+    // ── Sequence resolution helpers (mirror legacy TableEmitter static helpers, deleted in Phase 9) ─────
 
     private static int ResolveSequenceNumber(
         ActionPosition position,
@@ -296,7 +296,7 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             }
         }
 
-        // Fallback well-known action names — mirror TableEmitter.FindReferenceSequence.
+        // Fallback well-known action names — mirror legacy TableEmitter.FindReferenceSequence (deleted in Phase 9).
         return referenceAction switch
         {
             "InstallInitialize" => 1500,

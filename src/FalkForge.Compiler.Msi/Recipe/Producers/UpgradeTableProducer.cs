@@ -6,7 +6,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 
 /// <summary>
 /// Producer for the MSI <c>Upgrade</c> table (upgrade detection rows). Mirrors
-/// the legacy <see cref="TableEmitter"/>'s <c>EmitUpgrade</c> and
+/// the legacy <c>TableEmitter</c> (deleted in Phase 9) <c>EmitUpgrade</c> and
 /// <c>EmitMajorUpgrade</c>:
 /// <list type="bullet">
 /// <item>When <see cref="PackageModel.Upgrade"/> is set, emit the

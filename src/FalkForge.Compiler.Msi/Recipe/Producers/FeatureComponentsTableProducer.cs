@@ -5,8 +5,8 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 
 /// <summary>
 /// Producer for the MSI <c>FeatureComponents</c> junction table. Emits one
-/// row per (feature, component) pairing, mirroring
-/// <see cref="TableEmitter"/>'s <c>EmitFeatureComponents</c> helper. When a
+/// row per (feature, component) pairing, mirroring the legacy
+/// <c>TableEmitter</c> (deleted in Phase 9) <c>EmitFeatureComponents</c> helper. When a
 /// resolved component does not declare an explicit <see cref="ResolvedComponent.FeatureRef"/>
 /// the producer falls back to the first declared feature id, or <c>"Complete"</c>
 /// if the package has no features — matching the legacy default.

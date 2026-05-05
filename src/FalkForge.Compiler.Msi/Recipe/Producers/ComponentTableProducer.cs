@@ -8,7 +8,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// Producer for the MSI <c>Component</c> table. Walks
 /// <see cref="ResolvedPackage.Components"/> and projects each
 /// <see cref="ResolvedComponent"/> onto a <c>Component</c> table row matching
-/// the column shape used by <see cref="TableEmitter"/>'s
+/// the column shape used by the legacy <c>TableEmitter</c> (deleted in Phase 9)
 /// <c>EmitComponents</c>. The Attributes value mirrors the legacy emitter:
 /// the 64-bit bit (256) for x64/Arm64 packages, the NeverOverwrite bit
 /// (0x80) and Permanent bit (0x10) when the component is so flagged.
@@ -40,8 +40,8 @@ internal sealed class ComponentTableProducer : ITableProducer
         // (e.g., no-file packages). Other producers fall back to "MainComponent" as the
         // component FK target; without this row the FK validator rejects those references.
         // The placeholder uses a zero GUID and TARGETDIR so the MSI is structurally valid.
-        // This matches the implicit expectation of legacy TableEmitter which inserts
-        // "MainComponent" raw strings without validation and relies on msi.dll's leniency.
+        // This matches the implicit expectation of the legacy TableEmitter (deleted in Phase 9)
+        // which inserts "MainComponent" raw strings without validation and relies on msi.dll's leniency.
         if (resolved.Components.Count == 0)
         {
             ImmutableArray<CellValue> placeholderCells = ImmutableArray.Create<CellValue>(
@@ -77,8 +77,8 @@ internal sealed class ComponentTableProducer : ITableProducer
             string directoryId = DirectoryTreeSynthesizer.ComputeDirectoryId(
                 component.Directory,
                 installDir);
-            // Component.Condition is nullable in MSI but TableEmitter writes empty
-            // string when no condition is set; mirror that to keep recipe row
+            // Component.Condition is nullable in MSI but the legacy TableEmitter (deleted in Phase 9)
+            // writes empty string when no condition is set; mirror that to keep recipe row
             // shape identical.
             string condition = component.Condition ?? string.Empty;
 

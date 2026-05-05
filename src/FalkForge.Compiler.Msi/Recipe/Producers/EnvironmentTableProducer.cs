@@ -8,7 +8,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <summary>
 /// Producer for the MSI <c>Environment</c> table. Walks
 /// <see cref="PackageModel.EnvironmentVariables"/> and emits one row per
-/// variable, mirroring <see cref="TableEmitter"/>'s <c>EmitEnvironment</c>.
+/// variable, mirroring the legacy <c>TableEmitter</c> (deleted in Phase 9) <c>EmitEnvironment</c>.
 /// Variable name and value strings are pre-encoded via
 /// <see cref="EnvironmentEncoding"/> so the legacy install-time encoding
 /// (system/user prefix, action sigils, separator handling) is preserved.
