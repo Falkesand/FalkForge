@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Recipe.Producers;
@@ -166,6 +167,139 @@ public sealed class ServiceControlTableProducerTests
         Assert.Equal("MainComponent", fk.TargetKey);
     }
 
+    // -------------------------------------------------------------------------
+    // Auto-row generation from ServiceModel (DIV-3 parity)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Produce_auto_emits_start_and_stop_rows_for_each_service()
+    {
+        // Legacy TableEmitter.EmitServices inserts SVC_{name}_Start (Event=1)
+        // and SVC_{name}_Stop (Event=2) into ServiceControl for every ServiceModel.
+        // The recipe ServiceControlTableProducer must mirror this behaviour.
+        ResolvedPackage resolved = MakeResolvedWithServices(
+            services: new[]
+            {
+                new ServiceModel
+                {
+                    Name = "MyService",
+                    DisplayName = "My Service",
+                    Executable = "PlugWarden.Service.exe",
+                },
+            },
+            controls: Array.Empty<ServiceControlModel>(),
+            components: new[] { MakeComponent("C_PlugWarden.Service.exe_7C2A39DB") });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Equal(2, rows.Length);
+
+        // Start row: SVC_MyService_Start, Event=1, Wait=1
+        Assert.Equal("SVC_MyService_Start", ((CellValue.StringValue)rows[0].Cells[0]).Value);
+        Assert.Equal("MyService", ((CellValue.StringValue)rows[0].Cells[1]).Value);
+        Assert.Equal(1, ((CellValue.IntValue)rows[0].Cells[2]).Value);
+        Assert.IsType<CellValue.Null>(rows[0].Cells[3]);
+        Assert.Equal(1, ((CellValue.IntValue)rows[0].Cells[4]).Value);
+
+        // Stop row: SVC_MyService_Stop, Event=2, Wait=1
+        Assert.Equal("SVC_MyService_Stop", ((CellValue.StringValue)rows[1].Cells[0]).Value);
+        Assert.Equal("MyService", ((CellValue.StringValue)rows[1].Cells[1]).Value);
+        Assert.Equal(2, ((CellValue.IntValue)rows[1].Cells[2]).Value);
+        Assert.IsType<CellValue.Null>(rows[1].Cells[3]);
+        Assert.Equal(1, ((CellValue.IntValue)rows[1].Cells[4]).Value);
+    }
+
+    [Fact]
+    public void Produce_auto_rows_use_component_matching_service_executable()
+    {
+        // The auto-generated ServiceControl rows must use the same component FK
+        // that ServiceInstallTableProducer assigns — i.e., the component whose
+        // resolved file name matches the service executable basename.
+        var svcComponent = MakeComponentWithFile("C_PlugWarden_7C2A39DB", "PlugWarden.Service.exe");
+        var otherComponent = MakeComponent("C_Other");
+        ResolvedPackage resolved = MakeResolvedWithServices(
+            services: new[]
+            {
+                new ServiceModel
+                {
+                    Name = "MySvc",
+                    DisplayName = "My Svc",
+                    Executable = "[INSTALLFOLDER]Service\\PlugWarden.Service.exe",
+                },
+            },
+            controls: Array.Empty<ServiceControlModel>(),
+            components: new[] { svcComponent, otherComponent });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Equal(2, rows.Length);
+        CellValue.ForeignKey fkStart = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[5]);
+        CellValue.ForeignKey fkStop = Assert.IsType<CellValue.ForeignKey>(rows[1].Cells[5]);
+        Assert.Equal("C_PlugWarden_7C2A39DB", fkStart.TargetKey);
+        Assert.Equal("C_PlugWarden_7C2A39DB", fkStop.TargetKey);
+    }
+
+    [Fact]
+    public void Produce_auto_rows_and_explicit_controls_combined()
+    {
+        // Both auto-rows (from Services) and explicit ServiceControlModel rows
+        // should appear in the output.
+        var control = new ServiceControlModel
+        {
+            Id = "Svc.Stop",
+            ServiceName = "MySvc",
+            Events = ServiceControlEvent.StopOnInstall,
+            ComponentRef = "Comp1",
+        };
+        ResolvedPackage resolved = MakeResolvedWithServices(
+            services: new[]
+            {
+                new ServiceModel
+                {
+                    Name = "MySvc",
+                    DisplayName = "My Svc",
+                    Executable = "mysvc.exe",
+                },
+            },
+            controls: new[] { control },
+            components: new[] { MakeComponent("Comp1") });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        // 2 auto + 1 explicit = 3 total
+        Assert.Equal(3, rows.Length);
+        var ids = rows.Select(r => ((CellValue.StringValue)r.Cells[0]).Value).ToHashSet();
+        Assert.Contains("SVC_MySvc_Start", ids);
+        Assert.Contains("SVC_MySvc_Stop", ids);
+        Assert.Contains("Svc.Stop", ids);
+    }
+
+    [Fact]
+    public void Produce_auto_rows_sanitize_service_name_for_identifier()
+    {
+        // Service names with spaces/special chars must be sanitized the same
+        // way TableEmitter.SanitizeId does: non-alphanumeric non-underscore
+        // non-dot chars become underscores.
+        ResolvedPackage resolved = MakeResolvedWithServices(
+            services: new[]
+            {
+                new ServiceModel
+                {
+                    Name = "My Service 2",
+                    DisplayName = "My Service 2",
+                    Executable = "svc2.exe",
+                },
+            },
+            controls: Array.Empty<ServiceControlModel>(),
+            components: new[] { MakeComponent("Comp1") });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Equal(2, rows.Length);
+        Assert.Equal("SVC_My_Service_2_Start", ((CellValue.StringValue)rows[0].Cells[0]).Value);
+        Assert.Equal("SVC_My_Service_2_Stop", ((CellValue.StringValue)rows[1].Cells[0]).Value);
+    }
+
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
     {
         RecipeBuildContext context = new(
@@ -206,6 +340,49 @@ public sealed class ServiceControlTableProducerTests
             },
             Components = components,
             Files = Array.Empty<ResolvedFile>(),
+        };
+    }
+
+    private static ResolvedPackage MakeResolvedWithServices(
+        IReadOnlyList<ServiceModel> services,
+        IReadOnlyList<ServiceControlModel> controls,
+        IReadOnlyList<ResolvedComponent> components)
+    {
+        return new ResolvedPackage
+        {
+            Package = new PackageModel
+            {
+                Name = "T",
+                Manufacturer = "M",
+                Version = new Version(1, 0, 0),
+                Services = services,
+                ServiceControls = controls,
+            },
+            Components = components,
+            Files = Array.Empty<ResolvedFile>(),
+        };
+    }
+
+    private static ResolvedComponent MakeComponentWithFile(string id, string fileName)
+    {
+        return new ResolvedComponent
+        {
+            Id = id,
+            Guid = Guid.NewGuid(),
+            Directory = KnownFolder.ProgramFiles / "App",
+            KeyPath = fileName,
+            Files = new[]
+            {
+                new ResolvedFile
+                {
+                    FileName = fileName,
+                    SourcePath = $"C:\\src\\{fileName}",
+                    FileId = $"F_{id}",
+                    FileSize = 0,
+                    ComponentId = id,
+                    TargetDirectory = KnownFolder.ProgramFiles / "App",
+                },
+            },
         };
     }
 }
