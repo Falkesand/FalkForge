@@ -25,12 +25,9 @@ namespace FalkForge.Compiler.Msi.Recipe;
 [SupportedOSPlatform("windows")]
 public static class MsiAuthoring
 {
-    // The Media producer hard-codes the embedded cabinet stream name as
-    // "#cab1.cab"; the cabinet on disk must therefore be named "cab1.cab"
-    // so the stream embedded under that name actually contains the cab the
-    // installer will look up at runtime.
-    private const string RecipeCabinetFileName = "cab1.cab";
-    private const string RecipeCabinetStreamName = "#" + RecipeCabinetFileName;
+    // Cabinet names and stream names are now determined at compile time by
+    // CabinetPlanner, which is the single source of truth shared with
+    // MediaTableProducer. The hardcoded constants have been removed.
 
     /// <summary>
     /// Compiles <paramref name="package"/> through the recipe pipeline and
@@ -98,41 +95,78 @@ public static class MsiAuthoring
 
         MsiDatabaseRecipe recipe = recipeResult.Value;
 
-        // Step 5: Build the cabinet on disk if there are files to pack, then
-        // attach it to the recipe via CabinetEmbedding so the executor will
-        // register it as the #cab1.cab stream the Media row points at.
+        // Step 5: Build cabinets on disk according to the CabinetPlanner layout,
+        // then attach embedded cabs to the recipe via CabinetEmbeddings. External
+        // cabs are written next to the MSI via ExternalFileCabinetSink. The planner
+        // is the single source of truth shared with MediaTableProducer so the Media
+        // table rows and the _Streams entries cannot drift.
         string? cabTempDir = null;
         try
         {
             if (resolved.Files.Count > 0)
             {
+                IReadOnlyList<CabinetPlan> plans = CabinetPlanner.Plan(
+                    resolved.Files,
+                    package.MediaTemplate);
+
                 cabTempDir = Path.Combine(Path.GetTempPath(), $"FalkForge_recipe_{Guid.NewGuid():N}");
                 Directory.CreateDirectory(cabTempDir);
 
-                using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp);
-                Result<string> cabResult = cabBuilder.BuildCabinet(
-                    resolved.Files,
-                    cabTempDir,
-                    package.Compression,
-                    RecipeCabinetFileName);
-                if (cabResult.IsFailure)
+                var externalSink = new ExternalFileCabinetSink(outputPath);
+                System.Collections.Immutable.ImmutableArray<CabinetEmbedding>.Builder embeddingsBuilder =
+                    System.Collections.Immutable.ImmutableArray.CreateBuilder<CabinetEmbedding>(plans.Count);
+
+                foreach (CabinetPlan plan in plans)
                 {
-                    return Result<string>.Failure(cabResult.Error);
+                    // Extract the file slice for this cabinet.
+                    int sliceCount = plan.FileEndIndex - plan.FileStartIndex;
+                    List<ResolvedFile> slice = new(sliceCount);
+                    for (int i = plan.FileStartIndex; i < plan.FileEndIndex; i++)
+                        slice.Add(resolved.Files[i]);
+
+                    string diskTempDir = Path.Combine(cabTempDir, $"disk{plan.DiskId}");
+                    Directory.CreateDirectory(diskTempDir);
+
+                    using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp);
+                    Result<string> cabResult = cabBuilder.BuildCabinet(
+                        slice,
+                        diskTempDir,
+                        package.Compression,
+                        plan.CabinetFileName);
+                    if (cabResult.IsFailure)
+                        return Result<string>.Failure(cabResult.Error);
+
+                    string cabPath = cabResult.Value;
+
+                    if (plan.Embedded)
+                    {
+                        // Compute SHA-256 and length for the StreamSource so the
+                        // recipe content hash covers the cabinet payload.
+                        long cabLength = new FileInfo(cabPath).Length;
+                        ReadOnlyMemory<byte> cabSha;
+                        using (FileStream cabStream = File.OpenRead(cabPath))
+                        {
+                            cabSha = SHA256.HashData(cabStream);
+                        }
+
+                        StreamSource cabSource = new StreamSource.FilePath(cabPath, cabSha, cabLength);
+                        embeddingsBuilder.Add(new CabinetEmbedding("#" + plan.CabinetFileName, cabSource));
+                    }
+                    else
+                    {
+                        Result<Unit> placeResult = externalSink.Place(cabPath, plan.CabinetFileName);
+                        if (placeResult.IsFailure)
+                            return Result<string>.Failure(placeResult.Error);
+                    }
                 }
 
-                string cabPath = cabResult.Value;
-                long cabLength = new FileInfo(cabPath).Length;
-                ReadOnlyMemory<byte> cabSha;
-                using (FileStream cabStream = File.OpenRead(cabPath))
+                if (embeddingsBuilder.Count > 0)
                 {
-                    cabSha = SHA256.HashData(cabStream);
+                    recipe = recipe with
+                    {
+                        CabinetEmbeddings = embeddingsBuilder.ToImmutable(),
+                    };
                 }
-
-                StreamSource cabSource = new StreamSource.FilePath(cabPath, cabSha, cabLength);
-                recipe = recipe with
-                {
-                    CabinetEmbedding = new CabinetEmbedding(RecipeCabinetStreamName, cabSource),
-                };
             }
 
             // Step 6: Open the MSI database, apply the recipe, commit. The

@@ -47,7 +47,7 @@ public sealed class MsiDatabaseRecipeTests
             SummaryInfo = summary,
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
-            CabinetEmbedding = null,
+            CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = hash
         };
 
@@ -55,16 +55,16 @@ public sealed class MsiDatabaseRecipeTests
         Assert.Equal(summary, recipe.SummaryInfo);
         Assert.Empty(recipe.Streams);
         Assert.True(recipe.FileSequencing.IsEmpty);
-        Assert.Null(recipe.CabinetEmbedding);
+        Assert.True(recipe.CabinetEmbeddings.IsEmpty);
         Assert.Equal(32, recipe.ContentHash.Length);
     }
 
     [Fact]
-    public void Construct_with_cabinet_embedding_preserves_value()
+    public void Construct_with_cabinet_embeddings_preserves_values()
     {
         byte[] payload = [0xAA, 0xBB];
         StreamSource cabSource = new StreamSource.InMemory(payload, SHA256.HashData(payload));
-        CabinetEmbedding embedding = new("#Cab1.cab", cabSource);
+        CabinetEmbedding embedding = new("#Data.cab", cabSource);
 
         MsiDatabaseRecipe recipe = new()
         {
@@ -86,10 +86,11 @@ public sealed class MsiDatabaseRecipeTests
             },
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
-            CabinetEmbedding = embedding,
+            CabinetEmbeddings = ImmutableArray.Create(embedding),
             ContentHash = ReadOnlyMemory<byte>.Empty
         };
 
-        Assert.Equal(embedding, recipe.CabinetEmbedding);
+        Assert.Single(recipe.CabinetEmbeddings);
+        Assert.Equal(embedding, recipe.CabinetEmbeddings[0]);
     }
 }

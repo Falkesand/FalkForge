@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
+using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Interop;
 
 namespace FalkForge.Compiler.Msi;
@@ -9,7 +10,9 @@ namespace FalkForge.Compiler.Msi;
 [SupportedOSPlatform("windows")]
 public sealed class CabinetBuilder : IDisposable
 {
-    public const string DefaultCabinetFileName = "Data.cab";
+    // CabinetPlanner.DefaultCabinetFileName is the cross-platform source of
+    // truth; this alias keeps existing callers compiled without changes.
+    public const string DefaultCabinetFileName = CabinetPlanner.DefaultCabinetFileName;
 
     private readonly DateTime? _normalizedTimestamp;
 

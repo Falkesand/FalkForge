@@ -10,7 +10,7 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// inserts each row using the recipe's <c>InsertViewSql</c>, writes summary
 /// information from <see cref="MsiDatabaseRecipe.SummaryInfo"/>, registers
 /// any <see cref="MsiDatabaseRecipe.Streams"/> entries plus an optional
-/// <see cref="MsiDatabaseRecipe.CabinetEmbedding"/>, and finally calls
+/// <see cref="MsiDatabaseRecipe.CabinetEmbeddings"/>, and finally calls
 /// <see cref="MsiDatabase.Commit"/>. All decisions live in the recipe; the
 /// executor never inspects <see cref="FalkForge.Models.ResolvedPackage"/> or
 /// <see cref="FalkForge.Models.PackageModel"/>.
@@ -63,7 +63,7 @@ public sealed class MsiRecipeExecutor
             return streamsResult;
         }
 
-        Result<Unit> cabinetResult = ApplyCabinetEmbedding(recipe.CabinetEmbedding);
+        Result<Unit> cabinetResult = ApplyCabinetEmbeddings(recipe.CabinetEmbeddings);
         if (cabinetResult.IsFailure)
         {
             return cabinetResult;
@@ -246,9 +246,10 @@ public sealed class MsiRecipeExecutor
         return Unit.Value;
     }
 
-    private Result<Unit> ApplyCabinetEmbedding(CabinetEmbedding? embedding)
+    private Result<Unit> ApplyCabinetEmbeddings(
+        System.Collections.Immutable.ImmutableArray<CabinetEmbedding> embeddings)
     {
-        if (embedding is null)
+        if (embeddings.IsDefaultOrEmpty)
         {
             return Unit.Value;
         }
@@ -259,7 +260,16 @@ public sealed class MsiRecipeExecutor
             return ensureResult;
         }
 
-        return WriteStreamsRow(embedding.StreamName, embedding.Source);
+        foreach (CabinetEmbedding embedding in embeddings)
+        {
+            Result<Unit> writeResult = WriteStreamsRow(embedding.StreamName, embedding.Source);
+            if (writeResult.IsFailure)
+            {
+                return writeResult;
+            }
+        }
+
+        return Unit.Value;
     }
 
     private Result<Unit> EnsureStreamsTable()

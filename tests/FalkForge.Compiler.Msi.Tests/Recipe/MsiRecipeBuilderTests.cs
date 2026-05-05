@@ -144,14 +144,14 @@ public sealed class MsiRecipeBuilderTests
     }
 
     [Fact]
-    public void Build_empty_pipeline_has_null_cabinet_embedding()
+    public void Build_empty_pipeline_has_empty_cabinet_embeddings()
     {
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
             new List<IMsiTableContributor>(),
             new MsiRecipeBuildOptions()).Value;
 
-        Assert.Null(recipe.CabinetEmbedding);
+        Assert.True(recipe.CabinetEmbeddings.IsEmpty);
     }
 
     [Fact]

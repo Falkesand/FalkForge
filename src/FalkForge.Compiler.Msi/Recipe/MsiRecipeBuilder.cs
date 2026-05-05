@@ -265,7 +265,7 @@ public static class MsiRecipeBuilder
             SummaryInfo = summaryInfo,
             Streams = streams,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
-            CabinetEmbedding = null,
+            CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = ReadOnlyMemory<byte>.Empty,
         };
 

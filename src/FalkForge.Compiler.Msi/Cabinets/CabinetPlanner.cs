@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Cabinets;
@@ -28,9 +27,16 @@ public sealed record CabinetPlan
     public required bool Embedded { get; init; }
 }
 
-[SupportedOSPlatform("windows")]
 public static class CabinetPlanner
 {
+    /// <summary>
+    /// Default cabinet file name used when no <see cref="MediaTemplateModel"/> is
+    /// configured. Matches <see cref="FalkForge.Compiler.Msi.CabinetBuilder.DefaultCabinetFileName"/>
+    /// and is duplicated here so the cross-platform planner has no dependency on
+    /// the Windows-only cabinet builder type.
+    /// </summary>
+    public const string DefaultCabinetFileName = "Data.cab";
+
     /// <summary>
     ///     Produce a deterministic cabinet split for the given resolved payload.
     ///     When <paramref name="template" /> is null a single <c>Data.cab</c> cabinet
@@ -53,7 +59,7 @@ public static class CabinetPlanner
                     FileStartIndex = 0,
                     FileEndIndex = files.Count,
                     LastSequence = files.Count,
-                    CabinetFileName = CabinetBuilder.DefaultCabinetFileName,
+                    CabinetFileName = DefaultCabinetFileName,
                     Embedded = true
                 }
             ];

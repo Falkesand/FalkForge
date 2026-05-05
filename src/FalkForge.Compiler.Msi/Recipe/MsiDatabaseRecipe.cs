@@ -15,6 +15,6 @@ public sealed record MsiDatabaseRecipe
     public required SummaryInfoRecipe SummaryInfo { get; init; }
     public required ImmutableDictionary<string, StreamSource> Streams { get; init; }
     public required ImmutableArray<FileSequenceEntry> FileSequencing { get; init; }
-    public CabinetEmbedding? CabinetEmbedding { get; init; }
+    public ImmutableArray<CabinetEmbedding> CabinetEmbeddings { get; init; }
     public required ReadOnlyMemory<byte> ContentHash { get; init; }
 }

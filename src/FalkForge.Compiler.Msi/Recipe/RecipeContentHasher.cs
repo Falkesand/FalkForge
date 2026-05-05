@@ -13,7 +13,7 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// <see cref="MsiDatabaseRecipe"/>. The hash covers <see cref="MsiDatabaseRecipe.Tables"/>,
 /// <see cref="MsiDatabaseRecipe.SummaryInfo"/>, <see cref="MsiDatabaseRecipe.Streams"/>,
 /// <see cref="MsiDatabaseRecipe.FileSequencing"/>, and
-/// <see cref="MsiDatabaseRecipe.CabinetEmbedding"/>. <see cref="MsiDatabaseRecipe.ContentHash"/>
+/// <see cref="MsiDatabaseRecipe.CabinetEmbeddings"/>. <see cref="MsiDatabaseRecipe.ContentHash"/>
 /// itself is intentionally excluded — the recipe being hashed always carries
 /// <c>ContentHash = ReadOnlyMemory&lt;byte&gt;.Empty</c> in the hashing payload,
 /// so callers may construct the recipe with an empty placeholder and rebuild
@@ -55,7 +55,7 @@ internal static class RecipeContentHasher
         AppendSummaryInfo(hasher, recipe.SummaryInfo);
         AppendStreams(hasher, recipe.Streams);
         AppendFileSequencing(hasher, recipe.FileSequencing);
-        AppendCabinetEmbedding(hasher, recipe.CabinetEmbedding);
+        AppendCabinetEmbeddings(hasher, recipe.CabinetEmbeddings);
 
         byte[] digest = hasher.GetHashAndReset();
         return digest;
@@ -250,16 +250,20 @@ internal static class RecipeContentHasher
         }
     }
 
-    private static void AppendCabinetEmbedding(IncrementalHash hasher, CabinetEmbedding? embedding)
+    private static void AppendCabinetEmbeddings(
+        IncrementalHash hasher,
+        ImmutableArray<CabinetEmbedding> embeddings)
     {
-        if (embedding is null)
+        AppendInt32(hasher, embeddings.IsDefault ? 0 : embeddings.Length);
+        if (embeddings.IsDefault)
         {
-            AppendByte(hasher, 0);
             return;
         }
 
-        AppendByte(hasher, 1);
-        AppendString(hasher, embedding.StreamName);
+        foreach (CabinetEmbedding embedding in embeddings)
+        {
+            AppendString(hasher, embedding.StreamName);
+        }
     }
 
     private static void AppendString(IncrementalHash hasher, string? value)

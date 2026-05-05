@@ -229,7 +229,7 @@ public sealed class MsiRecipeExecutorTests : IDisposable
             SummaryInfo = summary,
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
             FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
-            CabinetEmbedding = null,
+            CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = ReadOnlyMemory<byte>.Empty,
         };
     }
