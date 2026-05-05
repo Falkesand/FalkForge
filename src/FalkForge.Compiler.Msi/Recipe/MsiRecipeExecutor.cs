@@ -182,7 +182,11 @@ public sealed class MsiRecipeExecutor
                 .Keywords(summary.Keywords)
                 .Comments(summary.Comments)
                 .Template(summary.Template)
-                .RevisionNumber(summary.RevisionNumber.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                .RevisionNumber(summary.RevisionNumber)
+                .CreatingApplication(summary.CreatingApplication)
+                .WordCount(summary.WordCount)
+                .PageCount(summary.PageCount)
+                .Security(summary.Security);
         });
     }
 

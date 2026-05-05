@@ -153,34 +153,8 @@ public static class MsiAuthoring
                     return Result<string>.Failure(applyResult.Error);
                 }
 
-                // Step 6.5: Overwrite SummaryInfo with the human-readable
-                // values MsiCompiler used. The recipe currently emits a
-                // skeleton SummaryInfo; until phase 11 promotes the legacy
-                // metadata into the recipe builder, the facade replays the
-                // legacy field set so the produced MSI advertises the right
-                // platform template, comments, codepage, etc.
-                Result<Unit> summaryResult = database.SetSummaryInfo(summary =>
-                {
-                    summary
-                        .Title("Installation Database")
-                        .Subject(package.Name)
-                        .Author(package.Manufacturer)
-                        .Keywords("Installer")
-                        .Comments(package.Description ??
-                                  $"This installer database contains the logic and data required to install {package.Name}.")
-                        .Template(GetPlatformTemplate(package.Architecture))
-                        .RevisionNumber(package.ProductCode.ToString("B").ToUpperInvariant())
-                        .CreatingApplication("FalkForge")
-                        .WordCount(2)
-                        .PageCount(200)
-                        .Security(2)
-                        .Codepage(1252);
-                });
-                if (summaryResult.IsFailure)
-                {
-                    return Result<string>.Failure(summaryResult.Error);
-                }
-
+                // SummaryInfo is fully populated by MsiRecipeBuilder.BuildCore and
+                // written by MsiRecipeExecutor.ApplySummaryInfo — no post-apply patch needed.
                 Result<Unit> commitResult = database.Commit();
                 if (commitResult.IsFailure)
                 {
@@ -291,12 +265,4 @@ public static class MsiAuthoring
     private static bool IsIntegritySigningDisabled()
         => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN"));
 
-    private static string GetPlatformTemplate(ProcessorArchitecture architecture)
-        => architecture switch
-        {
-            ProcessorArchitecture.X86 => "Intel;1033",
-            ProcessorArchitecture.X64 => "x64;1033",
-            ProcessorArchitecture.Arm64 => "Arm64;1033",
-            _ => "x64;1033",
-        };
 }

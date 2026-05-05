@@ -223,16 +223,27 @@ public static class MsiRecipeBuilder
             finalTables = multiBuilder.ToImmutable();
         }
 
+        var pkg = resolved.Package;
         SummaryInfoRecipe summaryInfo = new()
         {
-            Title = string.Empty,
-            Subject = string.Empty,
-            Author = string.Empty,
-            Template = string.Empty,
-            Keywords = string.Empty,
-            Comments = string.Empty,
-            RevisionNumber = 0,
+            Title = "Installation Database",
+            Subject = pkg.Name,
+            Author = pkg.Manufacturer,
+            Keywords = "Installer",
+            Comments = pkg.Description ??
+                       $"This installer database contains the logic and data required to install {pkg.Name}.",
+            Template = GetPlatformTemplate(pkg.Architecture),
+            // PID_REVNUMBER for MSI databases is the PackageCode (ProductCode) GUID
+            // in upper-case registry-format braces — matches legacy MsiCompiler behaviour.
+            RevisionNumber = pkg.ProductCode.ToString("B").ToUpperInvariant(),
             CodePage = 1252,
+            CreatingApplication = "FalkForge",
+            // WordCount 2 = compressed cabinet + long file-names support flag.
+            WordCount = 2,
+            // PageCount 200 = minimum required Windows Installer version (2.0).
+            PageCount = 200,
+            // Security 2 = read-only recommended (standard for shipped MSIs).
+            Security = 2,
         };
 
         // Construct the recipe with an empty ContentHash placeholder, then
@@ -310,6 +321,15 @@ public static class MsiRecipeBuilder
                 $"No CREATE TABLE SQL registered for table '{table.Value}'."),
         };
     }
+
+    private static string GetPlatformTemplate(ProcessorArchitecture architecture)
+        => architecture switch
+        {
+            ProcessorArchitecture.X86 => "Intel;1033",
+            ProcessorArchitecture.X64 => "x64;1033",
+            ProcessorArchitecture.Arm64 => "Arm64;1033",
+            _ => "x64;1033",
+        };
 
     private static string BuildInsertViewSql(TableSchema schema)
     {

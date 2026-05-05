@@ -187,8 +187,12 @@ internal static class RecipeContentHasher
         AppendString(hasher, summaryInfo.Template);
         AppendString(hasher, summaryInfo.Keywords);
         AppendString(hasher, summaryInfo.Comments);
-        AppendInt32(hasher, summaryInfo.RevisionNumber);
+        AppendString(hasher, summaryInfo.RevisionNumber);
         AppendInt32(hasher, summaryInfo.CodePage);
+        AppendString(hasher, summaryInfo.CreatingApplication);
+        AppendInt32(hasher, summaryInfo.WordCount);
+        AppendInt32(hasher, summaryInfo.PageCount);
+        AppendInt32(hasher, summaryInfo.Security);
     }
 
     private static void AppendStreams(IncrementalHash hasher, ImmutableDictionary<string, StreamSource> streams)
