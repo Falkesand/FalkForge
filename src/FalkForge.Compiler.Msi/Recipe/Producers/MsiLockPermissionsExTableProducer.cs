@@ -121,6 +121,12 @@ internal sealed class MsiLockPermissionsExTableProducer : ITableProducer
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
+            // Opt-out of empty-table emission: the legacy TableEmitter only adds
+            // the CREATE TABLE MsiLockPermissionsEx statement when at least one
+            // SDDL-driven permission entry is present. Setting EmitWhenEmpty to
+            // false propagates that conditional to the recipe builder so packages
+            // without SDDL permissions produce a byte-identical output to the legacy path.
+            EmitWhenEmpty = false,
         };
     }
 }

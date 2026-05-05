@@ -13,14 +13,16 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Phase 4 wires in the built-in producers (Property, Directory, Feature,
 /// Component, File, FeatureComponents, FeatureCondition, Upgrade, Media,
 /// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
-/// Environment, Font, LaunchCondition, IniFile, CreateFolder, DuplicateFile,
-/// Binary, CustomAction, LockPermissions, MsiLockPermissionsEx, MIME, ProgId,
-/// Extension, Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb, MoveFile,
-/// RemoveFile, InstallUISequence, InstallExecuteSequence).
-/// Each producer emits one
-/// <see cref="RecipeTable"/> — even when the source data is empty — so
-/// downstream phases can rely on a stable table set. Pruning of empty
-/// tables is deliberately deferred.
+/// Environment, Font, LaunchCondition, IniFile, RemoveIniFile, CreateFolder,
+/// DuplicateFile, Binary, CustomAction, LockPermissions*, MsiLockPermissionsEx*,
+/// MIME, ProgId, Extension, Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb,
+/// MoveFile, RemoveFile, InstallUISequence, InstallExecuteSequence).
+/// Most producers emit one <see cref="RecipeTable"/> even when the source data
+/// is empty. Producers whose <see cref="TableSchema.EmitWhenEmpty"/> is
+/// <see langword="false"/> are suppressed from the recipe when they return zero
+/// rows — parity with the legacy <see cref="Tables.TableEmitter"/> which gates
+/// certain CREATE TABLE statements on the presence of matching data (marked *
+/// above).
 /// </summary>
 public static class MsiRecipeBuilder
 {
@@ -123,6 +125,7 @@ public static class MsiRecipeBuilder
             new FontTableProducer(),
             new LaunchConditionTableProducer(),
             new IniFileTableProducer(),
+            new RemoveIniFileTableProducer(),
             new CreateFolderTableProducer(),
             new DuplicateFileTableProducer(),
             new BinaryTableProducer(),
@@ -154,6 +157,17 @@ public static class MsiRecipeBuilder
 
             ImmutableArray<RecipeRow> rows = producerResult.Value;
             context.AddBuiltTable(producer.Schema.Name, rows);
+
+            // Honour the producer's EmitWhenEmpty flag: when false and the
+            // producer returned zero rows, suppress both the RecipeTable entry
+            // and the CREATE TABLE statement. This mirrors legacy TableEmitter
+            // behaviour for tables such as LockPermissions and
+            // MsiLockPermissionsEx which are only created when at least one
+            // matching permission entry is present.
+            if (!producer.Schema.EmitWhenEmpty && rows.IsEmpty)
+            {
+                continue;
+            }
 
             RecipeTable table = new()
             {
@@ -299,6 +313,7 @@ public static class MsiRecipeBuilder
             "Font" => MsiTableDefinitions.CreateFontTable,
             "LaunchCondition" => MsiTableDefinitions.CreateLaunchConditionTable,
             "IniFile" => MsiTableDefinitions.CreateIniFileTable,
+            "RemoveIniFile" => MsiTableDefinitions.CreateRemoveIniFileTable,
             "CreateFolder" => MsiTableDefinitions.CreateCreateFolderTable,
             "DuplicateFile" => MsiTableDefinitions.CreateDuplicateFileTable,
             "Binary" => MsiTableDefinitions.CreateBinaryTable,

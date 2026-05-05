@@ -124,6 +124,12 @@ internal sealed class LockPermissionsTableProducer : ITableProducer
                 new ColumnIndex(2),
                 new ColumnIndex(3)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
+            // Opt-out of empty-table emission: the legacy TableEmitter only adds
+            // the CREATE TABLE LockPermissions statement when at least one
+            // User-driven permission entry is present. Setting EmitWhenEmpty to
+            // false propagates that conditional to the recipe builder so packages
+            // without permissions produce a byte-identical output to the legacy path.
+            EmitWhenEmpty = false,
         };
     }
 }

@@ -37,6 +37,18 @@ public sealed record TableSchema
         }
     }
 
+    /// <summary>
+    /// When <see langword="true"/> (the default), the recipe builder emits the
+    /// table even if the producer returns zero rows. When <see langword="false"/>,
+    /// the builder suppresses both the <c>CREATE TABLE</c> statement and the
+    /// <see cref="RecipeTable"/> entry for this table whenever its row output is
+    /// empty — matching the legacy <see cref="Tables.TableEmitter"/> behaviour
+    /// for opt-in tables such as <c>LockPermissions</c> and
+    /// <c>MsiLockPermissionsEx</c>, which are only created when at least one
+    /// matching permission entry exists.
+    /// </summary>
+    public bool EmitWhenEmpty { get; init; } = true;
+
     private void Validate()
     {
         if (Columns.IsDefaultOrEmpty)
