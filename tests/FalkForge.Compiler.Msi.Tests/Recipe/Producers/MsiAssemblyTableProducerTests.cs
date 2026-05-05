@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using FalkForge;
 using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msi.Recipe;
@@ -85,15 +86,14 @@ public sealed class MsiAssemblyTableProducerTests
     }
 
     [Fact]
-    public void Schema_has_foreign_keys_to_Component_Feature_and_File()
+    public void Schema_has_foreign_keys_only_for_Component_and_Feature_not_File_Manifest()
     {
-        // Component_ (col 0) → Component
-        // Feature_   (col 1) → Feature
-        // File_Manifest     (col 2) → File
-        // File_Application  (col 3) → File
+        // File_Manifest is always null (legacy emitter behaviour) so a FK on col 2
+        // is misleading and removed. Only Component_ (col 0) and Feature_ (col 1)
+        // carry FKs. File_Application (col 3) may be null so no FK there either.
         MsiAssemblyTableProducer producer = new();
 
-        Assert.Equal(4, producer.Schema.ForeignKeys.Length);
+        Assert.Equal(2, producer.Schema.ForeignKeys.Length);
 
         ForeignKeySpec compFk = producer.Schema.ForeignKeys[0];
         Assert.Equal(0, compFk.SourceColumn.Value);
@@ -102,14 +102,18 @@ public sealed class MsiAssemblyTableProducerTests
         ForeignKeySpec featFk = producer.Schema.ForeignKeys[1];
         Assert.Equal(1, featFk.SourceColumn.Value);
         Assert.Equal("Feature", featFk.TargetTable.Value);
+    }
 
-        ForeignKeySpec manifestFk = producer.Schema.ForeignKeys[2];
-        Assert.Equal(2, manifestFk.SourceColumn.Value);
-        Assert.Equal("File", manifestFk.TargetTable.Value);
+    [Fact]
+    public void Schema_has_no_foreign_key_on_File_Manifest()
+    {
+        // Belt-and-suspenders: explicitly assert no FK targets column index 2.
+        MsiAssemblyTableProducer producer = new();
 
-        ForeignKeySpec appFk = producer.Schema.ForeignKeys[3];
-        Assert.Equal(3, appFk.SourceColumn.Value);
-        Assert.Equal("File", appFk.TargetTable.Value);
+        bool hasFileManifestFk = producer.Schema.ForeignKeys
+            .Any(fk => fk.SourceColumn.Value == 2);
+
+        Assert.False(hasFileManifestFk);
     }
 
     // -----------------------------------------------------------------------

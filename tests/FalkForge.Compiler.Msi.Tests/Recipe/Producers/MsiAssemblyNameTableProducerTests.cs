@@ -369,6 +369,68 @@ public sealed class MsiAssemblyNameTableProducerTests
     }
 
     // -----------------------------------------------------------------------
+    // Produce — worst-case 6 rows per Win32 assembly (capacity regression)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Produce_win32_assembly_with_all_five_attrs_emits_six_rows()
+    {
+        // Win32 assembly: name + version + culture + publicKeyToken +
+        // processorArchitecture + type = 6 rows (worst case per assembly).
+        AssemblyModel assembly = new()
+        {
+            FileRef = "MyWin32.dll",
+            Type = AssemblyType.Win32Assembly,
+            AssemblyName = "MyWin32",
+            AssemblyVersion = "1.0.0.0",
+            AssemblyCulture = "neutral",
+            AssemblyPublicKeyToken = "b77a5c561934e089",
+            ProcessorArchitecture = "x86",
+        };
+        ResolvedPackage resolved = MakeResolved(new[] { assembly });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Equal(6, rows.Length);
+    }
+
+    [Fact]
+    public void Produce_two_win32_assemblies_with_all_attrs_emit_twelve_rows()
+    {
+        // Regression guard for capacity hint `assemblies.Count * 6`:
+        // two full Win32 assemblies must produce exactly 12 rows without
+        // the builder needing to grow past the pre-allocated capacity.
+        AssemblyModel[] assemblies =
+        {
+            new()
+            {
+                FileRef = "Alpha.dll",
+                Type = AssemblyType.Win32Assembly,
+                AssemblyName = "Alpha",
+                AssemblyVersion = "1.0.0.0",
+                AssemblyCulture = "neutral",
+                AssemblyPublicKeyToken = "aabbccdd11223344",
+                ProcessorArchitecture = "x86",
+            },
+            new()
+            {
+                FileRef = "Beta.dll",
+                Type = AssemblyType.Win32Assembly,
+                AssemblyName = "Beta",
+                AssemblyVersion = "2.0.0.0",
+                AssemblyCulture = "en-US",
+                AssemblyPublicKeyToken = "1122334455667788",
+                ProcessorArchitecture = "AMD64",
+            },
+        };
+        ResolvedPackage resolved = MakeResolved(assemblies, componentCount: 2);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Equal(12, rows.Length);
+    }
+
+    // -----------------------------------------------------------------------
     // Produce — multiple assemblies, order preserved
     // -----------------------------------------------------------------------
 
