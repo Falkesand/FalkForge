@@ -50,16 +50,17 @@ internal sealed class BinaryTableProducer : ITableProducer
 
         foreach (BinaryModel binary in binaries)
         {
-            // Read file metadata once; bytes stay on disk until the executor
-            // calls StreamSource.Open(). SHA-256 is computed here so the
-            // recipe content hash covers binary payloads without re-reading.
-            FileInfo info = new(binary.SourcePath);
-            byte[] sha256 = ComputeFileSha256(binary.SourcePath);
+            // Single FileStream pass: read Length from fs.Length then pipe the
+            // same stream into SHA256.HashData — avoids a second kernel open
+            // and a FileInfo metadata syscall.
+            using FileStream fs = File.OpenRead(binary.SourcePath);
+            long length = fs.Length;
+            byte[] sha256 = SHA256.HashData(fs);
 
             StreamSource source = new StreamSource.FilePath(
                 binary.SourcePath,
                 sha256,
-                info.Length);
+                length);
 
             // Register stream into the shared registry. DictionaryStreamRegistry
             // throws on duplicate names — a duplicate in Binaries is a producer
@@ -74,12 +75,6 @@ internal sealed class BinaryTableProducer : ITableProducer
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
-    }
-
-    private static byte[] ComputeFileSha256(string path)
-    {
-        using FileStream fs = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return SHA256.HashData(fs);
     }
 
     private static TableSchema BuildSchema()
