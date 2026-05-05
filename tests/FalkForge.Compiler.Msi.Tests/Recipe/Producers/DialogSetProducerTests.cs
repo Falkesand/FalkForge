@@ -403,8 +403,8 @@ public sealed class DialogSetProducerTests
 
         Assert.True(result.IsSuccess);
 
-        // 36 built-in tables + 7 UI tables = 43.
-        Assert.Equal(43, result.Value.Tables.Length);
+        // 35 built-in tables (Lock* suppressed for no-permission package) + 7 UI tables = 42.
+        Assert.Equal(42, result.Value.Tables.Length);
 
         foreach (string name in UiTableNames)
         {
@@ -425,8 +425,8 @@ public sealed class DialogSetProducerTests
 
         Assert.True(result.IsSuccess);
 
-        // 36 built-in tables only — no UI tables appended.
-        Assert.Equal(36, result.Value.Tables.Length);
+        // 35 built-in tables only (Lock* suppressed for no-permission package) — no UI tables appended.
+        Assert.Equal(35, result.Value.Tables.Length);
     }
 
     // ── Well-known TextStyle rows ─────────────────────────────────────────────

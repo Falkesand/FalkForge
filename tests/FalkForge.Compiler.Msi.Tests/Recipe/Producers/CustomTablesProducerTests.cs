@@ -387,8 +387,8 @@ public sealed class CustomTablesProducerTests
             [new CustomTablesProducer()]);
 
         Assert.True(result.IsSuccess);
-        // 36 built-in tables + 1 custom table = 37.
-        Assert.Equal(37, result.Value.Tables.Length);
+        // 35 built-in tables (Lock* suppressed for no-permission package) + 1 custom table = 36.
+        Assert.Equal(36, result.Value.Tables.Length);
         Assert.Contains(result.Value.Tables, t => t.Name.Value == "AppSettings");
     }
 

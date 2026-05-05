@@ -74,8 +74,8 @@ public sealed class IMultiTableProducerTests
             multiProducers);
 
         Assert.True(result.IsSuccess);
-        // Built-in count (36) + 2 from FakeDoubleTableProducer = 38.
-        Assert.Equal(38, result.Value.Tables.Length);
+        // Built-in count (35, Lock* suppressed) + 2 from FakeDoubleTableProducer = 37.
+        Assert.Equal(37, result.Value.Tables.Length);
         Assert.Contains(result.Value.Tables, t => t.Name.Value == "FakeAlpha");
         Assert.Contains(result.Value.Tables, t => t.Name.Value == "FakeBeta");
     }
@@ -92,7 +92,7 @@ public sealed class IMultiTableProducerTests
             []);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(36, result.Value.Tables.Length);
+        Assert.Equal(35, result.Value.Tables.Length);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class IMultiTableProducerTests
             new MsiRecipeBuildOptions());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(36, result.Value.Tables.Length);
+        Assert.Equal(35, result.Value.Tables.Length);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

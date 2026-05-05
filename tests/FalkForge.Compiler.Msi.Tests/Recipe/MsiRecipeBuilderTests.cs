@@ -61,25 +61,21 @@ public sealed class MsiRecipeBuilderTests
     [Fact]
     public void Build_empty_pipeline_emits_built_in_tables_with_no_rows()
     {
-        // Phase 4 wires in thirty-five built-in producers (Property,
-        // Directory, Feature, Component, File, FeatureComponents, Condition,
-        // Upgrade, Media, Registry, RemoveRegistry, ServiceInstall,
-        // ServiceControl, Shortcut, Environment, Font, LaunchCondition,
-        // IniFile, CreateFolder, DuplicateFile, Binary, CustomAction,
-        // LockPermissions, MsiLockPermissionsEx, MIME, ProgId, Extension,
-        // Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb, MoveFile,
-        // RemoveFile, InstallUISequence).
-        // With an empty resolved package each producer emits zero rows but the
-        // table itself is still present so downstream phases see a stable table
-        // set. The recipe's Tables array therefore contains thirty-five tables,
-        // not zero.
+        // Phase 4 wires in thirty-seven producers, but LockPermissions and
+        // MsiLockPermissionsEx are opt-in (EmitWhenEmpty=false) and suppressed
+        // when the package has no permission entries — matching legacy
+        // TableEmitter behaviour. With an empty resolved package the effective
+        // table set is thirty-five: thirty-three unconditional tables +
+        // RemoveIniFile (always emitted, always empty) = thirty-five. Each
+        // producer emits zero rows except Media (1 header row), Directory
+        // (TARGETDIR root), and Property (built-in MSI properties).
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
             new List<IMsiTableContributor>(),
             new MsiRecipeBuildOptions()).Value;
 
         Assert.False(recipe.Tables.IsDefault);
-        Assert.Equal(36, recipe.Tables.Length);
+        Assert.Equal(35, recipe.Tables.Length);
         foreach (RecipeTable table in recipe.Tables)
         {
             // Media always emits a single header row even when the resolved
