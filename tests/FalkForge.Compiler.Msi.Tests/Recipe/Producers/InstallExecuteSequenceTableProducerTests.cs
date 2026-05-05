@@ -727,6 +727,45 @@ public sealed class InstallExecuteSequenceTableProducerTests
         Assert.Equal(seqs.Length, seqs.Distinct().Count());
     }
 
+    [Fact]
+    public void Produce_twenty_user_actions_at_same_sequence_all_get_unique_numbers()
+    {
+        // Regression for O(n²) EnsureUniqueSequence: with N=20 user actions all
+        // targeting sequence 3000, each must receive a distinct sequence number.
+        // The pre-built HashSet approach (built once, mutated per claim) keeps
+        // the invariant correct without the O(n²) rebuild-per-call overhead.
+        const int N = 20;
+        List<SequenceActionModel> userActions = new(N);
+        for (int i = 0; i < N; i++)
+        {
+            userActions.Add(new SequenceActionModel
+            {
+                ActionName = $"UserAction{i:D2}",
+                Table = SequenceTable.InstallExecuteSequence,
+                Condition = null,
+                Position = new ActionPosition.AtNumber(3000),
+            });
+        }
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(MakeResolved(new PackageModel
+        {
+            Name = "P", Manufacturer = "M", Version = new Version(1, 0, 0),
+            ExecuteSequenceActions = userActions,
+        }));
+
+        int[] seqs = rows.Select(r => ((CellValue.IntValue)r.Cells[2]).Value).ToArray();
+
+        // All sequence numbers must be unique.
+        Assert.Equal(seqs.Length, seqs.Distinct().Count());
+
+        // All N user actions must appear in the output.
+        IReadOnlyList<string> names = ActionNames(rows);
+        for (int i = 0; i < N; i++)
+        {
+            Assert.Contains($"UserAction{i:D2}", names);
+        }
+    }
+
     // ── Combined fanin ────────────────────────────────────────────────────────
 
     [Fact]

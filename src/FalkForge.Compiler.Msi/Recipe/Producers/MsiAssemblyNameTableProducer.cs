@@ -49,17 +49,10 @@ internal sealed class MsiAssemblyNameTableProducer : ITableProducer
                 ? resolved.Components[0].Id
                 : FallbackComponentId;
 
-        // Build filename → component lookup (case-insensitive, first-match wins)
-        // to mirror legacy EmitAssemblies file-owner resolution.
+        // Filename → component lookup: shared cache on context so both MsiAssembly
+        // and MsiAssemblyName producers pay the O(components × files) cost at most once.
         Dictionary<string, ResolvedComponent> fileToComponent =
-            new(StringComparer.OrdinalIgnoreCase);
-        foreach (ResolvedComponent comp in resolved.Components)
-        {
-            foreach (ResolvedFile file in comp.Files)
-            {
-                fileToComponent.TryAdd(file.FileName, comp);
-            }
-        }
+            context.GetOrBuildFileToComponentMap();
 
         // Each assembly may produce 0–6 rows (5 attrs + Win32 "type" row); pre-allocate for worst case.
         ImmutableArray<RecipeRow>.Builder rows =

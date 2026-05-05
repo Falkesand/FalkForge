@@ -55,17 +55,10 @@ internal sealed class MsiAssemblyTableProducer : ITableProducer
                 ? resolved.Package.Features[0].Id
                 : FallbackFeatureId;
 
-        // Build filename → component lookup (case-insensitive, first-match wins)
-        // to mirror legacy EmitAssemblies file-owner resolution.
+        // Filename → component lookup: shared cache on context so both MsiAssembly
+        // and MsiAssemblyName producers pay the O(components × files) cost at most once.
         Dictionary<string, ResolvedComponent> fileToComponent =
-            new(StringComparer.OrdinalIgnoreCase);
-        foreach (ResolvedComponent comp in resolved.Components)
-        {
-            foreach (ResolvedFile file in comp.Files)
-            {
-                fileToComponent.TryAdd(file.FileName, comp);
-            }
-        }
+            context.GetOrBuildFileToComponentMap();
 
         ImmutableArray<RecipeRow>.Builder rows =
             ImmutableArray.CreateBuilder<RecipeRow>(assemblies.Count);

@@ -332,6 +332,39 @@ public sealed class InstallUISequenceTableProducerTests
         Assert.Equal(seqs.Length, seqs.Distinct().Count());
     }
 
+    [Fact]
+    public void Produce_twenty_user_actions_at_same_sequence_all_get_unique_numbers()
+    {
+        // Regression for O(n²) EnsureUniqueSequence: with N=20 user actions all
+        // targeting sequence 500, each must receive a distinct sequence number.
+        // The pre-built HashSet approach (built once, mutated per claim) keeps
+        // the invariant correct without the O(n²) rebuild-per-call overhead.
+        const int N = 20;
+        List<SequenceActionModel> userActions = new(N);
+        for (int i = 0; i < N; i++)
+        {
+            userActions.Add(MakeAction($"UiAction{i:D2}", new ActionPosition.AtNumber(500)));
+        }
+
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.None,
+            uiActions: userActions);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        int[] seqs = rows.Select(r => ((CellValue.IntValue)r.Cells[2]).Value).ToArray();
+
+        // All sequence numbers must be unique.
+        Assert.Equal(seqs.Length, seqs.Distinct().Count());
+
+        // All N user actions must appear in the output.
+        IReadOnlyList<string> names = ActionNames(rows);
+        for (int i = 0; i < N; i++)
+        {
+            Assert.Contains($"UiAction{i:D2}", names);
+        }
+    }
+
     // ── Dialog-flow rows (firstDialog/Progress/Exit) ────────────────────────
     // Regression: InstallUISequenceTableProducer must emit three dialog-flow rows
     // when DialogSet != None — matching legacy DialogEmitter.EmitInstallUISequence.

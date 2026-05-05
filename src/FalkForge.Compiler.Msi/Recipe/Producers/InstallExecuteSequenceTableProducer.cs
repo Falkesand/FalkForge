@@ -225,11 +225,22 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
 
         // ── Merge user execute-sequence actions ───────────────────────────────
         IReadOnlyList<SequenceActionModel> userActions = package.ExecuteSequenceActions;
+
+        // Build the occupied-sequence set once before the merge loop so that
+        // EnsureUniqueSequence is O(1) per call instead of O(n) per call.
+        // Without this, N user actions would rebuild the set N times → O(n²) total.
+        HashSet<int> occupiedSequences = new(actions.Count + userActions.Count);
+        for (int i = 0; i < actions.Count; i++)
+        {
+            occupiedSequences.Add(actions[i].Sequence);
+        }
+
         for (int i = 0; i < userActions.Count; i++)
         {
             SequenceActionModel ua = userActions[i];
             int seq = ResolveSequenceNumber(ua.Position, actions);
-            seq = EnsureUniqueSequence(seq, actions);
+            seq = EnsureUniqueSequence(seq, occupiedSequences);
+            occupiedSequences.Add(seq); // claim the sequence before processing next action
             actions.Add((ua.ActionName, seq));
         }
 
@@ -338,18 +349,17 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         };
     }
 
+    /// <summary>
+    /// Finds the lowest sequence number >= <paramref name="desiredSequence"/> not
+    /// already present in <paramref name="occupied"/>. The caller is responsible for
+    /// inserting the returned value into <paramref name="occupied"/> before calling
+    /// again, so the set stays current across multiple calls — giving O(1) per call
+    /// rather than rebuilding the set on every invocation.
+    /// </summary>
     private static int EnsureUniqueSequence(
         int desiredSequence,
-        List<(string Action, int Sequence)> actions)
+        HashSet<int> occupied)
     {
-        // Collect occupied sequences. The list is always small so HashSet
-        // construction is cheap relative to the alternative of scanning twice.
-        HashSet<int> occupied = new(actions.Count);
-        for (int i = 0; i < actions.Count; i++)
-        {
-            occupied.Add(actions[i].Sequence);
-        }
-
         int candidate = desiredSequence;
         int iterations = 0;
         while (occupied.Contains(candidate))

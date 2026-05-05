@@ -1,5 +1,8 @@
 using System.Collections.Frozen;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using FalkForge.Models;
+using FalkForge.Compiler.Msi.Recipe.Producers;
 
 namespace FalkForge.Compiler.Msi.Recipe;
 
@@ -14,6 +17,11 @@ namespace FalkForge.Compiler.Msi.Recipe;
 internal sealed class RecipeBuildContext
 {
     private readonly Dictionary<TableId, ImmutableArray<RecipeRow>> _builtTables = new();
+
+    // Lazily cached filename→component map. Built once on first access and reused
+    // by both MsiAssemblyTableProducer and MsiAssemblyNameTableProducer so the
+    // O(components × files) scan runs at most once per build.
+    private Dictionary<string, ResolvedComponent>? _fileToComponentMap;
 
     public RecipeBuildContext(
         ResolvedPackage resolved,
@@ -47,6 +55,17 @@ internal sealed class RecipeBuildContext
     /// <summary>Frozen view over all tables built so far. Producers may read but not mutate.</summary>
     public IReadOnlyDictionary<TableId, ImmutableArray<RecipeRow>> BuiltTables
         => _builtTables.ToFrozenDictionary();
+
+    /// <summary>
+    /// Returns the filename-to-component lookup map, building and caching it on
+    /// first access. The map is case-insensitive and uses first-match-wins semantics
+    /// (same convention as legacy <c>EmitAssemblies</c>). Multiple producers that
+    /// need the same lookup share the single instance built here rather than each
+    /// constructing their own O(components × files) dictionary.
+    /// </summary>
+    internal Dictionary<string, ResolvedComponent> GetOrBuildFileToComponentMap()
+        => _fileToComponentMap ??=
+            ProducerHelpers.BuildFileToComponentMap(Resolved.Components);
 
     /// <summary>
     /// Append a producer's table output to the build state. Throws
