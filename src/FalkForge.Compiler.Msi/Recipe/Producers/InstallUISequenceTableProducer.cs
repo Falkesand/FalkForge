@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using FalkForge.Compiler.Msi.UI;
+using FalkForge.Compiler.Msi.UI.Templates;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
@@ -53,6 +55,11 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
     private const int SeqCostFinalize       = 1000;
     private const int SeqExecuteAction      = 1300;
 
+    // Dialog-flow sequence numbers — mirror legacy DialogEmitter.EmitInstallUISequence.
+    private const int SeqFirstDialog        = 1100;
+    private const int SeqProgressDialog     = 1200;
+    private const int SeqExitDialog         = 1310;
+
     private const int EnsureUniqueMaxIterations = 100;
 
     /// <summary>Static schema describing the <c>InstallUISequence</c> table layout.</summary>
@@ -72,9 +79,13 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             return Result<ImmutableArray<RecipeRow>>.Success(ImmutableArray<RecipeRow>.Empty);
         }
 
-        // Build the full baseline. Size 7 known at compile time; List avoids
-        // re-allocation during merge.
-        List<(string Action, int Sequence)> actions = new(7 + package.UISequenceActions.Count)
+        // Resolve dialog-flow rows before sizing the list so the capacity is exact.
+        // GetDialogFlowRows returns 0..3 entries; 0 when DialogSet == None.
+        (string Action, int Sequence)[] dialogFlowRows = GetDialogFlowRows(package);
+
+        // Build the full baseline. Capacity is exact to avoid re-allocation.
+        List<(string Action, int Sequence)> actions =
+            new(7 + dialogFlowRows.Length + package.UISequenceActions.Count)
         {
             ("AppSearch",         SeqAppSearch),
             ("LaunchConditions",  SeqLaunchConditions),
@@ -84,6 +95,13 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             ("CostFinalize",      SeqCostFinalize),
             ("ExecuteAction",     SeqExecuteAction),
         };
+
+        // Append dialog-flow rows (firstDialog/Progress/Exit) when DialogSet is active.
+        // These mirror the rows emitted by the legacy DialogEmitter.EmitInstallUISequence.
+        for (int i = 0; i < dialogFlowRows.Length; i++)
+        {
+            actions.Add(dialogFlowRows[i]);
+        }
 
         // Merge user actions, resolving relative positions against the running list.
         IReadOnlyList<SequenceActionModel> userActions = package.UISequenceActions;
@@ -144,6 +162,89 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
     }
+
+    // ── Dialog-flow helpers (mirror DialogEmitter.EmitInstallUISequence) ─────
+
+    /// <summary>
+    /// Returns the three dialog-flow rows (firstDialog at 1100, ProgressDlg at 1200,
+    /// ExitDlg at 1310) when <paramref name="package"/> has an active
+    /// <see cref="MsiDialogSet"/>. Returns an empty array for
+    /// <see cref="MsiDialogSet.None"/>.
+    /// </summary>
+    /// <remarks>
+    /// The dialog list is obtained from the template, then filtered using the same
+    /// support-dialog exclusion set as the legacy
+    /// <c>DialogEmitter.EmitInstallUISequence</c>: Cancel and Browse dialogs are
+    /// excluded from the first-dialog search. Conditions are omitted (null) for all
+    /// three rows — matching the legacy empty-string convention mapped to
+    /// <see cref="CellValue.Null"/> by the recipe layer.
+    /// </remarks>
+    private static (string Action, int Sequence)[] GetDialogFlowRows(PackageModel package)
+    {
+        if (package.DialogSet == MsiDialogSet.None)
+        {
+            return [];
+        }
+
+        IDialogTemplate template = GetDialogTemplate(package.DialogSet);
+        IReadOnlyList<MsiDialogModel> dialogs = template.GetDialogs(package);
+
+        // Mirror the legacy support-dialog exclusion set.
+        // FrozenSet avoided here — this method is called once per compile, not a hot path.
+        var supportDialogs = new HashSet<string>(StringComparer.Ordinal)
+        {
+            DialogNames.Cancel,
+            DialogNames.Browse,
+        };
+
+        MsiDialogModel? firstDialog = null;
+        MsiDialogModel? progressDialog = null;
+        MsiDialogModel? exitDialog = null;
+
+        for (int i = 0; i < dialogs.Count; i++)
+        {
+            MsiDialogModel d = dialogs[i];
+            if (progressDialog is null && d.Name == DialogNames.Progress)
+            {
+                progressDialog = d;
+                continue;
+            }
+            if (exitDialog is null && d.Name == DialogNames.Exit)
+            {
+                exitDialog = d;
+                continue;
+            }
+            if (firstDialog is null && !supportDialogs.Contains(d.Name) &&
+                d.Name != DialogNames.Progress && d.Name != DialogNames.Exit)
+            {
+                firstDialog = d;
+            }
+        }
+
+        // Collect only the rows for dialogs that actually exist in this template.
+        // All three are present in every shipped template, but guard defensively.
+        var result = new List<(string, int)>(3);
+        if (firstDialog is not null)   result.Add((firstDialog.Name,   SeqFirstDialog));
+        if (progressDialog is not null) result.Add((progressDialog.Name, SeqProgressDialog));
+        if (exitDialog is not null)    result.Add((exitDialog.Name,    SeqExitDialog));
+
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Returns the <see cref="IDialogTemplate"/> for the given
+    /// <see cref="MsiDialogSet"/>. Mirrors <c>DialogEmitter.GetTemplate</c>.
+    /// </summary>
+    private static IDialogTemplate GetDialogTemplate(MsiDialogSet dialogSet) =>
+        dialogSet switch
+        {
+            MsiDialogSet.Minimal     => new MinimalDialogTemplate(),
+            MsiDialogSet.InstallDir  => new InstallDirDialogTemplate(),
+            MsiDialogSet.FeatureTree => new FeatureTreeDialogTemplate(),
+            MsiDialogSet.Mondo       => new MondoDialogTemplate(),
+            MsiDialogSet.Advanced    => new AdvancedDialogTemplate(),
+            _                        => new MinimalDialogTemplate(),
+        };
 
     // ── Sequence resolution helpers (mirror TableEmitter static helpers) ─────
 
