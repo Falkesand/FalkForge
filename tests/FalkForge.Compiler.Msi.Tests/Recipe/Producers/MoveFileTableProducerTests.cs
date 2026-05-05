@@ -6,7 +6,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe.Producers;
 public sealed class MoveFileTableProducerTests
 {
     [Fact]
-    public void Schema_has_seven_columns_filekey_pk_three_fks()
+    public void Schema_has_seven_columns_filekey_pk_one_fk()
     {
         MoveFileTableProducer producer = new();
 
@@ -22,13 +22,11 @@ public sealed class MoveFileTableProducerTests
         Assert.Single(producer.Schema.PrimaryKey);
         Assert.Equal(0, producer.Schema.PrimaryKey[0].Value);
 
-        // FKs: Component_ → Component, SourceFolder → Directory, DestFolder → Directory
-        Assert.Equal(3, producer.Schema.ForeignKeys.Length);
+        // Only Component_ is a compile-time FK. SourceFolder and DestFolder are
+        // MSI property/directory references resolved at install time — not strict
+        // compile-time FKs. Matches legacy TableEmitter's SetString behaviour.
+        Assert.Single(producer.Schema.ForeignKeys);
         Assert.Equal(1, producer.Schema.ForeignKeys[0].SourceColumn.Value);
         Assert.Equal("Component", producer.Schema.ForeignKeys[0].TargetTable.Value);
-        Assert.Equal(3, producer.Schema.ForeignKeys[1].SourceColumn.Value);
-        Assert.Equal("Directory", producer.Schema.ForeignKeys[1].TargetTable.Value);
-        Assert.Equal(5, producer.Schema.ForeignKeys[2].SourceColumn.Value);
-        Assert.Equal("Directory", producer.Schema.ForeignKeys[2].TargetTable.Value);
     }
 }

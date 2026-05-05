@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
@@ -34,6 +35,25 @@ internal sealed class ComponentTableProducer : ITableProducer
         InstallPath? installDir = resolved.Package.DefaultInstallDirectory;
 
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
+
+        // Synthesize a "MainComponent" placeholder when no real components are resolved
+        // (e.g., no-file packages). Other producers fall back to "MainComponent" as the
+        // component FK target; without this row the FK validator rejects those references.
+        // The placeholder uses a zero GUID and TARGETDIR so the MSI is structurally valid.
+        // This matches the implicit expectation of legacy TableEmitter which inserts
+        // "MainComponent" raw strings without validation and relies on msi.dll's leniency.
+        if (resolved.Components.Count == 0)
+        {
+            ImmutableArray<CellValue> placeholderCells = ImmutableArray.Create<CellValue>(
+                new CellValue.StringValue("MainComponent"),
+                new CellValue.StringValue("{00000000-0000-0000-0000-000000000000}"),
+                new CellValue.ForeignKey(directoryTable, WellKnownDirectoryIds.TargetDir),
+                new CellValue.IntValue(0),
+                new CellValue.StringValue(string.Empty),
+                new CellValue.StringValue(string.Empty));
+            rows.Add(new RecipeRow { Cells = placeholderCells });
+        }
+
         foreach (ResolvedComponent component in resolved.Components)
         {
             int attributes = sixtyFourBit ? Component64BitAttribute : 0;

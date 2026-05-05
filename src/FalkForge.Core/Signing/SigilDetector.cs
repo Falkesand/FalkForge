@@ -8,52 +8,64 @@ namespace FalkForge.Signing;
 /// </summary>
 internal static class SigilDetector
 {
+    // Lock guards _isAvailable and _version so that concurrent Reset() calls from
+    // test isolation code cannot race with IsAvailable()'s check-then-set pattern.
+    private static readonly object _lock = new();
     private static bool? _isAvailable;
     private static string? _version;
 
     internal static bool IsAvailable()
     {
-        if (_isAvailable.HasValue)
-            return _isAvailable.Value;
-
-        try
+        lock (_lock)
         {
-            var psi = new ProcessStartInfo("sigil", "--version")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            if (_isAvailable.HasValue)
+                return _isAvailable.Value;
 
-            using var process = Process.Start(psi);
-            if (process is null)
+            try
+            {
+                var psi = new ProcessStartInfo("sigil", "--version")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process is null)
+                {
+                    _isAvailable = false;
+                    return false;
+                }
+
+                _version = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit(5000);
+                _isAvailable = process.ExitCode == 0;
+            }
+            catch
             {
                 _isAvailable = false;
-                return false;
             }
 
-            _version = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit(5000);
-            _isAvailable = process.ExitCode == 0;
+            return _isAvailable.Value;
         }
-        catch
-        {
-            _isAvailable = false;
-        }
-
-        return _isAvailable.Value;
     }
 
     internal static string? GetVersion()
     {
         IsAvailable();
-        return _version;
+        lock (_lock)
+        {
+            return _version;
+        }
     }
 
     internal static void Reset()
     {
-        _isAvailable = null;
-        _version = null;
+        lock (_lock)
+        {
+            _isAvailable = null;
+            _version = null;
+        }
     }
 }

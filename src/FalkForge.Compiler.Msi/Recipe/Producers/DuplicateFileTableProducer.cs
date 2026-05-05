@@ -43,12 +43,32 @@ internal sealed class DuplicateFileTableProducer : ITableProducer
                 ? resolved.Components[0].Id
                 : FallbackComponentId;
 
+        // Build a filename → FileId lookup table so DuplicateFileModel.FileRef (a bare filename
+        // like "app.exe") can be resolved to the computed MSI FileId (e.g. "F_app.exe_7C2A39DB").
+        // This mirrors how legacy TableEmitter resolves the reference at insert time — it passes
+        // the user-supplied FileRef directly, but the model's FileRef MUST match a resolved FileId.
+        // The recipe uses CellValue.ForeignKey so the FK validator can verify the reference exists.
+        Dictionary<string, string> fileNameToId = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ResolvedFile rf in resolved.Files)
+        {
+            // Prefer FileId (the MSI File table key). Fall back to FileName so that tests
+            // using bare names still match when the FileId hasn't been computed yet.
+            fileNameToId.TryAdd(rf.FileId, rf.FileId);
+            fileNameToId.TryAdd(rf.FileName, rf.FileId);
+        }
+
         ImmutableArray<RecipeRow>.Builder rows =
             ImmutableArray.CreateBuilder<RecipeRow>(duplicateFiles.Count);
         foreach (DuplicateFileModel df in duplicateFiles)
         {
             string componentId = df.ComponentRef ?? defaultComponentId;
 
+            // Resolve FileRef to actual FileId; fall back to the raw ref if not found
+            // (allows referencing file IDs that were pre-assigned by the caller).
+            string fileId = fileNameToId.GetValueOrDefault(df.FileRef) ?? df.FileRef;
+
+            // DestFolder accepts a Directory key or property name (resolved at install time).
+            // Emit as plain string, matching legacy SetString behaviour.
             CellValue destFolderCell = df.DestDirectory is null
                 ? new CellValue.Null()
                 : new CellValue.StringValue(df.DestDirectory);
@@ -59,7 +79,7 @@ internal sealed class DuplicateFileTableProducer : ITableProducer
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(df.Id),
                 new CellValue.ForeignKey(ComponentTable, componentId),
-                new CellValue.ForeignKey(FileTable, df.FileRef),
+                new CellValue.ForeignKey(FileTable, fileId),
                 destFolderCell,
                 destNameCell);
             rows.Add(new RecipeRow { Cells = cells });

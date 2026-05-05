@@ -109,6 +109,14 @@ public sealed class MsiRecipeBuilderTests
                 // legacy TableEmitter.EmitInstallSequences baseline list.
                 Assert.NotEmpty(table.Rows);
             }
+            else if (table.Name.Value == "Component")
+            {
+                // When no files are resolved, ComponentTableProducer synthesizes a
+                // "MainComponent" placeholder row so FK references from other producers
+                // (Registry, Environment, etc.) resolve correctly.
+                Assert.Single(table.Rows);
+                Assert.Equal("MainComponent", ((CellValue.StringValue)table.Rows[0].Cells[0]).Value);
+            }
             else
             {
                 Assert.True(table.Rows.IsEmpty);

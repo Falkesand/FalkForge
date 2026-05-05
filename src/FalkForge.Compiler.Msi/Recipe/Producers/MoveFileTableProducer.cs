@@ -26,7 +26,6 @@ internal sealed class MoveFileTableProducer : ITableProducer
         ArgumentNullException.ThrowIfNull(context);
 
         TableId componentTable = TableId.Create("Component").Value;
-        TableId directoryTable = TableId.Create("Directory").Value;
         ResolvedPackage resolved = context.Resolved;
         IReadOnlyList<MoveFileModel> moveFiles = resolved.Package.MoveFiles;
 
@@ -45,9 +44,14 @@ internal sealed class MoveFileTableProducer : ITableProducer
         {
             string componentId = mf.ComponentRef ?? defaultComponentId;
 
+            // SourceFolder and DestFolder in the MoveFile table accept either a Directory
+            // table key or a Windows Installer property name (e.g. "INSTALLDIR", "LogFolder").
+            // They are NOT strict FK references at compile time — MSI resolves them at
+            // install time. Emit as plain strings to mirror legacy TableEmitter.EmitMoveFiles
+            // which uses SetString (no FK lookup) for these columns.
             CellValue sourceFolderCell = mf.SourceDirectory is null
                 ? new CellValue.Null()
-                : new CellValue.ForeignKey(directoryTable, mf.SourceDirectory);
+                : new CellValue.StringValue(mf.SourceDirectory);
             CellValue destNameCell = mf.DestFileName is null
                 ? new CellValue.Null()
                 : new CellValue.StringValue(mf.DestFileName);
@@ -58,7 +62,7 @@ internal sealed class MoveFileTableProducer : ITableProducer
                 new CellValue.StringValue(mf.SourceFileName),
                 sourceFolderCell,
                 destNameCell,
-                new CellValue.ForeignKey(directoryTable, mf.DestDirectory),
+                new CellValue.StringValue(mf.DestDirectory),
                 new CellValue.IntValue(mf.Options));
             rows.Add(new RecipeRow { Cells = cells });
         }
@@ -69,7 +73,6 @@ internal sealed class MoveFileTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         TableId componentTable = TableId.Create("Component").Value;
-        TableId directoryTable = TableId.Create("Directory").Value;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
             new RecipeColumn
             {
@@ -133,21 +136,14 @@ internal sealed class MoveFileTableProducer : ITableProducer
             Name = TableId.Create("MoveFile").Value,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
+            // SourceFolder (col 3) and DestFolder (col 5) are MSI property/directory references
+            // resolved at install time — not compile-time FK targets. Only Component_ (col 1)
+            // is a strict compile-time FK. Mirrors legacy TableEmitter's SetString approach.
             ForeignKeys = ImmutableArray.Create(
                 new ForeignKeySpec
                 {
                     SourceColumn = new ColumnIndex(1),
                     TargetTable = componentTable,
-                },
-                new ForeignKeySpec
-                {
-                    SourceColumn = new ColumnIndex(3),
-                    TargetTable = directoryTable,
-                },
-                new ForeignKeySpec
-                {
-                    SourceColumn = new ColumnIndex(5),
-                    TargetTable = directoryTable,
                 }),
         };
     }

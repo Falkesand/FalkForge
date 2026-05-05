@@ -27,11 +27,11 @@ public sealed class CreateFolderTableProducerTests
         Assert.Equal(0, producer.Schema.PrimaryKey[0].Value);
         Assert.Equal(1, producer.Schema.PrimaryKey[1].Value);
 
-        Assert.Equal(2, producer.Schema.ForeignKeys.Length);
-        Assert.Equal(0, producer.Schema.ForeignKeys[0].SourceColumn.Value);
-        Assert.Equal("Directory", producer.Schema.ForeignKeys[0].TargetTable.Value);
-        Assert.Equal(1, producer.Schema.ForeignKeys[1].SourceColumn.Value);
-        Assert.Equal("Component", producer.Schema.ForeignKeys[1].TargetTable.Value);
+        // Directory_ (col 0) is a property/directory reference — not a compile-time FK.
+        // Only Component_ (col 1) is a strict compile-time FK.
+        Assert.Single(producer.Schema.ForeignKeys);
+        Assert.Equal(1, producer.Schema.ForeignKeys[0].SourceColumn.Value);
+        Assert.Equal("Component", producer.Schema.ForeignKeys[0].TargetTable.Value);
     }
 
     [Fact]
@@ -81,10 +81,10 @@ public sealed class CreateFolderTableProducerTests
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
         RecipeRow row = Assert.Single(rows);
-        CellValue.ForeignKey dirFk = Assert.IsType<CellValue.ForeignKey>(row.Cells[0]);
+        // Directory_ is emitted as plain string (property/directory reference).
+        CellValue.StringValue dirStr = Assert.IsType<CellValue.StringValue>(row.Cells[0]);
         CellValue.ForeignKey compFk = Assert.IsType<CellValue.ForeignKey>(row.Cells[1]);
-        Assert.Equal("Directory", dirFk.TargetTable.Value);
-        Assert.Equal("LogDir", dirFk.TargetKey);
+        Assert.Equal("LogDir", dirStr.Value);
         Assert.Equal("Component", compFk.TargetTable.Value);
         Assert.Equal("Comp1", compFk.TargetKey);
     }
@@ -143,9 +143,10 @@ public sealed class CreateFolderTableProducerTests
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
         Assert.Equal(2, rows.Length);
-        Assert.Equal("DirA", Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[0]).TargetKey);
+        // Directory_ emitted as plain string; Component_ as FK.
+        Assert.Equal("DirA", Assert.IsType<CellValue.StringValue>(rows[0].Cells[0]).Value);
         Assert.Equal("Comp1", Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[1]).TargetKey);
-        Assert.Equal("DirB", Assert.IsType<CellValue.ForeignKey>(rows[1].Cells[0]).TargetKey);
+        Assert.Equal("DirB", Assert.IsType<CellValue.StringValue>(rows[1].Cells[0]).Value);
         Assert.Equal("CompB", Assert.IsType<CellValue.ForeignKey>(rows[1].Cells[1]).TargetKey);
     }
 

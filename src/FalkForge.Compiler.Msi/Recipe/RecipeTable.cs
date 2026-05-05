@@ -26,4 +26,15 @@ public sealed record RecipeTable
     /// Defaults to an empty array.
     /// </summary>
     public ImmutableArray<ForeignKeySpec> ForeignKeys { get; init; } = ImmutableArray<ForeignKeySpec>.Empty;
+
+    /// <summary>
+    /// True when this table is a fixed built-in MSI table registered in
+    /// <c>MsiTableDefinitions</c>. False for user-defined custom tables
+    /// (from <c>CustomTablesProducer</c>), dialog tables, and any other
+    /// dynamically-schema'd tables. The executor uses this flag to determine
+    /// whether to apply the two-phase CREATE/INSERT strategy (built-in tables
+    /// only) or single-phase (custom/dialog tables) to match legacy msi.dll
+    /// behaviour when column names coincide with built-in table names.
+    /// </summary>
+    public bool IsBuiltIn { get; init; } = true;
 }

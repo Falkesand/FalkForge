@@ -125,6 +125,21 @@ internal sealed class DirectoryTableProducer : ITableProducer
                     parent: WellKnownDirectoryIds.TargetDir, name: ".");
         }
 
+        // Step 6: custom actions with the Directory-source bit (0x20) require their
+        // Source column to be a Directory table key AND that key must have a row.
+        // MSI error 2727 fires at install time otherwise. The only system folder
+        // built-in builders reference today is SystemFolder (via PowerShellScript CAs).
+        // Mirrors TableEmitter.EmitDirectories's on-demand SystemFolder emission.
+        const int directorySourceBit = 0x20;
+        foreach (CustomActionModel ca in pkg.CustomActions)
+        {
+            if ((ca.Type & directorySourceBit) == 0) continue;
+            if (ca.SourceRef != "SystemFolder") continue;
+            AddRow(rows, emitted, directoryTable, "SystemFolder",
+                parent: WellKnownDirectoryIds.TargetDir, name: ".");
+            break; // Only one SystemFolder row needed regardless of CA count.
+        }
+
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
     }
 

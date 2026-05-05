@@ -43,13 +43,21 @@ public sealed class MsiRecipeExecutor
         }
 
         // Two-phase table application mirrors legacy TableEmitter's operation order:
-        // Phase 1 — CREATE TABLE for every table (matches TableEmitter.CreateTables batch).
-        // Phase 2 — INSERT rows for every table (matches TableEmitter.Emit* methods).
-        // Separating CREATE from INSERT ensures the OLE compound document's internal
-        // page allocation follows the same sequence as legacy, which is required for
-        // byte-identical output.
+        // Phase 1 — CREATE TABLE for every BUILT-IN table (matches TableEmitter.CreateTables batch).
+        // Phase 2 — INSERT rows for every BUILT-IN table (matches TableEmitter.Emit* methods).
+        // Separating CREATE from INSERT for built-in tables ensures the OLE compound document's
+        // internal page allocation follows the same sequence as legacy, producing byte-identical MSI.
+        //
+        // Non-built-in tables (IsBuiltIn = false — custom user tables from CustomTablesProducer)
+        // are applied single-phase (CREATE then INSERT immediately) AFTER the two-phase built-in
+        // pass. This avoids an msi.dll CREATE TABLE error (1615) that occurs when a user-table
+        // column name coincides with a previously-created built-in table name (e.g., a column
+        // named "Environment" in a custom table after the Environment built-in table is created
+        // but before it has rows). Single-phase for these tables matches legacy TableEmitter which
+        // applied EmitCustomTables after all built-in table emissions were complete.
         foreach (RecipeTable table in recipe.Tables)
         {
+            if (!table.IsBuiltIn) continue;
             Result<Unit> createResult = CreateTable(table);
             if (createResult.IsFailure)
             {
@@ -59,10 +67,23 @@ public sealed class MsiRecipeExecutor
 
         foreach (RecipeTable table in recipe.Tables)
         {
+            if (!table.IsBuiltIn) continue;
             Result<Unit> insertResult = InsertTableRows(table, recipe.Streams);
             if (insertResult.IsFailure)
             {
                 return insertResult;
+            }
+        }
+
+        // Single-phase for non-built-in tables: CREATE then INSERT per table, appended after
+        // all built-in table operations. Matches legacy EmitCustomTables order.
+        foreach (RecipeTable table in recipe.Tables)
+        {
+            if (table.IsBuiltIn) continue;
+            Result<Unit> tableResult = ApplyTable(table, recipe.Streams);
+            if (tableResult.IsFailure)
+            {
+                return tableResult;
             }
         }
 

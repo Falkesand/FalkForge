@@ -48,8 +48,12 @@ internal sealed class CreateFolderTableProducer : ITableProducer
         {
             string componentId = cf.ComponentRef ?? defaultComponentId;
 
+            // Directory_ accepts a Directory table key or a Windows Installer property
+            // (e.g. "LOGSDIR") resolved at install time — not a strict compile-time FK.
+            // Emit as plain string to mirror legacy TableEmitter.EmitCreateFolders which
+            // uses SetString for the directory column.
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
-                new CellValue.ForeignKey(DirectoryTable, cf.DirectoryRef),
+                new CellValue.StringValue(cf.DirectoryRef),
                 new CellValue.ForeignKey(ComponentTable, componentId));
             rows.Add(new RecipeRow { Cells = cells });
         }
@@ -82,12 +86,9 @@ internal sealed class CreateFolderTableProducer : ITableProducer
             Name = TableId.Create("CreateFolder").Value,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
+            // Directory_ (col 0) accepts Directory keys or property names — not a strict FK.
+            // Only Component_ (col 1) is a compile-time FK target.
             ForeignKeys = ImmutableArray.Create(
-                new ForeignKeySpec
-                {
-                    SourceColumn = new ColumnIndex(0),
-                    TargetTable = DirectoryTable,
-                },
                 new ForeignKeySpec
                 {
                     SourceColumn = new ColumnIndex(1),

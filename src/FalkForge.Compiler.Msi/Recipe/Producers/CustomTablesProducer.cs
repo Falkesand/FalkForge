@@ -194,6 +194,7 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
             CreateTableSql = createSql,
             InsertViewSql = insertSql,
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
+            IsBuiltIn = false,
         };
 
         return Result<RecipeTable>.Success(table);
@@ -307,9 +308,13 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
             }
         }
 
+        // MSI SQL syntax: PRIMARY KEY clause is inside the parentheses, after the last
+        // column definition — no comma before it. Matches legacy TableEmitter.EmitCustomTables
+        // and the MsiTableDefinitions constants (e.g., "... NOT NULL PRIMARY KEY `col`").
+        // Placing it outside the parens produces error 1615 from msi.dll.
         if (pkNames.Count > 0)
         {
-            sb.Append(") PRIMARY KEY ");
+            sb.Append(" PRIMARY KEY ");
             for (int i = 0; i < pkNames.Count; i++)
             {
                 if (i > 0)
@@ -320,10 +325,8 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
                 sb.Append('`').Append(pkNames[i]).Append('`');
             }
         }
-        else
-        {
-            sb.Append(')');
-        }
+
+        sb.Append(')');
 
         return sb.ToString();
     }

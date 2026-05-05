@@ -26,7 +26,6 @@ internal sealed class RemoveFileTableProducer : ITableProducer
         ArgumentNullException.ThrowIfNull(context);
 
         TableId componentTable = TableId.Create("Component").Value;
-        TableId directoryTable = TableId.Create("Directory").Value;
         ResolvedPackage resolved = context.Resolved;
         IReadOnlyList<RemoveFileModel> removeFiles = resolved.Package.RemoveFiles;
 
@@ -50,11 +49,15 @@ internal sealed class RemoveFileTableProducer : ITableProducer
                 ? new CellValue.Null()
                 : new CellValue.StringValue(rf.FileName);
 
+            // DirProperty accepts a Directory key or a Windows Installer property name
+            // (e.g. "LOGSDIR", "INSTALLDIR") resolved at install time — not a strict
+            // compile-time FK. Emit as plain string to mirror legacy TableEmitter.EmitRemoveFiles
+            // which uses SetString for this column.
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(rf.Id),
                 new CellValue.ForeignKey(componentTable, componentId),
                 fileNameCell,
-                new CellValue.ForeignKey(directoryTable, rf.DirectoryRef),
+                new CellValue.StringValue(rf.DirectoryRef),
                 new CellValue.IntValue(installMode));
             rows.Add(new RecipeRow { Cells = cells });
         }
@@ -65,7 +68,6 @@ internal sealed class RemoveFileTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         TableId componentTable = TableId.Create("Component").Value;
-        TableId directoryTable = TableId.Create("Directory").Value;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
             new RecipeColumn
             {
@@ -113,16 +115,13 @@ internal sealed class RemoveFileTableProducer : ITableProducer
             Name = TableId.Create("RemoveFile").Value,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
+            // DirProperty (col 3) accepts Directory keys or property names resolved at install
+            // time — not a compile-time FK. Only Component_ (col 1) is a strict compile-time FK.
             ForeignKeys = ImmutableArray.Create(
                 new ForeignKeySpec
                 {
                     SourceColumn = new ColumnIndex(1),
                     TargetTable = componentTable,
-                },
-                new ForeignKeySpec
-                {
-                    SourceColumn = new ColumnIndex(3),
-                    TargetTable = directoryTable,
                 }),
         };
     }
