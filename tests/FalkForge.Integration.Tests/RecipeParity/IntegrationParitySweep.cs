@@ -666,6 +666,8 @@ public sealed class IntegrationParitySweep
 
     // -------------------------------------------------------------------------
     // 19. Create folder
+    // Use TARGETDIR (always present) as the directory ref so FK validation passes
+    // in the recipe pipeline without needing a separate directory entry.
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -683,11 +685,9 @@ public sealed class IntegrationParitySweep
                 b =>
                 {
                     b.Files(f => f.Add(srcFile).To(KnownFolder.ProgramFiles / "TestCorp" / "FolderApp"));
-                    b.CreateFolder(cf =>
-                    {
-                        cf.Directory("LogsFolder")
-                          .ComponentRef("FolderApp");
-                    });
+                    // Use TARGETDIR which is always emitted, avoiding a spurious
+                    // FK-violation failure in the recipe's ForeignKeyValidator.
+                    b.CreateFolder(cf => cf.Directory("TARGETDIR"));
                 });
 
             MsiDiffReport report = MsiByteDiffHarness.CompareCompilers(

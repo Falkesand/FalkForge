@@ -106,8 +106,13 @@ public sealed class LockPermissionsTableProducerTests
     }
 
     [Fact]
-    public void Produce_emits_null_cell_when_domain_is_null()
+    public void Produce_emits_empty_string_cell_when_domain_is_null()
     {
+        // Domain is part of the composite primary key (LockObject, Table, Domain, User).
+        // PK columns cannot be null — the recipe PrimaryKeyValidator rejects null PK cells.
+        // To match legacy TableEmitter behaviour (SetString with null → empty string in msi.dll),
+        // the producer emits CellValue.StringValue("") rather than CellValue.Null when
+        // PermissionModel.Domain is null.
         PermissionModel perm = new()
         {
             LockObject = "INSTALLDIR",
@@ -120,7 +125,9 @@ public sealed class LockPermissionsTableProducerTests
 
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
-        Assert.IsType<CellValue.Null>(rows[0].Cells[2]);
+        CellValue domainCell = rows[0].Cells[2];
+        Assert.IsType<CellValue.StringValue>(domainCell);
+        Assert.Equal(string.Empty, ((CellValue.StringValue)domainCell).Value);
     }
 
     [Fact]

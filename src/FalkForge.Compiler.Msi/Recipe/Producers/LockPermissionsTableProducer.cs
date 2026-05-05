@@ -54,9 +54,13 @@ internal sealed class LockPermissionsTableProducer : ITableProducer
                 continue;
             }
 
-            CellValue domainCell = perm.Domain is null
-                ? new CellValue.Null()
-                : new CellValue.StringValue(perm.Domain);
+            // Domain is a nullable string but it is in the primary key (columns 0-3).
+            // The MSI PK validator rejects null PK cells. Mirror the legacy
+            // TableEmitter which passes null to MsiRecord.SetString — msi.dll
+            // normalises a null SetString call to an empty string in the stored row.
+            // Use empty string so the recipe FK validator sees a consistent non-null
+            // value and the INSERT produces the same byte representation as the legacy path.
+            CellValue domainCell = new CellValue.StringValue(perm.Domain ?? string.Empty);
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(perm.LockObject),
