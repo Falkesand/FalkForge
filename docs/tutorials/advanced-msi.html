@@ -164,7 +164,7 @@ package<span class="punc">.</span><span class="method">CustomAction</span><span 
       <summary>Deep dive: How custom tables are stored in the MSI database</summary>
       <div class="deep-dive-content">
         <p>An MSI file is a structured storage database (COM Structured Storage). Each table becomes a stream inside this file. Custom tables are no different from built-in tables like <code>File</code> or <code>Registry</code> &mdash; they follow the same column definition format and are queryable via the Windows Installer SQL API.</p>
-        <p>FalkForge validates custom table identifiers to prevent SQL injection. Table and column names must be valid MSI identifiers: alphanumeric characters, underscores, and periods only. The <code>TableEmitter</code> performs defense-in-depth validation before writing any custom table to the database.</p>
+        <p>FalkForge validates custom table identifiers to prevent SQL injection. Table and column names must be valid MSI identifiers: alphanumeric characters, underscores, and periods only. Custom-table identifiers are validated at construction time by <code>TableId.Create</code> and <code>RecipeColumn</code> constructors, with <code>CustomTablesProducer</code> enforcing the same defense-in-depth checks before emission.</p>
         <p>You can inspect custom tables after compilation:</p>
         <pre><code>forge inspect output.msi</code></pre>
         <p>The inspect command lists all tables, including custom ones, with their schemas and row counts.</p>

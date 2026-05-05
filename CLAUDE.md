@@ -98,10 +98,12 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 Compilers: MsiCompiler (ICompiler), MsmCompiler, PatchCompiler, TransformCompiler
 DB: MsiDatabase, MsiRecord, FileNameSanitizer, ResolvedPackage/Component/File, ComponentResolver, SummaryInfoWriter
 Cabinets: CabinetBuilder (single-threaded), ParallelCabinetBuilder (Parallel.ForEachAsync), CabinetWorkItem, CabinetBuildResult, CabinetExtractor (FDI)
-Tables/: TableEmitter (1466L, ValidateCustomTableIdentifiers() defense-in-depth SQL identifier validation before emission), MsiTableDefinitions, EnvironmentEncoding
+Tables/: MsiTableDefinitions, EnvironmentEncoding
+Recipe/: MsiAuthoring, MsiRecipeBuilder, MsiDatabaseRecipe, ITableProducer, IMultiTableProducer, RecipeBuildContext, RecipeTable, RecipeRow, RecipeColumn, CellValue, TableId, TableSchema, ForeignKeySpec, DirectoryTreeSynthesizer
+Recipe/Producers/: ComponentTableProducer, DirectoryTableProducer, DialogSetProducer, FeatureTableProducer, FeatureComponentsTableProducer, PropertyTableProducer, RegistryTableProducer, ShortcutTableProducer, ServiceInstallTableProducer, UpgradeTableProducer, and others. ValidateCustomTableIdentifiers() defense-in-depth SQL identifier validation enforced by CustomTablesProducer.
 Interop/: NativeMethods.Msi (msi.dll LibraryImport), NativeMethods.Cabinet (cabinet.dll), MsiDatabaseHandle, MsiRecordHandle, MsiViewHandle, FciHandle, FdiHandle. Assembly-level DefaultDllImportSearchPaths(System32) prevents DLL hijacking.
 Signing/, Validation/IceValidator
-UI/: MsiDialogModel, MsiControlModel, MsiControlEventModel, MsiControlConditionModel, DialogEmitter, IDialogTemplate
+UI/: MsiDialogModel, MsiControlModel, MsiControlEventModel, MsiControlConditionModel, IDialogTemplate. Dialog tables produced via DialogSetProducer in the recipe pipeline.
 UI/Templates/: Minimal, InstallDir, FeatureTree, Mondo, Advanced DialogTemplates
 BuiltInLocalizationExtensions (`AddBuiltInCultures()`), Localization/en-US.json + sv-SE.json (36 keys each)
 

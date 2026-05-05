@@ -6397,7 +6397,8 @@ Transport framing (length-prefix):
 <p>
     FalkForge provides five built-in MSI dialog templates that generate the standard Windows Installer
     UI dialogs. Each template implements <code>IDialogTemplate</code> and produces a set of
-    <code>MsiDialogModel</code> objects that are emitted to the MSI database by <code>DialogEmitter</code>.
+    <code>MsiDialogModel</code> objects that are produced to the MSI database by <code>DialogSetProducer</code>
+    via the recipe pipeline.
 </p>
 
 <pre><code class="language-csharp">internal interface IDialogTemplate
