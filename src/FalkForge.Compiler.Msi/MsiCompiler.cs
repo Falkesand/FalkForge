@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Cabinets;
+using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.Validation;
@@ -15,7 +16,14 @@ namespace FalkForge.Compiler.Msi;
 [SupportedOSPlatform("windows")]
 public sealed class MsiCompiler : ICompiler
 {
+    // Retained for public API compatibility — callers that supply a custom IFileSystem
+    // will continue to compile successfully. The field is not consumed by the forwarder
+    // body (MsiAuthoring.Compile uses its own WindowsFileSystem internally) and will be
+    // wired up properly when the IFileSystem injection point is added to MsiAuthoring
+    // in Phase 12 cleanup.
+#pragma warning disable S4487 // Unread private members
     private readonly IFileSystem _fileSystem;
+#pragma warning restore S4487
 
     public MsiCompiler() : this(new WindowsFileSystem())
     {
@@ -26,214 +34,13 @@ public sealed class MsiCompiler : ICompiler
         _fileSystem = fileSystem;
     }
 
+    /// <summary>
+    /// Compiles <paramref name="package"/> to an MSI file under <paramref name="outputPath"/>.
+    /// Forwards to <see cref="MsiAuthoring.Compile"/> — the recipe-driven pipeline that
+    /// replaced the legacy <c>TableEmitter</c> path in Phase 9. Legacy source
+    /// (<c>TableEmitter</c>, <c>DialogEmitter</c>, etc.) is retained for reference
+    /// until Phase 12 cleanup.
+    /// </summary>
     public Result<string> Compile(PackageModel package, string outputPath)
-    {
-        // Step 1: Validate
-        var validation = ModelValidator.Validate(package);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
-        }
-
-        // Step 2: Resolve components
-        var resolver = new ComponentResolver(_fileSystem);
-        var resolveResult = resolver.Resolve(package);
-        if (resolveResult.IsFailure)
-            return Result<string>.Failure(resolveResult.Error);
-
-        var resolved = resolveResult.Value;
-
-        // Step 3: Determine output file name
-        var msiFileName = $"{FileNameSanitizer.Sanitize(package.Name)}-{package.Version.ToString(3)}.msi";
-        var msiPath = Path.Combine(outputPath, msiFileName);
-
-        // Ensure output directory exists
-        var outputDir = Path.GetDirectoryName(msiPath);
-        if (outputDir is not null && !Directory.Exists(outputDir))
-            Directory.CreateDirectory(outputDir);
-
-        // Remove existing file
-        if (File.Exists(msiPath))
-            File.Delete(msiPath);
-
-        // Step 4: Create MSI database
-        var dbResult = MsiDatabase.Create(msiPath);
-        if (dbResult.IsFailure)
-            return Result<string>.Failure(dbResult.Error);
-
-        // Steps 5-7: all database work inside a nested block
-        {
-            using var database = dbResult.Value;
-
-            // Step 5: Emit tables
-            var tableEmitter = new TableEmitter(database);
-            var emitResult = tableEmitter.EmitAllTables(resolved);
-            if (emitResult.IsFailure)
-                return Result<string>.Failure(emitResult.Error);
-
-            // Step 5.5: Build cabinets and embed them into the MSI. The planner is the
-            // single source of truth for how files are split across disks so that the
-            // Media rows emitted by TableEmitter and the _Streams entries embedded here
-            // cannot drift (the two sides previously produced Data.cab vs data1.cab,
-            // which triggered MSI error 2356 at install time).
-            if (resolved.Files.Count > 0)
-            {
-                var plans = CabinetPlanner.Plan(resolved.Files, package.MediaTemplate);
-
-                var embeddedSink = new EmbeddedStreamCabinetSink(database);
-                var externalSink = new ExternalFileCabinetSink(outputPath);
-
-                var tempCabRoot = Path.Combine(Path.GetTempPath(), $"FalkForge_{Guid.NewGuid():N}");
-                Directory.CreateDirectory(tempCabRoot);
-                try
-                {
-                    foreach (var plan in plans)
-                    {
-                        var slice = new List<ResolvedFile>(plan.FileEndIndex - plan.FileStartIndex);
-                        for (var i = plan.FileStartIndex; i < plan.FileEndIndex; i++)
-                            slice.Add(resolved.Files[i]);
-
-                        var cabOutputDir = Path.Combine(tempCabRoot, $"disk{plan.DiskId}");
-                        Directory.CreateDirectory(cabOutputDir);
-
-                        using var cabBuilder = new CabinetBuilder(package.ReproducibleOptions?.Timestamp);
-                        var cabResult = cabBuilder.BuildCabinet(slice, cabOutputDir, package.Compression, plan.CabinetFileName);
-                        if (cabResult.IsFailure)
-                            return Result<string>.Failure(cabResult.Error);
-
-                        // Route the produced cab through the sink chosen by the plan. Keeps the
-                        // compiler loop agnostic of where cabs land (embedded stream vs external
-                        // file vs future destinations).
-                        ICabinetSink sink = plan.Embedded ? embeddedSink : externalSink;
-                        var placeResult = sink.Place(cabResult.Value, plan.CabinetFileName);
-                        if (placeResult.IsFailure)
-                            return Result<string>.Failure(placeResult.Error);
-                    }
-                }
-                finally
-                {
-                    if (Directory.Exists(tempCabRoot))
-                        Directory.Delete(tempCabRoot, true);
-                }
-            }
-
-            // Step 6: Set summary information
-            var summaryResult = database.SetSummaryInfo(summary =>
-            {
-                summary
-                    .Title("Installation Database")
-                    .Subject(package.Name)
-                    .Author(package.Manufacturer)
-                    .Keywords("Installer")
-                    .Comments(package.Description ??
-                              $"This installer database contains the logic and data required to install {package.Name}.")
-                    .Template(GetPlatformTemplate(package.Architecture))
-                    .RevisionNumber(package.ProductCode.ToString("B").ToUpperInvariant())
-                    .CreatingApplication("FalkForge")
-                    .WordCount(2) // Compressed, LongFileNames
-                    .PageCount(200) // Minimum installer version
-                    .Security(2) // Read-only recommended
-                    .Codepage(1252);
-            });
-            if (summaryResult.IsFailure)
-                return Result<string>.Failure(summaryResult.Error);
-
-            // Step 7: Commit
-            var commitResult = database.Commit();
-            if (commitResult.IsFailure)
-                return Result<string>.Failure(commitResult.Error);
-        } // database disposed here — file handle released
-
-        // Step 7.5: Patch SummaryInfo timestamps in the output file when building reproducibly.
-        // Windows MsiSummaryInfoPersist always updates PID_LASTSAVE_DTM to the current system
-        // time on every call, making it impossible to pin the timestamp via the MSI API alone.
-        // The patcher walks the OLE2 compound document and overwrites the FILETIME values in place.
-        if (package.ReproducibleOptions is { } reproducibleOpts)
-        {
-            var patchResult = SummaryInfoPatcher.PatchTimestamps(msiPath, reproducibleOpts.Timestamp);
-            if (patchResult.IsFailure)
-                return Result<string>.Failure(patchResult.Error);
-        }
-
-        // Step 8: Code signing (if configured)
-        if (package.Signing is not null)
-        {
-            var signer = new CodeSigner();
-            var signResult = signer.Sign(msiPath, package.Signing);
-            if (signResult.IsFailure)
-                return Result<string>.Failure(signResult.Error);
-        }
-
-        // Step 8.5: Integrity signing (opportunistic -- only if Sigil is on PATH)
-        if (!IsIntegritySigningDisabled() && FalkForge.Signing.SigilDetector.IsAvailable() && package.Integrity is not null)
-        {
-            var integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
-            if (integrityResult.IsFailure)
-                return Result<string>.Failure(integrityResult.Error);
-        }
-
-        // Step 9: ICE validation
-        var iceConfig = package.IceConfiguration ?? new IceConfiguration();
-        if (iceConfig.Enabled && package.ReproducibleOptions is null)
-        {
-            var iceValidator = new IceValidator();
-            var iceResult = iceValidator.Validate(msiPath, iceConfig);
-            if (iceResult.IsFailure)
-            {
-                // ICE validation infrastructure failure is non-fatal
-            }
-            else
-            {
-                if (iceConfig.ReportPath is not null)
-                    IceReportExporter.Export(iceResult.Value, iceConfig.ReportPath);
-
-                if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
-                {
-                    var iceErrors = string.Join("; ", iceResult.Value.Messages
-                        .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
-                        .Select(m => $"{m.IceName}: {m.Description}"));
-                    return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
-                }
-            }
-        }
-
-        // Step 10: SBOM sidecar (opt-in via SbomOptions or FALKFORGE_GENERATE_SBOM env var)
-        // SBOM failure is non-fatal — log and continue.
-        var sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
-        _ = sbomResult; // warning suppression; caller may inspect via tooling
-
-        // Step 11: WinGet manifest generation (opt-in via .WinGet() builder)
-        if (package.WinGet is not null)
-        {
-            var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath)));
-            var wingetResult = WinGetManifestWriter.Write(
-                package,
-                package.WinGet,
-                outputPath,
-                sha256,
-                Path.GetFileName(msiPath));
-            if (wingetResult.IsFailure)
-                return Result<string>.Failure(wingetResult.Error);
-        }
-
-        return msiPath;
-    }
-
-    private static bool IsIntegritySigningDisabled()
-    {
-        return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN"));
-    }
-
-    private static string GetPlatformTemplate(ProcessorArchitecture architecture)
-    {
-        return architecture switch
-        {
-            ProcessorArchitecture.X86 => "Intel;1033",
-            ProcessorArchitecture.X64 => "x64;1033",
-            ProcessorArchitecture.Arm64 => "Arm64;1033",
-            _ => "x64;1033"
-        };
-    }
-
+        => MsiAuthoring.Compile(package, outputPath);
 }
