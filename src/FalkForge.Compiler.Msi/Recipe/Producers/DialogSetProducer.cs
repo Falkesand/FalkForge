@@ -291,20 +291,22 @@ internal sealed class DialogSetProducer : IMultiTableProducer
                 return Result<Unit>.Failure(buildResult.Error);
             }
 
-            var models = buildResult.Value.Select(m => new Localization.LocalizationModel
-            {
-                Culture = m.Culture,
-                Strings = m.Strings,
-            });
-            resolver = new Localization.LocalizedStringResolver(models, "en-US");
+            // Pass built-in list directly — no projection needed, types already match.
+            resolver = new Localization.LocalizedStringResolver(buildResult.Value, "en-US");
         }
         else
         {
-            var locModels = package.LocalizationData.Select(d => new Localization.LocalizationModel
+            // Index-based loop — avoids LINQ enumerator and delegate allocation.
+            IReadOnlyList<Models.LocalizationData> locData = package.LocalizationData;
+            var locModels = new List<Localization.LocalizationModel>(locData.Count);
+            for (int i = 0; i < locData.Count; i++)
             {
-                Culture = d.Culture,
-                Strings = d.Strings,
-            }).ToList();
+                locModels.Add(new Localization.LocalizationModel
+                {
+                    Culture = locData[i].Culture,
+                    Strings = locData[i].Strings,
+                });
+            }
             resolver = new Localization.LocalizedStringResolver(locModels, locModels[0].Culture);
         }
 
