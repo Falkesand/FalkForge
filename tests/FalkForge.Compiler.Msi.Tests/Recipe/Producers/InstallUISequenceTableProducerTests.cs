@@ -295,10 +295,10 @@ public sealed class InstallUISequenceTableProducerTests
     }
 
     [Fact]
-    public void Produce_baseline_action_condition_cells_are_null()
+    public void Produce_baseline_action_condition_cells_are_empty_string()
     {
-        // Legacy emits empty-string conditions for baseline; producer must
-        // map empty string to CellValue.Null per MSI convention for Condition.
+        // Legacy TableEmitter.EmitUISequence writes "" (empty string) for baseline
+        // conditions — not null. Producer must match to achieve byte-level parity.
         ResolvedPackage resolved = MakeResolved(
             dialogSet: MsiDialogSet.Minimal,
             uiActions: Array.Empty<SequenceActionModel>());
@@ -307,7 +307,8 @@ public sealed class InstallUISequenceTableProducerTests
 
         foreach (RecipeRow row in rows)
         {
-            Assert.IsType<CellValue.Null>(row.Cells[1]);
+            CellValue.StringValue condCell = Assert.IsType<CellValue.StringValue>(row.Cells[1]);
+            Assert.Equal(string.Empty, condCell.Value);
         }
     }
 
@@ -395,19 +396,22 @@ public sealed class InstallUISequenceTableProducerTests
     [InlineData(MsiDialogSet.FeatureTree)]
     [InlineData(MsiDialogSet.Mondo)]
     [InlineData(MsiDialogSet.Advanced)]
-    public void Produce_with_dialog_set_dialog_flow_rows_have_null_conditions(MsiDialogSet dialogSet)
+    public void Produce_with_dialog_set_dialog_flow_rows_have_empty_string_conditions(MsiDialogSet dialogSet)
     {
+        // Legacy DialogEmitter.EmitInstallUISequence writes "" (empty string) for dialog-flow
+        // row conditions — not null. Producer must match to achieve byte-level parity.
         ResolvedPackage resolved = MakeResolved(dialogSet, Array.Empty<SequenceActionModel>());
 
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
-        // Rows at 1100, 1200, 1310 must all carry CellValue.Null conditions.
+        // Rows at 1100, 1200, 1310 must all carry CellValue.StringValue("") conditions.
         int[] dialogFlowSeqs = [1100, 1200, 1310];
         foreach (int seq in dialogFlowSeqs)
         {
             RecipeRow? row = rows.FirstOrDefault(r => ((CellValue.IntValue)r.Cells[2]).Value == seq);
             Assert.NotNull(row);
-            Assert.IsType<CellValue.Null>(row.Cells[1]);
+            CellValue.StringValue condCell = Assert.IsType<CellValue.StringValue>(row.Cells[1]);
+            Assert.Equal(string.Empty, condCell.Value);
         }
     }
 

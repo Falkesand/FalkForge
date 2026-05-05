@@ -167,8 +167,10 @@ public sealed class InstallExecuteSequenceTableProducerTests
     }
 
     [Fact]
-    public void Produce_baseline_action_condition_cells_are_null()
+    public void Produce_baseline_action_condition_cells_are_empty_string()
     {
+        // Legacy TableEmitter.EmitInstallSequences writes "" (empty string) for baseline
+        // conditions — not null. Producer must match to achieve byte-level parity.
         ImmutableArray<RecipeRow> rows = ProduceRows(MakeResolved(new PackageModel
         {
             Name = "TestPkg", Manufacturer = "M", Version = new Version(1, 0, 0),
@@ -176,7 +178,8 @@ public sealed class InstallExecuteSequenceTableProducerTests
 
         foreach (RecipeRow row in rows)
         {
-            Assert.IsType<CellValue.Null>(row.Cells[1]);
+            CellValue.StringValue condCell = Assert.IsType<CellValue.StringValue>(row.Cells[1]);
+            Assert.Equal(string.Empty, condCell.Value);
         }
     }
 
