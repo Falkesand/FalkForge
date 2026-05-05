@@ -191,6 +191,12 @@ public static class MsiRecipeBuilder
         // pipeline. They are intentionally excluded from PK/FK validation because
         // their schemas are not known at compile time and have no FK relationships
         // to the fixed built-in tables.
+        //
+        // FK validation gap — by design: PrimaryKeyValidator and ForeignKeyValidator
+        // run only over the fixed built-in tables (validatedTables) above. Tables
+        // emitted here are NOT checked. Each IMultiTableProducer implementation is
+        // solely responsible for FK integrity within its tables and against the
+        // built-in tables. See IMultiTableProducer XML doc for the full contract.
         ImmutableArray<RecipeTable> finalTables;
         if (multiProducers.Count == 0)
         {
