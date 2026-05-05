@@ -1,7 +1,5 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
@@ -77,39 +75,13 @@ internal sealed class ShortcutTableProducer : ITableProducer
     {
         return location switch
         {
-            ShortcutLocation.Desktop => "DesktopFolder",
+            ShortcutLocation.Desktop => ProducerHelpers.DesktopFolderId,
             ShortcutLocation.StartMenu => shortcut.StartMenuSubfolder is not null
-                ? GetStartMenuSubfolderId(shortcut.StartMenuSubfolder)
-                : "ProgramMenuFolder",
-            ShortcutLocation.Startup => "StartupFolder",
-            _ => "DesktopFolder",
+                ? ProducerHelpers.GetStartMenuSubfolderId(shortcut.StartMenuSubfolder)
+                : ProducerHelpers.ProgramMenuFolderId,
+            ShortcutLocation.Startup => ProducerHelpers.StartupFolderId,
+            _ => ProducerHelpers.DesktopFolderId,
         };
-    }
-
-    private static string GetStartMenuSubfolderId(string subfolder)
-    {
-        string id = string.Create(
-            CultureInfo.InvariantCulture,
-            $"SM_{SanitizeId(subfolder)}_{StableHash(subfolder)}");
-        return id.Length > 72 ? id[..72] : id;
-    }
-
-    private static string SanitizeId(string name)
-    {
-        char[] sanitized = new char[name.Length];
-        for (int i = 0; i < name.Length; i++)
-        {
-            char c = name[i];
-            sanitized[i] = char.IsLetterOrDigit(c) || c == '_' || c == '.' ? c : '_';
-        }
-
-        return new string(sanitized);
-    }
-
-    private static string StableHash(string input)
-    {
-        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes, 0, 4);
     }
 
     private static TableSchema BuildSchema()

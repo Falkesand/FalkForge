@@ -67,6 +67,64 @@ internal sealed class DirectoryTableProducer : ITableProducer
             EnsureInstallPathRows(rows, emitted, directoryTable, file.TargetDirectory, installDir);
         }
 
+        // Step 5: shortcut system directories. Shortcuts may reference special
+        // MSI virtual directories (DesktopFolder, ProgramMenuFolder, StartupFolder,
+        // SM_<subfolder>_<hash>) that have no corresponding component or file path.
+        // The legacy TableEmitter emits these in EmitDirectories unconditionally when
+        // shortcuts are present. Mirror that behaviour here so the FK validator never
+        // sees unresolved Directory_ references from ShortcutTableProducer.
+        PackageModel pkg = context.Resolved.Package;
+        if (pkg.Shortcuts.Count > 0)
+        {
+            bool needsDesktop = false;
+            bool needsProgramMenu = false;
+            bool needsStartup = false;
+
+            foreach (ShortcutModel shortcut in pkg.Shortcuts)
+            {
+                foreach (ShortcutLocation location in shortcut.Locations)
+                {
+                    switch (location)
+                    {
+                        case ShortcutLocation.Desktop:
+                            needsDesktop = true;
+                            break;
+                        case ShortcutLocation.StartMenu:
+                            needsProgramMenu = true;
+                            if (shortcut.StartMenuSubfolder is not null)
+                            {
+                                string smId = ProducerHelpers.GetStartMenuSubfolderId(shortcut.StartMenuSubfolder);
+                                // Subfolder parent is ProgramMenuFolder; use the subfolder
+                                // display name as DefaultDir so the installer creates the
+                                // correct folder name (matches legacy EmitDirectories).
+                                if (emitted.Add(smId))
+                                {
+                                    rows.Add(MakeRow(
+                                        directoryTable,
+                                        id: smId,
+                                        parentId: ProducerHelpers.ProgramMenuFolderId,
+                                        name: shortcut.StartMenuSubfolder));
+                                }
+                            }
+                            break;
+                        case ShortcutLocation.Startup:
+                            needsStartup = true;
+                            break;
+                    }
+                }
+            }
+
+            if (needsDesktop)
+                AddRow(rows, emitted, directoryTable, ProducerHelpers.DesktopFolderId,
+                    parent: WellKnownDirectoryIds.TargetDir, name: ".");
+            if (needsProgramMenu)
+                AddRow(rows, emitted, directoryTable, ProducerHelpers.ProgramMenuFolderId,
+                    parent: WellKnownDirectoryIds.TargetDir, name: ".");
+            if (needsStartup)
+                AddRow(rows, emitted, directoryTable, ProducerHelpers.StartupFolderId,
+                    parent: WellKnownDirectoryIds.TargetDir, name: ".");
+        }
+
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
     }
 
