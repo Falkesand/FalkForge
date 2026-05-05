@@ -331,6 +331,124 @@ public sealed class InstallUISequenceTableProducerTests
         Assert.Equal(seqs.Length, seqs.Distinct().Count());
     }
 
+    // ── Dialog-flow rows (firstDialog/Progress/Exit) ────────────────────────
+    // Regression: InstallUISequenceTableProducer must emit three dialog-flow rows
+    // when DialogSet != None — matching legacy DialogEmitter.EmitInstallUISequence.
+    // All five templates start with WelcomeDlg; Progress=ProgressDlg; Exit=ExitDlg.
+    // Conditions: all null (legacy emits empty-string which maps to CellValue.Null).
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_with_dialog_set_emits_first_dialog_at_sequence_1100(MsiDialogSet dialogSet)
+    {
+        ResolvedPackage resolved = MakeResolved(dialogSet, Array.Empty<SequenceActionModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        // All five templates begin with WelcomeDlg as the first sequenced dialog.
+        RecipeRow? row = rows.FirstOrDefault(r => ((CellValue.IntValue)r.Cells[2]).Value == 1100);
+        Assert.NotNull(row);
+        Assert.Equal("WelcomeDlg", ((CellValue.StringValue)row.Cells[0]).Value);
+    }
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_with_dialog_set_emits_progress_dialog_at_sequence_1200(MsiDialogSet dialogSet)
+    {
+        ResolvedPackage resolved = MakeResolved(dialogSet, Array.Empty<SequenceActionModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        RecipeRow? row = rows.FirstOrDefault(r => ((CellValue.IntValue)r.Cells[2]).Value == 1200);
+        Assert.NotNull(row);
+        Assert.Equal("ProgressDlg", ((CellValue.StringValue)row.Cells[0]).Value);
+    }
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_with_dialog_set_emits_exit_dialog_at_sequence_1310(MsiDialogSet dialogSet)
+    {
+        ResolvedPackage resolved = MakeResolved(dialogSet, Array.Empty<SequenceActionModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        RecipeRow? row = rows.FirstOrDefault(r => ((CellValue.IntValue)r.Cells[2]).Value == 1310);
+        Assert.NotNull(row);
+        Assert.Equal("ExitDlg", ((CellValue.StringValue)row.Cells[0]).Value);
+    }
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_with_dialog_set_dialog_flow_rows_have_null_conditions(MsiDialogSet dialogSet)
+    {
+        ResolvedPackage resolved = MakeResolved(dialogSet, Array.Empty<SequenceActionModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        // Rows at 1100, 1200, 1310 must all carry CellValue.Null conditions.
+        int[] dialogFlowSeqs = [1100, 1200, 1310];
+        foreach (int seq in dialogFlowSeqs)
+        {
+            RecipeRow? row = rows.FirstOrDefault(r => ((CellValue.IntValue)r.Cells[2]).Value == seq);
+            Assert.NotNull(row);
+            Assert.IsType<CellValue.Null>(row.Cells[1]);
+        }
+    }
+
+    [Fact]
+    public void Produce_with_dialog_set_none_emits_no_dialog_flow_rows()
+    {
+        // DialogSet.None → no firstDialog/Progress/Exit rows at 1100/1200/1310.
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.None,
+            uiActions: Array.Empty<SequenceActionModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        int[] dialogFlowSeqs = [1100, 1200, 1310];
+        foreach (int seq in dialogFlowSeqs)
+        {
+            bool found = rows.Any(r => ((CellValue.IntValue)r.Cells[2]).Value == seq);
+            Assert.False(found, $"Unexpected row at sequence {seq} for DialogSet.None");
+        }
+    }
+
+    [Fact]
+    public void Produce_with_dialog_set_none_and_user_actions_emits_no_dialog_flow_rows()
+    {
+        // Even when user actions force baseline emission, DialogSet.None still
+        // must not produce dialog-flow rows at 1100/1200/1310.
+        SequenceActionModel custom = MakeAction("MyAction", new ActionPosition.AtNumber(600));
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.None,
+            uiActions: new[] { custom });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        int[] dialogFlowSeqs = [1100, 1200, 1310];
+        foreach (int seq in dialogFlowSeqs)
+        {
+            bool found = rows.Any(r => ((CellValue.IntValue)r.Cells[2]).Value == seq);
+            Assert.False(found, $"Unexpected dialog-flow row at sequence {seq}");
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
