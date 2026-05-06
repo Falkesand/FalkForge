@@ -5,6 +5,7 @@ using FalkForge.Compiler.Msi;
 return Installer.BuildTransform(args, transform =>
 {
     transform.BaseMsi("payload/base.msi");
+    transform.TargetMsi("payload/target.msi");
     transform.Description("Enterprise Customization");
 
     // Override properties for enterprise deployment

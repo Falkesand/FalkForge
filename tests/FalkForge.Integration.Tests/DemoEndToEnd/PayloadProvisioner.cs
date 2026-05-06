@@ -63,6 +63,10 @@ internal sealed class PayloadProvisioner
                 new("payload/app-v1.msi", PayloadStubKind.RealMsiV1),
                 new("payload/app-v2.msi", PayloadStubKind.RealMsiV2),
             ],
+            ["46-transform"] = [
+                new("payload/base.msi",   PayloadStubKind.RealMsiV1),
+                new("payload/target.msi", PayloadStubKind.RealMsiV2),
+            ],
             ["53-delta-updates"] = [
                 new("MyApp.msi", PayloadStubKind.AnyBlob),
             ],

@@ -399,26 +399,15 @@ public static class DemoTestCatalog
             DemoOutputType.MergeModule,
             []),
 
-        // 45-patch: DEMO BUG — Program.cs omits patch.Id(new Guid("...")) so PatchBuilder._id
-        // defaults to Guid.Empty → MSP004 validation error before file-existence check.
-        // Payload stub provisioning is ready in PayloadProvisioner (RealMsiV1 + RealMsiV2) but
-        // cannot be exercised until the demo is fixed. Fix: add patch.Id(new Guid("...")).
         new("45-patch",
             DemoProject("45-patch", "45-patch.csproj"),
             DemoOutputType.Patch,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
-        // 46-transform: DEMO BUG — Program.cs calls transform.BaseMsi("payload/base.msi") but
-        // omits transform.TargetMsi(...). TransformValidator emits MST002 and compilation fails
-        // before any file-existence check. Stays RequiresInfrastructure until the demo is fixed.
-        // Fix: add transform.TargetMsi("payload/base.msi") (same file — zero-delta transform) or
-        // a separate target MSI.
         new("46-transform",
             DemoProject("46-transform", "46-transform.csproj"),
             DemoOutputType.Transform,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 50-driver-install: MSI with INF-based driver registration via FalkForge.Extensions.Driver.
         // RequiresInfrastructure: FalkForge.Extensions.Driver project does not yet exist in src/.
