@@ -4,6 +4,9 @@ using FalkForge.Engine.Protocol.Manifest;
 namespace FalkForge.Compiler.Bundle.Compilation;
 
 [JsonSerializable(typeof(InstallerManifest))]
+[JsonSerializable(typeof(ManifestChainItem))]
+[JsonSerializable(typeof(PackageManifestChainItem))]
+[JsonSerializable(typeof(RollbackBoundaryManifestChainItem))]
 [JsonSerializable(typeof(PackageInfo))]
 [JsonSerializable(typeof(PackageType))]
 [JsonSerializable(typeof(InstallScope))]

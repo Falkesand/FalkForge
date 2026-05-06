@@ -71,10 +71,6 @@ public sealed class DemoDecompilationTests
         var decompiler = new BundleDecompiler();
         var result = decompiler.Decompile(build.OutputFile!);
 
-        // BDC003: Bundle decompiler has a known deserialization issue with ManifestChainItem
-        if (result.IsFailure && result.Error.Message.Contains("BDC003"))
-            return;
-
         Assert.True(result.IsSuccess,
             $"Bundle decompilation failed for '{demo.Name}': {(result.IsFailure ? result.Error.Message : "")}");
 
@@ -93,14 +89,14 @@ public sealed class DemoDecompilationTests
         var decompiler = new BundleDecompiler();
         var result = decompiler.DecompileToCSharp(build.OutputFile!);
 
-        // BDC003: Known deserialization issue
-        if (result.IsFailure && result.Error.Message.Contains("BDC003"))
-            return;
-
         Assert.True(result.IsSuccess,
             $"Bundle C# decompilation failed for '{demo.Name}': {(result.IsFailure ? result.Error.Message : "")}");
         Assert.False(string.IsNullOrWhiteSpace(result.Value),
             $"Decompiled C# for bundle '{demo.Name}' is empty");
-        Assert.Contains("BundleBuilder", result.Value);
+        // The emitter generates Installer.BuildBundle(b => { ... }) for round-tripped bundles.
+        // (Prior assertion looked for "BundleBuilder" but no output path of the emitter ever
+        // produces that literal — it was only ever satisfied when BDC003 caused the test to
+        // skip the assertion via early return; that skip path is now removed.)
+        Assert.Contains("Installer.BuildBundle", result.Value);
     }
 }

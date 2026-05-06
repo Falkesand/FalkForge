@@ -417,15 +417,9 @@ public static class DemoTestCatalog
             BaseMsiTables,
             RequiresInfrastructure: true),
 
-        // 53-delta-updates: BUG in DeltaBundleCompiler — reads v1 bundle manifest via
-        // reflection-based JSON; ManifestChainItem is abstract so deserialization throws
-        // NotSupportedException. Payload stub provisioning ready (MyApp.msi AnyBlob) but
-        // the test cannot pass until ManifestJsonContext is fixed to support ManifestChainItem
-        // polymorphic deserialization.
         new("53-delta-updates",
             DemoProject("53-delta-updates", "53-delta-updates.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
     ];
 }
