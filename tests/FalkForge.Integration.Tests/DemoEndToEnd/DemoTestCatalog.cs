@@ -270,5 +270,127 @@ public static class DemoTestCatalog
             DemoOutputType.Msi,
             BaseMsiTables,
             RequiresInfrastructure: true),
+
+        // === Tier 3: Custom UI MSI ===
+        // These demos are WPF installer UI shells (InstallerApp.Run) that wrap a running Engine process.
+        // dotnet run on them would launch a WPF window, not produce an MSI artifact in headless CI.
+        // Marked RequiresInfrastructure until the fixture supports headless UI-shell builds.
+
+        // 11-custom-ui-simple: InstallerApp.Run WPF shell (WelcomePage / ProgressPage / CompletePage)
+        new("11-custom-ui-simple",
+            DemoProject("11-custom-ui-simple", "11-custom-ui-simple.csproj"),
+            DemoOutputType.Msi,
+            BaseMsiTables,
+            RequiresInfrastructure: true),
+
+        // 12-custom-ui-vstyle: VS-style dark-theme WPF shell (ProductPage / WorkloadsPage / ProgressPage / CompletePage)
+        new("12-custom-ui-vstyle",
+            DemoProject("12-custom-ui-vstyle", "12-custom-ui-vstyle.csproj"),
+            DemoOutputType.Msi,
+            BaseMsiTables,
+            RequiresInfrastructure: true),
+
+        // 13-glass-ui: Custom borderless WPF shell with GlassWindow + InstallPage
+        new("13-glass-ui",
+            DemoProject("13-glass-ui", "13-glass-ui.csproj"),
+            DemoOutputType.Msi,
+            BaseMsiTables,
+            RequiresInfrastructure: true),
+
+        // 14-lifecycle-hooks: WPF shell demonstrating all detect/plan/apply lifecycle hooks and SetSecureProperty
+        new("14-lifecycle-hooks",
+            DemoProject("14-lifecycle-hooks", "14-lifecycle-hooks.csproj"),
+            DemoOutputType.Msi,
+            BaseMsiTables,
+            RequiresInfrastructure: true),
+
+        // === Tier 4: Bundles ===
+
+        // 15-bundle-signing/msi-package: minimal MSI with MajorUpgrade + code-signing configuration.
+        // RequiresInfrastructure: payload/app.exe + signtool.exe + certificate thumbprint ABC123DEF456 needed.
+        new("15-bundle-signing/msi-package",
+            DemoProject("15-bundle-signing", Path.Combine("msi-package", "msi-package.csproj")),
+            DemoOutputType.Msi,
+            WithExtra("Upgrade"),
+            RequiresInfrastructure: true),
+
+        // 15-bundle-signing/bundle: FALKBUNDLE EXE wrapping msi-package; demonstrates detach/sign/reattach workflow.
+        // RequiresInfrastructure: depends on msi-package (above) which itself requires infrastructure.
+        new("15-bundle-signing/bundle",
+            DemoProject("15-bundle-signing", Path.Combine("bundle", "bundle.csproj")),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 35-bundle-simple: bundle with RelatedBundle + DependencyProvider wrapping MyApp.msi.
+        // RequiresInfrastructure: MyApp.msi payload not present in repo.
+        new("35-bundle-simple",
+            DemoProject("35-bundle-simple", "35-bundle-simple.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 36-bundle-exe-package: bundle with EXE prerequisite (vcredist_x64.exe) + exit code mapping.
+        // RequiresInfrastructure: vcredist_x64.exe + MyApp.msi payloads not present in repo.
+        new("36-bundle-exe-package",
+            DemoProject("36-bundle-exe-package", "36-bundle-exe-package.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 37-bundle-msu-package: bundle with Windows Update (.msu) hotfix prerequisite.
+        // RequiresInfrastructure: windows-hotfix-kb123456.msu + MyApp.msi payloads not present in repo.
+        new("37-bundle-msu-package",
+            DemoProject("37-bundle-msu-package", "37-bundle-msu-package.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 38-bundle-nested: parent bundle wrapping a child bundle (.exe) and an MSI.
+        // RequiresInfrastructure: ChildSetup.exe + ParentApp.msi payloads not present in repo.
+        new("38-bundle-nested",
+            DemoProject("38-bundle-nested", "38-bundle-nested.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 39-bundle-remote-payload: bundle where the MSI is declared as a remote payload (URL + SHA256).
+        // No embedded payload → BundleCompiler skips file-existence check → compiles clean without infra.
+        new("39-bundle-remote-payload",
+            DemoProject("39-bundle-remote-payload", "39-bundle-remote-payload.csproj"),
+            DemoOutputType.Bundle,
+            []),
+
+        // 40-bundle-variables: bundle with Numeric/String/Persisted/Hidden/Secret variables + conditional package.
+        // RequiresInfrastructure: CoreApp.msi + OptionalTools.msi payloads not present in repo.
+        new("40-bundle-variables",
+            DemoProject("40-bundle-variables", "40-bundle-variables.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 41-bundle-rollback: bundle with explicit RollbackBoundary items separating prerequisites from app.
+        // RequiresInfrastructure: Runtime.msi + MyApp.msi payloads not present in repo.
+        new("41-bundle-rollback",
+            DemoProject("41-bundle-rollback", "41-bundle-rollback.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 42-bundle-update-feed: bundle configured with an automatic update-feed URL.
+        // RequiresInfrastructure: MyApp.msi payload not present in repo.
+        new("42-bundle-update-feed",
+            DemoProject("42-bundle-update-feed", "42-bundle-update-feed.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
+
+        // 43-bundle-layout: bundle with named containers for offline layout scenarios.
+        // RequiresInfrastructure: Core.msi + Extras.msi payloads not present in repo.
+        new("43-bundle-layout",
+            DemoProject("43-bundle-layout", "43-bundle-layout.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
     ];
 }
