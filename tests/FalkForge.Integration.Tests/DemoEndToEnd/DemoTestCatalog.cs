@@ -392,5 +392,46 @@ public static class DemoTestCatalog
             DemoOutputType.Bundle,
             [],
             RequiresInfrastructure: true),
+
+        // === Tier 5: MSM / MSP / MST / Driver / Delta ===
+
+        // 44-merge-module: reusable component package compiled to .msm.
+        // payload/shared.dll is present in repo — compiles headless.
+        new("44-merge-module",
+            DemoProject("44-merge-module", "44-merge-module.csproj"),
+            DemoOutputType.MergeModule,
+            []),
+
+        // 45-patch: MSP hotfix patch upgrading app-v1 to app-v1.1.
+        // RequiresInfrastructure: payload/app-v1.msi + payload/app-v2.msi not present in repo.
+        new("45-patch",
+            DemoProject("45-patch", "45-patch.csproj"),
+            DemoOutputType.Patch,
+            [],
+            RequiresInfrastructure: true),
+
+        // 46-transform: MST that customises deployment properties of a base MSI.
+        // RequiresInfrastructure: payload/base.msi not present in repo.
+        new("46-transform",
+            DemoProject("46-transform", "46-transform.csproj"),
+            DemoOutputType.Transform,
+            [],
+            RequiresInfrastructure: true),
+
+        // 50-driver-install: MSI with INF-based driver registration via FalkForge.Extensions.Driver.
+        // RequiresInfrastructure: FalkForge.Extensions.Driver project does not yet exist in src/.
+        new("50-driver-install",
+            DemoProject("50-driver-install", "50-driver-install.csproj"),
+            DemoOutputType.Msi,
+            BaseMsiTables,
+            RequiresInfrastructure: true),
+
+        // 53-delta-updates: delta bundle (v2 diff against v1) via DeltaBundleCompiler.
+        // RequiresInfrastructure: MyApp.msi payload not present in repo.
+        new("53-delta-updates",
+            DemoProject("53-delta-updates", "53-delta-updates.csproj"),
+            DemoOutputType.Bundle,
+            [],
+            RequiresInfrastructure: true),
     ];
 }
