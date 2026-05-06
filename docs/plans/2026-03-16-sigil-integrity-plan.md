@@ -434,7 +434,7 @@ Tests for generating correct SPDX 2.3 and CycloneDX 1.5 JSON from file metadata.
 
 **Files:**
 - Modify: `src/FalkForge.Compiler.Msi/Tables/MsiTableDefinitions.cs` — add CreateFalkForgeIntegrityTable
-- Modify: `src/FalkForge.Compiler.Msi/Tables/TableEmitter.cs` — add EmitIntegrity method + call in EmitAllTables
+- Modify: `src/FalkForge.Compiler.Msi/Tables/IntegrityTableEmitter.cs` — integrity emission lives here post-Phase 9 cutover (commit 1c40837)
 - Modify: `src/FalkForge.Compiler.Msi/MsiCompiler.cs` — add signing step after code signing
 - Test: `tests/FalkForge.Compiler.Msi.Tests/Tables/IntegrityTableEmissionTests.cs`
 

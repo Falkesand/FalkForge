@@ -74,7 +74,7 @@ FalkForge has 26 source projects across 8 completed phases:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| MSI-level Dialog Authoring | Implemented | MsiDialogModel, DialogEmitter, IDialogTemplate |
+| MSI-level Dialog Authoring | Implemented | MsiDialogModel, DialogSetProducer, IDialogTemplate |
 | InstallExecuteSequence | Implemented | SequenceTable, SequenceActionModel, SequenceBuilder |
 | InstallUISequence | Implemented | Shared sequence infrastructure |
 | AdminExecute/UISequence | Partial | Sequence infrastructure supports it; not explicitly targeted |

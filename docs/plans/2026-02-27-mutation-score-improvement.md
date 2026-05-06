@@ -1872,7 +1872,9 @@ git commit -m "test(Engine): add ConditionLexer boundary tests and EngineHostVal
 
 ## Phase 6: Compiler.Msi (62.9% â†’ 80%+)
 
-661 survivors. **296 are in Dialog template files** (string mutations in hardcoded XML/WiX layout strings). These are not behavioral code â€” they should be excluded from mutation analysis via Stryker config. The remaining ~365 are in `TableEmitter` (177), `CabinetExtractor` (36), `DialogEmitter` (31), `CabinetBuilder` (27), `MsiCompiler` (25).
+> **STALE 2026-05-05** â€” Survivor counts below are from a Stryker run against the legacy `TableEmitter.cs` codebase. `TableEmitter.cs` and `DialogEmitter.cs` were deleted at commit 0d853bd (Phase 9 cutover: 1c40837). Mutation coverage must be re-baselined against the new recipe pipeline producers in `src/FalkForge.Compiler.Msi/Recipe/Producers/`. Re-run `dotnet-stryker` against `FalkForge.Compiler.Msi.csproj` to get current survivor counts before acting on any task in this phase.
+
+661 survivors (stale baseline). **296 are in Dialog template files** (string mutations in hardcoded XML/WiX layout strings). These are not behavioral code â€” they should be excluded from mutation analysis via Stryker config. The remaining ~365 are in `TableEmitter` (177, now split across ~39 producers), `CabinetExtractor` (36), `DialogEmitter` (31, replaced by `DialogSetProducer`), `CabinetBuilder` (27), `MsiCompiler` (25).
 
 ### Task 6.1: Exclude Dialog template files from Stryker
 

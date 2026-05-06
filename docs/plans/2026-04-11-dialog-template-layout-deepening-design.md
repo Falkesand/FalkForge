@@ -1,6 +1,6 @@
 # RFC: Deepen MSI dialog templates into a layout DSL with customization facade
 
-**Status:** Design accepted, implementation plan pending
+**Status:** Design accepted — pipeline diagram updated 2026-05-05 to reflect recipe cutover (commits 1c40837, 0d853bd). Layout DSL + customization API work is still pending.
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Compiler.Msi/UI/`, `src/FalkForge.Core/Models/UI/`, `src/FalkForge.Core/Builders/PackageBuilder.cs`, `src/FalkForge.Extensibility/`, `tests/FalkForge.Compiler.Msi.Tests/UI/`
 
@@ -430,7 +430,7 @@ PackageBuilder
 PackageModel { DialogSet, DialogCustomization }  (init-only fields in Core)
       |
       v
-MsiCompiler -> TableEmitter -> DialogEmitter
+MsiCompiler -> MsiAuthoring -> MsiRecipeBuilder -> DialogSetProducer
       |
       v
 DialogBuildContext { Package, Customization, StepRegistry }

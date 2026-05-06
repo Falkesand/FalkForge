@@ -893,9 +893,11 @@ git commit -m "fix(reliability): add WriteThrough and flush to RollbackJournal f
 
 ## Task 12: P1 — TableEmitter loop hoisting
 
+> **MOOT 2026-05-05** — `TableEmitter.cs` was deleted at commit 0d853bd (Phase 9 recipe pipeline cutover: 1c40837). The loop-hoisting optimization is no longer applicable. Individual recipe producers use direct indexed access without the LINQ hot-path patterns described below. Task retained for historical reference.
+
 **Files:**
-- Modify: `src/FalkForge.Compiler.Msi/Tables/TableEmitter.cs`
-- Test: `tests/FalkForge.Compiler.Msi.Tests/Tables/TableEmitterTests.cs`
+- ~~Modify: `src/FalkForge.Compiler.Msi/Tables/TableEmitter.cs`~~ (deleted)
+- ~~Test: `tests/FalkForge.Compiler.Msi.Tests/Tables/TableEmitterTests.cs`~~
 
 This is the largest single-file change. Make surgical edits — do not refactor beyond what is needed.
 

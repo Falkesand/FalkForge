@@ -120,7 +120,7 @@ refactor(platform): replace string rootKey with RegistryRootKey enum in IRegistr
 - Modify: `src/FalkForge.Compiler.Msi/UI/Templates/SharedDialogBuilders.cs` — replace all numeric literals
 - Modify: `src/FalkForge.Compiler.Msi/UI/Templates/MinimalDialogTemplate.cs` — same
 - Modify: `src/FalkForge.Compiler.Msi/UI/Templates/AdvancedDialogTemplate.cs` — same
-- Modify: `src/FalkForge.Compiler.Msi/UI/DialogEmitter.cs` — cast enum to int when writing to MSI table
+- Modify: `src/FalkForge.Compiler.Msi/Recipe/Producers/DialogSetProducer.cs` — cast enum to int when writing to MSI table (replaces deleted `DialogEmitter.cs`, commit 0d853bd)
 
 **MsiControlAttributes:**
 ```csharp
@@ -150,7 +150,7 @@ internal enum MsiControlAttributes
 - `65539` = Visible | Enabled | Progress95 (0x10003)
 - `393223` = Visible | Enabled | Sunken | RemovableMedia | FixedMedia | RemoteMedia | CDROMMedia (0x60007)
 
-The DialogEmitter must cast the enum to `(int)` when writing to MSI tables since MSI stores these as integers.
+The `DialogSetProducer` must cast the enum to `(int)` when writing to MSI tables since MSI stores these as integers. (`DialogEmitter` was deleted at commit 0d853bd.)
 
 **Build, run all tests (especially E2E demo tests), commit.**
 
@@ -172,7 +172,7 @@ refactor(msi): replace magic attribute numbers with MsiControlAttributes/MsiDial
 - Modify: `src/FalkForge.Compiler.Msi/UI/MsiControlEventModel.cs` — `Event` property from `string` to enum
 - Modify: `src/FalkForge.Compiler.Msi/UI/MsiControlConditionModel.cs` — `Action` property from `string` to enum
 - Modify: All template files — use enum values
-- Modify: `src/FalkForge.Compiler.Msi/UI/DialogEmitter.cs` — convert enums to strings when writing to MSI tables
+- Modify: `src/FalkForge.Compiler.Msi/Recipe/Producers/DialogSetProducer.cs` — convert enums to strings when writing to MSI tables (replaces deleted `DialogEmitter.cs`, commit 0d853bd)
 
 **MsiControlType enum (internal):**
 ```csharp
@@ -202,7 +202,7 @@ internal enum MsiConditionAction
 }
 ```
 
-The DialogEmitter converts to string via `.ToString()` or a mapping method when writing to MSI tables.
+The `DialogSetProducer` converts to string via `.ToString()` or a mapping method when writing to MSI tables. (`DialogEmitter` was deleted at commit 0d853bd.)
 
 **Build, run all tests, commit.**
 

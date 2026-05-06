@@ -997,7 +997,7 @@ The existing tests should still pass because `!(loc.X)` references in templates 
 
 **Simplest approach:** In the `MsiCompiler`, if the `PackageModel.LocalizationData` is empty but the dialog templates use `!(loc.X)` references, auto-load the built-in en-US strings as fallback. This keeps backward compatibility and makes templates always localizable.
 
-Add to `MsiCompiler` or `TableEmitter` (wherever `!(loc.X)` resolution happens): if no localization data is on the model, load built-in en-US strings as default.
+Add to `MsiAuthoring` or `DialogSetProducer` (wherever `!(loc.X)` resolution happens post-Phase 9 cutover): if no localization data is on the model, load built-in en-US strings as default. (`TableEmitter` was deleted at commit 0d853bd.)
 
 **Verify:** `dotnet build && dotnet test` — all existing tests pass, dialogs show English text when no localization configured.
 

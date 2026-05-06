@@ -439,7 +439,7 @@ public static class ComponentResolver
 
 User-specified GUIDs always take precedence over generated ones.
 
-**TableEmitter.cs** — deterministic record ordering:
+**MsiRecipeBuilder / recipe producers** — deterministic record ordering (note: `TableEmitter.cs` was deleted at commit 0d853bd, Phase 9 cutover 1c40837):
 
 ```csharp
 // Before emitting each table, sort rows by primary key columns

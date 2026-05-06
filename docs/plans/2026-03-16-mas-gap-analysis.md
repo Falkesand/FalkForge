@@ -1,5 +1,7 @@
 # FalkForge MAS Gap Analysis: WiX Parity Assessment
 
+> **NOTE 2026-05-05** — All references to `TableEmitter.cs` in this analysis are stale. That file was deleted at commit 0d853bd (Phase 9 recipe pipeline cutover, cutover commit: 1c40837). Emission work now targets the relevant producer in `src/FalkForge.Compiler.Msi/Recipe/Producers/` (e.g., `ServiceInstallTableProducer.cs`, `ComponentTableProducer.cs`). Gap analysis findings and suggested fixes remain accurate for model/builder/validation layers.
+
 ## Overview
 
 Analysis of gaps discovered while replicating the WiX MultiAccessStyra.Setup in FalkForge. The MAS suite consists of four MSI packages (MultiAccess, MultiServer, MultiServerEx, Concatenate, Konfigurera) and one EXE bundle. This document catalogs every feature gap that prevents true 1:1 behavioral parity with the original WiX installer.

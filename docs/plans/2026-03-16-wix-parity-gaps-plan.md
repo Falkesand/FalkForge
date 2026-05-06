@@ -1,10 +1,12 @@
 # WiX Parity Gaps Implementation Plan
 
+> **SUPERSEDED 2026-05-05** — `TableEmitter.cs` was deleted at commit 0d853bd as part of the Phase 9 recipe pipeline cutover (cutover commit: 1c40837). All `TableEmitter` references in tasks below now correspond to the relevant producer in `src/FalkForge.Compiler.Msi/Recipe/Producers/` (e.g., `ServiceInstallTableProducer.cs`, `ComponentTableProducer.cs`). Task bodies are preserved for their model/builder/validation guidance — only the emission file paths are stale.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Close all 10 framework gaps preventing 1:1 WiX parity for the MAS demo.
 
-**Architecture:** Additive changes to existing models, builders, emitters, and engine components. Each gap adds init-only properties to models, fluent methods to builders, emission logic to TableEmitter/ManifestGenerator, and validation rules. No breaking changes to existing APIs.
+**Architecture:** Additive changes to existing models, builders, emitters, and engine components. Each gap adds init-only properties to models, fluent methods to builders, emission logic to the relevant recipe producer/ManifestGenerator, and validation rules. No breaking changes to existing APIs.
 
 **Tech Stack:** C# 13, .NET 10, xUnit 2.9.3, FalkForge Core/Compiler.Msi/Compiler.Bundle/Engine
 

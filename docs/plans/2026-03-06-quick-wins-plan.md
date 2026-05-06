@@ -1,10 +1,12 @@
 # Quick Wins Implementation Plan: PowerShell CA, COM Registration, Driver Installation
 
+> **PARTIALLY COMPLETED 2026-05-05** — COM Registration (Part B) is done: `ClassTableProducer.cs`, `TypeLibTableProducer.cs`, and `ProgIdTableProducer.cs` exist in `src/FalkForge.Compiler.Msi/Recipe/Producers/`. PowerShell CA (Part A) and Driver (Part C) status: verify separately. All `TableEmitter.cs` references in task bodies are stale — that file was deleted at commit 0d853bd (Phase 9 recipe cutover: 1c40837). Replace with the relevant producer file for any remaining emission work.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add PowerShell custom actions, COM class/TypeLib registration, and driver installation support — three independent features following existing FalkForge patterns.
 
-**Architecture:** Each feature follows Model → Builder → Table/CA emission. PowerShell extends CustomActionBuilder. COM adds new models to Core + table emission to Compiler.Msi. Driver creates a new Extensions.Driver project.
+**Architecture:** Each feature follows Model → Builder → Table/CA emission. PowerShell extends CustomActionBuilder. COM adds new models to Core + table emission to Compiler.Msi via recipe producers. Driver creates a new Extensions.Driver project.
 
 **Tech Stack:** C# 13, .NET 10, xUnit, MSI table emission via P/Invoke
 

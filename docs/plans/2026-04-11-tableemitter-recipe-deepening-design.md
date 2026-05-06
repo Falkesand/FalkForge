@@ -1,6 +1,6 @@
 # RFC: Deepen the MSI TableEmitter into a Recipe pipeline
 
-**Status:** Design accepted, implementation plan pending
+**Status:** COMPLETED 2026-05-05 — see commits 1c40837 (cutover) and 0d853bd (legacy deletion)
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Compiler.Msi/`, `src/FalkForge.Extensibility/`, `tests/FalkForge.Compiler.Msi.Tests/`, `tests/FalkForge.Testing/`
 
@@ -367,5 +367,17 @@ The refactor is substantial and must land through a TDD-driven plan with the com
 12. **Flip default and delete legacy** — remove the feature flag, delete `TableEmitter.cs`, `MsiTableDefinitions.cs`, `TableEmitterCustomTableTests.cs` (tests already moved to `TableId.Create` unit tests). One cleanup commit.
 13. **JSON dry-run export** — add `RecipeJsonContext` source-generated serializer. Add `forge build --dry-run --recipe-json out.json` CLI flag. Add golden-snapshot test for hello-world.
 14. **Documentation** — update `docs/` with the recipe architecture and contribute-a-new-table guide.
+
+---
+
+## Implementation Postscript (2026-05-05)
+
+Actual execution order deviated from the design plan above, which ordered byte-diff CI gating before producers. In practice:
+
+1. **Producers first** — all 39 table producers were implemented incrementally under TDD (one failing test → one producer commit per table). The recipe pipeline types (`MsiDatabaseRecipe`, `MsiRecipeBuilder`, `MsiRecipeExecutor`, `MsiAuthoring`) were built alongside, not after.
+2. **No explicit byte-diff harness** — parity was validated by running the full test suite (compile + read-back integration tests) against each producer before flipping the default. The byte-diff CI gate (step 9) was effectively replaced by this test coverage.
+3. **Cutover** — commit 1c40837 removed the feature flag and made `MsiAuthoring.Compile` the sole compilation path. `MsiCompiler.Compile` became a one-line forwarder.
+4. **Legacy deletion** — commits 396c4f6 (`TableEmitter.cs` deleted) and 0d853bd (`DialogEmitter.cs` deleted) removed the legacy emitters. `MsiTableDefinitions.cs` was retained as `TableId.cs` constants only.
+5. **Steps 11–14** (MSM/MSP/MST migration, JSON dry-run, full docs) remain open follow-on work.
 
 Each phase of the sequencing plan gets its own implementation plan file under `docs/plans/`, paired with this design document.

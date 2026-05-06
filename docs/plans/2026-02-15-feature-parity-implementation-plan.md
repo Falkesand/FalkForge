@@ -1,5 +1,7 @@
 # FalkForge Feature Parity Implementation Plan
 
+> **SUPERSEDED 2026-05-05** — This plan covers Phases 4–8 from the 2026-02-15 baseline. All planned features have been implemented across subsequent commits through Phase 9. All `TableEmitter.cs` references in task bodies are stale — that file was deleted at commit 0d853bd as part of the Phase 9 recipe pipeline cutover (cutover commit: 1c40837). Retained for historical reference only.
+
 **Date:** 2026-02-15
 **Baseline:** 13 source projects, 9 test projects, 522 tests, 3 phases complete
 **Target:** WiX Toolset 6.0.2 feature parity (excluding COM Registration, Preprocessor/Fragments/Libraries)
