@@ -65,11 +65,12 @@ public static class DemoTestCatalog
             DemoOutputType.Msi,
             BaseMsiTables),
 
+        // 07-extensions-showcase: Firewall/IIS/SQL/DotNet/Util extensions configure models only at build
+        // time; no OS service contact during compilation. Payload files present in repo.
         new("07-extensions-showcase",
             DemoProject("07-extensions-showcase", "07-extensions-showcase.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RequiresInfrastructure: true),
+            BaseMsiTables),
 
         new("08-localization",
             DemoProject("08-localization", "08-localization.csproj"),
@@ -247,29 +248,33 @@ public static class DemoTestCatalog
 
         // === Tier 6: Infrastructure-required (IIS/SQL/Firewall/HTTP service needed at build time) ===
 
+        // 29-ext-firewall: FirewallExtension builds MSI custom tables describing rules;
+        // no OS Firewall API called at compile time. Payload present in repo.
         new("29-ext-firewall",
             DemoProject("29-ext-firewall", "29-ext-firewall.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RequiresInfrastructure: true),
+            BaseMsiTables),
 
+        // 30-ext-iis: IisExtension builds MSI custom tables describing app pools/sites;
+        // no IIS metabase contact at compile time. Payload present in repo.
         new("30-ext-iis",
             DemoProject("30-ext-iis", "30-ext-iis.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RequiresInfrastructure: true),
+            BaseMsiTables),
 
+        // 31-ext-sql: SqlExtension builds MSI custom tables describing DB/scripts;
+        // no SQL Server contact at compile time. Payload present in repo.
         new("31-ext-sql",
             DemoProject("31-ext-sql", "31-ext-sql.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RequiresInfrastructure: true),
+            BaseMsiTables),
 
+        // 49-http-extension: HttpExtension builds URL reservation + SNI binding tables;
+        // no http.sys API called at compile time. Payload present in repo.
         new("49-http-extension",
             DemoProject("49-http-extension", "49-http-extension.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RequiresInfrastructure: true),
+            BaseMsiTables),
 
         // === Tier 3: Custom UI MSI ===
         // These demos are WPF installer UI shells (InstallerApp.Run) that wrap a running Engine process.
@@ -323,36 +328,32 @@ public static class DemoTestCatalog
             RequiresInfrastructure: true),
 
         // 35-bundle-simple: bundle with RelatedBundle + DependencyProvider wrapping MyApp.msi.
-        // RequiresInfrastructure: MyApp.msi payload not present in repo.
+        // Payload stub provisioned at test time by PayloadProvisioner.
         new("35-bundle-simple",
             DemoProject("35-bundle-simple", "35-bundle-simple.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 36-bundle-exe-package: bundle with EXE prerequisite (vcredist_x64.exe) + exit code mapping.
-        // RequiresInfrastructure: vcredist_x64.exe + MyApp.msi payloads not present in repo.
+        // Payload stubs provisioned at test time by PayloadProvisioner.
         new("36-bundle-exe-package",
             DemoProject("36-bundle-exe-package", "36-bundle-exe-package.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 37-bundle-msu-package: bundle with Windows Update (.msu) hotfix prerequisite.
-        // RequiresInfrastructure: windows-hotfix-kb123456.msu + MyApp.msi payloads not present in repo.
+        // Payload stubs provisioned at test time by PayloadProvisioner.
         new("37-bundle-msu-package",
             DemoProject("37-bundle-msu-package", "37-bundle-msu-package.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 38-bundle-nested: parent bundle wrapping a child bundle (.exe) and an MSI.
-        // RequiresInfrastructure: ChildSetup.exe + ParentApp.msi payloads not present in repo.
+        // Payload stubs provisioned at test time by PayloadProvisioner.
         new("38-bundle-nested",
             DemoProject("38-bundle-nested", "38-bundle-nested.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 39-bundle-remote-payload: bundle where the MSI is declared as a remote payload (URL + SHA256).
         // No embedded payload → BundleCompiler skips file-existence check → compiles clean without infra.
@@ -362,36 +363,32 @@ public static class DemoTestCatalog
             []),
 
         // 40-bundle-variables: bundle with Numeric/String/Persisted/Hidden/Secret variables + conditional package.
-        // RequiresInfrastructure: CoreApp.msi + OptionalTools.msi payloads not present in repo.
+        // Payload stubs provisioned at test time by PayloadProvisioner.
         new("40-bundle-variables",
             DemoProject("40-bundle-variables", "40-bundle-variables.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 41-bundle-rollback: bundle with explicit RollbackBoundary items separating prerequisites from app.
-        // RequiresInfrastructure: Runtime.msi + MyApp.msi payloads not present in repo.
+        // Payload stubs provisioned at test time by PayloadProvisioner.
         new("41-bundle-rollback",
             DemoProject("41-bundle-rollback", "41-bundle-rollback.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 42-bundle-update-feed: bundle configured with an automatic update-feed URL.
-        // RequiresInfrastructure: MyApp.msi payload not present in repo.
+        // Payload stub provisioned at test time by PayloadProvisioner.
         new("42-bundle-update-feed",
             DemoProject("42-bundle-update-feed", "42-bundle-update-feed.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // 43-bundle-layout: bundle with named containers for offline layout scenarios.
-        // RequiresInfrastructure: Core.msi + Extras.msi payloads not present in repo.
+        // Payload stubs provisioned at test time by PayloadProvisioner.
         new("43-bundle-layout",
             DemoProject("43-bundle-layout", "43-bundle-layout.csproj"),
             DemoOutputType.Bundle,
-            [],
-            RequiresInfrastructure: true),
+            []),
 
         // === Tier 5: MSM / MSP / MST / Driver / Delta ===
 
@@ -402,16 +399,21 @@ public static class DemoTestCatalog
             DemoOutputType.MergeModule,
             []),
 
-        // 45-patch: MSP hotfix patch upgrading app-v1 to app-v1.1.
-        // RequiresInfrastructure: payload/app-v1.msi + payload/app-v2.msi not present in repo.
+        // 45-patch: DEMO BUG — Program.cs omits patch.Id(new Guid("...")) so PatchBuilder._id
+        // defaults to Guid.Empty → MSP004 validation error before file-existence check.
+        // Payload stub provisioning is ready in PayloadProvisioner (RealMsiV1 + RealMsiV2) but
+        // cannot be exercised until the demo is fixed. Fix: add patch.Id(new Guid("...")).
         new("45-patch",
             DemoProject("45-patch", "45-patch.csproj"),
             DemoOutputType.Patch,
             [],
             RequiresInfrastructure: true),
 
-        // 46-transform: MST that customises deployment properties of a base MSI.
-        // RequiresInfrastructure: payload/base.msi not present in repo.
+        // 46-transform: DEMO BUG — Program.cs calls transform.BaseMsi("payload/base.msi") but
+        // omits transform.TargetMsi(...). TransformValidator emits MST002 and compilation fails
+        // before any file-existence check. Stays RequiresInfrastructure until the demo is fixed.
+        // Fix: add transform.TargetMsi("payload/base.msi") (same file — zero-delta transform) or
+        // a separate target MSI.
         new("46-transform",
             DemoProject("46-transform", "46-transform.csproj"),
             DemoOutputType.Transform,
@@ -426,8 +428,11 @@ public static class DemoTestCatalog
             BaseMsiTables,
             RequiresInfrastructure: true),
 
-        // 53-delta-updates: delta bundle (v2 diff against v1) via DeltaBundleCompiler.
-        // RequiresInfrastructure: MyApp.msi payload not present in repo.
+        // 53-delta-updates: BUG in DeltaBundleCompiler — reads v1 bundle manifest via
+        // reflection-based JSON; ManifestChainItem is abstract so deserialization throws
+        // NotSupportedException. Payload stub provisioning ready (MyApp.msi AnyBlob) but
+        // the test cannot pass until ManifestJsonContext is fixed to support ManifestChainItem
+        // polymorphic deserialization.
         new("53-delta-updates",
             DemoProject("53-delta-updates", "53-delta-updates.csproj"),
             DemoOutputType.Bundle,

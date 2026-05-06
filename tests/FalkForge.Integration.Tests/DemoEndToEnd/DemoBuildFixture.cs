@@ -13,6 +13,7 @@ public sealed class DemoBuildFixture : IDisposable
     private readonly ConcurrentBag<string> _filesToCleanup = [];
     private readonly string _tempRoot = Path.Combine(
         Path.GetTempPath(), $"falk-demo-e2e-{Guid.NewGuid():N}");
+    private readonly PayloadProvisioner _provisioner = new();
 
     public DemoBuildFixture()
     {
@@ -24,6 +25,12 @@ public sealed class DemoBuildFixture : IDisposable
 
     private DemoBuildResult Build(DemoExpectation demo)
     {
+        // Provision any stub payload files the demo needs (e.g. MyApp.msi for bundle demos).
+        // Provisioner returns paths it just created; register them for cleanup.
+        var newStubs = _provisioner.Provision(demo);
+        foreach (var path in newStubs)
+            _filesToCleanup.Add(path);
+
         // Bundle demos reference sibling MSI projects via relative paths (e.g., ../app-installer/app-installer.msi).
         // For bundles, we must first ensure their MSI dependencies are built into the expected locations.
         if (demo.OutputType == DemoOutputType.Bundle)

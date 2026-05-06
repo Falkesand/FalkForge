@@ -390,6 +390,26 @@ FodyWeavers.xsd
 !*.Msix/
 *.msm
 *.msp
+*.msu
+
+# Stub payload artifacts provisioned at test time by PayloadProvisioner (demo/ dirs)
+demo/35-bundle-simple/MyApp.msi
+demo/36-bundle-exe-package/vcredist_x64.exe
+demo/36-bundle-exe-package/MyApp.msi
+demo/37-bundle-msu-package/windows-hotfix-kb123456.msu
+demo/37-bundle-msu-package/MyApp.msi
+demo/38-bundle-nested/ChildSetup.exe
+demo/38-bundle-nested/ParentApp.msi
+demo/40-bundle-variables/CoreApp.msi
+demo/40-bundle-variables/OptionalTools.msi
+demo/41-bundle-rollback/Runtime.msi
+demo/41-bundle-rollback/MyApp.msi
+demo/42-bundle-update-feed/MyApp.msi
+demo/43-bundle-layout/Core.msi
+demo/43-bundle-layout/Extras.msi
+demo/45-patch/payload/app-v1.msi
+demo/45-patch/payload/app-v2.msi
+demo/53-delta-updates/MyApp.msi
 
 # Documentation generator fragments
 docs/gen/
