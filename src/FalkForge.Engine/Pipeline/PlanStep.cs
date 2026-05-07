@@ -41,6 +41,27 @@ internal sealed class PlanStep : IPlanStep
             return Result<Unit>.Failure(ErrorKind.EngineError,
                 "PlanStep: detection result not populated — DetectStep must run first.");
 
+        // License gate: when manifest requires a license, the UI must have accepted it.
+        // Silent mode auto-accepts (headless/CLI installs). When the manifest has no
+        // LicenseFile the gate is skipped entirely.
+        if (ctx.Manifest.LicenseFile is not null)
+        {
+            if (!ctx.SilentMode && request.LicenseAccepted is not true)
+            {
+                return Result<Unit>.Failure(ErrorKind.EngineError,
+                    "License agreement has not been accepted. " +
+                    "Set LicenseAccepted = true in the plan request to proceed.");
+            }
+
+            if (ctx.SilentMode)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Info,
+                        "Silent mode: license auto-accepted"),
+                    ct);
+            }
+        }
+
         ctx.PlanRequest = request;
 
         // Propagate user properties into the variable store so that condition

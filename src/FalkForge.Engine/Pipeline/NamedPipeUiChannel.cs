@@ -25,6 +25,10 @@ public sealed class NamedPipeUiChannel : IUiChannel
     private volatile string? _pendingInstallDirectory;
     private readonly ConcurrentDictionary<string, bool> _pendingFeatures = new();
 
+    // License state accumulated from LicenseMessage(Accepted/Declined) before RequestPlan
+    private volatile bool _licenseAccepted;
+    private volatile bool _licenseResponseReceived;
+
     private NamedPipeUiChannel(PipeServer? pipe)
     {
         _pipe = pipe;
@@ -144,16 +148,16 @@ public sealed class NamedPipeUiChannel : IUiChannel
     /// Returns null for messages that are not actionable requests (e.g. log messages,
     /// unknown types).
     /// <para>
-    /// <paramref name="pendingInstallDirectory"/> and <paramref name="pendingFeatures"/>
-    /// are accumulated state from prior <c>SetInstallDirectory</c> /
-    /// <c>SetFeatureSelection</c> messages and are bundled into
-    /// <see cref="UiRequest.Plan"/> when <c>RequestPlan</c> arrives.
+    /// <paramref name="pendingInstallDirectory"/>, <paramref name="pendingFeatures"/>, and
+    /// <paramref name="licenseAccepted"/> are accumulated state from prior messages and
+    /// are bundled into <see cref="UiRequest.Plan"/> when <c>RequestPlan</c> arrives.
     /// </para>
     /// </summary>
     internal static UiRequest? TranslateMessage(
         EngineMessage message,
         string? pendingInstallDirectory,
-        IDictionary<string, bool>? pendingFeatures) => message switch
+        IDictionary<string, bool>? pendingFeatures,
+        bool? licenseAccepted = null) => message switch
     {
         CancelMessage => new UiRequest.Cancel(),
         ShutdownRequestMessage => new UiRequest.Shutdown(),
@@ -168,7 +172,8 @@ public sealed class NamedPipeUiChannel : IUiChannel
                 (IReadOnlyDictionary<string, bool>?)pendingFeatures
                     ?? new Dictionary<string, bool>(),
                 new Dictionary<string, string>(),
-                new Dictionary<string, SensitiveBytes>()),
+                new Dictionary<string, SensitiveBytes>(),
+                licenseAccepted),
 
         _ => null
     };
@@ -188,13 +193,24 @@ public sealed class NamedPipeUiChannel : IUiChannel
             return Task.CompletedTask;
         }
 
+        // License acceptance: the UI sends LicenseMessage(Accepted/Declined) before RequestPlan.
+        // We record it so it can be bundled into UiRequest.Plan when RequestPlan arrives.
+        if (message is LicenseMessage licenseMsg)
+        {
+            _licenseResponseReceived = true;
+            _licenseAccepted = licenseMsg.Action == LicenseAction.Accepted;
+            return Task.CompletedTask;
+        }
+
         // SetProperty / SetSecureProperty: emit as Plan sub-properties only when Plan arrives.
         // For now, these pass through as null (pipeline handles them via EngineHost until
         // full pipeline migration in a later RFC slice).
         if (message is SetPropertyMessage or SetSecurePropertyMessage)
             return Task.CompletedTask;
 
-        var request = TranslateMessage(message, _pendingInstallDirectory, _pendingFeatures);
+        bool? licenseAccepted = _licenseResponseReceived ? _licenseAccepted : null;
+        var request = TranslateMessage(
+            message, _pendingInstallDirectory, _pendingFeatures, licenseAccepted);
         if (request is not null)
             _requests.Writer.TryWrite(request);
 

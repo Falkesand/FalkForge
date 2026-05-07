@@ -20,7 +20,8 @@ public abstract record UiRequest
         string? InstallDirectory,
         IReadOnlyDictionary<string, bool> FeatureSelections,
         IReadOnlyDictionary<string, string> Properties,
-        IReadOnlyDictionary<string, SensitiveBytes> SecureProperties) : UiRequest;
+        IReadOnlyDictionary<string, SensitiveBytes> SecureProperties,
+        bool? LicenseAccepted = null) : UiRequest;
 
     /// <summary>UI confirms it is ready to start applying the plan.</summary>
     public sealed record Apply : UiRequest;

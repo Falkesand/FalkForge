@@ -147,6 +147,105 @@ public sealed class PipelinePhaseStepTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // PlanStep — license gate
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PlanStep_LicenseRequired_Accepted_Succeeds()
+    {
+        var manifest = ManifestWithLicense();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Detection = new FalkForge.Engine.Detection.DetectionResult(
+                InstallState.NotInstalled, null, [])
+        };
+
+        var request = new UiRequest.Plan(
+            InstallAction.Install,
+            InstallDirectory: null,
+            FeatureSelections: new Dictionary<string, bool>(),
+            Properties: new Dictionary<string, string>(),
+            SecureProperties: new Dictionary<string, SensitiveBytes>(),
+            LicenseAccepted: true);
+
+        var step = new PlanStep(new FalkForge.Engine.Planning.Planner(), channel);
+        var result = await step.ExecuteAsync(ctx, request, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task PlanStep_LicenseRequired_NotAccepted_Fails()
+    {
+        var manifest = ManifestWithLicense();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Detection = new FalkForge.Engine.Detection.DetectionResult(
+                InstallState.NotInstalled, null, [])
+        };
+
+        // LicenseAccepted not set (null)
+        var step = new PlanStep(new FalkForge.Engine.Planning.Planner(), channel);
+        var result = await step.ExecuteAsync(ctx, InstallRequest(), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.EngineError, result.Error.Kind);
+        Assert.Contains("License", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PlanStep_LicenseRequired_SilentMode_AutoAccepts()
+    {
+        var manifest = ManifestWithLicense();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Detection = new FalkForge.Engine.Detection.DetectionResult(
+                InstallState.NotInstalled, null, []),
+            SilentMode = true   // ← silent: no UI needed
+        };
+
+        // LicenseAccepted not explicitly set — silent mode auto-accepts
+        var step = new PlanStep(new FalkForge.Engine.Planning.Planner(), channel);
+        var result = await step.ExecuteAsync(ctx, InstallRequest(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task PlanStep_NoLicenseFile_SkipsGate()
+    {
+        // Manifest with no LicenseFile — gate must be skipped regardless of LicenseAccepted
+        var manifest = SimpleManifest(); // LicenseFile is null by default
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Detection = new FalkForge.Engine.Detection.DetectionResult(
+                InstallState.NotInstalled, null, [])
+        };
+
+        // LicenseAccepted = false but manifest has no license — should still succeed
+        var request = new UiRequest.Plan(
+            InstallAction.Install,
+            InstallDirectory: null,
+            FeatureSelections: new Dictionary<string, bool>(),
+            Properties: new Dictionary<string, string>(),
+            SecureProperties: new Dictionary<string, SensitiveBytes>(),
+            LicenseAccepted: false);
+
+        var step = new PlanStep(new FalkForge.Engine.Planning.Planner(), channel);
+        var result = await step.ExecuteAsync(ctx, request, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // PlanStep
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -668,6 +767,19 @@ public sealed class PipelinePhaseStepTests
             new ExeExecutor(runner),
             new NetRuntimeExecutor(runner));
     }
+
+    private static InstallerManifest ManifestWithLicense() =>
+        new()
+        {
+            Name = "TestApp",
+            Manufacturer = "Acme",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerUser,
+            Packages = [MsiPackage("Pkg1")],
+            LicenseFile = "license.rtf"
+        };
 
     private static InstallPlan BuildPlanFor(PackageInfo pkg, PlanActionType actionType) =>
         new()

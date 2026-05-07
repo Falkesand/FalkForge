@@ -64,6 +64,13 @@ internal sealed class PipelineContext
     /// </summary>
     public string? PlanOnlyOutputPath { get; set; }
 
+    /// <summary>
+    /// When true the engine runs without UI interaction. License acceptance is
+    /// automatic and no prompts are shown. Set via
+    /// <see cref="InstallerPipelineBuilder.WithSilentMode"/>.
+    /// </summary>
+    public bool SilentMode { get; set; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Apply options — set at construction, consumed by ApplyStep
     // ──────────────────────────────────────────────────────────────────────────
