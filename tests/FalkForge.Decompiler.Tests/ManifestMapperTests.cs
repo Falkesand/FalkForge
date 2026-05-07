@@ -79,17 +79,24 @@ public sealed class ManifestMapperTests
     [Fact]
     public void Map_MapsPackages()
     {
-        var pkg = CreatePackageInfo(id: "mypkg", type: PackageType.MsiPackage, displayName: "My MSI");
+        var pkg = CreatePackageInfo(id: "mypkg", type: PackageType.MsiPackage, displayName: "My MSI",
+            sourcePath: "my-installer.msi");
         var manifest = CreateManifest(packages: [pkg]);
-        var toc = new[] { CreateTocEntry(packageId: "mypkg") };
+        var toc = new[] { CreateTocEntry(packageId: "mypkg", originalSize: 512, sha256Hash: "abc123") };
 
         var result = ManifestMapper.Map(manifest, toc);
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value.Packages);
-        Assert.Equal("mypkg", result.Value.Packages[0].Id);
-        Assert.Equal(BundlePackageType.MsiPackage, result.Value.Packages[0].Type);
-        Assert.Equal("My MSI", result.Value.Packages[0].DisplayName);
+        var mapped = result.Value.Packages[0];
+        Assert.Equal("mypkg", mapped.Id);
+        Assert.Equal(BundlePackageType.MsiPackage, mapped.Type);
+        Assert.Equal("My MSI", mapped.DisplayName);
+        Assert.Equal("my-installer.msi", mapped.SourcePath);
+        Assert.True(mapped.Vital); // default Vital=true from CreatePackageInfo
+        Assert.Null(mapped.RemotePayload); // no DownloadUrl → no remote payload
+        Assert.Empty(mapped.Properties);
+        Assert.Empty(mapped.ExitCodes);
     }
 
     [Theory]

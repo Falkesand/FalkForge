@@ -62,6 +62,11 @@ public sealed class WixBundleDecompilerTests
         Assert.Equal("Test WiX Bundle", result.Value.Name);
         Assert.Equal("Test Corp", result.Value.Manufacturer);
         Assert.Equal("2.0.0", result.Value.Version);
+        Assert.Equal(TestBundleId, result.Value.BundleId);
+        Assert.Equal(InstallScope.PerMachine, result.Value.Scope);
+        Assert.Empty(result.Value.Packages);
+        Assert.Empty(result.Value.Chain);
+        Assert.Empty(result.Value.RelatedBundles);
     }
 
     [Fact]
@@ -151,6 +156,10 @@ public sealed class WixBundleDecompilerTests
         Assert.Equal("Acme Inc", result.Value.Manufacturer);
         Assert.Equal("5.1.0", result.Value.Version);
         Assert.Equal(TestBundleId, result.Value.BundleId);
+        Assert.Equal(InstallScope.PerMachine, result.Value.Scope);
+        Assert.Empty(result.Value.Packages);
+        Assert.Empty(result.Value.RelatedBundles);
+        Assert.Empty(result.Value.Containers);
     }
 
     [Fact]

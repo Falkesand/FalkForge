@@ -54,6 +54,11 @@ public sealed class BundleDecompilerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Test Bundle", result.Value.Name);
+        Assert.Equal("Test Corp", result.Value.Manufacturer);
+        Assert.Equal("1.0.0", result.Value.Version);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), result.Value.BundleId);
+        Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), result.Value.UpgradeCode);
+        Assert.Equal(InstallScope.PerMachine, result.Value.Scope);
     }
 
     [Fact]
@@ -299,6 +304,12 @@ public sealed class BundleDecompilerTests
         Assert.Empty(result.Value.Chain);
         Assert.Empty(result.Value.RelatedBundles);
         Assert.Empty(result.Value.Containers);
+        Assert.Equal("Test Bundle", result.Value.Name);
+        Assert.Equal("Test Corp", result.Value.Manufacturer);
+        Assert.Equal("1.0.0", result.Value.Version);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), result.Value.BundleId);
+        Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), result.Value.UpgradeCode);
+        Assert.Equal(InstallScope.PerMachine, result.Value.Scope);
     }
 
     [Fact]

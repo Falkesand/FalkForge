@@ -18,6 +18,14 @@ public sealed class MsiDecompilerTests
         Assert.Equal("Test Application", result.Value.Name);
         Assert.Equal("Contoso", result.Value.Manufacturer);
         Assert.Equal(new Version(2, 1, 0), result.Value.Version);
+        Assert.Equal(Guid.Parse("87654321-4321-4321-4321-210987654321"), result.Value.ProductCode);
+        Assert.Equal(Guid.Parse("12345678-1234-1234-1234-123456789012"), result.Value.UpgradeCode);
+        Assert.Equal(InstallScope.PerMachine, result.Value.Scope);
+        Assert.Single(result.Value.Files);
+        Assert.Single(result.Value.Features);
+        Assert.Single(result.Value.RegistryEntries);
+        Assert.Empty(result.Value.Services);
+        Assert.Empty(result.Value.Shortcuts);
     }
 
     [Fact]
