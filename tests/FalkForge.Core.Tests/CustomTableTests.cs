@@ -1,3 +1,4 @@
+using System.Linq;
 using FalkForge.Builders;
 using FalkForge.Models;
 using FalkForge.Testing;
@@ -417,5 +418,164 @@ public sealed class CustomTableTests
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.Code == "CTB010");
+    }
+
+    // CTB011 — sensitive MSI property reference in custom table column value
+
+    [Theory]
+    [InlineData("[PASSWORD]")]
+    [InlineData("[SECRET]")]
+    [InlineData("[CREDENTIAL]")]
+    [InlineData("[TOKEN]")]
+    [InlineData("[APIKEY]")]
+    [InlineData("[PASSPHRASE]")]
+    [InlineData("[PIN]")]
+    public void Validate_CustomTableValue_SensitiveKeywordExact_ProducesCTB011(string propertyRef)
+    {
+        var package = CreatePackageWithCustomTableValue(propertyRef);
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Theory]
+    [InlineData("[SERVICEPASSWORD]")]
+    [InlineData("[DB_SECRET]")]
+    [InlineData("[APP_TOKEN]")]
+    [InlineData("[USER_CREDENTIAL]")]
+    [InlineData("[MY_APIKEY]")]
+    [InlineData("[WIFI_PASSPHRASE]")]
+    [InlineData("[USER_PIN]")]
+    public void Validate_CustomTableValue_SensitiveKeywordSubstring_ProducesCTB011(string propertyRef)
+    {
+        var package = CreatePackageWithCustomTableValue(propertyRef);
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Theory]
+    [InlineData("[password]")]
+    [InlineData("[ServicePassword]")]
+    [InlineData("[DB_Secret]")]
+    public void Validate_CustomTableValue_SensitiveKeywordLowercase_ProducesCTB011(string propertyRef)
+    {
+        // Rule is case-insensitive — ToUpperInvariant applied before keyword match.
+        var package = CreatePackageWithCustomTableValue(propertyRef);
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Theory]
+    [InlineData("[INSTALLDIR]")]
+    [InlineData("[ProductName]")]
+    [InlineData("[MANUFACTURER]")]
+    [InlineData("[ALLUSERS]")]
+    public void Validate_CustomTableValue_NonSensitiveProperty_NoCTB011(string propertyRef)
+    {
+        var package = CreatePackageWithCustomTableValue(propertyRef);
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Fact]
+    public void Validate_CustomTableValue_PlainString_NoCTB011()
+    {
+        var package = CreatePackageWithCustomTableValue("just a plain value");
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Fact]
+    public void Validate_CustomTableValue_MixedContent_SensitiveProperty_ProducesCTB011()
+    {
+        // Sensitive property embedded in a connection string fragment.
+        var package = CreatePackageWithCustomTableValue("Server=[HOST];Password=[DB_PASSWORD]");
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Fact]
+    public void Validate_CustomTableValue_NonStringColumn_NoCTB011()
+    {
+        // Int32 columns cannot carry property references — rule only fires for string values.
+        var package = new PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(),
+            ProductCode = Guid.NewGuid(),
+            CustomTables =
+            [
+                new CustomTableModel
+                {
+                    Name = "NumTable",
+                    Columns =
+                    [
+                        new CustomTableColumnModel { Name = "Id", Type = CustomTableColumnType.Int32, PrimaryKey = true }
+                    ],
+                    Rows =
+                    [
+                        new Dictionary<string, object?> { ["Id"] = 42 }
+                    ]
+                }
+            ],
+            Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
+        };
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Code == "CTB011");
+    }
+
+    [Fact]
+    public void Validate_CustomTableValue_MultipleSensitiveProperties_EmitsOneCTB011PerProperty()
+    {
+        // Two sensitive refs in same cell → two CTB011 warnings (one per property match).
+        var package = CreatePackageWithCustomTableValue("[DB_PASSWORD] and [APP_TOKEN]");
+
+        var result = InstallerValidator.Validate(package);
+
+        Assert.Equal(2, result.Warnings.Count(w => w.Code == "CTB011"));
+    }
+
+    private static PackageModel CreatePackageWithCustomTableValue(object? cellValue)
+    {
+        return new PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(),
+            ProductCode = Guid.NewGuid(),
+            CustomTables =
+            [
+                new CustomTableModel
+                {
+                    Name = "Config",
+                    Columns =
+                    [
+                        new CustomTableColumnModel { Name = "Id",    Type = CustomTableColumnType.String, PrimaryKey = true },
+                        new CustomTableColumnModel { Name = "Value", Type = CustomTableColumnType.String, Nullable = true }
+                    ],
+                    Rows =
+                    [
+                        new Dictionary<string, object?> { ["Id"] = "row1", ["Value"] = cellValue }
+                    ]
+                }
+            ],
+            Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
+        };
     }
 }
