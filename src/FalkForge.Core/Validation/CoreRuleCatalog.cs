@@ -38,7 +38,8 @@ public static class CoreRuleCatalog
         all.AddRange(FeatureRules.All);
         all.AddRange(ServiceRules.All);
         all.AddRange(MiscRules.All);
-        // CustomTableRules, remaining slices appended subsequently.
+        all.AddRange(CustomTableRules.All);
+        all.AddRange(RemainingRules.All);
         return new RuleRegistry(all.ToImmutable());
     }
 }
