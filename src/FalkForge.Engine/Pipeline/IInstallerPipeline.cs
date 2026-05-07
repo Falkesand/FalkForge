@@ -25,6 +25,14 @@ public interface IInstallerPipeline : IAsyncDisposable
     Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct);
 
     /// <summary>
+    /// Runs the optional Elevate phase. Call between <see cref="PlanAsync"/> and
+    /// <see cref="ApplyAsync"/> when the manifest scope requires administrator rights.
+    /// No-op (returns success) when no elevation step is configured.
+    /// Returns <see cref="ErrorKind.ElevationError"/> on companion launch failure.
+    /// </summary>
+    Task<Result<Unit>> ElevateAsync(CancellationToken ct);
+
+    /// <summary>
     /// Runs the Apply phase. Requires a prior successful <see cref="PlanAsync"/>.
     /// Returns <see cref="ErrorKind.EngineError"/> if called out of sequence.
     /// </summary>

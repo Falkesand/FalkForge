@@ -36,3 +36,14 @@ internal interface IRollbackStep
     /// <summary>Undoes previously journaled operations in reverse order.</summary>
     Task<Result<Unit>> ExecuteAsync(PipelineContext ctx, CancellationToken ct);
 }
+
+/// <summary>
+/// Single-responsibility step executed inside the Elevate phase.
+/// Launches the elevated companion and stores the connected gateway on
+/// <see cref="PipelineContext.ElevationGateway"/>.
+/// </summary>
+internal interface IElevateStep
+{
+    /// <summary>Establishes the elevation channel and populates PipelineContext.</summary>
+    Task<Result<Unit>> ExecuteAsync(PipelineContext ctx, CancellationToken ct);
+}

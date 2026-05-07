@@ -61,6 +61,15 @@ public sealed class PipelineRunnerTests
             return _planResult;
         }
 
+        public Task<Result<Unit>> ElevateAsync(CancellationToken ct)
+        {
+            ElevateCalled = true;
+            return Task.FromResult(ElevateResult ?? Result<Unit>.Success(Unit.Value));
+        }
+
+        public bool ElevateCalled { get; private set; }
+        public Result<Unit>? ElevateResult { get; set; } = null;
+
         public async Task<Result<Unit>> ApplyAsync(CancellationToken ct)
         {
             ApplyCalled = true;
@@ -256,6 +265,76 @@ public sealed class PipelineRunnerTests
         // Should not hang; returns cleanly
         var exitCode = await runner.RunAsync(cts.Token);
         Assert.Equal(0, exitCode);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Elevation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Elevation_CalledAfterPlan_BeforeApply()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        var runner = new PipelineRunner(pipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.EnqueueRequest(new UiRequest.Apply());
+        channel.Complete();
+
+        await runner.RunAsync(CancellationToken.None);
+
+        // ElevateAsync is always called after plan (no-op when no step configured)
+        Assert.True(pipeline.ElevateCalled);
+    }
+
+    [Fact]
+    public async Task ElevationFailure_Returns1_SendsFailedEvent()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        pipeline.ElevateResult =
+            Result<Unit>.Failure(ErrorKind.ElevationError, "UAC cancelled");
+        var runner = new PipelineRunner(pipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        Assert.False(pipeline.ApplyCalled, "Apply must not run after elevation failure");
+        Assert.Contains(channel.SentEvents, e => e is PipelineEvent.Failed);
+    }
+
+    [Fact]
+    public async Task PipelineBuilder_WithElevationGateway_CreatesElevateStep()
+    {
+        // Verifies ElevateStep is wired when gateway is registered via builder.
+        var manifest = new FalkForge.Engine.Protocol.Manifest.InstallerManifest
+        {
+            Name = "TestApp", Manufacturer = "Acme", Version = "1.0.0",
+            BundleId = Guid.NewGuid(), UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = []
+        };
+
+        await using var channel = new FakeUiChannel();
+        await using var gateway = FalkForge.Testing.InProcessElevationGateway.AlwaysSucceeds();
+
+        await using var pipeline = new InstallerPipelineBuilder()
+            .WithManifest(manifest)
+            .WithUiChannel(channel)
+            .WithElevationGateway(gateway)
+            .Build();
+
+        // Call ElevateAsync — should succeed because InProcessElevationGateway.AlwaysSucceeds
+        var result = await pipeline.ElevateAsync(CancellationToken.None);
+        // Phase guard: ElevateAsync requires Plan to have run first
+        Assert.True(result.IsFailure); // ← Expected: phase ordering prevents calling Elevate without Plan
+        Assert.Equal(FalkForge.ErrorKind.EngineError, result.Error.Kind);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

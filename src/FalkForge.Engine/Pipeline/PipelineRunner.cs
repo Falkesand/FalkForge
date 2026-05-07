@@ -102,6 +102,18 @@ public sealed class PipelineRunner
                             return 0;
                         }
 
+                        // Elevation: run automatically after Plan (no-op when no gateway configured).
+                        _logger?.Info("PipelineRunner", "Running elevation phase");
+                        var elevateResult = await _pipeline.ElevateAsync(ct);
+                        if (elevateResult.IsFailure)
+                        {
+                            _logger?.Error("PipelineRunner", $"Elevation failed: {elevateResult.Error.Message}");
+                            await _uiChannel.SendAsync(
+                                new PipelineEvent.Failed(elevateResult.Error.Kind, elevateResult.Error.Message), ct);
+                            await SendShutdownAsync(ct);
+                            return 1;
+                        }
+
                         break;
 
                     case UiRequest.Apply:

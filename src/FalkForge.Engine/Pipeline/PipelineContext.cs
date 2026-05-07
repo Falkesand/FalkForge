@@ -95,6 +95,16 @@ internal sealed class PipelineContext
     public IRestartManager? RestartManager { get; set; }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Populated by ElevateStep
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The elevation gateway after a successful <c>ElevateStep</c>.
+    /// Null when elevation was not required (PerUser) or not yet started.
+    /// </summary>
+    public IElevatedCommandGateway? ElevationGateway { get; set; }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Populated by ApplyStep
     // ──────────────────────────────────────────────────────────────────────────
 

@@ -13,6 +13,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     // ──────────────────────────────────────────────────────────────────────────
     private readonly IDetectStep? _detectStep;
     private readonly IPlanStep? _planStep;
+    private readonly IElevateStep? _elevateStep;
     private readonly IApplyStep? _applyStep;
     private readonly IRollbackStep? _rollbackStep;
 
@@ -24,7 +25,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     // ──────────────────────────────────────────────────────────────────────────
     // Phase state machine
     // ──────────────────────────────────────────────────────────────────────────
-    private enum Phase { Initial, Detected, Planned, Applied }
+    private enum Phase { Initial, Detected, Planned, Elevated, Applied }
 
     private Phase _phase = Phase.Initial;
     private bool _disposed;
@@ -32,12 +33,14 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     internal InstallerPipeline(
         IDetectStep? detectStep,
         IPlanStep? planStep,
+        IElevateStep? elevateStep,
         IApplyStep? applyStep,
         IRollbackStep? rollbackStep,
         FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null)
     {
         _detectStep = detectStep;
         _planStep = planStep;
+        _elevateStep = elevateStep;
         _applyStep = applyStep;
         _rollbackStep = rollbackStep;
 
@@ -91,14 +94,36 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     }
 
     /// <inheritdoc/>
-    public async Task<Result<Unit>> ApplyAsync(CancellationToken ct)
+    public async Task<Result<Unit>> ElevateAsync(CancellationToken ct)
     {
         if (_disposed)
             return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
 
         if (_phase is not Phase.Planned)
             return Result<Unit>.Failure(ErrorKind.EngineError,
-                "ApplyAsync requires a prior successful PlanAsync.");
+                "ElevateAsync requires a prior successful PlanAsync.");
+
+        if (_elevateStep is not null)
+        {
+            var result = await _elevateStep.ExecuteAsync(_ctx, ct);
+            if (result.IsFailure)
+                return result;
+        }
+
+        _phase = Phase.Elevated;
+        return Unit.Value;
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<Unit>> ApplyAsync(CancellationToken ct)
+    {
+        if (_disposed)
+            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
+
+        // Allow Apply from Planned (PerUser, no elevation) or Elevated (PerMachine).
+        if (_phase is not Phase.Planned and not Phase.Elevated)
+            return Result<Unit>.Failure(ErrorKind.EngineError,
+                "ApplyAsync requires a prior successful PlanAsync (or ElevateAsync for PerMachine).");
 
         if (_applyStep is not null)
         {

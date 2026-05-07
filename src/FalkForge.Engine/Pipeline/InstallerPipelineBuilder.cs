@@ -188,6 +188,10 @@ public sealed class InstallerPipelineBuilder
             ? new PlanStep(new Planner(), uiChannel, _variableStore)
             : null;
 
+        IElevateStep? elevateStep = _elevationGateway is not null
+            ? new ElevateStep(_elevationGateway, uiChannel)
+            : null;
+
         IApplyStep? applyStep = (_packageExecutor is not null && _journalStore is not null)
             ? new ApplyStep(_packageExecutor, _journalStore, uiChannel)
             : null;
@@ -200,6 +204,6 @@ public sealed class InstallerPipelineBuilder
                 _logger)
             : null;
 
-        return new InstallerPipeline(detectStep, planStep, applyStep, rollbackStep, _manifest);
+        return new InstallerPipeline(detectStep, planStep, elevateStep, applyStep, rollbackStep, _manifest);
     }
 }
