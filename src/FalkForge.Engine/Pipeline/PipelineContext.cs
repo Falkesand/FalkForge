@@ -1,8 +1,10 @@
 namespace FalkForge.Engine.Pipeline;
 
 using FalkForge.Engine.Detection;
+using FalkForge.Engine.Download;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Engine.RestartManager;
 
 /// <summary>
 /// Mutable state bag threaded through all pipeline phase steps.
@@ -34,6 +36,12 @@ internal sealed class PipelineContext
     /// </summary>
     public IReadOnlyList<RelatedBundleInfo> RelatedBundles { get; set; } = [];
 
+    /// <summary>
+    /// Available update discovered during detection, or null when no update feed
+    /// is configured or the current version is up to date.
+    /// </summary>
+    public UpdateCheckResult? AvailableUpdate { get; set; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by PlanStep
     // ──────────────────────────────────────────────────────────────────────────
@@ -43,6 +51,41 @@ internal sealed class PipelineContext
 
     /// <summary>The installation plan produced by <see cref="PlanStep"/>.</summary>
     public InstallPlan? Plan { get; set; }
+
+    /// <summary>
+    /// When true, <see cref="PipelineRunner"/> exits after the Plan phase without
+    /// invoking Apply. Set via <see cref="InstallerPipelineBuilder.WithPlanOnlyMode"/>.
+    /// </summary>
+    public bool IsPlanOnly { get; set; }
+
+    /// <summary>
+    /// Optional path for plan JSON output in plan-only mode.
+    /// When null, the plan JSON is written to stdout.
+    /// </summary>
+    public string? PlanOnlyOutputPath { get; set; }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Apply options — set at construction, consumed by ApplyStep
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// When true, <see cref="ApplyStep"/> simulates execution instead of running
+    /// real installers. All actions are logged; nothing is installed.
+    /// </summary>
+    public bool IsDryRun { get; set; }
+
+    /// <summary>
+    /// Path for the dry-run simulation log. Only consulted when <see cref="IsDryRun"/> is true.
+    /// When null the log is written to stdout via <see cref="IUiChannel"/>.
+    /// </summary>
+    public string? DryRunLogPath { get; set; }
+
+    /// <summary>
+    /// Optional Restart Manager used by <see cref="ApplyStep"/> to gracefully
+    /// shut down processes holding files in use before installation.
+    /// Null means Restart Manager integration is disabled.
+    /// </summary>
+    public IRestartManager? RestartManager { get; set; }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ApplyStep

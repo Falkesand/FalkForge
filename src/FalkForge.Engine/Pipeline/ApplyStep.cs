@@ -4,11 +4,14 @@ using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.RestartManager;
 
 /// <summary>
 /// Apply phase step. Executes each <see cref="PlanAction"/> in the current plan
 /// using <see cref="PackageExecutor"/>, journals each installed package for
 /// potential rollback, and reports progress via <see cref="IUiChannel"/>.
+/// Supports dry-run simulation (from <see cref="PipelineContext.IsDryRun"/>) and
+/// optional Restart Manager integration (from <see cref="PipelineContext.RestartManager"/>).
 /// </summary>
 internal sealed class ApplyStep : IApplyStep
 {
@@ -36,7 +39,31 @@ internal sealed class ApplyStep : IApplyStep
             return Result<Unit>.Failure(ErrorKind.EngineError,
                 "ApplyStep: plan not populated — PlanStep must run first.");
 
-        var actions = ctx.Plan.Actions;
+        // Restart Manager: start session and shut down conflicting processes before apply.
+        // Best-effort — RM failures are logged but never abort the installation.
+        var rmShutdownPerformed = false;
+        if (ctx.RestartManager is not null)
+        {
+            rmShutdownPerformed = await StartRestartManagerAsync(ctx, ct);
+        }
+
+        try
+        {
+            return await ExecuteActionsAsync(ctx, ct);
+        }
+        finally
+        {
+            // Restart Manager: always restart processes and end session, even on failure.
+            if (ctx.RestartManager is not null)
+            {
+                FinishRestartManager(ctx, rmShutdownPerformed);
+            }
+        }
+    }
+
+    private async Task<Result<Unit>> ExecuteActionsAsync(PipelineContext ctx, CancellationToken ct)
+    {
+        var actions = ctx.Plan!.Actions;
         var total = actions.Count;
 
         for (var i = 0; i < total; i++)
@@ -66,18 +93,21 @@ internal sealed class ApplyStep : IApplyStep
             });
 
             var result = await _executor.ExecuteAsync(
-                action, isDryRun: false, dryRunLogPath: null, ct, packageProgress);
+                action, ctx.IsDryRun, ctx.DryRunLogPath, ct, packageProgress);
 
             if (result.IsFailure)
                 return Result<Unit>.Failure(result.Error);
 
-            // Journal the successful install for rollback
-            var journalEntry = BuildJournalEntry(action);
-            if (journalEntry is not null)
+            // Skip journaling in dry-run mode — nothing was actually installed.
+            if (!ctx.IsDryRun)
             {
-                var appendResult = _journalStore.Append(journalEntry);
-                if (appendResult.IsFailure)
-                    return Result<Unit>.Failure(appendResult.Error);
+                var journalEntry = BuildJournalEntry(action);
+                if (journalEntry is not null)
+                {
+                    var appendResult = _journalStore.Append(journalEntry);
+                    if (appendResult.IsFailure)
+                        return Result<Unit>.Failure(appendResult.Error);
+                }
             }
 
             if (result.Value.Behavior
@@ -96,6 +126,97 @@ internal sealed class ApplyStep : IApplyStep
         await _uiChannel.SendAsync(new PipelineEvent.Progress(100, null), ct);
 
         return Unit.Value;
+    }
+
+    /// <summary>
+    /// Starts a Restart Manager session, registers package paths, and shuts down
+    /// conflicting processes. Returns true if shutdown was performed (so they can
+    /// be restarted in the finally block). Best-effort: never throws.
+    /// </summary>
+    private async Task<bool> StartRestartManagerAsync(PipelineContext ctx, CancellationToken ct)
+    {
+        var rm = ctx.RestartManager!;
+        try
+        {
+            var startResult = rm.StartSession();
+            if (startResult.IsFailure)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        $"Restart Manager session start failed: {startResult.Error.Message}"),
+                    ct);
+                return false;
+            }
+
+            // Register all package source paths
+            var paths = CollectSourcePaths(ctx.Plan!);
+            if (paths.Count > 0)
+            {
+                var regResult = rm.RegisterResources(paths);
+                if (regResult.IsFailure)
+                {
+                    await _uiChannel.SendAsync(
+                        new PipelineEvent.Log(LogLevel.Warning,
+                            $"Restart Manager resource registration failed: {regResult.Error.Message}"),
+                        ct);
+                    return false;
+                }
+            }
+
+            var affectedResult = rm.GetAffectedProcesses();
+            if (affectedResult.IsFailure || affectedResult.Value.Count == 0)
+                return false;
+
+            var shutdownResult = rm.ShutdownProcesses();
+            if (shutdownResult.IsFailure)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        $"Restart Manager process shutdown failed: {shutdownResult.Error.Message}"),
+                    ct);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            await _uiChannel.SendAsync(
+                new PipelineEvent.Log(LogLevel.Warning,
+                    $"Restart Manager unexpected error: {ex.Message}"),
+                ct);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Restarts previously shut down processes and ends the RM session. Always called
+    /// in a finally block regardless of installation outcome.
+    /// </summary>
+    private static void FinishRestartManager(PipelineContext ctx, bool shutdownPerformed)
+    {
+        var rm = ctx.RestartManager!;
+        try
+        {
+            if (shutdownPerformed)
+                rm.RestartProcesses();
+        }
+        finally
+        {
+            rm.EndSession();
+        }
+    }
+
+    private static List<string> CollectSourcePaths(InstallPlan plan)
+    {
+        var paths = new List<string>(plan.Actions.Count);
+        foreach (var action in plan.Actions)
+        {
+            if (!string.IsNullOrEmpty(action.Package.SourcePath))
+                paths.Add(action.Package.SourcePath);
+        }
+
+        return paths;
     }
 
     private static JournalEntry? BuildJournalEntry(PlanAction action)

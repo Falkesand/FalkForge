@@ -3,8 +3,10 @@ namespace FalkForge.Engine.Tests.Pipeline;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Engine.RestartManager;
 using FalkForge.Engine.Tests.Mocks;
 using FalkForge.Testing;
 using Xunit;
@@ -215,6 +217,141 @@ public sealed class PipelinePhaseStepTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.EngineError, result.Error.Kind);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ApplyStep — dry-run mode
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ApplyStep_DryRun_Succeeds_WithoutExecutingPackages()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        // Use an MSI package — in dry-run mode the real MSI executor must NOT be called.
+        var pkg = MsiPackage("DryRunPkg");
+        var plan = BuildPlanFor(pkg, PlanActionType.Install);
+        var ctx = new PipelineContext
+        {
+            Manifest = SimpleManifest(pkg),
+            Plan = plan,
+            IsDryRun = true   // ← key flag
+        };
+
+        var mockMsiApi = new MockMsiApi();
+        var executor = BuildExecutorWithMsiApi(mockMsiApi);
+        var step = new ApplyStep(executor, journalStore, channel);
+
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        // MSI API must not have been invoked
+        Assert.Equal(0, mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public async Task ApplyStep_DryRun_DoesNotJournalEntries()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        var pkg = MsiPackage("DryRunPkg", productCode: "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}");
+        var ctx = new PipelineContext
+        {
+            Manifest = SimpleManifest(pkg),
+            Plan = BuildPlanFor(pkg, PlanActionType.Install),
+            IsDryRun = true
+        };
+
+        var step = BuildApplyStep(channel, journalStore);
+        await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        // Nothing journaled in dry-run — nothing to roll back
+        Assert.Empty(journalStore.Entries);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ApplyStep — Restart Manager integration
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ApplyStep_WithRestartManager_AffectedProcesses_ShutdownAndRestart()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        var mockRm = new MockRestartManager()
+            .WithAffectedProcesses(
+                new FalkForge.Engine.RestartManager.RestartManagerProcess(
+                    1234, "notepad", "Notepad", CanBeRestarted: true));
+
+        var ctx = BuildApplyContext();
+        ctx.RestartManager = mockRm;
+
+        var step = BuildApplyStep(channel, journalStore);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(nameof(IRestartManager.StartSession), mockRm.CallLog);
+        Assert.Contains(nameof(IRestartManager.GetAffectedProcesses), mockRm.CallLog);
+        Assert.Contains(nameof(IRestartManager.ShutdownProcesses), mockRm.CallLog);
+        Assert.Contains(nameof(IRestartManager.RestartProcesses), mockRm.CallLog);
+        Assert.Contains(nameof(IRestartManager.EndSession), mockRm.CallLog);
+    }
+
+    [Fact]
+    public async Task ApplyStep_WithRestartManager_NoAffectedProcesses_SkipsShutdown()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        var mockRm = new MockRestartManager(); // no affected processes
+        var ctx = BuildApplyContext();
+        ctx.RestartManager = mockRm;
+
+        var step = BuildApplyStep(channel, journalStore);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(nameof(IRestartManager.ShutdownProcesses), mockRm.CallLog);
+        // EndSession still called
+        Assert.Contains(nameof(IRestartManager.EndSession), mockRm.CallLog);
+    }
+
+    [Fact]
+    public async Task ApplyStep_WithRestartManager_SessionStartFails_StillApplies()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        var mockRm = new MockRestartManager()
+            .WithStartSessionResult(
+                Result<Unit>.Failure(ErrorKind.PlatformError, "RM init failed"));
+        var ctx = BuildApplyContext();
+        ctx.RestartManager = mockRm;
+
+        var step = BuildApplyStep(channel, journalStore);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        // RM failure must not abort the installation
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ApplyStep_WithoutRestartManager_NoRmCallsAttempted()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        // No RestartManager on context
+        var ctx = BuildApplyContext();
+        Assert.Null(ctx.RestartManager);
+
+        var step = BuildApplyStep(channel, journalStore);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -459,18 +596,7 @@ public sealed class PipelinePhaseStepTests
         _ = productCode;
         var pkg = ExePackage("TestPkg");
         var manifest = SimpleManifest(pkg);
-        var plan = new FalkForge.Engine.Planning.InstallPlan
-        {
-            Actions =
-            [
-                new FalkForge.Engine.Planning.PlanAction
-                {
-                    PackageId = pkg.Id,
-                    ActionType = FalkForge.Engine.Planning.PlanActionType.Install,
-                    Package = pkg
-                }
-            ]
-        };
+        var plan = BuildPlanFor(pkg, PlanActionType.Install);
 
         return new PipelineContext
         {
@@ -525,4 +651,35 @@ public sealed class PipelinePhaseStepTests
 
         return new PackageExecutor(msiExec, msuExec, mspExec, bundleExec, exeExec, netExec);
     }
+
+    private static PackageExecutor BuildExecutorWithMsiApi(MockMsiApi msiApi)
+    {
+        // Inject a mock MSI API so tests can verify whether InstallProduct was called.
+        var msiExec = new MsiExecutor(
+            static () => null,    // elevation client
+            static () => null,    // elevation gateway
+            () => msiApi);        // MSI API factory
+        var runner = new MockProcessRunner().WithExitCode(0);
+        return new PackageExecutor(
+            msiExec,
+            new MsuExecutor(runner),
+            new MspExecutor(runner),
+            new BundleExecutor(runner),
+            new ExeExecutor(runner),
+            new NetRuntimeExecutor(runner));
+    }
+
+    private static InstallPlan BuildPlanFor(PackageInfo pkg, PlanActionType actionType) =>
+        new()
+        {
+            Actions =
+            [
+                new PlanAction
+                {
+                    PackageId = pkg.Id,
+                    ActionType = actionType,
+                    Package = pkg
+                }
+            ]
+        };
 }
