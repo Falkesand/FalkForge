@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
-using FalkForge.Decompiler.TableReaders;
+using FalkForge.Decompiler.Recipe;
+using FalkForge.Decompiler.Recipe.Schemas;
 using FalkForge.Models;
 
 namespace FalkForge.Decompiler;
@@ -67,154 +68,48 @@ public sealed class MsiDecompiler
 
     private static Result<PackageModel> DecompileFromAccess(IMsiTableAccess access)
     {
-        // Read all properties first for metadata
-        var propsResult = PropertyTableReader.ReadAll(access);
-        if (propsResult.IsFailure)
-            return Result<PackageModel>.Failure(propsResult.Error);
+        // Stage 1: read each table via the declarative schema engine
+        var propsResult          = TableReadEngine.ReadOne(PropertySchema.Schema,            access);
+        if (propsResult.IsFailure)          return Result<PackageModel>.Failure(propsResult.Error);
 
-        var allProperties = propsResult.Value;
+        var dirsResult           = TableReadEngine.ReadOne(DirectorySchema.Schema,           access);
+        if (dirsResult.IsFailure)           return Result<PackageModel>.Failure(dirsResult.Error);
 
-        // Read directory table and build resolver
-        var dirResult = DirectoryTableReader.Read(access);
-        if (dirResult.IsFailure)
-            return Result<PackageModel>.Failure(dirResult.Error);
+        var compsResult          = TableReadEngine.ReadOne(ComponentSchema.Schema,           access);
+        if (compsResult.IsFailure)          return Result<PackageModel>.Failure(compsResult.Error);
 
-        var directoryResolver = new DirectoryResolver(dirResult.Value);
+        var filesResult          = TableReadEngine.ReadOne(FileSchema.Schema,                access);
+        if (filesResult.IsFailure)          return Result<PackageModel>.Failure(filesResult.Error);
 
-        // Read components
-        var componentsResult = ComponentTableReader.Read(access);
-        if (componentsResult.IsFailure)
-            return Result<PackageModel>.Failure(componentsResult.Error);
+        var featResult           = TableReadEngine.ReadOne(FeatureSchema.Schema,             access);
+        if (featResult.IsFailure)           return Result<PackageModel>.Failure(featResult.Error);
 
-        // Build component-to-directory mapping
-        var componentDirectoryMap = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var comp in componentsResult.Value)
-        {
-            componentDirectoryMap[comp.ComponentName] = comp.DirectoryId;
-        }
+        var featCompResult       = TableReadEngine.ReadOne(FeatureComponentsSchema.Schema,   access);
+        if (featCompResult.IsFailure)       return Result<PackageModel>.Failure(featCompResult.Error);
 
-        // Read files
-        var filesResult = FileTableReader.Read(access);
-        if (filesResult.IsFailure)
-            return Result<PackageModel>.Failure(filesResult.Error);
+        var registryResult       = TableReadEngine.ReadOne(RegistrySchema.Schema,            access);
+        if (registryResult.IsFailure)       return Result<PackageModel>.Failure(registryResult.Error);
 
-        // Build component-to-condition mapping
-        var componentConditionMap = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var comp in componentsResult.Value)
-        {
-            componentConditionMap[comp.ComponentName] = comp.Condition;
-        }
+        var serviceResult        = TableReadEngine.ReadOne(ServiceSchema.Schema,             access);
+        if (serviceResult.IsFailure)        return Result<PackageModel>.Failure(serviceResult.Error);
 
-        // Map files to FileEntryModels
-        var fileEntries = new List<FileEntryModel>();
-        foreach (var file in filesResult.Value)
-        {
-            var directoryId = componentDirectoryMap.GetValueOrDefault(file.ComponentRef, "TARGETDIR");
-            var (root, relativePath) = directoryResolver.FindRootFolder(directoryId);
+        var shortcutResult       = TableReadEngine.ReadOne(ShortcutSchema.Schema,            access);
+        if (shortcutResult.IsFailure)       return Result<PackageModel>.Failure(shortcutResult.Error);
 
-            var installPath = root is not null
-                ? root / relativePath
-                : KnownFolder.ProgramFiles / relativePath;
+        var upgradeResult        = TableReadEngine.ReadOne(UpgradeSchema.Schema,             access);
+        if (upgradeResult.IsFailure)        return Result<PackageModel>.Failure(upgradeResult.Error);
 
-            // Check if this file is the key path for its component
-            var component = componentsResult.Value.Find(c => c.ComponentName == file.ComponentRef);
-            var isKeyPath = component?.KeyPath == file.FileKey;
-
-            componentConditionMap.TryGetValue(file.ComponentRef, out var condition);
-
-            fileEntries.Add(new FileEntryModel
-            {
-                SourcePath = file.FileName, // Best we can reconstruct
-                TargetDirectory = installPath,
-                FileName = file.FileName,
-                IsKeyPath = isKeyPath,
-                ComponentId = file.ComponentRef,
-                ComponentCondition = condition
-            });
-        }
-
-        // Read features
-        var featuresResult = FeatureTableReader.Read(access);
-        if (featuresResult.IsFailure)
-            return Result<PackageModel>.Failure(featuresResult.Error);
-
-        // Read registry entries
-        var registryResult = RegistryTableReader.Read(access);
-        if (registryResult.IsFailure)
-            return Result<PackageModel>.Failure(registryResult.Error);
-
-        // Read services
-        var servicesResult = ServiceTableReader.Read(access);
-        if (servicesResult.IsFailure)
-            return Result<PackageModel>.Failure(servicesResult.Error);
-
-        // Read shortcuts
-        var shortcutsResult = ShortcutTableReader.Read(access);
-        if (shortcutsResult.IsFailure)
-            return Result<PackageModel>.Failure(shortcutsResult.Error);
-
-        // Read user-defined properties
-        var userPropertiesResult = PropertyTableReader.Read(access);
-        if (userPropertiesResult.IsFailure)
-            return Result<PackageModel>.Failure(userPropertiesResult.Error);
-
-        // Read upgrade information
-        var upgradeReadResult = UpgradeTableReader.Read(access);
-        if (upgradeReadResult.IsFailure)
-            return Result<PackageModel>.Failure(upgradeReadResult.Error);
-
-        // Extract metadata from properties
-        var name = allProperties.TryGetValue("ProductName", out var pn) ? pn : "Unknown";
-        var manufacturer = allProperties.TryGetValue("Manufacturer", out var mfr) ? mfr : "Unknown";
-        var versionStr = allProperties.TryGetValue("ProductVersion", out var pv) ? pv : "1.0.0";
-        _ = Version.TryParse(versionStr, out var version);
-        version ??= new Version(1, 0, 0);
-
-        allProperties.TryGetValue("UpgradeCode", out var upgradeCodeStr);
-        Guid.TryParse(upgradeCodeStr, out var upgradeCode);
-        allProperties.TryGetValue("ProductCode", out var productCodeStr);
-        Guid.TryParse(productCodeStr, out var productCode);
-
-        // Determine install scope from ALLUSERS property
-        var scope = InstallScope.PerMachine;
-        if (allProperties.TryGetValue("ALLUSERS", out var allUsers))
-        {
-            if (allUsers == "2" || string.IsNullOrEmpty(allUsers))
-                scope = InstallScope.PerUser;
-        }
-
-        // Build install directory from INSTALLFOLDER or INSTALLDIR or first custom directory
-        InstallPath? defaultInstallDir = null;
-        foreach (var dirName in new[] { "INSTALLFOLDER", "INSTALLDIR", "APPDIR" })
-        {
-            if (dirResult.Value.Exists(d => d.DirectoryId == dirName))
-            {
-                var (root, relPath) = directoryResolver.FindRootFolder(dirName);
-                if (root is not null)
-                {
-                    defaultInstallDir = root / relPath;
-                    break;
-                }
-            }
-        }
-
-        return new PackageModel
-        {
-            Name = name,
-            Manufacturer = manufacturer,
-            Version = version,
-            UpgradeCode = upgradeCode,
-            ProductCode = productCode,
-            Scope = scope,
-            DefaultInstallDirectory = defaultInstallDir,
-            Files = fileEntries,
-            Features = featuresResult.Value,
-            RegistryEntries = registryResult.Value,
-            Services = servicesResult.Value,
-            Shortcuts = shortcutsResult.Value,
-            Properties = userPropertiesResult.Value,
-            MajorUpgrade = upgradeReadResult.Value.MajorUpgrade,
-            Downgrade = upgradeReadResult.Value.Downgrade
-        };
+        // Stage 2: pure cross-platform reconstruction
+        return MsiPackageReconstructor.Rebuild(
+            propsResult.Value,
+            dirsResult.Value,
+            compsResult.Value,
+            filesResult.Value,
+            featResult.Value,
+            featCompResult.Value,
+            registryResult.Value,
+            serviceResult.Value,
+            shortcutResult.Value,
+            upgradeResult.Value);
     }
 }
