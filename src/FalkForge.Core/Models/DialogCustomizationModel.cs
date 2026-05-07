@@ -5,8 +5,8 @@ namespace FalkForge.Models;
 /// <summary>
 /// Immutable customization model applied to the stock MSI dialog templates. Branding
 /// (banner, dialog bitmap, header icon, window title), per-button label overrides,
-/// and per-stock-dialog suppression are plumbed through this record. The composer
-/// reads these values when emitting the final <see cref="MsiDialogModel"/> set.
+/// per-stock-dialog suppression, and extension step insertions are plumbed through this
+/// record. The composer reads these values when emitting the final <see cref="MsiDialogModel"/> set.
 /// </summary>
 public sealed record DialogCustomizationModel
 {
@@ -29,7 +29,31 @@ public sealed record DialogCustomizationModel
     /// <summary>Set of stock dialogs to suppress entirely.</summary>
     public ImmutableHashSet<StockDialog> SuppressedDialogs { get; init; }
         = ImmutableHashSet<StockDialog>.Empty;
+
+    /// <summary>
+    /// Ordered list of extension-contributed dialog steps to insert into the flow.
+    /// Each entry names a registered <c>IDialogStepBuilder</c> and the stock dialog
+    /// after which the step should be inserted.
+    /// Validated at compile time: DLG001 rejects unknown step names; DLG002 rejects
+    /// suppressions that break the navigation chain.
+    /// </summary>
+    public ImmutableArray<InsertedDialogStep> InsertedSteps { get; init; }
+        = ImmutableArray<InsertedDialogStep>.Empty;
 }
+
+/// <summary>
+/// Describes a single extension-contributed dialog step insertion: the step builder name
+/// and the stock dialog after which the step should appear in the wizard sequence.
+/// </summary>
+/// <param name="StepName">
+/// Stable identifier that matches the <c>Name</c> property of the registered step builder.
+/// Validated at compile time by DLG001.
+/// </param>
+/// <param name="After">
+/// The stock dialog after which this step is inserted. Use <see cref="StockDialog.Extension"/>
+/// to append at the end of the sequence.
+/// </param>
+public readonly record struct InsertedDialogStep(string StepName, StockDialog After);
 
 /// <summary>Buttons whose labels can be overridden via <see cref="DialogCustomizationModel.ButtonLabelOverrides"/>.</summary>
 public enum DialogButton

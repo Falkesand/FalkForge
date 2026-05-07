@@ -14,6 +14,7 @@ public sealed class DialogCustomization
 {
     private readonly Dictionary<DialogButton, string> _buttonLabels = [];
     private readonly HashSet<StockDialog> _suppressed = [];
+    private readonly List<InsertedDialogStep> _insertedSteps = [];
     private string? _bannerBitmap;
     private string? _dialogBitmap;
     private string? _headerIcon;
@@ -67,6 +68,25 @@ public sealed class DialogCustomization
     }
 
     /// <summary>
+    /// Inserts an extension-contributed dialog step after the specified stock dialog.
+    /// The step must be registered via the compiler's dialog step registry before compile time.
+    /// DLG001 rejects unknown step names at compile time.
+    /// </summary>
+    /// <param name="stepName">
+    /// Stable identifier matching the registered step builder's <c>Name</c> property.
+    /// </param>
+    /// <param name="after">
+    /// The stock dialog after which this step appears. Use <see cref="StockDialog.Extension"/>
+    /// to append at the end of the sequence.
+    /// </param>
+    public DialogCustomization InsertStep(string stepName, StockDialog after)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stepName);
+        _insertedSteps.Add(new InsertedDialogStep(stepName, after));
+        return this;
+    }
+
+    /// <summary>
     /// Freezes the current builder state into an immutable <see cref="DialogCustomizationModel"/>.
     /// Subsequent mutations of the builder do not affect a previously returned snapshot.
     /// </summary>
@@ -80,6 +100,7 @@ public sealed class DialogCustomization
             WindowTitle = _windowTitle,
             ButtonLabelOverrides = _buttonLabels.ToImmutableDictionary(),
             SuppressedDialogs = _suppressed.ToImmutableHashSet(),
+            InsertedSteps = _insertedSteps.ToImmutableArray(),
         };
     }
 }

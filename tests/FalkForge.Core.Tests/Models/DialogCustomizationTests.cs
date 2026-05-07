@@ -100,4 +100,62 @@ public sealed class DialogCustomizationTests
         Assert.Equal("Forward", second.ButtonLabelOverrides[DialogButton.Next]);
         Assert.Equal(2, second.SuppressedDialogs.Count);
     }
+
+    [Fact]
+    public void InsertStep_with_null_name_throws()
+    {
+        var c = new DialogCustomization();
+        Assert.Throws<ArgumentNullException>(() => c.InsertStep(null!, StockDialog.License));
+    }
+
+    [Fact]
+    public void InsertStep_with_whitespace_name_throws()
+    {
+        var c = new DialogCustomization();
+        Assert.Throws<ArgumentException>(() => c.InsertStep("   ", StockDialog.License));
+    }
+
+    [Fact]
+    public void InsertStep_records_step_in_model()
+    {
+        var c = new DialogCustomization()
+            .InsertStep("LicenseKeyDlg", StockDialog.License);
+
+        var model = c.ToModel();
+
+        Assert.Single(model.InsertedSteps);
+        Assert.Equal("LicenseKeyDlg", model.InsertedSteps[0].StepName);
+        Assert.Equal(StockDialog.License, model.InsertedSteps[0].After);
+    }
+
+    [Fact]
+    public void InsertStep_multiple_steps_preserves_order()
+    {
+        var c = new DialogCustomization()
+            .InsertStep("StepA", StockDialog.Welcome)
+            .InsertStep("StepB", StockDialog.License)
+            .InsertStep("StepC", StockDialog.License);
+
+        var model = c.ToModel();
+
+        Assert.Equal(3, model.InsertedSteps.Length);
+        Assert.Equal("StepA", model.InsertedSteps[0].StepName);
+        Assert.Equal("StepB", model.InsertedSteps[1].StepName);
+        Assert.Equal("StepC", model.InsertedSteps[2].StepName);
+    }
+
+    [Fact]
+    public void InsertStep_snapshot_is_independent_of_later_mutations()
+    {
+        var c = new DialogCustomization()
+            .InsertStep("StepA", StockDialog.License);
+
+        var first = c.ToModel();
+
+        c.InsertStep("StepB", StockDialog.Welcome);
+        var second = c.ToModel();
+
+        Assert.Single(first.InsertedSteps);
+        Assert.Equal(2, second.InsertedSteps.Length);
+    }
 }
