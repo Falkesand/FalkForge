@@ -42,7 +42,7 @@ public class MessageDeserializerFacadeTests
         var result = MessageDeserializer.Deserialize(bytes);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
     }
 
     [Fact]

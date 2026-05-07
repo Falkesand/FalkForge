@@ -75,7 +75,7 @@ public sealed class MessageCodecRegistryInstanceTests
         Assert.True(result.IsFailure);
         Assert.Contains("PlanBegin", result.Error.Message, StringComparison.Ordinal);
         Assert.Contains("5", result.Error.Message, StringComparison.Ordinal);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
     }
 
     [Fact]
