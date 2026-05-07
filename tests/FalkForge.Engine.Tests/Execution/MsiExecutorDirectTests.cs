@@ -268,4 +268,197 @@ public sealed class MsiExecutorDirectTests
         Assert.Contains("s3cret", mockApi.LastCommandLine);
         Assert.DoesNotContain("[DB_PASSWORD]", mockApi.LastCommandLine);
     }
+
+    // ── Property-value injection defense (direct execution path) ──────────────
+
+    [Theory]
+    [InlineData('"')]
+    [InlineData('&')]
+    [InlineData('|')]
+    [InlineData(';')]
+    [InlineData('>')]
+    [InlineData('<')]
+    public async Task DirectExecution_ProhibitedCharInPropertyValue_ReturnsSecurityError(char prohibited)
+    {
+        // Arrange: craft a value that embeds the prohibited character
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["MYAPP_PARAM"] = $"safe{prohibited}injected"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert: validation must block before any MSI API call
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("MYAPP_PARAM", result.Error.Message);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+        Assert.Equal(0, mockApi.SetInternalUICallCount);
+    }
+
+    [Theory]
+    [InlineData('"')]
+    [InlineData('&')]
+    [InlineData('|')]
+    [InlineData(';')]
+    [InlineData('>')]
+    [InlineData('<')]
+    public async Task DirectExecution_ProhibitedCharAtStartOfValue_ReturnsSecurityError(char prohibited)
+    {
+        // Arrange: prohibited char as first character (boundary position)
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["MYAPP_PARAM"] = $"{prohibited}suffix"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
+
+    [Theory]
+    [InlineData('"')]
+    [InlineData('&')]
+    [InlineData('|')]
+    [InlineData(';')]
+    [InlineData('>')]
+    [InlineData('<')]
+    public async Task DirectExecution_ProhibitedCharAtEndOfValue_ReturnsSecurityError(char prohibited)
+    {
+        // Arrange: prohibited char as last character (boundary position)
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["MYAPP_PARAM"] = $"prefix{prohibited}"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
+
+    [Theory]
+    [InlineData('"')]
+    [InlineData('&')]
+    [InlineData('|')]
+    [InlineData(';')]
+    [InlineData('>')]
+    [InlineData('<')]
+    public async Task DirectExecution_ResolvedSecretContainsProhibitedChar_ReturnsSecurityError(char prohibited)
+    {
+        // Arrange: secret stored in variable store contains an injection char after resolution
+        var variableStore = new VariableStore();
+        variableStore.SetSecret("EVIL_SECRET", $"val{prohibited}ue");
+
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => variableStore, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["DB_PWD"] = "[EVIL_SECRET]"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert: injection defense applies to resolved secret values too
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("DB_PWD", result.Error.Message);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public async Task DirectExecution_CleanAlphanumericValue_Succeeds()
+    {
+        // Arrange: a completely clean property value must pass
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["INSTALLFOLDER"] = @"C:\MyApp\1.0"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert: not blocked
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, mockApi.InstallProductCallCount);
+        Assert.NotNull(mockApi.LastCommandLine);
+        Assert.Contains("INSTALLFOLDER=", mockApi.LastCommandLine);
+    }
+
+    [Theory]
+    [InlineData("lowercase")]
+    [InlineData("123PROP")]
+    [InlineData("MY-PROP")]
+    [InlineData("MY PROP")]
+    public async Task DirectExecution_InvalidPropertyKey_ReturnsSecurityError(string invalidKey)
+    {
+        // Arrange: property keys must match ^[A-Z_][A-Z0-9_.]*$
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                [invalidKey] = "SafeValue"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public async Task DirectExecution_MultiplePropertiesFirstClean_SecondInjection_ReturnsSecurityError()
+    {
+        // Arrange: injection in second property must still be caught
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["CLEAN_PROP"] = "CleanValue",
+                ["EVIL_PROP"] = "val&ue"
+            });
+
+        // Act
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        // Assert: entire operation rejected even though first property was clean
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("EVIL_PROP", result.Error.Message);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
 }
