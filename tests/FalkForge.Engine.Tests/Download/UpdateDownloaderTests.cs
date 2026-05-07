@@ -401,4 +401,79 @@ public sealed class UpdateDownloaderTests
         Assert.Empty(sentMessages.OfType<UpdateDownloadProgressMessage>());
         Assert.Empty(sentMessages.OfType<UpdateReadyMessage>());
     }
+
+    // -----------------------------------------------------------------------
+    // Cancellation tests
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task StartAsync_AlreadyCancelledToken_ThrowsOperationCanceledException()
+    {
+        // When the CancellationToken is already cancelled before StartAsync is called,
+        // the call must throw OperationCanceledException rather than silently swallowing it.
+        var sentMessages = new List<EngineMessage>();
+        var fakePipe = new FakePipeServer(sentMessages);
+
+        // Inline download delegate that honours the cancellation token.
+        Task<Result<string>> CancellingDownload(
+            string url, string sha256, string path,
+            IProgress<(long, long)>? progress, bool resume, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(Result<string>.Success(path));
+        }
+
+        var downloader = new UpdateDownloader(
+            CancellingDownload,
+            fakePipe.SendMessageAsync,
+            new NullLogger(),
+            UpdatePolicy.DownloadAndPrompt,
+            allowResume: false);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            downloader.StartAsync(update, "/cache", cts.Token));
+
+        // No messages should have been sent.
+        Assert.Empty(sentMessages);
+    }
+
+    [Fact]
+    public async Task StartAsync_CancelledDuringDownload_DoesNotSendUpdateReady()
+    {
+        // Cancellation during the download must not result in an UpdateReady message.
+        var sentMessages = new List<EngineMessage>();
+        var fakePipe = new FakePipeServer(sentMessages);
+        using var cts = new CancellationTokenSource();
+
+        Task<Result<string>> CancellingMidDownload(
+            string url, string sha256, string path,
+            IProgress<(long, long)>? progress, bool resume, CancellationToken ct)
+        {
+            cts.Cancel(); // simulate cancellation mid-download
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(Result<string>.Success(path));
+        }
+
+        var downloader = new UpdateDownloader(
+            CancellingMidDownload,
+            fakePipe.SendMessageAsync,
+            new NullLogger(),
+            UpdatePolicy.DownloadAndPrompt,
+            allowResume: false);
+
+        var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+
+        try
+        {
+            await downloader.StartAsync(update, "/cache", cts.Token);
+        }
+        catch (OperationCanceledException) { /* expected */ }
+
+        Assert.Empty(sentMessages.OfType<UpdateReadyMessage>());
+    }
 }

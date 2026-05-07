@@ -624,4 +624,79 @@ public sealed class PayloadDownloaderTests : IDisposable
 
         if (File.Exists(destPath)) File.Delete(destPath);
     }
+
+    // -----------------------------------------------------------------------
+    // Cancellation tests — mid-stream cancel, pre-cancel, 0ms timeout
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task DownloadAsync_AlreadyCancelledToken_ThrowsOperationCanceledException()
+    {
+        // Token cancelled BEFORE the call — must throw immediately without touching the file system.
+        var content = new byte[1024 * 1024];
+        var hash = ComputeSha256(content);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "pre-cancel.bin");
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            downloader.DownloadAsync("https://example.com/file.bin", hash, targetPath, ct: cts.Token));
+
+        // No file or partial file must remain.
+        Assert.False(File.Exists(targetPath));
+        Assert.False(File.Exists(targetPath + ".partial"));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_ZeroTimeoutToken_ThrowsOperationCanceledException()
+    {
+        // CancellationTokenSource with 0 ms — fires before any network activity.
+        var content = new byte[1024 * 1024];
+        var hash = ComputeSha256(content);
+        var handler = new SlowHttpHandler(content, delay: TimeSpan.FromSeconds(30));
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "zero-timeout.bin");
+
+        using var cts = new CancellationTokenSource(millisecondsDelay: 0);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            downloader.DownloadAsync("https://example.com/file.bin", hash, targetPath, ct: cts.Token));
+
+        // Cleanup must have run — no orphan files.
+        Assert.False(File.Exists(targetPath));
+        Assert.False(File.Exists(targetPath + ".partial"));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_CancelledMidStream_NoResume_ThrowsAndCleansUpPartial()
+    {
+        // Token cancelled DURING stream copy — partial file must be deleted (allowResume=false),
+        // and OperationCanceledException must propagate to the caller.
+        var content = new byte[500_000];
+        Random.Shared.NextBytes(content);
+        var sha256 = ComputeSha256(content);
+        var targetPath = Path.Combine(_tempDir, "mid-stream-cancel.bin");
+        var partialPath = targetPath + ".partial";
+        using var cts = new CancellationTokenSource();
+
+        // SlowHttpMessageHandler triggers cts.Cancel() after cancelAfterBytes are read,
+        // simulating a mid-transfer cancellation.
+        var handler = new SlowHttpMessageHandler(content, cts, cancelAfterBytes: 100_000);
+        var downloader = new PayloadDownloader(new HttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            downloader.DownloadAsync(
+                "https://example.com/file.bin", sha256, targetPath,
+                progress: null, allowResume: false, cts.Token));
+
+        // No orphan partial file must remain when allowResume is false.
+        Assert.False(File.Exists(partialPath));
+        // Final destination must not exist (download was never completed).
+        Assert.False(File.Exists(targetPath));
+    }
 }
