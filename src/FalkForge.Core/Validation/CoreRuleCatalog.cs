@@ -36,7 +36,8 @@ public static class CoreRuleCatalog
         var all = ImmutableArray.CreateBuilder<ValidationRule>();
         all.AddRange(PackageRules.All);
         all.AddRange(FeatureRules.All);
-        // ServiceRules, CustomTableRules, etc. appended in subsequent slices.
+        all.AddRange(ServiceRules.All);
+        // CustomTableRules, RegistryRules, etc. appended in subsequent slices.
         return new RuleRegistry(all.ToImmutable());
     }
 }
