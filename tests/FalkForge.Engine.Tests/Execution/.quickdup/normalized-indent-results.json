@@ -1,0 +1,22 @@
+{
+  "total_patterns": 1,
+  "patterns": [
+    {
+      "hash": "6ee89ce93cc792a2",
+      "score": 5,
+      "lines": 6,
+      "similarity": 1,
+      "occurrences": 2,
+      "locations": [
+        {
+          "filename": "D:\\Git\\FalkInstaller\\tests\\FalkForge.Engine.Tests\\Execution\\PackageExecutorDryRunTests.cs",
+          "line_start": 104
+        },
+        {
+          "filename": "D:\\Git\\FalkInstaller\\tests\\FalkForge.Engine.Tests\\Execution\\PackageExecutorTimeProviderTests.cs",
+          "line_start": 57
+        }
+      ]
+    }
+  ]
+}

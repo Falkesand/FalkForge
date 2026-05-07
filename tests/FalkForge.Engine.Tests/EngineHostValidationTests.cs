@@ -1,34 +1,36 @@
 namespace FalkForge.Engine.Tests;
 
-using FalkForge.Engine.Logging;
+using FalkForge.Engine.Pipeline;
 using Xunit;
 
-public sealed class EngineHostValidationTests
+/// <summary>
+/// Tests for <see cref="PropertyNameValidator"/> — MSI property name validation
+/// enforced before SetProperty/SetSecureProperty values enter the VariableStore.
+/// </summary>
+public sealed class PropertyNameValidatorTests
 {
-    private readonly NullLogger _logger = new();
-
     [Fact]
-    public void ValidatePropertyName_EmptyString_ReturnsError()
+    public void Validate_EmptyString_ReturnsError()
     {
-        var result = EngineHost.ValidatePropertyName("", _logger);
+        var result = PropertyNameValidator.Validate("", null);
         Assert.NotNull(result);
         Assert.Contains("empty", result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void ValidatePropertyName_ExactlyMaxLength_Succeeds()
+    public void Validate_ExactlyMaxLength_Succeeds()
     {
         // MaxPropertyNameLength = 255. A 255-char valid name should succeed.
-        var name = new string('A', 255);
-        var result = EngineHost.ValidatePropertyName(name, _logger);
+        var name = new string('A', PropertyNameValidator.MaxPropertyNameLength);
+        var result = PropertyNameValidator.Validate(name, null);
         Assert.Null(result); // null = valid
     }
 
     [Fact]
-    public void ValidatePropertyName_OneOverMaxLength_Fails()
+    public void Validate_OneOverMaxLength_Fails()
     {
-        var name = new string('A', 256);
-        var result = EngineHost.ValidatePropertyName(name, _logger);
+        var name = new string('A', PropertyNameValidator.MaxPropertyNameLength + 1);
+        var result = PropertyNameValidator.Validate(name, null);
         Assert.NotNull(result);
         Assert.Contains("too long", result, StringComparison.OrdinalIgnoreCase);
     }
@@ -41,9 +43,9 @@ public sealed class EngineHostValidationTests
     [InlineData("ComputerName")]
     [InlineData("RebootPending")]
     [InlineData("SystemLanguageID")]
-    public void ValidatePropertyName_BuiltInVariable_ReturnsBuiltInError(string name)
+    public void Validate_BuiltInVariable_ReturnsBuiltInError(string name)
     {
-        var result = EngineHost.ValidatePropertyName(name, _logger);
+        var result = PropertyNameValidator.Validate(name, null);
         Assert.NotNull(result);
         Assert.Contains("built-in", result, StringComparison.OrdinalIgnoreCase);
     }
@@ -53,9 +55,9 @@ public sealed class EngineHostValidationTests
     [InlineData("MY_PROP_123")]
     [InlineData("A")]
     [InlineData("_UNDERSCORE_START")]   // covers ^[A-Z_] first-char alternative branch
-    public void ValidatePropertyName_ValidFormat_ReturnsNull(string name)
+    public void Validate_ValidFormat_ReturnsNull(string name)
     {
-        var result = EngineHost.ValidatePropertyName(name, _logger);
+        var result = PropertyNameValidator.Validate(name, null);
         Assert.Null(result);
     }
 
@@ -64,18 +66,18 @@ public sealed class EngineHostValidationTests
     [InlineData("-BAD")]        // starts with dash
     [InlineData(" SPACE")]      // starts with space
     [InlineData("lowercase")]   // covers [A-Z] upper-only constraint
-    public void ValidatePropertyName_InvalidFormat_ReturnsFormatError(string name)
+    public void Validate_InvalidFormat_ReturnsFormatError(string name)
     {
-        var result = EngineHost.ValidatePropertyName(name, _logger);
+        var result = PropertyNameValidator.Validate(name, null);
         Assert.NotNull(result);
         Assert.Contains("invalid format", result, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void ValidatePropertyName_DotInMiddle_IsValid()
+    public void Validate_DotInMiddle_IsValid()
     {
         // ^[A-Z_][A-Z0-9_.]*$ — dot is allowed
-        var result = EngineHost.ValidatePropertyName("MY.PROPERTY", _logger);
+        var result = PropertyNameValidator.Validate("MY.PROPERTY", null);
         Assert.Null(result);
     }
 }
