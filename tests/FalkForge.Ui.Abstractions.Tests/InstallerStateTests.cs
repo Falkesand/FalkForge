@@ -253,6 +253,108 @@ public sealed class InstallerStateTests
         Assert.Throws<InvalidOperationException>(() => state.SetSensitive("Key", [1, 2]));
     }
 
+    [Fact]
+    public async Task Concurrent_SetSensitive_and_Dispose_does_not_corrupt_memory()
+    {
+        // 4 threads call SetSensitive, 4 threads call Dispose simultaneously.
+        // Acceptable outcomes: no exception, or ObjectDisposedException.
+        // Unacceptable: any other exception type (e.g., NullReferenceException).
+        var protector = new FakeProtector();
+        var state = new InstallerState(protector);
+        var barrier = new Barrier(8);
+
+        var tasks = Enumerable.Range(0, 8).Select(i => Task.Run(() =>
+        {
+            barrier.SignalAndWait();
+            try
+            {
+                if (i < 4)
+                    state.SetSensitive($"Key{i}", new byte[] { (byte)i, (byte)(i + 1) });
+                else
+                    state.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected: SetSensitive after Dispose.
+            }
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
+    }
+
+    [Fact]
+    public async Task Concurrent_SetSensitive_and_GetSensitive_without_Dispose_is_coherent()
+    {
+        // Last writer wins; reads always return a valid (possibly stale) snapshot.
+        var protector = new FakeProtector();
+        var state = new InstallerState(protector);
+        const string key = "SharedKey";
+        state.SetSensitive(key, new byte[] { 0x00 });
+        var barrier = new Barrier(8);
+
+        var tasks = Enumerable.Range(0, 8).Select(i => Task.Run(() =>
+        {
+            barrier.SignalAndWait();
+            for (var iter = 0; iter < 200; iter++)
+            {
+                if (i % 2 == 0)
+                {
+                    state.SetSensitive(key, new byte[] { (byte)i });
+                }
+                else
+                {
+                    using var result = state.GetSensitive(key);
+                    // Must be a single byte — any value is valid (last-writer-wins).
+                    Assert.True(result.IsEmpty || result.Length == 1,
+                        $"Expected empty or 1-byte result, got length {result.Length}");
+                }
+            }
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
+        state.Dispose();
+    }
+
+    [Fact]
+    public void SetSensitive_after_Dispose_throws_ObjectDisposedException()
+    {
+        var protector = new FakeProtector();
+        var state = new InstallerState(protector);
+        state.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => state.SetSensitive("Key", new byte[] { 1, 2, 3 }));
+    }
+
+    [Fact]
+    public void GetSensitive_after_Dispose_throws_ObjectDisposedException()
+    {
+        var protector = new FakeProtector();
+        var state = new InstallerState(protector);
+        state.SetSensitive("Key", new byte[] { 1 });
+        state.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => state.GetSensitive("Key"));
+    }
+
+    [Fact]
+    public void Dispose_zeroes_underlying_bytes_of_stored_sensitive_value()
+    {
+        // The TrackingProtector keeps a reference to the protected byte[] stored inside
+        // InstallerState. After Dispose, InstallerState must ZeroMemory that array.
+        var protector = new TrackingProtector();
+        var state = new InstallerState(protector);
+        state.SetSensitive("Secret", new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
+        var storedBytes = protector.LastProtected!;
+
+        // Verify bytes are non-zero before dispose.
+        Assert.Contains(storedBytes, b => b != 0);
+
+        state.Dispose();
+
+        // All stored bytes must be zeroed.
+        Assert.All(storedBytes, b => Assert.Equal(0, b));
+    }
+
     private sealed class FakeProtector : ISensitiveDataProtector
     {
         public byte[] Protect(byte[] plainData) => [.. plainData];

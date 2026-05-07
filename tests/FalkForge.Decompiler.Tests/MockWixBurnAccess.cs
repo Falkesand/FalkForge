@@ -25,6 +25,12 @@ internal sealed class MockWixBurnAccess : IWixBurnAccess
         return this;
     }
 
+    public MockWixBurnAccess WithManifestDocument(XDocument document)
+    {
+        _manifestResult = Result<XDocument>.Success(document);
+        return this;
+    }
+
     public Guid BundleId => _bundleId;
 
     public Result<XDocument> ReadManifest()
