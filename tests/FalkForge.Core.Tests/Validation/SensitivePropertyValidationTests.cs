@@ -13,7 +13,7 @@ public sealed class SensitivePropertyValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "REG007");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "REG007");
     }
 
     [Fact]
@@ -23,7 +23,7 @@ public sealed class SensitivePropertyValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "REG007");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "REG007");
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class SensitivePropertyValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "REG007");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "REG007");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class SensitivePropertyValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "REG007");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "REG007");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class SensitivePropertyValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "REG007");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "REG007");
     }
 
     private static PackageModel CreatePackageWithRegistryValue(object? value)

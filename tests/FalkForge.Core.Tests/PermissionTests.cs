@@ -111,7 +111,7 @@ public sealed class PermissionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PRM001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PRM001");
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class PermissionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PRM002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PRM002");
     }
 
     [Fact]

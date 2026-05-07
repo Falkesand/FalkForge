@@ -296,7 +296,7 @@ public sealed class ServiceControlValidationTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SCT001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SCT001");
     }
 
     [Fact]
@@ -314,7 +314,7 @@ public sealed class ServiceControlValidationTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SCT002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SCT002");
     }
 
     [Fact]
@@ -333,8 +333,8 @@ public sealed class ServiceControlValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "SCT001");
-        Assert.DoesNotContain(result.Errors, e => e.Code == "SCT002");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "SCT001");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "SCT002");
     }
 
     [Fact]
@@ -354,7 +354,7 @@ public sealed class ServiceControlValidationTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SDP001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SDP001");
     }
 }
 

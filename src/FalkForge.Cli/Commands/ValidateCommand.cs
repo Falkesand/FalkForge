@@ -83,16 +83,16 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         }
 
         var package = loadResult.Value;
-        var validation = ModelValidator.Validate(package);
+        var validation = ModelValidator.Inspect(package);
 
         foreach (var warning in validation.Warnings)
         {
-            output.MarkupLine($"[yellow]Warning {warning.Code}:[/] {Markup.Escape(warning.Message)}");
+            output.MarkupLine($"[yellow]Warning {warning.RuleId}:[/] {Markup.Escape(warning.Message)}");
         }
 
         foreach (var error in validation.Errors)
         {
-            output.MarkupLine($"[red]Error {error.Code}:[/] {Markup.Escape(error.Message)}");
+            output.MarkupLine($"[red]Error {error.RuleId}:[/] {Markup.Escape(error.Message)}");
         }
 
         if (!validation.IsValid)

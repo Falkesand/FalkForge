@@ -77,6 +77,6 @@ public sealed class FontTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "FNT001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "FNT001");
     }
 }

@@ -97,7 +97,7 @@ public sealed class IniFileTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "INI001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "INI001");
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class IniFileTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "INI002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "INI002");
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class IniFileTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "INI003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "INI003");
     }
 
     [Fact]

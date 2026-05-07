@@ -129,7 +129,7 @@ public sealed class AssemblyGacTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "ASM001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value =="ASM001");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class AssemblyGacTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "ASM002");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "ASM002");
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class AssemblyGacTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "ASM002");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "ASM002");
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class AssemblyGacTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "ASM003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value =="ASM003");
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public sealed class AssemblyGacTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "ASM003");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value =="ASM003");
     }
 
     [Fact]
@@ -219,6 +219,6 @@ public sealed class AssemblyGacTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "ASM002");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "ASM002");
     }
 }

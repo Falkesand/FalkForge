@@ -23,16 +23,25 @@ public static partial class CustomTableRules
         FrozenSet.Create(StringComparer.OrdinalIgnoreCase,
             "PASSWORD", "SECRET", "CREDENTIAL", "TOKEN", "APIKEY", "PASSPHRASE", "PIN");
 
-    private static bool ContainsSensitiveRef(string value)
+    /// <summary>
+    /// Enumerates each sensitive property name referenced in <paramref name="value"/>.
+    /// One entry per matching property reference — callers emit one violation per entry.
+    /// </summary>
+    private static IEnumerable<string> FindSensitiveRefs(string value)
     {
         foreach (Match match in PropertyRefRegex().Matches(value))
         {
-            var name = match.Groups[1].Value.ToUpperInvariant();
+            var propName = match.Groups[1].Value;
+            var upper = propName.ToUpperInvariant();
             foreach (var kw in SensitiveKeywords)
-                if (name.Contains(kw))
-                    return true;
+            {
+                if (upper.Contains(kw))
+                {
+                    yield return propName;
+                    break;
+                }
+            }
         }
-        return false;
     }
 
     /// <summary>CTB001 — Custom table Name is required.</summary>
@@ -307,10 +316,12 @@ public static partial class CustomTableRules
                 {
                     foreach (var (colName, value) in t.Rows[r])
                     {
-                        if (value is string strVal && ContainsSensitiveRef(strVal))
+                        if (value is not string strVal) continue;
+                        // Emit one violation per sensitive property reference (mirrors legacy one-per-property behavior).
+                        foreach (var propName in FindSensitiveRefs(strVal))
                             violations.Add(new Violation(new RuleId("CTB011"), Severity.Warning,
                                 ModelPath.Root.Field("CustomTables").Index(i).Field("Rows").Index(r).Key(colName),
-                                $"Custom table '{t.Name}' column '{colName}' references a property that appears to contain sensitive data. " +
+                                $"Custom table '{t.Name}' column '{colName}' references property '[{propName}]' which appears to contain sensitive data. " +
                                 "Sensitive values written to custom tables are stored in plaintext inside the MSI. Consider alternative secure storage."));
                     }
                 }

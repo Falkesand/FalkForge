@@ -142,7 +142,7 @@ public sealed class FeatureConditionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "FEA004");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "FEA004");
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class FeatureConditionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "FEA004");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "FEA004");
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class FeatureConditionTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "FEA005");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "FEA005");
     }
 
     [Fact]

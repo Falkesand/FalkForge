@@ -59,10 +59,10 @@ public static class ScriptLoader
                     "Script did not return a PackageModel. Ensure the script evaluates to a PackageModel instance.");
 
             // Validate first
-            var validation = Validation.ModelValidator.Validate(package);
+            var validation = Validation.ModelValidator.Inspect(package);
             if (!validation.IsValid)
             {
-                var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
+                var errors = string.Join("; ", validation.Errors.Select(e => $"{e.RuleId}: {e.Message}"));
                 return Result<string>.Failure(ErrorKind.Validation, $"Validation failed: {errors}");
             }
 

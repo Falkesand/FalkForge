@@ -154,7 +154,7 @@ public sealed class ServiceBuilderTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "SVC009");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "SVC009");
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public sealed class ServiceBuilderTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "SVC010");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "SVC010");
     }
 
     [Fact]
@@ -218,6 +218,6 @@ public sealed class ServiceBuilderTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Errors, e => e.Code == "SVC011");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SVC011");
     }
 }

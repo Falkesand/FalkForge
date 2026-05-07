@@ -213,7 +213,7 @@ public sealed class CustomActionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CA001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CA001");
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public sealed class CustomActionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CA002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CA002");
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class CustomActionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CA003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CA003");
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class CustomActionTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("CA0"));
     }
 
     [Fact]
@@ -518,7 +518,7 @@ public sealed class CustomActionTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CA004");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CA004");
     }
 
     [Fact]
@@ -554,7 +554,7 @@ public sealed class CustomActionTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "CA005");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "CA005");
     }
 
     [Fact]
@@ -572,8 +572,8 @@ public sealed class CustomActionTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "CA005");
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "CA005");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("CA0"));
     }
 
     [Fact]
@@ -624,7 +624,7 @@ public sealed class CustomActionTests
 
         // Validate the whole package
         var result = InstallerValidator.Validate(package);
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("CA0"));
     }
 
     // --- Binary-path CustomAction overload tests ---

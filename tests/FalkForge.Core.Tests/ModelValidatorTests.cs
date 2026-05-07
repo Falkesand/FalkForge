@@ -41,7 +41,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG001");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG002");
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG005");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG005");
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG006");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG006");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG007");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG007");
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG009");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG009");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "PKG010");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PKG010");
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class ModelValidatorTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "PKG011");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "PKG011");
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "FEA002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "FEA002");
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SVC002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SVC002");
     }
 
     [Fact]
@@ -208,7 +208,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SVC003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SVC003");
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public sealed class ModelValidatorTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SHC002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SHC002");
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class ModelValidatorTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "PKG004");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "PKG004");
     }
 
     [Fact]
@@ -308,7 +308,7 @@ public sealed class ModelValidatorTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "SVC005");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "SVC005");
         Assert.Contains(result.Warnings, w => w.Message.Contains("plaintext password"));
     }
 
@@ -327,7 +327,7 @@ public sealed class ModelValidatorTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "SVC005");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "SVC005");
     }
 
     [Fact]

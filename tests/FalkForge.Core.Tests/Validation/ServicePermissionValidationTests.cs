@@ -21,7 +21,7 @@ public sealed class ServicePermissionValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "PRM003");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "PRM003");
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class ServicePermissionValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Errors, e => e.Code == "PRM004");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PRM004");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class ServicePermissionValidationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Errors, e => e.Code == "PRM003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "PRM003");
     }
 
     private static PackageModel CreateMinimalPackage(IReadOnlyList<PermissionModel>? permissions = null)

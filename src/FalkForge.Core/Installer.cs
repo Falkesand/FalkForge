@@ -12,15 +12,15 @@ public static class Installer
         configure(builder);
         var package = builder.Build();
 
-        var validation = ModelValidator.Validate(package);
+        var validation = ModelValidator.Inspect(package);
         if (!validation.IsValid)
         {
-            foreach (var error in validation.Errors) Console.Error.WriteLine($"Error {error.Code}: {error.Message}");
+            foreach (var error in validation.Errors) Console.Error.WriteLine($"Error {error.RuleId}: {error.Message}");
             return 1;
         }
 
         foreach (var warning in validation.Warnings)
-            Console.Error.WriteLine($"Warning {warning.Code}: {warning.Message}");
+            Console.Error.WriteLine($"Warning {warning.RuleId}: {warning.Message}");
 
         if (compiler is not null)
         {

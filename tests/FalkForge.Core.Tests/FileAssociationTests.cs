@@ -181,7 +181,7 @@ public sealed class FileAssociationTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "FAS001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "FAS001");
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class FileAssociationTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "FAS002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "FAS002");
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public sealed class FileAssociationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "FAS003");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "FAS003");
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public sealed class FileAssociationTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("FAS"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("FAS"));
     }
 
     [Fact]

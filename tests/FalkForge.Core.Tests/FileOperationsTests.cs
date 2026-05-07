@@ -461,7 +461,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "RMF001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "RMF001");
     }
 
     [Fact]
@@ -481,7 +481,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "RMF002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "RMF002");
     }
 
     [Fact]
@@ -520,7 +520,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CRF001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CRF001");
     }
 
     [Fact]
@@ -559,7 +559,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MVF001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MVF001");
     }
 
     [Fact]
@@ -579,7 +579,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MVF002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MVF002");
     }
 
     [Fact]
@@ -599,7 +599,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MVF003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MVF003");
     }
 
     [Fact]
@@ -638,7 +638,7 @@ public sealed class FileOperationsTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "DPF001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "DPF001");
     }
 
     [Fact]

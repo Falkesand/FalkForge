@@ -112,10 +112,10 @@ public sealed class MajorUpgradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MUP001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MUP001");
     }
 
     [Fact]
@@ -133,10 +133,10 @@ public sealed class MajorUpgradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MUP003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MUP003");
     }
 
     [Fact]
@@ -153,8 +153,8 @@ public sealed class MajorUpgradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "MUP003");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "MUP003");
     }
 }

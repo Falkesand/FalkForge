@@ -190,7 +190,7 @@ public sealed class RemoveRegistryTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Errors, e => e.Code == "RRG001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "RRG001");
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public sealed class RemoveRegistryTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Errors, e => e.Code == "RRG002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "RRG002");
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public sealed class RemoveRegistryTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Errors, e => e.Code == "RRG003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "RRG003");
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public sealed class RemoveRegistryTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "RRG003");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "RRG003");
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public sealed class RemoveRegistryTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("RRG"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("RRG"));
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public sealed class RemoveRegistryTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("RRG"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("RRG"));
     }
 
     // --- Helpers ---

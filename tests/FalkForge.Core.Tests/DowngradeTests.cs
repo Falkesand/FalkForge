@@ -143,10 +143,10 @@ public sealed class DowngradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "DNG001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "DNG001");
     }
 
     [Fact]
@@ -164,10 +164,10 @@ public sealed class DowngradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "DNG001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "DNG001");
     }
 
     [Fact]
@@ -185,10 +185,10 @@ public sealed class DowngradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "DNG001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "DNG001");
     }
 
     [Fact]
@@ -206,9 +206,9 @@ public sealed class DowngradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "DNG001");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "DNG001");
     }
 
     // -------------------------------------------------------------------------
@@ -229,10 +229,10 @@ public sealed class DowngradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "DNG002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "DNG002");
     }
 
     [Fact]
@@ -250,9 +250,9 @@ public sealed class DowngradeTests
             Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }]
         };
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "DNG002");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "DNG002");
     }
 
     // -------------------------------------------------------------------------
@@ -270,10 +270,10 @@ public sealed class DowngradeTests
             p.Downgrade(dg => dg.Allow());
         });
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "DNG001");
-        Assert.DoesNotContain(result.Errors, e => e.Code == "DNG002");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "DNG001");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "DNG002");
     }
 
     [Fact]
@@ -287,9 +287,9 @@ public sealed class DowngradeTests
             p.Downgrade(dg => dg.Block("Downgrade is not supported."));
         });
 
-        var result = ModelValidator.Validate(package);
+        var result = ModelValidator.Inspect(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "DNG001");
-        Assert.DoesNotContain(result.Errors, e => e.Code == "DNG002");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "DNG001");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "DNG002");
     }
 }

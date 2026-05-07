@@ -134,7 +134,7 @@ public sealed class CustomTableTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CTB002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CTB002");
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class CustomTableTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CTB003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CTB003");
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public sealed class CustomTableTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CTB007");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CTB007");
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public sealed class CustomTableTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CTB009");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CTB009");
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class CustomTableTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CTB008");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CTB008");
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CTB"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("CTB"));
     }
 
     [Fact]
@@ -382,7 +382,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code == "CTB010");
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value == "CTB010");
     }
 
     [Theory]
@@ -417,7 +417,7 @@ public sealed class CustomTableTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "CTB010");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "CTB010");
     }
 
     // CTB011 — sensitive MSI property reference in custom table column value
@@ -436,7 +436,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Theory]
@@ -453,7 +453,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Theory]
@@ -467,7 +467,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Theory]
@@ -481,7 +481,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "CTB011");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Fact]
@@ -491,7 +491,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "CTB011");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Fact]
@@ -502,7 +502,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "CTB011");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Fact]
@@ -536,7 +536,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Warnings, w => w.Code == "CTB011");
+        Assert.DoesNotContain(result.Warnings, w => w.RuleId.Value == "CTB011");
     }
 
     [Fact]
@@ -547,7 +547,7 @@ public sealed class CustomTableTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Equal(2, result.Warnings.Count(w => w.Code == "CTB011"));
+        Assert.Equal(2, result.Warnings.Count(w => w.RuleId.Value == "CTB011"));
     }
 
     private static PackageModel CreatePackageWithCustomTableValue(object? cellValue)

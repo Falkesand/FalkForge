@@ -55,10 +55,10 @@ public static class MsiAuthoring
         // Step 1: Validate the package up front. Produces the same error
         // shape the legacy compiler emits so callers can swap implementations
         // without rewriting their error-handling.
-        var validation = ModelValidator.Validate(package);
+        var validation = ModelValidator.Inspect(package);
         if (!validation.IsValid)
         {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
+            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.RuleId}: {e.Message}"));
             return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
         }
 

@@ -121,7 +121,7 @@ public sealed class MediaTemplateTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MDT002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MDT002");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class MediaTemplateTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("MDT"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("MDT"));
     }
 
     [Fact]

@@ -92,7 +92,7 @@ public sealed class SigningTests
 
         var result = InstallerValidator.Validate(package);
 
-        Assert.Contains(result.Warnings, w => w.Code == "SGN001");
+        Assert.Contains(result.Warnings, w => w.RuleId.Value == "SGN001");
         Assert.Contains(result.Warnings, w => w.Message.Contains("PFX"));
     }
 
@@ -122,6 +122,6 @@ public sealed class SigningTests
         var result = InstallerValidator.Validate(package);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "SGN002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "SGN002");
     }
 }

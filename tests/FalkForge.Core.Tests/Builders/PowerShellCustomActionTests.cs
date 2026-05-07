@@ -247,7 +247,7 @@ public sealed class PowerShellCustomActionTests
 
         // Both should validate
         var result = InstallerValidator.Validate(package);
-        Assert.DoesNotContain(result.Errors, e => e.Code.StartsWith("CA0"));
+        Assert.DoesNotContain(result.Errors, e => e.RuleId.Value.StartsWith("CA0"));
     }
 
     [Fact]
