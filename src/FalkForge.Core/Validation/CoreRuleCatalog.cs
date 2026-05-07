@@ -21,13 +21,13 @@ public static class CoreRuleCatalog
         = BuildPackage();
 
     public static RuleRegistry MergeModule { get; internal set; }
-        = new(ImmutableArray<ValidationRule>.Empty);
+        = new(ImmutableArray.Create(MergeModuleValidator.All));
 
     public static RuleRegistry Patch { get; internal set; }
-        = new(ImmutableArray<ValidationRule>.Empty);
+        = new(ImmutableArray.Create(PatchValidator.All));
 
     public static RuleRegistry Transform { get; internal set; }
-        = new(ImmutableArray<ValidationRule>.Empty);
+        = new(ImmutableArray.Create(TransformValidator.All));
 
     private static RuleRegistry BuildPackage()
     {
