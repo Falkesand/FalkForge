@@ -4,10 +4,18 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Text.Json;
+using FalkForge.Engine.Cache;
+using FalkForge.Engine.Elevation;
+using FalkForge.Engine.Execution;
+using FalkForge.Engine.Journal.UndoOperations;
 using FalkForge.Engine.Layout;
+using FalkForge.Engine.Logging;
+using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Transport;
+using FalkForge.Engine.Variables;
 using FalkForge.Platform.Windows;
 
 internal static class Program
@@ -68,8 +76,9 @@ internal static class Program
             }
         }
 
-        // Suppress unused warning until plan-only mode is wired into EngineHost
+        // Suppress unused warning — plan-only not yet wired into pipeline runner
         _ = planOnly;
+        _ = planOutputPath;
 
         // Self-extraction mode: list or extract payloads and exit
         if (extractList || extractDir is not null)
@@ -176,7 +185,7 @@ internal static class Program
 
         // Early exit: SBOM extraction (before pipe setup or platform checks)
         if (sbomOutputPath is not null)
-            return EngineHost.ExtractSbom(manifest, sbomOutputPath);
+            return ExtractSbom(manifest, sbomOutputPath);
 
         PipeConnectionOptions? pipeOptions = null;
         if (pipeName is not null && secretPipeName is not null)
@@ -220,9 +229,159 @@ internal static class Program
             return 1;
         }
 
+        return await RunInstallerPipelineAsync(manifest, pipeOptions);
+    }
+
+    /// <summary>
+    /// Builds the installer pipeline and runs it via <see cref="PipelineRunner"/>.
+    /// This is the production execution path replacing <c>EngineHost</c>.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static async Task<int> RunInstallerPipelineAsync(
+        InstallerManifest manifest,
+        PipeConnectionOptions? pipeOptions)
+    {
+        var logger = new EngineLogger(EngineLogger.GetDefaultLogPath());
+        logger.MinimumLevel = LogLevel.Debug;
+        logger.Info("Engine", "Starting installer pipeline");
+
+        // Build UI channel
+        NamedPipeUiChannel uiChannel;
+        if (pipeOptions is not null)
+        {
+            var pipeOptionsWithLogging = new PipeConnectionOptions
+            {
+                PipeName = pipeOptions.PipeName,
+                SharedSecret = pipeOptions.SharedSecret,
+                MaxMessageSize = pipeOptions.MaxMessageSize,
+                ConnectionTimeout = pipeOptions.ConnectionTimeout,
+                OnSecurityEvent = msg => logger.Warning("Security", msg)
+            };
+            uiChannel = NamedPipeUiChannel.Create(pipeOptionsWithLogging);
+
+            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var connectResult = await uiChannel.StartAsync(connectCts.Token);
+            if (connectResult.IsFailure)
+            {
+                logger.Error("Engine", $"UI pipe connection failed: {connectResult.Error.Message}");
+                await uiChannel.DisposeAsync();
+                logger.Dispose();
+                return 1;
+            }
+
+            logger.Info("Engine", "UI pipe connected");
+        }
+        else
+        {
+            uiChannel = NamedPipeUiChannel.CreateNullChannel();
+        }
+
+        // Build package executor (manual DI for NativeAOT)
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("FalkForge-Engine/1.0");
+
         var platform = new WindowsPlatformServices();
-        await using var host = new EngineHost(manifest, platform, pipeOptions);
-        return await host.RunAsync();
+        var processRunner = new ProcessRunner();
+        // Use the MSI API accessor overload; elevation and variable store wired via EngineHost
+        // contract are not needed here because MsiExecutor reads them lazily.
+        var msiExecutor = new MsiExecutor(
+            static () => null,
+            static () => null,
+            static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
+        var msuExecutor = new MsuExecutor(processRunner);
+        var mspExecutor = new MspExecutor(processRunner);
+        var cacheLayout = new CacheLayout(manifest.Scope);
+        var bundleExecutor = new BundleExecutor(processRunner, cacheLayout.BasePath);
+        var exeExecutor = new ExeExecutor(processRunner);
+        var netRuntimeExecutor = new NetRuntimeExecutor(processRunner);
+        var packageExecutor = new PackageExecutor(
+            msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
+
+        // Build rollback journal store
+        var journalPath = Path.Combine(
+            Path.GetTempPath(), "FalkForge", $"rollback_{Guid.NewGuid():N}.journal");
+
+        FileSystemJournalStore? journalStore = null;
+        try
+        {
+            journalStore = new FileSystemJournalStore(journalPath);
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.Warning("Engine", $"Failed to open rollback journal: {ex.Message}");
+        }
+
+        // Undo operations for rollback
+        var undoOperations = new IUndoOperation[]
+        {
+            new MsiUninstallOperation(processRunner),
+            new ExeRollbackOperation(processRunner),
+            new CacheCleanupOperation()
+        };
+
+        // Build elevation gateway
+        var companionExePath = Path.Combine(
+            AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
+        IElevatedCommandGateway? elevationGateway = null;
+        if (OperatingSystem.IsWindows() && File.Exists(companionExePath))
+        {
+            var launcher = new ProcessLauncher();
+            elevationGateway = new NamedPipeElevationGateway(launcher, companionExePath);
+        }
+
+        var variableStore = new VariableStore();
+
+        // Build and run pipeline
+        var pipelineBuilder = new InstallerPipelineBuilder()
+            .WithManifest(manifest)
+            .WithRegistry(platform.Registry)
+            .WithPackageExecutor(packageExecutor)
+            .WithVariableStore(variableStore)
+            .WithUiChannel(uiChannel)
+            .WithLogger(logger);
+
+        if (journalStore is not null)
+            pipelineBuilder = pipelineBuilder
+                .WithJournalStore(journalStore)
+                .WithUndoOperations(undoOperations);
+
+        if (elevationGateway is not null)
+            pipelineBuilder = pipelineBuilder.WithElevationGateway(elevationGateway);
+
+        await using var pipeline = pipelineBuilder.Build();
+        var runner = new PipelineRunner(pipeline, uiChannel, logger);
+
+        try
+        {
+            var exitCode = await runner.RunAsync(CancellationToken.None);
+            logger.Info("Engine", $"Pipeline completed with exit code {exitCode}");
+            return exitCode;
+        }
+        finally
+        {
+            journalStore?.Dispose();
+            if (elevationGateway is not null)
+                await elevationGateway.DisposeAsync();
+            await uiChannel.DisposeAsync();
+            logger.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Extracts the SBOM attestation from an installer manifest to a file.
+    /// Returns 0 on success, 1 if no SBOM is available.
+    /// </summary>
+    private static int ExtractSbom(InstallerManifest manifest, string outputPath)
+    {
+        if (manifest.SbomAttestation is null)
+        {
+            Console.Error.WriteLine("No SBOM available in this installer.");
+            return 1;
+        }
+
+        File.WriteAllText(outputPath, manifest.SbomAttestation);
+        Console.WriteLine($"SBOM written to {outputPath}");
+        return 0;
     }
 
     /// <summary>
@@ -236,7 +395,7 @@ internal static class Program
 
     /// <summary>
     /// Self-extraction bootstrapper mode. Extracts payloads and manifest from the embedded bundle,
-    /// launches the UI executable, delivers the shared secret via named pipe, and runs the engine host.
+    /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
     private static async Task<int> RunAsBootstrapper()
     {
@@ -361,16 +520,14 @@ internal static class Program
         // Deliver secret via init pipe in the background
         _ = DeliverSecretAsync(initPipe, secret);
 
-        // Run the engine host
+        // Run via the new pipeline
         var pipeOptions = new PipeConnectionOptions
         {
             PipeName = pipeName,
             SharedSecret = secret
         };
 
-        var platform = new WindowsPlatformServices();
-        await using var host = new EngineHost(manifest, platform, pipeOptions);
-        return await host.RunAsync();
+        return await RunInstallerPipelineAsync(manifest, pipeOptions);
     }
 
     /// <summary>
