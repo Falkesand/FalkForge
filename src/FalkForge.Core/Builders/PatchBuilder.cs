@@ -92,12 +92,9 @@ public sealed class PatchBuilder
             AllowRemoval = _allowRemoval
         };
 
-        var validation = PatchValidator.Validate(model);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<PatchModel>.Failure(ErrorKind.Validation, errors);
-        }
+        var check = PatchValidator.Check(model);
+        if (check.IsFailure)
+            return Result<PatchModel>.Failure(check.Error);
 
         return model;
     }

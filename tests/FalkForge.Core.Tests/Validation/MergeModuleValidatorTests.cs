@@ -17,7 +17,7 @@ public sealed class MergeModuleValidatorTests
             Manufacturer = "TestCorp"
         };
 
-        var result = MergeModuleValidator.Validate(model);
+        var result = MergeModuleValidator.Inspect(model);
 
         Assert.True(result.IsValid);
     }
@@ -33,10 +33,10 @@ public sealed class MergeModuleValidatorTests
             Manufacturer = "TestCorp"
         };
 
-        var result = MergeModuleValidator.Validate(model);
+        var result = MergeModuleValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MSM001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MSM001");
     }
 
     [Fact]
@@ -50,10 +50,10 @@ public sealed class MergeModuleValidatorTests
             Manufacturer = "TestCorp"
         };
 
-        var result = MergeModuleValidator.Validate(model);
+        var result = MergeModuleValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MSM003");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MSM003");
     }
 
     [Fact]
@@ -67,9 +67,9 @@ public sealed class MergeModuleValidatorTests
             Manufacturer = ""
         };
 
-        var result = MergeModuleValidator.Validate(model);
+        var result = MergeModuleValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MSM004");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MSM004");
     }
 }

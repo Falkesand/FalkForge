@@ -12,12 +12,9 @@ public sealed class TransformCompiler
     public Result<string> Compile(TransformModel transform, string outputPath)
     {
         // Step 1: Validate
-        var validation = TransformValidator.Validate(transform);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"Transform validation failed: {errors}");
-        }
+        var check = TransformValidator.Check(transform);
+        if (check.IsFailure)
+            return Result<string>.Failure(check.Error);
 
         // Step 2: Verify source files exist
         if (!File.Exists(transform.BaseMsiPath))

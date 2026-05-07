@@ -13,12 +13,9 @@ public sealed class MsmCompiler
     public Result<string> Compile(MergeModuleModel module, string outputPath)
     {
         // Step 1: Validate
-        var validation = MergeModuleValidator.Validate(module);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"Merge module validation failed: {errors}");
-        }
+        var check = MergeModuleValidator.Check(module);
+        if (check.IsFailure)
+            return Result<string>.Failure(check.Error);
 
         // Step 2: Determine output file name
         var moduleGuid = module.Id.ToString("N").ToUpperInvariant();

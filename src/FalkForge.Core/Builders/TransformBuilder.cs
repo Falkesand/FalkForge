@@ -52,12 +52,9 @@ public sealed class TransformBuilder
             PropertyChanges = _propertyChanges
         };
 
-        var validation = TransformValidator.Validate(model);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<TransformModel>.Failure(ErrorKind.Validation, errors);
-        }
+        var check = TransformValidator.Check(model);
+        if (check.IsFailure)
+            return Result<TransformModel>.Failure(check.Error);
 
         return model;
     }

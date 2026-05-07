@@ -17,10 +17,10 @@ public sealed class PatchValidatorTests
             UpdatedMsiPath = ""
         };
 
-        var result = PatchValidator.Validate(model);
+        var result = PatchValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MSP001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MSP001");
     }
 
     [Fact]
@@ -34,10 +34,10 @@ public sealed class PatchValidatorTests
             UpdatedMsiPath = ""
         };
 
-        var result = PatchValidator.Validate(model);
+        var result = PatchValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MSP002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MSP002");
     }
 
     [Fact]
@@ -51,10 +51,10 @@ public sealed class PatchValidatorTests
             UpdatedMsiPath = ""
         };
 
-        var result = PatchValidator.Validate(model);
+        var result = PatchValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MSP004");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MSP004");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class PatchValidatorTests
             UpdatedMsiPath = @"Z:\nonexistent\path\new.msi"
         };
 
-        var result = PatchValidator.Validate(model);
+        var result = PatchValidator.Inspect(model);
 
         Assert.True(result.IsValid);
     }
@@ -84,7 +84,7 @@ public sealed class PatchValidatorTests
             UpdatedMsiPath = @"C:\some\path\new.msi"
         };
 
-        var result = PatchValidator.Validate(model);
+        var result = PatchValidator.Inspect(model);
 
         Assert.True(result.IsValid);
     }

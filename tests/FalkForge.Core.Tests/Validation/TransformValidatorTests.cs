@@ -15,7 +15,7 @@ public sealed class TransformValidatorTests
             TargetMsiPath = @"C:\target\product.msi"
         };
 
-        var result = TransformValidator.Validate(model);
+        var result = TransformValidator.Inspect(model);
 
         Assert.True(result.IsValid);
     }
@@ -29,10 +29,10 @@ public sealed class TransformValidatorTests
             TargetMsiPath = @"C:\target\product.msi"
         };
 
-        var result = TransformValidator.Validate(model);
+        var result = TransformValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MST001");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MST001");
     }
 
     [Fact]
@@ -44,9 +44,9 @@ public sealed class TransformValidatorTests
             TargetMsiPath = ""
         };
 
-        var result = TransformValidator.Validate(model);
+        var result = TransformValidator.Inspect(model);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Code == "MST002");
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MST002");
     }
 }

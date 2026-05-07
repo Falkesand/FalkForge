@@ -68,12 +68,9 @@ public sealed class MergeModuleBuilder
             Dependencies = _dependencies
         };
 
-        var validation = MergeModuleValidator.Validate(model);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<MergeModuleModel>.Failure(ErrorKind.Validation, errors);
-        }
+        var check = MergeModuleValidator.Check(model);
+        if (check.IsFailure)
+            return Result<MergeModuleModel>.Failure(check.Error);
 
         return model;
     }

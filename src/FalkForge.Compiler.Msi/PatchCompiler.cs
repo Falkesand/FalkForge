@@ -19,12 +19,9 @@ public sealed class PatchCompiler
     public Result<string> Compile(PatchModel patch, string outputPath)
     {
         // Step 1: Validate
-        var validation = PatchValidator.Validate(patch);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"Patch validation failed: {errors}");
-        }
+        var check = PatchValidator.Check(patch);
+        if (check.IsFailure)
+            return Result<string>.Failure(check.Error);
 
         // Step 1b: Verify source files exist (not in validator to keep it pure)
         if (!File.Exists(patch.TargetMsiPath))
