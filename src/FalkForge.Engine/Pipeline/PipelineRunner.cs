@@ -26,15 +26,21 @@ public sealed class PipelineRunner
     private readonly IInstallerPipeline _pipeline;
     private readonly IUiChannel _uiChannel;
     private readonly IEngineLogger? _logger;
+    private readonly bool _isPlanOnly;
+    private readonly string? _planOnlyOutputPath;
 
     public PipelineRunner(
         IInstallerPipeline pipeline,
         IUiChannel uiChannel,
-        IEngineLogger? logger = null)
+        IEngineLogger? logger = null,
+        bool isPlanOnly = false,
+        string? planOnlyOutputPath = null)
     {
         _pipeline = pipeline;
         _uiChannel = uiChannel;
         _logger = logger;
+        _isPlanOnly = isPlanOnly;
+        _planOnlyOutputPath = planOnlyOutputPath;
     }
 
     /// <summary>
@@ -74,6 +80,28 @@ public sealed class PipelineRunner
                             await SendShutdownAsync(ct);
                             return 1;
                         }
+
+                        // Plan-only mode: export the plan and exit without applying.
+                        if (_isPlanOnly)
+                        {
+                            _logger?.Info("PipelineRunner", "Plan-only mode: exporting plan and shutting down");
+                            var exportResult = _pipeline.ExportPlan(_planOnlyOutputPath);
+                            if (exportResult.IsFailure)
+                            {
+                                _logger?.Error("PipelineRunner", $"Plan export failed: {exportResult.Error.Message}");
+                                await _uiChannel.SendAsync(
+                                    new PipelineEvent.Failed(exportResult.Error.Kind, exportResult.Error.Message), ct);
+                                await SendShutdownAsync(ct);
+                                return 1;
+                            }
+
+                            await _uiChannel.SendAsync(
+                                new PipelineEvent.PhaseChanged(EnginePhase.Completing), ct);
+                            await SendShutdownAsync(ct);
+                            _logger?.Info("PipelineRunner", "Plan-only session completed");
+                            return 0;
+                        }
+
                         break;
 
                     case UiRequest.Apply:

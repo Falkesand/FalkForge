@@ -68,6 +68,15 @@ public sealed class PipelineRunnerTests
             return _applyResult;
         }
 
+        public Result<Unit> ExportPlan(string? outputPath)
+        {
+            ExportPlanCalled = true;
+            return ExportPlanResult ?? Result<Unit>.Success(Unit.Value);
+        }
+
+        public Result<Unit>? ExportPlanResult { get; set; }
+        public bool ExportPlanCalled { get; private set; }
+
         public ValueTask DisposeAsync() => default;
     }
 
@@ -247,5 +256,89 @@ public sealed class PipelineRunnerTests
         // Should not hang; returns cleanly
         var exitCode = await runner.RunAsync(cts.Token);
         Assert.Equal(0, exitCode);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Plan-only mode
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PlanOnlyMode_Returns0_DoesNotCallApply()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        var runner = new PipelineRunner(pipeline, channel, isPlanOnly: true);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.True(pipeline.PlanCalled);
+        Assert.False(pipeline.ApplyCalled, "Apply must NOT be called in plan-only mode");
+        Assert.True(pipeline.ExportPlanCalled, "ExportPlan must be called in plan-only mode");
+    }
+
+    [Fact]
+    public async Task PlanOnlyMode_EmitsCompletingAndShutdown()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        var runner = new PipelineRunner(pipeline, channel, isPlanOnly: true);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.Complete();
+
+        await runner.RunAsync(CancellationToken.None);
+
+        var phases = channel.SentEvents
+            .OfType<PipelineEvent.PhaseChanged>()
+            .Select(e => e.Phase)
+            .ToList();
+
+        Assert.Contains(EnginePhase.Completing, phases);
+        Assert.Contains(EnginePhase.Shutdown, phases);
+    }
+
+    [Fact]
+    public async Task PlanOnlyMode_ExportFails_Returns1()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        pipeline.ExportPlanResult =
+            Result<Unit>.Failure(ErrorKind.IoError, "disk full");
+        var runner = new PipelineRunner(pipeline, channel, isPlanOnly: true);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains(channel.SentEvents, e => e is PipelineEvent.Failed);
+    }
+
+    [Fact]
+    public async Task PlanOnlyMode_Disabled_ProceedsToApply()
+    {
+        // Regression guard: isPlanOnly=false (default) still reaches Apply
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        var runner = new PipelineRunner(pipeline, channel, isPlanOnly: false);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.EnqueueRequest(new UiRequest.Apply());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.True(pipeline.ApplyCalled);
+        Assert.False(pipeline.ExportPlanCalled, "ExportPlan must NOT be called in normal mode");
     }
 }

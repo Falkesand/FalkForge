@@ -29,4 +29,12 @@ public interface IInstallerPipeline : IAsyncDisposable
     /// Returns <see cref="ErrorKind.EngineError"/> if called out of sequence.
     /// </summary>
     Task<Result<Unit>> ApplyAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Exports the plan produced by <see cref="PlanAsync"/> as JSON.
+    /// When <paramref name="outputPath"/> is null the JSON is written to stdout.
+    /// Returns <see cref="ErrorKind.EngineError"/> when called before a successful
+    /// <see cref="PlanAsync"/> or when the file write fails.
+    /// </summary>
+    Result<Unit> ExportPlan(string? outputPath);
 }

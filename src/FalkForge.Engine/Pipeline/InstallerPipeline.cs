@@ -118,6 +118,22 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     }
 
     /// <inheritdoc/>
+    public Result<Unit> ExportPlan(string? outputPath)
+    {
+        if (_ctx.Plan is null)
+            return Result<Unit>.Failure(ErrorKind.EngineError,
+                "ExportPlan: no plan available — PlanAsync must complete successfully first.");
+
+        if (outputPath is not null)
+            return FalkForge.Engine.Planning.PlanExporter.WriteToFile(_ctx.Plan, outputPath);
+
+        // Null output path → write JSON to stdout
+        var json = FalkForge.Engine.Planning.PlanExporter.ToJson(_ctx.Plan);
+        Console.WriteLine(json);
+        return Unit.Value;
+    }
+
+    /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
         _disposed = true;
