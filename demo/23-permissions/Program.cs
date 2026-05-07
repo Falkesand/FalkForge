@@ -12,14 +12,17 @@ return Installer.Build(args, package =>
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "PermissionsDemo"));
 
-    // Grant modify permissions to BUILTIN\Users on the install folder via SDDL
+    // Grant modify permissions to BUILTIN\Users on the install folder via SDDL (MsiLockPermissionsEx).
+    // MSI allows only one permission style (LockPermissions or MsiLockPermissionsEx) per database;
+    // both permissions below use SDDL so they both go through MsiLockPermissionsEx.
     package.Permission(@"[ProgramFilesFolder]Demo\PermissionsDemo", perm =>
     {
-        perm.User = @"BUILTIN\Users";
-        perm.Permission = 0x001301BF; // FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE
+        // FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE for BUILTIN\Users
+        perm.Sddl = "D:(A;;GRGWGX;;;BU)";
+        perm.ForTable("File");
     });
 
-    // Permission via SDDL string — fine-grained access control
+    // Fine-grained access control on a CreateFolder entry
     package.Permission("DataFolder", p =>
     {
         p.Sddl = "D:(A;;FA;;;BA)(A;;FR;;;BU)";

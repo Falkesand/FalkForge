@@ -16,6 +16,7 @@ return Installer.Build(args, package =>
     // Associate .demo files with our application
     package.FileAssociation(".demo", fa =>
     {
+        fa.ProgId("Demo.Document");
         fa.ContentType = "application/x-demo";
         fa.Description = "Demo Document";
         fa.IconFile = "payload/app.exe";

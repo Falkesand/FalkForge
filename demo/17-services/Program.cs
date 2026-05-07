@@ -83,6 +83,7 @@ return Installer.Build(args, package =>
     // Service control — stop before uninstall, start after install
     package.ServiceControl(sc =>
     {
+        sc.Id("SvcCtrl_DemoService");
         sc.ServiceName("DemoService");
         sc.StopOnUninstall();
         sc.StartOnInstall();
@@ -93,6 +94,7 @@ return Installer.Build(args, package =>
     // Control an existing service — stop during install, pass arguments on start
     package.ServiceControl(sc =>
     {
+        sc.Id("SvcCtrl_DemoWorker");
         sc.ServiceName("DemoWorker");
         sc.StopOnInstall();
         sc.StartOnInstall();

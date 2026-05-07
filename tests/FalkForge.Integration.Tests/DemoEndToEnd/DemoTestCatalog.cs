@@ -164,24 +164,16 @@ public static class DemoTestCatalog
         // === Tier 2: MSI with extra tables ===
 
         // 17-services: Service() + ServiceControl() → ServiceInstall + ServiceControl
-        // DEMO BUG: Both ServiceControl() calls omit .Id() → empty-string PK → duplicate PK in ServiceControl table.
-        // Fix: add .Id("SvcCtrl_DemoService") and .Id("SvcCtrl_DemoWorker") in the demo's Program.cs.
-        // Marked RequiresInfrastructure to keep suite green until the demo is corrected.
         new("17-services",
             DemoProject("17-services", "17-services.csproj"),
             DemoOutputType.Msi,
-            WithExtra("ServiceInstall", "ServiceControl"),
-            RequiresInfrastructure: true),
+            WithExtra("ServiceInstall", "ServiceControl")),
 
         // 19-file-associations: FileAssociation() → Extension + Verb + MIME + ProgId
-        // DEMO BUG: FileAssociation(".demo") omits .ProgId(...) → FAS002 validation error.
-        // Fix: add fa.ProgId("Demo.Document") (or similar) in the demo's Program.cs.
-        // Marked RequiresInfrastructure to keep suite green until the demo is corrected.
         new("19-file-associations",
             DemoProject("19-file-associations", "19-file-associations.csproj"),
             DemoOutputType.Msi,
-            WithExtra("Extension", "Verb", "MIME", "ProgId"),
-            RequiresInfrastructure: true),
+            WithExtra("Extension", "Verb", "MIME", "ProgId")),
 
         // 20-custom-actions: Binary() + CustomAction() calls → CustomAction + Binary
         // RequiresInfrastructure: payload/CustomActions.dll and payload/setup.ps1 not present in repo
@@ -191,16 +183,11 @@ public static class DemoTestCatalog
             WithExtra("CustomAction", "Binary"),
             RequiresInfrastructure: true),
 
-        // 23-permissions: User-driven Permission() → LockPermissions; SDDL Permission() → MsiLockPermissionsEx
-        // DEMO BUG: Demo mixes User/Domain and SDDL permissions → PRM004 validation error.
-        // MSI allows only LockPermissions OR MsiLockPermissionsEx per database, not both.
-        // Fix: split into two separate demos, or use only one permission style.
-        // Marked RequiresInfrastructure to keep suite green until the demo is corrected.
+        // 23-permissions: SDDL permissions only → MsiLockPermissionsEx table
         new("23-permissions",
             DemoProject("23-permissions", "23-permissions.csproj"),
             DemoOutputType.Msi,
-            WithExtra("LockPermissions", "MsiLockPermissionsEx"),
-            RequiresInfrastructure: true),
+            WithExtra("MsiLockPermissionsEx")),
 
         // 25-file-operations: CreateFolder + DuplicateFile + RemoveFile
         // RequiresInfrastructure: payload/debug-tools.exe not present in repo
