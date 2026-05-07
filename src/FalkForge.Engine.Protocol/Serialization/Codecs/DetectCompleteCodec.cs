@@ -32,7 +32,22 @@ internal static class DetectCompleteCodec
             new FieldDescriptor { Index = 0, Name = nameof(EngineMessage.SequenceId), Type = WireType.UInt32, Nullable = false },
             new FieldDescriptor { Index = 1, Name = nameof(DetectCompleteMessage.State), Type = WireType.Enum, Nullable = false },
             new FieldDescriptor { Index = 2, Name = nameof(DetectCompleteMessage.CurrentVersion), Type = WireType.String, Nullable = true },
-            new FieldDescriptor { Index = 3, Name = nameof(DetectCompleteMessage.Features), Type = WireType.RecordArray, Nullable = false }),
+            new FieldDescriptor
+            {
+                Index = 3,
+                Name = nameof(DetectCompleteMessage.Features),
+                Type = WireType.RecordArray,
+                Nullable = false,
+                ElementSchema = ImmutableArray.Create(
+                    new FieldDescriptor { Index = 0, Name = "FeatureId", Type = WireType.String },
+                    new FieldDescriptor { Index = 1, Name = "Title", Type = WireType.String },
+                    // Description uses empty-string sentinel for null.
+                    new FieldDescriptor { Index = 2, Name = "Description", Type = WireType.String },
+                    new FieldDescriptor { Index = 3, Name = "IsSelected", Type = WireType.Bool },
+                    new FieldDescriptor { Index = 4, Name = "IsRequired", Type = WireType.Bool },
+                    new FieldDescriptor { Index = 5, Name = "WasPreviouslyInstalled", Type = WireType.Bool },
+                    new FieldDescriptor { Index = 6, Name = "DiskSpaceRequired", Type = WireType.Int64 }),
+            }),
         Write = static (writer, message) =>
         {
             writer.Write(message.SequenceId);

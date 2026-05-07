@@ -22,7 +22,10 @@ internal sealed class ElevateResultCodec
         Fields = ImmutableArray.Create(
             new FieldDescriptor { Index = 0, Name = nameof(EngineMessage.SequenceId), Type = WireType.UInt32, Nullable = false },
             new FieldDescriptor { Index = 1, Name = nameof(ElevateResultMessage.Success), Type = WireType.Bool, Nullable = false },
-            new FieldDescriptor { Index = 2, Name = nameof(ElevateResultMessage.ErrorMessage), Type = WireType.String, Nullable = true },
+            // Wire uses empty-string sentinel for null, not a presence flag.
+            new FieldDescriptor { Index = 2, Name = nameof(ElevateResultMessage.ErrorMessage), Type = WireType.String, Nullable = false },
+            // Wire format: bool(hasPayload) — if true, int32(length) + bytes.
+            // Encoded as NullableByteArray: presence flag (bool) + optional length-prefixed bytes.
             new FieldDescriptor { Index = 3, Name = nameof(ElevateResultMessage.ResultPayload), Type = WireType.NullableByteArray, Nullable = true }),
         Write = static (writer, message) =>
         {

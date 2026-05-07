@@ -26,7 +26,16 @@ internal static class PlanCompleteCodec
         Fields = ImmutableArray.Create(
             new FieldDescriptor { Index = 0, Name = nameof(EngineMessage.SequenceId), Type = WireType.UInt32, Nullable = false },
             new FieldDescriptor { Index = 1, Name = nameof(PlanCompleteMessage.TotalDiskSpaceRequired), Type = WireType.Int64, Nullable = false },
-            new FieldDescriptor { Index = 2, Name = nameof(PlanCompleteMessage.PackageIds), Type = WireType.RecordArray, Nullable = false }),
+            new FieldDescriptor
+            {
+                Index = 2,
+                Name = nameof(PlanCompleteMessage.PackageIds),
+                Type = WireType.RecordArray,
+                Nullable = false,
+                // Each element is a single UTF-8 string (the package ID).
+                ElementSchema = ImmutableArray.Create(
+                    new FieldDescriptor { Index = 0, Name = "PackageId", Type = WireType.String }),
+            }),
         Write = static (writer, message) =>
         {
             writer.Write(message.SequenceId);

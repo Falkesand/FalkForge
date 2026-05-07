@@ -19,7 +19,8 @@ internal static class ApplyCompleteCodec
         Fields = ImmutableArray.Create(
             new FieldDescriptor { Index = 0, Name = nameof(EngineMessage.SequenceId), Type = WireType.UInt32, Nullable = false },
             new FieldDescriptor { Index = 1, Name = nameof(ApplyCompleteMessage.ExitCode), Type = WireType.Int32, Nullable = false },
-            new FieldDescriptor { Index = 2, Name = nameof(ApplyCompleteMessage.ErrorMessage), Type = WireType.NullableString, Nullable = true }),
+            // Wire uses empty-string sentinel for null, not a presence flag.
+            new FieldDescriptor { Index = 2, Name = nameof(ApplyCompleteMessage.ErrorMessage), Type = WireType.String, Nullable = false }),
         Write = static (writer, message) =>
         {
             writer.Write(message.SequenceId);

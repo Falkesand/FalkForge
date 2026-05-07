@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace FalkForge.Engine.Protocol.Serialization;
 
 /// <summary>
@@ -58,4 +60,11 @@ public readonly record struct FieldDescriptor
     /// Should align with the chosen <see cref="WireType"/>.
     /// </summary>
     public bool Nullable { get; init; }
+
+    /// <summary>
+    /// For <see cref="WireType.RecordArray"/> fields: the schema of each element record.
+    /// The walker uses this to traverse inline per-element fields. Empty means opaque
+    /// (the walker skips a length-prefixed blob instead of walking element fields).
+    /// </summary>
+    public ImmutableArray<FieldDescriptor> ElementSchema { get; init; }
 }

@@ -89,18 +89,40 @@ internal static class FieldInterpreter
 
             case WireType.ByteArray:
             case WireType.SensitiveBytes:
-            case WireType.NullableByteArray:
             {
                 var length = reader.ReadInt32();
                 if (length > 0) _ = reader.ReadBytes(length);
                 break;
             }
 
-            case WireType.RecordArray:
-                // RecordArray is opaque to the walker without nested schema — skip length-prefixed blob.
-                var blobLength = reader.ReadInt32();
-                if (blobLength > 0) _ = reader.ReadBytes(blobLength);
+            case WireType.NullableByteArray:
+            {
+                // Wire format: bool(present) — if true, int32(length) + bytes.
+                var hasValue = reader.ReadBoolean();
+                if (hasValue)
+                {
+                    var length = reader.ReadInt32();
+                    if (length > 0) _ = reader.ReadBytes(length);
+                }
                 break;
+            }
+
+            case WireType.RecordArray:
+            {
+                var count = reader.ReadInt32();
+                if (!field.ElementSchema.IsDefault && !field.ElementSchema.IsEmpty)
+                {
+                    // Walk each element using the declared element schema.
+                    for (var i = 0; i < count; i++)
+                    {
+                        foreach (var elementField in field.ElementSchema)
+                            Consume(reader, elementField);
+                    }
+                }
+                // If no element schema declared, array content is opaque — the count
+                // is consumed above and elements are left unread (best-effort).
+                break;
+            }
 
             default:
                 throw new FieldMismatchException($"Unknown wire type '{field.Type}' for field '{field.Name}'.");
