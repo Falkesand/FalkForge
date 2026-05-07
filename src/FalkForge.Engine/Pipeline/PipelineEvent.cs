@@ -25,4 +25,13 @@ public abstract record PipelineEvent
 
     /// <summary>A single rollback step has completed.</summary>
     public sealed record RollbackStep(RollbackStepResult Step) : PipelineEvent;
+
+    /// <summary>
+    /// An update is available for this installer. Emitted by <see cref="DetectStep"/>
+    /// when the manifest has an update feed and a newer version is found.
+    /// </summary>
+    public sealed record UpdateAvailable(
+        string NewVersion,
+        string DownloadUrl,
+        string? ReleaseNotes = null) : PipelineEvent;
 }

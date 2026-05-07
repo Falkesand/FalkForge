@@ -93,6 +93,90 @@ public sealed class PipelinePhaseStepTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // DetectStep — update check
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DetectStep_WithUpdateFeed_UpdateAvailable_EmitsEvent()
+    {
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(bundleId, "1.0.0");
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        // Serve a feed advertising version 2.0.0
+        var feedJson = BuildFeedJson(bundleId, "2.0.0", "https://cdn.example.com/v2.exe", "abc123");
+        var checker = BuildUpdateChecker(200, feedJson);
+
+        var step = new DetectStep(manifest, registry, channel, checker);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(ctx.AvailableUpdate?.Update);
+        Assert.Equal("2.0.0", ctx.AvailableUpdate!.Update!.Version);
+
+        var updateEvent = channel.SentEvents.OfType<PipelineEvent.UpdateAvailable>().FirstOrDefault();
+        Assert.NotNull(updateEvent);
+        Assert.Equal("2.0.0", updateEvent!.NewVersion);
+    }
+
+    [Fact]
+    public async Task DetectStep_WithUpdateFeed_NoUpdate_NoEvent()
+    {
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(bundleId, "2.0.0");
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        // Feed has older version — no update
+        var feedJson = BuildFeedJson(bundleId, "1.0.0", "https://cdn.example.com/v1.exe", "aaa");
+        var checker = BuildUpdateChecker(200, feedJson);
+
+        var step = new DetectStep(manifest, registry, channel, checker);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(ctx.AvailableUpdate?.Update);
+        Assert.Empty(channel.SentEvents.OfType<PipelineEvent.UpdateAvailable>());
+    }
+
+    [Fact]
+    public async Task DetectStep_WithUpdateFeed_CheckFails_DetectStillSucceeds()
+    {
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(bundleId, "1.0.0");
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        // 500 error → UpdateChecker returns failure
+        var checker = BuildUpdateChecker(500, []);
+        var step = new DetectStep(manifest, registry, channel, checker);
+
+        // Update check must not abort detection
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task DetectStep_NoUpdateFeed_SkipsUpdateCheck()
+    {
+        // Manifest with no UpdateFeed — no checker needed
+        var manifest = SimpleManifest();
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        var step = new DetectStep(manifest, registry, channel);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(channel.SentEvents.OfType<PipelineEvent.UpdateAvailable>());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // DetectStep
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -766,6 +850,64 @@ public sealed class PipelinePhaseStepTests
             new BundleExecutor(runner),
             new ExeExecutor(runner),
             new NetRuntimeExecutor(runner));
+    }
+
+    private static InstallerManifest ManifestWithUpdateFeed(Guid bundleId, string version) =>
+        new()
+        {
+            Name = "TestApp",
+            Manufacturer = "Acme",
+            Version = version,
+            BundleId = bundleId,
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerUser,
+            Packages = [MsiPackage("Pkg1")],
+            UpdateFeed = new FalkForge.Engine.Protocol.Manifest.ManifestUpdateFeed(
+                "https://updates.example.com/feed.json",
+                FalkForge.Engine.Protocol.Manifest.UpdatePolicy.NotifyOnly,
+                AllowResumeDownload: true)
+        };
+
+    private static FalkForge.Engine.Download.UpdateChecker BuildUpdateChecker(
+        int statusCode,
+        byte[] body)
+    {
+        var handler = new FakeHttpMessageHandler(statusCode, body);
+        var httpClient = new HttpClient(handler);
+        return new FalkForge.Engine.Download.UpdateChecker(
+            httpClient,
+            new FalkForge.Engine.Logging.NullLogger());
+    }
+
+    private static byte[] BuildFeedJson(
+        Guid bundleId, string version, string url, string sha256)
+    {
+        var json = $$"""
+        {
+            "bundleId": "{{bundleId}}",
+            "entries": [{"version": "{{version}}", "url": "{{url}}", "sha256": "{{sha256}}"}]
+        }
+        """;
+        return System.Text.Encoding.UTF8.GetBytes(json);
+    }
+
+    private sealed class FakeHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly int _statusCode;
+        private readonly byte[] _body;
+
+        public FakeHttpMessageHandler(int statusCode, byte[] body)
+        {
+            _statusCode = statusCode;
+            _body = body;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage((System.Net.HttpStatusCode)_statusCode)
+            {
+                Content = new ByteArrayContent(_body)
+            });
     }
 
     private static InstallerManifest ManifestWithLicense() =>

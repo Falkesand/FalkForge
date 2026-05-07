@@ -130,4 +130,59 @@ public sealed class NamedPipeUiChannelTests
             new LogMessage { Level = LogLevel.Info, Text = "x" }, null, null);
         Assert.Null(result);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // SetProperty / SetSecureProperty accumulation → bundled into UiRequest.Plan
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void TranslateMessage_RequestPlan_Bundles_PendingProperties()
+    {
+        var props = new Dictionary<string, string>
+        {
+            ["MYAPP_LICENSE_KEY"] = "XXXX-YYYY"
+        };
+
+        var request = NamedPipeUiChannel.TranslateMessage(
+            new RequestPlanMessage { Action = InstallAction.Install },
+            pendingInstallDirectory: null,
+            pendingFeatures: null,
+            licenseAccepted: null,
+            pendingProperties: props,
+            pendingSecureProperties: null);
+
+        var plan = Assert.IsType<UiRequest.Plan>(request);
+        Assert.Equal("XXXX-YYYY", plan.Properties["MYAPP_LICENSE_KEY"]);
+    }
+
+    [Fact]
+    public void TranslateMessage_RequestPlan_Bundles_PendingSecureProperties()
+    {
+        using var sensitiveValue = new SensitiveBytes([1, 2, 3]);
+        var secureProps = new Dictionary<string, SensitiveBytes>
+        {
+            ["DB_PASSWORD"] = sensitiveValue
+        };
+
+        var request = NamedPipeUiChannel.TranslateMessage(
+            new RequestPlanMessage { Action = InstallAction.Install },
+            pendingInstallDirectory: null,
+            pendingFeatures: null,
+            licenseAccepted: null,
+            pendingProperties: null,
+            pendingSecureProperties: secureProps);
+
+        var plan = Assert.IsType<UiRequest.Plan>(request);
+        Assert.True(plan.SecureProperties.ContainsKey("DB_PASSWORD"));
+    }
+
+    [Fact]
+    public void TranslateEvent_UpdateAvailable_Returns_UpdateAvailableMessage()
+    {
+        var msg = NamedPipeUiChannel.TranslateEvent(
+            new PipelineEvent.UpdateAvailable("2.0.0", "https://cdn.example.com/v2.exe"));
+        var typed = Assert.IsType<UpdateAvailableMessage>(msg);
+        Assert.Equal("2.0.0", typed.Version);
+        Assert.Equal("https://cdn.example.com/v2.exe", typed.DownloadUrl);
+    }
 }

@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Pipeline;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
@@ -28,6 +29,12 @@ public sealed class NamedPipeUiChannel : IUiChannel
     // License state accumulated from LicenseMessage(Accepted/Declined) before RequestPlan
     private volatile bool _licenseAccepted;
     private volatile bool _licenseResponseReceived;
+
+    // User properties accumulated from SetProperty / SetSecureProperty before RequestPlan
+    private readonly ConcurrentDictionary<string, string> _pendingProperties =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SensitiveBytes> _pendingSecureProperties =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private NamedPipeUiChannel(PipeServer? pipe)
     {
@@ -140,6 +147,14 @@ public sealed class NamedPipeUiChannel : IUiChannel
             Text = $"Rollback [{step.OperationKind}] {step.Target}: {(step.Succeeded ? "ok" : step.Error?.Message ?? "failed")}"
         },
 
+        PipelineEvent.UpdateAvailable(var version, var url, var notes) =>
+            new UpdateAvailableMessage
+            {
+                Version = version,
+                DownloadUrl = url,
+                ReleaseNotes = notes
+            },
+
         _ => null
     };
 
@@ -157,7 +172,9 @@ public sealed class NamedPipeUiChannel : IUiChannel
         EngineMessage message,
         string? pendingInstallDirectory,
         IDictionary<string, bool>? pendingFeatures,
-        bool? licenseAccepted = null) => message switch
+        bool? licenseAccepted = null,
+        IDictionary<string, string>? pendingProperties = null,
+        IDictionary<string, SensitiveBytes>? pendingSecureProperties = null) => message switch
     {
         CancelMessage => new UiRequest.Cancel(),
         ShutdownRequestMessage => new UiRequest.Shutdown(),
@@ -171,8 +188,10 @@ public sealed class NamedPipeUiChannel : IUiChannel
                 pendingInstallDirectory,
                 (IReadOnlyDictionary<string, bool>?)pendingFeatures
                     ?? new Dictionary<string, bool>(),
-                new Dictionary<string, string>(),
-                new Dictionary<string, SensitiveBytes>(),
+                (IReadOnlyDictionary<string, string>?)pendingProperties
+                    ?? new Dictionary<string, string>(),
+                (IReadOnlyDictionary<string, SensitiveBytes>?)pendingSecureProperties
+                    ?? new Dictionary<string, SensitiveBytes>(),
                 licenseAccepted),
 
         _ => null
@@ -202,15 +221,32 @@ public sealed class NamedPipeUiChannel : IUiChannel
             return Task.CompletedTask;
         }
 
-        // SetProperty / SetSecureProperty: emit as Plan sub-properties only when Plan arrives.
-        // For now, these pass through as null (pipeline handles them via EngineHost until
-        // full pipeline migration in a later RFC slice).
-        if (message is SetPropertyMessage or SetSecurePropertyMessage)
+        // SetProperty: validate name and accumulate for bundling into UiRequest.Plan.
+        if (message is SetPropertyMessage propMsg)
+        {
+            var rejection = PropertyNameValidator.Validate(propMsg.PropertyName, logger: null);
+            if (rejection is null)
+                _pendingProperties[propMsg.PropertyName] = propMsg.Value;
             return Task.CompletedTask;
+        }
+
+        // SetSecureProperty: validate name and accumulate (value copied to pending dict).
+        if (message is SetSecurePropertyMessage secureMsg)
+        {
+            var rejection = PropertyNameValidator.Validate(secureMsg.PropertyName, logger: null);
+            if (rejection is null)
+                _pendingSecureProperties[secureMsg.PropertyName] = secureMsg.SecureValue;
+            return Task.CompletedTask;
+        }
 
         bool? licenseAccepted = _licenseResponseReceived ? _licenseAccepted : null;
         var request = TranslateMessage(
-            message, _pendingInstallDirectory, _pendingFeatures, licenseAccepted);
+            message,
+            _pendingInstallDirectory,
+            _pendingFeatures,
+            licenseAccepted,
+            _pendingProperties.IsEmpty ? null : new Dictionary<string, string>(_pendingProperties),
+            _pendingSecureProperties.IsEmpty ? null : new Dictionary<string, SensitiveBytes>(_pendingSecureProperties));
         if (request is not null)
             _requests.Writer.TryWrite(request);
 
