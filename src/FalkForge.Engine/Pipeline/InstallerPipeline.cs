@@ -1,27 +1,25 @@
 namespace FalkForge.Engine.Pipeline;
 
 /// <summary>
-/// Minimal <see cref="IInstallerPipeline"/> implementation. Enforces Detect → Plan →
-/// Apply ordering and holds port references for injection into phase steps.
-/// In this first slice the phase step lists are empty — ordering enforcement and
-/// port-composition infrastructure are validated here; phase logic arrives in
-/// subsequent slices.
+/// <see cref="IInstallerPipeline"/> implementation. Enforces Detect → Plan → Apply
+/// ordering and delegates each phase to the injected step implementations.
 /// </summary>
 internal sealed class InstallerPipeline : IInstallerPipeline
 {
     // ──────────────────────────────────────────────────────────────────────────
-    // Ports — stored for use by phase steps added in subsequent slices.
+    // Phase steps — injected by InstallerPipelineBuilder.
+    // Null when no step registered (passthrough / skeleton mode for tests that
+    // only verify ordering).
     // ──────────────────────────────────────────────────────────────────────────
-#pragma warning disable S4487 // ports consumed by phase steps in next slices
-    private readonly ISystemClock? _clock;
-    private readonly IRandomSource? _random;
-    private readonly IRollbackJournalStore? _journalStore;
-    private readonly IPayloadCache? _payloadCache;
-    private readonly IPayloadSource? _payloadSource;
-    private readonly ILayoutStore? _layoutStore;
-    private readonly IUiChannel? _uiChannel;
-    private readonly IElevatedCommandGateway? _elevationGateway;
-#pragma warning restore S4487
+    private readonly IDetectStep? _detectStep;
+    private readonly IPlanStep? _planStep;
+    private readonly IApplyStep? _applyStep;
+    private readonly IRollbackStep? _rollbackStep;
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Shared mutable context threaded through all phase steps
+    // ──────────────────────────────────────────────────────────────────────────
+    private readonly PipelineContext _ctx = new();
 
     // ──────────────────────────────────────────────────────────────────────────
     // Phase state machine
@@ -32,72 +30,91 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     private bool _disposed;
 
     internal InstallerPipeline(
-        ISystemClock? clock,
-        IRandomSource? random,
-        IRollbackJournalStore? journalStore,
-        IPayloadCache? payloadCache,
-        IPayloadSource? payloadSource,
-        ILayoutStore? layoutStore,
-        IUiChannel? uiChannel,
-        IElevatedCommandGateway? elevationGateway)
+        IDetectStep? detectStep,
+        IPlanStep? planStep,
+        IApplyStep? applyStep,
+        IRollbackStep? rollbackStep,
+        FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null)
     {
-        _clock = clock;
-        _random = random;
-        _journalStore = journalStore;
-        _payloadCache = payloadCache;
-        _payloadSource = payloadSource;
-        _layoutStore = layoutStore;
-        _uiChannel = uiChannel;
-        _elevationGateway = elevationGateway;
+        _detectStep = detectStep;
+        _planStep = planStep;
+        _applyStep = applyStep;
+        _rollbackStep = rollbackStep;
+
+        // Pre-seed the context manifest so PlanStep can operate even when
+        // DetectStep is absent (e.g. headless / ordering-only tests).
+        if (seedManifest is not null)
+            _ctx.Manifest = seedManifest;
     }
 
     /// <inheritdoc/>
-    public Task<Result<Unit>> DetectAsync(CancellationToken ct)
+    public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
     {
         if (_disposed)
-            return Task.FromResult(
-                Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed."));
+            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
 
         // Detect may run from Initial or re-run from Detected state (re-detect).
         if (_phase is Phase.Planned or Phase.Applied)
-            return Task.FromResult(
-                Result<Unit>.Failure(ErrorKind.EngineError,
-                    "DetectAsync cannot be called after Plan or Apply."));
+            return Result<Unit>.Failure(ErrorKind.EngineError,
+                "DetectAsync cannot be called after Plan or Apply.");
+
+        if (_detectStep is not null)
+        {
+            var result = await _detectStep.ExecuteAsync(_ctx, ct);
+            if (result.IsFailure)
+                return result;
+        }
 
         _phase = Phase.Detected;
-        return Task.FromResult(Result<Unit>.Success(Unit.Value));
+        return Unit.Value;
     }
 
     /// <inheritdoc/>
-    public Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+    public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
     {
         if (_disposed)
-            return Task.FromResult(
-                Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed."));
+            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
 
         if (_phase is not Phase.Detected)
-            return Task.FromResult(
-                Result<Unit>.Failure(ErrorKind.EngineError,
-                    "PlanAsync requires a prior successful DetectAsync."));
+            return Result<Unit>.Failure(ErrorKind.EngineError,
+                "PlanAsync requires a prior successful DetectAsync.");
+
+        if (_planStep is not null)
+        {
+            var result = await _planStep.ExecuteAsync(_ctx, request, ct);
+            if (result.IsFailure)
+                return result;
+        }
 
         _phase = Phase.Planned;
-        return Task.FromResult(Result<Unit>.Success(Unit.Value));
+        return Unit.Value;
     }
 
     /// <inheritdoc/>
-    public Task<Result<Unit>> ApplyAsync(CancellationToken ct)
+    public async Task<Result<Unit>> ApplyAsync(CancellationToken ct)
     {
         if (_disposed)
-            return Task.FromResult(
-                Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed."));
+            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
 
         if (_phase is not Phase.Planned)
-            return Task.FromResult(
-                Result<Unit>.Failure(ErrorKind.EngineError,
-                    "ApplyAsync requires a prior successful PlanAsync."));
+            return Result<Unit>.Failure(ErrorKind.EngineError,
+                "ApplyAsync requires a prior successful PlanAsync.");
+
+        if (_applyStep is not null)
+        {
+            var applyResult = await _applyStep.ExecuteAsync(_ctx, ct);
+            if (applyResult.IsFailure)
+            {
+                // On apply failure, attempt rollback before surfacing the error
+                if (_rollbackStep is not null)
+                    await _rollbackStep.ExecuteAsync(_ctx, CancellationToken.None);
+
+                return applyResult;
+            }
+        }
 
         _phase = Phase.Applied;
-        return Task.FromResult(Result<Unit>.Success(Unit.Value));
+        return Unit.Value;
     }
 
     /// <inheritdoc/>
