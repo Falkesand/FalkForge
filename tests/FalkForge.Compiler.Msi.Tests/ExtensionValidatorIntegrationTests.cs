@@ -89,7 +89,7 @@ public sealed class ExtensionValidatorIntegrationTests
     // Tests — skipped until validator wiring is implemented in commit 2
     // ---------------------------------------------------------------------------
 
-    [Fact(Skip = "Awaiting validator wiring (commit 2)")]
+    [Fact]
     public void Compile_WithFailingExtensionValidator_ReturnsFailure()
     {
         // Arrange
@@ -116,7 +116,7 @@ public sealed class ExtensionValidatorIntegrationTests
         }
     }
 
-    [Fact(Skip = "Awaiting validator wiring (commit 2)")]
+    [Fact]
     public void Compile_WithPassingExtensionValidator_Succeeds()
     {
         // Arrange
@@ -141,7 +141,7 @@ public sealed class ExtensionValidatorIntegrationTests
         }
     }
 
-    [Fact(Skip = "Awaiting validator wiring (commit 2)")]
+    [Fact]
     public void Compile_WithMultipleExtensionsAnyFailing_AggregatesErrors()
     {
         // Arrange: two extensions — one failing, one passing.
@@ -181,7 +181,7 @@ public sealed class ExtensionValidatorIntegrationTests
         }
     }
 
-    [Fact(Skip = "Awaiting validator wiring (commit 2)")]
+    [Fact]
     public void Compile_ValidatorCalledBeforeAnyDatabaseIO()
     {
         // Arrange: the failing validator records the call. The assertion proves
