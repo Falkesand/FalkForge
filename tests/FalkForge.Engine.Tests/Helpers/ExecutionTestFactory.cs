@@ -1,26 +1,22 @@
 namespace FalkForge.Engine.Tests.Helpers;
 
+using FalkForge.Engine.Detection;
 using FalkForge.Engine.Execution;
+using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
 
+/// <summary>
+/// Factory helpers for pipeline-based execution tests.
+/// Migrated from EngineContext to PipelineContext.
+/// </summary>
 internal static class ExecutionTestFactory
 {
-    internal static EngineContext CreateContext()
+    internal static PipelineContext CreateContext()
     {
-        var mockEnv = new MockEnvironment()
-            .SetFolderPath(Environment.SpecialFolder.LocalApplicationData, @"C:\Users\Test\AppData\Local")
-            .SetFolderPath(Environment.SpecialFolder.ProgramFiles, @"C:\Program Files");
-
-        return new EngineContext
-        {
-            Manifest = TestManifestFactory.CreateSimple(),
-            Platform = new MockPlatformServices(environment: mockEnv),
-            UiPipe = null,
-            ShutdownToken = CancellationToken.None
-        };
+        return new PipelineContext();
     }
 
     internal static PackageExecutor CreateExecutor(MockProcessRunner runner)

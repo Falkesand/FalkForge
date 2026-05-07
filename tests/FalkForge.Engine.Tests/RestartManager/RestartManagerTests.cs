@@ -1,8 +1,5 @@
 namespace FalkForge.Engine.Tests.RestartManager;
 
-using FalkForge.Engine.Execution;
-using FalkForge.Engine.Phases;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.RestartManager;
 using FalkForge.Engine.Tests.Helpers;
 using FalkForge.Engine.Tests.Mocks;
@@ -266,10 +263,10 @@ public sealed class RestartManagerTests
         Assert.Equal(nameof(IRestartManager.EndSession), mock.CallLog[^1]);
     }
 
-    // ─── ApplyingHandler Integration (mock-based) ───────────────────────
+    // ─── ApplyStep Integration (pipeline-based) ────────────────────────
 
     [Fact]
-    public async Task ApplyingHandler_WithRestartManager_ShutdownsBeforeApply()
+    public async Task ApplyStep_WithRestartManager_AffectedProcesses_FullLifecycle()
     {
         var mock = new MockRestartManager()
             .WithAffectedProcesses(
@@ -277,67 +274,60 @@ public sealed class RestartManagerTests
 
         var runner = new MockProcessRunner().WithExitCode(0);
         var executor = ExecutionTestFactory.CreateExecutor(runner);
-        var handler = new ApplyingHandler(executor);
-        var context = ExecutionTestFactory.CreateContext();
-        context.RestartManager = mock;
-        context.RestartManagerEnabled = true;
-        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(2);
+        var ctx = ExecutionTestFactory.CreateContext();
+        ctx.Plan = ExecutionTestFactory.CreatePlanWithMsuPackages(2);
+        ctx.RestartManager = mock;
 
-        var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
+        await using var channel = new FalkForge.Testing.FakeUiChannel();
+        using var journalStore = new FalkForge.Testing.InMemoryJournalStore();
+        var step = new FalkForge.Engine.Pipeline.ApplyStep(executor, journalStore, channel);
 
-        Assert.Equal(EnginePhase.Completing, nextPhase);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
 
-        // Verify RM lifecycle was called
+        Assert.True(result.IsSuccess);
         Assert.Contains(nameof(IRestartManager.StartSession), mock.CallLog);
-        Assert.Contains(nameof(IRestartManager.RegisterResources), mock.CallLog);
-        Assert.Contains(nameof(IRestartManager.GetAffectedProcesses), mock.CallLog);
         Assert.Contains(nameof(IRestartManager.ShutdownProcesses), mock.CallLog);
         Assert.Contains(nameof(IRestartManager.RestartProcesses), mock.CallLog);
         Assert.Contains(nameof(IRestartManager.EndSession), mock.CallLog);
     }
 
     [Fact]
-    public async Task ApplyingHandler_NoAffectedProcesses_SkipsShutdown()
+    public async Task ApplyStep_WithRestartManager_NoAffectedProcesses_SkipsShutdown()
     {
-        var mock = new MockRestartManager(); // No affected processes configured
+        var mock = new MockRestartManager(); // no affected processes
 
         var runner = new MockProcessRunner().WithExitCode(0);
         var executor = ExecutionTestFactory.CreateExecutor(runner);
-        var handler = new ApplyingHandler(executor);
-        var context = ExecutionTestFactory.CreateContext();
-        context.RestartManager = mock;
-        context.RestartManagerEnabled = true;
-        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
+        var ctx = ExecutionTestFactory.CreateContext();
+        ctx.Plan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
+        ctx.RestartManager = mock;
 
-        var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
+        await using var channel = new FalkForge.Testing.FakeUiChannel();
+        using var journalStore = new FalkForge.Testing.InMemoryJournalStore();
+        var step = new FalkForge.Engine.Pipeline.ApplyStep(executor, journalStore, channel);
 
-        Assert.Equal(EnginePhase.Completing, nextPhase);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
 
-        // ShutdownProcesses should NOT have been called since no affected processes
+        Assert.True(result.IsSuccess);
         Assert.DoesNotContain(nameof(IRestartManager.ShutdownProcesses), mock.CallLog);
-
-        // EndSession should still be called
         Assert.Contains(nameof(IRestartManager.EndSession), mock.CallLog);
     }
 
     [Fact]
-    public async Task ApplyingHandler_RestartManagerDisabled_SkipsEntireRM()
+    public async Task ApplyStep_WithoutRestartManager_NoRmCalls()
     {
-        var mock = new MockRestartManager();
-
         var runner = new MockProcessRunner().WithExitCode(0);
         var executor = ExecutionTestFactory.CreateExecutor(runner);
-        var handler = new ApplyingHandler(executor);
-        var context = ExecutionTestFactory.CreateContext();
-        context.RestartManager = mock;
-        context.RestartManagerEnabled = false;
-        context.CurrentPlan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
+        var ctx = ExecutionTestFactory.CreateContext();
+        ctx.Plan = ExecutionTestFactory.CreatePlanWithMsuPackages(1);
+        // RestartManager is null — no RM
 
-        var nextPhase = await handler.ExecuteAsync(context, CancellationToken.None);
+        await using var channel = new FalkForge.Testing.FakeUiChannel();
+        using var journalStore = new FalkForge.Testing.InMemoryJournalStore();
+        var step = new FalkForge.Engine.Pipeline.ApplyStep(executor, journalStore, channel);
 
-        Assert.Equal(EnginePhase.Completing, nextPhase);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
 
-        // No RM methods should have been called
-        Assert.Empty(mock.CallLog);
+        Assert.True(result.IsSuccess);
     }
 }

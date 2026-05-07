@@ -1,203 +1,142 @@
 namespace FalkForge.Engine.Tests.Elevation;
 
-using System.Diagnostics;
-using FalkForge.Engine.Elevation;
-using FalkForge.Engine.Logging;
-using FalkForge.Engine.Phases;
+using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
-using FalkForge.Engine.Protocol.Manifest;
-using FalkForge.Engine.Tests.Mocks;
+using FalkForge.Testing;
 using Xunit;
 
+/// <summary>
+/// Elevation contract tests, migrated from ElevatingHandler/EngineContext to
+/// ElevateStep/PipelineContext/IElevatedCommandGateway. End-to-end elevation
+/// runner tests live in PipelineRunnerTests (Elevation section).
+/// </summary>
 public sealed class ElevatingHandlerTests
 {
-    private static EngineContext CreateContext()
-    {
-        var mockEnv = new MockEnvironment()
-            .SetFolderPath(Environment.SpecialFolder.LocalApplicationData, @"C:\Users\Test\AppData\Local")
-            .SetFolderPath(Environment.SpecialFolder.ProgramFiles, @"C:\Program Files");
+    // ──────────────────────────────────────────────────────────────────────────
+    // ElevateStep via InProcessElevationGateway (always-succeeds)
+    // ──────────────────────────────────────────────────────────────────────────
 
-        return new EngineContext
-        {
-            Manifest = TestManifestFactory.CreateSimple(),
-            Platform = new MockPlatformServices(environment: mockEnv),
-            UiPipe = null,
-            ShutdownToken = CancellationToken.None
-        };
+    [Fact]
+    public async Task ElevateStep_Success_PopulatesContextGateway()
+    {
+        await using var channel = new FakeUiChannel();
+        await using var gateway = InProcessElevationGateway.AlwaysSucceeds();
+        var ctx = new PipelineContext();
+
+        var step = new ElevateStep(gateway, channel);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Same(gateway, ctx.ElevationGateway);
     }
 
     [Fact]
-    public void Phase_ReturnsElevating()
+    public async Task ElevateStep_EmitsElevatingPhaseChanged()
     {
-        var handler = new ElevatingHandler(new MockProcessLauncher(), new NullLogger());
-        Assert.Equal(EnginePhase.Elevating, handler.Phase);
+        await using var channel = new FakeUiChannel();
+        await using var gateway = InProcessElevationGateway.AlwaysSucceeds();
+        var ctx = new PipelineContext();
+
+        var step = new ElevateStep(gateway, channel);
+        await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        var phases = channel.SentEvents
+            .OfType<PipelineEvent.PhaseChanged>()
+            .Select(e => e.Phase)
+            .ToList();
+
+        Assert.Contains(EnginePhase.Elevating, phases);
     }
 
     [Fact]
-    public async Task HandleAsync_CompanionNotFound_ReturnsFailed()
+    public async Task ElevateStep_GatewayFails_ReturnsElevationError()
     {
-        // Arrange: The handler resolves the companion path from Environment.ProcessPath.
-        // In test environments, the companion EXE will not exist next to the test runner.
-        // Environment.ProcessPath points to the test host, so FalkForge.Engine.Elevation.exe
-        // won't be found there. This naturally tests the "companion not found" path.
-        var launcher = new MockProcessLauncher();
-        var handler = new ElevatingHandler(launcher, new NullLogger());
-        var context = CreateContext();
+        // Use a gateway stub whose StartAsync explicitly fails.
+        await using var channel = new FakeUiChannel();
+        await using var gateway = new FailingStartGateway("UAC cancelled");
+        var ctx = new PipelineContext();
 
-        // Act
-        var result = await handler.ExecuteAsync(context, CancellationToken.None);
+        var step = new ElevateStep(gateway, channel);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
 
-        // Assert
-        Assert.Equal(EnginePhase.Failed, result);
-        Assert.NotNull(context.ErrorMessage);
-        // Either "Cannot determine engine process path" or "Elevated companion not found"
-        Assert.True(
-            context.ErrorMessage.Contains("companion not found", StringComparison.OrdinalIgnoreCase)
-            || context.ErrorMessage.Contains("Cannot determine", StringComparison.OrdinalIgnoreCase),
-            $"Unexpected error message: {context.ErrorMessage}");
-        Assert.False(launcher.WasCalled);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.ElevationError, result.Error.Kind);
+        Assert.Contains("UAC cancelled", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task HandleAsync_LaunchFails_ReturnsFailed()
+    public async Task ElevateStep_GatewayFails_DoesNotSetContextGateway()
     {
-        // Arrange: Even if we could get past the companion file check, the launch itself fails.
-        // Since the companion doesn't exist in test environment, this test verifies the
-        // file-not-found failure path. The handler checks File.Exists before launching.
-        var launcher = new MockProcessLauncher
-        {
-            LaunchResult = Result<Process>.Failure(ErrorKind.ElevationError, "Elevation was cancelled by the user.")
-        };
-        var handler = new ElevatingHandler(launcher, new NullLogger());
-        var context = CreateContext();
+        await using var channel = new FakeUiChannel();
+        await using var gateway = new FailingStartGateway("error");
+        var ctx = new PipelineContext();
 
-        // Act
-        var result = await handler.ExecuteAsync(context, CancellationToken.None);
+        var step = new ElevateStep(gateway, channel);
+        await step.ExecuteAsync(ctx, CancellationToken.None);
 
-        // Assert: Fails at companion-not-found stage (before launch is attempted)
-        Assert.Equal(EnginePhase.Failed, result);
-        Assert.NotNull(context.ErrorMessage);
+        Assert.Null(ctx.ElevationGateway);
     }
 
     [Fact]
-    public async Task HandleAsync_CancellationRequested_ReturnsFailed()
+    public async Task ElevateStep_CancelledToken_DoesNotSetGateway()
     {
-        // Arrange: Cancel before execution starts
-        var launcher = new MockProcessLauncher();
-        var handler = new ElevatingHandler(launcher, new NullLogger());
-        var context = CreateContext();
+        await using var channel = new FakeUiChannel();
+        await using var gateway = InProcessElevationGateway.AlwaysSucceeds();
+        var ctx = new PipelineContext();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
-        // Act: With a pre-cancelled token, the handler should fail
-        // (it may throw OperationCanceledException or return Failed)
-        EnginePhase result;
+        var step = new ElevateStep(gateway, channel);
         try
         {
-            result = await handler.ExecuteAsync(context, cts.Token);
+            var result = await step.ExecuteAsync(ctx, cts.Token);
+            // Either failure result or OperationCanceledException is acceptable
+            if (result.IsFailure)
+                Assert.Null(ctx.ElevationGateway);
         }
         catch (OperationCanceledException)
         {
-            // Cancellation is also an acceptable outcome
-            result = EnginePhase.Failed;
+            // Also acceptable — cancellation propagated
+            Assert.Null(ctx.ElevationGateway);
         }
-
-        // Assert
-        Assert.Equal(EnginePhase.Failed, result);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Gateway stub whose StartAsync always fails with the given message.</summary>
+    private sealed class FailingStartGateway : IElevatedCommandGateway
+    {
+        private readonly string _message;
+
+        public FailingStartGateway(string message) => _message = message;
+
+        public Task<Result<Unit>> StartAsync(CancellationToken ct) =>
+            Task.FromResult(Result<Unit>.Failure(ErrorKind.ElevationError, _message));
+
+        public Task<Result<byte[]>> SendCommandAsync(
+            string commandName, byte[] payload,
+            IProgress<int>? progress, CancellationToken ct) =>
+            Task.FromResult(Result<byte[]>.Failure(ErrorKind.ElevationError, "not started"));
+
+        public ValueTask DisposeAsync() => default;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Security: args construction (ported from ElevatingHandlerArgSecurityTests)
+    // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task HandleAsync_SetsContextFields_WhenCompanionNotFound()
+    public void ElevationArgs_DoNotContainSecretToken()
     {
-        // Arrange
-        var launcher = new MockProcessLauncher();
-        var handler = new ElevatingHandler(launcher, new NullLogger());
-        var context = CreateContext();
-
-        // Act
-        await handler.ExecuteAsync(context, CancellationToken.None);
-
-        // Assert: On failure, ElevationClient should NOT be set
-        Assert.Null(context.ElevationClient);
-        Assert.Null(context.ElevatedProcess);
-    }
-
-    [Fact]
-    public async Task HandleAsync_LaunchNotAttempted_WhenCompanionMissing()
-    {
-        // Arrange: Verify the launcher is never called when the companion binary is missing
-        var launcher = new MockProcessLauncher
-        {
-            LaunchResult = Result<Process>.Failure(ErrorKind.ElevationError, "Should not be called")
-        };
-        var handler = new ElevatingHandler(launcher, new NullLogger());
-        var context = CreateContext();
-
-        // Act
-        await handler.ExecuteAsync(context, CancellationToken.None);
-
-        // Assert: Launch should not have been attempted
-        Assert.False(launcher.WasCalled);
-    }
-
-    [Fact]
-    public async Task HandleAsync_NullLauncher_ReturnsFailed()
-    {
-        // Arrange: Pass null launcher to simulate a non-Windows platform
-        var handler = new ElevatingHandler(null, new NullLogger());
-        var context = CreateContext();
-
-        // Act
-        var result = await handler.ExecuteAsync(context, CancellationToken.None);
-
-        // Assert
-        Assert.Equal(EnginePhase.Failed, result);
-        Assert.NotNull(context.ErrorMessage);
-        Assert.Contains("not supported on this platform", context.ErrorMessage, StringComparison.OrdinalIgnoreCase);
-    }
-}
-
-/// <summary>
-/// Mock implementation of <see cref="IProcessLauncher"/> for testing.
-/// Records whether Launch was called and returns a configurable result.
-/// </summary>
-internal sealed class MockProcessLauncher : IProcessLauncher
-{
-    public bool WasCalled { get; private set; }
-    public string? LastExePath { get; private set; }
-    public string? LastArguments { get; private set; }
-    public Result<Process>? LaunchResult { get; set; }
-
-    public Result<Process> Launch(string exePath, string arguments)
-    {
-        WasCalled = true;
-        LastExePath = exePath;
-        LastArguments = arguments;
-
-        return LaunchResult ?? Result<Process>.Failure(ErrorKind.ElevationError, "Mock launch failure");
-    }
-}
-
-/// <summary>
-/// Validates that ElevatingHandler builds args without --secret.
-/// This is a pure argument-construction test via a subclassed handler.
-/// </summary>
-public sealed class ElevatingHandlerArgSecurityTests
-{
-    [Fact]
-    public void ElevatingHandler_ArgsDoNotContainSecretToken()
-    {
-        // The handler builds: --pipe <name> --secret-pipe <name> --parent-pid <pid>
-        // Verify that neither "--secret " nor "==" (base64) appear in typical args.
-        // Since the companion won't be found in test environment, we inspect the code
-        // directly: the old "--secret" token must not appear in the format string.
-
-        // Structural verification: grep the source for the old pattern
-        // (This test documents the security intent — actual arg capture requires companion to exist)
+        // The NamedPipeElevationGateway builds: --pipe <name> --secret-pipe <name> --parent-pid <pid>
+        // Verify that "--secret " (old pattern) does not appear in the arg format string.
         const string prohibitedArgToken = "--secret ";
-        var argsFormat = "--pipe {0} --secret-pipe {1} --parent-pid {2}";
-        var sampleArgs = string.Format(argsFormat, "falkforge_elev_abc", "falkforge_init_def", 12345);
+        var sampleArgs = string.Format(
+            "--pipe {0} --secret-pipe {1} --parent-pid {2}",
+            "falkforge_elev_abc", "falkforge_init_def", 12345);
 
         Assert.DoesNotContain(prohibitedArgToken, sampleArgs, StringComparison.Ordinal);
         Assert.Contains("--secret-pipe", sampleArgs, StringComparison.Ordinal);

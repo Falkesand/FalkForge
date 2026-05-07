@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Tests.Execution;
 
 using FalkForge;
 using FalkForge.Engine.Execution;
+using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
@@ -10,18 +11,11 @@ using Xunit;
 public sealed class PackageExecutorDryRunTests
 {
     [Fact]
-    public void EngineContext_IsDryRun_DefaultsFalse()
+    public void PipelineContext_IsDryRun_DefaultsFalse()
     {
-        var context = new EngineContext
-        {
-            Manifest = TestManifestFactory.CreateSimple(),
-            Platform = new MockPlatformServices(),
-            UiPipe = null,
-            ShutdownToken = CancellationToken.None
-        };
-
-        Assert.False(context.IsDryRun);
-        Assert.Null(context.DryRunLogPath);
+        var ctx = new PipelineContext();
+        Assert.False(ctx.IsDryRun);
+        Assert.Null(ctx.DryRunLogPath);
     }
 
     [Fact]
