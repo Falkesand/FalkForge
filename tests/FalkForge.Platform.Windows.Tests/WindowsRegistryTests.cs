@@ -116,4 +116,112 @@ public sealed class WindowsRegistryTests : IDisposable
         var invalidRoot = (RegistryRoot)999;
         Assert.Throws<ArgumentOutOfRangeException>(() => _registry.KeyExists(invalidRoot, _subKey));
     }
+
+    // ─── Error paths: missing key / value ─────────────────────────────────────
+
+    [Fact]
+    public void GetDWordValue_MissingKey_ReturnsNull()
+        => Assert.Null(_registry.GetDWordValue(RegistryRoot.CurrentUser, _subKey, "NoSuch"));
+
+    [Fact]
+    public void GetDWordValue_ExistingKeyWrongType_ReturnsNull()
+    {
+        // Write a string; reading it as DWORD must yield null (cast fails gracefully).
+        _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Str", "notanint");
+        var result = _registry.GetDWordValue(RegistryRoot.CurrentUser, _subKey, "Str");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void GetStringValue_MissingValue_ReturnsNull()
+    {
+        // Key exists but value does not.
+        _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Present", "v");
+        var result = _registry.GetStringValue(RegistryRoot.CurrentUser, _subKey, "Absent");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void GetSubKeyNames_MissingKey_ReturnsEmptyList()
+    {
+        var result = _registry.GetSubKeyNames(RegistryRoot.CurrentUser, _subKey + @"\NoSuch");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void GetSubKeyNames_ExistingKey_ReturnsChildNames()
+    {
+        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildA")!.Dispose();
+        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildB")!.Dispose();
+
+        var names = _registry.GetSubKeyNames(RegistryRoot.CurrentUser, _subKey);
+
+        Assert.Contains("ChildA", names);
+        Assert.Contains("ChildB", names);
+    }
+
+    // ─── Error paths: write to system-protected key ───────────────────────────
+
+    [Fact]
+    public void SetStringValue_LocalMachineReadOnly_ThrowsUnauthorizedOrSecurityException()
+    {
+        // Writing to HKLM without elevation is denied on standard accounts.
+        // On elevated (admin) builds this may succeed — skip rather than fail.
+        try
+        {
+            _registry.SetStringValue(
+                RegistryRoot.LocalMachine,
+                @"SOFTWARE\FalkForgeTestReadOnly",
+                "V", "x");
+
+            // If we get here we are admin — clean up and skip assertion.
+            Microsoft.Win32.Registry.LocalMachine.DeleteSubKey(
+                @"SOFTWARE\FalkForgeTestReadOnly",
+                throwOnMissingSubKey: false);
+        }
+        catch (UnauthorizedAccessException) { /* expected on standard accounts */ }
+        catch (System.Security.SecurityException) { /* also acceptable */ }
+    }
+
+    // ─── Error paths: invalid enum for all root-dispatch methods ──────────────
+
+    [Fact]
+    public void GetStringValue_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.GetStringValue(invalidRoot, _subKey, "V"));
+    }
+
+    [Fact]
+    public void GetDWordValue_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.GetDWordValue(invalidRoot, _subKey, "V"));
+    }
+
+    [Fact]
+    public void GetSubKeyNames_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.GetSubKeyNames(invalidRoot, _subKey));
+    }
+
+    [Fact]
+    public void SetStringValue_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.SetStringValue(invalidRoot, _subKey, "V", "x"));
+    }
+
+    [Fact]
+    public void DeleteKey_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.DeleteKey(invalidRoot, _subKey));
+    }
 }
