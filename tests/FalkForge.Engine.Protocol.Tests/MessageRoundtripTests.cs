@@ -705,12 +705,12 @@ public class MessageRoundtripTests
     [Fact]
     public void RoundTrip_SetSecurePropertyMessage()
     {
-        var secureValue = new byte[] { 0x53, 0x65, 0x63, 0x72, 0x65, 0x74 };
+        var plaintext = new byte[] { 0x53, 0x65, 0x63, 0x72, 0x65, 0x74 };
         var original = new SetSecurePropertyMessage
         {
             SequenceId = 43,
             PropertyName = "DB_PASSWORD",
-            SecureValue = secureValue
+            SecureValue = SensitiveBytes.FromPlaintext(plaintext),
         };
 
         var deserialized = RoundTrip(original);
@@ -718,7 +718,8 @@ public class MessageRoundtripTests
         Assert.Equal(MessageType.SetSecureProperty, deserialized.Type);
         Assert.Equal(43u, deserialized.SequenceId);
         Assert.Equal("DB_PASSWORD", deserialized.PropertyName);
-        Assert.Equal(secureValue, deserialized.SecureValue);
+        using var reveal = deserialized.SecureValue.Borrow();
+        Assert.Equal(plaintext, reveal.Span.ToArray());
     }
 
     [Fact]
@@ -728,13 +729,13 @@ public class MessageRoundtripTests
         {
             SequenceId = 44,
             PropertyName = "EMPTY_SECRET",
-            SecureValue = []
+            SecureValue = SensitiveBytes.FromPlaintext(ReadOnlySpan<byte>.Empty),
         };
 
         var deserialized = RoundTrip(original);
 
         Assert.Equal("EMPTY_SECRET", deserialized.PropertyName);
-        Assert.Empty(deserialized.SecureValue);
+        Assert.True(deserialized.SecureValue.IsEmpty);
     }
 
     [Fact]
@@ -748,14 +749,15 @@ public class MessageRoundtripTests
         {
             SequenceId = 45,
             PropertyName = "LARGE_SECRET",
-            SecureValue = largePayload
+            SecureValue = SensitiveBytes.FromPlaintext(largePayload),
         };
 
         var deserialized = RoundTrip(original);
 
         Assert.Equal("LARGE_SECRET", deserialized.PropertyName);
         Assert.Equal(1024, deserialized.SecureValue.Length);
-        Assert.Equal(largePayload, deserialized.SecureValue);
+        using var reveal = deserialized.SecureValue.Borrow();
+        Assert.Equal(largePayload, reveal.Span.ToArray());
     }
 
     [Fact]

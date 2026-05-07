@@ -25,11 +25,12 @@ public class SetSecurePropertyCodecTests
     [Fact]
     public void RoundTrip_with_short_payload_preserves_fields()
     {
+        var plaintext = new byte[] { 0x01, 0x02, 0x03, 0xff, 0x00 };
         var message = new SetSecurePropertyMessage
         {
             SequenceId = 5,
             PropertyName = "DB_PASSWORD",
-            SecureValue = new byte[] { 0x01, 0x02, 0x03, 0xff, 0x00 },
+            SecureValue = SensitiveBytes.FromPlaintext(plaintext),
         };
 
         using var ms = new MemoryStream();
@@ -40,11 +41,12 @@ public class SetSecurePropertyCodecTests
 
         ms.Position = 0;
         using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
-        var roundTripped = SetSecurePropertyCodec.Instance.Read(br);
+        using var roundTripped = (SetSecurePropertyMessage)SetSecurePropertyCodec.Instance.ReadErased(br);
 
         Assert.Equal(message.SequenceId, roundTripped.SequenceId);
         Assert.Equal(message.PropertyName, roundTripped.PropertyName);
-        Assert.Equal(message.SecureValue, roundTripped.SecureValue);
+        using var reveal = roundTripped.SecureValue.Borrow();
+        Assert.Equal(plaintext, reveal.Span.ToArray());
     }
 
     [Fact]
@@ -54,7 +56,7 @@ public class SetSecurePropertyCodecTests
         {
             SequenceId = 17,
             PropertyName = "EMPTY",
-            SecureValue = System.Array.Empty<byte>(),
+            SecureValue = SensitiveBytes.FromPlaintext(ReadOnlySpan<byte>.Empty),
         };
 
         using var ms = new MemoryStream();
@@ -65,11 +67,11 @@ public class SetSecurePropertyCodecTests
 
         ms.Position = 0;
         using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
-        var roundTripped = SetSecurePropertyCodec.Instance.Read(br);
+        using var roundTripped = (SetSecurePropertyMessage)SetSecurePropertyCodec.Instance.ReadErased(br);
 
         Assert.Equal(message.SequenceId, roundTripped.SequenceId);
         Assert.Equal(message.PropertyName, roundTripped.PropertyName);
-        Assert.Empty(roundTripped.SecureValue);
+        Assert.True(roundTripped.SecureValue.IsEmpty);
     }
 
     [Fact]
@@ -79,11 +81,18 @@ public class SetSecurePropertyCodecTests
         {
             SequenceId = 2,
             PropertyName = "TOKEN",
-            SecureValue = new byte[] { 0xde, 0xad, 0xbe, 0xef },
+            SecureValue = SensitiveBytes.FromPlaintext(new byte[] { 0xde, 0xad, 0xbe, 0xef }),
         };
 
         var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
+        // Re-create because PostWrite will have disposed the first message's SecureValue.
+        var message2 = new SetSecurePropertyMessage
+        {
+            SequenceId = 2,
+            PropertyName = "TOKEN",
+            SecureValue = SensitiveBytes.FromPlaintext(new byte[] { 0xde, 0xad, 0xbe, 0xef }),
+        };
+        var newBytes = MessageSerializer.Serialize(message2);
 
         Assert.Equal(legacyBytes, newBytes);
     }
@@ -95,11 +104,17 @@ public class SetSecurePropertyCodecTests
         {
             SequenceId = 99,
             PropertyName = "EMPTY",
-            SecureValue = System.Array.Empty<byte>(),
+            SecureValue = SensitiveBytes.FromPlaintext(ReadOnlySpan<byte>.Empty),
         };
 
         var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
+        var message2 = new SetSecurePropertyMessage
+        {
+            SequenceId = 99,
+            PropertyName = "EMPTY",
+            SecureValue = SensitiveBytes.FromPlaintext(ReadOnlySpan<byte>.Empty),
+        };
+        var newBytes = MessageSerializer.Serialize(message2);
 
         Assert.Equal(legacyBytes, newBytes);
     }

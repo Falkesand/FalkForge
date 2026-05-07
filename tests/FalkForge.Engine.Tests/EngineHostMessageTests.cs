@@ -342,10 +342,10 @@ public sealed class EngineHostMessageTests
         // Initializing is a valid configuration phase (simulating Planning-equivalent)
         var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
 
-        var secretBytes = System.Text.Encoding.UTF8.GetBytes("s3cret!");
+        using var secureValue = SensitiveBytes.FromPlaintext(System.Text.Encoding.UTF8.GetBytes("s3cret!"));
 
         EngineHost.HandleUiMessageAsync(
-            new SetSecurePropertyMessage { PropertyName = "DB_PASSWORD", SecureValue = secretBytes },
+            new SetSecurePropertyMessage { PropertyName = "DB_PASSWORD", SecureValue = secureValue },
             context, sm);
 
         var result = context.Variables.GetSecret("DB_PASSWORD");
@@ -378,10 +378,10 @@ public sealed class EngineHostMessageTests
 
         await tcs.Task;
 
-        var secretBytes = System.Text.Encoding.UTF8.GetBytes("forbidden");
+        using var secureValue = SensitiveBytes.FromPlaintext(System.Text.Encoding.UTF8.GetBytes("forbidden"));
 
         await EngineHost.HandleUiMessageAsync(
-            new SetSecurePropertyMessage { PropertyName = "SECRET_BLOCKED", SecureValue = secretBytes },
+            new SetSecurePropertyMessage { PropertyName = "SECRET_BLOCKED", SecureValue = secureValue },
             context, sm);
 
         Assert.False(context.Variables.IsSecret("SECRET_BLOCKED"));
@@ -403,7 +403,7 @@ public sealed class EngineHostMessageTests
     public void SetSecureProperty_NullContextIgnored()
     {
         var task = EngineHost.HandleUiMessageAsync(
-            new SetSecurePropertyMessage { PropertyName = "X", SecureValue = [0x41] },
+            new SetSecurePropertyMessage { PropertyName = "X", SecureValue = SensitiveBytes.FromPlaintext(new byte[] { 0x41 }) },
             null, null);
 
         Assert.True(task.IsCompleted);
@@ -429,10 +429,10 @@ public sealed class EngineHostMessageTests
         var context = CreateContext();
         var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
 
-        var secretBytes = System.Text.Encoding.UTF8.GetBytes("s3cret!");
+        using var secureValue = SensitiveBytes.FromPlaintext(System.Text.Encoding.UTF8.GetBytes("s3cret!"));
 
         EngineHost.HandleUiMessageAsync(
-            new SetSecurePropertyMessage { PropertyName = "DB_PASSWORD", SecureValue = secretBytes },
+            new SetSecurePropertyMessage { PropertyName = "DB_PASSWORD", SecureValue = secureValue },
             context, sm);
 
         Assert.Contains("DB_PASSWORD", context.SecretPropertyNames);
@@ -555,10 +555,10 @@ public sealed class EngineHostMessageTests
         var context = CreateContext();
         var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
 
-        var secretBytes = System.Text.Encoding.UTF8.GetBytes("hacked");
+        using var secureValue1 = SensitiveBytes.FromPlaintext(System.Text.Encoding.UTF8.GetBytes("hacked"));
 
         EngineHost.HandleUiMessageAsync(
-            new SetSecurePropertyMessage { PropertyName = "ComputerName", SecureValue = secretBytes },
+            new SetSecurePropertyMessage { PropertyName = "ComputerName", SecureValue = secureValue1 },
             context, sm);
 
         Assert.False(context.SecretPropertyNames.ContainsKey("ComputerName"));
@@ -570,10 +570,10 @@ public sealed class EngineHostMessageTests
         var context = CreateContext();
         var sm = new EngineStateMachine(BuildHandlersToReachPhase(EnginePhase.Initializing));
 
-        var secretBytes = System.Text.Encoding.UTF8.GetBytes("value");
+        using var secureValue2 = SensitiveBytes.FromPlaintext(System.Text.Encoding.UTF8.GetBytes("value"));
 
         EngineHost.HandleUiMessageAsync(
-            new SetSecurePropertyMessage { PropertyName = "invalid-name!", SecureValue = secretBytes },
+            new SetSecurePropertyMessage { PropertyName = "invalid-name!", SecureValue = secureValue2 },
             context, sm);
 
         Assert.False(context.Variables.IsSecret("invalid-name!"));
