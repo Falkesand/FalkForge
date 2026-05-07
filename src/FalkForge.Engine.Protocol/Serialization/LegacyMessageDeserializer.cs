@@ -185,7 +185,7 @@ public static class LegacyMessageDeserializer
         if (payloadLength < 0 || payloadLength > MaxPayloadSize)
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, $"Secure property payload length out of range: {payloadLength}");
 
-        var secureValue = reader.ReadBytes(payloadLength);
+        var secureValue = SensitiveBytes.FromPlaintext(reader.ReadBytes(payloadLength));
 
         return new SetSecurePropertyMessage
         {

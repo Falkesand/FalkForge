@@ -1,5 +1,4 @@
 using System.Reactive.Subjects;
-using System.Security.Cryptography;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
@@ -109,7 +108,9 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 
     public void SetSecureProperty(string name, SensitiveBytes value)
     {
-        var copy = value.Span.ToArray();
+        // Copy into a fresh SensitiveBytes so the caller can safely dispose their copy
+        // without affecting the message in flight.
+        var copy = SensitiveBytes.FromPlaintext(value.Span);
         _ = SendSetSecurePropertyAsync(name, copy);
     }
 
@@ -215,17 +216,12 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         if (_pipe.IsConnected) await _pipe.SendAsync(new SetPropertyMessage { PropertyName = name, Value = value });
     }
 
-    private async Task SendSetSecurePropertyAsync(string name, byte[] secureValue)
+    private async Task SendSetSecurePropertyAsync(string name, SensitiveBytes secureValue)
     {
-        try
-        {
-            if (_pipe.IsConnected)
-                await _pipe.SendAsync(new SetSecurePropertyMessage
-                    { PropertyName = name, SecureValue = secureValue });
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(secureValue);
-        }
+        // The message takes ownership of secureValue. The codec's PostWrite hook disposes it
+        // after serialization, zeroing the backing array. No manual zeroing needed here.
+        using var msg = new SetSecurePropertyMessage { PropertyName = name, SecureValue = secureValue };
+        if (_pipe.IsConnected)
+            await _pipe.SendAsync(msg);
     }
 }

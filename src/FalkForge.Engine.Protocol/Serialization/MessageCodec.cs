@@ -27,6 +27,22 @@ public sealed record MessageCodec<T> : IMessageCodec
     /// <summary>Typed read delegate. Should deserialize the body fields only.</summary>
     public required Func<BinaryReader, T> Read { get; init; }
 
+    /// <summary>
+    /// Optional post-write hook invoked after <see cref="Write"/> completes.
+    /// Used by <c>SetSecurePropertyCodec</c> to dispose the message's
+    /// <see cref="SensitiveBytes"/> after the bytes have been written to the wire,
+    /// ensuring plaintext does not linger in the caller's heap.
+    /// Default <see langword="null"/> (no-op).
+    /// </summary>
+    public Action<T>? PostWrite { get; init; }
+
+    /// <summary>
+    /// Optional post-read hook invoked after <see cref="Read"/> returns.
+    /// Receives and may replace the decoded message before it is returned to the caller.
+    /// Default <see langword="null"/> (no-op).
+    /// </summary>
+    public Func<T, T>? PostRead { get; init; }
+
     /// <inheritdoc />
     public Type MessageClrType => typeof(T);
 
@@ -41,8 +57,15 @@ public sealed record MessageCodec<T> : IMessageCodec
         }
 
         Write(writer, typed);
+        PostWrite?.Invoke(typed);
     }
 
     /// <inheritdoc />
-    public EngineMessage ReadErased(BinaryReader reader) => Read(reader);
+    public EngineMessage ReadErased(BinaryReader reader)
+    {
+        var value = Read(reader);
+        if (PostRead is not null)
+            value = PostRead(value);
+        return value;
+    }
 }

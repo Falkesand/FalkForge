@@ -131,10 +131,13 @@ public static class LegacyMessageSerializer
                 break;
 
             case SetSecurePropertyMessage m:
+            {
                 writer.Write(m.PropertyName);
-                writer.Write(m.SecureValue.Length);
-                writer.Write(m.SecureValue);
+                using var reveal = m.SecureValue.Borrow();
+                writer.Write(reveal.Length);
+                writer.Write(reveal.Span);
                 break;
+            }
 
             case ElevateExecuteMessage m:
                 writer.Write(m.CommandName);

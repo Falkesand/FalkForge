@@ -164,6 +164,27 @@ public sealed class VariableStore : IDisposable
     }
 
     /// <summary>
+    /// Stores a secret variable from a <see cref="SensitiveBytes"/> with pinned,
+    /// zeroed-on-dispose memory. Copies the plaintext bytes into a new pinned array
+    /// owned by the <see cref="SecureVariable"/>.
+    /// </summary>
+    public void SetSecret(string name, SensitiveBytes value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        using var reveal = value.Borrow();
+        // Copy into a fresh array; SecureVariable takes ownership and pins it.
+        var copy = reveal.Span.ToArray();
+        var secure = new SecureVariable(copy);
+        SecureVariable? displaced = null;
+        _secrets.AddOrUpdate(
+            name,
+            addValueFactory: _ => secure,
+            updateValueFactory: (_, previous) => { displaced = previous; return secure; });
+        displaced?.Dispose();
+    }
+
+    /// <summary>
     /// Retrieves a secret variable value.
     /// </summary>
     public Result<string> GetSecret(string name)
