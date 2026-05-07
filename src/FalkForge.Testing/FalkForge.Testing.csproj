@@ -6,5 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
     <ProjectReference Include="..\FalkForge.Platform\FalkForge.Platform.csproj" />
+    <ProjectReference Include="..\FalkForge.Engine\FalkForge.Engine.csproj" />
   </ItemGroup>
 </Project>
