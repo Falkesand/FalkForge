@@ -5,6 +5,7 @@ using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.Validation;
+using FalkForge.Extensibility;
 using FalkForge.Models;
 using FalkForge.Platform;
 using FalkForge.Platform.Windows;
@@ -25,13 +26,26 @@ public sealed class MsiCompiler : ICompiler
     private readonly IFileSystem _fileSystem;
 #pragma warning restore S4487
 
+    private readonly IReadOnlyList<IFalkForgeExtension> _extensions;
+
     public MsiCompiler() : this(new WindowsFileSystem())
     {
     }
 
-    public MsiCompiler(IFileSystem fileSystem)
+    public MsiCompiler(IFileSystem fileSystem) : this(fileSystem, [])
     {
+    }
+
+    /// <summary>
+    /// Initialises the compiler with a custom file system and a set of extensions whose
+    /// <see cref="IExtensionValidator"/> instances are invoked before table emission.
+    /// </summary>
+    public MsiCompiler(IFileSystem fileSystem, IReadOnlyList<IFalkForgeExtension> extensions)
+    {
+        ArgumentNullException.ThrowIfNull(fileSystem);
+        ArgumentNullException.ThrowIfNull(extensions);
         _fileSystem = fileSystem;
+        _extensions = extensions;
     }
 
     /// <summary>
@@ -41,5 +55,5 @@ public sealed class MsiCompiler : ICompiler
     /// implementations under <c>Recipe/Producers/</c>) that replaced the legacy emitter path in Phase 9.
     /// </summary>
     public Result<string> Compile(PackageModel package, string outputPath)
-        => MsiAuthoring.Compile(package, outputPath);
+        => MsiAuthoring.Compile(package, outputPath, _extensions);
 }
