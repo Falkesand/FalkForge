@@ -1,5 +1,3 @@
-using FalkForge.Decompiler.TableReaders;
-
 namespace FalkForge.Decompiler;
 
 /// <summary>
@@ -8,7 +6,7 @@ namespace FalkForge.Decompiler;
 /// </summary>
 public sealed class DirectoryResolver
 {
-    private readonly Dictionary<string, DirectoryTableReader.DirectoryEntry> _entries;
+    private readonly Dictionary<string, DirectoryEntry> _entries;
     private readonly Dictionary<string, string> _resolvedPaths = new(StringComparer.Ordinal);
 
     // Standard MSI directory tokens that map to well-known system folders
@@ -37,9 +35,9 @@ public sealed class DirectoryResolver
         ["AdminToolsFolder"] = "AdminTools"
     };
 
-    public DirectoryResolver(IReadOnlyList<DirectoryTableReader.DirectoryEntry> entries)
+    public DirectoryResolver(IReadOnlyList<DirectoryEntry> entries)
     {
-        _entries = new Dictionary<string, DirectoryTableReader.DirectoryEntry>(StringComparer.Ordinal);
+        _entries = new Dictionary<string, DirectoryEntry>(StringComparer.Ordinal);
         foreach (var entry in entries)
         {
             _entries[entry.DirectoryId] = entry;

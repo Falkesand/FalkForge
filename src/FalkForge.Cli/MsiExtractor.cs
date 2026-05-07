@@ -1,7 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi;
 using FalkForge.Decompiler;
-using FalkForge.Decompiler.TableReaders;
 
 namespace FalkForge.Cli;
 
@@ -31,7 +30,7 @@ public static class MsiExtractor
         if (dirResult.IsFailure)
             return Result<int>.Failure(dirResult.Error);
 
-        var dirEntries = dirResult.Value.Select(r => new DirectoryTableReader.DirectoryEntry
+        var dirEntries = dirResult.Value.Select(r => new DirectoryEntry
         {
             DirectoryId = r[0] ?? string.Empty,
             ParentDirectoryId = string.IsNullOrEmpty(r[1]) ? null : r[1],

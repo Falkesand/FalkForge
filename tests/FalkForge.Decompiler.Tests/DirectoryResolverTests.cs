@@ -1,4 +1,3 @@
-using FalkForge.Decompiler.TableReaders;
 using Xunit;
 
 namespace FalkForge.Decompiler.Tests;
@@ -9,7 +8,7 @@ public sealed class DirectoryResolverTests
     public void Resolve_StandardDirectory_ReturnsDisplayName()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." }
+            new DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." }
         ]);
 
         Assert.Equal("ProgramFiles", resolver.Resolve("ProgramFilesFolder"));
@@ -19,7 +18,7 @@ public sealed class DirectoryResolverTests
     public void Resolve_TargetDir_ReturnsSourceDir()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "TARGETDIR", DefaultDir = "SourceDir" }
+            new DirectoryEntry { DirectoryId = "TARGETDIR", DefaultDir = "SourceDir" }
         ]);
 
         Assert.Equal("SourceDir", resolver.Resolve("TARGETDIR"));
@@ -29,9 +28,9 @@ public sealed class DirectoryResolverTests
     public void Resolve_NestedDirectory()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "TARGETDIR", DefaultDir = "SourceDir" },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ProgramFilesFolder", ParentDirectoryId = "TARGETDIR", DefaultDir = "." },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MyApp" }
+            new DirectoryEntry { DirectoryId = "TARGETDIR", DefaultDir = "SourceDir" },
+            new DirectoryEntry { DirectoryId = "ProgramFilesFolder", ParentDirectoryId = "TARGETDIR", DefaultDir = "." },
+            new DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MyApp" }
         ]);
 
         Assert.Equal("ProgramFiles/MyApp", resolver.Resolve("INSTALLFOLDER"));
@@ -41,10 +40,10 @@ public sealed class DirectoryResolverTests
     public void Resolve_DeeplyNestedDirectory()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "TARGETDIR", DefaultDir = "SourceDir" },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ProgramFilesFolder", ParentDirectoryId = "TARGETDIR", DefaultDir = "." },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ManufacturerFolder", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "Contoso" },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ManufacturerFolder", DefaultDir = "MyApp" }
+            new DirectoryEntry { DirectoryId = "TARGETDIR", DefaultDir = "SourceDir" },
+            new DirectoryEntry { DirectoryId = "ProgramFilesFolder", ParentDirectoryId = "TARGETDIR", DefaultDir = "." },
+            new DirectoryEntry { DirectoryId = "ManufacturerFolder", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "Contoso" },
+            new DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ManufacturerFolder", DefaultDir = "MyApp" }
         ]);
 
         Assert.Equal("ProgramFiles/Contoso/MyApp", resolver.Resolve("INSTALLFOLDER"));
@@ -54,8 +53,8 @@ public sealed class DirectoryResolverTests
     public void Resolve_ShortLongFormat_UsesLongName()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MYAPP~1|My Application" }
+            new DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." },
+            new DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MYAPP~1|My Application" }
         ]);
 
         Assert.Equal("ProgramFiles/My Application", resolver.Resolve("INSTALLFOLDER"));
@@ -65,8 +64,8 @@ public sealed class DirectoryResolverTests
     public void Resolve_CachesResults()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MyApp" }
+            new DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." },
+            new DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MyApp" }
         ]);
 
         var first = resolver.Resolve("INSTALLFOLDER");
@@ -99,8 +98,8 @@ public sealed class DirectoryResolverTests
     public void FindRootFolder_StandardRoot_ReturnsKnownFolder()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MyApp" }
+            new DirectoryEntry { DirectoryId = "ProgramFilesFolder", DefaultDir = "." },
+            new DirectoryEntry { DirectoryId = "INSTALLFOLDER", ParentDirectoryId = "ProgramFilesFolder", DefaultDir = "MyApp" }
         ]);
 
         var (root, relativePath) = resolver.FindRootFolder("INSTALLFOLDER");
@@ -113,8 +112,8 @@ public sealed class DirectoryResolverTests
     public void FindRootFolder_NoStandardRoot_ReturnsNull()
     {
         var resolver = new DirectoryResolver([
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "CustomRoot", DefaultDir = "Root" },
-            new DirectoryTableReader.DirectoryEntry { DirectoryId = "SubDir", ParentDirectoryId = "CustomRoot", DefaultDir = "Sub" }
+            new DirectoryEntry { DirectoryId = "CustomRoot", DefaultDir = "Root" },
+            new DirectoryEntry { DirectoryId = "SubDir", ParentDirectoryId = "CustomRoot", DefaultDir = "Sub" }
         ]);
 
         var (root, relativePath) = resolver.FindRootFolder("SubDir");

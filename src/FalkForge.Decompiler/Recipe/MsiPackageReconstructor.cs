@@ -1,5 +1,4 @@
 using FalkForge.Decompiler.Recipe.Schemas;
-using FalkForge.Decompiler.TableReaders;
 using FalkForge.Models;
 
 namespace FalkForge.Decompiler.Recipe;
@@ -32,7 +31,9 @@ public static class MsiPackageReconstructor
 
         var scope = InstallScope.PerMachine;
         var allUsers = props.Get("ALLUSERS");
-        if (allUsers == "2" || string.IsNullOrEmpty(allUsers))
+        // Only switch to PerUser when ALLUSERS is explicitly present and is "2" or empty string.
+        // Absent key keeps the default PerMachine.
+        if (allUsers is not null && (allUsers == "2" || allUsers.Length == 0))
             scope = InstallScope.PerUser;
 
         return new PackageMetadata
@@ -68,7 +69,7 @@ public static class MsiPackageReconstructor
 
         // Build directory resolver from raw rows
         var dirEntries = directoryRows
-            .Select(r => new DirectoryTableReader.DirectoryEntry
+            .Select(r => new DirectoryEntry
             {
                 DirectoryId = r.Directory,
                 ParentDirectoryId = string.IsNullOrEmpty(r.Directory_Parent) ? null : r.Directory_Parent,
@@ -167,14 +168,18 @@ public static class MsiPackageReconstructor
 
         // Map registry entries
         var registryEntries = registryRows
-            .Select(r => new RegistryEntryModel
+            .Select(r =>
             {
-                Root = TableReaders.RegistryTableReader.MapRegistryRoot(r.Root),
-                Key = r.Key,
-                ValueName = r.Name,
-                Value = TableReaders.RegistryTableReader.ParseRegistryValue(r.Value).Value,
-                ValueType = TableReaders.RegistryTableReader.ParseRegistryValue(r.Value).Type,
-                ComponentId = r.Component_
+                var (regValue, regType) = ParseRegistryValue(r.Value);
+                return new RegistryEntryModel
+                {
+                    Root = MapRegistryRoot(r.Root),
+                    Key = r.Key,
+                    ValueName = r.Name,
+                    Value = regValue,
+                    ValueType = regType,
+                    ComponentId = r.Component_
+                };
             })
             .ToList();
 
@@ -183,8 +188,8 @@ public static class MsiPackageReconstructor
             .Select(r =>
             {
                 var startType = r.StartType;
-                var startMode = TableReaders.ServiceTableReader.MapStartMode(startType);
-                var (account, userName) = TableReaders.ServiceTableReader.MapServiceAccount(r.StartName);
+                var startMode = MapStartMode(startType);
+                var (account, userName) = MapServiceAccount(r.StartName);
                 var deps = r.Dependencies is not null
                     ? r.Dependencies.Split("[~]", StringSplitOptions.RemoveEmptyEntries)
                           .Select(d => d.Trim())
@@ -210,7 +215,7 @@ public static class MsiPackageReconstructor
             .Select(r =>
             {
                 var longName = ParseLongFileName(r.Name);
-                var location = TableReaders.ShortcutTableReader.MapShortcutLocation(r.Directory_);
+                var location = MapShortcutLocation(r.Directory_);
                 return new ShortcutModel
                 {
                     Name = longName,
@@ -325,4 +330,82 @@ public static class MsiPackageReconstructor
         var idx = msiFileName.IndexOf('|');
         return idx >= 0 ? msiFileName[(idx + 1)..] : msiFileName;
     }
+
+    // ── Registry helpers ──────────────────────────────────────────────────────
+
+    private static RegistryRoot MapRegistryRoot(int msiRoot) => msiRoot switch
+    {
+        0 => RegistryRoot.ClassesRoot,
+        1 => RegistryRoot.CurrentUser,
+        2 => RegistryRoot.LocalMachine,
+        3 => RegistryRoot.Users,
+        _ => RegistryRoot.LocalMachine
+    };
+
+    private static (object? Value, RegistryValueType Type) ParseRegistryValue(string? rawValue)
+    {
+        if (rawValue is null)
+            return (null, RegistryValueType.String);
+
+        // MSI uses prefix markers for registry value types.
+        // Check #% before # to avoid ambiguity with decimal DWORDs.
+        if (rawValue.StartsWith("#%", StringComparison.Ordinal))
+            return (rawValue[2..], RegistryValueType.ExpandString);
+
+        if (rawValue.StartsWith("#x", StringComparison.Ordinal))
+        {
+            if (int.TryParse(rawValue.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out var hexVal))
+                return (hexVal, RegistryValueType.DWord);
+        }
+        else if (rawValue.StartsWith('#'))
+        {
+            if (int.TryParse(rawValue.AsSpan(1), out var intVal))
+                return (intVal, RegistryValueType.DWord);
+        }
+        else if (rawValue.StartsWith("[~]", StringComparison.Ordinal))
+            return (rawValue[3..], RegistryValueType.MultiString);
+
+        return (rawValue, RegistryValueType.String);
+    }
+
+    // ── Service helpers ───────────────────────────────────────────────────────
+
+    private static ServiceStartMode MapStartMode(int msiStartType) => msiStartType switch
+    {
+        0 => ServiceStartMode.Automatic, // SERVICE_BOOT_START mapped to Automatic
+        1 => ServiceStartMode.Automatic, // SERVICE_SYSTEM_START mapped to Automatic
+        2 => ServiceStartMode.Automatic, // SERVICE_AUTO_START
+        3 => ServiceStartMode.Manual,    // SERVICE_DEMAND_START
+        4 => ServiceStartMode.Disabled,  // SERVICE_DISABLED
+        _ => ServiceStartMode.Automatic
+    };
+
+    private static (ServiceAccount Account, string? UserName) MapServiceAccount(string? startName)
+    {
+        if (string.IsNullOrEmpty(startName) || startName.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase))
+            return (ServiceAccount.LocalSystem, null);
+        if (startName.Equals("NT AUTHORITY\\LocalService", StringComparison.OrdinalIgnoreCase) ||
+            startName.Equals("LocalService", StringComparison.OrdinalIgnoreCase))
+            return (ServiceAccount.LocalService, null);
+        if (startName.Equals("NT AUTHORITY\\NetworkService", StringComparison.OrdinalIgnoreCase) ||
+            startName.Equals("NetworkService", StringComparison.OrdinalIgnoreCase))
+            return (ServiceAccount.NetworkService, null);
+
+        return (ServiceAccount.User, startName);
+    }
+
+    // ── Shortcut helpers ──────────────────────────────────────────────────────
+
+    private static ShortcutLocation? MapShortcutLocation(string directoryId) => directoryId switch
+    {
+        "DesktopFolder"    => ShortcutLocation.Desktop,
+        "StartMenuFolder"  => ShortcutLocation.StartMenu,
+        "ProgramMenuFolder" => ShortcutLocation.StartMenu,
+        "StartupFolder"    => ShortcutLocation.Startup,
+        _ when directoryId.Contains("Desktop",     StringComparison.OrdinalIgnoreCase) => ShortcutLocation.Desktop,
+        _ when directoryId.Contains("StartMenu",   StringComparison.OrdinalIgnoreCase) => ShortcutLocation.StartMenu,
+        _ when directoryId.Contains("ProgramMenu", StringComparison.OrdinalIgnoreCase) => ShortcutLocation.StartMenu,
+        _ when directoryId.Contains("Startup",     StringComparison.OrdinalIgnoreCase) => ShortcutLocation.Startup,
+        _ => null
+    };
 }

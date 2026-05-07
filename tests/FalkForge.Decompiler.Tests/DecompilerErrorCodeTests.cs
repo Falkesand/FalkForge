@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using System.Xml.Linq;
-using FalkForge.Decompiler.TableReaders;
+using FalkForge.Decompiler.Recipe;
+using FalkForge.Decompiler.Recipe.Schemas;
 using Xunit;
 
 namespace FalkForge.Decompiler.Tests;
@@ -36,14 +37,14 @@ public sealed class DecompilerErrorCodeTests
     }
 
     [Fact]
-    public void PropertyTableReader_QueryTableFailure_ReturnsDec003()
+    public void PropertySchema_QueryTableFailure_ReturnsDec003()
     {
         // Arrange: Property table exists but QueryTable returns failure
         using var access = new MockMsiTableAccess()
             .WithTableQueryFailure("Property", "Disk I/O error on Property table");
 
         // Act
-        var result = PropertyTableReader.Read(access);
+        var result = TableReadEngine.ReadOne(PropertySchema.Schema, access);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -53,14 +54,14 @@ public sealed class DecompilerErrorCodeTests
     }
 
     [Fact]
-    public void PropertyTableReader_ReadAll_QueryTableFailure_ReturnsDec003()
+    public void PropertySchema_QueryTableFailure_AltAccess_ReturnsDec003()
     {
-        // Arrange
+        // Arrange: verifies DEC003 path regardless of error message text
         using var access = new MockMsiTableAccess()
             .WithTableQueryFailure("Property", "Corrupt MSI storage");
 
         // Act
-        var result = PropertyTableReader.ReadAll(access);
+        var result = TableReadEngine.ReadOne(PropertySchema.Schema, access);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -68,14 +69,14 @@ public sealed class DecompilerErrorCodeTests
     }
 
     [Fact]
-    public void FeatureTableReader_QueryTableFailure_ReturnsDec003()
+    public void FeatureSchema_QueryTableFailure_ReturnsDec003()
     {
         // Arrange: Feature table exists but QueryTable returns failure
         using var access = new MockMsiTableAccess()
             .WithTableQueryFailure("Feature", "Corrupt feature storage");
 
         // Act
-        var result = FeatureTableReader.Read(access);
+        var result = TableReadEngine.ReadOne(FeatureSchema.Schema, access);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -85,14 +86,14 @@ public sealed class DecompilerErrorCodeTests
     }
 
     [Fact]
-    public void FileTableReader_QueryTableFailure_ReturnsDec003()
+    public void FileSchema_QueryTableFailure_ReturnsDec003()
     {
         // Arrange: File table exists but QueryTable returns failure
         using var access = new MockMsiTableAccess()
             .WithTableQueryFailure("File", "Read error on File table");
 
         // Act
-        var result = FileTableReader.Read(access);
+        var result = TableReadEngine.ReadOne(FileSchema.Schema, access);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -102,14 +103,14 @@ public sealed class DecompilerErrorCodeTests
     }
 
     [Fact]
-    public void RegistryTableReader_QueryTableFailure_ReturnsDec003()
+    public void RegistrySchema_QueryTableFailure_ReturnsDec003()
     {
         // Arrange: Registry table exists but QueryTable returns failure
         using var access = new MockMsiTableAccess()
             .WithTableQueryFailure("Registry", "I/O error on Registry table");
 
         // Act
-        var result = RegistryTableReader.Read(access);
+        var result = TableReadEngine.ReadOne(RegistrySchema.Schema, access);
 
         // Assert
         Assert.True(result.IsFailure);
@@ -119,14 +120,14 @@ public sealed class DecompilerErrorCodeTests
     }
 
     [Fact]
-    public void ComponentTableReader_QueryTableFailure_ReturnsDec003()
+    public void ComponentSchema_QueryTableFailure_ReturnsDec003()
     {
         // Arrange: Component table exists but QueryTable returns failure
         using var access = new MockMsiTableAccess()
             .WithTableQueryFailure("Component", "I/O error on Component table");
 
         // Act
-        var result = ComponentTableReader.Read(access);
+        var result = TableReadEngine.ReadOne(ComponentSchema.Schema, access);
 
         // Assert
         Assert.True(result.IsFailure);
