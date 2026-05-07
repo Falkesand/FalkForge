@@ -48,12 +48,26 @@ internal sealed class MessageCodecRegistryInstance
                     codec.WireVersion));
             }
 
-            if (!clrBuilder.TryAdd(codec.MessageClrType, codec))
+            // CLR type map stores only the highest registered version per CLR type
+            // so that ForWrite resolves to the current-wire codec. Multiple versions
+            // of the same MessageType are allowed (version coexistence for fallback);
+            // the same CLR type mapped to two different MessageType values is an error.
+            if (clrBuilder.TryGetValue(codec.MessageClrType, out var existing))
             {
-                throw new InvalidOperationException(string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Duplicate codec registration for CLR type {0}.",
-                    codec.MessageClrType.FullName ?? codec.MessageClrType.Name));
+                if (existing.Type != codec.Type)
+                {
+                    throw new InvalidOperationException(string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Duplicate codec registration for CLR type {0}.",
+                        codec.MessageClrType.FullName ?? codec.MessageClrType.Name));
+                }
+
+                if (codec.WireVersion > existing.WireVersion)
+                    clrBuilder[codec.MessageClrType] = codec;
+            }
+            else
+            {
+                clrBuilder[codec.MessageClrType] = codec;
             }
         }
 
@@ -123,10 +137,10 @@ internal sealed class MessageCodecRegistryInstance
         }
 
         return Result<IMessageCodec>.Failure(
-            ErrorKind.Validation,
+            ErrorKind.ProtocolError,
             string.Format(
                 CultureInfo.InvariantCulture,
-                "No codec for {0} v{1}",
+                "No codec registered for message type {0} at wire version {1} (or any lower version).",
                 type,
                 wireVersion));
     }
