@@ -35,7 +35,8 @@ public static class CoreRuleCatalog
         // Ordering within a slice follows the rule ID numeric sequence.
         var all = ImmutableArray.CreateBuilder<ValidationRule>();
         all.AddRange(PackageRules.All);
-        // ServiceRules, FeatureRules, etc. appended in subsequent slices.
+        all.AddRange(FeatureRules.All);
+        // ServiceRules, CustomTableRules, etc. appended in subsequent slices.
         return new RuleRegistry(all.ToImmutable());
     }
 }
