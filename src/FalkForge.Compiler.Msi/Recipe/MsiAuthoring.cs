@@ -74,6 +74,22 @@ public static class MsiAuthoring
                 return validatorResult;
         }
 
+        // Step 1.6: Validate dialog customization (DLG001 / DLG002). Run against
+        // an empty step registry — no extension-contributed dialog steps are wired
+        // yet; InsertStep calls referencing unregistered names will surface here.
+        if (package.DialogCustomization is { } dialogCustomization)
+        {
+            var stepRegistry = new FalkForge.Compiler.Msi.UI.Layout.DialogStepRegistry();
+            var dialogErrors = FalkForge.Compiler.Msi.UI.DialogCustomizationValidator.Validate(
+                dialogCustomization, package.DialogSet, stepRegistry);
+            if (dialogErrors.Count > 0)
+            {
+                var msgs = string.Join("; ", dialogErrors.Select(e => $"{e.Code}: {e.Message}"));
+                return Result<string>.Failure(ErrorKind.Validation,
+                    $"Dialog customization validation failed: {msgs}");
+            }
+        }
+
         // Step 2: Resolve components. ComponentResolver materializes
         // PackageModel.Files into ResolvedComponent / ResolvedFile records
         // with deterministic IDs and component GUIDs.
