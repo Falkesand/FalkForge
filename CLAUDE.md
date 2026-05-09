@@ -1,5 +1,7 @@
 # FalkForge
 
+<!-- RULES_SYNCED_FROM_GLOBAL: 2026-05-09 -->
+
 C# MSI/Bundle installer framework. Fluent API, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI. Extensions: Firewall, IIS, SQL, .NET, Dependency, Util. Output: MSI, MSM, MSP, MST, EXE bundle.
 
 ## Build & Test
@@ -279,7 +281,7 @@ After every .cs or .xaml edit, `dotnet build <solution>.slnx`. Not the project �
 
 ### GATE 4: Code Review Before Every Commit
 
-Run `superpowers:code-reviewer` with two models (Opus + Sonnet). Both approve.
+Run `superpowers:code-reviewer` with Opus 4.6, Sonnet 4.6, Haiku 4.5. All three approve.
 
 ### GATE 5: Security & Quality Audit Before Every Commit
 
@@ -301,6 +303,28 @@ Code must be readable AND allocation-efficient:
 
 If optimization reduces readability, add a one-line comment explaining WHY.
 
+## Working Principles
+
+These are values, not gates. Apply judgment; surface tension instead of hiding it.
+
+### Simplicity first
+Minimum code that solves the stated problem. No speculative features, no abstractions for single-use code, no "while I'm here" cleanup. If a senior engineer would call it overcomplicated, simplify.
+
+### Surgical changes
+Touch only what the task requires. Don't reformat, rename, or "improve" adjacent code, comments, or imports. Match existing style even if you disagree — if a convention seems harmful, surface it instead of forking silently.
+
+### Read before you write
+Before adding code, read its exports, immediate callers, and the shared utilities it would touch. "Looks orthogonal" is dangerous. If you can't explain why surrounding code is structured the way it is, ask before changing it.
+
+### Tests verify intent, not just behavior
+A test must encode WHY the behavior matters, not just WHAT the code currently does. If the business rule changes and the test still passes, the test is wrong. Naming, arrange/act/assert clarity, and negative cases all serve intent.
+
+### Surface conflicts, don't average them
+When two patterns or two pieces of guidance contradict, pick one (more recent, more tested, or closer to the current task) and explain why. Flag the loser for cleanup. Never blend conflicting patterns into a third hybrid.
+
+### Fail loud
+"Completed" is wrong if any step was skipped. "Tests pass" is wrong if any were filtered, skipped, or marked inconclusive. Surface uncertainty, partial results, and silent fallbacks — never hide them in a success summary. If the pipeline (see Commit Sequence) couldn't run a step, say so explicitly and stop.
+
 ## Commit Sequence — The Full Pipeline
 
 Execute IN ORDER. If any step fails, fix and restart from step 1.
@@ -313,9 +337,19 @@ Execute IN ORDER. If any step fails, fix and restart from step 1.
 5. jb inspectcode (if XAML changed)          → clean
 6. roslynator                                → clean
 7. quickdup                                  → no new duplication
-8. superpowers:code-reviewer (Opus)          → approved
-9. superpowers:code-reviewer (Sonnet)        → approved
-10. Security audit (OWASP checklist)         → no findings
-11. git commit                               → only after ALL above pass
+8. superpowers:code-reviewer (Opus 4.6)      → approved
+9. superpowers:code-reviewer (Sonnet 4.6)    → approved
+10. superpowers:code-reviewer (Haiku 4.5)    → approved
+11. Security audit (OWASP checklist)         → no findings
+12. git commit                               → only after ALL above pass
 ```
 
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
+- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
