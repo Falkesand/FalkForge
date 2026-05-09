@@ -344,4 +344,117 @@ public sealed class ElevationSecurityLogTests : IDisposable
             Assert.Equal("WARNING", parts[1]);
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Bucket D: edge case — Initialize failure degrades to no-op
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Initialize_WhenLogFileCannotBeCreated_DoesNotThrow()
+    {
+        // To force Initialize to fail, place a file at the path it would use as a
+        // directory. Directory.CreateDirectory on a path that is already a file will
+        // throw an IOException, which the catch block must swallow silently.
+        //
+        // We cannot predict the exact filename (it embeds a timestamp + PID), but we
+        // CAN create a file named "FalkForge" in %TEMP%, which prevents
+        // Directory.CreateDirectory(%TEMP%\FalkForge) from succeeding.
+        //
+        // Note: this test modifies the %TEMP%\FalkForge path, so it must clean up
+        // carefully and restore the real directory when done.
+
+        var falkForgePath = Path.Combine(Path.GetTempPath(), "FalkForge");
+        var wasDirectory = Directory.Exists(falkForgePath);
+        var wasFile = File.Exists(falkForgePath);
+
+        // Only proceed with the blocking-file approach if the path does not already
+        // exist as a directory (to avoid clobbering a real log dir on a machine
+        // that has previously run the elevation process).
+        if (wasDirectory || wasFile)
+        {
+            // Path already exists in some form — the failure scenario cannot be safely
+            // reproduced without risk of data loss. Skip by verifying Initialize is
+            // robust when called with _initialized=false and no writer.
+            ResetStaticState();
+            var ex = Record.Exception(() => ElevationSecurityLog.SecurityEvent("Skipped", "path blocked test"));
+            Assert.Null(ex); // no-op write must not throw
+            return;
+        }
+
+        // Create a FILE at the directory path to block Directory.CreateDirectory
+        File.WriteAllText(falkForgePath, "blocking");
+        try
+        {
+            ResetStaticState();
+
+            // Initialize should swallow the IOException from Directory.CreateDirectory
+            var ex = Record.Exception(ElevationSecurityLog.Initialize);
+            Assert.Null(ex);
+
+            // After a failed Initialize, writes must no-op silently
+            var writeEx = Record.Exception(() =>
+            {
+                ElevationSecurityLog.SecurityEvent("Test", "post-failure write");
+                ElevationSecurityLog.Error("Test", "post-failure write 2");
+                ElevationSecurityLog.Info("Test", "post-failure write 3");
+            });
+            Assert.Null(writeEx);
+        }
+        finally
+        {
+            // Remove the blocking file and ensure ElevationSecurityLog state is clean
+            ElevationSecurityLog.Shutdown();
+            ResetStaticState();
+            try { File.Delete(falkForgePath); } catch { /* best-effort */ }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Bucket D: edge case — tab character in message body
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void WriteEntry_WhenMessageContainsTabChar_DelimiterStaysParseable()
+    {
+        // The log format is tab-delimited: [timestamp]\t[level]\t[category]\t[message].
+        // If the message itself contains a tab, a naive Split('\t') on the full line
+        // yields more than 4 fields. The format must remain parseable: the first three
+        // delimiters mark the fixed fields; everything from field index 3 onward is
+        // the message body.
+        //
+        // This test verifies that:
+        //  (a) no exception is thrown when writing a tab-containing message, AND
+        //  (b) the first 3 fields are still correctly recoverable (timestamp, level, category),
+        //      and the message body can be recovered by joining the remaining fields.
+        //
+        // If the format is found to be ambiguous (field[3] alone is not the full message),
+        // this test documents the boundary and the consumer must use a 4-field limit on Split.
+
+        InjectFreshWriter();
+
+        const string tabMessage = "a\tb\tc"; // three sub-fields separated by tabs
+        ElevationSecurityLog.SecurityEvent("TabTest", tabMessage);
+
+        var lines = ReadLogLines();
+        Assert.Single(lines);
+
+        var line = lines[0];
+
+        // Split with no limit — will produce more than 4 parts if message has tabs
+        var allParts = line.Split('\t');
+        Assert.True(allParts.Length >= 4,
+            "Line must have at least 4 tab-delimited segments.");
+
+        // Fields 0-2 are always fixed (timestamp, level, category)
+        Assert.True(DateTimeOffset.TryParse(allParts[0],
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out _),
+            $"Field 0 (timestamp) not parseable: '{allParts[0]}'");
+        Assert.Equal("WARNING", allParts[1]);
+        Assert.Equal("TabTest", allParts[2]);
+
+        // Field 3 onward is the message body — joining recovers the original text
+        var recoveredMessage = string.Join('\t', allParts[3..]);
+        Assert.Equal(tabMessage, recoveredMessage);
+    }
 }

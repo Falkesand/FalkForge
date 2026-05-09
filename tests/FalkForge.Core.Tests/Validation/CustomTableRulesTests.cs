@@ -299,4 +299,60 @@ public sealed class CustomTableRulesTests
         });
         Assert.Empty(CustomTableRules.Ctb011_SensitivePropertyInRow.Evaluate(Ctx(pkg)));
     }
+
+    [Fact]
+    public void Ctb011_multiple_sensitive_refs_in_one_value_yields_one_violation_per_match()
+    {
+        // Two distinct sensitive property references in a single cell value.
+        // FindSensitiveRefs yields one entry per matching ref, so the rule emits one
+        // violation per ref — intent is to warn loudly about every sensitive property.
+        var pkg = Pkg(new CustomTableModel
+        {
+            Name = "T1",
+            Columns = [PkCol("Key"), new CustomTableColumnModel { Name = "Value" }],
+            Rows = [new Dictionary<string, object?> { ["Key"] = "k", ["Value"] = "[MY_PASSWORD] and [API_TOKEN]" }]
+        });
+        var violations = CustomTableRules.Ctb011_SensitivePropertyInRow.Evaluate(Ctx(pkg)).ToList();
+
+        // Rule emits one violation per sensitive property reference (one-per-match policy).
+        Assert.Equal(2, violations.Count);
+        Assert.All(violations, v =>
+        {
+            Assert.Equal("CTB011", v.RuleId.Value);
+            Assert.Equal(Severity.Warning, v.Severity);
+        });
+    }
+
+    [Fact]
+    public void Ctb011_sensitive_ref_in_integer_typed_column_yields_no_violation()
+    {
+        // CTB011 only fires when the stored value is a string (value is string strVal).
+        // Integer-type columns store numeric values — the rule must not inspect them
+        // even if a string representation would look like a property reference.
+        var pkg = Pkg(new CustomTableModel
+        {
+            Name = "T1",
+            Columns =
+            [
+                PkCol("Id"),
+                new CustomTableColumnModel { Name = "Flags", Type = CustomTableColumnType.Int32 }
+            ],
+            Rows = [new Dictionary<string, object?> { ["Id"] = "k", ["Flags"] = 42 }]
+        });
+        // The integer value 42 is not a string — rule must produce zero violations.
+        Assert.Empty(CustomTableRules.Ctb011_SensitivePropertyInRow.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ctb011_no_rows_yields_no_violations()
+    {
+        // Boundary: a table with zero rows should never produce CTB011 violations.
+        var pkg = Pkg(new CustomTableModel
+        {
+            Name = "T1",
+            Columns = [PkCol("Key"), new CustomTableColumnModel { Name = "Value" }],
+            Rows = []
+        });
+        Assert.Empty(CustomTableRules.Ctb011_SensitivePropertyInRow.Evaluate(Ctx(pkg)));
+    }
 }

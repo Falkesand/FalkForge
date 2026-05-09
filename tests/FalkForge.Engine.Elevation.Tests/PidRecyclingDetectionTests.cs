@@ -17,6 +17,7 @@ namespace FalkForge.Engine.Elevation.Tests;
 /// _parentStartTime field after construction, simulating the scenario where the
 /// host was created against process A but now process B owns that PID.
 /// </summary>
+[Collection("ElevationSecurityLog")]
 public sealed class PidRecyclingDetectionTests
 {
     // -------------------------------------------------------------------------
@@ -118,5 +119,80 @@ public sealed class PidRecyclingDetectionTests
         var host = new ElevatedHost(options, 99998, executor);
 
         Assert.False(host.IsParentAlive());
+    }
+
+    [Fact]
+    public void IsParentAlive_PidExistsButStartTimeDiffers_LogsSecurityEvent()
+    {
+        // When PID recycling is detected, ElevatedHost.IsParentAlive must log a
+        // WARNING security event via ElevationSecurityLog containing context that
+        // identifies the recycled PID (defense-in-depth audit trail).
+        //
+        // Technique: inject a StreamWriter over a temp file before the call, then
+        // read the file back and assert the security entry was written.
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"PidRecycleLogTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var logFile = Path.Combine(tempDir, "test.log");
+
+        var writerField = typeof(ElevationSecurityLog).GetField(
+            "_writer", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("_writer field not found");
+        var initializedField = typeof(ElevationSecurityLog).GetField(
+            "_initialized", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("_initialized field not found");
+
+        // Shut down any previously active log state
+        ElevationSecurityLog.Shutdown();
+        StreamWriter? injectedWriter = null;
+
+        try
+        {
+            // Inject fresh writer so we can capture what IsParentAlive logs
+            var fs = new FileStream(logFile, FileMode.Create, FileAccess.Write, FileShare.Read);
+            injectedWriter = new StreamWriter(fs, System.Text.Encoding.UTF8) { AutoFlush = true };
+            writerField.SetValue(null, injectedWriter);
+            initializedField.SetValue(null, true);
+
+            // Arrange: construct host against current process, then inject a mismatched
+            // start time to trigger the recycling detection branch.
+            var host = CreateHostForCurrentProcess();
+            InjectStartTime(host, DateTime.MinValue); // guaranteed mismatch
+
+            // Act
+            var alive = host.IsParentAlive();
+
+            // Primary assertion: the recycling check returned false
+            Assert.False(alive);
+
+            // Flush and close before reading
+            ElevationSecurityLog.Shutdown();
+            injectedWriter = null;
+
+            // Secondary assertion: a security event was written to the log file
+            var lines = File.ReadAllLines(logFile);
+            Assert.True(lines.Length > 0, "Expected at least one log entry for PID-recycling event.");
+
+            // The entry must contain "WARNING" severity and reference the PID
+            Assert.True(
+                lines.Any(l => l.Contains("WARNING")),
+                "Expected a WARNING-level log entry from the PID-recycling detection code path.");
+
+            // The message should identify the affected PID to support incident investigation
+            var currentPid = Environment.ProcessId.ToString();
+            Assert.True(
+                lines.Any(l => l.Contains(currentPid)),
+                $"Expected the log entry to reference the PID ({currentPid}) involved in the recycling scenario.");
+        }
+        finally
+        {
+            // Ensure log state is clean for subsequent tests in the collection
+            ElevationSecurityLog.Shutdown();
+            injectedWriter?.Dispose();
+            writerField.SetValue(null, null);
+            initializedField.SetValue(null, false);
+
+            try { Directory.Delete(tempDir, recursive: true); } catch { /* best-effort */ }
+        }
     }
 }

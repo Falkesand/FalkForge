@@ -241,6 +241,70 @@ public sealed class MsiExecutorElevationTests
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
         Assert.Equal(0, mockClient.CallCount);
     }
+
+    [Theory]
+    [InlineData('"')]
+    [InlineData('&')]
+    [InlineData('|')]
+    [InlineData(';')]
+    [InlineData('>')]
+    [InlineData('<')]
+    public async Task ElevatedExecution_ProhibitedCharInPropertyValue_ReturnsSecurityError(char prohibited)
+    {
+        // ProhibitedValueChars covers all 6 injection-relevant chars.
+        // Validation runs before the gateway call, so the mock must never be invoked.
+        var mockClient = new MockElevationClient();
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["MYPROP"] = $"safe{prohibited}injected"
+            });
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsFailure, $"Expected failure for prohibited char '{prohibited}'");
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        // Gateway must not be called — the check fires before elevation dispatch
+        Assert.Equal(0, mockClient.CallCount);
+    }
+
+    [Fact]
+    public async Task ElevatedExecution_ResolvedSecretContainsProhibitedChar_ReturnsSecurityError()
+    {
+        // When a property value is a [VarName] reference that resolves via the
+        // VariableStore to a secret whose plaintext contains a prohibited character,
+        // ValidateAndBuildPropertyArgs must still catch it and return SecurityError.
+        var mockClient = new MockElevationClient();
+        var variableStore = new FalkForge.Engine.Variables.VariableStore();
+        Result<int> result;
+        try
+        {
+            variableStore.SetSecret("DB_PASSWORD", "safe;injected"); // ';' is prohibited
+
+#pragma warning disable IDISP011 // false-positive: executor is fully consumed before variableStore is disposed in finally
+            var executor = new MsiExecutor(() => mockClient, () => variableStore);
+#pragma warning restore IDISP011
+            var action = CreateMsiAction(
+                PlanActionType.Install,
+                properties: new Dictionary<string, string>
+                {
+                    ["DBPWD"] = "[DB_PASSWORD]" // will be resolved to "safe;injected"
+                });
+
+            result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+        }
+        finally
+        {
+            variableStore.Dispose();
+        }
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        // Validation must have fired before the gateway received anything
+        Assert.Equal(0, mockClient.CallCount);
+    }
 }
 
 /// <summary>
