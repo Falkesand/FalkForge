@@ -88,7 +88,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         {
             if (isJson)
             {
-                _console.WriteError("MSIX packages cannot be built from JSON configuration. Use the C# script API with Installer.BuildMsix() instead. See demo/15-msix-basic for an example.");
+                _console.WriteError("MSIX packages cannot be built from JSON configuration. Use the C# script API with InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() instead (see FalkForge.Compiler.Msix.InstallerMsix).");
                 return ExitCodes.ValidationFailure;
             }
 
@@ -98,8 +98,8 @@ public sealed class BuildCommand : Command<BuildSettings>
                 return ExitCodes.RuntimeError;
             }
 
-            _console.MarkupLine("[yellow]MSIX compilation from .cs scripts requires calling Installer.BuildMsix() in the script.[/]");
-            _console.MarkupLine("[grey]Use --format msi (default) for MSI output.[/]");
+            _console.MarkupLine("[yellow]MSIX CLI build is experimental and not yet implemented.[/]");
+            _console.MarkupLine("[grey]For MSIX/MSIX-bundle output, call InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() directly from a .csx build script (see FalkForge.Compiler.Msix.InstallerMsix). Falling back to MSI build.[/]");
         }
 
         var loadResult = BuildInputResolver.Load(projectPath);

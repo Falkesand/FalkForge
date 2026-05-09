@@ -12,12 +12,13 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 .NET 10, C# latest, nullable enabled, central package mgmt. SDK 10.0.103.
 
-## Solution (25 src + 21 test projects)
+## Solution (26 src + 22 test projects)
 | Project | Purpose |
 |---------|---------|
 | Core | Domain model, fluent API, validation |
 | Compiler.Msi | MSI/MSM/MSP/MST generation via msi.dll P/Invoke |
 | Compiler.Bundle | Self-extracting EXE bundle compiler |
+| Compiler.Msix | **[Experimental]** MSIX/.msixbundle compiler. Studio wired; CLI dispatch not implemented; no demos. Entry point: `InstallerMsix.BuildMsix()` / `BuildMsixBundle()`. |
 | Engine | NativeAOT installer runtime (exe) |
 | Engine.Elevation | NativeAOT elevated companion (exe) |
 | Engine.Protocol | IPC messages + serialization (AOT-safe) |
@@ -49,6 +50,7 @@ Core (no deps)
   ├→ Engine.Protocol (AOT-safe) → Ui.Abstractions → Ui (WPF+ReactiveUI)
   │                              └→ Compiler.Bundle
   ├→ Compiler.Msi (Core + Platform)
+  ├→ Compiler.Msix (Core + Platform; Windows-only; experimental)
   ├→ Extensibility (standalone)
   ├→ Extensions.* (Core + Extensibility; DotNet also + Platform)
   ├→ Testing (Core + Platform), Localization (Core)
@@ -225,6 +227,7 @@ FalkForge                                    Core (Result, Error, Unit, Installe
 FalkForge.{Models,Builders,Validation}       Domain model, fluent builders, validation
 FalkForge.Compiler.Msi{,.Interop,.Tables,.Signing,.Validation,.UI,.UI.Templates}
 FalkForge.Compiler.Bundle{,.Builders,.Compilation,.Compression}
+FalkForge.Compiler.Msix{,.Builders,.Manifest,.Packaging,.Registry,.Interop}    [Experimental] MSIX compiler
 FalkForge.Engine{,.Phases,.Planning,.Detection,.Execution,.Variables,.Journal,.Journal.UndoOperations,.Download,.Layout,.Cache,.RestartManager,.Logging}
 FalkForge.Engine.Protocol{,.Manifest,.Messages,.Serialization,.Transport}
 FalkForge.Engine.Elevation                   Elevated process

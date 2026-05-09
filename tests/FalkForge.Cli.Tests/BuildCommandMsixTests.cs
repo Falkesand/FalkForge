@@ -30,7 +30,7 @@ public sealed class BuildCommandMsixTests
 
             // Assert
             Assert.Contains(console.MarkupLines,
-                line => line.Contains("MSIX compilation from .cs scripts requires calling Installer.BuildMsix()"));
+                line => line.Contains("MSIX CLI build is experimental and not yet implemented."));
         }
         finally
         {
@@ -77,9 +77,7 @@ public sealed class BuildCommandMsixTests
             Assert.Contains(console.Errors,
                 e => e.Contains("MSIX packages cannot be built from JSON configuration"));
             Assert.Contains(console.Errors,
-                e => e.Contains("Installer.BuildMsix()"));
-            Assert.Contains(console.Errors,
-                e => e.Contains("demo/15-msix-basic"));
+                e => e.Contains("InstallerMsix.BuildMsix()"));
         }
         finally
         {
