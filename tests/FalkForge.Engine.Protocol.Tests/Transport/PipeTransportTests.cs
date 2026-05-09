@@ -337,11 +337,16 @@ public class PipeTransportTests
         // Client disconnects
         await client.DisposeAsync();
 
-        // Give the server a moment to detect the disconnect
-        await Task.Delay(100);
-
-        // Server should detect disconnect - send should fail
+        // Poll until the server detects the broken pipe (typically one send attempt suffices).
+        // Avoids a fixed wall-clock delay while keeping the test deterministic.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var result = await server.SendAsync(new CancelMessage { SequenceId = 1 });
+        while (result.IsSuccess && !timeout.IsCancellationRequested)
+        {
+            await Task.Yield(); // Yield to let the pipe I/O loop process the disconnect.
+            result = await server.SendAsync(new CancelMessage { SequenceId = 1 });
+        }
+
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.TransportError, result.Error.Kind);
     }

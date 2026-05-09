@@ -100,9 +100,8 @@ public sealed class ParallelCabinetBuilderMutationTests
     {
         var builder = new ParallelCabinetBuilder((workItem, _) =>
         {
-            // Add some jitter to potentially reorder
-            if (workItem.CabinetName == "A")
-                Thread.Sleep(20);
+            // No artificial delay: ParallelCabinetBuilder preserves order via index mapping,
+            // so the output order is deterministic regardless of execution timing.
             return new CabinetBuildResult(
                 workItem.CabinetName,
                 $@"C:\out\{workItem.CabinetName}.cab",

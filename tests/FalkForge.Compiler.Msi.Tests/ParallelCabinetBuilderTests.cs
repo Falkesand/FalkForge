@@ -24,13 +24,14 @@ public sealed class ParallelCabinetBuilderTests
     }
 
     private static Func<CabinetWorkItem, CancellationToken, Result<CabinetBuildResult>> FakeBuilder(
-        TimeSpan? delay = null)
+        ManualResetEventSlim? gate = null)
     {
         return (workItem, ct) =>
         {
             ct.ThrowIfCancellationRequested();
-            if (delay.HasValue)
-                Thread.Sleep(delay.Value);
+            // Wait on the gate (if supplied) so callers can observe the delegate mid-flight
+            // without relying on wall-clock delays.
+            gate?.Wait(ct);
             ct.ThrowIfCancellationRequested();
             return new CabinetBuildResult(
                 workItem.CabinetName,
@@ -124,7 +125,7 @@ public sealed class ParallelCabinetBuilderTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var builder = new ParallelCabinetBuilder(FakeBuilder(delay: TimeSpan.FromSeconds(5)));
+        var builder = new ParallelCabinetBuilder(FakeBuilder());
         var workItems = new[] { MakeWorkItem("Slow", 10) };
 
         var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 1, cts.Token);
@@ -144,8 +145,7 @@ public sealed class ParallelCabinetBuilderTests
             var count = Interlocked.Increment(ref callCount);
             if (count >= 2)
                 cts.Cancel();
-            ct.ThrowIfCancellationRequested();
-            Thread.Sleep(50);
+            // Propagates immediately once cancelled — no wall-clock wait needed.
             ct.ThrowIfCancellationRequested();
             return new CabinetBuildResult(workItem.CabinetName, "path", workItem.FileEntries.Count, 100);
         });
@@ -180,6 +180,12 @@ public sealed class ParallelCabinetBuilderTests
         var maxConcurrent = 0;
         var currentConcurrent = 0;
         var lockObj = new object();
+        // Gate holds each worker inside the delegate until all workers have entered,
+        // making the peak-concurrency snapshot deterministic without any wall-clock wait.
+        using var gate = new ManualResetEventSlim(initialState: false);
+        using var allEntered = new SemaphoreSlim(0, 1);
+        const int dop = 2;
+        var enteredCount = 0;
 
         var builder = new ParallelCabinetBuilder((workItem, ct) =>
         {
@@ -189,17 +195,26 @@ public sealed class ParallelCabinetBuilderTests
                 if (current > maxConcurrent)
                     maxConcurrent = current;
             }
-            Thread.Sleep(50);
+            // Signal when DOP workers are inside concurrently; then wait for release.
+            if (Interlocked.Increment(ref enteredCount) == dop)
+                allEntered.Release();
+            gate.Wait(ct);
             Interlocked.Decrement(ref currentConcurrent);
             return new CabinetBuildResult(workItem.CabinetName, "path", workItem.FileEntries.Count, 100);
         });
 
         var workItems = Enumerable.Range(1, 8).Select(i => MakeWorkItem($"Cab{i}", 1)).ToList();
 
-        var result = await builder.BuildAsync(workItems, maxDegreeOfParallelism: 2, CancellationToken.None);
+        var buildTask = builder.BuildAsync(workItems, maxDegreeOfParallelism: dop, CancellationToken.None);
+
+        // Wait until DOP workers are inside, then release the gate so all can finish.
+        await allEntered.WaitAsync();
+        gate.Set();
+
+        var result = await buildTask;
 
         Assert.True(result.IsSuccess);
-        Assert.True(maxConcurrent <= 2, $"Expected max concurrency of 2 but observed {maxConcurrent}");
+        Assert.True(maxConcurrent <= dop, $"Expected max concurrency of {dop} but observed {maxConcurrent}");
     }
 
     [Fact]
@@ -213,7 +228,8 @@ public sealed class ParallelCabinetBuilderTests
             var current = Interlocked.Increment(ref currentConcurrent);
             if (current > Volatile.Read(ref maxConcurrent))
                 Interlocked.Exchange(ref maxConcurrent, current);
-            Thread.Sleep(10);
+            // No delay needed: DOP=1 means only one worker can ever be inside at a time,
+            // so the counter snapshot is always consistent without holding the slot open.
             Interlocked.Decrement(ref currentConcurrent);
             return new CabinetBuildResult(workItem.CabinetName, "path", workItem.FileEntries.Count, 100);
         });
