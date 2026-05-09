@@ -178,7 +178,7 @@ public sealed class DialogCustomizationValidatorTests
 
     // ── Stub ──────────────────────────────────────────────────────────────────
 
-    private sealed class StubDialogStepBuilder(string name) : IDialogStepBuilder
+    private sealed class StubDialogStepBuilder(string name) : IMsiDialogStepBuilder
     {
         public string Name => name;
 

@@ -108,5 +108,6 @@ public sealed class SqlExtensionTests
             Validators.Add(validator);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
+        public void RegisterDialogStep(IDialogStepBuilder builder) { }
     }
 }

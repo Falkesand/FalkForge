@@ -7,7 +7,7 @@ using Xunit;
 namespace FalkForge.Compiler.Msi.Tests.UI.Layout;
 
 /// <summary>
-/// Tests for IDialogStepBuilder, DialogBuildContext, and DialogStepRegistry.
+/// Tests for IMsiDialogStepBuilder, DialogBuildContext, and DialogStepRegistry.
 /// RFC Cycle 6 — step 16.
 /// </summary>
 public sealed class DialogStepBuilderTests
@@ -90,7 +90,7 @@ public sealed class DialogStepBuilderTests
     }
 
     [Fact]
-    public void IDialogStepBuilder_Build_produces_dialog_model_with_expected_name()
+    public void IMsiDialogStepBuilder_Build_produces_dialog_model_with_expected_name()
     {
         var stub = new StubDialogStepBuilder("LicenseKeyDlg");
         var context = DialogBuildContext.ForTest(new DialogCustomizationModel());
@@ -102,7 +102,7 @@ public sealed class DialogStepBuilderTests
 
     // ── Stub implementation ───────────────────────────────────────────────────
 
-    private sealed class StubDialogStepBuilder(string name) : IDialogStepBuilder
+    private sealed class StubDialogStepBuilder(string name) : IMsiDialogStepBuilder
     {
         public string Name => name;
 

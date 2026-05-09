@@ -3,7 +3,7 @@ using FalkForge.Models;
 namespace FalkForge.Compiler.Msi.UI.Layout;
 
 /// <summary>
-/// Immutable context passed to each <see cref="IDialogStepBuilder.Build"/> invocation.
+/// Immutable context passed to each <see cref="IMsiDialogStepBuilder.Build"/> invocation.
 /// Carries the active customization model and the registry of all registered step builders.
 /// </summary>
 /// <remarks>
@@ -20,7 +20,7 @@ internal sealed class DialogBuildContext
     public DialogCustomizationModel Customization { get; }
 
     /// <summary>
-    /// Registry of all <see cref="IDialogStepBuilder"/> instances available in this
+    /// Registry of all <see cref="IMsiDialogStepBuilder"/> instances available in this
     /// compilation context. Templates use this to resolve
     /// <see cref="DialogCustomizationModel.InsertedSteps"/> by name.
     /// </summary>

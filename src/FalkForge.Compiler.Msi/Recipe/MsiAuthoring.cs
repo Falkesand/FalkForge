@@ -62,24 +62,60 @@ public static class MsiAuthoring
             return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
         }
 
-        // Step 1.5: Run extension validators. Each registered extension may
-        // contribute one or more IExtensionValidator instances via RegisterValidator.
-        // All validators are collected and run before any table emission so that
-        // broken MSIs are never written to disk. Errors are aggregated across all
-        // validators (no short-circuit) so the caller sees the full error set.
+        // Step 1.5: Run extension validators and collect extension contributions.
+        // Each registered extension may contribute IExtensionValidator instances
+        // via RegisterValidator, and IDialogStepBuilder instances via RegisterDialogStep.
+        // Validators are collected and run before any table emission so that broken
+        // MSIs are never written to disk. Errors are aggregated across all validators
+        // (no short-circuit) so the caller sees the full error set.
+        var extensionRegistry = new CollectingExtensionRegistry();
         if (extensions.Count > 0)
         {
-            Result<string> validatorResult = RunExtensionValidators(package, outputPath, extensions);
-            if (validatorResult.IsFailure)
-                return validatorResult;
+            var registeredNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (IFalkForgeExtension extension in extensions)
+            {
+                ExtensionRegistration.Register(extension, extensionRegistry, registeredNames);
+            }
+
+            if (extensionRegistry.Validators.Count > 0)
+            {
+                string sourceDirectory = Path.GetFullPath(outputPath);
+                var context = new ExtensionContext
+                {
+                    Package = package,
+                    OutputDirectory = Path.GetFullPath(outputPath),
+                    SourceDirectory = sourceDirectory,
+                };
+
+                var aggregated = new ValidationResult();
+                foreach (IExtensionValidator validator in extensionRegistry.Validators)
+                {
+                    validator.Validate(context, aggregated);
+                }
+
+                if (!aggregated.IsValid)
+                {
+                    var errors = string.Join("; ", aggregated.Errors.Select(e => $"{e.Code}: {e.Message}"));
+                    return Result<string>.Failure(ErrorKind.Validation,
+                        $"Extension validation failed: {errors}");
+                }
+            }
         }
 
-        // Step 1.6: Validate dialog customization (DLG001 / DLG002). Run against
-        // an empty step registry — no extension-contributed dialog steps are wired
-        // yet; InsertStep calls referencing unregistered names will surface here.
+        // Step 1.6: Validate dialog customization (DLG001 / DLG002). Build the step
+        // registry from extension-contributed builders so that InsertStep calls that
+        // reference extension steps do not produce false DLG001 errors.
         if (package.DialogCustomization is { } dialogCustomization)
         {
             var stepRegistry = new FalkForge.Compiler.Msi.UI.Layout.DialogStepRegistry();
+
+            // Drain extension-contributed dialog step builders into the registry before
+            // DLG001 validation so that names registered by extensions are recognised.
+            foreach (FalkForge.Extensibility.IDialogStepBuilder builder in extensionRegistry.DialogStepBuilders)
+            {
+                stepRegistry.RegisterExtensionBuilder(builder);
+            }
+
             var dialogErrors = FalkForge.Compiler.Msi.UI.DialogCustomizationValidator.Validate(
                 dialogCustomization, package.DialogSet, stepRegistry);
             if (dialogErrors.Count > 0)
@@ -340,65 +376,23 @@ public static class MsiAuthoring
         return Result<string>.Success(msiPath);
     }
 
-    /// <summary>
-    /// Collects <see cref="IExtensionValidator"/> instances from every registered
-    /// extension, runs each against <paramref name="package"/>, and aggregates all
-    /// errors into a single <see cref="ErrorKind.Validation"/> failure. Returns
-    /// <c>Result&lt;string&gt;.Success(string.Empty)</c> when no errors are reported.
-    /// </summary>
-    private static Result<string> RunExtensionValidators(
-        PackageModel package,
-        string outputPath,
-        IReadOnlyList<IFalkForgeExtension> extensions)
-    {
-        // Collect validators from all extensions.
-        var registry = new CollectingExtensionRegistry();
-        var registeredNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (IFalkForgeExtension extension in extensions)
-        {
-            ExtensionRegistration.Register(extension, registry, registeredNames);
-        }
-
-        if (registry.Validators.Count == 0)
-            return Result<string>.Success(string.Empty);
-
-        // Build the context and run every validator — no short-circuit so all errors surface.
-        string sourceDirectory = Path.GetFullPath(outputPath);
-        var context = new ExtensionContext
-        {
-            Package = package,
-            OutputDirectory = Path.GetFullPath(outputPath),
-            SourceDirectory = sourceDirectory,
-        };
-
-        var aggregated = new ValidationResult();
-        foreach (IExtensionValidator validator in registry.Validators)
-        {
-            validator.Validate(context, aggregated);
-        }
-
-        if (!aggregated.IsValid)
-        {
-            var errors = string.Join("; ", aggregated.Errors.Select(e => $"{e.Code}: {e.Message}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"Extension validation failed: {errors}");
-        }
-
-        return Result<string>.Success(string.Empty);
-    }
-
     private static bool IsIntegritySigningDisabled()
         => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN"));
 
     /// <summary>
-    /// Minimal <see cref="IExtensionRegistry"/> implementation that collects
-    /// registered validators into a list for batch invocation.
+    /// <see cref="IExtensionRegistry"/> implementation that collects registered
+    /// extension contributions (validators and dialog step builders) for batch processing.
     /// </summary>
     private sealed class CollectingExtensionRegistry : IExtensionRegistry
     {
         public List<IExtensionValidator> Validators { get; } = [];
+        public List<IDialogStepBuilder> DialogStepBuilders { get; } = [];
 
         public void RegisterValidator(IExtensionValidator validator)
             => Validators.Add(validator);
+
+        public void RegisterDialogStep(IDialogStepBuilder builder)
+            => DialogStepBuilders.Add(builder);
 
         public void RegisterTableContributor(IMsiTableContributor contributor) { }
         public void RegisterComponentContributor(IComponentContributor contributor) { }

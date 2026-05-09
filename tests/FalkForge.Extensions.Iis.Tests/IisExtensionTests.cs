@@ -123,5 +123,6 @@ public sealed class IisExtensionTests
             Validators.Add(validator);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
+        public void RegisterDialogStep(IDialogStepBuilder builder) { }
     }
 }

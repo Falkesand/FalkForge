@@ -139,5 +139,6 @@ public sealed class UtilExtensionTests
             Validators.Add(validator);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
+        public void RegisterDialogStep(IDialogStepBuilder builder) { }
     }
 }

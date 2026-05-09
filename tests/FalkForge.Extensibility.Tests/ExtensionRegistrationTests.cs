@@ -31,6 +31,7 @@ public sealed class ExtensionRegistrationTests
         public void RegisterComponentContributor(IComponentContributor contributor) { }
         public void RegisterValidator(IExtensionValidator validator) { }
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
+        public void RegisterDialogStep(IDialogStepBuilder builder) { }
     }
 
     [Fact]
