@@ -53,15 +53,7 @@ firewall.AddRule(rule => rule
     .Action(FirewallRuleAction.Allow)
     .Profile(FirewallProfile.Domain | FirewallProfile.Private));
 
-var firewallErrors = firewall.ValidateRules();
-if (firewallErrors.Count > 0)
-{
-    foreach (var error in firewallErrors)
-        Console.Error.WriteLine($"Firewall {error.Code}: {error.Message}");
-    return 1;
-}
-
-Console.WriteLine($"[Firewall] {firewall.Name} extension: 2 rules configured.");
+Console.WriteLine($"[Firewall] {firewall.Name} extension: 2 rules configured. Validation runs automatically during compilation.");
 
 // -- IIS Extension ------------------------------------------------------------
 // Creates an application pool running no managed code (for .NET Core) and
@@ -87,14 +79,7 @@ iis.AddWebSite(site => site
     .AutoStart(true)
     .ConnectionTimeout(120));
 
-var iisValidation = iis.Validate();
-if (iisValidation.IsFailure)
-{
-    Console.Error.WriteLine($"IIS: {iisValidation.Error}");
-    return 1;
-}
-
-Console.WriteLine($"[IIS] {iis.Name} extension: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site(s).");
+Console.WriteLine($"[IIS] {iis.Name} extension: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site(s). Validation runs automatically during compilation.");
 
 // -- SQL Extension ------------------------------------------------------------
 // Defines a database and a SQL script that creates the initial schema.

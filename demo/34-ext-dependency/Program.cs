@@ -16,15 +16,7 @@ dependency.Requires("Demo.Framework", consumer => consumer
     .MinVersion("2.0.0")
     .MinInclusive());
 
-var errors = dependency.ValidateDependencies();
-if (errors.Count > 0)
-{
-    foreach (var e in errors)
-        Console.Error.WriteLine($"{e.Code}: {e.Message}");
-    return 1;
-}
-
-Console.WriteLine("Dependency: 1 provider, 1 consumer configured.");
+Console.WriteLine("Dependency: 1 provider, 1 consumer configured. Validation runs automatically during compilation.");
 
 // In production, extensions register automatically via the FalkForge SDK extension
 // pipeline during compilation. The package below shows the MSI structure; extension

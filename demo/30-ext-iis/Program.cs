@@ -21,14 +21,7 @@ iis.AddWebSite(site => site
     .Binding(8080)
     .AutoStart(true));
 
-var validation = iis.Validate();
-if (validation.IsFailure)
-{
-    Console.Error.WriteLine(validation.Error);
-    return 1;
-}
-
-Console.WriteLine($"IIS: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site(s).");
+Console.WriteLine($"IIS: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site(s). Validation runs automatically during compilation.");
 
 // In production, extensions register automatically via the FalkForge SDK extension
 // pipeline during compilation. The package below shows the MSI structure; extension

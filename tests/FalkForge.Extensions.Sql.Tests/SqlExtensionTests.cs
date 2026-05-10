@@ -96,16 +96,12 @@ public sealed class SqlExtensionTests
     {
         public List<IMsiTableContributor> TableContributors { get; } = [];
         public List<IComponentContributor> ComponentContributors { get; } = [];
-        public List<IExtensionValidator> Validators { get; } = [];
 
         public void RegisterTableContributor(IMsiTableContributor contributor) =>
             TableContributors.Add(contributor);
 
         public void RegisterComponentContributor(IComponentContributor contributor) =>
             ComponentContributors.Add(contributor);
-
-        public void RegisterValidator(IExtensionValidator validator) =>
-            Validators.Add(validator);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
         public void RegisterDialogStep(IDialogStepBuilder builder) { }

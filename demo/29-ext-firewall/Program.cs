@@ -15,15 +15,7 @@ firewall.AddRule(rule => rule
     .Action(FirewallRuleAction.Allow)
     .Profile(FirewallProfile.All));
 
-var errors = firewall.ValidateRules();
-if (errors.Count > 0)
-{
-    foreach (var e in errors)
-        Console.Error.WriteLine($"{e.Code}: {e.Message}");
-    return 1;
-}
-
-Console.WriteLine($"Firewall: {errors.Count} errors, 1 rule configured.");
+Console.WriteLine("Firewall: 1 rule configured. Validation runs automatically during compilation.");
 
 // In production, extensions register automatically via the FalkForge SDK extension
 // pipeline during compilation. The package below shows the MSI structure; extension

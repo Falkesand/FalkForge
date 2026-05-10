@@ -38,7 +38,7 @@ public sealed class MsiCompiler : ICompiler
 
     /// <summary>
     /// Initialises the compiler with a custom file system and a set of extensions whose
-    /// <see cref="IExtensionValidator"/> instances are invoked before table emission.
+    /// validation rules are merged into the validation engine before table emission.
     /// </summary>
     public MsiCompiler(IFileSystem fileSystem, IReadOnlyList<IFalkForgeExtension> extensions)
     {

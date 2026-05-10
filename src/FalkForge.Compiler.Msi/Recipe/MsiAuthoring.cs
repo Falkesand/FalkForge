@@ -84,35 +84,6 @@ public static class MsiAuthoring
             return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
         }
 
-        // Step 1.6: Run legacy IExtensionValidator instances for backward compatibility.
-        // Extensions that have not yet migrated to GetValidationRules() still emit errors via
-        // this path. Each registered extension may contribute IExtensionValidator instances
-        // via RegisterValidator. Errors are aggregated across all validators (no short-circuit)
-        // so the caller sees the full error set.
-        if (extensionRegistry.Validators.Count > 0)
-        {
-            string sourceDirectory = Path.GetFullPath(outputPath);
-            var context = new ExtensionContext
-            {
-                Package = package,
-                OutputDirectory = Path.GetFullPath(outputPath),
-                SourceDirectory = sourceDirectory,
-            };
-
-            var aggregated = new ValidationResult();
-            foreach (IExtensionValidator validator in extensionRegistry.Validators)
-            {
-                validator.Validate(context, aggregated);
-            }
-
-            if (!aggregated.IsValid)
-            {
-                var errors = string.Join("; ", aggregated.Errors.Select(e => $"{e.Code}: {e.Message}"));
-                return Result<string>.Failure(ErrorKind.Validation,
-                    $"Extension validation failed: {errors}");
-            }
-        }
-
         // Step 1.6: Validate dialog customization (DLG001 / DLG002). Build the step
         // registry from extension-contributed builders so that InsertStep calls that
         // reference extension steps do not produce false DLG001 errors.
@@ -392,15 +363,11 @@ public static class MsiAuthoring
 
     /// <summary>
     /// <see cref="IExtensionRegistry"/> implementation that collects registered
-    /// extension contributions (validators and dialog step builders) for batch processing.
+    /// extension contributions (dialog step builders) for batch processing.
     /// </summary>
     private sealed class CollectingExtensionRegistry : IExtensionRegistry
     {
-        public List<IExtensionValidator> Validators { get; } = [];
         public List<IDialogStepBuilder> DialogStepBuilders { get; } = [];
-
-        public void RegisterValidator(IExtensionValidator validator)
-            => Validators.Add(validator);
 
         public void RegisterDialogStep(IDialogStepBuilder builder)
             => DialogStepBuilders.Add(builder);
