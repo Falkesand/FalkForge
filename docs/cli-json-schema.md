@@ -10,6 +10,7 @@ The `--json` flag is supported on:
 | `forge validate` | implemented |
 | `forge inspect` | implemented (Windows-only) |
 | `forge plan` | envelope implemented; underlying plan dispatcher pending engine binary integration |
+| `forge rules list` | implemented — raw JSON array (not the common envelope; see [forge rules list --json](#forge-rules-list---json)) |
 
 Source of truth: [`src/FalkForge.Cli/JsonConsoleOutput.cs`](../src/FalkForge.Cli/JsonConsoleOutput.cs) and [`src/FalkForge.Cli/Commands/`](../src/FalkForge.Cli/Commands/).
 
@@ -219,6 +220,72 @@ Defined in [`src/FalkForge.Cli/ExitCodes.cs`](../src/FalkForge.Cli/ExitCodes.cs)
 - Existing fields will not be renamed, retyped, or removed without a major version bump (`version` increment).
 - The `result` map is reserved for command-specific structured data. New keys may appear over time; consumers should treat unknown keys as opaque.
 - Per-command `data` shapes are not yet first-class fields on the envelope. They are tracked here as roadmap notes (see `forge plan` and `forge inspect` sections); when promoted, they will appear under `result` (string-valued summary keys) or under a new typed field, with a `version` bump if the change is breaking.
+
+## forge rules list --json
+
+**Purpose:** list all validation rules in the rule catalog for a given target model type, with optional filters.
+
+`forge rules list --json` does **not** use the common envelope. It writes a raw JSON array directly to stdout — one element per matching rule. This makes it easy to pipe into `jq` or other JSON tools without unwrapping an envelope first.
+
+**Supported flags:**
+- `--target <package|merge|patch|transform>` — catalog to query (default: `package`)
+- `--section <name>` — filter by `ModelSection` enum name (case-insensitive, e.g. `Service`, `Registry`)
+- `--severity <error|warning|info>` — filter by severity (case-insensitive)
+- `--prefix <PREFIX>` — filter by rule ID prefix (e.g. `PKG`, `SVC`)
+- `--json` — emit the array (required for machine-readable output; default is table view)
+
+**Array element shape:**
+
+```json
+[
+  {
+    "id": "PKG001",
+    "severity": "Error",
+    "section": "Package",
+    "title": "Name required",
+    "description": "Package Name must not be null, empty, or whitespace-only."
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Rule identifier (e.g. `PKG001`, `SVC003`). |
+| `severity` | string | One of `Info`, `Warning`, `Error`. |
+| `section` | string | `ModelSection` enum name (e.g. `Package`, `Service`, `Registry`). |
+| `title` | string | Short human-readable rule title. |
+| `description` | string | Full description of what the rule checks and why. |
+
+**Exit codes:**
+- `0` — success (even when the filtered result set is empty)
+- `1` — unknown `--section` value provided
+
+**Example:**
+
+```bash
+forge rules list --json | jq '.[] | select(.severity == "Error") | .id'
+forge rules list --target patch --json
+forge rules list --section Service --json
+```
+
+Source of truth: [`src/FalkForge.Cli/Commands/RulesListCommand.cs`](../src/FalkForge.Cli/Commands/RulesListCommand.cs).
+
+## forge rules explain
+
+**Purpose:** print full metadata for a single validation rule by ID (case-insensitive). Searches all target catalogs.
+
+`forge rules explain` produces human-readable output only (no `--json` flag). Use `forge rules list --json` and filter by ID for machine-readable rule metadata.
+
+**Exit codes:**
+- `0` — rule found and printed
+- `1` — rule ID not found in any catalog
+
+**Example:**
+
+```bash
+forge rules explain PKG001
+forge rules explain svc003
+```
 
 ## Implementation Notes for Consumers
 
