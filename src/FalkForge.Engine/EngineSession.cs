@@ -41,6 +41,8 @@ public sealed class EngineSession : IAsyncDisposable
     private readonly IInstallerPipeline _pipeline;
     private readonly FileSystemJournalStore? _journalStore;
     private readonly IElevatedCommandGateway? _elevationGateway;
+    // Fix 2: per-bundle global mutex released on session dispose.
+    private readonly IDisposable? _instanceLock;
     private bool _disposed;
 
     /// <summary>
@@ -56,7 +58,8 @@ public sealed class EngineSession : IAsyncDisposable
         IEngineLogger? logger,
         string? logFilePath,
         FileSystemJournalStore? journalStore,
-        IElevatedCommandGateway? elevationGateway)
+        IElevatedCommandGateway? elevationGateway,
+        IDisposable? instanceLock = null)
     {
         _channel = channel;
         _pipeline = pipeline;
@@ -64,6 +67,7 @@ public sealed class EngineSession : IAsyncDisposable
         _logFilePath = logFilePath;
         _journalStore = journalStore;
         _elevationGateway = elevationGateway;
+        _instanceLock = instanceLock;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -209,6 +213,20 @@ public sealed class EngineSession : IAsyncDisposable
             throw new InvalidOperationException($"Failed to load manifest from '{manifestPath}': {ex.Message}", ex);
         }
 
+        // ── Instance lock ───────────────────────────────────────────────────
+        // Fix 2: prevent two concurrent installs for the same bundle. The mutex is
+        // named Global\FalkForge_Install_{bundleId} so it is machine-wide across
+        // session boundaries (e.g. standard → elevated companion).
+        IDisposable? instanceLock = null;
+        var bundleId = manifest.BundleId.ToString("N");
+        if (!InstanceLock.TryAcquire(bundleId, out instanceLock))
+        {
+            (logger as IDisposable)?.Dispose();
+            throw new InvalidOperationException(
+                $"Another instance of this installer is already running (bundle {manifest.BundleId}). " +
+                "Only one concurrent installation is permitted per bundle.");
+        }
+
         // ── UI channel ──────────────────────────────────────────────────────
         NamedPipeUiChannel uiChannel;
         if (pipeName is not null)
@@ -244,7 +262,16 @@ public sealed class EngineSession : IAsyncDisposable
         // ── Platform services ───────────────────────────────────────────────
         var platform = new WindowsPlatformServices();
         var processRunner = new ProcessRunner();
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+
+        // Fix 4: cap automatic redirects at 5 to prevent redirect-loop hangs.
+        // Default SocketsHttpHandler allows up to 50 redirects which is too permissive
+        // for an installer that should fail loud on misconfigured CDN redirects.
+        var socketsHandler = new SocketsHttpHandler
+        {
+            MaxAutomaticRedirections = 5,
+            AllowAutoRedirect = true
+        };
+        using var httpClient = new HttpClient(socketsHandler) { Timeout = TimeSpan.FromSeconds(15) };
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("FalkForge-Engine/1.0");
 
         var msiExecutor = new MsiExecutor(
@@ -308,7 +335,7 @@ public sealed class EngineSession : IAsyncDisposable
 
         var pipeline = pipelineBuilder.Build();
 
-        return new EngineSession(uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway);
+        return new EngineSession(uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway, instanceLock);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -470,6 +497,8 @@ public sealed class EngineSession : IAsyncDisposable
         await _channel.DisposeAsync().ConfigureAwait(false);
         await _pipeline.DisposeAsync().ConfigureAwait(false);
         (_logger as IDisposable)?.Dispose();
+        // Fix 2: release the per-bundle global mutex so a reinstall can proceed.
+        _instanceLock?.Dispose();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
