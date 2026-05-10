@@ -41,6 +41,20 @@ public sealed class ValidateSettings : CommandSettings
     [Description("Export ICE results to JSON file")]
     public string? IceReport { get; init; }
 
+    [CommandOption("--ignore <RULEID>")]
+    [Description("Rule ID(s) to suppress. Accepts comma-separated values or repeated flags (e.g. --ignore PKG001,PKG002).")]
+    public string[]? IgnoreRules { get; init; }
+
+    [CommandOption("--warn-as-error")]
+    [Description("Promote all warnings to errors.")]
+    [DefaultValue(false)]
+    public bool WarningsAsErrors { get; init; }
+
+    [CommandOption("--stop-on-first-error")]
+    [Description("Stop validation after the first error.")]
+    [DefaultValue(false)]
+    public bool StopOnFirstError { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))

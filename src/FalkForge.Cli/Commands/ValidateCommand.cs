@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 using FalkForge.Cli.Settings;
@@ -83,7 +84,8 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         }
 
         var package = loadResult.Value;
-        var validation = ModelValidator.Inspect(package);
+        var options = BuildValidationOptions(settings);
+        var validation = ModelValidator.Inspect(package, options);
 
         foreach (var warning in validation.Warnings)
         {
@@ -103,6 +105,26 @@ public sealed class ValidateCommand : Command<ValidateSettings>
 
         output.MarkupLine("[green]Validation passed.[/]");
         return ExitCodes.Success;
+    }
+
+    private static ValidationOptions BuildValidationOptions(ValidateSettings settings)
+    {
+        if (settings.IgnoreRules is null or { Length: 0 } &&
+            !settings.WarningsAsErrors &&
+            !settings.StopOnFirstError)
+            return ValidationOptions.Default;
+
+        // Flatten multi-value --ignore flags: each entry may be comma-separated.
+        var ignored = (settings.IgnoreRules ?? [])
+            .SelectMany(s => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+        return new ValidationOptions
+        {
+            IgnoredRules       = ignored,
+            WarningsAsErrors   = settings.WarningsAsErrors,
+            StopOnFirstError   = settings.StopOnFirstError
+        };
     }
 
     [SupportedOSPlatform("windows")]
