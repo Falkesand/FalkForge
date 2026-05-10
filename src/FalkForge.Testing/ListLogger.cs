@@ -16,6 +16,9 @@ public sealed class ListLogger : IEngineLogger
     public LogLevel MinimumLevel { get; set; } = LogLevel.Verbose;
 
     /// <inheritdoc/>
+    public void SetMinimumLevel(LogLevel level) => MinimumLevel = level;
+
+    /// <inheritdoc/>
     public Guid SessionCorrelationId { get; set; }
 
     /// <summary>All log entries written since construction.</summary>

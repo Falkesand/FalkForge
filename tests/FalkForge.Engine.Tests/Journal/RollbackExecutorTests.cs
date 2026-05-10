@@ -472,6 +472,7 @@ public sealed class RollbackExecutorTests : IDisposable
         public List<string> Messages { get; } = [];
 
         public LogLevel MinimumLevel { get; set; } = LogLevel.Verbose;
+        public void SetMinimumLevel(LogLevel level) => MinimumLevel = level;
         public Guid SessionCorrelationId { get; set; }
 
         public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)

@@ -11,7 +11,19 @@ public interface IEngineLogger : IDisposable
     /// <summary>
     /// Minimum level that will be written. Entries below this level are discarded.
     /// </summary>
+    /// <remarks>
+    /// Reads return the currently effective minimum level. Writes are equivalent to
+    /// <see cref="SetMinimumLevel(LogLevel)"/> and are safe to perform concurrently
+    /// with <see cref="Log(LogLevel, string, string, IReadOnlyDictionary{string, string}?)"/> calls.
+    /// </remarks>
     LogLevel MinimumLevel { get; set; }
+
+    /// <summary>
+    /// Atomically updates the minimum log level. Subsequent <see cref="Log(LogLevel, string, string, IReadOnlyDictionary{string, string}?)"/>
+    /// calls observe the new level. Safe to call concurrently with active log writers.
+    /// </summary>
+    /// <param name="level">New minimum level. Entries below this level are discarded before any allocation.</param>
+    void SetMinimumLevel(LogLevel level);
 
     /// <summary>
     /// Session correlation id stamped on every <see cref="LogEntry"/> and forwarded

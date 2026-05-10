@@ -517,6 +517,129 @@ public sealed class EngineLoggerTests : IDisposable
     }
 
     [Fact]
+    public void SetMinimumLevel_AppliesToSubsequentLogCalls()
+    {
+        // WHY: Runtime log-level changes must take effect immediately, without
+        // requiring a logger restart. Pre-set Information; Debug must be filtered
+        // out. After SetMinimumLevel(Debug), subsequent Debug entries must be kept.
+        var path = GetLogPath();
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Debug("Before", "Should be filtered");
+            logger.SetMinimumLevel(LogLevel.Debug);
+            logger.Debug("After", "Should be kept");
+        }
+
+        var lines = File.ReadAllLines(path);
+        Assert.Single(lines);
+        Assert.Contains("After", lines[0]);
+        Assert.Contains("Should be kept", lines[0]);
+        Assert.DoesNotContain("Before", string.Join("\n", lines));
+    }
+
+    [Fact]
+    public void MinimumLevel_PropertyExposesCurrentValue()
+    {
+        // WHY: The MinimumLevel getter must return the currently effective level
+        // (initial ctor-set, after property write, and after SetMinimumLevel).
+        var path = GetLogPath();
+        using var logger = new EngineLogger(path);
+        logger.MinimumLevel = LogLevel.Info;
+        Assert.Equal(LogLevel.Info, logger.MinimumLevel);
+
+        logger.SetMinimumLevel(LogLevel.Warning);
+        Assert.Equal(LogLevel.Warning, logger.MinimumLevel);
+
+        logger.SetMinimumLevel(LogLevel.Verbose);
+        Assert.Equal(LogLevel.Verbose, logger.MinimumLevel);
+    }
+
+    [Fact]
+    public async Task SetMinimumLevel_ConcurrentWithLogCalls_NoCorruption()
+    {
+        // WHY: SetMinimumLevel must publish the new value to other threads without
+        // corrupting in-flight Log() writes. We spin up 3 writers and 1 level-cycler
+        // for ~200ms; afterwards every line in the log file must parse as a
+        // well-formed tab-separated entry (6 columns, ISO timestamp).
+        var path = GetLogPath();
+        var levels = new[] { LogLevel.Verbose, LogLevel.Debug, LogLevel.Info, LogLevel.Warning };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.SetMinimumLevel(LogLevel.Verbose);
+
+            var stop = false;
+            var writers = new Task[3];
+            for (var w = 0; w < 3; w++)
+            {
+                var id = w;
+                writers[w] = Task.Run(() =>
+                {
+                    while (!Volatile.Read(ref stop))
+                    {
+                        logger.Log(LogLevel.Info, $"W{id}", "concurrent message");
+                    }
+                });
+            }
+
+            var cycler = Task.Run(() =>
+            {
+                var i = 0;
+                while (!Volatile.Read(ref stop))
+                {
+                    logger.SetMinimumLevel(levels[i++ % levels.Length]);
+                }
+            });
+
+            await Task.Delay(200);
+            Volatile.Write(ref stop, true);
+            await Task.WhenAll(writers);
+            await cycler;
+        }
+
+        // After dispose, every line must parse as an ISO timestamp + 6 tab-separated fields.
+        var lines = File.ReadAllLines(path);
+        Assert.NotEmpty(lines);
+        foreach (var line in lines)
+        {
+            var parts = line.Split('\t');
+            Assert.Equal(6, parts.Length);
+            var ok = DateTimeOffset.TryParseExact(
+                parts[0], "o", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+            Assert.True(ok, $"Malformed timestamp on line: {line}");
+            Assert.Equal("INFO", parts[1]);
+        }
+    }
+
+    [Fact]
+    public void Log_BelowMinimumLevel_DoesNotAllocate()
+    {
+        // WHY: Gate 6 (zero-waste) — when an entry is below the minimum level,
+        // Log must early-return BEFORE constructing a LogEntry, calling
+        // DateTimeOffset.UtcNow, or boxing the properties dictionary. We measure
+        // managed allocation deltas via GC.GetTotalAllocatedBytes(precise: true).
+        var path = GetLogPath();
+        using var logger = new EngineLogger(path);
+        logger.SetMinimumLevel(LogLevel.Warning);
+
+        // Warm up JIT for the Log path so first-call jitting doesn't pollute deltas.
+        for (var i = 0; i < 10; i++)
+            logger.Log(LogLevel.Verbose, "Cat", "warmup");
+
+        var before = GC.GetTotalAllocatedBytes(precise: true);
+        for (var i = 0; i < 100; i++)
+            logger.Log(LogLevel.Verbose, "Cat", "below-level message");
+        var after = GC.GetTotalAllocatedBytes(precise: true);
+
+        var delta = after - before;
+        // Tight bound: 100 below-level calls should allocate ~0 bytes. Allow a
+        // tiny margin (e.g. test-runner noise) but well below per-call LogEntry
+        // construction cost (~64+ bytes).
+        Assert.True(delta < 64, $"Below-level Log calls allocated {delta} bytes (expected ~0).");
+    }
+
+    [Fact]
     public void PipeCallback_EntryCarriesSessionCorrelationId()
     {
         // WHY: The pipe callback converts LogEntry to LogMessage for the UI; the

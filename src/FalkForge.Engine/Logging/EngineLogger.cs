@@ -42,6 +42,11 @@ public sealed class EngineLogger : IEngineLogger
     // Reset to 0 after each rotation so the threshold resets for the new file.
     private long _bytesWrittenSinceRotation;
     private volatile bool _disposed;
+    // WHY: stored as int (underlying type of LogLevel) so that `volatile` is valid.
+    // Reads use Volatile.Read for explicit acquire semantics on every Log call;
+    // writes use Volatile.Write so the new level is published to other threads
+    // without a lock. Safe because LogLevel is a 4-byte enum (atomic on .NET).
+    private volatile int _minimumLevel = (int)LogLevel.Info;
 
     /// <summary>
     /// Initialises a new <see cref="EngineLogger"/>.
@@ -68,17 +73,32 @@ public sealed class EngineLogger : IEngineLogger
         _writer = OpenWriter(_currentFilePath);
     }
 
-    public LogLevel MinimumLevel { get; set; } = LogLevel.Info;
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Backed by a <see langword="volatile"/> int so that runtime updates publish to
+    /// other threads without a lock. Reads occur on every <see cref="Log"/> call.
+    /// </remarks>
+    public LogLevel MinimumLevel
+    {
+        get => (LogLevel)_minimumLevel;
+        set => _minimumLevel = (int)value;
+    }
+
+    /// <inheritdoc/>
+    public void SetMinimumLevel(LogLevel level) => _minimumLevel = (int)level;
 
     /// <inheritdoc/>
     public Guid SessionCorrelationId { get; set; }
 
     public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
     {
-        if (_disposed)
+        // Fast-path level check: read the volatile int directly to avoid the
+        // property accessor and any redundant casts. Below-level entries early-return
+        // before any allocation (no LogEntry, no DateTimeOffset.UtcNow call).
+        if ((int)level < _minimumLevel)
             return;
 
-        if (level < MinimumLevel)
+        if (_disposed)
             return;
 
         var entry = new LogEntry(DateTimeOffset.UtcNow, level, category, message, properties, SessionCorrelationId);
