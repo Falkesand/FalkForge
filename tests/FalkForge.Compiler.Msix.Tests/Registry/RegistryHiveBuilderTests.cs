@@ -33,7 +33,7 @@ public sealed class RegistryHiveBuilderTests
     public void Build_SingleStringEntry_CreatesHive()
     {
         if (!OffregAvailable)
-            return;
+            Assert.Skip("offreg.dll not available on this platform");
 
         var entries = new List<MsixRegistryEntry>
         {
@@ -57,7 +57,7 @@ public sealed class RegistryHiveBuilderTests
     public void Build_DWordEntry_CreatesHive()
     {
         if (!OffregAvailable)
-            return;
+            Assert.Skip("offreg.dll not available on this platform");
 
         var entries = new List<MsixRegistryEntry>
         {
@@ -81,7 +81,7 @@ public sealed class RegistryHiveBuilderTests
     public void Build_MultipleEntries_CreatesHive()
     {
         if (!OffregAvailable)
-            return;
+            Assert.Skip("offreg.dll not available on this platform");
 
         var entries = new List<MsixRegistryEntry>
         {
@@ -121,7 +121,7 @@ public sealed class RegistryHiveBuilderTests
     public void Build_HklmAndHkcuEntries_BothInHive()
     {
         if (!OffregAvailable)
-            return;
+            Assert.Skip("offreg.dll not available on this platform");
 
         var entries = new List<MsixRegistryEntry>
         {

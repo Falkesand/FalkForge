@@ -22,7 +22,7 @@ public sealed class BuildCommandJsonIntegrationTests
     public void Execute_ValidJsonFixture_ProducesMsiOnDisk()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+            Assert.Skip("Windows only");
 
         var tempDir = Path.Combine(Path.GetTempPath(), $"ForgeBuildJson_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);

@@ -88,7 +88,7 @@ public sealed class BuildCommandDryRunTests
     public void Build_DryRun_DoesNotWriteOutputFile()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+            Assert.Skip("Windows only");
 
         var (tempDir, projectPath, outputDir) = CreateValidJsonProject();
         try
@@ -120,7 +120,7 @@ public sealed class BuildCommandDryRunTests
     public void Build_DryRun_PrintsSummary()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+            Assert.Skip("Windows only");
 
         var (tempDir, projectPath, outputDir) = CreateValidJsonProject();
         try
@@ -152,7 +152,7 @@ public sealed class BuildCommandDryRunTests
     public void Build_DryRun_Json_ReturnsEnvelopeWithDryRunFlag()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+            Assert.Skip("Windows only");
 
         var (tempDir, projectPath, outputDir) = CreateValidJsonProject();
         try

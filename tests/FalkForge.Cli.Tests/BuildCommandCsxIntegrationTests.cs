@@ -23,7 +23,7 @@ public sealed class BuildCommandCsxIntegrationTests
     public void Execute_ValidCsxFixture_ProducesMsiOnDisk()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+            Assert.Skip("Windows only");
 
         var tempDir = Path.Combine(Path.GetTempPath(), $"ForgeBuildCsx_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
