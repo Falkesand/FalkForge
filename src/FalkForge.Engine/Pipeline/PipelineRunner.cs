@@ -44,11 +44,18 @@ public sealed class PipelineRunner
     }
 
     /// <summary>
-    /// Runs the installer lifecycle. Returns 0 on success, 1 on failure.
+    /// Runs the installer lifecycle.
+    /// Returns 0 on success or clean cancel/shutdown,
+    /// 1 on error, 3 when a token-cancellation mid-apply triggered rollback.
     /// </summary>
     public async Task<int> RunAsync(CancellationToken ct)
     {
         _logger?.Info("PipelineRunner", "Session started");
+
+        // Tracks whether Apply was actually dispatched; used to decide whether
+        // a token-cancellation OCE should trigger rollback. If the token is cancelled
+        // before Apply starts, no packages have been touched and rollback is pointless.
+        var applyDispatched = false;
 
         try
         {
@@ -122,6 +129,7 @@ public sealed class PipelineRunner
 
                     case UiRequest.Apply:
                         _logger?.Info("PipelineRunner", "Apply requested");
+                        applyDispatched = true;
                         var applyResult = await _pipeline.ApplyAsync(ct);
                         if (applyResult.IsFailure)
                         {
@@ -155,7 +163,37 @@ public sealed class PipelineRunner
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            _logger?.Info("PipelineRunner", "Session cancelled by token");
+            if (applyDispatched)
+            {
+                // Token was cancelled while Apply was in progress — partial installation may have
+                // occurred. Run rollback to undo journaled changes, then signal RolledBack state
+                // to the host via exit code 3 (mapped to EngineTerminalState.RolledBack).
+                _logger?.Info("PipelineRunner", "Session cancelled mid-apply — triggering rollback");
+                EngineMeter.RecordError(ErrorKind.ExecutionError);
+                try
+                {
+                    await _pipeline.RollbackAsync(CancellationToken.None);
+                }
+                catch
+                {
+                    // Best-effort: rollback failures are logged by RollbackStep itself
+                }
+
+                try
+                {
+                    await _uiChannel.SendAsync(
+                        new PipelineEvent.PhaseChanged(EnginePhase.Shutdown), CancellationToken.None);
+                }
+                catch
+                {
+                    // Best-effort: pipe may already be closing
+                }
+
+                return 3; // RolledBack
+            }
+
+            // Token cancelled before any apply work — clean shutdown, no rollback needed.
+            _logger?.Info("PipelineRunner", "Session cancelled by token (before apply)");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {

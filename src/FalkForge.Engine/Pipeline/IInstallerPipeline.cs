@@ -45,4 +45,12 @@ public interface IInstallerPipeline : IAsyncDisposable
     /// <see cref="PlanAsync"/> or when the file write fails.
     /// </summary>
     Result<Unit> ExportPlan(string? outputPath);
+
+    /// <summary>
+    /// Executes the rollback step to undo any partially applied changes.
+    /// Always called with <see cref="CancellationToken.None"/> so that a user
+    /// cancellation (which caused the rollback) does not also cancel the undo work.
+    /// Safe to call when no apply work has been journaled (returns success immediately).
+    /// </summary>
+    Task<Result<Unit>> RollbackAsync(CancellationToken ct);
 }

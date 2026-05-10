@@ -143,6 +143,18 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     }
 
     /// <inheritdoc/>
+    public async Task<Result<Unit>> RollbackAsync(CancellationToken ct)
+    {
+        if (_disposed)
+            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
+
+        if (_rollbackStep is null)
+            return Unit.Value;
+
+        return await _rollbackStep.ExecuteAsync(_ctx, ct);
+    }
+
+    /// <inheritdoc/>
     public Result<Unit> ExportPlan(string? outputPath)
     {
         if (_ctx.Plan is null)
