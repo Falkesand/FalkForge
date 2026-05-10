@@ -158,24 +158,6 @@ public sealed class WinGetManifestWriterTests : IDisposable
     }
 
     [Fact]
-    public void Write_WithoutInstallerUrl_HasPlaceholder()
-    {
-        var package = CreateTestPackage();
-        var config = new WinGetConfig
-        {
-            PackageIdentifier = "Contoso.TestApp",
-            License = "MIT",
-            ShortDescription = "A tool"
-        };
-
-        var result = WinGetManifestWriter.Write(package, config, _tempDir, "ABCDEF", "TestApp.msi");
-
-        Assert.True(result.IsSuccess);
-        var content = File.ReadAllText(Path.Combine(result.Value, "Contoso.TestApp.installer.yaml"));
-        Assert.Contains("# TODO: Set InstallerUrl before submitting to winget-pkgs", content);
-    }
-
-    [Fact]
     public void Write_WithPerUserScope_EmitsUserScope()
     {
         var package = new PackageModel
@@ -278,8 +260,10 @@ public sealed class WinGetManifestWriterTests : IDisposable
 
         WinGetManifestWriter.Write(package, config, _tempDir, "ABCDEF", "TestApp.msi");
 
-        // No installer manifest should be written
-        var installerFiles = Directory.GetFiles(_tempDir, "*.installer.yaml", SearchOption.AllDirectories);
+        // No installer manifest should be written (dir may not even exist when Write fails early)
+        var installerFiles = Directory.Exists(_tempDir)
+            ? Directory.GetFiles(_tempDir, "*.installer.yaml", SearchOption.AllDirectories)
+            : [];
         Assert.Empty(installerFiles);
     }
 

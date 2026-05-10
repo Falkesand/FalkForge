@@ -1,6 +1,42 @@
 namespace FalkForge.Models;
 
 /// <summary>
+/// WinGet installer type. Controls which InstallerType value is emitted in the manifest.
+/// </summary>
+public enum WinGetInstallerType
+{
+    /// <summary>MSI installer (default).</summary>
+    Msi,
+    /// <summary>EXE installer (e.g., a FalkForge bundle).</summary>
+    Exe
+}
+
+/// <summary>
+/// Additional locale entry for WinGet manifest generation.
+/// Produces a separate locale manifest file (e.g., Contoso.App.locale.sv-SE.yaml).
+/// </summary>
+public sealed class WinGetLocale
+{
+    /// <summary>BCP 47 locale tag (e.g., "sv-SE").</summary>
+    public required string Locale { get; init; }
+
+    /// <summary>Publisher name in this locale.</summary>
+    public required string Publisher { get; init; }
+
+    /// <summary>Package name in this locale.</summary>
+    public required string PackageName { get; init; }
+
+    /// <summary>Short description in this locale.</summary>
+    public required string ShortDescription { get; init; }
+
+    /// <summary>Optional full description in this locale.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Optional license text or SPDX identifier in this locale.</summary>
+    public string? License { get; init; }
+}
+
+/// <summary>
 /// Configuration for WinGet manifest generation.
 /// Stores user-provided metadata that cannot be derived from the MSI package.
 /// </summary>
@@ -55,4 +91,16 @@ public sealed class WinGetConfig
     /// WinGet manifest schema version. Defaults to "1.9.0".
     /// </summary>
     public string ManifestVersion { get; init; } = "1.9.0";
+
+    /// <summary>
+    /// Installer type emitted in the manifest. Defaults to <see cref="WinGetInstallerType.Msi"/>.
+    /// Set to <see cref="WinGetInstallerType.Exe"/> for FalkForge bundles.
+    /// </summary>
+    public WinGetInstallerType InstallerType { get; init; } = WinGetInstallerType.Msi;
+
+    /// <summary>
+    /// Additional locale entries. Each entry produces a separate locale manifest file.
+    /// The default en-US locale manifest is always written from the top-level config fields.
+    /// </summary>
+    public WinGetLocale[]? Locales { get; init; }
 }

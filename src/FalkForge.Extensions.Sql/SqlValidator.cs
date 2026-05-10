@@ -1,3 +1,4 @@
+using System.Data.Common;
 using FalkForge.Extensions.Sql.Models;
 
 namespace FalkForge.Extensions.Sql;
@@ -5,6 +6,39 @@ namespace FalkForge.Extensions.Sql;
 public static class SqlValidator
 {
     private const int MaxCustomActionDataLength = 32767;
+
+    /// <summary>
+    /// SQL014 — Detects plaintext credentials (Password/Pwd) in a connection string.
+    /// Returns failure with SQL014 if a non-empty password is found.
+    /// Callers should treat this as a warning: emit a diagnostic but continue compilation.
+    /// </summary>
+    public static Result<Unit> CheckConnectionStringCredentials(string connectionString)
+    {
+        if (string.IsNullOrEmpty(connectionString))
+            return Unit.Value;
+
+        try
+        {
+            var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
+
+            // DbConnectionStringBuilder normalises key casing; check Password and Pwd variants.
+            if (builder.TryGetValue("Password", out var pwd) && pwd is string p && p.Length > 0)
+                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                    "SQL014: ConnectionString contains a plaintext password. " +
+                    "Use Integrated Security=true or Azure AD authentication instead.");
+
+            if (builder.TryGetValue("Pwd", out var pwd2) && pwd2 is string p2 && p2.Length > 0)
+                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                    "SQL014: ConnectionString contains a plaintext password (Pwd keyword). " +
+                    "Use Integrated Security=true or Azure AD authentication instead.");
+        }
+        catch (ArgumentException)
+        {
+            // Malformed connection string — skip credential check; other validation will catch issues.
+        }
+
+        return Unit.Value;
+    }
 
     public static Result<Unit> ValidateDatabase(SqlDatabaseModel model)
     {

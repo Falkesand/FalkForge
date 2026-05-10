@@ -87,6 +87,14 @@ public sealed class SqlDatabaseBuilder
         if (validationResult.IsFailure)
             return Result<SqlDatabaseModel>.Failure(validationResult.Error);
 
+        // SQL014: non-blocking warning — emit to stderr so the developer sees it but compilation continues.
+        if (!string.IsNullOrEmpty(_connectionString))
+        {
+            var credCheck = SqlValidator.CheckConnectionStringCredentials(_connectionString);
+            if (credCheck.IsFailure)
+                Console.Error.WriteLine($"[FalkForge Warning] {credCheck.Error.Message}");
+        }
+
         return model;
     }
 }

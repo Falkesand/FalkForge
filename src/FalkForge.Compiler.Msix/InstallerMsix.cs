@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FalkForge.Compiler.Msix;
 using FalkForge.Compiler.Msix.Builders;
 
@@ -21,6 +22,7 @@ public static class InstallerMsix
     ///     and returns the created .msix file path on success.
     /// </param>
     /// <returns>Exit code: 0 for success, 1 for failure.</returns>
+    [Experimental("FF_MSIX001", UrlFormat = "https://github.com/falkesand/falkforge/blob/main/docs/experimental/FF_MSIX001.md")]
     public static int BuildMsix(string[] args, Action<MsixBuilder> configure,
         Func<MsixModel, string, Result<string>> compile)
     {
@@ -57,6 +59,7 @@ public static class InstallerMsix
     ///     and returns the created .msixbundle file path on success.
     /// </param>
     /// <returns>Exit code: 0 for success, 1 for failure.</returns>
+    [Experimental("FF_MSIX001", UrlFormat = "https://github.com/falkesand/falkforge/blob/main/docs/experimental/FF_MSIX001.md")]
     public static int BuildMsixBundle(string[] args, Action<MsixBundleBuilder> configure,
         Func<MsixBundleModel, string, Result<string>> compile)
     {

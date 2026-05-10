@@ -4,6 +4,8 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <!-- FF_MSIX001: tests intentionally call experimental MSIX API to verify the attribute exists -->
+        <NoWarn>$(NoWarn);FF_MSIX001</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="xunit.v3" />

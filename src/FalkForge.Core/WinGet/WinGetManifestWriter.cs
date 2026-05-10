@@ -37,11 +37,22 @@ public static class WinGetManifestWriter
             Path.Combine(idParts),
             version);
 
+        if (config.InstallerUrl is null)
+            return Result<string>.Failure(ErrorKind.Validation,
+                "WGT002: InstallerUrl is required. Set WinGetConfig.InstallerUrl before generating manifests.");
+
         Directory.CreateDirectory(manifestDir);
 
         WriteVersionManifest(manifestDir, id, version, config.ManifestVersion);
         WriteInstallerManifest(manifestDir, id, version, package, config, installerSha256);
         WriteLocaleManifest(manifestDir, id, version, package, config);
+
+        // Additional locale manifests (one per extra locale entry).
+        if (config.Locales is { Length: > 0 })
+        {
+            foreach (var locale in config.Locales)
+                WriteExtraLocaleManifest(manifestDir, id, version, locale, config.ManifestVersion);
+        }
 
         return manifestDir;
     }
@@ -72,20 +83,23 @@ public static class WinGetManifestWriter
         sb.AppendLine($"PackageVersion: {version}");
         sb.AppendLine("Installers:");
         sb.AppendLine($"- Architecture: {MapArchitecture(package.Architecture)}");
-
-        if (config.InstallerUrl is not null)
-        {
-            sb.AppendLine($"  InstallerUrl: {config.InstallerUrl}");
-        }
-        else
-        {
-            sb.AppendLine("  InstallerUrl: https://example.com/TODO  # TODO: Set InstallerUrl before submitting to winget-pkgs");
-        }
-
+        sb.AppendLine($"  InstallerUrl: {config.InstallerUrl}");
         sb.AppendLine($"  InstallerSha256: {installerSha256}");
-        sb.AppendLine("  InstallerType: msi");
+        sb.AppendLine($"  InstallerType: {MapInstallerType(config.InstallerType)}");
+
+        // EXE bundles need silent-install switches; MSI installers rely on ProductCode/UpgradeBehavior.
+        if (config.InstallerType == WinGetInstallerType.Exe)
+        {
+            sb.AppendLine("  InstallerSwitches:");
+            sb.AppendLine("    Silent: /quiet");
+            sb.AppendLine("    SilentWithProgress: /passive");
+        }
+
         sb.AppendLine($"  Scope: {MapScope(package.Scope)}");
-        sb.AppendLine($"  ProductCode: \"{{{package.ProductCode}}}\"");
+
+        if (config.InstallerType == WinGetInstallerType.Msi)
+            sb.AppendLine($"  ProductCode: \"{{{package.ProductCode}}}\"");
+
         sb.AppendLine("  UpgradeBehavior: install");
         sb.AppendLine("ManifestType: installer");
         sb.AppendLine($"ManifestVersion: {config.ManifestVersion}");
@@ -142,12 +156,47 @@ public static class WinGetManifestWriter
         File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
     }
 
+    private static void WriteExtraLocaleManifest(
+        string dir,
+        string id,
+        string version,
+        WinGetLocale locale,
+        string manifestVersion)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"PackageIdentifier: {id}");
+        sb.AppendLine($"PackageVersion: {version}");
+        sb.AppendLine($"PackageLocale: {locale.Locale}");
+        sb.AppendLine($"Publisher: {locale.Publisher}");
+        sb.AppendLine($"PackageName: {locale.PackageName}");
+
+        if (locale.License is not null)
+            sb.AppendLine($"License: {locale.License}");
+
+        sb.AppendLine($"ShortDescription: {locale.ShortDescription}");
+
+        if (locale.Description is not null)
+            sb.AppendLine($"Description: {locale.Description}");
+
+        sb.AppendLine("ManifestType: locale");
+        sb.AppendLine($"ManifestVersion: {manifestVersion}");
+
+        var path = Path.Combine(dir, $"{id}.locale.{locale.Locale}.yaml");
+        File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+    }
+
     private static string MapArchitecture(ProcessorArchitecture arch) => arch switch
     {
         ProcessorArchitecture.X86 => "x86",
         ProcessorArchitecture.X64 => "x64",
         ProcessorArchitecture.Arm64 => "arm64",
         _ => "x64"
+    };
+
+    private static string MapInstallerType(WinGetInstallerType type) => type switch
+    {
+        WinGetInstallerType.Exe => "exe",
+        _ => "msi"
     };
 
     private static string MapScope(InstallScope scope) => scope switch
