@@ -5,6 +5,7 @@ using FalkForge.Cli.Settings;
 using FalkForge.Cli.WinGet;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
+using FalkForge.Validation;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -43,7 +44,12 @@ public sealed class BuildCommand : Command<BuildSettings>
         {
             var exitCode = ExecuteInternal(settings);
             if (jsonOutput is not null)
-                _jsonSink.WriteLine(jsonOutput.WriteEnvelope("build", exitCode));
+            {
+                IReadOnlyDictionary<string, string?>? envelopeResult = settings.DryRun
+                    ? new Dictionary<string, string?> { ["dryRun"] = "true" }
+                    : null;
+                _jsonSink.WriteLine(jsonOutput.WriteEnvelope("build", exitCode, envelopeResult));
+            }
             return exitCode;
         }
         finally
@@ -115,6 +121,9 @@ public sealed class BuildCommand : Command<BuildSettings>
         if (isJson)
             _console.MarkupLine($"[green]Loaded JSON config:[/] {Markup.Escape(package.Name)} v{package.Version}");
 
+        if (settings.DryRun)
+            return RunDryRun(package, outputPath);
+
         if (!OperatingSystem.IsWindows())
         {
             _console.WriteError("MSI compilation requires Windows.");
@@ -140,6 +149,110 @@ public sealed class BuildCommand : Command<BuildSettings>
         }
 
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Executes the dry-run path: runs model validation and a lightweight planning pass
+    /// (component/file/feature counts, payload size, predicted output filename) without
+    /// invoking the MSI compiler. No artifacts are written to <paramref name="outputPath"/>.
+    /// Returns <see cref="ExitCodes.ValidationFailure"/> when the model has validation
+    /// errors, <see cref="ExitCodes.Success"/> otherwise.
+    /// </summary>
+    private int RunDryRun(PackageModel package, string outputPath)
+    {
+        var validation = ModelValidator.Inspect(package);
+
+        foreach (var warning in validation.Warnings)
+            _console.MarkupLine($"[yellow]Warning {warning.RuleId}:[/] {Markup.Escape(warning.Message)}");
+
+        foreach (var error in validation.Errors)
+            _console.MarkupLine($"[red]Error {error.RuleId}:[/] {Markup.Escape(error.Message)}");
+
+        if (!validation.IsValid)
+        {
+            _console.MarkupLine($"[red]Validation failed with {validation.Errors.Count()} error(s).[/]");
+            return ExitCodes.ValidationFailure;
+        }
+
+        var fileCount = package.Files.Count;
+        var componentCount = CountComponents(package);
+        var featureCount = CountFeatures(package.Features);
+        var payloadBytes = ComputePayloadBytes(package.Files);
+        var outputFileName = $"{SanitizeFileName(package.Name)}-{package.Version.ToString(3)}.msi";
+
+        _console.MarkupLine("[cyan]Dry run:[/] no artifacts will be written.");
+        _console.MarkupLine($"[grey]Package:[/] {Markup.Escape(package.Name)} v{package.Version}");
+        _console.MarkupLine($"[grey]Output (would write):[/] {Markup.Escape(Path.Combine(outputPath, outputFileName))}");
+        _console.MarkupLine($"[grey]Files:[/] {fileCount}");
+        _console.MarkupLine($"[grey]Components:[/] {componentCount}");
+        _console.MarkupLine($"[grey]Features:[/] {featureCount}");
+        _console.MarkupLine($"[grey]Payload size:[/] {payloadBytes:N0} bytes");
+        _console.MarkupLine("[green]Validation passed.[/]");
+
+        return ExitCodes.Success;
+    }
+
+    private static int CountFeatures(IReadOnlyList<FeatureModel> features)
+    {
+        var total = 0;
+        foreach (var feature in features)
+        {
+            total++;
+            total += CountFeatures(feature.Children);
+        }
+        return total;
+    }
+
+    private static int CountComponents(PackageModel package)
+    {
+        // ComponentRefs across the feature tree approximates the component count
+        // before MsiAuthoring resolves them. For dry-run reporting this is enough.
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        Visit(package.Features);
+        return ids.Count;
+
+        void Visit(IReadOnlyList<FeatureModel> features)
+        {
+            foreach (var feature in features)
+            {
+                foreach (var componentRef in feature.ComponentRefs)
+                    ids.Add(componentRef);
+                Visit(feature.Children);
+            }
+        }
+    }
+
+    private static long ComputePayloadBytes(IReadOnlyList<FileEntryModel> files)
+    {
+        long total = 0;
+        foreach (var file in files)
+        {
+            try
+            {
+                if (File.Exists(file.SourcePath))
+                    total += new FileInfo(file.SourcePath).Length;
+            }
+            catch
+            {
+                // Source missing or unreadable — surfaced by the real build; dry-run
+                // reports best-effort payload size only.
+            }
+        }
+        return total;
+    }
+
+    /// <summary>
+    /// Mirrors <c>FileNameSanitizer.Sanitize</c> from FalkForge.Compiler.Msi (internal).
+    /// Replicated here so dry-run can predict the MSI filename without taking a
+    /// dependency on internals.
+    /// </summary>
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var buffer = new char[name.Length];
+        for (var i = 0; i < name.Length; i++)
+            buffer[i] = Array.IndexOf(invalid, name[i]) >= 0 ? '_' : name[i];
+        return new string(buffer).Replace(' ', '_');
     }
 
     [SupportedOSPlatform("windows")]

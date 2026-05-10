@@ -31,6 +31,11 @@ public sealed class BuildSettings : CommandSettings
     [DefaultValue(false)]
     public bool Json { get; init; }
 
+    [Description("Validate and plan without producing output artifacts.")]
+    [CommandOption("--dry-run")]
+    [DefaultValue(false)]
+    public bool DryRun { get; init; }
+
     [Description("Enable reproducible output. Reads SOURCE_DATE_EPOCH env var or falls back to git HEAD timestamp.")]
     [CommandOption("--reproducible")]
     [DefaultValue(false)]
