@@ -40,6 +40,7 @@ public sealed class JsonConsoleOutput : IConsoleOutput
     public string WriteEnvelope(string command, int exitCode, IReadOnlyDictionary<string, string?>? result = null)
     {
         var envelope = new JsonConsoleEnvelope(
+            JsonConsoleEnvelope.CurrentVersion,
             command,
             exitCode,
             _messages,
@@ -95,10 +96,18 @@ public sealed class JsonConsoleOutput : IConsoleOutput
 public sealed record JsonConsoleMessage(string Level, string Text);
 
 public sealed record JsonConsoleEnvelope(
+    [property: JsonPropertyName("version")] int Version,
     [property: JsonPropertyName("command")] string Command,
     [property: JsonPropertyName("exitCode")] int ExitCode,
     [property: JsonPropertyName("messages")] IReadOnlyList<JsonConsoleMessage> Messages,
-    [property: JsonPropertyName("result")] IReadOnlyDictionary<string, string?>? Result);
+    [property: JsonPropertyName("result")] IReadOnlyDictionary<string, string?>? Result)
+{
+    /// <summary>
+    /// Wire-format version of the JSON envelope emitted by the <c>--json</c> CLI flag.
+    /// Increment this constant when the envelope schema changes in a breaking way.
+    /// </summary>
+    public const int CurrentVersion = 1;
+}
 
 [JsonSerializable(typeof(JsonConsoleEnvelope))]
 [JsonSerializable(typeof(JsonConsoleMessage))]

@@ -15,12 +15,14 @@ namespace FalkForge.Cli.Commands;
 public sealed class ValidateCommand : Command<ValidateSettings>
 {
     private readonly IConsoleOutput _console;
+    private readonly System.IO.TextWriter _jsonSink;
 
     public ValidateCommand() : this(new SpectreConsoleOutput()) { }
 
-    public ValidateCommand(IConsoleOutput console)
+    public ValidateCommand(IConsoleOutput console, System.IO.TextWriter? jsonSink = null)
     {
         _console = console;
+        _jsonSink = jsonSink ?? Console.Out;
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] ValidateSettings settings, CancellationToken cancellationToken)
@@ -31,9 +33,7 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         var exitCode = ExecuteCore(settings, output);
 
         if (jsonOutput is not null)
-        {
-            Console.Out.WriteLine(jsonOutput.WriteEnvelope("validate", exitCode));
-        }
+            _jsonSink.WriteLine(jsonOutput.WriteEnvelope("validate", exitCode));
 
         return exitCode;
     }

@@ -21,13 +21,15 @@ public sealed class BuildCommand : Command<BuildSettings>
     // entire build run accumulates messages into a single envelope rendered at the end.
     private IConsoleOutput _console;
     private readonly string? _gitWorkingDirectory;
+    private readonly System.IO.TextWriter _jsonSink;
 
     public BuildCommand() : this(new SpectreConsoleOutput()) { }
 
-    public BuildCommand(IConsoleOutput console, string? gitWorkingDirectory = null)
+    public BuildCommand(IConsoleOutput console, string? gitWorkingDirectory = null, System.IO.TextWriter? jsonSink = null)
     {
         _console = console;
         _gitWorkingDirectory = gitWorkingDirectory;
+        _jsonSink = jsonSink ?? Console.Out;
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
@@ -41,7 +43,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         {
             var exitCode = ExecuteInternal(settings, cancellationToken);
             if (jsonOutput is not null)
-                Console.Out.WriteLine(jsonOutput.WriteEnvelope("build", exitCode));
+                _jsonSink.WriteLine(jsonOutput.WriteEnvelope("build", exitCode));
             return exitCode;
         }
         finally

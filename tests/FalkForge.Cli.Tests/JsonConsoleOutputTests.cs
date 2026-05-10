@@ -39,6 +39,7 @@ public sealed class JsonConsoleOutputTests
         using var doc = JsonDocument.Parse(envelope);
         var root = doc.RootElement;
 
+        Assert.Equal(1, root.GetProperty("version").GetInt32());
         Assert.Equal("validate", root.GetProperty("command").GetString());
         Assert.Equal(1, root.GetProperty("exitCode").GetInt32());
 
@@ -60,6 +61,7 @@ public sealed class JsonConsoleOutputTests
         using var doc = JsonDocument.Parse(envelope);
         var root = doc.RootElement;
 
+        Assert.Equal(1, root.GetProperty("version").GetInt32());
         Assert.Equal("build", root.GetProperty("command").GetString());
         Assert.Equal(0, root.GetProperty("exitCode").GetInt32());
         Assert.Equal("out.msi", root.GetProperty("result").GetProperty("outputPath").GetString());
@@ -72,6 +74,7 @@ public sealed class JsonConsoleOutputTests
         var envelope = output.WriteEnvelope("validate", exitCode: 0);
 
         using var doc = JsonDocument.Parse(envelope);
+        Assert.Equal(1, doc.RootElement.GetProperty("version").GetInt32());
         Assert.False(doc.RootElement.TryGetProperty("result", out _));
     }
 

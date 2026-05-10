@@ -16,6 +16,11 @@ public sealed class InspectSettings : CommandSettings
     [DefaultValue(false)]
     public bool Verbose { get; init; }
 
+    [Description("Emit machine-readable JSON envelope to stdout instead of Spectre markup. Suppresses interactive output for CI/automation use.")]
+    [CommandOption("--json")]
+    [DefaultValue(false)]
+    public bool Json { get; init; }
+
     [Description("Extract SBOM from the MSI integrity table")]
     [CommandOption("--sbom")]
     [DefaultValue(false)]

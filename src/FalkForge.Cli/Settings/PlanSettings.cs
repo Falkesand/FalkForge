@@ -15,6 +15,11 @@ public sealed class PlanSettings : CommandSettings
     [Description("Output file path for the plan JSON (writes to stdout if not specified)")]
     public string? OutputPath { get; init; }
 
+    [Description("Emit machine-readable JSON envelope to stdout instead of Spectre markup. Suppresses interactive output for CI/automation use.")]
+    [CommandOption("--json")]
+    [DefaultValue(false)]
+    public bool Json { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))

@@ -14,29 +14,44 @@ namespace FalkForge.Cli.Commands;
 public sealed class PlanCommand : Command<PlanSettings>
 {
     private readonly IConsoleOutput _output;
+    private readonly System.IO.TextWriter _jsonSink;
 
     public PlanCommand() : this(new SpectreConsoleOutput()) { }
 
-    public PlanCommand(IConsoleOutput output)
+    public PlanCommand(IConsoleOutput output, System.IO.TextWriter? jsonSink = null)
     {
         _output = output;
+        _jsonSink = jsonSink ?? Console.Out;
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] PlanSettings settings, CancellationToken cancellationToken)
+    {
+        var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
+        var output = (IConsoleOutput?)jsonOutput ?? _output;
+
+        var exitCode = ExecuteCore(settings, output);
+
+        if (jsonOutput is not null)
+            _jsonSink.WriteLine(jsonOutput.WriteEnvelope("plan", exitCode));
+
+        return exitCode;
+    }
+
+    private static int ExecuteCore(PlanSettings settings, IConsoleOutput output)
     {
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 
         if (!File.Exists(projectPath))
         {
-            _output.WriteError($"File not found: {projectPath}");
+            output.WriteError($"File not found: {projectPath}");
             return ExitCodes.RuntimeError;
         }
 
         // Full engine integration requires the engine binary built with NativeAOT.
         // The engine is launched as a subprocess, passing --plan-only so it outputs the plan
         // JSON and exits without installing. Return an error until the binary is available.
-        _output.WriteError("The 'forge plan' command requires the engine binary to be compiled first.");
-        _output.WriteError($"Project: {Markup.Escape(settings.ProjectPath)}");
+        output.WriteError("The 'forge plan' command requires the engine binary to be compiled first.");
+        output.WriteError($"Project: {Markup.Escape(settings.ProjectPath)}");
 
         return ExitCodes.RuntimeError;
     }

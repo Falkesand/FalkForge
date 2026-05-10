@@ -12,19 +12,34 @@ namespace FalkForge.Cli.Commands;
 public sealed class InspectCommand : Command<InspectSettings>
 {
     private readonly IConsoleOutput _console;
+    private readonly System.IO.TextWriter _jsonSink;
 
     public InspectCommand() : this(new SpectreConsoleOutput()) { }
 
-    public InspectCommand(IConsoleOutput console)
+    public InspectCommand(IConsoleOutput console, System.IO.TextWriter? jsonSink = null)
     {
         _console = console;
+        _jsonSink = jsonSink ?? Console.Out;
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] InspectSettings settings, CancellationToken cancellationToken)
     {
+        var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
+        var output = (IConsoleOutput?)jsonOutput ?? _console;
+
+        var exitCode = ExecuteCore(settings, output);
+
+        if (jsonOutput is not null)
+            _jsonSink.WriteLine(jsonOutput.WriteEnvelope("inspect", exitCode));
+
+        return exitCode;
+    }
+
+    private static int ExecuteCore(InspectSettings settings, IConsoleOutput output)
+    {
         if (!OperatingSystem.IsWindows())
         {
-            _console.WriteError("The inspect command requires Windows (msi.dll).");
+            output.WriteError("The inspect command requires Windows (msi.dll).");
             return ExitCodes.RuntimeError;
         }
 
@@ -32,47 +47,47 @@ public sealed class InspectCommand : Command<InspectSettings>
 
         if (!File.Exists(msiPath))
         {
-            _console.WriteError($"File not found: {msiPath}");
+            output.WriteError($"File not found: {msiPath}");
             return ExitCodes.RuntimeError;
         }
 
         if (settings.Verbose)
-            _console.MarkupLine($"[grey]Inspecting: {Markup.Escape(msiPath)}[/]");
+            output.MarkupLine($"[grey]Inspecting: {Markup.Escape(msiPath)}[/]");
 
         if (settings.ExtractSbom)
         {
             var sbomResult = MsiInspector.ExtractSbom(msiPath);
             if (sbomResult.IsFailure)
             {
-                _console.WriteError(sbomResult.Error.Message);
+                output.WriteError(sbomResult.Error.Message);
                 return ExitCodes.FromErrorKind(sbomResult.Error.Kind);
             }
 
-            _console.WriteLine(sbomResult.Value);
+            output.WriteLine(sbomResult.Value);
             return ExitCodes.Success;
         }
 
         var inspectResult = MsiInspector.Inspect(msiPath);
         if (inspectResult.IsFailure)
         {
-            _console.WriteError(inspectResult.Error.Message);
+            output.WriteError(inspectResult.Error.Message);
             return ExitCodes.FromErrorKind(inspectResult.Error.Kind);
         }
 
         var info = inspectResult.Value;
-        _console.MarkupLine($"[bold]MSI:[/] {Markup.Escape(msiPath)}");
-        _console.MarkupLine($"[bold]Product:[/] {Markup.Escape(info.ProductName ?? "(unknown)")}");
-        _console.MarkupLine($"[bold]Manufacturer:[/] {Markup.Escape(info.Manufacturer ?? "(unknown)")}");
-        _console.MarkupLine($"[bold]Version:[/] {Markup.Escape(info.Version ?? "(unknown)")}");
-        _console.MarkupLine($"[bold]Product Code:[/] {Markup.Escape(info.ProductCode ?? "(unknown)")}");
-        _console.MarkupLine($"[bold]Tables:[/] {info.TableCount}");
+        output.MarkupLine($"[bold]MSI:[/] {Markup.Escape(msiPath)}");
+        output.MarkupLine($"[bold]Product:[/] {Markup.Escape(info.ProductName ?? "(unknown)")}");
+        output.MarkupLine($"[bold]Manufacturer:[/] {Markup.Escape(info.Manufacturer ?? "(unknown)")}");
+        output.MarkupLine($"[bold]Version:[/] {Markup.Escape(info.Version ?? "(unknown)")}");
+        output.MarkupLine($"[bold]Product Code:[/] {Markup.Escape(info.ProductCode ?? "(unknown)")}");
+        output.MarkupLine($"[bold]Tables:[/] {info.TableCount}");
 
         if (settings.Verbose && info.TableNames.Count > 0)
         {
-            _console.MarkupLine("[bold]Table list:[/]");
+            output.MarkupLine("[bold]Table list:[/]");
             foreach (var tableName in info.TableNames)
             {
-                _console.MarkupLine($"  {Markup.Escape(tableName)}");
+                output.MarkupLine($"  {Markup.Escape(tableName)}");
             }
         }
 
