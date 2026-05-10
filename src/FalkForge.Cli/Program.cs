@@ -23,8 +23,7 @@ app.Configure(config =>
         .WithExample("validate", "installer.cs", "--verbose")
         .WithExample("validate", "installer.json");
 
-    // PlanCommand is hidden until the engine supports --plan-only mode.
-    // TODO: re-enable when plan-only engine mode lands.
+    // PlanCommand is intentionally not wired until plan-only engine mode is complete.
 
     config.AddCommand<InspectCommand>("inspect")
         .WithDescription("Display MSI metadata (tables, features, summary info)")

@@ -12,7 +12,7 @@ namespace FalkForge.Cli.Commands;
 /// </summary>
 /// <remarks>
 /// Not registered in the production CLI until the engine supports --plan-only mode.
-/// TODO: re-enable when plan-only engine mode lands.
+/// Wire into <c>Program.cs</c> once plan-only engine integration is complete.
 /// </remarks>
 [Description("Run the installer pipeline through planning and output the plan without installing")]
 internal sealed class PlanCommand : Command<PlanSettings>
