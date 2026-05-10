@@ -9,17 +9,22 @@ public interface IFalkForgeExtension
 
     /// <summary>
     /// Semantic version of this extension implementation (e.g. "1.0.0"). Defaults to
-    /// "1.0.0" when an extension does not override it. Surfaces in error messages and
-    /// allows consumers to log the active extension set for diagnostics.
+    /// <c>"0.0.0"</c> when an extension does not override it so existing extensions
+    /// require no source changes. Surfaces in error messages and allows consumers to
+    /// log the active extension set for diagnostics.
     /// </summary>
-    string Version => "1.0.0";
+    string Version => "0.0.0";
 
     /// <summary>
-    /// Minimum host (Extensibility contract) semantic version required by this extension.
-    /// When non-null, <see cref="ExtensionRegistration.Register"/> rejects the plugin
-    /// if the host version is older. Defaults to <c>null</c> (no requirement).
+    /// Minimum FalkForge host version this extension supports, as a dotted numeric
+    /// version string (parsed via <see cref="System.Version"/>). Defaults to
+    /// <c>"0.0.0"</c> meaning the extension is compatible with any host version.
+    /// <see cref="ExtensionRegistration.Register"/> rejects the extension with a
+    /// <see cref="PluginCompatibilityException"/> if the current host version is
+    /// lower than this value, or if this value cannot be parsed as a
+    /// <see cref="System.Version"/>.
     /// </summary>
-    string? MinHostVersion => null;
+    string MinHostVersion => "0.0.0";
 
     void Register(IExtensionRegistry registry);
 }

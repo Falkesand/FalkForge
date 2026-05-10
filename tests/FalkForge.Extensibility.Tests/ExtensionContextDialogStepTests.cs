@@ -33,7 +33,7 @@ public sealed class ExtensionContextDialogStepTests
     {
         public string Name => "DialogStepExtension";
         public string Version => "1.0.0";
-        public string? MinHostVersion => null;
+        public string MinHostVersion => "0.0.0";
 
         public void Register(IExtensionRegistry registry)
             => registry.RegisterDialogStep(new StubDialogStepBuilder(stepName));

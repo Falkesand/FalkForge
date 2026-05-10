@@ -18,8 +18,8 @@ public sealed class ExtensionRegistrationTests
         private readonly string? _minHostVersion;
 
         public string Name { get; }
-        public string Version => _version ?? "1.0.0";
-        public string? MinHostVersion => _minHostVersion;
+        public string Version => _version ?? "0.0.0";
+        public string MinHostVersion => _minHostVersion ?? "0.0.0";
         public int RegisterCallCount { get; private set; }
 
         public void Register(IExtensionRegistry registry) => RegisterCallCount++;
@@ -116,10 +116,53 @@ public sealed class ExtensionRegistrationTests
     }
 
     [Fact]
-    public void DefaultExtensionVersion_IsOnePointZero()
+    public void DefaultExtensionVersion_IsZero()
     {
         var ext = new StubExtension("Default");
-        Assert.Equal("1.0.0", ext.Version);
-        Assert.Null(ext.MinHostVersion);
+        Assert.Equal("0.0.0", ext.Version);
+        Assert.Equal("0.0.0", ext.MinHostVersion);
+    }
+
+    [Fact]
+    public void Register_ExtensionRequiresNewerHost_ThrowsPluginCompatibilityException()
+    {
+        var ext = new StubExtension("Future", version: "1.0.0", minHostVersion: "999.0.0");
+        var registered = new HashSet<string>(StringComparer.Ordinal);
+
+        var ex = Assert.Throws<PluginCompatibilityException>(
+            () => ExtensionRegistration.Register(ext, new NullRegistry(), registered, hostVersion: "1.2.3"));
+
+        Assert.Equal(
+            "Extension 'Future' requires host version >= 999.0.0, but host is 1.2.3.",
+            ex.Message);
+        Assert.Equal(0, ext.RegisterCallCount);
+        Assert.DoesNotContain("Future", registered);
+    }
+
+    [Fact]
+    public void Register_ExtensionWithMalformedMinHostVersion_Throws()
+    {
+        var ext = new StubExtension("Bad", version: "1.0.0", minHostVersion: "not-a-version");
+        var registered = new HashSet<string>(StringComparer.Ordinal);
+
+        var ex = Assert.Throws<PluginCompatibilityException>(
+            () => ExtensionRegistration.Register(ext, new NullRegistry(), registered, hostVersion: "1.0.0"));
+
+        Assert.Equal(
+            "Extension 'Bad' has invalid MinHostVersion: 'not-a-version'",
+            ex.Message);
+        Assert.Equal(0, ext.RegisterCallCount);
+    }
+
+    [Fact]
+    public void Register_ExtensionWithCompatibleMinHostVersion_Succeeds()
+    {
+        var ext = new StubExtension("Compat", version: "1.0.0", minHostVersion: "0.0.0");
+        var registered = new HashSet<string>(StringComparer.Ordinal);
+
+        ExtensionRegistration.Register(ext, new NullRegistry(), registered, hostVersion: "1.0.0");
+
+        Assert.Equal(1, ext.RegisterCallCount);
+        Assert.Contains("Compat", registered);
     }
 }

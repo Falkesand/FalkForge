@@ -11,9 +11,9 @@ namespace FalkForge.Extensibility;
 public static class ExtensionRegistration
 {
     /// <summary>
-    /// The semantic version of the Extensibility contract this build of FalkForge ships
-    /// with. Bump when contract-breaking changes are introduced; extensions can opt in to
-    /// the new contract by setting <see cref="IFalkForgeExtension.MinHostVersion"/>.
+    /// Compile-time fallback for the Extensibility contract version. Used as a default
+    /// only when <see cref="FalkForgeVersion.Current"/> cannot be resolved. Extensions
+    /// opt in to a newer contract by setting <see cref="IFalkForgeExtension.MinHostVersion"/>.
     /// </summary>
     public const string CurrentHostVersion = "1.0.0";
 
@@ -53,10 +53,23 @@ public static class ExtensionRegistration
                 $"Extension '{extension.Name}' (version {extension.Version}) cannot be registered: another extension with the same Name has already been registered.");
         }
 
-        if (extension.MinHostVersion is { } minHost && CompareSemVer(minHost, hostVersion) > 0)
+        var minHost = extension.MinHostVersion;
+        if (!Version.TryParse(StripSuffix(minHost), out var minHostParsed))
         {
             throw new PluginCompatibilityException(
-                $"Extension '{extension.Name}' requires host version >= {minHost} but current host is {hostVersion}. Upgrade FalkForge or use an older extension build.");
+                $"Extension '{extension.Name}' has invalid MinHostVersion: '{minHost}'");
+        }
+
+        if (!Version.TryParse(StripSuffix(hostVersion), out var hostParsed))
+        {
+            throw new PluginCompatibilityException(
+                $"Extension '{extension.Name}' has invalid MinHostVersion: '{minHost}'");
+        }
+
+        if (hostParsed < minHostParsed)
+        {
+            throw new PluginCompatibilityException(
+                $"Extension '{extension.Name}' requires host version >= {minHost}, but host is {hostVersion}.");
         }
 
         extension.Register(registry);
