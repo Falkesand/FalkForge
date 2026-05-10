@@ -72,9 +72,13 @@ public sealed class EngineSessionPipeCallbackTests : IDisposable
         // Info < Warning, so the callback must not fire and no Log event must reach the channel.
         session.Logger!.Info("Detect", "should-be-filtered-out");
 
-        // Give the ThreadPool a tick — if a callback were going to run, it would have by now.
-        await Task.Delay(150);
+        // Wait briefly to give the ThreadPool a chance to dispatch a callback — if the level
+        // filter is working, nothing will arrive. WaitForLogEventAsync polls every 20 ms for
+        // up to the timeout and returns null when no Log event is found, making the assertion
+        // deterministic rather than relying on a raw wall-clock sleep.
+        var logEvent = await WaitForLogEventAsync(channel, TimeSpan.FromMilliseconds(200));
 
+        Assert.Null(logEvent);
         Assert.DoesNotContain(channel.SentEvents, e => e is PipelineEvent.Log);
     }
 
@@ -95,8 +99,11 @@ public sealed class EngineSessionPipeCallbackTests : IDisposable
             var ex = Record.Exception(() => session.Logger!.Error("Detect", "channel-blows-up"));
             Assert.Null(ex);
 
-            // Callback runs on the ThreadPool — let it throw + be swallowed before we assert below.
-            await Task.Delay(150);
+            // Wait for the ThreadPool callback to invoke SendAsync (and throw) before asserting.
+            // ThrowingUiChannel signals its TCS when SendAsync is called, giving a deterministic
+            // synchronization point instead of a raw wall-clock delay.
+            var invoked = await channel.WaitForInvocationAsync(TimeSpan.FromSeconds(5));
+            Assert.True(invoked, "SendAsync was not invoked within the deadline; callback may have been dropped.");
         }
 
         // The file write side of Log must still have happened (session now disposed → file released).
@@ -152,10 +159,35 @@ public sealed class EngineSessionPipeCallbackTests : IDisposable
 
     private sealed class ThrowingUiChannel : IUiChannel
     {
+        // Signals when SendAsync is called so tests can synchronize on the callback having run,
+        // rather than relying on a wall-clock delay.  TrySetResult is idempotent after the first call.
+        private readonly TaskCompletionSource _invoked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        /// Awaits the first <see cref="SendAsync"/> invocation up to <paramref name="timeout"/>.
+        /// Returns <c>true</c> if invoked within the deadline, <c>false</c> on timeout.
+        /// </summary>
+        public async Task<bool> WaitForInvocationAsync(TimeSpan timeout)
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            try
+            {
+                await _invoked.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
         public void SetSessionCorrelationId(Guid id) { }
 
-        public Task SendAsync(PipelineEvent evt, CancellationToken ct) =>
+        public Task SendAsync(PipelineEvent evt, CancellationToken ct)
+        {
+            _invoked.TrySetResult(); // signal before throwing so the test can observe the callback ran
             throw new InvalidOperationException("simulated channel failure");
+        }
 
 #pragma warning disable CS1998 // async lacks await — required by the IAsyncEnumerable signature
         public async IAsyncEnumerable<UiRequest> ReadRequestsAsync(
