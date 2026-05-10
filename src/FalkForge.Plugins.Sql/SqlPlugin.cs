@@ -1,5 +1,8 @@
 namespace FalkForge.Plugins.Sql;
 
+/// <summary>
+/// Registers SQL Server discovery, database listing, and connection testing services.
+/// </summary>
 public sealed class SqlPlugin : IInstallerPlugin
 {
     public string Name => "SQL Server";

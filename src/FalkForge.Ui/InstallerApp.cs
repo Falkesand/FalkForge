@@ -38,8 +38,11 @@ public static class InstallerApp
         configure(uiBuilder);
 
         var pluginRegistry = new PluginServiceRegistry();
+        // Drain-and-apply: honour both registration paths; first-wins semantics in
+        // PluginServiceRegistry.TryAdd protect against duplicate service types.
         foreach (var plugin in uiBuilder.Plugins)
             plugin.RegisterServices(pluginRegistry);
+        uiBuilder.BulkPluginRegistry?.RegisterAll(pluginRegistry);
         pluginRegistry.Freeze();
 
         var config = uiBuilder.WindowConfig;

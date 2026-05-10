@@ -1,5 +1,8 @@
 namespace FalkForge.Plugins.Odbc;
 
+/// <summary>
+/// Registers the ODBC data source manager service.
+/// </summary>
 public sealed class OdbcPlugin : IInstallerPlugin
 {
     public string Name => "ODBC";
