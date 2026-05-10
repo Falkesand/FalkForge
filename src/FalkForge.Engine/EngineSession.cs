@@ -67,6 +67,61 @@ public sealed class EngineSession : IAsyncDisposable
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Pipe-callback fanout helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Mutable holder used to bind the <see cref="IUiChannel"/> into the
+    /// <see cref="EngineLogger.pipeCallback"/> closure after the logger has
+    /// been constructed. Avoids a chicken-and-egg between logger construction
+    /// (must happen first so manifest-load failures still surface to a logger)
+    /// and channel construction.
+    /// </summary>
+    private sealed class ChannelHolder
+    {
+        public IUiChannel? Channel { get; set; }
+    }
+
+    /// <summary>
+    /// Forwards a single <see cref="LogEntry"/> to the bound UI channel as a
+    /// <see cref="PipelineEvent.Log"/>.  Fire-and-forget — dispatch hops onto the
+    /// ThreadPool so the logger's call site never blocks on channel I/O.  All
+    /// exceptions are swallowed: a failing channel must not crash the logger,
+    /// nor recursively log via the same logger (would loop).
+    /// </summary>
+    /// <remarks>
+    /// Trade-off: the entry record (<see cref="PipelineEvent.Log"/>) is one
+    /// allocation per accepted log call. Acceptable: log emission is bounded by
+    /// pipeline phase activity, not by hot-path tight loops, and the level
+    /// filter inside <see cref="EngineLogger.Log"/> already short-circuits
+    /// below-threshold entries before we reach this method.
+    /// </remarks>
+    private static void DispatchLogEntryToChannel(ChannelHolder holder, LogEntry entry)
+    {
+        var channel = holder.Channel;
+        if (channel is null)
+            return;
+
+        // Map LogEntry → PipelineEvent.Log. NamedPipeUiChannel.TranslateEvent
+        // already converts this into the wire-level LogMessage frame.
+        var pipelineEvent = new PipelineEvent.Log(entry.Level, entry.Message);
+
+        // Fire-and-forget on the ThreadPool. We do not await — blocking the
+        // logger's call site on pipe I/O could stall pipeline progress.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await channel.SendAsync(pipelineEvent, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Swallow. Re-logging here would recurse through the same callback.
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Session correlation id helpers
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -101,6 +156,10 @@ public sealed class EngineSession : IAsyncDisposable
         options ??= new EngineSessionOptions();
 
         // ── Logger ──────────────────────────────────────────────────────────
+        // The callback fans every accepted log entry out to the UI channel. It is
+        // wired at construction so EngineLogger.Log() can invoke it directly.
+        // Channel is bound after construction (see "Channel binding" below).
+        var channelHolder = new ChannelHolder();
         IEngineLogger logger;
         string? logFilePath;
         if (options.Logger is not null)
@@ -111,6 +170,8 @@ public sealed class EngineSession : IAsyncDisposable
             if (options.MinimumLogLevel is { } overrideLevel)
                 logger.MinimumLevel = overrideLevel;
             logFilePath = null;
+            // Caller-supplied logger: cannot retrofit a callback (no API for it).
+            // The channel-fanout feature is opt-in via the engine-built logger only.
         }
         else
         {
@@ -120,7 +181,10 @@ public sealed class EngineSession : IAsyncDisposable
                     ? Path.Combine(options.LogDirectory, $"install_{DateTime.UtcNow:yyyyMMdd_HHmmss}.log")
                     : EngineLogger.GetDefaultLogPath());
             var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
-            var fileLogger = new EngineLogger(resolvedPath, minimumLevel: startingLevel);
+            var fileLogger = new EngineLogger(
+                resolvedPath,
+                pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
+                minimumLevel: startingLevel);
             logger = fileLogger;
             logFilePath = resolvedPath;
         }
@@ -170,6 +234,12 @@ public sealed class EngineSession : IAsyncDisposable
         // Propagate the session correlation id to the channel so that outgoing
         // LogMessage and PhaseChangedMessage frames carry the same id as the log file.
         uiChannel.SetSessionCorrelationId(logger.SessionCorrelationId);
+
+        // Bind the channel into the holder so the logger's pipe callback (wired above)
+        // can fan log entries out to the UI. Done after the channel exists; the
+        // callback null-checks the holder so any pre-bind log writes are safe no-ops
+        // on the channel side.
+        channelHolder.Channel = uiChannel;
 
         // ── Platform services ───────────────────────────────────────────────
         var platform = new WindowsPlatformServices();
@@ -261,11 +331,15 @@ public sealed class EngineSession : IAsyncDisposable
         // so the session writes a real file and we can verify path / level handling.
         IEngineLogger? logger = options.Logger;
         string? logFilePath = null;
+        var channelHolder = new ChannelHolder { Channel = channel };
 
         if (logger is null && options.LogPath is not null)
         {
             var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
-            logger = new EngineLogger(options.LogPath, minimumLevel: startingLevel);
+            logger = new EngineLogger(
+                options.LogPath,
+                pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
+                minimumLevel: startingLevel);
             logFilePath = options.LogPath;
         }
         else if (logger is not null && options.MinimumLogLevel is { } overrideLevel)
