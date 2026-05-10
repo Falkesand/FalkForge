@@ -10,5 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
   </ItemGroup>
 </Project>
