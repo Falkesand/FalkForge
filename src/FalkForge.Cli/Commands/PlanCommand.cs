@@ -10,8 +10,12 @@ namespace FalkForge.Cli.Commands;
 /// Runs the installer pipeline through detection and planning, outputs the install plan
 /// as JSON, and exits without installing anything.
 /// </summary>
+/// <remarks>
+/// Not registered in the production CLI until the engine supports --plan-only mode.
+/// TODO: re-enable when plan-only engine mode lands.
+/// </remarks>
 [Description("Run the installer pipeline through planning and output the plan without installing")]
-public sealed class PlanCommand : Command<PlanSettings>
+internal sealed class PlanCommand : Command<PlanSettings>
 {
     private readonly IConsoleOutput _output;
     private readonly System.IO.TextWriter _jsonSink;

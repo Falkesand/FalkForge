@@ -20,6 +20,47 @@ public sealed class CommandAppTests
         return app;
     }
 
+    /// <summary>
+    /// Mirrors the full production CommandApp registration from Program.cs so tests can
+    /// verify which commands are publicly surfaced to users.
+    /// </summary>
+    private static CommandApp CreateFullApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.SetApplicationName("forge");
+            config.Settings.Registrar.Register<IConsoleOutput, SpectreConsoleOutput>();
+            config.AddCommand<BuildCommand>("build");
+            config.AddCommand<ValidateCommand>("validate");
+            // PlanCommand is NOT registered here — it is hidden from users until the engine
+            // supports --plan-only mode. See Program.cs and PlanCommand.cs.
+            config.AddCommand<InspectCommand>("inspect");
+            config.AddCommand<DecompileCommand>("decompile");
+            config.AddBranch("bundle", bundle =>
+            {
+                bundle.AddCommand<BundleDetachCommand>("detach");
+                bundle.AddCommand<BundleReattachCommand>("reattach");
+            });
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanCommand_IsNotRegisteredInProductionApp_EngineBinaryErrorNotReturned()
+    {
+        // PlanCommand is hidden from the production CLI until the engine supports --plan-only.
+        // Invoking 'forge plan' must NOT silently return ExitCodes.RuntimeError with a
+        // misleading "requires engine binary" message — the command should be unknown.
+        var app = CreateFullApp();
+
+        var result = app.Run(["plan", "installer.csx"]);
+
+        // Spectre returns -1 for unknown commands; RuntimeError (1) would mean the stub
+        // executed and emitted the misleading "requires engine binary" error.
+        Assert.NotEqual(ExitCodes.RuntimeError, result);
+    }
+
     [Fact]
     public void Build_NoArguments_ReturnsNonZero()
     {
