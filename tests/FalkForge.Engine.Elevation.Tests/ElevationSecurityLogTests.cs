@@ -295,9 +295,17 @@ public sealed class ElevationSecurityLogTests : IDisposable
         var logPath = Path.GetFullPath(baseStream.Name);
         var expectedRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "FalkForge"));
 
-        Assert.StartsWith(expectedRoot, logPath, StringComparison.OrdinalIgnoreCase);
-
-        ElevationSecurityLog.Shutdown();
+        try
+        {
+            Assert.StartsWith(expectedRoot, logPath, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            ElevationSecurityLog.Shutdown();
+            // Delete the log file created by Initialize() so each test run leaves no
+            // shared artefacts in %TEMP%\FalkForge that could collide with parallel runs.
+            try { File.Delete(logPath); } catch { /* best-effort */ }
+        }
     }
 
     // -------------------------------------------------------------------------
