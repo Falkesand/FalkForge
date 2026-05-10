@@ -11,6 +11,7 @@ public sealed class InstallerWindowBuilder
     private string? _bannerImagePath;
     private double _cornerRadius;
     private Type? _customWindowType;
+    private Func<System.Windows.Window>? _customWindowFactory;
     private double _height = 400;
     private string? _iconPath;
     private bool _isBorderless;
@@ -67,6 +68,16 @@ public sealed class InstallerWindowBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets a factory delegate that creates the custom installer window.
+    /// Prefer this over <see cref="CustomWindow{TWindow}"/> for NativeAOT / trimming safety.
+    /// </summary>
+    public InstallerWindowBuilder CustomWindowFactory(Func<Window> factory)
+    {
+        _customWindowFactory = factory;
+        return this;
+    }
+
     public InstallerWindowBuilder WatermarkImage(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -100,6 +111,7 @@ public sealed class InstallerWindowBuilder
             AccentColor = _accentColor,
             Title = _title,
             IconPath = _iconPath,
+            CustomWindowFactory = _customWindowFactory,
             CustomWindowType = _customWindowType,
             WatermarkImagePath = _watermarkImagePath,
             BannerImagePath = _bannerImagePath,

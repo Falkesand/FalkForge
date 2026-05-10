@@ -29,7 +29,7 @@ public class InstallerAppFactoryDelegateTests
         Assert.False(factoryInvoked);
     }
 
-    [Fact]
+    [StaFact]
     public void CustomWindowFactory_WhenInvoked_ReturnsWindowFromDelegate()
     {
         var builder = new InstallerUIBuilder();
@@ -43,7 +43,7 @@ public class InstallerAppFactoryDelegateTests
         Assert.Same(expected, result);
     }
 
-    [Fact]
+    [StaFact]
     public void CustomWindowFactory_EachCallCreatesNewInstance()
     {
         var builder = new InstallerUIBuilder();

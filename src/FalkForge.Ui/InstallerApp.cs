@@ -82,7 +82,12 @@ public static class InstallerApp
         app.Startup += async (_, _) =>
         {
             Window window;
-            if (config.CustomWindowType is not null)
+            if (config.CustomWindowFactory is not null)
+            {
+                window = config.CustomWindowFactory();
+                window.DataContext = viewModel;
+            }
+            else if (config.CustomWindowType is not null)
             {
                 window = (Window)Activator.CreateInstance(config.CustomWindowType)!;
                 window.DataContext = viewModel;
