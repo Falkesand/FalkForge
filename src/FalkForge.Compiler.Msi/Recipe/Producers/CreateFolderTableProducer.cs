@@ -17,7 +17,6 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 internal sealed class CreateFolderTableProducer : ITableProducer
 {
     private const string FallbackComponentId = "MainComponent";
-    private static readonly TableId DirectoryTable = TableId.Create("Directory").Value;
     private static readonly TableId ComponentTable = TableId.Create("Component").Value;
 
     /// <summary>Static schema describing the <c>CreateFolder</c> table layout.</summary>

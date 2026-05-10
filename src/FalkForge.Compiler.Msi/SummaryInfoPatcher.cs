@@ -122,7 +122,7 @@ internal static class SummaryInfoPatcher
             // Patch PID_CREATE_DTM and PID_LASTSAVE_DTM inside the SummaryInformation property set
             if (summaryEntry.Name is not null)
             {
-                var streamBytes = ReadSectorChain(fs, rw, fat, summaryEntry.StartSector, summaryEntry.Size, sectorSize);
+                var streamBytes = ReadSectorChain(fs, fat, summaryEntry.StartSector, summaryEntry.Size, sectorSize);
                 PatchPropertySetFiletimes(streamBytes, ftBytes);
                 WriteSectorChain(fs, fat, summaryEntry.StartSector, streamBytes, sectorSize);
             }
@@ -145,7 +145,7 @@ internal static class SummaryInfoPatcher
         return (long)(sector + 1) * sectorSize;
     }
 
-    private static byte[] ReadSectorChain(FileStream fs, BinaryReader rw, int[] fat,
+    private static byte[] ReadSectorChain(FileStream fs, int[] fat,
         int startSector, int size, int sectorSize)
     {
         var data = new byte[size];

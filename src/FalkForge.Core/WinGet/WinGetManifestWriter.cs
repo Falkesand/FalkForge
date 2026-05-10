@@ -40,7 +40,7 @@ public static class WinGetManifestWriter
         Directory.CreateDirectory(manifestDir);
 
         WriteVersionManifest(manifestDir, id, version, config.ManifestVersion);
-        WriteInstallerManifest(manifestDir, id, version, package, config, installerSha256, installerFileName);
+        WriteInstallerManifest(manifestDir, id, version, package, config, installerSha256);
         WriteLocaleManifest(manifestDir, id, version, package, config);
 
         return manifestDir;
@@ -65,8 +65,7 @@ public static class WinGetManifestWriter
         string version,
         PackageModel package,
         WinGetConfig config,
-        string installerSha256,
-        string installerFileName)
+        string installerSha256)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"PackageIdentifier: {id}");

@@ -65,7 +65,6 @@ public sealed class DependencyGraphViewModel : ViewModelBase
         }
 
         // Mark orphaned file nodes
-        var orphanedSet = new HashSet<string>(graph.OrphanedFiles, StringComparer.OrdinalIgnoreCase);
         foreach (var orphan in graph.OrphanedFiles)
             OrphanedFiles.Add(orphan);
 

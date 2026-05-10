@@ -170,9 +170,6 @@ public static class BundleDetacher
                 return Result<Unit>.Failure(ErrorKind.BundleError,
                     "BDS002: Data file is corrupted — magic marker not found after header");
 
-            // Compute the bundle data length (everything after the 8-byte header in data file)
-            var bundleDataLength = dataStream.Length - sizeof(long);
-
             // Read footer from end of data file: last 24 bytes of the bundle data portion
             // Data file layout: [8 bytes header][bundleData...]
             // Footer is at: dataStream.Length - FooterLength
