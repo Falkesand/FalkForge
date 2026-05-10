@@ -265,4 +265,43 @@ public sealed class SqlValidatorTests
         DatabaseRef = databaseRef,
         Sql = sql
     };
+
+    // SQL014 — plaintext password in ConnectionString
+
+    [Fact]
+    public void CheckConnectionStringCredentials_WithPasswordKeyword_ReturnsSQL014()
+    {
+        var result = SqlValidator.CheckConnectionStringCredentials(
+            "Server=myServer;Database=myDB;Password=secret");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL014", result.Error.Message);
+    }
+
+    [Fact]
+    public void CheckConnectionStringCredentials_WithPwdKeyword_ReturnsSQL014()
+    {
+        var result = SqlValidator.CheckConnectionStringCredentials(
+            "Server=myServer;Database=myDB;Pwd=s3cr3t");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL014", result.Error.Message);
+    }
+
+    [Fact]
+    public void CheckConnectionStringCredentials_WithIntegratedSecurity_ReturnsSuccess()
+    {
+        var result = SqlValidator.CheckConnectionStringCredentials(
+            "Server=myServer;Database=myDB;Integrated Security=true");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void CheckConnectionStringCredentials_WithEmptyConnectionString_ReturnsSuccess()
+    {
+        var result = SqlValidator.CheckConnectionStringCredentials(string.Empty);
+
+        Assert.True(result.IsSuccess);
+    }
 }

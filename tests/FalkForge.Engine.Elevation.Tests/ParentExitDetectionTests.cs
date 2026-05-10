@@ -12,7 +12,7 @@ public sealed class ParentExitDetectionTests
         // Use a PID that is extremely unlikely to exist
         var options = new PipeConnectionOptions
         {
-            PipeName = "test-pipe",
+            PipeName = $"test-pipe-{Guid.NewGuid():N}",
             SharedSecret = new byte[] { 1, 2, 3 }
         };
         var executor = new ElevatedCommandExecutor(Array.Empty<MockCommand>());
@@ -27,7 +27,7 @@ public sealed class ParentExitDetectionTests
         var currentPid = Environment.ProcessId;
         var options = new PipeConnectionOptions
         {
-            PipeName = "test-pipe",
+            PipeName = $"test-pipe-{Guid.NewGuid():N}",
             SharedSecret = new byte[] { 1, 2, 3 }
         };
         var executor = new ElevatedCommandExecutor(Array.Empty<MockCommand>());

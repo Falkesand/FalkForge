@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using FalkForge.Compiler.Msix.Builders;
 using FalkForge.Models;
 using Xunit;
@@ -77,5 +79,33 @@ public sealed class InstallerMsixTests
         }, (_, _) => Result<string>.Failure(ErrorKind.CompilationError, "bundle compile failed"));
 
         Assert.Equal(1, exitCode);
+    }
+
+    // Fix 3 — [Experimental] attribute on public entry points
+
+    [Fact]
+    public void BuildMsix_Method_IsDecoratedWithExperimentalAttribute()
+    {
+        var method = typeof(InstallerMsix).GetMethod(
+            nameof(InstallerMsix.BuildMsix),
+            BindingFlags.Public | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        var attr = method!.GetCustomAttribute<ExperimentalAttribute>();
+        Assert.NotNull(attr);
+        Assert.Equal("FF_MSIX001", attr!.DiagnosticId);
+    }
+
+    [Fact]
+    public void BuildMsixBundle_Method_IsDecoratedWithExperimentalAttribute()
+    {
+        var method = typeof(InstallerMsix).GetMethod(
+            nameof(InstallerMsix.BuildMsixBundle),
+            BindingFlags.Public | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        var attr = method!.GetCustomAttribute<ExperimentalAttribute>();
+        Assert.NotNull(attr);
+        Assert.Equal("FF_MSIX001", attr!.DiagnosticId);
     }
 }

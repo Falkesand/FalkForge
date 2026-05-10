@@ -20,9 +20,9 @@ public class EngineClientTests
         Scope = InstallScope.PerUser
     };
 
-    private static PipeConnectionOptions CreateOptions(string pipeName = "test-pipe") => new()
+    private static PipeConnectionOptions CreateOptions() => new()
     {
-        PipeName = pipeName,
+        PipeName = $"test-pipe-{Guid.NewGuid():N}",
         SharedSecret = [1, 2, 3]
     };
 

@@ -244,4 +244,96 @@ public sealed class WinGetManifestWriterTests : IDisposable
         Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
             "File should not have UTF-8 BOM");
     }
+
+    // Fix 2 — WGT002: null InstallerUrl must fail loud, no file written
+
+    [Fact]
+    public void Write_NullInstallerUrl_ReturnsWGT002Failure()
+    {
+        var package = CreateTestPackage();
+        var config = new WinGetConfig
+        {
+            PackageIdentifier = "Contoso.TestApp",
+            License = "MIT",
+            ShortDescription = "A tool"
+            // InstallerUrl intentionally null
+        };
+
+        var result = WinGetManifestWriter.Write(package, config, _tempDir, "ABCDEF", "TestApp.msi");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("WGT002", result.Error.Message);
+    }
+
+    [Fact]
+    public void Write_NullInstallerUrl_WritesNoFiles()
+    {
+        var package = CreateTestPackage();
+        var config = new WinGetConfig
+        {
+            PackageIdentifier = "Contoso.TestApp",
+            License = "MIT",
+            ShortDescription = "A tool"
+        };
+
+        WinGetManifestWriter.Write(package, config, _tempDir, "ABCDEF", "TestApp.msi");
+
+        // No installer manifest should be written
+        var installerFiles = Directory.GetFiles(_tempDir, "*.installer.yaml", SearchOption.AllDirectories);
+        Assert.Empty(installerFiles);
+    }
+
+    // Fix 2 — EXE/bundle support: InstallerType: exe when package is a bundle
+
+    [Fact]
+    public void Write_BundleInstallerType_EmitsExeInstallerType()
+    {
+        var package = CreateTestPackage();
+        var config = new WinGetConfig
+        {
+            PackageIdentifier = "Contoso.TestApp",
+            InstallerUrl = "https://contoso.com/TestApp.exe",
+            License = "MIT",
+            ShortDescription = "A tool",
+            InstallerType = WinGetInstallerType.Exe
+        };
+
+        var result = WinGetManifestWriter.Write(package, config, _tempDir, "ABCDEF", "TestApp.exe");
+
+        Assert.True(result.IsSuccess);
+        var content = File.ReadAllText(Path.Combine(result.Value, "Contoso.TestApp.installer.yaml"));
+        Assert.Contains("InstallerType: exe", content);
+        Assert.Contains("Silent:", content);
+    }
+
+    // Fix 2 — Multi-locale: extra locale entries produce additional locale manifest files
+
+    [Fact]
+    public void Write_TwoLocales_WritesTwoLocaleManifests()
+    {
+        var package = CreateTestPackage();
+        var config = new WinGetConfig
+        {
+            PackageIdentifier = "Contoso.TestApp",
+            InstallerUrl = "https://contoso.com/TestApp.msi",
+            License = "MIT",
+            ShortDescription = "A tool",
+            Locales =
+            [
+                new WinGetLocale
+                {
+                    Locale = "sv-SE",
+                    Publisher = "Contoso AB",
+                    PackageName = "TestApp",
+                    ShortDescription = "Ett verktyg"
+                }
+            ]
+        };
+
+        var result = WinGetManifestWriter.Write(package, config, _tempDir, "ABCDEF", "TestApp.msi");
+
+        Assert.True(result.IsSuccess);
+        var localeFiles = Directory.GetFiles(result.Value, "*.locale.*.yaml");
+        Assert.Equal(2, localeFiles.Length); // en-US (default) + sv-SE
+    }
 }

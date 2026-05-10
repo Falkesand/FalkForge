@@ -22,7 +22,7 @@ public class EngineClientLogPathTests
 
     private static PipeConnectionOptions CreateOptions() => new()
     {
-        PipeName = "test-pipe",
+        PipeName = $"test-pipe-{Guid.NewGuid():N}",
         SharedSecret = [1, 2, 3]
     };
 
