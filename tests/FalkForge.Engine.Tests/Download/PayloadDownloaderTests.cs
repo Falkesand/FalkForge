@@ -241,7 +241,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "progress.bin");
         var progressReports = new List<(long downloaded, long total)>();
-        var progress = new Progress<(long bytes, long total)>(p => progressReports.Add((p.bytes, p.total)));
+        var progress = new SyncProgress<(long bytes, long total)>(p => progressReports.Add((p.bytes, p.total)));
 
         var result = await downloader.DownloadAsync(
             "https://example.com/file.bin",
@@ -265,7 +265,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var progressReports = new List<(long bytes, long total)>();
-        var progress = new Progress<(long bytes, long total)>(p => progressReports.Add(p));
+        var progress = new SyncProgress<(long bytes, long total)>(progressReports.Add);
         var dest = Path.Combine(_tempDir, "chunk-progress.bin");
 
         var result = await downloader.DownloadAsync(
@@ -289,13 +289,24 @@ public sealed class PayloadDownloaderTests : IDisposable
         using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var progressReports = new List<(long bytes, long total)>();
-        var progress = new Progress<(long bytes, long total)>(p => progressReports.Add(p));
+        var progress = new SyncProgress<(long bytes, long total)>(progressReports.Add);
         var dest = Path.Combine(_tempDir, "unknown-length.bin");
 
         await downloader.DownloadAsync(
             "https://example.com/update.exe", sha256, dest, progress, ct: CancellationToken.None);
 
         Assert.All(progressReports, r => Assert.Equal(-1, r.total));
+    }
+
+    // Synchronous IProgress<T>: System.Progress<T> dispatches asynchronously
+    // (ThreadPool when no SynchronizationContext), which races against assertions.
+    private sealed class SyncProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _handler;
+
+        public SyncProgress(Action<T> handler) => _handler = handler;
+
+        public void Report(T value) => _handler(value);
     }
 
     private sealed class MockHttpHandler : HttpMessageHandler
