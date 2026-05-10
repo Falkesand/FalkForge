@@ -34,7 +34,7 @@ internal static class WixManifestMapper
         var containers = ParseContainers(root, ns);
         var variables = ParseVariables(root, ns);
 
-        CollectUnmappedElements(root, ns, packages, unmapped);
+        CollectUnmappedElements(root, ns, unmapped);
 
         var model = new BundleModel
         {
@@ -161,7 +161,7 @@ internal static class WixManifestMapper
                 case "MspPackage":
                 case "MsuPackage":
                 {
-                    var pkg = ParsePackageElement(child, localName, ns, unmapped);
+                    var pkg = ParsePackageElement(child, localName, ns);
                     packages.Add(pkg);
                     chainItems.Add(new PackageChainItem(pkg));
                     break;
@@ -184,7 +184,7 @@ internal static class WixManifestMapper
     }
 
     private static BundlePackageModel ParsePackageElement(
-        XElement element, string localName, XNamespace ns, List<WixUnmappedFeature> unmapped)
+        XElement element, string localName, XNamespace ns)
     {
         var id = element.Attribute("Id")?.Value ?? "";
         var displayName = element.Attribute("DisplayName")?.Value ?? id;
@@ -295,7 +295,7 @@ internal static class WixManifestMapper
     }
 
     private static void CollectUnmappedElements(
-        XElement root, XNamespace ns, List<BundlePackageModel> packages, List<WixUnmappedFeature> unmapped)
+        XElement root, XNamespace ns, List<WixUnmappedFeature> unmapped)
     {
         foreach (var el in root.Elements(ns + "Search"))
         {

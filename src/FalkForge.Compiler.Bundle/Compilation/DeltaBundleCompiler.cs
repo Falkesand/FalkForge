@@ -76,7 +76,6 @@ public sealed class DeltaBundleCompiler
 
         // Step 4: Prepare payload metadata with delta comparison
         var payloads = new List<PayloadEntry>();
-        var deltaPayloads = new Dictionary<string, byte[]>();
 
         foreach (var package in model.Packages)
         {

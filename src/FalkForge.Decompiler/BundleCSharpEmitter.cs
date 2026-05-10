@@ -71,9 +71,9 @@ internal static class BundleCSharpEmitter
 
         EmitVariables(bundle.Variables, AppendLine);
         EmitFeatures(bundle.Features, AppendLine, ref indent);
-        EmitRelatedBundles(bundle.RelatedBundles, AppendLine, ref indent);
-        EmitContainers(bundle.Containers, AppendLine, ref indent);
-        EmitUiConfig(bundle.UiConfig, AppendLine, ref indent);
+        EmitRelatedBundles(bundle.RelatedBundles, AppendLine);
+        EmitContainers(bundle.Containers, AppendLine);
+        EmitUiConfig(bundle.UiConfig, AppendLine);
         EmitChain(bundle.Chain, AppendLine, ref indent);
 
         indent--;
@@ -84,8 +84,7 @@ internal static class BundleCSharpEmitter
 
     private static void EmitRelatedBundles(
         IReadOnlyList<RelatedBundleModel> relatedBundles,
-        Action<string> appendLine,
-        ref int indent)
+        Action<string> appendLine)
     {
         if (relatedBundles.Count == 0)
             return;
@@ -106,8 +105,7 @@ internal static class BundleCSharpEmitter
 
     private static void EmitContainers(
         IReadOnlyList<ContainerModel> containers,
-        Action<string> appendLine,
-        ref int indent)
+        Action<string> appendLine)
     {
         if (containers.Count == 0)
             return;
@@ -121,8 +119,7 @@ internal static class BundleCSharpEmitter
 
     private static void EmitUiConfig(
         BundleUiConfig? uiConfig,
-        Action<string> appendLine,
-        ref int indent)
+        Action<string> appendLine)
     {
         if (uiConfig is null)
             return;
@@ -185,7 +182,7 @@ internal static class BundleCSharpEmitter
             switch (item)
             {
                 case RollbackBoundaryChainItem rb:
-                    EmitRollbackBoundary(rb.Boundary, appendLine, ref indent);
+                    EmitRollbackBoundary(rb.Boundary, appendLine);
                     break;
                 case PackageChainItem pkg:
                     EmitPackage(pkg.Package, appendLine, ref indent);
@@ -199,8 +196,7 @@ internal static class BundleCSharpEmitter
 
     private static void EmitRollbackBoundary(
         RollbackBoundaryModel boundary,
-        Action<string> appendLine,
-        ref int indent)
+        Action<string> appendLine)
     {
         if (!boundary.Vital)
         {
@@ -239,7 +235,7 @@ internal static class BundleCSharpEmitter
         appendLine("{");
         indent++;
 
-        EmitPackageBody(package, appendLine, ref indent);
+        EmitPackageBody(package, appendLine);
 
         indent--;
         appendLine("});");
@@ -265,8 +261,7 @@ internal static class BundleCSharpEmitter
 
     private static void EmitPackageBody(
         BundlePackageModel package,
-        Action<string> appendLine,
-        ref int indent)
+        Action<string> appendLine)
     {
         var defaultId = Path.GetFileNameWithoutExtension(package.SourcePath);
 

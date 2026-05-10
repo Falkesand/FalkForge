@@ -197,9 +197,6 @@ internal static class WixImporter
         product.Version = productEl.Attribute("Version")?.Value ?? product.Version;
         product.UpgradeCode = productEl.Attribute("UpgradeCode")?.Value;
 
-        var lang = productEl.Attribute("Language")?.Value;
-        // Language is informational; WiX uses LCID. We store but don't convert.
-
         // v4 Package may have Scope attribute
         var scope = productEl.Attribute("Scope")?.Value;
         if (scope is not null)
@@ -221,8 +218,6 @@ internal static class WixImporter
                 product.Scope = installScope.Equals("perUser", StringComparison.OrdinalIgnoreCase) ? "perUser" : "perMachine";
         }
 
-        // v4 Package InstallerVersion can indicate platform
-        var installerVersion = productEl.Attribute("InstallerVersion")?.Value;
     }
 
     private static string? ResolveInstallDirectory(XElement root, XNamespace ns)

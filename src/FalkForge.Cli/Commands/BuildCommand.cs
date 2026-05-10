@@ -41,7 +41,7 @@ public sealed class BuildCommand : Command<BuildSettings>
 
         try
         {
-            var exitCode = ExecuteInternal(settings, cancellationToken);
+            var exitCode = ExecuteInternal(settings);
             if (jsonOutput is not null)
                 _jsonSink.WriteLine(jsonOutput.WriteEnvelope("build", exitCode));
             return exitCode;
@@ -52,7 +52,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         }
     }
 
-    private int ExecuteInternal(BuildSettings settings, CancellationToken cancellationToken)
+    private int ExecuteInternal(BuildSettings settings)
     {
         if (settings.Reproducible)
         {
