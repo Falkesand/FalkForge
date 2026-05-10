@@ -8,6 +8,9 @@ public sealed class XmlConfigTableContributor : IMsiTableContributor
 
     public string TableName => "XmlConfig";
 
+    /// <summary>Exposes the registered XmlConfig models for validation.</summary>
+    public IReadOnlyList<XmlConfigModel> Items => _entries;
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);

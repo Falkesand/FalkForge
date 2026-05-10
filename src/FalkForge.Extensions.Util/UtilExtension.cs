@@ -1,8 +1,10 @@
+using System.Collections.Immutable;
 using FalkForge.Extensibility;
 using FalkForge.Extensions.Util.Odbc;
 using FalkForge.Extensions.Util.PerfCounter;
 using FalkForge.Extensions.Util.ScheduledTask;
 using FalkForge.Extensions.Util.XmlConfig;
+using FalkForge.Validation;
 
 namespace FalkForge.Extensions.Util;
 
@@ -110,4 +112,8 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(_odbcDriverContributor);
         registry.RegisterTableContributor(_odbcDataSourceContributor);
     }
+
+    /// <inheritdoc/>
+    public ImmutableArray<ValidationRule> GetValidationRules()
+        => UtilRules.Build(() => _xmlConfigContributor.Items);
 }
