@@ -5,8 +5,10 @@ using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
+using FalkForge.Engine.Tests.Logging;
 using Xunit;
 
+[Collection(EngineMeterCollection.Name)]
 public sealed class UpdateDownloaderTests
 {
     // ---------------------------------------------------------------------------

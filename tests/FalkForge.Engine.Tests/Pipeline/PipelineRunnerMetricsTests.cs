@@ -173,6 +173,9 @@ public sealed class PipelineRunnerMetricsTests
         public Result<Unit> ExportPlan(string? outputPath)
             => Result<Unit>.Success(Unit.Value);
 
+        public Task<Result<Unit>> RollbackAsync(CancellationToken ct)
+            => Task.FromResult(Result<Unit>.Success(Unit.Value));
+
         public ValueTask DisposeAsync() => default;
     }
 }

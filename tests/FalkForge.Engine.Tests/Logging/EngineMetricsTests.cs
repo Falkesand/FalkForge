@@ -10,6 +10,7 @@ using Xunit;
 /// metric names and tags.  Uses <see cref="MeterListener"/> which is AOT-safe at test
 /// time (production code never instantiates a listener — only records).
 /// </summary>
+[Collection(EngineMeterCollection.Name)]
 public sealed class EngineMetricsTests : IDisposable
 {
     private readonly MeterListener _listener = new();

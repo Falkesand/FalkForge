@@ -88,6 +88,15 @@ public sealed class PipelineRunnerTests
         public Result<Unit>? ExportPlanResult { get; set; }
         public bool ExportPlanCalled { get; private set; }
 
+        public Task<Result<Unit>> RollbackAsync(CancellationToken ct)
+        {
+            RollbackCalled = true;
+            return Task.FromResult(RollbackResult ?? Result<Unit>.Success(Unit.Value));
+        }
+
+        public bool RollbackCalled { get; private set; }
+        public Result<Unit>? RollbackResult { get; set; } = null;
+
         public ValueTask DisposeAsync() => default;
     }
 
@@ -421,5 +430,120 @@ public sealed class PipelineRunnerTests
         Assert.Equal(0, exitCode);
         Assert.True(pipeline.ApplyCalled);
         Assert.False(pipeline.ExportPlanCalled, "ExportPlan must NOT be called in normal mode");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Fix 3: Cancel during apply must trigger rollback, return exit code 3
+    // WHY: Partial installation without rollback leaves the system in a broken
+    //      state. MSI error 1602 = user cancel; engine exit code 3 = rolled back.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task TokenCancellation_DuringApply_TriggersRollback_Returns3()
+    {
+        // Arrange: an apply step that respects the cancellation token mid-execution.
+        using var cts = new CancellationTokenSource();
+        var channel = new FakeUiChannel();
+
+        // Apply honours the token — cancel it as soon as Apply starts.
+        await using var pipeline = new StubInstallerPipeline(channel,
+            applyResult: Result<Unit>.Success(Unit.Value));
+
+        // Override ApplyAsync to cancel the token then throw, simulating mid-apply cancel.
+        var cancellingPipeline = new CancellingStubPipeline(channel, cts);
+        var runner = new PipelineRunner(cancellingPipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.EnqueueRequest(new UiRequest.Apply());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(cts.Token);
+
+        // Exit code 3 = rolled back (mapped to EngineTerminalState.RolledBack in EngineSession).
+        Assert.Equal(3, exitCode);
+        Assert.True(cancellingPipeline.RollbackCalled, "Rollback must be triggered on token cancellation during Apply");
+
+        // Must emit RollingBack + Shutdown phase events
+        var phases = channel.SentEvents
+            .OfType<PipelineEvent.PhaseChanged>()
+            .Select(e => e.Phase)
+            .ToList();
+        Assert.Contains(EnginePhase.RollingBack, phases);
+        Assert.Contains(EnginePhase.Shutdown, phases);
+    }
+
+    [Fact]
+    public async Task ExplicitCancel_BeforeApply_Returns0_NoRollback()
+    {
+        // WHY: Cancel before any apply work started should not trigger rollback
+        //      (nothing was installed yet, so nothing to undo).
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        var runner = new PipelineRunner(pipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.EnqueueRequest(new UiRequest.Cancel());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        // No apply started → no rollback needed → exit 0 (user cancelled cleanly)
+        Assert.Equal(0, exitCode);
+        Assert.False(pipeline.RollbackCalled, "Rollback must NOT be called when cancel arrives before Apply");
+    }
+
+    /// <summary>
+    /// Stub that cancels the supplied CTS when ApplyAsync is called, simulating
+    /// a mid-apply cancellation, and records whether RollbackAsync was called.
+    /// </summary>
+    private sealed class CancellingStubPipeline : IInstallerPipeline
+    {
+        private readonly IUiChannel _channel;
+        private readonly CancellationTokenSource _cts;
+
+        public bool RollbackCalled { get; private set; }
+
+        public CancellingStubPipeline(IUiChannel channel, CancellationTokenSource cts)
+        {
+            _channel = channel;
+            _cts = cts;
+        }
+
+        public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
+        {
+            await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
+            return Unit.Value;
+        }
+
+        public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+        {
+            await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Planning), ct);
+            return Unit.Value;
+        }
+
+        public Task<Result<Unit>> ElevateAsync(CancellationToken ct) =>
+            Task.FromResult(Result<Unit>.Success(Unit.Value));
+
+        public async Task<Result<Unit>> ApplyAsync(CancellationToken ct)
+        {
+            await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Applying), CancellationToken.None);
+            // Simulate cancellation arriving mid-apply (e.g. user hits cancel button)
+            await _cts.CancelAsync();
+            ct.ThrowIfCancellationRequested();
+            return Unit.Value;
+        }
+
+        public async Task<Result<Unit>> RollbackAsync(CancellationToken ct)
+        {
+            RollbackCalled = true;
+            await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.RollingBack), ct);
+            return Unit.Value;
+        }
+
+        public Result<Unit> ExportPlan(string? outputPath) => Unit.Value;
+
+        public ValueTask DisposeAsync() => default;
     }
 }

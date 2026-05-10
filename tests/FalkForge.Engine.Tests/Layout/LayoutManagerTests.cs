@@ -5,8 +5,10 @@ using System.Security.Cryptography;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Layout;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Engine.Tests.Logging;
 using Xunit;
 
+[Collection(EngineMeterCollection.Name)]
 public sealed class LayoutManagerTests : IDisposable
 {
     private readonly string _tempDir;

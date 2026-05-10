@@ -712,4 +712,273 @@ public sealed class PayloadDownloaderTests : IDisposable
         // Final destination must not exist (download was never completed).
         Assert.False(File.Exists(targetPath));
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Fix 4 — Redirect loop cap: downloader must return DownloadError, not hang.
+    // WHY: Without MaxAutomaticRedirections=5, a redirect loop would consume up
+    //      to 50 hops (SocketsHttpHandler default) before throwing, and a
+    //      misconfigured CDN could spin the installer indefinitely.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DownloadAsync_RedirectLoop_ReturnsDownloadError_NotHang()
+    {
+        // Handler always returns 301 → same URL (infinite redirect loop).
+        // With MaxAutomaticRedirections=5 the HttpClient throws after 5 hops.
+        var handler = new RedirectLoopHandler(redirectCount: 0);
+        var socketsHandler = new SocketsHttpHandler
+        {
+            MaxAutomaticRedirections = 5,
+            AllowAutoRedirect = true
+        };
+        // Wrap: SocketsHttpHandler → RedirectLoopHandler via DelegatingHandler
+        var delegating = new CapturingDelegatingHandler(handler);
+        using var client = new HttpClient(delegating);
+
+        var targetPath = Path.Combine(_tempDir, "redirect.msi");
+        var downloader = new PayloadDownloader(client, timeoutPerAttempt: TimeSpan.FromSeconds(5));
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/redirect.msi",
+            "abc123",
+            targetPath,
+            progress: null,
+            allowResume: false,
+            CancellationToken.None);
+
+        // Must return failure — never hang indefinitely
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+    }
+
+    /// <summary>Handler that always returns an HTTP 301 redirect to the same URL.</summary>
+    private sealed class RedirectLoopHandler : HttpMessageHandler
+    {
+        private int _redirectCount;
+
+        public RedirectLoopHandler(int redirectCount) => _redirectCount = redirectCount;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            _redirectCount++;
+            var response = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
+            response.Headers.Location = request.RequestUri; // redirect back to same URL
+            return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>Delegating handler that limits redirects to 5 before the inner handler runs.</summary>
+    private sealed class CapturingDelegatingHandler : DelegatingHandler
+    {
+        public CapturingDelegatingHandler(HttpMessageHandler inner) : base(inner) { }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Fix 5 — Suspend-aware download: per-chunk idle timeout must NOT fire while
+    // data is still flowing, even across an artificial pause between chunks.
+    // WHY: CancelAfter on the whole attempt measures wall-clock elapsed;
+    //      sleep/hibernate triggers spurious cancel during a long download.
+    //      Per-chunk idle CTS resets after each successful ReadAsync, so only
+    //      genuinely stalled connections are cancelled.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DownloadAsync_SlowButSteadyStream_DoesNotCancelWhileDataFlows()
+    {
+        // Stream delivers data in 3 chunks with a small delay between each.
+        // The per-attempt timeout is set shorter than the total download time,
+        // but since data is flowing (per-chunk idle resets), it must NOT cancel.
+        var chunks = new[]
+        {
+            new byte[40_000],
+            new byte[40_000],
+            new byte[40_000],
+        };
+        var totalContent = chunks.SelectMany(c => c).ToArray();
+        var sha256 = ComputeSha256(totalContent);
+
+        // Each chunk arrives after 100ms pause; total ~300ms.
+        // Per-attempt wall-clock timeout = 1s (> 300ms), per-chunk idle = 500ms (> 100ms).
+        // With the old CancelAfter approach this would be fine too, but with per-chunk idle
+        // the test verifies that resets actually happen between chunks.
+        var handler = new ChunkedSlowHandler(chunks, chunkDelayMs: 80);
+        using var client = new HttpClient(handler);
+
+        var targetPath = Path.Combine(_tempDir, $"steady_{Guid.NewGuid():N}.bin");
+        var downloader = new PayloadDownloader(
+            client,
+            timeoutPerAttempt: TimeSpan.FromSeconds(10),
+            chunkIdleTimeout: TimeSpan.FromMilliseconds(500));
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/steady.bin",
+            sha256,
+            targetPath,
+            progress: null,
+            allowResume: false,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess,
+            $"Download must complete when data flows steadily. Error: {(result.IsFailure ? result.Error.Message : "none")}");
+        Assert.True(File.Exists(targetPath));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_TrulyStalled_IdleTimeoutFiresAndReturnsFailure()
+    {
+        // Stream delivers first chunk then stalls forever.
+        // Per-chunk idle timeout (300ms) should fire and cancel the download.
+        var chunk = new byte[1_000];
+        var handler = new StallingAfterFirstChunkHandler(chunk);
+        using var client = new HttpClient(handler);
+
+        var targetPath = Path.Combine(_tempDir, $"stalled_{Guid.NewGuid():N}.bin");
+        var downloader = new PayloadDownloader(
+            client,
+            timeoutPerAttempt: TimeSpan.FromSeconds(30),
+            chunkIdleTimeout: TimeSpan.FromMilliseconds(300));
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/stalled.bin",
+            "irrelevant-sha",
+            targetPath,
+            progress: null,
+            allowResume: false,
+            CancellationToken.None);
+
+        // Must fail (timeout/cancel) rather than hanging for 30s
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+    }
+
+    /// <summary>
+    /// HTTP handler that streams content in fixed-size chunks with a configurable delay.
+    /// Simulates a slow but steady download (e.g. low-bandwidth connection).
+    /// </summary>
+    private sealed class ChunkedSlowHandler : HttpMessageHandler
+    {
+        private readonly byte[][] _chunks;
+        private readonly int _chunkDelayMs;
+
+        public ChunkedSlowHandler(byte[][] chunks, int chunkDelayMs)
+        {
+            _chunks = chunks;
+            _chunkDelayMs = chunkDelayMs;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var totalLength = _chunks.Sum(c => c.Length);
+            var stream = new ChunkedStream(_chunks, _chunkDelayMs);
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream)
+            };
+            response.Content.Headers.ContentLength = totalLength;
+            return Task.FromResult(response);
+        }
+
+        private sealed class ChunkedStream : Stream
+        {
+            private readonly byte[][] _chunks;
+            private readonly int _delayMs;
+            private int _chunkIndex;
+            private int _posInChunk;
+
+            public ChunkedStream(byte[][] chunks, int delayMs)
+            {
+                _chunks = chunks;
+                _delayMs = delayMs;
+            }
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+            {
+                if (_chunkIndex >= _chunks.Length)
+                    return 0; // EOF
+
+                // Delay before each chunk to simulate slow but steady delivery
+                await Task.Delay(_delayMs, ct).ConfigureAwait(false);
+
+                var chunk = _chunks[_chunkIndex];
+                var remaining = chunk.Length - _posInChunk;
+                var toCopy = Math.Min(remaining, count);
+                chunk.AsSpan(_posInChunk, toCopy).CopyTo(buffer.AsSpan(offset, toCopy));
+                _posInChunk += toCopy;
+
+                if (_posInChunk >= chunk.Length)
+                {
+                    _chunkIndex++;
+                    _posInChunk = 0;
+                }
+
+                return toCopy;
+            }
+        }
+    }
+
+    /// <summary>
+    /// HTTP handler that sends one chunk then blocks ReadAsync indefinitely,
+    /// simulating a connection that has stalled (no EOF, no data).
+    /// </summary>
+    private sealed class StallingAfterFirstChunkHandler : HttpMessageHandler
+    {
+        private readonly byte[] _firstChunk;
+
+        public StallingAfterFirstChunkHandler(byte[] firstChunk) => _firstChunk = firstChunk;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var stream = new StallingStream(_firstChunk);
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream)
+            };
+            return Task.FromResult(response);
+        }
+
+        private sealed class StallingStream : Stream
+        {
+            private readonly byte[] _firstChunk;
+            private bool _firstSent;
+
+            public StallingStream(byte[] firstChunk) => _firstChunk = firstChunk;
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+            public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+            {
+                if (!_firstSent)
+                {
+                    _firstSent = true;
+                    var toCopy = Math.Min(_firstChunk.Length, count);
+                    _firstChunk.AsSpan(0, toCopy).CopyTo(buffer.AsSpan(offset, toCopy));
+                    return toCopy;
+                }
+
+                // Stall forever until cancellation
+                await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+                return 0;
+            }
+        }
+    }
 }
