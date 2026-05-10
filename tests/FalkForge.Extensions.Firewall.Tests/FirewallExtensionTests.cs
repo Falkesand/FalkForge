@@ -1,4 +1,7 @@
+using System.Collections.Immutable;
 using FalkForge.Extensibility;
+using FalkForge.Testing;
+using FalkForge.Validation;
 using Xunit;
 
 namespace FalkForge.Extensions.Firewall.Tests;
@@ -59,15 +62,33 @@ public sealed class FirewallExtensionTests
     }
 
     [Fact]
-    public void ValidateRules_ReturnsErrorsForInvalidRules()
+    public void GetValidationRules_ReturnsErrorsForInvalidRules()
     {
         var extension = new FirewallExtension();
-        extension.AddRule(r => r.Id("FW_Bad").Name(""));
+        extension.AddRule(r => r.Id("FW_Bad").Name("").Port("80"));
 
-        var errors = extension.ValidateRules();
+        var rules = extension.GetValidationRules();
+        var engine = new ValidationEngine(new RuleRegistry(rules));
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add("app.exe").To(KnownFolder.ProgramFiles / "Corp" / "App"));
+        });
 
-        Assert.NotEmpty(errors);
-        Assert.Contains(errors, e => e.Code == "FWL001");
+        var report = engine.Run(package);
+
+        Assert.NotEmpty(report.Violations);
+        Assert.Contains(report.Violations, v => v.RuleId.Value == "FWL001");
+    }
+
+    [Fact]
+    public void GetValidationRules_ReturnsFourRules()
+    {
+        var extension = new FirewallExtension();
+        var rules = extension.GetValidationRules();
+        Assert.Equal(4, rules.Length);
     }
 
     private sealed class TestExtensionRegistry : IExtensionRegistry

@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using FalkForge.Extensibility;
+using FalkForge.Validation;
 
 namespace FalkForge.Extensions.Firewall;
 
@@ -20,10 +22,9 @@ public sealed class FirewallExtension : IFalkForgeExtension, IDryRunContributor
         TableContributor.AddRule(builder.Build());
     }
 
-    public IReadOnlyList<FirewallValidationError> ValidateRules()
-    {
-        return FirewallValidator.Validate(TableContributor.Rules);
-    }
+    /// <inheritdoc/>
+    public ImmutableArray<ValidationRule> GetValidationRules()
+        => FirewallRules.Build(() => TableContributor.Rules);
 
     public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
         intent switch
