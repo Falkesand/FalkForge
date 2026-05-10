@@ -60,7 +60,17 @@ public sealed class EngineLogger : IEngineLogger
     ///     Rotation and retention options. Defaults to
     ///     <see cref="EngineLoggerOptions.Default"/> (no size rotation).
     /// </param>
-    public EngineLogger(string filePath, Action<LogEntry>? pipeCallback = null, EngineLoggerOptions? options = null)
+    /// <param name="minimumLevel">
+    ///     Optional starting <see cref="MinimumLevel"/>. When omitted, defaults to
+    ///     <see cref="LogLevel.Info"/>. Setting it via the constructor avoids a window
+    ///     where below-threshold entries could be written before <see cref="MinimumLevel"/>
+    ///     is configured by the caller.
+    /// </param>
+    public EngineLogger(
+        string filePath,
+        Action<LogEntry>? pipeCallback = null,
+        EngineLoggerOptions? options = null,
+        LogLevel? minimumLevel = null)
     {
         _currentFilePath = Path.GetFullPath(filePath);
         _options = options ?? EngineLoggerOptions.Default;
@@ -71,6 +81,9 @@ public sealed class EngineLogger : IEngineLogger
             Directory.CreateDirectory(directory);
 
         _writer = OpenWriter(_currentFilePath);
+
+        if (minimumLevel is { } level)
+            _minimumLevel = (int)level;
     }
 
     /// <inheritdoc/>

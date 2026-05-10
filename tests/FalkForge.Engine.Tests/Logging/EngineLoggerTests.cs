@@ -658,4 +658,35 @@ public sealed class EngineLoggerTests : IDisposable
         Assert.NotNull(captured);
         Assert.Equal(correlationId, captured!.Value.SessionCorrelationId);
     }
+
+    [Fact]
+    public void EngineLogger_CustomPath_WritesToCustomLocation()
+    {
+        var path = GetLogPath("custom-location.log");
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Info("Custom", "msg");
+        }
+
+        Assert.True(File.Exists(path), $"Expected log at {path}");
+        var content = File.ReadAllText(path);
+        Assert.Contains("Custom", content);
+    }
+
+    [Fact]
+    public void EngineLogger_CustomMinimumLevel_FiltersBelowLevel()
+    {
+        var path = GetLogPath("filter-by-level.log");
+        // Use the new ctor overload that accepts a starting minimum level.
+        using (var logger = new EngineLogger(path, minimumLevel: LogLevel.Warning))
+        {
+            logger.Info("X", "should be dropped");
+            logger.Warning("X", "should be kept");
+        }
+
+        var content = File.ReadAllText(path);
+        Assert.DoesNotContain("should be dropped", content);
+        Assert.Contains("should be kept", content);
+    }
 }

@@ -16,6 +16,17 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        // Parse the logging-related flags up front. Other flags continue to be parsed
+        // inline below for backward compatibility with the rest of the engine pipeline.
+        var argsResult = ProgramArgs.Parse(args);
+        if (!argsResult.IsSuccess)
+        {
+            Console.Error.WriteLine($"Error: {argsResult.ErrorMessage}");
+            return argsResult.SuggestedExitCode;
+        }
+
+        var programArgs = argsResult.Value;
+
         string? pipeName = null;
         string? secretPipeName = null;
         string? manifestPath = null;
@@ -63,6 +74,16 @@ internal static class Program
                     break;
                 case "--package":
                     extractPackages.Add(args[++i]);
+                    break;
+                // Logging flags are parsed by ProgramArgs.Parse above. Consume their
+                // values here so the inline parser does not mistake the value for a
+                // standalone flag on the next iteration.
+                case "--log":
+                case "/log":
+                case "/L":
+                case "--log-level":
+                case "/lv":
+                    if (i + 1 < args.Length) i++;
                     break;
             }
         }
@@ -152,7 +173,7 @@ internal static class Program
         // Bootstrapper mode: if we ARE the bundle, extract and orchestrate
         if (manifestPath is null && HasEmbeddedBundle())
         {
-            return await RunAsBootstrapper();
+            return await RunAsBootstrapper(programArgs);
         }
 
         if (manifestPath is null)
@@ -229,7 +250,12 @@ internal static class Program
         await using var session = EngineSession.BindToPipe(
             pipeName,
             manifestPath,
-            new EngineSessionOptions { PipeOptions = pipeOptions });
+            new EngineSessionOptions
+            {
+                PipeOptions = pipeOptions,
+                LogPath = programArgs.LogPath,
+                MinimumLogLevel = programArgs.MinimumLogLevel
+            });
 
         var outcome = await session.RunUntilShutdown(cts.Token);
         return outcome.State switch
@@ -272,7 +298,7 @@ internal static class Program
     /// Self-extraction bootstrapper mode. Extracts payloads and manifest from the embedded bundle,
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
-    private static async Task<int> RunAsBootstrapper()
+    private static async Task<int> RunAsBootstrapper(ProgramArgs? programArgs = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -405,7 +431,12 @@ internal static class Program
         await using var session = EngineSession.BindToPipe(
             pipeName,
             manifestPath,
-            new EngineSessionOptions { PipeOptions = pipeOptions });
+            new EngineSessionOptions
+            {
+                PipeOptions = pipeOptions,
+                LogPath = programArgs?.LogPath,
+                MinimumLogLevel = programArgs?.MinimumLogLevel
+            });
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
         return outcome.State switch

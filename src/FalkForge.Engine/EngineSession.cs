@@ -43,6 +43,13 @@ public sealed class EngineSession : IAsyncDisposable
     private readonly IElevatedCommandGateway? _elevationGateway;
     private bool _disposed;
 
+    /// <summary>
+    /// Test-visible accessor for the session-owned logger. Exposed via
+    /// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so that
+    /// runtime-override tests can observe the configured minimum level / log path.
+    /// </summary>
+    internal IEngineLogger? Logger => _logger;
+
     private EngineSession(
         IUiChannel channel,
         IInstallerPipeline pipeline,
@@ -99,15 +106,21 @@ public sealed class EngineSession : IAsyncDisposable
         if (options.Logger is not null)
         {
             logger = options.Logger;
+            // Allow runtime override (e.g. --log-level on the command-line) to win
+            // over whatever default the host pre-configured on the supplied logger.
+            if (options.MinimumLogLevel is { } overrideLevel)
+                logger.MinimumLevel = overrideLevel;
             logFilePath = null;
         }
         else
         {
-            var resolvedPath = options.LogDirectory is not null
-                ? Path.Combine(options.LogDirectory, $"install_{DateTime.UtcNow:yyyyMMdd_HHmmss}.log")
-                : EngineLogger.GetDefaultLogPath();
-            var fileLogger = new EngineLogger(resolvedPath);
-            fileLogger.MinimumLevel = LogLevel.Debug;
+            // Resolution order: explicit LogPath → LogDirectory → default temp path.
+            var resolvedPath = options.LogPath
+                ?? (options.LogDirectory is not null
+                    ? Path.Combine(options.LogDirectory, $"install_{DateTime.UtcNow:yyyyMMdd_HHmmss}.log")
+                    : EngineLogger.GetDefaultLogPath());
+            var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
+            var fileLogger = new EngineLogger(resolvedPath, minimumLevel: startingLevel);
             logger = fileLogger;
             logFilePath = resolvedPath;
         }
@@ -243,7 +256,23 @@ public sealed class EngineSession : IAsyncDisposable
     {
         options ??= new EngineSessionOptions();
 
-        var logger = options.Logger;
+        // Logger resolution: explicit Logger wins; otherwise build one from LogPath /
+        // MinimumLogLevel if either was supplied. Tests pass a per-test LogPath under TEMP
+        // so the session writes a real file and we can verify path / level handling.
+        IEngineLogger? logger = options.Logger;
+        string? logFilePath = null;
+
+        if (logger is null && options.LogPath is not null)
+        {
+            var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
+            logger = new EngineLogger(options.LogPath, minimumLevel: startingLevel);
+            logFilePath = options.LogPath;
+        }
+        else if (logger is not null && options.MinimumLogLevel is { } overrideLevel)
+        {
+            // Honour explicit runtime override even when caller supplied their own logger.
+            logger.MinimumLevel = overrideLevel;
+        }
 
         // Assign a unique correlation id so test-mode log entries are also correlated.
         StampCorrelationId(logger);
@@ -258,7 +287,7 @@ public sealed class EngineSession : IAsyncDisposable
             .WithUiChannel(channel)
             .Build();
 
-        return new EngineSession(channel, pipeline, logger, logFilePath: null, journalStore: null, elevationGateway: null);
+        return new EngineSession(channel, pipeline, logger, logFilePath, journalStore: null, elevationGateway: null);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

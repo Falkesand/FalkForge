@@ -2,6 +2,7 @@ namespace FalkForge.Engine;
 
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Transport;
 
 /// <summary>
@@ -21,6 +22,23 @@ public sealed record EngineSessionOptions
     /// when <see cref="Logger"/> is also <c>null</c>.
     /// </summary>
     public string? LogDirectory { get; init; }
+
+    /// <summary>
+    /// Explicit log file path. When non-null and <see cref="Logger"/> is null, the
+    /// session creates an <see cref="EngineLogger"/> at this path instead of using
+    /// the default temp-path strategy or <see cref="LogDirectory"/>. Honoured by
+    /// both <see cref="EngineSession.BindToPipe"/> and <see cref="EngineSession.BindToChannel"/>.
+    /// </summary>
+    public string? LogPath { get; init; }
+
+    /// <summary>
+    /// Minimum log level for the session-owned logger. When non-null and <see cref="Logger"/>
+    /// is null, the freshly constructed logger has its <see cref="IEngineLogger.MinimumLevel"/>
+    /// set to this value before any log call. When <see cref="Logger"/> is supplied, this
+    /// value is applied to it as well so that the runtime override on the command-line
+    /// overrides any default the host pre-configured.
+    /// </summary>
+    public LogLevel? MinimumLogLevel { get; init; }
 
     /// <summary>
     /// Named-pipe connection options (timeout, message size, security callback).
