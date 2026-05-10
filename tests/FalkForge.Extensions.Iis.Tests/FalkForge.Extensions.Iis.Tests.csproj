@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Iis\FalkForge.Extensions.Iis.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
   </ItemGroup>
 </Project>

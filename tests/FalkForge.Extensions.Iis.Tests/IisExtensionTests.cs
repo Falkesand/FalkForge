@@ -1,4 +1,7 @@
 using FalkForge.Extensibility;
+using FalkForge.Models;
+using FalkForge.Testing;
+using FalkForge.Validation;
 using Xunit;
 
 namespace FalkForge.Extensions.Iis.Tests;
@@ -55,7 +58,7 @@ public sealed class IisExtensionTests
     }
 
     [Fact]
-    public void Validate_ValidConfiguration_ReturnsSuccess()
+    public void GetValidationRules_ValidConfiguration_ProducesNoViolations()
     {
         var extension = new IisExtension();
         extension.AddAppPool(pool => pool.Name("DefaultPool"));
@@ -65,24 +68,45 @@ public sealed class IisExtensionTests
             .Binding(80)
             .AppPool("DefaultPool"));
 
-        var result = extension.Validate();
+        var engine = new ValidationEngine(new RuleRegistry(extension.GetValidationRules()));
+        var package = MinimalPackage();
 
-        Assert.True(result.IsSuccess);
+        var report = engine.Run(package);
+
+        Assert.True(report.IsValid);
     }
 
     [Fact]
-    public void Validate_InvalidConfiguration_ReturnsFailure()
+    public void GetValidationRules_InvalidConfiguration_ProducesIIS001Violation()
     {
         var extension = new IisExtension();
         extension.AddWebSite(site => site
             .Description("")
             .Directory("[INSTALLDIR]"));
 
-        var result = extension.Validate();
+        var engine = new ValidationEngine(new RuleRegistry(extension.GetValidationRules()));
+        var package = MinimalPackage();
 
-        Assert.True(result.IsFailure);
-        Assert.Contains("IIS001", result.Error.Message);
+        var report = engine.Run(package);
+
+        Assert.False(report.IsValid);
+        Assert.Contains(report.Violations, v => v.RuleId.Value == "IIS001");
     }
+
+    [Fact]
+    public void GetValidationRules_ReturnsElevenRules()
+    {
+        var extension = new IisExtension();
+        Assert.Equal(11, extension.GetValidationRules().Length);
+    }
+
+    private static PackageModel MinimalPackage() => InstallerTestHost.BuildPackage(p =>
+    {
+        p.Name = "App";
+        p.Manufacturer = "Corp";
+        p.Version = new Version(1, 0, 0);
+        p.Files(f => f.Add("app.exe").To(KnownFolder.ProgramFiles / "Corp" / "App"));
+    });
 
     [Fact]
     public void Register_DoesNotThrow()

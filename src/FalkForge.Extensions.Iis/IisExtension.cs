@@ -1,7 +1,9 @@
+using System.Collections.Immutable;
 using System.Runtime.Versioning;
 using FalkForge.Extensibility;
 using FalkForge.Extensions.Iis.Builders;
 using FalkForge.Extensions.Iis.Models;
+using FalkForge.Validation;
 
 namespace FalkForge.Extensions.Iis;
 
@@ -67,10 +69,9 @@ public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
         return new CertificateRef(model.Id);
     }
 
-    public Result<Unit> Validate()
-    {
-        return IisValidator.ValidateAll(_webSites, _appPools, _certificates);
-    }
+    /// <inheritdoc/>
+    public ImmutableArray<ValidationRule> GetValidationRules()
+        => IisRules.Build(() => _webSites, () => _appPools, () => _certificates);
 
     public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
         intent switch
