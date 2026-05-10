@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reactive.Disposables;
+using System.Windows.Input;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
@@ -29,7 +30,22 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
         _disposables.Add(ModifyCommand);
         _disposables.Add(RepairCommand);
         _disposables.Add(UninstallCommand);
+
+        OpenLogCommand = new RelayCommand(
+            () => { LogPathActions.OpenLog(LogPath); return Task.CompletedTask; },
+            () => LogPathActions.CanOpen(LogPath));
+        OpenLogFolderCommand = new RelayCommand(
+            () => { LogPathActions.OpenLogFolder(LogPath); return Task.CompletedTask; },
+            () => LogPathActions.CanOpen(LogPath));
     }
+
+    public string? LogPath => Engine.LogPath;
+
+    public bool HasLogPath => !string.IsNullOrWhiteSpace(LogPath);
+
+    public ICommand OpenLogCommand { get; }
+
+    public ICommand OpenLogFolderCommand { get; }
 
     public override string Title => "Modify Setup";
     public override string Description => $"{ProductName} is already installed. Choose an option below.";

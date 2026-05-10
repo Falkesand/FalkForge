@@ -621,6 +621,7 @@ public class CustomShellViewModelTests
         public InstallState DetectedState => InstallState.NotInstalled;
         public IReadOnlyList<FeatureState> Features => [];
         public string InstallDirectory { get; set; } = @"C:\Program Files\TestProduct";
+        public string? LogPath => null;
         public IObservable<EnginePhase> Phase => new EmptyObservable<EnginePhase>();
         public IObservable<InstallProgress> Progress => new EmptyObservable<InstallProgress>();
         public IObservable<string> StatusMessage => new EmptyObservable<string>();

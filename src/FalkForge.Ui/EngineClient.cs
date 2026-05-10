@@ -22,10 +22,18 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     private TaskCompletionSource<int>? _shutdownTcs;
 
     public EngineClient(PipeConnectionOptions options, InstallerManifest manifest)
+        : this(options, manifest, logPath: null)
+    {
+    }
+
+    public EngineClient(PipeConnectionOptions options, InstallerManifest manifest, string? logPath)
     {
         Manifest = manifest;
+        LogPath = logPath;
         _pipe = new PipeClient(options, OnMessageReceivedAsync);
     }
+
+    public string? LogPath { get; }
 
     public async ValueTask DisposeAsync()
     {

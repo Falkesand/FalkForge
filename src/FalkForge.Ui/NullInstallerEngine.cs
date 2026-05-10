@@ -23,6 +23,7 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     public InstallState DetectedState { get; } = InstallState.NotInstalled;
     public IReadOnlyList<FeatureState> Features { get; } = [];
     public string InstallDirectory { get; set; } = string.Empty;
+    public string? LogPath => null;
 
     public IObservable<EnginePhase> Phase => EmptyObservable<EnginePhase>.Instance;
     public IObservable<InstallProgress> Progress => EmptyObservable<InstallProgress>.Instance;

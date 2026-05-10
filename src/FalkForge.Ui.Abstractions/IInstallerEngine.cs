@@ -38,4 +38,10 @@ public interface IInstallerEngine
     /// Only valid after receiving UpdateReadyMessage (DownloadAndPrompt policy).
     /// </summary>
     void LaunchUpdate();
+
+    /// <summary>
+    /// Resolved engine log path forwarded by the host process. Null when the
+    /// host did not pass a log path (e.g. design-time, tests, or older bootstrappers).
+    /// </summary>
+    string? LogPath { get; }
 }

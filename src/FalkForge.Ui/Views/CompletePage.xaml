@@ -57,6 +57,31 @@
                     Style="{DynamicResource WizardButtonPrimary}"
                     HorizontalAlignment="Right"
                     Click="OnCloseClick" />
+
+            <!-- Log path + open buttons -->
+            <StackPanel DockPanel.Dock="Bottom"
+                        Margin="0,12,0,12"
+                        Visibility="{Binding HasLogPath, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock FontFamily="Segoe UI Variable Text, Segoe UI"
+                           FontSize="12"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           TextWrapping="Wrap"
+                           TextTrimming="CharacterEllipsis">
+                    <Run Text="Log file: " FontWeight="SemiBold" />
+                    <Run Text="{Binding LogPath, Mode=OneWay}" />
+                </TextBlock>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button Content="Open log"
+                            Style="{DynamicResource WizardButton}"
+                            Margin="0,0,8,0"
+                            Command="{Binding OpenLogCommand}"
+                            ToolTip="Open the installer log in the default text viewer" />
+                    <Button Content="Open log folder"
+                            Style="{DynamicResource WizardButton}"
+                            Command="{Binding OpenLogFolderCommand}"
+                            ToolTip="Open the folder containing the installer log" />
+                </StackPanel>
+            </StackPanel>
         </DockPanel>
     </Grid>
 </UserControl>

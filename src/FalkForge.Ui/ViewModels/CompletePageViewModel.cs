@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Input;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
 using ReactiveUI;
@@ -14,7 +15,21 @@ public sealed class CompletePageViewModel : InstallerPageViewModel, IReactiveObj
     public CompletePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        OpenLogCommand = new RelayCommand(
+            () => { LogPathActions.OpenLog(LogPath); return Task.CompletedTask; },
+            () => LogPathActions.CanOpen(LogPath));
+        OpenLogFolderCommand = new RelayCommand(
+            () => { LogPathActions.OpenLogFolder(LogPath); return Task.CompletedTask; },
+            () => LogPathActions.CanOpen(LogPath));
     }
+
+    public string? LogPath => Engine.LogPath;
+
+    public bool HasLogPath => !string.IsNullOrWhiteSpace(LogPath);
+
+    public ICommand OpenLogCommand { get; }
+
+    public ICommand OpenLogFolderCommand { get; }
 
     public override string Title => "Complete";
 

@@ -22,6 +22,8 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public string InstallDirectory { get; set; } = @"C:\Program Files\TestProduct";
 
+    public string? LogPath { get; set; }
+
     public IObservable<EnginePhase> Phase => new EmptyObservable<EnginePhase>();
     public IObservable<InstallProgress> Progress => new EmptyObservable<InstallProgress>();
     public IObservable<string> StatusMessage => new EmptyObservable<string>();
