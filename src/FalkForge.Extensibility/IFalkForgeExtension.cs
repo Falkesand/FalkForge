@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using FalkForge.Validation;
+
 namespace FalkForge.Extensibility;
 
 public interface IFalkForgeExtension
@@ -27,4 +30,13 @@ public interface IFalkForgeExtension
     string MinHostVersion => "0.0.0";
 
     void Register(IExtensionRegistry registry);
+
+    /// <summary>
+    /// Returns the <see cref="ValidationRule"/> instances contributed by this extension.
+    /// Rules are merged into the engine before <see cref="FalkForge.Validation.ModelValidator.Inspect"/>
+    /// is called so that extension-specific diagnostics appear alongside core rules.
+    /// The default implementation returns an empty array; existing extensions that do not
+    /// override this method require no source changes.
+    /// </summary>
+    ImmutableArray<ValidationRule> GetValidationRules() => [];
 }

@@ -52,22 +52,10 @@ public static class MsiAuthoring
         ArgumentNullException.ThrowIfNull(outputPath);
         ArgumentNullException.ThrowIfNull(extensions);
 
-        // Step 1: Validate the package up front. Produces the same error
-        // shape the legacy compiler emits so callers can swap implementations
-        // without rewriting their error-handling.
-        var validation = ModelValidator.Inspect(package);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.RuleId}: {e.Message}"));
-            return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
-        }
-
-        // Step 1.5: Run extension validators and collect extension contributions.
-        // Each registered extension may contribute IExtensionValidator instances
-        // via RegisterValidator, and IDialogStepBuilder instances via RegisterDialogStep.
-        // Validators are collected and run before any table emission so that broken
-        // MSIs are never written to disk. Errors are aggregated across all validators
-        // (no short-circuit) so the caller sees the full error set.
+        // Step 1: Collect extension rules before validation so that extension-contributed
+        // ValidationRule instances (which close over extension-owned data) fire in the same
+        // Inspect call as core rules. Extension data is fully populated by the caller before
+        // Compile is invoked, so collection is safe here.
         var extensionRegistry = new CollectingExtensionRegistry();
         if (extensions.Count > 0)
         {
@@ -77,28 +65,51 @@ public static class MsiAuthoring
                 ExtensionRegistration.Register(extension, extensionRegistry, registeredNames);
             }
 
-            if (extensionRegistry.Validators.Count > 0)
+            // Merge extension-contributed ValidationRules into the singleton engine before
+            // the Inspect call so that core and extension rules run in one pass.
+            var extensionRules = extensions
+                .SelectMany(ext => ext.GetValidationRules())
+                .ToArray();
+            if (extensionRules.Length > 0)
+                ModelValidator.RegisterExtensionRules(extensionRules);
+        }
+
+        // Step 1.5: Validate the package (core + extension rules). Produces the same error
+        // shape the legacy compiler emits so callers can swap implementations
+        // without rewriting their error-handling.
+        var validation = ModelValidator.Inspect(package);
+        if (!validation.IsValid)
+        {
+            var errors = string.Join("; ", validation.Errors.Select(e => $"{e.RuleId}: {e.Message}"));
+            return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
+        }
+
+        // Step 1.6: Run legacy IExtensionValidator instances for backward compatibility.
+        // Extensions that have not yet migrated to GetValidationRules() still emit errors via
+        // this path. Each registered extension may contribute IExtensionValidator instances
+        // via RegisterValidator. Errors are aggregated across all validators (no short-circuit)
+        // so the caller sees the full error set.
+        if (extensionRegistry.Validators.Count > 0)
+        {
+            string sourceDirectory = Path.GetFullPath(outputPath);
+            var context = new ExtensionContext
             {
-                string sourceDirectory = Path.GetFullPath(outputPath);
-                var context = new ExtensionContext
-                {
-                    Package = package,
-                    OutputDirectory = Path.GetFullPath(outputPath),
-                    SourceDirectory = sourceDirectory,
-                };
+                Package = package,
+                OutputDirectory = Path.GetFullPath(outputPath),
+                SourceDirectory = sourceDirectory,
+            };
 
-                var aggregated = new ValidationResult();
-                foreach (IExtensionValidator validator in extensionRegistry.Validators)
-                {
-                    validator.Validate(context, aggregated);
-                }
+            var aggregated = new ValidationResult();
+            foreach (IExtensionValidator validator in extensionRegistry.Validators)
+            {
+                validator.Validate(context, aggregated);
+            }
 
-                if (!aggregated.IsValid)
-                {
-                    var errors = string.Join("; ", aggregated.Errors.Select(e => $"{e.Code}: {e.Message}"));
-                    return Result<string>.Failure(ErrorKind.Validation,
-                        $"Extension validation failed: {errors}");
-                }
+            if (!aggregated.IsValid)
+            {
+                var errors = string.Join("; ", aggregated.Errors.Select(e => $"{e.Code}: {e.Message}"));
+                return Result<string>.Failure(ErrorKind.Validation,
+                    $"Extension validation failed: {errors}");
             }
         }
 
