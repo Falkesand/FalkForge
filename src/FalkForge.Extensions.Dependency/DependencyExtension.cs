@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using FalkForge.Extensibility;
+using FalkForge.Validation;
 
 namespace FalkForge.Extensions.Dependency;
 
@@ -35,10 +37,9 @@ public sealed class DependencyExtension : IFalkForgeExtension, IDryRunContributo
         _consumers.Add(builder.Build());
     }
 
-    public IReadOnlyList<DependencyValidationError> ValidateDependencies()
-    {
-        return DependencyValidator.Validate(_providers, _consumers);
-    }
+    /// <inheritdoc/>
+    public ImmutableArray<ValidationRule> GetValidationRules()
+        => DependencyRules.Build(() => _providers, () => _consumers);
 
     public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
         intent switch
