@@ -12,6 +12,7 @@ public class MaintenancePageViewModelTests
     private DefaultShellViewModel CreateShellWithInstalledState()
     {
         _engine.DetectedState = InstallState.Installed;
+        _engine.InstalledProductVersion = "1.0.0";
         return new DefaultShellViewModel(_engine);
     }
 
@@ -34,7 +35,7 @@ public class MaintenancePageViewModelTests
     }
 
     [Fact]
-    public void InstalledVersion_WhenInstalled_ReturnsManifestVersion()
+    public void InstalledVersion_WhenInstalled_ReturnsInstalledProductVersion()
     {
         var shell = CreateShellWithInstalledState();
         var vm = shell.Pages.OfType<MaintenancePageViewModel>().Single();

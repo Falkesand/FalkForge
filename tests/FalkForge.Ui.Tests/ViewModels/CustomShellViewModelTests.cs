@@ -619,6 +619,7 @@ public class CustomShellViewModelTests
         };
 
         public InstallState DetectedState => InstallState.NotInstalled;
+        public string? InstalledProductVersion => null;
         public IReadOnlyList<FeatureState> Features => [];
         public string InstallDirectory { get; set; } = @"C:\Program Files\TestProduct";
         public string? LogPath => null;

@@ -51,6 +51,8 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 
     public InstallState DetectedState { get; private set; } = InstallState.NotInstalled;
 
+    public string? InstalledProductVersion { get; private set; }
+
     public IReadOnlyList<FeatureState> Features => _features.AsReadOnly();
 
     public string InstallDirectory
@@ -148,6 +150,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         {
             case DetectCompleteMessage detect:
                 DetectedState = detect.State;
+                InstalledProductVersion = detect.CurrentVersion;
                 _features.Clear();
                 _features.AddRange(detect.Features);
                 _detectTcs?.TrySetResult(new DetectResult(detect.State, detect.CurrentVersion, detect.Features));

@@ -17,6 +17,7 @@ internal sealed class TestInstallerEngine : IInstallerEngine
     };
 
     public InstallState DetectedState { get; set; } = InstallState.NotInstalled;
+    public string? InstalledProductVersion { get; set; }
 
     public IReadOnlyList<FeatureState> Features { get; set; } = [];
 

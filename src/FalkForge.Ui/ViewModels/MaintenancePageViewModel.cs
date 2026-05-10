@@ -58,7 +58,7 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
         {
             var state = Engine.DetectedState;
             if (state is InstallState.Installed or InstallState.OlderVersion or InstallState.NewerVersion)
-                return Engine.Manifest.Version;
+                return Engine.InstalledProductVersion ?? string.Empty;
             return string.Empty;
         }
     }

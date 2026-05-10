@@ -13,6 +13,12 @@ public interface IInstallerEngine
     IObservable<string> StatusMessage { get; }
     InstallerManifest Manifest { get; }
     InstallState DetectedState { get; }
+
+    /// <summary>
+    /// The version string of the product currently installed on this machine,
+    /// as reported by the engine after detection. Null when not installed.
+    /// </summary>
+    string? InstalledProductVersion { get; }
     IReadOnlyList<FeatureState> Features { get; }
     string InstallDirectory { get; set; }
     void Cancel();

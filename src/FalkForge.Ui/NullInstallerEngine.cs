@@ -21,6 +21,7 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     };
 
     public InstallState DetectedState { get; } = InstallState.NotInstalled;
+    public string? InstalledProductVersion => null;
     public IReadOnlyList<FeatureState> Features { get; } = [];
     public string InstallDirectory { get; set; } = string.Empty;
     public string? LogPath => null;
