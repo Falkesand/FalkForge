@@ -21,10 +21,9 @@ public sealed class UpdateAvailablePageViewModel : InstallerPageViewModel, INoti
             await Engine.ShutdownAsync();
         });
 
-        LaterCommand = new RelayCommand(() =>
+        LaterCommand = new RelayCommand(async () =>
         {
-            Navigation.NavigateNext();
-            return Task.CompletedTask;
+            await Navigation.NavigateNext();
         });
     }
 

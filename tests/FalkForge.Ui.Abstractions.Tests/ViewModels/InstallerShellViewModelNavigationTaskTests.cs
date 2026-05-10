@@ -73,11 +73,13 @@ public class InstallerShellViewModelNavigationTaskTests
         var shell = CreateShell();
         var first = new TestPageViewModel(_engine, shell, "First");
         var throwing = CreateThrowingPage(shell, "Throwing");
+        // Only throw on NavigatingFrom, not NavigatedTo — so NavigateNext can land here first.
+        throwing.ThrowOnNavigatedTo = false;
         throwing.ThrowOnNavigatingFrom = true;
 
         shell.RegisterPage(first);
         shell.RegisterPage(throwing);
-        await shell.NavigateNext();  // lands on throwing
+        await shell.NavigateNext();  // lands on throwing (NavigatedTo OK)
 
         var task = shell.NavigateBack();
         await Assert.ThrowsAsync<InvalidOperationException>(() => task);
@@ -118,6 +120,7 @@ public class InstallerShellViewModelNavigationTaskTests
 
     private sealed class ThrowingPageViewModel : InstallerPageViewModel
     {
+        public bool ThrowOnNavigatedTo { get; set; } = true;
         public bool ThrowOnNavigatingFrom { get; set; }
 
         public ThrowingPageViewModel(IInstallerEngine engine, INavigationService nav, string title)
@@ -130,7 +133,11 @@ public class InstallerShellViewModelNavigationTaskTests
         public override string Description => string.Empty;
 
         public override Task OnNavigatedToAsync(CancellationToken ct = default)
-            => throw new InvalidOperationException("Simulated lifecycle failure on NavigatedTo");
+        {
+            if (ThrowOnNavigatedTo)
+                throw new InvalidOperationException("Simulated lifecycle failure on NavigatedTo");
+            return Task.CompletedTask;
+        }
 
         public override Task OnNavigatingFromAsync(CancellationToken ct = default)
         {

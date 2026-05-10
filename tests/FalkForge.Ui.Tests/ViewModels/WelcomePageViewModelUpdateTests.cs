@@ -144,9 +144,9 @@ public class WelcomePageViewModelUpdateTests
         public bool CanGoBack => false;
         public bool CanGoNext => false;
         public IReadOnlyList<InstallerPageViewModel> Pages { get; } = [];
-        public void NavigateNext() { }
-        public void NavigateBack() { }
-        public void NavigateTo(InstallerPageViewModel page) { CurrentPage = page; }
-        public void NavigateTo<T>() where T : InstallerPageViewModel { }
+        public Task NavigateNext() => Task.CompletedTask;
+        public Task NavigateBack() => Task.CompletedTask;
+        public Task NavigateTo(InstallerPageViewModel page) { CurrentPage = page; return Task.CompletedTask; }
+        public Task NavigateTo<T>() where T : InstallerPageViewModel => Task.CompletedTask;
     }
 }

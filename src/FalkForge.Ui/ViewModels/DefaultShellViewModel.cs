@@ -56,7 +56,7 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
             or InstallState.NewerVersion)
         {
             IsMaintenanceMode = true;
-            NavigateTo<MaintenancePageViewModel>();
+            await NavigateTo<MaintenancePageViewModel>();
         }
     }
 

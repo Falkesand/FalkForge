@@ -27,6 +27,12 @@ public abstract class PipeTransportBase : IAsyncDisposable
 
     public bool IsConnected => _pipe?.IsConnected ?? false;
 
+    /// <summary>
+    /// Raised when the receive loop exits due to pipe disconnection or EOF.
+    /// Subscribers should complete any pending operations with <see cref="PipeDisconnectedException"/>.
+    /// </summary>
+    public event Action? PipeClosed;
+
     protected void StartReceiveLoop(CancellationToken ct)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -101,6 +107,11 @@ public abstract class PipeTransportBase : IAsyncDisposable
                 break;
             }
         }
+
+        // Notify subscribers that the pipe closed (only when the loop exited due to
+        // disconnection or EOF, not due to intentional cancellation via DisposeAsync).
+        if (!ct.IsCancellationRequested)
+            PipeClosed?.Invoke();
     }
 
     protected static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, CancellationToken ct)

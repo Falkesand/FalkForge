@@ -203,9 +203,9 @@ public class UpdateAvailablePageViewModelTests
         public bool CanGoNext => false;
         public IReadOnlyList<InstallerPageViewModel> Pages { get; } = [];
         public bool NavigateNextCalled { get; private set; }
-        public void NavigateNext() { NavigateNextCalled = true; }
-        public void NavigateBack() { }
-        public void NavigateTo(InstallerPageViewModel page) { CurrentPage = page; }
-        public void NavigateTo<T>() where T : InstallerPageViewModel { }
+        public Task NavigateNext() { NavigateNextCalled = true; return Task.CompletedTask; }
+        public Task NavigateBack() => Task.CompletedTask;
+        public Task NavigateTo(InstallerPageViewModel page) { CurrentPage = page; return Task.CompletedTask; }
+        public Task NavigateTo<T>() where T : InstallerPageViewModel => Task.CompletedTask;
     }
 }

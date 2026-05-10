@@ -33,7 +33,7 @@ public abstract class InstallerShellViewModel : INavigationService
             _currentPageIndex = 0;
     }
 
-    public async void NavigateNext()
+    public async Task NavigateNext()
     {
         if (!CanGoNext) return;
         if (CurrentPage is not null)
@@ -44,7 +44,7 @@ public abstract class InstallerShellViewModel : INavigationService
         OnCurrentPageChanged();
     }
 
-    public async void NavigateBack()
+    public async Task NavigateBack()
     {
         if (!CanGoBack) return;
         if (CurrentPage is not null)
@@ -55,7 +55,7 @@ public abstract class InstallerShellViewModel : INavigationService
         OnCurrentPageChanged();
     }
 
-    public async void NavigateTo(InstallerPageViewModel page)
+    public async Task NavigateTo(InstallerPageViewModel page)
     {
         var index = _pages.IndexOf(page);
         if (index < 0) return;
@@ -67,11 +67,11 @@ public abstract class InstallerShellViewModel : INavigationService
         OnCurrentPageChanged();
     }
 
-    public void NavigateTo<T>() where T : InstallerPageViewModel
+    public async Task NavigateTo<T>() where T : InstallerPageViewModel
     {
         var page = _pages.OfType<T>().FirstOrDefault();
         if (page is not null)
-            NavigateTo(page);
+            await NavigateTo(page);
     }
 
     /// <summary>

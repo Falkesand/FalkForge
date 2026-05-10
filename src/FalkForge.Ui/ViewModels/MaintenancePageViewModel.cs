@@ -128,7 +128,7 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
         try
         {
             await Engine.PlanAsync(action, ct);
-            Navigation.NavigateTo<ProgressPageViewModel>();
+            await Navigation.NavigateTo<ProgressPageViewModel>();
         }
         finally
         {

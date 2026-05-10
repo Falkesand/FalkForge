@@ -31,6 +31,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         Manifest = manifest;
         LogPath = logPath;
         _pipe = new PipeClient(options, OnMessageReceivedAsync);
+        _pipe.PipeClosed += OnPipeClosed;
     }
 
     public string? LogPath { get; }
@@ -204,6 +205,34 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         return OnMessageReceivedAsync(message);
     }
 
+    /// <summary>
+    ///     Triggers the pipe-closed handler directly for testing.
+    ///     Simulates the engine process crashing mid-operation.
+    /// </summary>
+    internal void SimulatePipeClosed() => OnPipeClosed();
+
+    /// <summary>
+    ///     Arms _detectTcs (as DetectAsync would) then waits — used in tests that
+    ///     simulate a disconnect while awaiting Detect.
+    /// </summary>
+    internal async Task SimulateDetectAndWaitForDisconnectAsync(CancellationToken ct)
+    {
+        _detectTcs = new TaskCompletionSource<DetectResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var reg = ct.Register(() => _detectTcs.TrySetCanceled(ct));
+        await _detectTcs.Task;
+    }
+
+    /// <summary>
+    ///     Arms _applyTcs (as ApplyAsync would) then waits — used in tests that
+    ///     simulate a disconnect while awaiting Apply.
+    /// </summary>
+    internal async Task SimulateApplyAndWaitForDisconnectAsync(CancellationToken ct)
+    {
+        _applyTcs = new TaskCompletionSource<ApplyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var reg = ct.Register(() => _applyTcs.TrySetCanceled(ct));
+        await _applyTcs.Task;
+    }
+
     private void HandleError(ErrorMessage error)
     {
         var ex = new InvalidOperationException(error.Message);
@@ -212,6 +241,17 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         _applyTcs?.TrySetException(ex);
         _shutdownTcs?.TrySetException(ex);
         _statusMessage.OnNext($"Error: {error.Message}");
+    }
+
+    private void OnPipeClosed()
+    {
+        // The engine process crashed or the pipe was closed without sending a proper response.
+        // Complete all pending TaskCompletionSources so callers don't hang indefinitely.
+        var ex = new PipeDisconnectedException();
+        _detectTcs?.TrySetException(ex);
+        _planTcs?.TrySetException(ex);
+        _applyTcs?.TrySetException(ex);
+        _shutdownTcs?.TrySetException(ex);
     }
 
     private async Task SendSetInstallDirectoryAsync(string directory)

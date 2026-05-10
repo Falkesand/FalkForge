@@ -17,12 +17,12 @@ public partial class MainWindow : Window
 
     private void OnBackClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DefaultShellViewModel shell) shell.NavigateBack();
+        if (DataContext is DefaultShellViewModel shell) _ = shell.NavigateBack();
     }
 
     private void OnNextClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DefaultShellViewModel shell) shell.NavigateNext();
+        if (DataContext is DefaultShellViewModel shell) _ = shell.NavigateNext();
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
