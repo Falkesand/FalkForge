@@ -8,13 +8,32 @@ public sealed class PayloadDownloader
 {
     private readonly HttpClient _httpClient;
     private readonly TimeSpan _timeoutPerAttempt;
+    private readonly TimeSpan _chunkIdleTimeout;
     private readonly TokenBucket? _tokenBucket;
     private const int MaxRetries = 3;
 
-    public PayloadDownloader(HttpClient httpClient, TimeSpan? timeoutPerAttempt = null, TokenBucket? tokenBucket = null)
+    /// <param name="httpClient">Shared HttpClient; caller owns its lifetime.</param>
+    /// <param name="timeoutPerAttempt">
+    ///   Maximum wall-clock time for a single download attempt before the attempt is
+    ///   abandoned and retried. Defaults to 5 minutes. This timer is NOT reset between
+    ///   chunks; use <paramref name="chunkIdleTimeout"/> for per-chunk idle detection.
+    /// </param>
+    /// <param name="chunkIdleTimeout">
+    ///   Maximum time allowed between receiving successive data chunks. The timer resets
+    ///   after every successful <see cref="Stream.ReadAsync"/> so that a slow-but-steady
+    ///   connection (e.g. after sleep/hibernate) is not incorrectly cancelled as long as
+    ///   data keeps flowing. Defaults to 60 seconds.
+    /// </param>
+    /// <param name="tokenBucket">Optional bandwidth limiter; null means unlimited.</param>
+    public PayloadDownloader(
+        HttpClient httpClient,
+        TimeSpan? timeoutPerAttempt = null,
+        TimeSpan? chunkIdleTimeout = null,
+        TokenBucket? tokenBucket = null)
     {
         _httpClient = httpClient;
         _timeoutPerAttempt = timeoutPerAttempt ?? TimeSpan.FromMinutes(5);
+        _chunkIdleTimeout = chunkIdleTimeout ?? TimeSpan.FromSeconds(60);
         _tokenBucket = tokenBucket;
     }
 
@@ -122,19 +141,30 @@ public sealed class PayloadDownloader
 
                 var buffer = new byte[81920];
                 long totalRead = existingSize; // progress bar starts from where we left off
+
+                // Per-chunk idle CTS: resets after every successful ReadAsync so that a
+                // slow-but-steady connection (e.g. after sleep/hibernate) is not incorrectly
+                // cancelled as long as data keeps flowing. Only truly stalled connections
+                // (no bytes for _chunkIdleTimeout) trigger cancellation.
+                using var idleCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+                idleCts.CancelAfter(_chunkIdleTimeout);
+
                 int bytesRead;
-
-                while ((bytesRead = await contentStream.ReadAsync(buffer.AsMemory(0, buffer.Length), timeoutCts.Token)) > 0)
+                while ((bytesRead = await contentStream.ReadAsync(
+                    buffer.AsMemory(0, buffer.Length), idleCts.Token)) > 0)
                 {
-                    if (_tokenBucket is not null)
-                        await _tokenBucket.WaitForTokensAsync(bytesRead, timeoutCts.Token);
+                    // Data arrived — reset the idle timer for the next chunk.
+                    idleCts.CancelAfter(_chunkIdleTimeout);
 
-                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), timeoutCts.Token);
+                    if (_tokenBucket is not null)
+                        await _tokenBucket.WaitForTokensAsync(bytesRead, idleCts.Token);
+
+                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), idleCts.Token);
                     totalRead += bytesRead;
                     progress?.Report((totalRead, totalBytes));
                 }
 
-                await fileStream.FlushAsync(timeoutCts.Token);
+                await fileStream.FlushAsync(idleCts.Token);
                 fileStream.Close();
 
                 // Atomically promote the partial file to the final destination.
