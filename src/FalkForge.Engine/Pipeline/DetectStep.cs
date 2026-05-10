@@ -1,7 +1,9 @@
 namespace FalkForge.Engine.Pipeline;
 
+using System.Diagnostics;
 using FalkForge.Engine.Detection;
 using FalkForge.Engine.Download;
+using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Platform;
@@ -37,27 +39,39 @@ internal sealed class DetectStep : IDetectStep
     /// <inheritdoc/>
     public async Task<Result<Unit>> ExecuteAsync(PipelineContext ctx, CancellationToken ct)
     {
-        await _uiChannel.SendAsync(
-            new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
-
-        ctx.Manifest = _manifest;
-
-        var detector = new PackageDetector(_registry);
-        var detection = detector.Detect(_manifest);
-        ctx.Detection = detection;
-
-        await _uiChannel.SendAsync(
-            new PipelineEvent.Log(LogLevel.Info,
-                $"Detection complete: state={detection.State}, version={detection.CurrentVersion ?? "none"}"),
-            ct);
-
-        // Update check: best-effort, never fails the detection phase.
-        if (_updateChecker is not null && _manifest.UpdateFeed is not null)
+        // Capture start timestamp so we always record phase duration, even on
+        // exception paths. Stopwatch.GetTimestamp avoids the ~24-byte Stopwatch
+        // allocation (Gate 6: zero-waste).
+        var startTs = Stopwatch.GetTimestamp();
+        try
         {
-            await CheckForUpdateAsync(ctx, ct);
-        }
+            await _uiChannel.SendAsync(
+                new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
 
-        return Unit.Value;
+            ctx.Manifest = _manifest;
+
+            var detector = new PackageDetector(_registry);
+            var detection = detector.Detect(_manifest);
+            ctx.Detection = detection;
+
+            await _uiChannel.SendAsync(
+                new PipelineEvent.Log(LogLevel.Info,
+                    $"Detection complete: state={detection.State}, version={detection.CurrentVersion ?? "none"}"),
+                ct);
+
+            // Update check: best-effort, never fails the detection phase.
+            if (_updateChecker is not null && _manifest.UpdateFeed is not null)
+            {
+                await CheckForUpdateAsync(ctx, ct);
+            }
+
+            return Unit.Value;
+        }
+        finally
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(startTs).TotalMilliseconds;
+            EngineMeter.RecordPhaseTransition(EnginePhase.Detecting, elapsedMs);
+        }
     }
 
     private async Task CheckForUpdateAsync(PipelineContext ctx, CancellationToken ct)

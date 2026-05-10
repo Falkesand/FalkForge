@@ -7,6 +7,7 @@ using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.RestartManager;
+using FalkForge.Engine.Tests.Logging;
 using FalkForge.Engine.Tests.Mocks;
 using FalkForge.Testing;
 using Xunit;
@@ -19,6 +20,7 @@ using MockRegistry = FalkForge.Testing.MockRegistry;
 /// <see cref="ApplyStep"/>, <see cref="RollbackStep"/>, and
 /// the end-to-end pipeline wired via <see cref="InstallerPipelineBuilder"/>.
 /// </summary>
+[Collection(EngineMeterCollection.Name)]
 public sealed class PipelinePhaseStepTests
 {
     // ──────────────────────────────────────────────────────────────────────────

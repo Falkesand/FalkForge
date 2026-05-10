@@ -62,6 +62,7 @@ public sealed class PipelineRunner
                         if (detectResult.IsFailure)
                         {
                             _logger?.Error("PipelineRunner", $"Detect failed: {detectResult.Error.Message}");
+                            EngineMeter.RecordError(detectResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(detectResult.Error.Kind, detectResult.Error.Message), ct);
                             await SendShutdownAsync(ct);
@@ -75,6 +76,7 @@ public sealed class PipelineRunner
                         if (planResult.IsFailure)
                         {
                             _logger?.Error("PipelineRunner", $"Plan failed: {planResult.Error.Message}");
+                            EngineMeter.RecordError(planResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(planResult.Error.Kind, planResult.Error.Message), ct);
                             await SendShutdownAsync(ct);
@@ -89,6 +91,7 @@ public sealed class PipelineRunner
                             if (exportResult.IsFailure)
                             {
                                 _logger?.Error("PipelineRunner", $"Plan export failed: {exportResult.Error.Message}");
+                                EngineMeter.RecordError(exportResult.Error.Kind);
                                 await _uiChannel.SendAsync(
                                     new PipelineEvent.Failed(exportResult.Error.Kind, exportResult.Error.Message), ct);
                                 await SendShutdownAsync(ct);
@@ -108,6 +111,7 @@ public sealed class PipelineRunner
                         if (elevateResult.IsFailure)
                         {
                             _logger?.Error("PipelineRunner", $"Elevation failed: {elevateResult.Error.Message}");
+                            EngineMeter.RecordError(elevateResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(elevateResult.Error.Kind, elevateResult.Error.Message), ct);
                             await SendShutdownAsync(ct);
@@ -122,6 +126,7 @@ public sealed class PipelineRunner
                         if (applyResult.IsFailure)
                         {
                             _logger?.Error("PipelineRunner", $"Apply failed: {applyResult.Error.Message}");
+                            EngineMeter.RecordError(applyResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(applyResult.Error.Kind, applyResult.Error.Message), ct);
                             await SendShutdownAsync(ct);
@@ -155,6 +160,7 @@ public sealed class PipelineRunner
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
             _logger?.Error("PipelineRunner", $"Unhandled exception: {ex.Message}");
+            EngineMeter.RecordError(ErrorKind.EngineError);
             try
             {
                 await _uiChannel.SendAsync(

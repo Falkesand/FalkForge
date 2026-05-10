@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Tests.Pipeline;
 
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Tests.Logging;
 using FalkForge.Testing;
 using Xunit;
 
@@ -11,6 +12,7 @@ using Xunit;
 /// phase failures return 1 and send a Failed event.
 /// Uses <see cref="StubInstallerPipeline"/> to isolate the runner from step logic.
 /// </summary>
+[Collection(EngineMeterCollection.Name)]
 public sealed class PipelineRunnerTests
 {
     private static UiRequest.Plan DefaultPlan() =>

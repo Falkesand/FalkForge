@@ -1,5 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
+using System.Diagnostics;
+using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Variables;
@@ -28,6 +30,21 @@ internal sealed class PlanStep : IPlanStep
 
     /// <inheritdoc/>
     public async Task<Result<Unit>> ExecuteAsync(
+        PipelineContext ctx, UiRequest.Plan request, CancellationToken ct)
+    {
+        var startTs = Stopwatch.GetTimestamp();
+        try
+        {
+            return await ExecuteCoreAsync(ctx, request, ct);
+        }
+        finally
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(startTs).TotalMilliseconds;
+            EngineMeter.RecordPhaseTransition(EnginePhase.Planning, elapsedMs);
+        }
+    }
+
+    private async Task<Result<Unit>> ExecuteCoreAsync(
         PipelineContext ctx, UiRequest.Plan request, CancellationToken ct)
     {
         await _uiChannel.SendAsync(

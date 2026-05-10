@@ -44,6 +44,9 @@ public static class EngineMeter
     /// <summary>Counter — one unit per retry. Tag: <c>operation</c> (download|msi-install|…).</summary>
     public const string RetryCounter = "falkforge.engine.retry.count";
 
+    /// <summary>Counter — one unit per terminal pipeline error. Tag: <c>error_kind</c>.</summary>
+    public const string ErrorCounter = "falkforge.engine.error.count";
+
     // ──────────────────────────────────────────────────────────────────────────
     // Tag-value enums (bounded cardinality — prevents metric cardinality explosion)
     // ──────────────────────────────────────────────────────────────────────────
@@ -99,6 +102,12 @@ public static class EngineMeter
             unit: "{retry}",
             description: "Number of operation retries (tagged by operation name)");
 
+    private static readonly Counter<long> _errors =
+        _meter.CreateCounter<long>(
+            ErrorCounter,
+            unit: "{error}",
+            description: "Engine pipeline errors by ErrorKind");
+
     // ──────────────────────────────────────────────────────────────────────────
     // Recording API
     // ──────────────────────────────────────────────────────────────────────────
@@ -145,6 +154,19 @@ public static class EngineMeter
     public static void RecordRetry(RetryOperation operation)
     {
         _retries.Add(1, new KeyValuePair<string, object?>("operation", RetryOperationToTag(operation)));
+    }
+
+    /// <summary>
+    /// Records one terminal pipeline error. Call this once per pipeline run when the
+    /// run ends in a terminal failure (do NOT record at every intermediate Result conversion).
+    /// </summary>
+    /// <param name="kind">The <see cref="ErrorKind"/> of the terminal failure.</param>
+    public static void RecordError(ErrorKind kind)
+    {
+        // Stack-allocate the tag pair to avoid heap allocation on every call.
+        // ToString() on the enum produces the declared member name (e.g. "DownloadError"),
+        // which matches the canonical tag values used in telemetry dashboards.
+        _errors.Add(1, new KeyValuePair<string, object?>("error_kind", kind.ToString()));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Download;
 
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using FalkForge.Engine.Logging;
 
 public sealed class PayloadDownloader
 {
@@ -73,6 +74,7 @@ public sealed class PayloadDownloader
         }
 
         Exception? lastException = null;
+        var kind = InferKind(url);
 
         for (var attempt = 0; attempt < MaxRetries; attempt++)
         {
@@ -80,6 +82,10 @@ public sealed class PayloadDownloader
 
             if (attempt > 0)
             {
+                // Each iteration after attempt 0 means the previous attempt failed and
+                // we are now retrying. Count one retry per crossing into a new attempt.
+                EngineMeter.RecordRetry(EngineMeter.RetryOperation.Download);
+
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
                 await Task.Delay(delay, ct);
             }
@@ -138,11 +144,13 @@ public sealed class PayloadDownloader
                 if (!string.Equals(hashResult, expectedSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     TryDeleteFile(fullPath);
+                    EngineMeter.RecordPayloadDownload(success: false, sizeBytes: 0L, kind);
                     return Result<string>.Failure(
                         ErrorKind.DownloadError,
                         $"SHA-256 hash mismatch: expected {expectedSha256}, got {hashResult}");
                 }
 
+                EngineMeter.RecordPayloadDownload(success: true, sizeBytes: totalRead, kind);
                 return fullPath;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -163,9 +171,29 @@ public sealed class PayloadDownloader
             }
         }
 
+        EngineMeter.RecordPayloadDownload(success: false, sizeBytes: 0L, kind);
         return Result<string>.Failure(
             ErrorKind.DownloadError,
             $"Failed to download {url} after {MaxRetries} attempts: {lastException?.Message}");
+    }
+
+    /// <summary>
+    /// Infers the <see cref="EngineMeter.PayloadKind"/> from a URL's file extension.
+    /// Unknown extensions map to <see cref="EngineMeter.PayloadKind.Bundle"/>.
+    /// </summary>
+    private static EngineMeter.PayloadKind InferKind(string url)
+    {
+        // Strip query/fragment so they don't confuse extension parsing.
+        var path = url;
+        var queryIdx = path.IndexOfAny(['?', '#']);
+        if (queryIdx >= 0)
+            path = path[..queryIdx];
+
+        if (path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)) return EngineMeter.PayloadKind.Msi;
+        if (path.EndsWith(".msp", StringComparison.OrdinalIgnoreCase)) return EngineMeter.PayloadKind.Msp;
+        if (path.EndsWith(".msu", StringComparison.OrdinalIgnoreCase)) return EngineMeter.PayloadKind.Msu;
+        if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return EngineMeter.PayloadKind.Exe;
+        return EngineMeter.PayloadKind.Bundle;
     }
 
     /// <summary>

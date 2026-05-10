@@ -1,12 +1,14 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Tests.Logging;
 using Xunit;
 
 /// <summary>
 /// Tests for HttpPayloadSource — the IPayloadSource adapter wrapping PayloadDownloader.
 /// RED: fails until HttpPayloadSource exists.
 /// </summary>
+[Collection(EngineMeterCollection.Name)]
 public sealed class HttpPayloadSourceTests
 {
     // ──────────────────────────────────────────────────────────────────────────

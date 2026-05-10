@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Pipeline;
 
+using System.Diagnostics;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Journal.UndoOperations;
 using FalkForge.Engine.Logging;
@@ -32,6 +33,20 @@ internal sealed class RollbackStep : IRollbackStep
 
     /// <inheritdoc/>
     public async Task<Result<Unit>> ExecuteAsync(PipelineContext ctx, CancellationToken ct)
+    {
+        var startTs = Stopwatch.GetTimestamp();
+        try
+        {
+            return await ExecuteCoreAsync(ctx, ct);
+        }
+        finally
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(startTs).TotalMilliseconds;
+            EngineMeter.RecordPhaseTransition(EnginePhase.RollingBack, elapsedMs);
+        }
+    }
+
+    private async Task<Result<Unit>> ExecuteCoreAsync(PipelineContext ctx, CancellationToken ct)
     {
         await _uiChannel.SendAsync(
             new PipelineEvent.PhaseChanged(EnginePhase.RollingBack), ct);

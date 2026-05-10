@@ -4,8 +4,10 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Engine.Download;
+using FalkForge.Engine.Tests.Logging;
 using Xunit;
 
+[Collection(EngineMeterCollection.Name)]
 public sealed class PayloadDownloaderTests : IDisposable
 {
     private readonly string _tempDir;

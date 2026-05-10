@@ -1,5 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
+using System.Diagnostics;
+using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 
 /// <summary>
@@ -23,22 +25,31 @@ internal sealed class ElevateStep : IElevateStep
     /// <inheritdoc/>
     public async Task<Result<Unit>> ExecuteAsync(PipelineContext ctx, CancellationToken ct)
     {
-        await _uiChannel.SendAsync(
-            new PipelineEvent.PhaseChanged(EnginePhase.Elevating), ct);
-
-        var startResult = await _gateway.StartAsync(ct);
-        if (startResult.IsFailure)
+        var startTs = Stopwatch.GetTimestamp();
+        try
         {
-            return Result<Unit>.Failure(ErrorKind.ElevationError,
-                $"Elevation failed: {startResult.Error.Message}");
+            await _uiChannel.SendAsync(
+                new PipelineEvent.PhaseChanged(EnginePhase.Elevating), ct);
+
+            var startResult = await _gateway.StartAsync(ct);
+            if (startResult.IsFailure)
+            {
+                return Result<Unit>.Failure(ErrorKind.ElevationError,
+                    $"Elevation failed: {startResult.Error.Message}");
+            }
+
+            ctx.ElevationGateway = _gateway;
+
+            await _uiChannel.SendAsync(
+                new PipelineEvent.Log(LogLevel.Info, "Elevation established"),
+                ct);
+
+            return Unit.Value;
         }
-
-        ctx.ElevationGateway = _gateway;
-
-        await _uiChannel.SendAsync(
-            new PipelineEvent.Log(LogLevel.Info, "Elevation established"),
-            ct);
-
-        return Unit.Value;
+        finally
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(startTs).TotalMilliseconds;
+            EngineMeter.RecordPhaseTransition(EnginePhase.Elevating, elapsedMs);
+        }
     }
 }
