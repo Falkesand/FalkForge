@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Plugins;
 using FalkForge.Ui.Abstractions;
@@ -146,10 +147,44 @@ public static class InstallerApp
         if (pipeName is null || manifestPath is null)
             return null;
 
-        return LaunchEngineAndCreateClient(pipeName, manifestPath);
+        // Parse log-related flags via the shared parser (lives in FalkForge.Engine.Protocol)
+        // so engine and UI cannot drift on flag spelling. Errors here are non-fatal: a bad
+        // log flag should not prevent the UI from coming up — fall back to no logging.
+        var argsResult = ProgramArgs.Parse(args);
+        var programArgs = argsResult.IsSuccess ? argsResult.Value : null;
+
+        return LaunchEngineAndCreateClient(pipeName, manifestPath, programArgs);
     }
 
-    private static EngineClient? LaunchEngineAndCreateClient(string pipeName, string manifestPath)
+    /// <summary>
+    /// Builds the command-line arguments string passed to the spawned engine child process.
+    /// Always emits the canonical <c>--manifest</c> / <c>--pipe</c> / <c>--secret-pipe</c> trio.
+    /// Log flags from <paramref name="programArgs"/> are appended via the shared
+    /// <see cref="ProgramArgs.ToLogFlagsCommandLine"/> so the UI cannot quote a path differently
+    /// from the engine's own parser.
+    /// </summary>
+    /// <remarks>
+    /// Internal so that <c>FalkForge.Ui.Tests</c> can exercise the formatting without spawning
+    /// real processes. See <c>InstallerAppLogArgsTests</c>.
+    /// </remarks>
+    internal static string BuildEngineArgs(
+        string manifestPath,
+        string pipeName,
+        string secretPipeName,
+        ProgramArgs? programArgs)
+    {
+        var canonical = $"--manifest \"{manifestPath}\" --pipe {pipeName} --secret-pipe {secretPipeName}";
+        if (programArgs is null)
+            return canonical;
+
+        var logFlags = programArgs.ToLogFlagsCommandLine();
+        return logFlags.Length == 0 ? canonical : $"{canonical} {logFlags}";
+    }
+
+    private static EngineClient? LaunchEngineAndCreateClient(
+        string pipeName,
+        string manifestPath,
+        ProgramArgs? programArgs = null)
     {
         try
         {
@@ -174,7 +209,9 @@ public static class InstallerApp
                 return null;
             }
 
-            var engineArgs = $"--manifest \"{manifestPath}\" --pipe {pipeName} --secret-pipe {secretPipeName}";
+            // BuildEngineArgs forwards --log / --log-level when the user supplied them so a
+            // bootstrapper-style "installer.exe --log foo.log" actually reaches the engine.
+            var engineArgs = BuildEngineArgs(manifestPath, pipeName, secretPipeName, programArgs);
 
             var process = Process.Start(new ProcessStartInfo
             {

@@ -1,13 +1,17 @@
-namespace FalkForge.Engine;
-
-using FalkForge.Engine.Protocol;
+namespace FalkForge.Engine.Protocol;
 
 /// <summary>
-/// Parsed command-line flags relevant to engine startup. Currently models only the
+/// Parsed command-line flags relevant to engine and UI startup. Currently models only the
 /// runtime-logging flags (<c>--log</c>, <c>--log-level</c>) since other flags continue
-/// to be parsed inline in <c>Program.Main</c> for backward compatibility.
+/// to be parsed inline by the engine and UI for backward compatibility.
 /// </summary>
-internal sealed record ProgramArgs(
+/// <remarks>
+/// Lives in <c>FalkForge.Engine.Protocol</c> so that both <c>FalkForge.Engine</c> and
+/// <c>FalkForge.Ui</c> (which only references Protocol) can share a single parser
+/// implementation. Keeping a single parser avoids drift between the engine and the
+/// bootstrapper-spawned UI.
+/// </remarks>
+public sealed record ProgramArgs(
     string? LogPath,
     LogLevel? MinimumLogLevel)
 {
@@ -16,7 +20,7 @@ internal sealed record ProgramArgs(
     /// <see cref="ProgramArgs"/> on success or a human-readable error message and
     /// suggested process exit code on failure.
     /// </summary>
-    internal readonly struct Result
+    public readonly struct Result
     {
         private Result(bool success, ProgramArgs? value, string? errorMessage, int suggestedExitCode)
         {
@@ -39,7 +43,7 @@ internal sealed record ProgramArgs(
 
     /// <summary>
     /// Parses the supported logging flags from <paramref name="args"/>. Unknown flags are
-    /// ignored (for compatibility with <c>Program.Main</c>'s own argument loop).
+    /// ignored (for compatibility with each consumer's own argument loop).
     /// </summary>
     /// <remarks>
     /// Recognised flags (all optional):
@@ -105,10 +109,54 @@ internal sealed record ProgramArgs(
         return Result.Success(new ProgramArgs(resolvedLogPath, logLevel));
     }
 
+    /// <summary>
+    /// Renders the log-related flags back to a command-line fragment suitable for forwarding
+    /// to a child process. Returns an empty string when no log flags are set. Paths containing
+    /// whitespace are wrapped in double quotes; backslashes are not escaped (Windows path style).
+    /// </summary>
+    /// <remarks>
+    /// Used by the bootstrapper to forward <c>--log</c> / <c>--log-level</c> to the spawned UI
+    /// process, and by the UI to forward the same flags to the engine child process. Keeping
+    /// the rendering logic next to <see cref="Parse"/> keeps both sides in lock-step.
+    /// </remarks>
+    public string ToLogFlagsCommandLine()
+    {
+        if (LogPath is null && MinimumLogLevel is null)
+            return string.Empty;
+
+        var parts = new List<string>(4);
+        if (LogPath is not null)
+        {
+            parts.Add("--log");
+            parts.Add(QuoteIfNeeded(LogPath));
+        }
+
+        if (MinimumLogLevel is not null)
+        {
+            parts.Add("--log-level");
+            parts.Add(MinimumLogLevel.Value.ToString());
+        }
+
+        return string.Join(' ', parts);
+    }
+
+    private static string QuoteIfNeeded(string value)
+    {
+        // Quote when the value contains whitespace; leave alone otherwise so simple paths
+        // round-trip without unnecessary quoting (matches existing argument style).
+        foreach (var ch in value)
+        {
+            if (char.IsWhiteSpace(ch))
+                return $"\"{value}\"";
+        }
+
+        return value;
+    }
+
     private static bool ContainsTraversalSegment(string path)
     {
         // Split on both Windows and POSIX separators so the check is robust on either OS.
-        foreach (var segment in path.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries))
+        foreach (var segment in path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
         {
             if (segment == "..")
                 return true;

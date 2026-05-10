@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Text.Json;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Transport;
@@ -401,8 +402,9 @@ internal static class Program
             secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
-        // Launch the UI process
-        var uiArgs = $"--manifest \"{manifestPath}\" --pipe {pipeName} --secret-pipe {secretPipeName}";
+        // Launch the UI process. BuildUiArgs forwards --log / --log-level when the user
+        // supplied them so a `installer.exe --log foo.log` invocation actually produces a log.
+        var uiArgs = Bootstrapper.BuildUiArgs(manifestPath, pipeName, secretPipeName, programArgs);
         var process = Process.Start(new ProcessStartInfo
         {
             FileName = uiExePath,

@@ -1,6 +1,5 @@
 namespace FalkForge.Engine.Tests;
 
-using FalkForge.Engine;
 using FalkForge.Engine.Protocol;
 using Xunit;
 
