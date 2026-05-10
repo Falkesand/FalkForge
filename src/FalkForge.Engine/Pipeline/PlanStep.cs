@@ -1,9 +1,11 @@
 namespace FalkForge.Engine.Pipeline;
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
 
 /// <summary>
@@ -12,20 +14,38 @@ using FalkForge.Engine.Variables;
 /// <see cref="UiRequest.Plan"/> parameters, and an optional <see cref="VariableStore"/>.
 /// Populates <see cref="PipelineContext.Plan"/> on success.
 /// </summary>
+/// <remarks>
+/// Performs a host-architecture compatibility check before creating the plan so that
+/// an x64 MSI on an x86 OS surfaces as <see cref="ErrorKind.ArchitectureMismatch"/>
+/// at plan time rather than MSI error 1603 at apply time.
+///
+/// Allowed combinations (matches Windows Compatibility rules):
+/// <list type="bullet">
+///   <item>x64 on x64 — native</item>
+///   <item>x86 on x64 — WoW64</item>
+///   <item>x86 on Arm64 — x86 emulation</item>
+///   <item>x64 on Arm64 — x64 emulation</item>
+///   <item>Neutral on any — always allowed</item>
+/// </list>
+/// </remarks>
 internal sealed class PlanStep : IPlanStep
 {
     private readonly Planner _planner;
     private readonly IUiChannel _uiChannel;
     private readonly VariableStore? _variableStore;
+    private readonly Architecture _hostArchitecture;
 
     public PlanStep(
         Planner planner,
         IUiChannel uiChannel,
-        VariableStore? variableStore = null)
+        VariableStore? variableStore = null,
+        Architecture? hostArchitecture = null)
     {
         _planner = planner;
         _uiChannel = uiChannel;
         _variableStore = variableStore;
+        // Default to the current process OS architecture (production). Tests inject a fake.
+        _hostArchitecture = hostArchitecture ?? RuntimeInformation.OSArchitecture;
     }
 
     /// <inheritdoc/>
@@ -57,6 +77,13 @@ internal sealed class PlanStep : IPlanStep
         if (ctx.Detection is null)
             return Result<Unit>.Failure(ErrorKind.EngineError,
                 "PlanStep: detection result not populated — DetectStep must run first.");
+
+        // Architecture gate: reject packages whose required architecture cannot run on
+        // the host OS. Checked here (plan time) so operators see a typed error before
+        // the installation starts rather than a generic MSI 1603 failure mid-apply.
+        var archCheck = CheckArchitectureCompatibility(ctx.Manifest.Packages, _hostArchitecture);
+        if (archCheck.IsFailure)
+            return archCheck;
 
         // License gate: when manifest requires a license, the UI must have accepted it.
         // Silent mode auto-accepts (headless/CLI installs). When the manifest has no
@@ -122,4 +149,54 @@ internal sealed class PlanStep : IPlanStep
 
         return Unit.Value;
     }
+
+    /// <summary>
+    /// Validates that every package's required architecture is compatible with
+    /// <paramref name="hostArch"/>. Returns failure on the first incompatible package.
+    /// </summary>
+    private static Result<Unit> CheckArchitectureCompatibility(
+        IEnumerable<PackageInfo> packages,
+        Architecture hostArch)
+    {
+        foreach (var pkg in packages)
+        {
+            if (pkg.Architecture == PackageArchitecture.Neutral)
+                continue; // no constraint — always allowed
+
+            if (!IsCompatible(pkg.Architecture, hostArch))
+            {
+                var pkgArch = pkg.Architecture.ToString().ToLowerInvariant();
+                var host = hostArch.ToString().ToLowerInvariant();
+                return Result<Unit>.Failure(
+                    ErrorKind.ArchitectureMismatch,
+                    $"Package '{pkg.Id}' requires {pkgArch} but the host OS is {host}. " +
+                    $"This package cannot be installed on this machine.");
+            }
+        }
+
+        return Unit.Value;
+    }
+
+    /// <summary>
+    /// Returns true when a package with the given <paramref name="pkgArch"/> can run
+    /// on a host with <paramref name="hostArch"/>, following Windows compatibility rules.
+    /// </summary>
+    private static bool IsCompatible(PackageArchitecture pkgArch, Architecture hostArch) =>
+        (pkgArch, hostArch) switch
+        {
+            // Native matches
+            (PackageArchitecture.X86,   Architecture.X86)   => true,
+            (PackageArchitecture.X64,   Architecture.X64)   => true,
+            (PackageArchitecture.Arm64, Architecture.Arm64) => true,
+
+            // WoW64: x86 runs on x64
+            (PackageArchitecture.X86, Architecture.X64) => true,
+
+            // Windows-on-Arm emulation: x86 and x64 run on Arm64
+            (PackageArchitecture.X86, Architecture.Arm64) => true,
+            (PackageArchitecture.X64, Architecture.Arm64) => true,
+
+            // Everything else (x64 on x86, Arm64 on x64, etc.) is incompatible
+            _ => false
+        };
 }

@@ -29,5 +29,6 @@ public enum ErrorKind
     LayoutError,
     PluginError,
     DryRunNotSupported,
-    IntegrityError
+    IntegrityError,
+    ArchitectureMismatch
 }

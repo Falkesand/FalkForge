@@ -24,4 +24,13 @@ public sealed class PackageInfo
     public string? SlipstreamTargetId { get; init; }
     public bool Permanent { get; init; }
     public bool EnableFeatureSelection { get; init; }
+
+    /// <summary>
+    /// Processor architecture required by this package.
+    /// <see cref="PackageArchitecture.Neutral"/> (the default) means no constraint.
+    /// PlanStep validates this against the host OS architecture at plan time so that
+    /// an incompatible package surfaces as <see cref="FalkForge.ErrorKind.ArchitectureMismatch"/>
+    /// rather than MSI error 1603 at apply time.
+    /// </summary>
+    public PackageArchitecture Architecture { get; init; } = PackageArchitecture.Neutral;
 }
