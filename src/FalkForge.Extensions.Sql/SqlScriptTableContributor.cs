@@ -9,6 +9,9 @@ public sealed class SqlScriptTableContributor : IMsiTableContributor
 
     public string TableName => "SqlScript";
 
+    /// <summary>Exposes the registered script models for validation.</summary>
+    public IReadOnlyList<SqlScriptModel> Items => _entries;
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);

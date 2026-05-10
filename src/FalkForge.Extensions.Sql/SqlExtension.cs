@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using FalkForge.Extensibility;
 using FalkForge.Extensions.Sql.Builders;
+using FalkForge.Validation;
 
 namespace FalkForge.Extensions.Sql;
 
@@ -19,6 +21,10 @@ public sealed class SqlExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(Scripts);
         registry.RegisterTableContributor(Strings);
     }
+
+    /// <inheritdoc/>
+    public ImmutableArray<ValidationRule> GetValidationRules()
+        => SqlRules.Build(() => Databases.Items, () => Scripts.Items, () => Strings.Items);
 
     public Result<SqlDatabaseRef> DefineDatabase(Action<SqlDatabaseBuilder> configure)
     {

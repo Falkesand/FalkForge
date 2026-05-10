@@ -9,6 +9,9 @@ public sealed class SqlStringTableContributor : IMsiTableContributor
 
     public string TableName => "SqlString";
 
+    /// <summary>Exposes the registered SqlString models for validation.</summary>
+    public IReadOnlyList<SqlStringModel> Items => _entries;
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);

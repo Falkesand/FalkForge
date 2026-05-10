@@ -9,6 +9,9 @@ public sealed class SqlDatabaseTableContributor : IMsiTableContributor
 
     public string TableName => "SqlDatabase";
 
+    /// <summary>Exposes the registered database models for validation.</summary>
+    public IReadOnlyList<SqlDatabaseModel> Items => _entries;
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>(_entries.Count);
