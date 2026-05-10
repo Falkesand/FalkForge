@@ -12,6 +12,14 @@ namespace FalkForge.Engine.Protocol.Tests.Serialization;
 /// must produce identical wire bytes from <see cref="MessageSerializer"/> (new codec path)
 /// and <see cref="LegacyMessageSerializer"/> (legacy switch path).
 ///
+/// <para>
+/// Exceptions: <see cref="LogMessage"/> and <see cref="PhaseChangedMessage"/> were promoted
+/// to WireVersion 2 to carry a <c>SessionCorrelationId</c> (16 bytes). Their new-codec
+/// output intentionally diverges from the legacy serializer. Those types are excluded from
+/// this suite and covered by the explicit divergence tests in <c>LogCodecTests</c> and
+/// <c>PhaseChangedCodecTests</c>.
+/// </para>
+///
 /// This suite is the gate that must be green before the legacy serializer can be deleted.
 /// </summary>
 public class ByteParityRegressionTests
@@ -70,6 +78,14 @@ public class ByteParityRegressionTests
         foreach (var msg in MessageSamples.All())
         {
             if (msg is SetSecurePropertyMessage) continue; // tested separately above
+
+            // LogMessage and PhaseChangedMessage use WireVersion 2 which appends a 16-byte
+            // SessionCorrelationId. Their codec output intentionally differs from the legacy
+            // serializer. Skip here; divergence is asserted in LogCodecTests /
+            // PhaseChangedCodecTests.
+            if (msg is LogMessage) continue;
+            if (msg is PhaseChangedMessage) continue;
+
             yield return [msg, msg.GetType().Name];
         }
     }

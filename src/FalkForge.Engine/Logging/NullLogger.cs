@@ -8,6 +8,7 @@ using FalkForge.Engine.Protocol;
 public sealed class NullLogger : IEngineLogger
 {
     public LogLevel MinimumLevel { get; set; } = LogLevel.Info;
+    public Guid SessionCorrelationId { get; set; }
 
     public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
     {

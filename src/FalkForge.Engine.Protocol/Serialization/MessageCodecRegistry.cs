@@ -10,9 +10,22 @@ namespace FalkForge.Engine.Protocol.Serialization;
 /// instance so callers do not need to thread a registry reference through the pipeline.
 /// </summary>
 /// <remarks>
-/// This is the registration site. Real codecs will be added to <c>s_codecs</c> in phase 5+;
-/// the array is intentionally empty during the registry stand-up phase so the rest of the
-/// pipeline can evolve in parallel without temporarily breaking byte parity.
+/// <para>
+/// <strong>Registration site.</strong> All codecs are registered here; each
+/// <see cref="IMessageCodec"/> declares its own <c>WireVersion</c> so per-message
+/// versioning is self-describing rather than controlled by a single global constant.
+/// </para>
+/// <para>
+/// <strong>Single-version wire contract — cross-version interop is not supported.</strong>
+/// FalkForge ships UI, Engine, and Elevation as a single atomic bundle from the same
+/// source tree; a bundle update replaces all three processes together. The registry
+/// therefore only needs to track the <em>current</em> codec for each message type.
+/// Old v1 codecs for messages that have since moved to v2 (e.g.
+/// <c>LogMessage</c> and <c>PhaseChangedMessage</c>) are intentionally absent — they
+/// would never be reached in production because the peer process is always at the same
+/// version. If cross-version interop ever becomes a requirement it must be designed
+/// explicitly and is out of scope for the current release.
+/// </para>
 /// </remarks>
 public static class MessageCodecRegistry
 {

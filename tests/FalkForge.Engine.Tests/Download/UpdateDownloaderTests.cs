@@ -73,6 +73,7 @@ public sealed class UpdateDownloaderTests
         public List<string> Warnings { get; } = new();
 
         public LogLevel MinimumLevel { get; set; } = LogLevel.Debug;
+        public Guid SessionCorrelationId { get; set; }
 
         public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
         {

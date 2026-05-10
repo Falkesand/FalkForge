@@ -216,6 +216,8 @@ public sealed class PipelinePortsContractTests
     {
         public List<PipelineEvent> SentEvents { get; } = [];
 
+        public void SetSessionCorrelationId(Guid id) { /* no-op in contract test */ }
+
         public Task SendAsync(PipelineEvent evt, CancellationToken ct)
         {
             SentEvents.Add(evt);

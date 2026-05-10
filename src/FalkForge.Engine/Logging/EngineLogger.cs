@@ -47,6 +47,9 @@ public sealed class EngineLogger : IEngineLogger
 
     public LogLevel MinimumLevel { get; set; } = LogLevel.Info;
 
+    /// <inheritdoc/>
+    public Guid SessionCorrelationId { get; set; }
+
     public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
     {
         if (_disposed)
@@ -55,7 +58,7 @@ public sealed class EngineLogger : IEngineLogger
         if (level < MinimumLevel)
             return;
 
-        var entry = new LogEntry(DateTimeOffset.UtcNow, level, category, message, properties);
+        var entry = new LogEntry(DateTimeOffset.UtcNow, level, category, message, properties, SessionCorrelationId);
 
         _queue.Enqueue(entry);
         _pipeCallback?.Invoke(entry);
@@ -125,6 +128,13 @@ public sealed class EngineLogger : IEngineLogger
         _writer.Write(entry.Message);
         _writer.Write('\t');
         _writer.Write(propertiesJson);
+        _writer.Write('\t');
+        // Correlation id: standard "D" format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+        // Written as empty string when Guid.Empty to preserve backward-compat with existing
+        // log parsers that may not know about this column.
+        _writer.Write(entry.SessionCorrelationId == Guid.Empty
+            ? string.Empty
+            : entry.SessionCorrelationId.ToString("D"));
         _writer.WriteLine();
     }
 

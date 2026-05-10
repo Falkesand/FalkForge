@@ -121,18 +121,39 @@ public class VersionNegotiationTests
     // --- Global registry has all current-wire codecs ---
 
     [Fact]
-    public void GlobalRegistry_resolves_all_28_message_types_at_v1()
+    public void GlobalRegistry_resolves_all_28_message_types_at_their_minimum_wire_version()
     {
+        // Log and PhaseChanged were promoted to WireVersion 2 to carry SessionCorrelationId.
+        // All other types remain at WireVersion 1. Verify each type resolves at its own
+        // minimum supported version (not necessarily 1).
+        var v2Types = new HashSet<MessageType>
+        {
+            MessageType.Log,
+            MessageType.PhaseChanged,
+        };
+
         var types = Enum.GetValues<MessageType>();
         var failures = new List<string>();
 
         foreach (var type in types)
         {
-            var result = MessageCodecRegistry.ForRead(type, 1);
+            var minVersion = v2Types.Contains(type) ? (ushort)2 : (ushort)1;
+            var result = MessageCodecRegistry.ForRead(type, minVersion);
             if (result.IsFailure)
-                failures.Add(type.ToString());
+                failures.Add($"{type} (v{minVersion})");
         }
 
         Assert.Empty(failures);
+    }
+
+    [Fact]
+    public void GlobalRegistry_Log_and_PhaseChanged_not_resolvable_at_v1()
+    {
+        // WHY: Log and PhaseChanged were promoted to WireVersion 2. A peer that only
+        // knows WireVersion 1 for these types must fail fast rather than silently drop
+        // the SessionCorrelationId field. Single-version contract means we do not need
+        // to support legacy v1 frames for these two types.
+        Assert.True(MessageCodecRegistry.ForRead(MessageType.Log, 1).IsFailure);
+        Assert.True(MessageCodecRegistry.ForRead(MessageType.PhaseChanged, 1).IsFailure);
     }
 }

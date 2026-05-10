@@ -21,7 +21,19 @@ namespace FalkForge.Engine.Protocol.Serialization;
 /// </remarks>
 public static class MessageSerializer
 {
-    /// <summary>The wire-format version this facade emits.</summary>
+    /// <summary>
+    /// Frame-header wire version written into every outgoing message frame
+    /// (<c>[wireVersion:u16][type:u16][payloadLength:i32][payload]</c>).
+    /// </summary>
+    /// <remarks>
+    /// This is the <em>framing</em> version, not the per-message payload version.
+    /// Per-message versioning is declared by each <see cref="IMessageCodec"/> via
+    /// its <c>WireVersion</c> property; see <see cref="MessageCodecRegistry"/> for
+    /// the single-version contract rationale. <see cref="MessageDeserializer"/> passes
+    /// the framing version to <see cref="MessageCodecRegistry.ForRead"/> so read-side
+    /// codec selection can account for it, but in practice all registered codecs target
+    /// the same single version as FalkForge processes are always updated atomically.
+    /// </remarks>
     public const ushort CurrentWireVersion = 1;
 
     /// <summary>

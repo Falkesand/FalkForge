@@ -15,6 +15,9 @@ public sealed class ListLogger : IEngineLogger
     /// <inheritdoc/>
     public LogLevel MinimumLevel { get; set; } = LogLevel.Verbose;
 
+    /// <inheritdoc/>
+    public Guid SessionCorrelationId { get; set; }
+
     /// <summary>All log entries written since construction.</summary>
     public IReadOnlyList<LogEntry> Entries
     {
@@ -39,7 +42,8 @@ public sealed class ListLogger : IEngineLogger
                 Level: level,
                 Category: category,
                 Message: message,
-                Properties: properties));
+                Properties: properties,
+                SessionCorrelationId: SessionCorrelationId));
         }
     }
 

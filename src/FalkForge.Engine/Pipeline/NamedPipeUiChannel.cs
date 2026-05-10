@@ -36,6 +36,11 @@ public sealed class NamedPipeUiChannel : IUiChannel
     private readonly ConcurrentDictionary<string, SensitiveBytes> _pendingSecureProperties =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Session correlation id stamped on outgoing Log and PhaseChanged messages.
+    // Set once by EngineSession before any events are sent. Volatile write is safe
+    // because only the engine thread sets it (before any SendAsync calls).
+    private Guid _sessionCorrelationId;
+
     private NamedPipeUiChannel(PipeServer? pipe)
     {
         _pipe = pipe;
@@ -85,12 +90,20 @@ public sealed class NamedPipeUiChannel : IUiChannel
     // IUiChannel
     // ──────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Sets the session correlation id that will be stamped on outgoing
+    /// <see cref="LogMessage"/> and <see cref="PhaseChangedMessage"/> frames.
+    /// Called once by <see cref="FalkForge.Engine.EngineSession"/> at session start.
+    /// </summary>
+    public void SetSessionCorrelationId(Guid correlationId) =>
+        _sessionCorrelationId = correlationId;
+
     /// <inheritdoc/>
     public async Task SendAsync(PipelineEvent evt, CancellationToken ct)
     {
         if (_pipe is null || !_pipe.IsConnected) return;
 
-        var message = TranslateEvent(evt);
+        var message = TranslateEvent(evt, _sessionCorrelationId);
         if (message is null) return;
 
         await _pipe.SendAsync(message, ct);
@@ -124,9 +137,19 @@ public sealed class NamedPipeUiChannel : IUiChannel
     /// <see cref="EngineMessage"/>. Returns null for event types with no wire mapping
     /// (e.g. <see cref="PipelineEvent.RollbackStep"/> is logged as a text message).
     /// </summary>
-    internal static EngineMessage? TranslateEvent(PipelineEvent evt) => evt switch
+    /// <param name="evt">The pipeline event to translate.</param>
+    /// <param name="correlationId">
+    /// Session correlation id stamped on <see cref="LogMessage"/> and
+    /// <see cref="PhaseChangedMessage"/> frames. Pass <see cref="Guid.Empty"/> (default)
+    /// when no session id is available (e.g. in unit tests).
+    /// </param>
+    internal static EngineMessage? TranslateEvent(PipelineEvent evt, Guid correlationId = default) => evt switch
     {
-        PipelineEvent.PhaseChanged(var phase) => new PhaseChangedMessage { Phase = phase },
+        PipelineEvent.PhaseChanged(var phase) => new PhaseChangedMessage
+        {
+            Phase = phase,
+            SessionCorrelationId = correlationId,
+        },
 
         PipelineEvent.Progress(var pct, var msg) => new ProgressMessage
         {
@@ -137,14 +160,20 @@ public sealed class NamedPipeUiChannel : IUiChannel
                 PackagePercent: pct)
         },
 
-        PipelineEvent.Log(var level, var text) => new LogMessage { Level = level, Text = text },
+        PipelineEvent.Log(var level, var text) => new LogMessage
+        {
+            Level = level,
+            Text = text,
+            SessionCorrelationId = correlationId,
+        },
 
         PipelineEvent.Failed(var kind, var message) => new ErrorMessage { Kind = kind, Message = message },
 
         PipelineEvent.RollbackStep(var step) => new LogMessage
         {
             Level = step.Succeeded ? LogLevel.Info : LogLevel.Warning,
-            Text = $"Rollback [{step.OperationKind}] {step.Target}: {(step.Succeeded ? "ok" : step.Error?.Message ?? "failed")}"
+            Text = $"Rollback [{step.OperationKind}] {step.Target}: {(step.Succeeded ? "ok" : step.Error?.Message ?? "failed")}",
+            SessionCorrelationId = correlationId,
         },
 
         PipelineEvent.UpdateAvailable(var version, var url, var notes) =>

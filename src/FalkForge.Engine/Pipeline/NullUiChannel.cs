@@ -14,6 +14,9 @@ internal sealed class NullUiChannel : IUiChannel
     private NullUiChannel() { }
 
     /// <inheritdoc/>
+    public void SetSessionCorrelationId(Guid id) { /* headless — no wire frames to stamp */ }
+
+    /// <inheritdoc/>
     public Task SendAsync(PipelineEvent evt, CancellationToken ct) => Task.CompletedTask;
 
     /// <inheritdoc/>

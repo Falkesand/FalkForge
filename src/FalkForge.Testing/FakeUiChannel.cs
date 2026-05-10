@@ -27,6 +27,17 @@ public sealed class FakeUiChannel : IUiChannel
     }
 
     /// <summary>
+    /// The last session correlation id received via
+    /// <see cref="SetSessionCorrelationId"/>. <see cref="Guid.Empty"/> until set.
+    /// Exposed so tests can assert that <c>EngineSession.BindToChannel</c>
+    /// propagates the id to the channel.
+    /// </summary>
+    public Guid LastSessionCorrelationId { get; private set; }
+
+    /// <inheritdoc/>
+    public void SetSessionCorrelationId(Guid id) => LastSessionCorrelationId = id;
+
+    /// <summary>
     /// Injects a <see cref="UiRequest"/> that will be yielded by
     /// <see cref="ReadRequestsAsync"/>. Call <see cref="Complete"/> when done
     /// to end the request stream.

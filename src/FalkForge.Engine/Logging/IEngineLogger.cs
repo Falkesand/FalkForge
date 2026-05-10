@@ -14,6 +14,14 @@ public interface IEngineLogger : IDisposable
     LogLevel MinimumLevel { get; set; }
 
     /// <summary>
+    /// Session correlation id stamped on every <see cref="LogEntry"/> and forwarded
+    /// in <see cref="FalkForge.Engine.Protocol.Messages.LogMessage"/> frames so that
+    /// log streams from the UI, Engine, and Elevation processes can be correlated.
+    /// Set once at session start before any log calls.
+    /// </summary>
+    Guid SessionCorrelationId { get; set; }
+
+    /// <summary>
     /// Logs an entry at the specified level with optional structured properties.
     /// </summary>
     void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null);

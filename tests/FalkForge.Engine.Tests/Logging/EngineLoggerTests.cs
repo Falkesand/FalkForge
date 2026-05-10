@@ -77,12 +77,13 @@ public sealed class EngineLoggerTests : IDisposable
         var lines = File.ReadAllLines(path);
         var parts = lines[0].Split('\t');
 
-        // Format: {ISO8601}\t{LEVEL}\t{CATEGORY}\t{MESSAGE}\t{PROPERTIES_JSON_OR_EMPTY}
-        Assert.Equal(5, parts.Length);
+        // Format: {ISO8601}\t{LEVEL}\t{CATEGORY}\t{MESSAGE}\t{PROPERTIES_JSON_OR_EMPTY}\t{SESSION_CORRELATION_ID}
+        Assert.Equal(6, parts.Length);
         Assert.Equal("INFO", parts[1]);
         Assert.Equal("Cat", parts[2]);
         Assert.Equal("Msg", parts[3]);
         Assert.Equal(string.Empty, parts[4]);
+        Assert.Equal(string.Empty, parts[5]); // no correlationId set = empty
     }
 
     [Fact]
@@ -215,7 +216,7 @@ public sealed class EngineLoggerTests : IDisposable
 
         var lines = File.ReadAllLines(path);
         var parts = lines[0].Split('\t');
-        Assert.Equal(5, parts.Length);
+        Assert.Equal(6, parts.Length);
 
         var json = parts[4];
         Assert.Contains("\"PackageId\":\"MyApp\"", json);
@@ -493,5 +494,45 @@ public sealed class EngineLoggerTests : IDisposable
         using var reader = new StreamReader(fs);
         var content = reader.ReadToEnd();
         Assert.Contains("Something went wrong", content);
+    }
+
+    [Fact]
+    public void SessionCorrelationId_WrittenToLogFileEntries()
+    {
+        // WHY: Each log line must carry the session correlation id so that logs from
+        // multiple concurrent processes (UI, Engine, Elevation) can be correlated.
+        var path = GetLogPath();
+        var correlationId = Guid.NewGuid();
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.SessionCorrelationId = correlationId;
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Info("Cat", "Correlated message");
+        }
+
+        var lines = File.ReadAllLines(path);
+        Assert.Single(lines);
+        Assert.Contains(correlationId.ToString("D"), lines[0]);
+    }
+
+    [Fact]
+    public void PipeCallback_EntryCarriesSessionCorrelationId()
+    {
+        // WHY: The pipe callback converts LogEntry to LogMessage for the UI; the
+        // SessionCorrelationId on the entry must flow through to the wire message.
+        var path = GetLogPath();
+        var correlationId = Guid.NewGuid();
+        LogEntry? captured = null;
+
+        using (var logger = new EngineLogger(path, entry => captured = entry))
+        {
+            logger.SessionCorrelationId = correlationId;
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Info("Cat", "Msg");
+        }
+
+        Assert.NotNull(captured);
+        Assert.Equal(correlationId, captured!.Value.SessionCorrelationId);
     }
 }

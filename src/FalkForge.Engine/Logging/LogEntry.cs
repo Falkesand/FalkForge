@@ -10,4 +10,5 @@ public readonly record struct LogEntry(
     LogLevel Level,
     string Category,
     string Message,
-    IReadOnlyDictionary<string, string>? Properties);
+    IReadOnlyDictionary<string, string>? Properties,
+    Guid SessionCorrelationId = default);

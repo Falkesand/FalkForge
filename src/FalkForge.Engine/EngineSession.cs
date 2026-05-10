@@ -60,6 +60,21 @@ public sealed class EngineSession : IAsyncDisposable
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Session correlation id helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates a new session correlation id and stamps it on the supplied logger.
+    /// Called once during factory construction so every log entry in this session
+    /// carries the same id.
+    /// </summary>
+    private static void StampCorrelationId(IEngineLogger? logger)
+    {
+        if (logger is null) return;
+        logger.SessionCorrelationId = Guid.NewGuid();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Production entry point
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -96,6 +111,10 @@ public sealed class EngineSession : IAsyncDisposable
             logger = fileLogger;
             logFilePath = resolvedPath;
         }
+
+        // Assign a unique correlation id for this session so log entries from all
+        // three processes (UI, Engine, Elevation) can be correlated.
+        StampCorrelationId(logger);
 
         // ── Manifest ────────────────────────────────────────────────────────
         InstallerManifest manifest;
@@ -134,6 +153,10 @@ public sealed class EngineSession : IAsyncDisposable
         {
             uiChannel = NamedPipeUiChannel.CreateNullChannel();
         }
+
+        // Propagate the session correlation id to the channel so that outgoing
+        // LogMessage and PhaseChangedMessage frames carry the same id as the log file.
+        uiChannel.SetSessionCorrelationId(logger.SessionCorrelationId);
 
         // ── Platform services ───────────────────────────────────────────────
         var platform = new WindowsPlatformServices();
@@ -221,6 +244,16 @@ public sealed class EngineSession : IAsyncDisposable
         options ??= new EngineSessionOptions();
 
         var logger = options.Logger;
+
+        // Assign a unique correlation id so test-mode log entries are also correlated.
+        StampCorrelationId(logger);
+
+        // Propagate the correlation id to the channel via the IUiChannel contract —
+        // no pattern match needed; all implementations (production and test doubles)
+        // must honour this method.
+        if (logger is not null)
+            channel.SetSessionCorrelationId(logger.SessionCorrelationId);
+
         var pipeline = new InstallerPipelineBuilder()
             .WithUiChannel(channel)
             .Build();
@@ -353,6 +386,8 @@ public sealed class EngineSession : IAsyncDisposable
         public bool CompletingEmitted { get; private set; }
 
         public ObservingUiChannel(IUiChannel inner) => _inner = inner;
+
+        public void SetSessionCorrelationId(Guid id) => _inner.SetSessionCorrelationId(id);
 
         public Task SendAsync(PipelineEvent evt, CancellationToken ct)
         {
