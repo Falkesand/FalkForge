@@ -55,7 +55,7 @@ public static class InstanceLock
         Semaphore? sem = null;
         try
         {
-            sem = new Semaphore(initialCount: 1, maximumCount: 1, name: mutexName, out var createdNew);
+            sem = new Semaphore(initialCount: 1, maximumCount: 1, name: mutexName, out _);
 
             // WaitOne(0) = non-blocking: returns true only if a permit is available.
             var acquired = sem.WaitOne(millisecondsTimeout: 0);

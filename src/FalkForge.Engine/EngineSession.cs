@@ -263,16 +263,10 @@ public sealed class EngineSession : IAsyncDisposable
         var platform = new WindowsPlatformServices();
         var processRunner = new ProcessRunner();
 
-        // Fix 4: cap automatic redirects at 5 to prevent redirect-loop hangs.
-        // Default SocketsHttpHandler allows up to 50 redirects which is too permissive
-        // for an installer that should fail loud on misconfigured CDN redirects.
-        var socketsHandler = new SocketsHttpHandler
-        {
-            MaxAutomaticRedirections = 5,
-            AllowAutoRedirect = true
-        };
-        using var httpClient = new HttpClient(socketsHandler) { Timeout = TimeSpan.FromSeconds(15) };
-        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("FalkForge-Engine/1.0");
+        // Note: production payload-download wiring is not yet present. When PayloadDownloader
+        // / UpdateChecker / HttpPayloadSource are constructed in the live engine, build their
+        // HttpClient via EngineHttpClientFactory.Create() so the redirect cap is enforced
+        // consistently. Unit tests already cover the cap behavior at the downloader level.
 
         var msiExecutor = new MsiExecutor(
             static () => null,

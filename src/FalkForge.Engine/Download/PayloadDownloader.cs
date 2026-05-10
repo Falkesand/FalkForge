@@ -185,7 +185,8 @@ public sealed class PayloadDownloader
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                // Keep the partial file if the caller wants resume capability.
+                // Caller-driven cancellation. Keep partial file when caller opted into resume
+                // so a later attempt can pick up where this one left off.
                 if (!allowResume)
                     TryDeleteFile(partialPath);
 
@@ -195,16 +196,25 @@ public sealed class PayloadDownloader
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
             {
+                // Retry path covers three failure modes:
+                //  - HttpRequestException / IOException: transient network/IO failure
+                //  - OperationCanceledException with ct NOT cancelled: per-attempt timeout
+                //    (timeoutCts) or per-chunk idle stall (idleCts) — both should retry
+                //    and respect resume because the partial bytes already on disk are valid.
                 lastException = ex;
-                TryDeleteFile(partialPath);
+                if (!allowResume)
+                    TryDeleteFile(partialPath);
                 TryDeleteFile(fullPath);
             }
         }
 
         EngineMeter.RecordPayloadDownload(success: false, sizeBytes: 0L, kind);
+        var failureDetail = lastException is OperationCanceledException
+            ? "per-attempt timeout or idle stall"
+            : lastException?.Message ?? "(no exception captured)";
         return Result<string>.Failure(
             ErrorKind.DownloadError,
-            $"Failed to download {url} after {MaxRetries} attempts: {lastException?.Message}");
+            $"Failed to download {url} after {MaxRetries} attempts: {failureDetail}");
     }
 
     /// <summary>
