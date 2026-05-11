@@ -14,7 +14,8 @@ public sealed record DemoExpectation(
     string ProjectPath,
     DemoOutputType OutputType,
     string[] RequiredTables,
-    bool RequiresInfrastructure = false)
+    bool RequiresInfrastructure = false,
+    string? RoundTripSkipReason = null)
 {
     public override string ToString() => Name;
 }
