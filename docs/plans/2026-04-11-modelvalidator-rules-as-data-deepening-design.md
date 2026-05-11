@@ -1,6 +1,6 @@
 # RFC: Deepen ModelValidator into a rules-as-data engine
 
-**Status:** Design accepted, implementation plan pending
+**Status:** COMPLETED 2026-05-11 — all 18 phases shipped on `main`. Phases 1–12: commits b66f113, f0cc78f, ea8990f, 1024374, 4b0fd55, 1b1fe99, 043c45c, 790b874, 6b8c00b, 5702426 (per-area rule engine + facades). Phase 15: 3fbcb6e (call-site migration). Phase 13/14: 31767b5, 24ed6e1, a37fabf, e996f71, db87190, 926a5c3, 0450cba (extension rule merge + Firewall/Dependency/IIS/SQL/Util migrations). Phase 16: a91d675, f2fdc13, a9b9859, 7f98dcf (legacy deletion). Phase 17: 6d84941, b81258e, 4d4483f (CLI flags). Phase 18: 5cf5cd5 (architecture doc + plugin-extensibility refresh).
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Core/Validation/`, `src/FalkForge.Extensibility/`, `src/FalkForge.Extensions.*/`, `tests/FalkForge.Core.Tests/Validation/`
 
