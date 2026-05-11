@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Tests.Bootstrap.Native;
 
+using System.Runtime.Versioning;
 using FalkForge.Engine.Bootstrap.Native;
 using Xunit;
 
@@ -8,6 +9,7 @@ using Xunit;
 /// All tests are headless — no real dialog is shown. A fake <see cref="IDialogDriver"/> is
 /// injected so the callback path can be exercised without comctl32.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public sealed class TaskDialogProgressTests
 {
     // ── Fake driver ──────────────────────────────────────────────────────────

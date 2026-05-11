@@ -8,6 +8,8 @@
     <IlcOptimizationPreference>Size</IlcOptimizationPreference>
     <!-- Required for P/Invoke interop with native Windows APIs (MSI, Restart Manager) -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- comctl32 v6 app manifest — required for TaskDialogIndirect (pre-UI progress dialog) -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Octopus.Octodiff" />
