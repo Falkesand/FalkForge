@@ -432,6 +432,7 @@ mutation-reports/
 .claude/scheduled_tasks.lock
 .pipeline-complete
 reports/
+.testrunner/
 
 # Knowledge graph output (regenerable via graphify update .)
 graphify-out/
