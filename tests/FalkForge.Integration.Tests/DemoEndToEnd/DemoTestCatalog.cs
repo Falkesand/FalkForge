@@ -60,26 +60,17 @@ public static class DemoTestCatalog
             DemoOutputType.Msi,
             WithExtra("Environment", "Registry")),
 
-        // Round-trip skip: all files are added via feature.Files(...) inside feature lambdas.
-        // FeatureBuilder._files is silently dropped by PackageBuilder.Feature() — the compiled
-        // MSI has no File table rows. Write-side compiler bug; tracked separately for fixing.
         new("05-enterprise-suite",
             DemoProject("05-enterprise-suite", "05-enterprise-suite.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RoundTripSkipReason: "FeatureBuilder._files dropped by PackageBuilder.Feature(): " +
-                "feature-scoped files never reach the compiled MSI (write-side bug, tracked separately)."),
+            BaseMsiTables),
 
         // 07-extensions-showcase: Firewall/IIS/SQL/DotNet/Util extensions configure models only at build
         // time; no OS service contact during compilation. Payload files present in repo.
-        // Round-trip skip: the single file is added inside a feature lambda (feature.Files(...)).
-        // FeatureBuilder._files is silently dropped — compiled MSI has no File table rows (write-side bug).
         new("07-extensions-showcase",
             DemoProject("07-extensions-showcase", "07-extensions-showcase.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables,
-            RoundTripSkipReason: "FeatureBuilder._files dropped by PackageBuilder.Feature(): " +
-                "feature-scoped files never reach the compiled MSI (write-side bug, tracked separately)."),
+            BaseMsiTables),
 
         new("08-localization",
             DemoProject("08-localization", "08-localization.csproj"),
@@ -121,14 +112,10 @@ public static class DemoTestCatalog
         // === Tier 1: Standard MSI (base tables only or common extras) ===
 
         // 16-features: nested feature tree + MajorUpgrade → Upgrade table
-        // Round-trip skip: all files added via feature.Files(...) inside feature lambdas.
-        // FeatureBuilder._files is silently dropped — compiled MSI has no File table rows (write-side bug).
         new("16-features",
             DemoProject("16-features", "16-features.csproj"),
             DemoOutputType.Msi,
-            WithExtra("Upgrade"),
-            RoundTripSkipReason: "FeatureBuilder._files dropped by PackageBuilder.Feature(): " +
-                "feature-scoped files never reach the compiled MSI (write-side bug, tracked separately)."),
+            WithExtra("Upgrade")),
 
         // 18-environment-variables: system + user env vars → Environment table
         new("18-environment-variables",
