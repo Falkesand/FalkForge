@@ -61,6 +61,11 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
         _logger = logger;
     }
 
+    // Sentinel exit code used when a SourcePath fails path-traversal validation.
+    // Chosen as -1 so it is distinct from every valid Windows exit code (which are
+    // unsigned 32-bit values when interpreted as HRESULT, but stored in int).
+    private const int ExitCodePathTraversalRejected = -1;
+
     /// <summary>
     /// Runs all <paramref name="missing"/> packages sequentially.
     /// Returns a <see cref="PreUIResult"/> discriminated union describing the outcome.
@@ -84,7 +89,31 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
             progress.SetPercent(percentBefore);
             progress.SetMessage($"Installing {pkg.DisplayName}...");
 
-            string exePath = Path.Combine(_extractionDir, "preui", pkg.SourcePath);
+            // ── Path-traversal guard (three-layer defense) ────────────────────
+            // Layer 1: reject obviously unsafe inputs before any Path API call.
+            if (!IsSourcePathSafe(pkg.SourcePath))
+            {
+                _logger?.Error(Category,
+                    $"Package '{pkg.DisplayName}' has an unsafe SourcePath: '{pkg.SourcePath}'. " +
+                    "Rejecting to prevent path-traversal to arbitrary executables.");
+                return new PreUIResult.Failed(pkg, ExitCodePathTraversalRejected);
+            }
+
+            // Layer 2 & 3: resolve and verify containment within <cacheDir>/preui/.
+            var preuiRoot = Path.GetFullPath(Path.Combine(_extractionDir, "preui"));
+            var resolved  = Path.GetFullPath(Path.Combine(preuiRoot, pkg.SourcePath));
+
+            // The resolved path must be strictly under preuiRoot (with trailing separator).
+            var containmentBase = preuiRoot + Path.DirectorySeparatorChar;
+            if (!resolved.StartsWith(containmentBase, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger?.Error(Category,
+                    $"Package '{pkg.DisplayName}' SourcePath '{pkg.SourcePath}' resolves outside " +
+                    $"the preui directory. Resolved: '{resolved}'. Rejecting.");
+                return new PreUIResult.Failed(pkg, ExitCodePathTraversalRejected);
+            }
+
+            string exePath = resolved;
 
             int? capturedPid = null;
 
@@ -161,5 +190,46 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
             $"Package '{pkg.DisplayName}' exited with 3010 (soft reboot deferred). " +
             "Continuing to next prerequisite.");
         return null; // continue
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> if <paramref name="sourcePath"/> is safe to use as a
+    /// relative path component under the <c>preui/</c> subdirectory.
+    /// </summary>
+    /// <remarks>
+    /// This is Layer 1 of the three-layer path-traversal defense (see <see cref="RunAllAsync"/>).
+    /// It rejects inputs that no safe path should ever contain before any <see cref="Path"/> API
+    /// call can be made:
+    /// <list type="bullet">
+    ///   <item>Rooted paths: <c>C:\…</c>, <c>/…</c>, <c>\\server\…</c> — bypass containment entirely.</item>
+    ///   <item>Colons (non-drive): <c>foo.exe:stream</c> — NTFS alternate data streams.</item>
+    ///   <item>Device namespace prefixes: <c>\\?\</c>, <c>\\.\</c> — Win32 extended paths that bypass
+    ///         many security checks.</item>
+    ///   <item>Empty or whitespace: no valid payload name.</item>
+    /// </list>
+    /// Layer 2 (<see cref="Path.GetFullPath"/> + containment check) catches obfuscated traversal
+    /// sequences that pass Layer 1 (e.g., <c>sub/../../../evil.exe</c>).
+    /// </remarks>
+    private static bool IsSourcePathSafe(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+            return false;
+
+        // Reject rooted paths (absolute paths on any drive, UNC paths, Unix-style roots).
+        if (Path.IsPathRooted(sourcePath))
+            return false;
+
+        // Reject NTFS alternate data streams: any colon after position 0.
+        // (Position 0 colon would make it rooted and caught above on Windows, but be explicit.)
+        if (sourcePath.Contains(':', StringComparison.Ordinal))
+            return false;
+
+        // Reject Win32 device namespace prefixes that bypass path normalisation.
+        // These would cause Path.GetFullPath to behave unexpectedly.
+        if (sourcePath.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase) ||
+            sourcePath.StartsWith(@"\\.\", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return true;
     }
 }

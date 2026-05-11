@@ -73,12 +73,17 @@ public sealed class PreUIBootstrapOrchestrator
         IProgressSinkFactory progressFactory,
         IEngineLogger? logger = null)
     {
-        _detector       = detector;
-        _installer      = installer;
-        _elevationProbe = elevationProbe;
-        _relauncher     = relauncher;
+        ArgumentNullException.ThrowIfNull(detector);
+        ArgumentNullException.ThrowIfNull(installer);
+        ArgumentNullException.ThrowIfNull(elevationProbe);
+        ArgumentNullException.ThrowIfNull(relauncher);
+        ArgumentNullException.ThrowIfNull(progressFactory);
+        _detector        = detector;
+        _installer       = installer;
+        _elevationProbe  = elevationProbe;
+        _relauncher      = relauncher;
         _progressFactory = progressFactory;
-        _logger         = logger;
+        _logger          = logger;
     }
 
     /// <summary>
@@ -114,7 +119,7 @@ public sealed class PreUIBootstrapOrchestrator
                 return PreUIBootstrapOutcome.ExitSuccess;
             }
 
-            return await InstallAndMapOutcomeAsync(missing, isElevatedChild: true, ct);
+            return await InstallAndMapOutcomeAsync(missing, isElevatedChild: true, ct).ConfigureAwait(false);
         }
 
         // Paths 3 & 4 — detect first (common to both remaining branches).
@@ -131,7 +136,7 @@ public sealed class PreUIBootstrapOrchestrator
         if (_elevationProbe.IsElevated())
         {
             _logger?.Info(Category, $"{missingPackages.Count} prerequisite(s) missing — process already elevated, installing in-process.");
-            return await InstallAndMapOutcomeAsync(missingPackages, isElevatedChild: false, ct);
+            return await InstallAndMapOutcomeAsync(missingPackages, isElevatedChild: false, ct).ConfigureAwait(false);
         }
 
         // Path 4 — unelevated with missing packages: relaunch elevated.
@@ -159,7 +164,7 @@ public sealed class PreUIBootstrapOrchestrator
         CancellationToken ct)
     {
         using var sink = _progressFactory.Create();
-        var result = await _installer.RunAllAsync(missing, sink, ct);
+        var result = await _installer.RunAllAsync(missing, sink, ct).ConfigureAwait(false);
 
         return result switch
         {

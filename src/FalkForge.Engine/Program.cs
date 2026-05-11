@@ -402,20 +402,41 @@ internal static class Program
 
         // Phase 3+: pre-UI prerequisite bootstrap. Detects missing prerequisites, elevates
         // if needed, installs them, and returns the action the bootstrapper should take.
+        // Wire Ctrl-C to cancel the bootstrap so mid-install interruption terminates child
+        // processes via IProcessRunner.KillTree instead of orphaning them.
         {
-            var orchestrator = new PreUIBootstrapOrchestrator(
-                new DefaultPreUIPrerequisiteDetector(),
-                new PreUIPrerequisiteInstaller(new ProcessRunner(), cacheDir),
-                new DefaultElevationProbe(),
-                new DefaultElevatedSelfRelauncher(),
-                new TaskDialogProgressSinkFactory());
+            using var bootstrapCts = new CancellationTokenSource();
+            Console.CancelKeyPress += BootstrapCancelHandler;
 
-            var bootstrapOutcome = await orchestrator.RunAsync(
-                manifest,
-                bootstrapperArgs ?? BootstrapperArgs.Default,
-                extractionDir: cacheDir,
-                ownExecutablePath: exePath,
-                ct: CancellationToken.None);
+            void BootstrapCancelHandler(object? sender, ConsoleCancelEventArgs e)
+            {
+                e.Cancel = true; // prevent default process termination; let us clean up
+                bootstrapCts.Cancel();
+            }
+
+            PreUIBootstrapOutcome bootstrapOutcome;
+            try
+            {
+                var orchestrator = new PreUIBootstrapOrchestrator(
+                    new DefaultPreUIPrerequisiteDetector(),
+                    new PreUIPrerequisiteInstaller(new ProcessRunner(), cacheDir),
+                    new DefaultElevationProbe(),
+                    new DefaultElevatedSelfRelauncher(),
+                    new TaskDialogProgressSinkFactory());
+
+                bootstrapOutcome = await orchestrator.RunAsync(
+                    manifest,
+                    bootstrapperArgs ?? BootstrapperArgs.Default,
+                    extractionDir: cacheDir,
+                    ownExecutablePath: exePath,
+                    ct: bootstrapCts.Token);
+            }
+            finally
+            {
+                // Unregister the handler so it does not fire during the UI launch phase,
+                // where the UI process will install its own Ctrl-C handling.
+                Console.CancelKeyPress -= BootstrapCancelHandler;
+            }
 
             switch (bootstrapOutcome)
             {
