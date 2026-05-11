@@ -424,3 +424,11 @@ mutation-reports/
 .mutantnet/
 **/bin/
 **/obj/
+
+# Tool artifacts
+**/.quickdup/
+.lean-ctx/
+.graphify_python
+.claude/scheduled_tasks.lock
+.pipeline-complete
+reports/
