@@ -59,6 +59,17 @@ public sealed record EngineSessionOptions
     /// </summary>
     public bool WriteJournal { get; init; } = true;
 
+    /// <summary>
+    /// Optional clock used to stamp the log filename when <see cref="LogDirectory"/> is
+    /// provided (the branch that builds <c>install_{timestamp}.log</c> inline).
+    /// Also forwarded to <see cref="EngineLogger.GetDefaultLogPath"/> when neither
+    /// <see cref="LogPath"/> nor <see cref="LogDirectory"/> is set.
+    /// When <c>null</c>, real wall-clock time is used (production default).
+    /// Primarily for test isolation — inject a <see cref="FalkForge.Testing.FakeClock"/>
+    /// to make log-path assertions deterministic.
+    /// </summary>
+    public ISystemClock? Clock { get; init; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Test-only injection point (exposed via EngineSession.BindToChannel)
     // ──────────────────────────────────────────────────────────────────────────

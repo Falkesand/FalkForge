@@ -182,8 +182,8 @@ public sealed class EngineSession : IAsyncDisposable
             // Resolution order: explicit LogPath → LogDirectory → default temp path.
             var resolvedPath = options.LogPath
                 ?? (options.LogDirectory is not null
-                    ? Path.Combine(options.LogDirectory, $"install_{DateTime.UtcNow:yyyyMMdd_HHmmss}.log")
-                    : EngineLogger.GetDefaultLogPath());
+                    ? Path.Combine(options.LogDirectory, $"install_{(options.Clock?.UtcNow ?? DateTimeOffset.UtcNow).UtcDateTime:yyyyMMdd_HHmmss}.log")
+                    : EngineLogger.GetDefaultLogPath(options.Clock));
             var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
             var fileLogger = new EngineLogger(
                 resolvedPath,
@@ -348,20 +348,25 @@ public sealed class EngineSession : IAsyncDisposable
         options ??= new EngineSessionOptions();
 
         // Logger resolution: explicit Logger wins; otherwise build one from LogPath /
-        // MinimumLogLevel if either was supplied. Tests pass a per-test LogPath under TEMP
-        // so the session writes a real file and we can verify path / level handling.
+        // LogDirectory / MinimumLogLevel if any was supplied. Tests pass a per-test LogPath
+        // or LogDirectory under TEMP so the session writes a real file and we can verify
+        // path / level handling.
         IEngineLogger? logger = options.Logger;
         string? logFilePath = null;
         var channelHolder = new ChannelHolder { Channel = channel };
 
-        if (logger is null && options.LogPath is not null)
+        if (logger is null && (options.LogPath is not null || options.LogDirectory is not null))
         {
+            // Mirror the resolution order used by BindToPipe:
+            //   explicit LogPath → LogDirectory (with Clock for deterministic stamp) → default
+            var resolvedPath = options.LogPath
+                ?? Path.Combine(options.LogDirectory!, $"install_{(options.Clock?.UtcNow ?? DateTimeOffset.UtcNow).UtcDateTime:yyyyMMdd_HHmmss}.log");
             var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
             logger = new EngineLogger(
-                options.LogPath,
+                resolvedPath,
                 pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
                 minimumLevel: startingLevel);
-            logFilePath = options.LogPath;
+            logFilePath = resolvedPath;
         }
         else if (logger is not null && options.MinimumLogLevel is { } overrideLevel)
         {
