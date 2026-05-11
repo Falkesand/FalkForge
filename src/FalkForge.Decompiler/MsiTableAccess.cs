@@ -55,10 +55,19 @@ public sealed class MsiTableAccess : IMsiTableAccess
         ObjectDisposedException.ThrowIf(_disposed, this);
         ValidateIdentifier(tableName);
 
-        // Try to query the table; if it fails, the table doesn't exist
-        var sql = $"SELECT * FROM `{tableName}`";
-        var result = _database.QueryRows(sql, 1);
-        return Result<bool>.Success(result.IsSuccess);
+        // Query the _Tables system catalog to check table presence. Querying the
+        // target table directly via SELECT * is unreliable: MSI may return success
+        // with zero rows for a missing table, causing subsequent column-explicit
+        // SELECTs to fail with error 1615. _Tables is always present and reliable.
+        // MSI SQL does not support parameterised queries, so we filter in C# to
+        // avoid any SQL-injection risk from the (already-validated) identifier.
+        var result = _database.QueryRows("SELECT `Name` FROM `_Tables`", 1);
+        if (result.IsFailure)
+            return Result<bool>.Failure(result.Error);
+
+        return Result<bool>.Success(
+            result.Value.Any(row => row.Length > 0 &&
+                string.Equals(row[0], tableName, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static void ValidateIdentifier(string identifier)
