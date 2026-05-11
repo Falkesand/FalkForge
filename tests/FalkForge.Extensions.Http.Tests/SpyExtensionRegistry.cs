@@ -10,6 +10,9 @@ internal sealed class SpyExtensionRegistry : IExtensionRegistry
         => TableContributors.Add(contributor);
 
     public void RegisterComponentContributor(IComponentContributor contributor) { }
-    public void RegisterDryRunContributor(IDryRunContributor contributor) { }
+    public List<IDryRunContributor> DryRunContributors { get; } = [];
+
+    public void RegisterDryRunContributor(IDryRunContributor contributor)
+        => DryRunContributors.Add(contributor);
     public void RegisterDialogStep(IDialogStepBuilder builder) { }
 }
