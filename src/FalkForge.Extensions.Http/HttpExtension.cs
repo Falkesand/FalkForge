@@ -61,6 +61,7 @@ public sealed class HttpExtension : IFalkForgeExtension, IDryRunContributor
 
     public void Register(IExtensionRegistry registry)
     {
+        registry.RegisterDryRunContributor(this);
         registry.RegisterTableContributor(new HttpCustomActionContributor(_reservations, _bindings));
         registry.RegisterTableContributor(new HttpSequenceContributor(_reservations, _bindings));
     }

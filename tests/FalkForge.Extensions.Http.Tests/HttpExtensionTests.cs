@@ -108,4 +108,15 @@ public sealed class HttpExtensionTests
         Assert.Contains(registry.TableContributors, c => c.TableName == "CustomAction");
         Assert.Contains(registry.TableContributors, c => c.TableName == "InstallExecuteSequence");
     }
+
+    [Fact]
+    public void Register_AddsExtensionAsDryRunContributor()
+    {
+        var ext = new HttpExtension();
+        var registry = new SpyExtensionRegistry();
+
+        ext.Register(registry);
+
+        Assert.Contains(registry.DryRunContributors, c => ReferenceEquals(c, ext));
+    }
 }
