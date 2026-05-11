@@ -1,3 +1,4 @@
+using FalkForge.Engine.Pipeline;
 using FalkForge.Platform;
 
 namespace FalkForge.Testing;
@@ -6,6 +7,21 @@ public sealed class MockFileSystem : IFileSystem
 {
     private readonly Dictionary<string, MockFile> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _directories = new(StringComparer.OrdinalIgnoreCase);
+    // WHY: optional clock injection so tests that care about GetLastWriteTimeUtc
+    // get a deterministic value instead of the real wall clock.
+    private readonly ISystemClock _clock;
+
+    /// <summary>
+    /// Creates a <see cref="MockFileSystem"/>.
+    /// </summary>
+    /// <param name="clock">
+    ///     Optional clock used by <see cref="GetLastWriteTimeUtc"/>.
+    ///     Defaults to real wall-clock time when <see langword="null"/>.
+    /// </param>
+    public MockFileSystem(ISystemClock? clock = null)
+    {
+        _clock = clock ?? new SystemClock();
+    }
 
     public MockFileSystem AddFile(string path, byte[]? content = null, long? size = null)
     {
@@ -101,7 +117,7 @@ public sealed class MockFileSystem : IFileSystem
         return Convert.ToHexString(hash);
     }
 
-    public DateTime GetLastWriteTimeUtc(string path) => DateTime.UtcNow;
+    public DateTime GetLastWriteTimeUtc(string path) => _clock.UtcNow.UtcDateTime;
 
     private static string NormalizePath(string path) => path.Replace('\\', '/').TrimEnd('/');
 
