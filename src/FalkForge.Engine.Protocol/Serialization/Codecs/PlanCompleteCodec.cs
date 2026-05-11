@@ -4,16 +4,14 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="PlanCompleteMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="PlanCompleteMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>TotalDiskSpaceRequired (i64)</c>, then a length-prefixed array of
 /// package-id records, each encoded as a single length-prefixed UTF-8 string.
 /// </summary>
 internal static class PlanCompleteCodec
 {
     /// <summary>
-    /// Maximum number of package-id records accepted on the wire. Mirrors the
-    /// guard in <see cref="LegacyMessageDeserializer"/> so the codec rejects
+    /// Maximum number of package-id records accepted on the wire. Guards against
     /// malicious or corrupt payloads before allocating an oversized array.
     /// </summary>
     internal const int MaxCollectionCount = 10_000;

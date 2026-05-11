@@ -10,12 +10,11 @@ namespace FalkForge.Engine.Protocol.Serialization;
 /// (<see cref="CurrentWireVersion"/>, <see cref="MessageType"/>, payload length)
 /// followed by the codec body. The body is required to begin with the
 /// inherited <see cref="EngineMessage.SequenceId"/> so the bytes emitted by this
-/// facade are byte-for-byte identical to <see cref="LegacyMessageSerializer"/>.
+/// facade. Each codec body begins with the inherited SequenceId field.
 /// </summary>
 /// <remarks>
-/// The header layout intentionally matches <see cref="LegacyMessageSerializer"/>
-/// (<c>[wireVersion:u16][type:u16][payloadLength:i32]</c>) so that callers swapped
-/// over in phase 10 produce identical wire bytes for every registered message.
+/// Wire framing header layout: <c>[wireVersion:u16][type:u16][payloadLength:i32]</c>.
+/// Each codec body follows, beginning with SequenceId (u32), then type-specific fields.
 /// Bytes for messages without a registered codec surface as
 /// <see cref="InvalidOperationException"/>.
 /// </remarks>

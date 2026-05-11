@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="SetInstallDirectoryMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c> then
+/// Codec for <see cref="SetInstallDirectoryMessage"/>. Wire body layout: <c>SequenceId (u32)</c> then
 /// <c>Directory (length-prefixed UTF-8 string)</c>.
 /// </summary>
 internal static class SetInstallDirectoryCodec

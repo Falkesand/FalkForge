@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="SetFeatureSelectionMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="SetFeatureSelectionMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>FeatureId (length-prefixed UTF-8 string)</c>, then <c>IsSelected (bool, single byte)</c>.
 /// </summary>
 internal static class SetFeatureSelectionCodec

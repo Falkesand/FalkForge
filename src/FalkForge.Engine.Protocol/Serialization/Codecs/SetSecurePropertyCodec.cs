@@ -27,7 +27,7 @@ namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 /// messages do not leak even if the caller forgets to <c>using</c> them.
 /// </para>
 /// <para>
-/// Body layout matches <see cref="LegacyMessageSerializer"/>:
+/// Wire body layout:
 /// <c>SequenceId (u32)</c>, <c>PropertyName (length-prefixed UTF-8 string)</c>,
 /// <c>PayloadLength (i32)</c>, <c>SecureValue (raw bytes)</c>.
 /// </para>

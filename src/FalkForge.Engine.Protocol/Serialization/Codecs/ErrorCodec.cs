@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="ErrorMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="ErrorMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>Message (length-prefixed UTF-8 string)</c>, then <c>Kind (i32 enum)</c>.
 /// </summary>
 internal static class ErrorCodec

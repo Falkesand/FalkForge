@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="UpdateDownloadProgressMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="UpdateDownloadProgressMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>BytesReceived (i64)</c>, <c>TotalBytes (i64)</c>, then
 /// <c>PercentComplete (i32)</c>.
 /// </summary>

@@ -5,9 +5,8 @@ namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
 /// Codec for <see cref="ShutdownRequestMessage"/>. The message has no payload
-/// fields beyond the inherited <see cref="EngineMessage.SequenceId"/>; the codec
-/// body therefore emits only the four-byte sequence identifier so that bytes are
-/// byte-for-byte identical to <see cref="LegacyMessageSerializer"/>.
+/// fields beyond the inherited <see cref="EngineMessage.SequenceId"/>. Wire body
+/// layout: SequenceId (u32) only — no additional payload fields.
 /// </summary>
 internal static class ShutdownRequestCodec
 {

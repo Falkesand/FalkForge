@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="SetPropertyMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="SetPropertyMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>PropertyName (length-prefixed UTF-8 string)</c>, then
 /// <c>Value (length-prefixed UTF-8 string)</c>.
 /// </summary>

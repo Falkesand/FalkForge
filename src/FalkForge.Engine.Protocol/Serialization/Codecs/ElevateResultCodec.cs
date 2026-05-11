@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="ElevateResultMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="ElevateResultMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>Success (bool)</c>, <c>ErrorMessage (length-prefixed UTF-8 string,
 /// empty sentinel for null)</c>, <c>HasPayload (bool)</c>, then optionally
 /// <c>ResultPayload length (i32)</c> followed by raw payload bytes.

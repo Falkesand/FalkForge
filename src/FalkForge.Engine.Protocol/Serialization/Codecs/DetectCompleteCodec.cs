@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="DetectCompleteMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c>,
+/// Codec for <see cref="DetectCompleteMessage"/>. Wire body layout: <c>SequenceId (u32)</c>,
 /// <c>State (i32 enum)</c>, <c>CurrentVersion (length-prefixed UTF-8 string,
 /// empty sentinel for null)</c>, then a length-prefixed array of
 /// <see cref="FeatureState"/> records, each encoded as
@@ -17,8 +16,7 @@ namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 internal static class DetectCompleteCodec
 {
     /// <summary>
-    /// Maximum number of feature records accepted on the wire. Mirrors the
-    /// guard in <see cref="LegacyMessageDeserializer"/> so the codec rejects
+    /// Maximum number of feature records accepted on the wire. Guards against
     /// malicious or corrupt payloads before allocating an oversized array.
     /// </summary>
     internal const int MaxCollectionCount = 10_000;

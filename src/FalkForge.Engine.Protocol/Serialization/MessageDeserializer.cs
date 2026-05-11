@@ -13,8 +13,8 @@ namespace FalkForge.Engine.Protocol.Serialization;
 /// inherited <see cref="EngineMessage.SequenceId"/>.
 /// </summary>
 /// <remarks>
-/// The header layout matches <see cref="LegacyMessageDeserializer"/> exactly so a
-/// caller swapped over in phase 10 can read frames produced by either implementation.
+/// Wire framing header layout: <c>[wireVersion:u16][type:u16][payloadLength:i32]</c>.
+/// The codec is resolved via <see cref="MessageCodecRegistry"/> by (type, wireVersion).
 /// </remarks>
 public static class MessageDeserializer
 {

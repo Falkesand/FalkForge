@@ -4,8 +4,7 @@ using FalkForge.Engine.Protocol.Messages;
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
-/// Codec for <see cref="PlanBeginMessage"/>. Body layout matches
-/// <see cref="LegacyMessageSerializer"/>: <c>SequenceId (u32)</c> then
+/// Codec for <see cref="PlanBeginMessage"/>. Wire body layout: <c>SequenceId (u32)</c> then
 /// <c>Action (i32 enum)</c>.
 /// </summary>
 internal static class PlanBeginCodec

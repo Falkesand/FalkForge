@@ -5,8 +5,8 @@ namespace FalkForge.Engine.Protocol.Serialization.Codecs;
 
 /// <summary>
 /// Codec for <see cref="RequestApplyMessage"/>. The message has no payload beyond
-/// the inherited sequence identifier; the codec body emits only the four-byte
-/// sequence identifier to maintain byte parity with <see cref="LegacyMessageSerializer"/>.
+/// the inherited <see cref="EngineMessage.SequenceId"/>. Wire body layout:
+/// SequenceId (u32) only — no additional payload fields.
 /// </summary>
 internal static class RequestApplyCodec
 {
