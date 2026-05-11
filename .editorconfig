@@ -20,22 +20,6 @@ indent_size = 2
 [*.cs]
 
 # ─────────────────────────────────────────────────────────────
-# ClrHeapAllocationAnalyzer — informational only, not bugs
-# These guide optimization but must not block builds
-# ─────────────────────────────────────────────────────────────
-dotnet_diagnostic.HAA0101.severity = suggestion  # Array allocation for params
-dotnet_diagnostic.HAA0102.severity = suggestion  # Non-overridden virtual on value type
-dotnet_diagnostic.HAA0201.severity = suggestion  # Implicit string concatenation allocation
-dotnet_diagnostic.HAA0202.severity = suggestion  # Value type to reference type conversion (explicit)
-dotnet_diagnostic.HAA0301.severity = suggestion  # Closure allocation
-dotnet_diagnostic.HAA0302.severity = suggestion  # Display class allocation (closure captures)
-dotnet_diagnostic.HAA0303.severity = suggestion  # Lambda/delegate allocation in generic method
-dotnet_diagnostic.HAA0401.severity = suggestion  # Non-ValueType enumerator allocation
-dotnet_diagnostic.HAA0601.severity = suggestion  # Boxing allocation
-dotnet_diagnostic.HAA0602.severity = suggestion  # Delegate on struct instance method
-dotnet_diagnostic.HAA0603.severity = suggestion  # Delegate allocation from method group
-
-# ─────────────────────────────────────────────────────────────
 # Meziantou.Analyzer — code quality, fix incrementally
 # ─────────────────────────────────────────────────────────────
 dotnet_diagnostic.MA0002.severity = suggestion   # IEqualityComparer/IComparer parameter
