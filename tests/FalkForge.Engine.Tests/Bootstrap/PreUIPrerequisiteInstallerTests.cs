@@ -144,7 +144,7 @@ public sealed class PreUIPrerequisiteInstallerTests
         // Act — cancel after runner signals it has started
         var runTask = installer.RunAllAsync([pkg], sink, cts.Token);
         await runner.WaitForStartAsync();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await runTask;
 

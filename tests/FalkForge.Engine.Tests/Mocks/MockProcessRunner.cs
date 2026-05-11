@@ -41,4 +41,7 @@ public sealed class MockProcessRunner : IProcessRunner
 
         return Task.FromResult(_exitCode);
     }
+
+    /// <inheritdoc/>
+    public void KillTree(int pid) { /* no-op in mock */ }
 }

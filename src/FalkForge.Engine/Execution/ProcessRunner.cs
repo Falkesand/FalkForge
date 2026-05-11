@@ -25,4 +25,18 @@ public sealed class ProcessRunner : IProcessRunner
         await process.WaitForExitAsync(ct);
         return process.ExitCode;
     }
+
+    /// <inheritdoc/>
+    public void KillTree(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            process.Kill(entireProcessTree: true);
+        }
+        catch (ArgumentException)
+        {
+            // Process already exited — nothing to kill.
+        }
+    }
 }
