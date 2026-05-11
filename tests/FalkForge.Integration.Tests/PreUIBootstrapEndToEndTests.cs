@@ -114,12 +114,15 @@ public sealed class PreUIBootstrapEndToEndTests
         {
             Directory.CreateDirectory(tempDir);
 
-            // ── Step 1: create a stub payload file (remote-only prereq has no embedded file,
-            // but the compiler requires SourcePath to be empty string for remote payloads).
-            // Use a tiny dummy file as a stand-in embedded payload so the bundle compiles
-            // without needing a real .NET runtime installer.
+            // ── Step 1: create stub payload files ────────────────────────────
+            // Pre-UI prereq stub (stand-in for the real .NET 10 Desktop Runtime installer).
             var stubPayload = Path.Combine(tempDir, "windowsdesktop-stub.exe");
             File.WriteAllBytes(stubPayload, RandomNumberGenerator.GetBytes(64));
+
+            // A minimal chain package is required by BDL004 — the bundle must have at least
+            // one regular package in addition to any pre-UI prereqs.
+            var stubMsi = Path.Combine(tempDir, "stub-app.msi");
+            File.WriteAllBytes(stubMsi, RandomNumberGenerator.GetBytes(128));
 
             // ── Step 2: build bundle model with one PreUIPrerequisite ────────
             // Uses BuiltInPrerequisites.DotNet10DesktopAsPreUI() — this is the new helper
@@ -133,6 +136,10 @@ public sealed class PreUIBootstrapEndToEndTests
                 .Version("1.0.0")
                 .UseSilentUI()
                 .PreUIPrerequisite(preUISourcePath, preUIConfigure)
+                .Chain(chain => chain
+                    .MsiPackage(stubMsi, pkg => pkg
+                        .Id("StubApp")
+                        .DisplayName("Stub Application")))
                 .Build();
 
             // ── Step 3: compile ───────────────────────────────────────────────

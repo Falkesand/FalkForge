@@ -106,4 +106,40 @@ public static class BuiltInPrerequisites
                     "SQLEXPRESS")))
             .Build();
     }
+
+    /// <summary>
+    /// .NET 10 Desktop Runtime (x64) as a pre-UI prerequisite.
+    /// This prerequisite runs before the managed WPF UI process is spawned — the UI is a
+    /// framework-dependent net10.0-windows application and cannot start without this runtime.
+    ///
+    /// Detection: Registry HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App,
+    /// value "10.0.0" equals "10.0.0".
+    ///
+    /// Returns a <c>(string SourcePath, Action&lt;PreUIPackageBuilder&gt; Configure)</c> tuple
+    /// for direct use with <c>BundleBuilder.PreUIPrerequisite(sourcePath, configure)</c>.
+    ///
+    /// For embedded payloads, pass the local installer path as <paramref name="sourcePath"/>.
+    /// For remote payloads, pass an empty string and chain <c>.RemotePayload(url, sha256, size)</c>
+    /// on the returned configurator (or append a second configure action).
+    /// Pin the SHA-256 hash and file size to values from the official Microsoft download page:
+    /// https://dotnet.microsoft.com/en-us/download/dotnet/10.0
+    /// </summary>
+    /// <param name="sourcePath">
+    /// Path to the installer on the build machine, or empty string for remote-only payloads.
+    /// Defaults to empty string.
+    /// </param>
+    public static (string SourcePath, Action<PreUIPackageBuilder> Configure)
+        DotNet10DesktopAsPreUI(string sourcePath = "")
+    {
+        return (sourcePath, p => p
+            .Id("DotNet10Desktop")
+            .DisplayName(".NET 10 Desktop Runtime (x64)")
+            .Arguments("/quiet /norestart")
+            .SearchCondition(sc => sc.RegistryValue(
+                RegistryRoot.LocalMachine,
+                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
+                "10.0.0",
+                "=",
+                "10.0.0")));
+    }
 }

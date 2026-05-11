@@ -7,6 +7,10 @@ using FalkForge.Compiler.Bundle.Prerequisites;
 // MultiAccess Suite — EXE bundle
 //
 // Mirrors the WiX Bootstrapper/Bundle.wxs chain:
+//   0. Pre-UI prerequisite: .NET 10 Desktop Runtime (x64)
+//      Installed BEFORE the managed WPF UI launches so the UI process can start.
+//      Uses BuiltInPrerequisites.DotNet10DesktopAsPreUI() — detected via registry;
+//      source path must point to the real installer or a RemotePayload configured here.
 //   1. Prerequisites:  NetFx472, VCRedist, ODBC Driver 17, SQL Express 2017
 //   2. Product MSIs:   MultiAccess, MultiServer, Concatenate, Konfigurera
 //   3. Post-install:   DatabaseSetup EXE, OdbcSetup EXE
@@ -14,6 +18,10 @@ using FalkForge.Compiler.Bundle.Prerequisites;
 
 var packagesDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "packages"));
 var stubExe = Path.Combine(packagesDir, "stub", "bin", "Release", "net10.0", "win-x64", "publish", "Stub.exe");
+
+// .NET 10 Desktop Runtime installer — replace empty string with the actual path or use
+// .RemotePayload(url, sha256, size) on the Configure action for download-at-install behaviour.
+var (dotNet10SourcePath, dotNet10Configure) = BuiltInPrerequisites.DotNet10DesktopAsPreUI(sourcePath: "");
 
 string MsiPath(string name) => Path.Combine(packagesDir, name, "bin", "Release", $"{name}-8.9.0.msi");
 
@@ -27,6 +35,14 @@ return Installer.BuildBundle(args, outputPath =>
         .UpgradeCode(new Guid("112B743D-457E-4F28-9CF1-3A1C28FB1F6D"))
         .Scope(InstallScope.PerMachine)
         .UseCustomUI("../MAS.csproj")
+
+        // -----------------------------------------------------------------
+        // Pre-UI prerequisite — .NET 10 Desktop Runtime (x64)
+        // Must be present before the managed WPF UI (net10.0-windows) can start.
+        // Replace the empty source path with the real installer path, or configure
+        // RemotePayload(url, sha256, size) for download-at-install-time behaviour.
+        // -----------------------------------------------------------------
+        .PreUIPrerequisite(dotNet10SourcePath, dotNet10Configure)
 
         // -----------------------------------------------------------------
         // Bundle variables — match WiX <Variable> declarations
