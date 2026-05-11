@@ -1,5 +1,6 @@
 namespace FalkForge.Compiler.Bundle;
 
+using FalkForge.Compiler.Bundle.Models;
 using FalkForge.Models;
 using FalkForge.Sbom;
 
@@ -32,4 +33,10 @@ public sealed class BundleModel
     /// instead of running installers.
     /// </summary>
     public bool IsDryRun { get; init; }
+
+    /// <summary>
+    /// Prerequisite packages installed by the NativeAOT engine before the managed WPF UI launches.
+    /// Empty list means no pre-UI prerequisites (the default).
+    /// </summary>
+    public IReadOnlyList<PreUIPackageModel> PreUIPackages { get; init; } = [];
 }

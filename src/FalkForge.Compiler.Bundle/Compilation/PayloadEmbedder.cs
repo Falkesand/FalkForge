@@ -73,7 +73,8 @@ public sealed class PayloadEmbedder
                     Offset = offset,
                     CompressedSize = compressed.Length,
                     OriginalSize = (int)payload.OriginalSize,
-                    Sha256Hash = payload.Sha256Hash
+                    Sha256Hash = payload.Sha256Hash,
+                    IsPreUI = payload.IsPreUI
                 });
             }
 
@@ -88,8 +89,14 @@ public sealed class PayloadEmbedder
                 writer.Write(entry.OriginalSize);
                 writer.Write(entry.Sha256Hash);
 
-                // Delta flag byte: 0 = full payload, 1 = delta payload
-                writer.Write(entry.IsDelta ? (byte)1 : (byte)0);
+                // Flags byte (bit field):
+                //   bit 0 (0x01): IsDelta — payload is a binary delta, followed by BaseSha256Hash + ReconstructedSha256Hash strings
+                //   bit 1 (0x02): IsPreUI — payload belongs to a pre-UI prerequisite, extracted to <cacheDir>/preui/
+                // Old bundles written before bit 1 existed have 0x00 (no delta) or 0x01 (delta) — IsPreUI defaults to false.
+                byte flags = 0;
+                if (entry.IsDelta) flags |= 0x01;
+                if (entry.IsPreUI) flags |= 0x02;
+                writer.Write(flags);
                 if (entry.IsDelta)
                 {
                     writer.Write(entry.BaseSha256Hash ?? string.Empty);

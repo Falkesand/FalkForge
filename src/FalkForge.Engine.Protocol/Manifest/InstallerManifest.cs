@@ -29,4 +29,11 @@ public sealed class InstallerManifest
     public bool IsDeltaUpdate { get; init; }
     public string? BaseVersion { get; init; }
     public string? BaseBundleSha256 { get; init; }
+
+    /// <summary>
+    /// Prerequisite packages that the engine must detect and optionally install
+    /// before spawning the managed WPF UI process.
+    /// Empty array means no pre-UI prerequisites (the default; back-compat with older bundles).
+    /// </summary>
+    public PreUIPackageInfo[] PreUIPackages { get; init; } = [];
 }

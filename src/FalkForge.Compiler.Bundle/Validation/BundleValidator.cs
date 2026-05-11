@@ -1,5 +1,7 @@
 namespace FalkForge.Compiler.Bundle.Validation;
 
+using FalkForge.Engine.Protocol.Manifest;
+
 #pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class BundleValidator
 {
@@ -189,6 +191,38 @@ public sealed class BundleValidator
             if (pkg.EnableFeatureSelection && pkg.Type != BundlePackageType.MsiPackage)
                 return Result<Unit>.Failure(ErrorKind.BundleError,
                     $"BDL027: EnableFeatureSelection is only valid for MsiPackage type, but package '{pkg.Id}' is {pkg.Type}.");
+        }
+
+        // Pre-UI prerequisite validation
+        foreach (var prereq in model.PreUIPackages)
+        {
+            // BDL028: Pre-UI prereq must have at least one SearchCondition.
+            // Without one, the engine has no way to detect if it's already installed and would
+            // re-run the installer on every launch.
+            if (prereq.SearchConditions.Count == 0)
+                return Result<Unit>.Failure(ErrorKind.BundleError,
+                    $"BDL028: Pre-UI prerequisite '{prereq.Id}' must have at least one SearchCondition. " +
+                    "Without a search condition the engine cannot detect if the prerequisite is already installed " +
+                    "and would reinstall it on every launch.");
+
+            // BDL029: Pre-UI prereq must have non-empty Arguments.
+            // Silent install flags (/quiet /norestart) are mandatory for non-interactive bootstrap.
+            if (string.IsNullOrWhiteSpace(prereq.Arguments))
+                return Result<Unit>.Failure(ErrorKind.BundleError,
+                    $"BDL029: Pre-UI prerequisite '{prereq.Id}' must have non-empty Arguments. " +
+                    "Silent install flags (e.g., /quiet /norestart) are required for non-interactive bootstrap.");
+
+            // BDL030: Pre-UI prereq must have an embedded payload (SourcePath) or a RemotePayload.
+            // Both null means the engine would have nothing to run if the prereq is missing.
+            var hasEmbeddedSource = prereq.PayloadMode == PreUIPayloadMode.Embedded
+                                    && !string.IsNullOrWhiteSpace(prereq.SourcePath);
+            var hasRemotePayload = prereq.PayloadMode == PreUIPayloadMode.Remote
+                                   && prereq.RemotePayload is not null;
+            if (!hasEmbeddedSource && !hasRemotePayload)
+                return Result<Unit>.Failure(ErrorKind.BundleError,
+                    $"BDL030: Pre-UI prerequisite '{prereq.Id}' must specify either an embedded payload " +
+                    "(non-empty SourcePath with PayloadMode=Embedded) or a RemotePayload " +
+                    "(non-null RemotePayload with PayloadMode=Remote).");
         }
 
         return Unit.Value;

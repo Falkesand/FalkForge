@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using FalkForge.Compiler.Bundle.Validation;
+using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
@@ -51,6 +52,34 @@ public sealed class BundleCompiler
                 OriginalSize = originalSize,
                 Sha256Hash = hash,
                 ContainerId = package.ContainerId
+            });
+        }
+
+        // Step 3b: Embed pre-UI prerequisite payloads (embedded mode only; remote payloads are downloaded at install time)
+        foreach (var prereq in model.PreUIPackages)
+        {
+            if (prereq.PayloadMode == PreUIPayloadMode.Remote)
+                continue; // remote payload — not embedded in the bundle
+
+            if (!File.Exists(prereq.SourcePath))
+                return Result<string>.Failure(ErrorKind.PayloadError,
+                    $"Pre-UI prerequisite source not found: {prereq.SourcePath}");
+
+            long originalSize;
+            string hash;
+            using (var fileStream = File.OpenRead(prereq.SourcePath))
+            {
+                originalSize = fileStream.Length;
+                hash = Convert.ToHexString(SHA256.HashData(fileStream));
+            }
+
+            payloads.Add(new PayloadEntry
+            {
+                PackageId = prereq.Id,
+                SourcePath = prereq.SourcePath,
+                OriginalSize = originalSize,
+                Sha256Hash = hash,
+                IsPreUI = true
             });
         }
 

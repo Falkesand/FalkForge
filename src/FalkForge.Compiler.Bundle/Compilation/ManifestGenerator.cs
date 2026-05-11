@@ -102,6 +102,10 @@ public sealed class ManifestGenerator
                 model.UpdateFeed.ShowDownloadErrors, model.UpdateFeed.PromptBeforeAutoUpdate)
             : null;
 
+        var preUIPackagesResult = BuildPreUIPackages(model);
+        if (preUIPackagesResult.IsFailure)
+            return Result<InstallerManifest>.Failure(preUIPackagesResult.Error);
+
         return new InstallerManifest
         {
             Name = model.Name,
@@ -123,7 +127,8 @@ public sealed class ManifestGenerator
             UpdateFeed = updateFeed,
             Scope = model.Scope,
             MaxBytesPerSecond = model.MaxBytesPerSecond,
-            IsDryRun = model.IsDryRun
+            IsDryRun = model.IsDryRun,
+            PreUIPackages = preUIPackagesResult.Value
         };
     }
 
@@ -184,6 +189,53 @@ public sealed class ManifestGenerator
             _ => Result<PackageType>.Failure(
                 ErrorKind.CompilationError, $"Unknown package type: {type}")
         };
+    }
+
+    /// <summary>
+    /// Maps <see cref="PreUIPackageModel"/> list to <see cref="PreUIPackageInfo"/> array.
+    /// For embedded payloads, computes the SHA-256 hash from <see cref="PreUIPackageModel.SourcePath"/>.
+    /// For remote payloads, takes the hash from <see cref="Models.PreUIRemotePayload.Sha256Hash"/>.
+    /// </summary>
+    private static Result<PreUIPackageInfo[]> BuildPreUIPackages(BundleModel model)
+    {
+        if (model.PreUIPackages.Count == 0)
+            return Result<PreUIPackageInfo[]>.Success([]);
+
+        var result = new PreUIPackageInfo[model.PreUIPackages.Count];
+        for (var i = 0; i < model.PreUIPackages.Count; i++)
+        {
+            var prereq = model.PreUIPackages[i];
+            string sha256;
+            if (prereq.PayloadMode == PreUIPayloadMode.Remote)
+            {
+                // Remote payloads supply their own hash; no local file required.
+                sha256 = prereq.RemotePayload?.Sha256Hash ?? string.Empty;
+            }
+            else
+            {
+                if (!File.Exists(prereq.SourcePath))
+                    return Result<PreUIPackageInfo[]>.Failure(ErrorKind.PayloadError,
+                        $"Pre-UI prerequisite source not found: {prereq.SourcePath}");
+                sha256 = ComputeSha256(prereq.SourcePath);
+            }
+
+            result[i] = new PreUIPackageInfo
+            {
+                Id = prereq.Id,
+                DisplayName = prereq.DisplayName,
+                SourcePath = prereq.SourcePath,
+                Sha256Hash = sha256,
+                Arguments = prereq.Arguments,
+                SearchConditions = prereq.SearchConditions,
+                DownloadUrl = prereq.RemotePayload?.DownloadUrl,
+                Size = prereq.RemotePayload?.Size ?? 0L,
+                RebootBehavior = prereq.RebootBehavior,
+                PayloadMode = prereq.PayloadMode,
+                ExitCodes = prereq.ExitCodes
+            };
+        }
+
+        return Result<PreUIPackageInfo[]>.Success(result);
     }
 
     private static string ComputeSha256(string filePath)

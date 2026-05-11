@@ -1,4 +1,5 @@
 using FalkForge.Builders;
+using FalkForge.Compiler.Bundle.Models;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Models;
 using FalkForge.Sbom;
@@ -16,6 +17,7 @@ public sealed class BundleBuilder
     private readonly List<BundlePackageModel> _packages = new();
     private readonly List<RelatedBundleModel> _relatedBundles = new();
     private readonly List<BundleVariableModel> _variables = new();
+    private readonly List<PreUIPackageModel> _preUIPackages = new();
     private Guid? _bundleId;
     private long _maxBytesPerSecond;
     private int _containerCounter;
@@ -294,6 +296,26 @@ public sealed class BundleBuilder
     internal string? DeltaBaseBundlePath => _deltaBaseBundlePath;
 
     /// <summary>
+    /// Registers a prerequisite that the NativeAOT engine must detect and optionally install
+    /// <em>before</em> the managed WPF UI process is spawned.
+    /// Use this for runtime dependencies (e.g., .NET 10 Desktop Runtime) that the UI exe itself
+    /// requires — i.e., dependencies the managed host cannot satisfy without a pre-UI install step.
+    /// </summary>
+    /// <param name="sourcePath">
+    /// Path to the installer executable on the build machine.
+    /// Pass an empty string for remote-only payloads (call <see cref="PreUIPackageBuilder.RemotePayload"/> inside <paramref name="configure"/>).
+    /// </param>
+    /// <param name="configure">Fluent configuration of the prerequisite (Id, DisplayName, Arguments, SearchConditions, etc.).</param>
+    public BundleBuilder PreUIPrerequisite(string sourcePath, Action<PreUIPackageBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var builder = new PreUIPackageBuilder(sourcePath);
+        configure(builder);
+        _preUIPackages.Add(builder.Build());
+        return this;
+    }
+
+    /// <summary>
     /// Marks this bundle as a dry-run installer. The engine Apply phase will
     /// simulate package execution instead of running real installers.
     /// </summary>
@@ -336,7 +358,8 @@ public sealed class BundleBuilder
             MaxBytesPerSecond = _maxBytesPerSecond,
             SbomOptions = _sbomOptions,
             Integrity = _integrity,
-            IsDryRun = _isDryRun
+            IsDryRun = _isDryRun,
+            PreUIPackages = _preUIPackages.AsReadOnly()
         };
     }
 }

@@ -27,4 +27,8 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 [JsonSerializable(typeof(ManifestDryRunAction))]
 [JsonSerializable(typeof(ManifestDryRunAction[]))]
 [JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(PreUIPackageInfo))]
+[JsonSerializable(typeof(PreUIPackageInfo[]))]
+[JsonSerializable(typeof(PreUIRebootBehavior))]
+[JsonSerializable(typeof(PreUIPayloadMode))]
 internal partial class ManifestJsonContext : JsonSerializerContext;

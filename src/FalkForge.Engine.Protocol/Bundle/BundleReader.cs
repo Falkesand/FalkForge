@@ -42,17 +42,22 @@ public static class BundleReader
                 var originalSize = reader.ReadInt32();
                 var sha256Hash = reader.ReadString();
 
-                // Delta flag byte: 0 = full payload, 1 = delta payload
-                // Older bundles without this field will hit the catch block
-                // on EndOfStreamException and be handled gracefully.
+                // Flags byte (bit field, backward-compatible):
+                //   bit 0 (0x01): IsDelta — payload is a binary delta; BaseSha256Hash + ReconstructedSha256Hash follow
+                //   bit 1 (0x02): IsPreUI — payload belongs to a pre-UI prerequisite
+                // Old bundles written before bit 1 existed have 0x00 or 0x01 — IsPreUI defaults to false.
+                // EndOfStreamException from ReadByte() on a truly old bundle is caught by the outer handler.
                 var isDelta = false;
+                var isPreUI = false;
                 string? baseSha256Hash = null;
                 string? reconstructedSha256Hash = null;
 
                 var flags = reader.ReadByte();
-                if (flags == 1)
+                isDelta = (flags & 0x01) != 0;
+                isPreUI = (flags & 0x02) != 0;
+
+                if (isDelta)
                 {
-                    isDelta = true;
                     baseSha256Hash = reader.ReadString();
                     reconstructedSha256Hash = reader.ReadString();
                 }
@@ -73,7 +78,8 @@ public static class BundleReader
                     Sha256Hash = sha256Hash,
                     IsDelta = isDelta,
                     BaseSha256Hash = baseSha256Hash,
-                    ReconstructedSha256Hash = reconstructedSha256Hash
+                    ReconstructedSha256Hash = reconstructedSha256Hash,
+                    IsPreUI = isPreUI
                 };
             }
 
@@ -201,6 +207,52 @@ public static class BundleReader
             return Result<byte[]>.Failure(ErrorKind.PayloadError,
                 $"Failed to extract payload '{entry.PackageId}': {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Extracts all pre-UI prerequisite payloads (TOC entries where <see cref="TocEntry.IsPreUI"/> is true)
+    /// from <paramref name="bundlePath"/> into <c>&lt;cacheDir&gt;/preui/&lt;PackageId&gt;</c>.
+    /// Regular chain payloads are ignored by this method.
+    /// </summary>
+    /// <param name="bundlePath">Path to the self-extracting bundle EXE.</param>
+    /// <param name="cacheDir">
+    /// Root extraction directory. Pre-UI payloads are placed in a <c>preui</c> subdirectory.
+    /// </param>
+    /// <returns>
+    /// Success with the list of extracted file paths, or Failure if bundle parsing or
+    /// file extraction fails.
+    /// </returns>
+    public static Result<IReadOnlyList<string>> ExtractPreUIPayloads(string bundlePath, string cacheDir)
+    {
+        var contentResult = Extract(bundlePath);
+        if (contentResult.IsFailure)
+            return Result<IReadOnlyList<string>>.Failure(contentResult.Error);
+
+        var content = contentResult.Value;
+        var preUIEntries = content.TocEntries.Where(e => e.IsPreUI).ToArray();
+
+        if (preUIEntries.Length == 0)
+            return Result<IReadOnlyList<string>>.Success(Array.Empty<string>());
+
+        var preUIDir = Path.Combine(cacheDir, "preui");
+        Directory.CreateDirectory(preUIDir);
+
+        var extractedPaths = new List<string>(preUIEntries.Length);
+        foreach (var entry in preUIEntries)
+        {
+            var payloadResult = ExtractPayload(bundlePath, entry);
+            if (payloadResult.IsFailure)
+                return Result<IReadOnlyList<string>>.Failure(payloadResult.Error);
+
+            // Use PackageId as filename — validated to be a safe identifier by BDL028+.
+            // Path.GetFileName is applied as a defence-in-depth safeguard against traversal.
+            var safeName = Path.GetFileName(entry.PackageId);
+            var outputPath = Path.Combine(preUIDir, safeName);
+            File.WriteAllBytes(outputPath, payloadResult.Value);
+            extractedPaths.Add(outputPath);
+        }
+
+        return Result<IReadOnlyList<string>>.Success(extractedPaths.AsReadOnly());
     }
 
     /// <summary>

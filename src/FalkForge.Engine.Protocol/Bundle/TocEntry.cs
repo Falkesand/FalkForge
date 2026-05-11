@@ -10,4 +10,10 @@ public sealed class TocEntry
     public bool IsDelta { get; init; }
     public string? BaseSha256Hash { get; init; }
     public string? ReconstructedSha256Hash { get; init; }
+
+    /// <summary>
+    /// When true, this payload belongs to a pre-UI prerequisite and must be extracted into
+    /// the <c>&lt;cacheDir&gt;/preui/</c> subdirectory before the managed WPF UI is launched.
+    /// </summary>
+    public bool IsPreUI { get; init; }
 }

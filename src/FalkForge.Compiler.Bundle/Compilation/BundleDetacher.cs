@@ -72,13 +72,16 @@ public static class BundleDetacher
                 var sha256Hash = tocReader.ReadString();
 
                 var isDelta = false;
+                var isPreUI = false;
                 string? baseSha256Hash = null;
                 string? reconstructedSha256Hash = null;
 
                 var flags = tocReader.ReadByte();
-                if (flags == 1)
+                isDelta = (flags & 0x01) != 0;
+                isPreUI = (flags & 0x02) != 0;
+
+                if (isDelta)
                 {
-                    isDelta = true;
                     baseSha256Hash = tocReader.ReadString();
                     reconstructedSha256Hash = tocReader.ReadString();
                 }
@@ -92,7 +95,8 @@ public static class BundleDetacher
                     Sha256Hash = sha256Hash,
                     IsDelta = isDelta,
                     BaseSha256Hash = baseSha256Hash,
-                    ReconstructedSha256Hash = reconstructedSha256Hash
+                    ReconstructedSha256Hash = reconstructedSha256Hash,
+                    IsPreUI = isPreUI
                 };
             }
 
@@ -209,13 +213,16 @@ public static class BundleDetacher
                 var sha256Hash = dataReader.ReadString();
 
                 var isDelta = false;
+                var isPreUI = false;
                 string? baseSha256Hash = null;
                 string? reconstructedSha256Hash = null;
 
                 var flags = dataReader.ReadByte();
-                if (flags == 1)
+                isDelta = (flags & 0x01) != 0;
+                isPreUI = (flags & 0x02) != 0;
+
+                if (isDelta)
                 {
-                    isDelta = true;
                     baseSha256Hash = dataReader.ReadString();
                     reconstructedSha256Hash = dataReader.ReadString();
                 }
@@ -229,7 +236,8 @@ public static class BundleDetacher
                     Sha256Hash = sha256Hash,
                     IsDelta = isDelta,
                     BaseSha256Hash = baseSha256Hash,
-                    ReconstructedSha256Hash = reconstructedSha256Hash
+                    ReconstructedSha256Hash = reconstructedSha256Hash,
+                    IsPreUI = isPreUI
                 };
             }
 
@@ -272,7 +280,11 @@ public static class BundleDetacher
                     outputWriter.Write(entry.CompressedSize);
                     outputWriter.Write(entry.OriginalSize);
                     outputWriter.Write(entry.Sha256Hash);
-                    outputWriter.Write(entry.IsDelta ? (byte)1 : (byte)0);
+                    // Flags byte (bit field): bit 0 = IsDelta, bit 1 = IsPreUI
+                    byte entryFlags = 0;
+                    if (entry.IsDelta) entryFlags |= 0x01;
+                    if (entry.IsPreUI) entryFlags |= 0x02;
+                    outputWriter.Write(entryFlags);
                     if (entry.IsDelta)
                     {
                         outputWriter.Write(entry.BaseSha256Hash ?? string.Empty);

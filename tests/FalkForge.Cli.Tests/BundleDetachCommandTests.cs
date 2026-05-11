@@ -186,7 +186,7 @@ public sealed class BundleDetachCommandTests : IDisposable
             writer.Write(entry.CompressedSize);
             writer.Write(entry.OriginalSize);
             writer.Write(entry.Sha256Hash);
-            writer.Write((byte)0); // Delta flag: 0 = full payload
+            writer.Write((byte)0); // Flags byte: bit 0=IsDelta, bit 1=IsPreUI; 0 = full non-preUI payload
         }
 
         // Write footer
