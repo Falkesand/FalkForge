@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Logging;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
 
 /// <summary>
@@ -144,9 +145,14 @@ public sealed class EngineLogger : IEngineLogger
     /// Uses a per-session GUID to prevent cross-process log file conflicts
     /// and reduce predictability of log file paths.
     /// </summary>
-    public static string GetDefaultLogPath()
+    /// <param name="clock">
+    ///     Optional clock for deterministic timestamps in tests.
+    ///     When <see langword="null"/>, falls back to <see cref="DateTimeOffset.UtcNow"/>.
+    /// </param>
+    public static string GetDefaultLogPath(ISystemClock? clock = null)
     {
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+        var now = (clock?.UtcNow ?? DateTimeOffset.UtcNow).UtcDateTime;
+        var timestamp = now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         var sessionId = Guid.NewGuid().ToString("N");
         return Path.Combine(Path.GetTempPath(), "FalkForge", sessionId, $"install_{timestamp}.log");
     }
