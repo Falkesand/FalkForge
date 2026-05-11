@@ -26,14 +26,9 @@ public sealed record TableReadSchema<TRow>(
     string DiagnosticCode = "DEC003") : ITableReadSchema
 {
     /// <inheritdoc/>
-    Result<IReadOnlyList<object>> ITableReadSchema.ReadErased(object access)
+    Result<IReadOnlyList<object>> ITableReadSchema.ReadErased(ITableQuery query)
     {
-        if (access is not IMsiTableAccess msiAccess)
-            return Result<IReadOnlyList<object>>.Failure(
-                ErrorKind.Validation,
-                $"DEC003: ReadErased requires an IMsiTableAccess but received {access?.GetType().Name ?? "null"}.");
-
-        var result = TableReadEngine.ReadOne(this, msiAccess);
+        var result = TableReadEngine.ReadOne(this, query);
         if (result.IsFailure)
             return Result<IReadOnlyList<object>>.Failure(result.Error);
 
