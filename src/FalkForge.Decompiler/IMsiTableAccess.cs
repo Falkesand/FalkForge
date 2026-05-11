@@ -1,23 +1,19 @@
+using FalkForge.Extensibility;
+
 namespace FalkForge.Decompiler;
 
 /// <summary>
 /// Abstraction over MSI database table reads, enabling testability without actual MSI files.
+/// Extends <see cref="ITableQuery"/> (defined in Extensibility) so extension
+/// <see cref="ITableReadSchema"/> implementations can read tables without referencing
+/// the Decompiler assembly directly. Implementors satisfy <see cref="ITableQuery"/>
+/// members (<see cref="ITableQuery.QueryTable"/> and <see cref="ITableQuery.TableExists"/>)
+/// and additionally expose <see cref="GetSummaryProperty"/>.
 /// </summary>
-public interface IMsiTableAccess : IDisposable
+public interface IMsiTableAccess : IDisposable, ITableQuery
 {
-    /// <summary>
-    /// Queries all rows from the specified table.
-    /// Returns a list of string arrays, one per row, with field values in column order.
-    /// </summary>
-    Result<List<string?[]>> QueryTable(string tableName, string[] columns);
-
     /// <summary>
     /// Gets a summary information property by its property ID.
     /// </summary>
     Result<string?> GetSummaryProperty(int propertyId);
-
-    /// <summary>
-    /// Checks whether a table exists in the database.
-    /// </summary>
-    Result<bool> TableExists(string tableName);
 }

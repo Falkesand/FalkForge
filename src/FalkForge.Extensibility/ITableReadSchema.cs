@@ -15,9 +15,9 @@ public interface ITableReadSchema
     string TableName { get; }
 
     /// <summary>
-    /// Reads all rows from <paramref name="access"/> and returns them boxed as
+    /// Reads all rows from <paramref name="query"/> and returns them boxed as
     /// <see cref="object"/>. Returns an empty list when the table does not exist.
     /// Returns a structured failure on query or shape errors.
     /// </summary>
-    Result<IReadOnlyList<object>> ReadErased(object access);
+    Result<IReadOnlyList<object>> ReadErased(ITableQuery query);
 }

@@ -1,13 +1,16 @@
+using FalkForge.Extensibility;
+
 namespace FalkForge.Decompiler.Recipe;
 
 /// <summary>
 /// Engine that drives a <see cref="TableReadSchema{TRow}"/> against an
-/// <see cref="IMsiTableAccess"/> instance. Replaces the per-reader copy-pasted
-/// orchestration loop (TableExists + QueryTable + iterate + accumulate).
+/// <see cref="ITableQuery"/> (or <see cref="IMsiTableAccess"/>) instance.
+/// Replaces the per-reader copy-pasted orchestration loop
+/// (TableExists + QueryTable + iterate + accumulate).
 /// <para>
 /// <see cref="ReadOne{TRow}"/> is the primary entry point for isolated per-schema
-/// unit tests — give it a <see cref="TableReadSchema{TRow}"/> and a
-/// <see cref="IMsiTableAccess"/> and get back a typed list.
+/// unit tests — give it a <see cref="TableReadSchema{TRow}"/> and an
+/// <see cref="ITableQuery"/> and get back a typed list.
 /// </para>
 /// </summary>
 public static class TableReadEngine
@@ -20,7 +23,7 @@ public static class TableReadEngine
     /// </summary>
     public static Result<List<TRow>> ReadOne<TRow>(
         TableReadSchema<TRow> schema,
-        IMsiTableAccess access)
+        ITableQuery access)
     {
         var existsResult = access.TableExists(schema.TableName);
         if (existsResult.IsFailure)
