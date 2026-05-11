@@ -7,6 +7,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
     <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
     <ProjectReference Include="..\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
   </ItemGroup>

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FalkForge.Extensibility;
 
 namespace FalkForge.Decompiler.Recipe;
 
@@ -12,9 +13,33 @@ public delegate Result<TRow> RowMapper<TRow>(ReadRow row);
 /// One static readonly field per table in a per-area schema class. Declares
 /// column schema, error diagnostic code, and a pure row mapper delegate.
 /// Symmetric to Cycle 2's <c>ITableProducer</c> on the build side.
+/// <para>
+/// Implements <see cref="ITableReadSchema"/> so extension contributors can return
+/// a typed schema from <see cref="IMsiTableContributor.ReadSchema"/> and the
+/// decompiler can drive it via the erased interface without knowing <typeparamref name="TRow"/>.
+/// </para>
 /// </summary>
 public sealed record TableReadSchema<TRow>(
     string TableName,
     ImmutableArray<ReadColumn> Columns,
     RowMapper<TRow> Map,
-    string DiagnosticCode = "DEC003");
+    string DiagnosticCode = "DEC003") : ITableReadSchema
+{
+    /// <inheritdoc/>
+    Result<IReadOnlyList<object>> ITableReadSchema.ReadErased(object access)
+    {
+        if (access is not IMsiTableAccess msiAccess)
+            return Result<IReadOnlyList<object>>.Failure(
+                ErrorKind.Validation,
+                $"DEC003: ReadErased requires an IMsiTableAccess but received {access?.GetType().Name ?? "null"}.");
+
+        var result = TableReadEngine.ReadOne(this, msiAccess);
+        if (result.IsFailure)
+            return Result<IReadOnlyList<object>>.Failure(result.Error);
+
+        // Box each typed row as object — allocation is acceptable here because
+        // extension tables are small and this path runs once per decompile.
+        IReadOnlyList<object> boxed = result.Value.Cast<object>().ToList();
+        return Result<IReadOnlyList<object>>.Success(boxed);
+    }
+}

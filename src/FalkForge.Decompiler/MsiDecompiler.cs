@@ -1,6 +1,8 @@
+using System.Collections.Frozen;
 using System.Runtime.Versioning;
 using FalkForge.Decompiler.Recipe;
 using FalkForge.Decompiler.Recipe.Schemas;
+using FalkForge.Extensibility;
 using FalkForge.Models;
 
 namespace FalkForge.Decompiler;
@@ -12,12 +14,14 @@ namespace FalkForge.Decompiler;
 public sealed class MsiDecompiler
 {
     private readonly IMsiTableAccess? _tableAccess;
+    private readonly IReadOnlyList<IMsiTableContributor> _contributors;
 
     /// <summary>
     /// Creates a decompiler that will open the MSI file at the given path.
     /// </summary>
     public MsiDecompiler()
     {
+        _contributors = [];
     }
 
     /// <summary>
@@ -25,7 +29,29 @@ public sealed class MsiDecompiler
     /// </summary>
     public MsiDecompiler(IMsiTableAccess tableAccess)
     {
-        _tableAccess = tableAccess;
+        _tableAccess  = tableAccess;
+        _contributors = [];
+    }
+
+    /// <summary>
+    /// Creates a decompiler with an injected table access and extension contributors.
+    /// Contributors whose <see cref="IMsiTableContributor.ReadSchema"/> is non-null
+    /// will have their custom tables read and stored in
+    /// <see cref="MsiReadRecipe.ExtensionRows"/>.
+    /// </summary>
+    public MsiDecompiler(IMsiTableAccess tableAccess, IReadOnlyList<IMsiTableContributor> contributors)
+    {
+        _tableAccess  = tableAccess;
+        _contributors = contributors;
+    }
+
+    /// <summary>
+    /// Creates a decompiler that will open the MSI file at the given path, with
+    /// extension contributors for custom-table round-trip support.
+    /// </summary>
+    public MsiDecompiler(IReadOnlyList<IMsiTableContributor> contributors)
+    {
+        _contributors = contributors;
     }
 
     /// <summary>
@@ -35,7 +61,7 @@ public sealed class MsiDecompiler
     public Result<PackageModel> Decompile(string msiPath)
     {
         if (_tableAccess is not null)
-            return DecompileFromAccess(_tableAccess);
+            return DecompileFromAccess(_tableAccess, _contributors);
 
         if (string.IsNullOrWhiteSpace(msiPath))
             return Result<PackageModel>.Failure(ErrorKind.Validation, "DEC001: MSI path cannot be null or empty.");
@@ -48,7 +74,7 @@ public sealed class MsiDecompiler
             return Result<PackageModel>.Failure(accessResult.Error);
 
         using var access = accessResult.Value;
-        return DecompileFromAccess(access);
+        return DecompileFromAccess(access, _contributors);
     }
 
     /// <summary>
@@ -60,7 +86,7 @@ public sealed class MsiDecompiler
     public Result<MsiReadRecipe> DecompileToRecipe(string msiPath)
     {
         if (_tableAccess is not null)
-            return ReadRecipeFromAccess(_tableAccess);
+            return ReadRecipeFromAccess(_tableAccess, _contributors);
 
         if (string.IsNullOrWhiteSpace(msiPath))
             return Result<MsiReadRecipe>.Failure(ErrorKind.Validation, "DEC001: MSI path cannot be null or empty.");
@@ -73,7 +99,7 @@ public sealed class MsiDecompiler
             return Result<MsiReadRecipe>.Failure(accessResult.Error);
 
         using var access = accessResult.Value;
-        return ReadRecipeFromAccess(access);
+        return ReadRecipeFromAccess(access, _contributors);
     }
 
     /// <summary>
@@ -91,10 +117,12 @@ public sealed class MsiDecompiler
         return source;
     }
 
-    private static Result<PackageModel> DecompileFromAccess(IMsiTableAccess access)
+    private static Result<PackageModel> DecompileFromAccess(
+        IMsiTableAccess access,
+        IReadOnlyList<IMsiTableContributor> contributors)
     {
         // Stage 1: read all tables into MsiReadRecipe
-        var recipeResult = ReadRecipeFromAccess(access);
+        var recipeResult = ReadRecipeFromAccess(access, contributors);
         if (recipeResult.IsFailure)
             return Result<PackageModel>.Failure(recipeResult.Error);
 
@@ -114,7 +142,9 @@ public sealed class MsiDecompiler
             recipe.Upgrades);
     }
 
-    private static Result<MsiReadRecipe> ReadRecipeFromAccess(IMsiTableAccess access)
+    private static Result<MsiReadRecipe> ReadRecipeFromAccess(
+        IMsiTableAccess access,
+        IReadOnlyList<IMsiTableContributor> contributors)
     {
         var propsResult     = TableReadEngine.ReadOne(PropertySchema.Schema,          access);
         if (propsResult.IsFailure)     return Result<MsiReadRecipe>.Failure(propsResult.Error);
@@ -146,6 +176,21 @@ public sealed class MsiDecompiler
         var upResult        = TableReadEngine.ReadOne(UpgradeSchema.Schema,           access);
         if (upResult.IsFailure)        return Result<MsiReadRecipe>.Failure(upResult.Error);
 
+        // Read extension-contributed tables via ITableReadSchema.ReadErased.
+        var extRows = new Dictionary<string, IReadOnlyList<object>>(StringComparer.Ordinal);
+        foreach (var contributor in contributors)
+        {
+            var schema = contributor.ReadSchema;
+            if (schema is null)
+                continue;
+
+            var extResult = schema.ReadErased(access);
+            if (extResult.IsFailure)
+                return Result<MsiReadRecipe>.Failure(extResult.Error);
+
+            extRows[contributor.TableName] = extResult.Value;
+        }
+
         return Result<MsiReadRecipe>.Success(new MsiReadRecipe
         {
             Properties        = propsResult.Value,
@@ -158,6 +203,10 @@ public sealed class MsiDecompiler
             Services          = svcResult.Value,
             Shortcuts         = scResult.Value,
             Upgrades          = upResult.Value,
+            ExtensionRows     = extRows.Count > 0
+                ? extRows.ToFrozenDictionary(StringComparer.Ordinal)
+                : (IReadOnlyDictionary<string, IReadOnlyList<object>>)
+                  System.Collections.Immutable.ImmutableDictionary<string, IReadOnlyList<object>>.Empty,
         });
     }
 }
