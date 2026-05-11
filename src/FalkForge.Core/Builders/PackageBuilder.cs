@@ -101,6 +101,9 @@ public sealed class PackageBuilder
     {
         var builder = new FeatureBuilder(id);
         configure(builder);
+        // Lift feature-scoped files (and nested child-feature files) into the package file list
+        // before building the model — after Build() the builder is discarded.
+        _files.AddRange(builder.CollectFiles());
         _features.Add(builder.Build());
         return this;
     }

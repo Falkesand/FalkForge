@@ -4,7 +4,7 @@ namespace FalkForge.Builders;
 
 public sealed class FeatureBuilder
 {
-    private readonly List<FeatureModel> _children = [];
+    private readonly List<FeatureBuilder> _childBuilders = [];
     private readonly List<FeatureConditionModel> _conditions = [];
     private readonly List<FileEntryModel> _files = [];
     private readonly string _id;
@@ -24,7 +24,7 @@ public sealed class FeatureBuilder
     {
         var builder = new FeatureBuilder(id);
         configure(builder);
-        _children.Add(builder.Build());
+        _childBuilders.Add(builder);
         return this;
     }
 
@@ -57,6 +57,37 @@ public sealed class FeatureBuilder
         return this;
     }
 
+    /// <summary>
+    /// Collects all files declared on this feature and its nested child features,
+    /// each stamped with a FeatureRef pointing to their owning feature ID.
+    /// Called by PackageBuilder.Feature() to lift files into the flat PackageModel.Files list.
+    /// </summary>
+    internal IReadOnlyList<FileEntryModel> CollectFiles()
+    {
+        var result = new List<FileEntryModel>(_files.Count);
+
+        foreach (var file in _files)
+            result.Add(new FileEntryModel
+            {
+                SourcePath = file.SourcePath,
+                TargetDirectory = file.TargetDirectory,
+                FileName = file.FileName,
+                IsKeyPath = file.IsKeyPath,
+                ComponentId = file.ComponentId,
+                ComponentGuid = file.ComponentGuid,
+                FeatureRef = _id,
+                Vital = file.Vital,
+                NeverOverwrite = file.NeverOverwrite,
+                Permanent = file.Permanent,
+                ComponentCondition = file.ComponentCondition
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectFiles());
+
+        return result;
+    }
+
     internal FeatureModel Build()
     {
         return new FeatureModel
@@ -67,7 +98,7 @@ public sealed class FeatureBuilder
             IsRequired = IsRequired,
             IsDefault = IsDefault,
             DisplayLevel = DisplayLevel,
-            Children = _children,
+            Children = [.. _childBuilders.Select(b => b.Build())],
             Conditions = _conditions
         };
     }
