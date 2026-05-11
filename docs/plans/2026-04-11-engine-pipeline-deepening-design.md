@@ -1,6 +1,6 @@
 # RFC: Deepen the Engine phase pipeline
 
-**Status:** Design accepted, implementation plan pending
+**Status:** COMPLETED 2026-05-11 — see commits b7d023a, 20972aa, b5b536f, 7940a2f and follow-on pipeline commits
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Engine/`, `src/FalkForge.Engine.Protocol/`, `tests/FalkForge.Engine.Tests/`
 
@@ -348,3 +348,29 @@ The deepening is a large refactor and should land through a TDD-driven plan with
 7. **Delete old handlers and `EngineContext`** — final pass. Phase handlers, state machine, and context bag removed once all tests pass against the new pipeline.
 
 Each phase of the sequencing plan gets its own implementation plan file under `docs/plans/`, paired with this design document.
+
+---
+
+## Implementation Postscript (2026-05-11)
+
+All seven design phases shipped. The sequencing matched the RFC sketch almost exactly, with the following deviations and clarifications:
+
+1. **Port interfaces landed first** (`b7d023a` — RED compile-time contract tests, `30db5f4` through `92b8aa2` — production adapters). All thirteen ports are defined; the actual builder method name is `WithJournalStore` (RFC draft said `WithRollbackJournal` — code won, both are equivalent intent).
+
+2. **`EngineContext` and `EngineStateMachine` deleted** (`7940a2f`). `EngineHost` and six superseded phase handlers deleted in a follow-on commit (`0e43db4`). The mutable bag is gone; session state is now threaded through `PipelineContext` (an internal record passed into each `IPhaseStep`).
+
+3. **`IInstallerPipeline` interface deviation** — the RFC proposed `StartAsync(manifest)` as a distinct call; the shipped interface omits it. The manifest is supplied at builder time via `WithManifest(manifest)`. Phase ordering is enforced by `InstallerPipeline` internally and returns `ErrorKind.EngineError` for out-of-sequence calls (matches RFC intent, different spelling).
+
+4. **`EngineSession` public facade** (`b5b536f`) — `BindToPipe` and `BindToChannel` (test entry point) both shipped. Production `Program.cs` is not the four-line sketch from the RFC (it grew argument parsing for `--plan-only`, `--extract`, `--sbom`, bootstrapper mode), but the core session block is four meaningful lines: `BindToPipe → RunUntilShutdown → map outcome → return exit code`.
+
+5. **`IElevatedCommandGateway` / `InProcessElevationGateway`** — `NamedPipeElevationGateway` production adapter shipped (`c483b31`). `InProcessElevationGateway` test adapter shipped in `FalkForge.Testing`. The `FailAfter(n)` hook for elevated-crash simulation is present.
+
+6. **`ISystemClock` / `IRandomSource`** — production adapters (`SystemClock`, `CryptoRandomSource`) and test adapters (`FakeClock`, `DeterministicRandom`) both shipped. `EngineLogger` still stamps `DateTime.UtcNow` for its log-file naming path (acceptable — not a determinism-sensitive code path).
+
+7. **`NullUiChannel`** added — not in the RFC. Used by `InstallerPipelineBuilder.Build()` when no UI channel is registered, so pipelines can be exercised without a pipe transport.
+
+8. **`IInstallerPipeline.RollbackAsync` / `ElevateAsync` / `ExportPlan`** added — not in the RFC interface sketch. Rollback is explicit rather than automatically triggered by the pipeline; the caller (PipelineRunner) invokes it. This is a deliberate simplification: automatic rollback-on-failure routing is owned by `PipelineRunner`, not embedded in `InstallerPipeline` itself.
+
+**Open follow-on work:** `HttpPayloadSource`, `DiskPayloadCache`, `FileSystemLayoutStore`, and `IElevatedCommandGateway` are registered in the builder but not yet wired into production `EngineSession.BindToPipe` — the comment in `EngineSession.cs` records this. These port wires are the first task of the next session.
+
+Architecture doc: `docs/engine-pipeline-architecture.md`.
