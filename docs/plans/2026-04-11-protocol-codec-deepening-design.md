@@ -1,6 +1,6 @@
 # RFC: Deepen protocol serialization into per-message codec records
 
-**Status:** Design accepted, implementation plan pending
+**Status:** COMPLETED 2026-05-11 — all 14 phases shipped on `main`
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Engine.Protocol/Serialization/`, `src/FalkForge.Engine.Protocol/Messages/`, `src/FalkForge.Ui.Abstractions/SensitiveBytes.cs`, `tests/FalkForge.Engine.Protocol.Tests/`
 
@@ -508,3 +508,37 @@ TDD-driven, each phase gets its own implementation plan file under `docs/plans/`
 14. **Documentation** — update `docs/` with the codec-per-message architecture, the secure property lifecycle diagram, and the "add a new message type" guide.
 
 Each phase of the sequencing plan gets its own implementation plan file under `docs/plans/`, paired with this design document.
+
+---
+
+## Implementation Postscript (completed 2026-05-11)
+
+All 14 phases shipped on `main`. Key commits:
+
+| Phase | Commit | Description |
+|-------|--------|-------------|
+| 1–10 | f39bdad–5cbb473 | IMessageCodec, 28 codecs, registry, facade cutover |
+| 11 (security) | 99efbae | SetSecurePropertyMessage SensitiveBytes lifecycle fix |
+| 12 (version negotiation) | 20a3cbc | (MessageType, WireVersion) key, nearest-lower fallback |
+| 13 (transport cutover) | 5cbb473 | PipeTransportBase uses MessageSerializer/Deserializer |
+| 14a (legacy deletion) | 3d24467 | Delete LegacyMessageSerializer/Deserializer, convert 34 ByteParity tests to golden-byte tests |
+| 14b (doc sweep) | see HEAD | Drop all LegacyMessageSerializer crefs from codec doc comments |
+| 14c (RFC + arch doc) | see HEAD | This postscript + docs/protocol-codec-architecture.md |
+
+### Deviations from plan
+
+- **Phase 11 (Deprecate)** skipped — no release cycle gap warranted keeping legacy with `[Obsolete]`. The byte-parity regression suite acted as the safety valve and was green at deletion time.
+- **Phase 12 (Delete)** and **Phase 14 (Documentation)** were combined into a single close-out session.
+- `ByteParityRegressionTests.cs` was deleted (not converted to round-trip tests) because the per-codec `GoldenBytes_wire_format_stable` tests in `Codecs/` already lock the exact wire bytes. The regression suite was redundant.
+- `MessageDeserializerTests.cs` boundary test `Deserialize_ExactlyMinHeaderSize_ProceedsToBodyParsing` was updated: it previously asserted `Assert.Throws<EndOfStreamException>` (LegacyMessageDeserializer let exceptions propagate), but `MessageDeserializer` catches and wraps codec read failures as `Result.Failure`. The test now asserts failure without "too short" in the message, preserving the mutation-killing intent.
+- `MessageDeserializer.MaxPayloadSize` was promoted from `internal` to `public` so test projects can reference the constant without a compile-time dependency on deleted legacy types.
+
+### What shipped
+
+- 28 `MessageCodec<T>` singleton records in `Serialization/Codecs/`
+- `IMessageCodec`, `MessageCodec<T>`, `MessageCodecRegistry`, `MessageCodecRegistryInstance`, `CodecKey`, `FieldDescriptor`, `FieldInterpreter`, `WireType`
+- `SetSecurePropertyMessage` implements `IDisposable`; `SetSecurePropertyCodec` three-layer zeroing (reveal buffer, scratch buffer, PostWrite hook)
+- Version negotiation: `(MessageType, WireVersion)` key, nearest-lower-version fallback in `MessageCodecRegistry.ForRead`
+- `MessageSerializer.Serialize` / `MessageDeserializer.Deserialize` facade
+- `PipeTransportBase` fully cut over — legacy path deleted
+- Architecture guide: `docs/protocol-codec-architecture.md`
