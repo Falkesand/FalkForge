@@ -1,6 +1,6 @@
 # RFC: Deepen Decompiler TableReaders into a recipe-symmetric pipeline
 
-**Status:** Design accepted, implementation plan pending
+**Status:** COMPLETED 2026-05-11 — see commits 2c715c5, 549c9f4, 780c454, 4a08252 (Slices 1–4: value types, schemas, engine), 9ce01ca (Slices A–D: legacy deletion), 0ee3759, 67fbb66 (Phase 10: DecompileToRecipe + MsiReadRecipe), a3b9084, c5d86a6, 2bfc4f4 (Phase 11: IMsiTableContributor.ReadSchema), 6423d88, 2ba746f, 40b83bb (Phase 12: Firewall/IIS/SQL/Dependency migrations), f3d29af, 9619f7d, ce2842d, dab60c0 (Phase 14: round-trip tests for 12 demo fixtures)
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Decompiler/`, `src/FalkForge.Extensibility/`, `src/FalkForge.Testing/`, `tests/FalkForge.Decompiler.Tests/`
 **Depends on:** `2026-04-11-tableemitter-recipe-deepening-design.md` (Cycle 2) — reuses `MsiDatabaseRecipe` and related value types
@@ -530,3 +530,40 @@ TDD-driven, each phase gets its own implementation plan file. Sketch of order:
 15. **Documentation** — update `docs/` with the read pipeline architecture and the extension contribution guide.
 
 Each phase of the sequencing plan gets its own implementation plan file under `docs/plans/`, paired with this design document.
+
+---
+
+## Implementation Postscript (2026-05-11)
+
+All 15 phases shipped. Execution followed the RFC's 15-step sequencing plan closely, with the deviations noted below.
+
+### What shipped
+
+1. **Value types + engine (Slices 1–4)** — `ReadColumn`, `ReadColumnType`, `ReadRow`, `RowMapper<TRow>`, `TableReadSchema<TRow>`, `ITableReadSchema`, `TableReadEngine.ReadOne`. All per-schema unit tests introduced under TDD before each type was implemented.
+2. **Nine built-in schemas** — `PropertySchema`, `DirectorySchema`, `ComponentSchema`, `FileSchema`, `FeatureSchema`, `FeatureComponentsSchema`, `RegistrySchema`, `ServiceSchema`, `ShortcutSchema`, `UpgradeSchema`. One static class per schema, ~20 LOC each. Total read-side schema LOC ≈ 200 vs. 696 original.
+3. **Legacy deletion (Slices A–D, commit 9ce01ca)** — all 9 `*TableReader` static classes deleted in one cleanup commit after all schemas and per-schema tests passed.
+4. **`MsiReadRecipe` + `DecompileToRecipe` (Phase 10)** — `MsiReadRecipe` is a lightweight value type carrying the 10 built-in table collections plus `ExtensionRows`. `MsiDecompiler.DecompileToRecipe(msiPath)` is the new test entry point returning `Result<MsiReadRecipe>`.
+5. **`IMsiTableContributor.ReadSchema` (Phase 11)** — optional default-null property added to the interface. `ITableReadSchema` interface lives in `FalkForge.Extensibility` alongside `ITableQuery`, keeping Extensibility the only dependency for extension authors.
+6. **Extension migrations (Phase 12)** — Firewall, IIS, SQL, and Dependency contributors all populate `ReadSchema`. Extension rows are read into `MsiReadRecipe.ExtensionRows` (a `FrozenDictionary<string, IReadOnlyList<object>>`).
+7. **Round-trip tests for 12 demo fixtures (Phase 14)** — `DemoRoundTripTests.Msi_DecompileToRecipe_Succeeds` covers all MSI-producing demos. Two write-side bugs surfaced during Phase 14 (see below).
+
+### Deviations from the RFC design
+
+| Design says | What shipped | Impact |
+|---|---|---|
+| `ReadColumn` wraps `RecipeColumn` from Compiler.Msi | `ReadColumn` is a flat `readonly record struct(string Name, ReadColumnType Type, bool Nullable, int Index)` — no `RecipeColumn` dependency | Simpler; avoids pulling Compiler.Msi into Decompiler |
+| `ReadRow` is a `ref struct` | `ReadRow` is a `sealed class` — C# prohibits `ref struct` instances captured by delegate closures (`RowMapper<TRow>`) | No allocation concern; `ReadRow` is short-lived and not retained |
+| `TableReadSchema<T>` uses `TableId` for the table name | Uses plain `string TableName` | `TableId` is in Compiler.Msi; read-side is in Decompiler — cross-project dep avoided |
+| `MsiRecipeReader` static class as Stage 1 facade | Logic lives directly in `MsiDecompiler.ReadRecipeFromAccess` — no separate `MsiRecipeReader` class | Same seam, fewer indirections |
+| Intermediate type is `MsiDatabaseRecipe` (Cycle 2) | Intermediate type is `MsiReadRecipe` — lighter struct, carries only what the reconstructor needs | `MsiDatabaseRecipe` is write-optimised; sharing it would create a bidirectional dep |
+| `FakeMsiTableAccess` shipped in `FalkForge.Testing` | Not shipped — tests use `ITableQuery` stubs inline or mock the interface directly | Low-impact; per-schema tests run fine without a named fake |
+| `IMsiTableContributor.Schema` (write-side) added in Cycle 2 | `Schema` was **not** added in Cycle 2; it was added in Cycle 4 alongside `ReadSchema` | RFC said Cycle 2 added it; actual Cycle 2 work used `ITableProducer` on the build side instead |
+| Firewall `ReadSchema` returns a `TableReadSchema<WixFirewallExceptionRow>` | Firewall implements `ITableReadSchema` directly (`FirewallTableReadSchema` internal class) — bypasses the generic engine to avoid pulling `TableReadEngine` into Extensibility | Correct; matches the interface contract |
+
+### Open follow-on items
+
+- **`FeatureBuilder._files` write-side bug** — Phase 14 discovered that files added via `featureBuilder.Files(...)` are silently dropped by `PackageBuilder.Feature()` and never reach the compiled MSI. Round-trip tests for affected demos are skipped with `RoundTripSkipReason` set. Fix tracked separately.
+- **Byte-identical round-trip** — not wired. `DemoRoundTripTests` documents the decision: byte-identical tier requires every demo to opt in to a pinned `SOURCE_DATE_EPOCH` and fixed `ProductCode`, which is a demo-authoring concern outside Phase 14 scope. Recipe-equality is the load-bearing regression tier.
+- **`FakeMsiTableAccess`** — never shipped. If isolated per-schema tests across multiple files become unwieldy, add it to `FalkForge.Testing` (~40 LOC).
+- **Demos skipped in round-trip** — demos that rely on the `FeatureBuilder._files` bug are skip-listed via `DemoExpectation.RoundTripSkipReason`. Unblock once the write-side bug is fixed.
+- **`MsiPackageReconstructor` cross-platform unit tests** — the reconstructor is pure and cross-platform, but no hand-built recipe tests were written in Phase 14. The reconstructor is covered indirectly by integration tests only.
