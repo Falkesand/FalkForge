@@ -310,6 +310,45 @@ public sealed class PreUIBootstrapOrchestratorTests
         Assert.Equal(PreUIBootstrapOutcome.ExitRebootRequired, outcome);
     }
 
+    // ── Security / Ctrl-C propagation (c417601 review — Opus 4.6 important) ──
+
+    [Fact]
+    public async Task RunAsync_PropagatesCancellationToken_ToInstaller()
+    {
+        // Intent: RunAsBootstrapper must pass a real CancellationToken (wired to
+        // Console.CancelKeyPress) rather than CancellationToken.None to RunAsync.
+        // This test verifies the orchestrator propagates the token it receives through
+        // to the installer so that a mid-install Ctrl-C reaches IProcessRunner.KillTree
+        // via the row-18 cancellation path.
+        // RED until Program.cs:418 passes cts.Token instead of CancellationToken.None;
+        // the orchestrator itself already forwards ct correctly.
+        var pkg = MakePackage();
+        var detector = new RecordingDetector(missing: [pkg]);
+        using var cts = new CancellationTokenSource();
+        var installer = new CancellationCapturingInstaller(cts);
+        var probe = new FakeElevationProbe(isElevated: true);
+        var relauncher = new FakeRelauncher(exitCode: 0);
+
+        var args = new BootstrapperArgs(IsBootstrapElevated: false, CacheDir: null);
+        var manifest = MakeManifest(pkg);
+        var orchestrator = MakeOrchestrator(detector, installer, probe, relauncher);
+
+        // Cancel before RunAsync starts — the token should flow into the installer.
+        await cts.CancelAsync();
+
+        var outcome = await orchestrator.RunAsync(
+            manifest, args,
+            extractionDir: @"C:\tmp\cache",
+            ownExecutablePath: @"C:\tmp\setup.exe",
+            ct: cts.Token);
+
+        // The installer must have seen a cancelled token — not CancellationToken.None.
+        Assert.True(installer.ReceivedToken.IsCancellationRequested,
+            "Orchestrator must forward the caller's CancellationToken to the installer. " +
+            "Program.RunAsBootstrapper must pass cts.Token, not CancellationToken.None.");
+        Assert.Equal(PreUIBootstrapOutcome.ExitCancelled, outcome);
+    }
+
     // ── Fakes ─────────────────────────────────────────────────────────────────
 
     private sealed class RecordingDetector : IPreUIPrerequisiteDetector
@@ -376,5 +415,27 @@ public sealed class PreUIBootstrapOrchestratorTests
         public void SetMessage(string text) { }
         public void SetPercent(int percent) { }
         public void Dispose() { }
+    }
+
+    /// <summary>
+    /// Captures the CancellationToken passed to RunAllAsync and immediately returns Cancelled.
+    /// Used to verify that the orchestrator forwards its ct parameter rather than CancellationToken.None.
+    /// </summary>
+    private sealed class CancellationCapturingInstaller : IPreUIPrerequisiteInstaller
+    {
+        private readonly CancellationTokenSource _cts;
+        public CancellationToken ReceivedToken { get; private set; }
+
+        public CancellationCapturingInstaller(CancellationTokenSource cts) => _cts = cts;
+
+        public Task<PreUIResult> RunAllAsync(
+            IReadOnlyList<PreUIPackageInfo> missing,
+            IProgressSink progress,
+            CancellationToken ct)
+        {
+            ReceivedToken = ct;
+            // Return Cancelled to exercise the Cancelled → ExitCancelled outcome mapping.
+            return Task.FromResult<PreUIResult>(new PreUIResult.Cancelled());
+        }
     }
 }

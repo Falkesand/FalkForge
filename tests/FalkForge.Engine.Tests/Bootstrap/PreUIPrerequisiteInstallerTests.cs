@@ -180,6 +180,125 @@ public sealed class PreUIPrerequisiteInstallerTests
         Assert.Equal(1603, failed.ExitCode);
         Assert.Single(runner.Invocations); // pkg2 NOT run
     }
+
+    // ---------------------------------------------------------------------------
+    // Security: path-traversal validation (c417601 review — Opus 4.6 critical)
+    // These tests are RED until PreUIPrerequisiteInstaller validates pkg.SourcePath.
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RunAllAsync_ReturnsFailed_WhenSourcePath_IsDotDotTraversal()
+    {
+        // Intent: a malicious manifest could set SourcePath = "..\..\Windows\System32\evil.exe".
+        // The installer must reject any path that escapes the <cacheDir>/preui/ root BEFORE
+        // constructing the launch path — preventing the elevated child from executing arbitrary files.
+        var evil = new PreUIPackageInfo
+        {
+            Id = "pkg1", DisplayName = "Traversal Package",
+            SourcePath = @"..\..\Windows\System32\evil.exe",
+            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+        };
+        var runner = new FakeProcessRunner(new Dictionary<string, int>());
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([evil], sink, CancellationToken.None);
+
+        // No process must be launched
+        Assert.Empty(runner.Invocations);
+        var failed = Assert.IsType<PreUIResult.Failed>(result);
+        Assert.Equal(-1, failed.ExitCode); // sentinel: path-traversal rejection
+    }
+
+    [Fact]
+    public async Task RunAllAsync_ReturnsFailed_WhenSourcePath_IsRooted()
+    {
+        // Intent: "C:\Windows\System32\notepad.exe" is an absolute path that bypasses
+        // the preui/ containment check entirely. Must be rejected at the gate.
+        var evil = new PreUIPackageInfo
+        {
+            Id = "pkg1", DisplayName = "Rooted Package",
+            SourcePath = @"C:\Windows\System32\notepad.exe",
+            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+        };
+        var runner = new FakeProcessRunner(new Dictionary<string, int>());
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([evil], sink, CancellationToken.None);
+
+        Assert.Empty(runner.Invocations);
+        var failed = Assert.IsType<PreUIResult.Failed>(result);
+        Assert.Equal(-1, failed.ExitCode);
+    }
+
+    [Fact]
+    public async Task RunAllAsync_ReturnsFailed_WhenSourcePath_ContainsAltStream()
+    {
+        // Intent: "foo.exe:hidden" uses NTFS alternate data streams to hide a payload.
+        // Colon in the filename signals an alternate data stream — reject unconditionally.
+        var evil = new PreUIPackageInfo
+        {
+            Id = "pkg1", DisplayName = "AltStream Package",
+            SourcePath = "foo.exe:hidden",
+            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+        };
+        var runner = new FakeProcessRunner(new Dictionary<string, int>());
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([evil], sink, CancellationToken.None);
+
+        Assert.Empty(runner.Invocations);
+        var failed = Assert.IsType<PreUIResult.Failed>(result);
+        Assert.Equal(-1, failed.ExitCode);
+    }
+
+    [Fact]
+    public async Task RunAllAsync_ReturnsFailed_WhenSourcePath_UsesDeviceNamespace()
+    {
+        // Intent: "\\?\C:\evil.exe" or "\\.\pipe\evil" routes through the Win32 device
+        // namespace, bypassing many path checks. Must be rejected at the gate.
+        var evil = new PreUIPackageInfo
+        {
+            Id = "pkg1", DisplayName = "DeviceNS Package",
+            SourcePath = @"\\?\C:\evil.exe",
+            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+        };
+        var runner = new FakeProcessRunner(new Dictionary<string, int>());
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([evil], sink, CancellationToken.None);
+
+        Assert.Empty(runner.Invocations);
+        var failed = Assert.IsType<PreUIResult.Failed>(result);
+        Assert.Equal(-1, failed.ExitCode);
+    }
+
+    [Fact]
+    public async Task RunAllAsync_Succeeds_WhenSourcePath_IsLegitimateRelative()
+    {
+        // Intent: confirm the gate doesn't block legitimate simple relative paths.
+        // "dotnet-runtime.exe" (no directory separators, no special prefixes) is valid.
+        var legit = new PreUIPackageInfo
+        {
+            Id = "pkg1", DisplayName = "Legit Package",
+            SourcePath = "dotnet-runtime.exe",
+            Sha256Hash = new string('A', 64), Arguments = "/quiet /norestart"
+        };
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [@"C:\extract\preui\dotnet-runtime.exe"] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([legit], sink, CancellationToken.None);
+
+        Assert.IsType<PreUIResult.Success>(result);
+        Assert.Single(runner.Invocations);
+    }
 }
 
 // =============================================================================
