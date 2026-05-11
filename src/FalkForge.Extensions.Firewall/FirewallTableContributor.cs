@@ -10,6 +10,9 @@ public sealed class FirewallTableContributor : IMsiTableContributor
 
     public string TableName => "WixFirewallException";
 
+    /// <inheritdoc/>
+    public ITableReadSchema? ReadSchema => FirewallTableReadSchema.Instance;
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>();
