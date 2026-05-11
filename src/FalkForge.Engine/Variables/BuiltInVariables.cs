@@ -2,11 +2,12 @@ namespace FalkForge.Engine.Variables;
 
 using System.Globalization;
 using System.Runtime.InteropServices;
+using FalkForge.Engine.Pipeline;
 using FalkForge.Platform;
 
 public static class BuiltInVariables
 {
-    public static void Populate(VariableStore store, IPlatformServices? platform)
+    public static void Populate(VariableStore store, IPlatformServices? platform, ISystemClock? clock = null)
     {
         PopulateOsVersion(store);
         PopulateArchitecture(store);
@@ -14,7 +15,7 @@ public static class BuiltInVariables
         PopulateSessionInfo(store, platform);
         PopulateUserInfo(store, platform);
         PopulateMsiInfo(store);
-        PopulateDateInfo(store);
+        PopulateDateInfo(store, clock);
         PopulateRebootPending(store, platform);
     }
 
@@ -166,9 +167,9 @@ public static class BuiltInVariables
         store.Set(BuiltInVariableNames.VersionMsi, new Version(5, 0));
     }
 
-    private static void PopulateDateInfo(VariableStore store)
+    private static void PopulateDateInfo(VariableStore store, ISystemClock? clock)
     {
-        var now = DateTime.UtcNow;
+        var now = clock?.UtcNow.UtcDateTime ?? DateTime.UtcNow;
         store.Set(BuiltInVariableNames.Date, now.ToString("yyyyMMdd", CultureInfo.InvariantCulture));
         store.Set(BuiltInVariableNames.Time, now.ToString("HHmmss", CultureInfo.InvariantCulture));
     }
