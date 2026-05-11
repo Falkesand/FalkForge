@@ -57,7 +57,7 @@ The registry is short-lived: a fresh instance is created per `MsiAuthoring.Compi
 
 - **`IDryRunContributor`** — `GetDryRunActions(DryRunIntent)` returns descriptive `DryRunAction`s for `Install` / `Uninstall` / `Repair`. Used by callers that want a human-readable summary of side effects. The default `CollectingExtensionRegistry` accepts but discards them; concrete shipped extensions implement `IDryRunContributor` directly on the extension class so callers can iterate `extensions.OfType<IDryRunContributor>()`.
 
-- **`IDialogStepBuilder`** — marker interface with a `Name`. Builders registered here are added to `DialogStepRegistry`, suppressing DLG001 ("unknown step") errors when `DialogCustomization.InsertStep(name, after:)` references them. Extensions needing to emit a full `MsiDialogModel` implement `IMsiDialogStepBuilder` (in `FalkForge.Compiler.Msi`) which extends this marker.
+- **`IDialogStepBuilder`** — marker interface with a `Name`. Builders registered here are added to `DialogStepRegistry`, suppressing DLG001 ("unknown step") errors when `DialogCustomization.InsertStep(name, after:)` references them. Extensions needing to emit a full `MsiDialogModel` implement `IMsiDialogStepBuilder` (in `FalkForge.Compiler.Msi`) which extends this marker. See `docs/dialog-template-architecture.md` — "Extension Dialog Step Contribution" — for a full worked example including `DialogComposer.Compose` usage and the `InsertStep` call-site pattern.
 
 ### `ExtensionContext`
 

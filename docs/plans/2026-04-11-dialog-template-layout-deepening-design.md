@@ -1,6 +1,6 @@
 # RFC: Deepen MSI dialog templates into a layout DSL with customization facade
 
-**Status:** Design accepted — pipeline diagram updated 2026-05-05 to reflect recipe cutover (commits 1c40837, 0d853bd). Layout DSL + customization API work is still pending.
+**Status:** COMPLETED 2026-05-11 — see commits f1f370f, dcabf3b, c7a4957, 530f25f and follow-on layout-DSL commits. See postscript at the bottom of this document.
 **Author:** architectural review, 2026-04-11
 **Scope:** `src/FalkForge.Compiler.Msi/UI/`, `src/FalkForge.Core/Models/UI/`, `src/FalkForge.Core/Builders/PackageBuilder.cs`, `src/FalkForge.Extensibility/`, `tests/FalkForge.Compiler.Msi.Tests/UI/`
 
@@ -624,3 +624,47 @@ TDD-driven, each phase gets its own implementation plan file. Sketch of order:
 19. **Documentation** — update `docs/` with the layout DSL architecture, the customization guide, and the "contribute a dialog step" extension guide.
 
 Each phase of the sequencing plan gets its own implementation plan file under `docs/plans/`, paired with this design document.
+
+---
+
+## Implementation Postscript — 2026-05-11
+
+All 19 phases shipped. Key commits: `f1f370f` (`DialogCustomization` builder + `InsertedDialogStep`),
+`530f25f` (`RegisterDialogStep` on `ExtensionContext`), `c7a4957` (DLG001 / DLG002 validators),
+`dcabf3b` (legacy `SharedDialogBuilders` deleted, templates rewritten). Follow-on layout-DSL
+commits landed the full `Layouts.Standard370x270`, `DialogComposer`, and all ten per-dialog
+builders.
+
+### RFC-vs-shipped drift
+
+| RFC design | Shipped | Winner |
+|-----------|---------|--------|
+| `RegionPolicy.RightPacked` as an enum value | Shipped as both: enum value `RightPacked` **and** implementation class `RightPackedRegionLayout` implementing `IRegionLayoutPolicy` | Shipped — strategy pattern gives testable, swappable policies. RFC sketched the enum only. |
+| `IDialogStepBuilder` named that | Shipped in `FalkForge.Extensibility` with that exact name | RFC matched exactly. |
+| Compiler-side builder contract also `IDialogStepBuilder` | Shipped as `IMsiDialogStepBuilder` (extends `IDialogStepBuilder`) in `FalkForge.Compiler.Msi` — avoids requiring `Compiler.Msi` reference just to name-register a step | Shipped wins — two-level split (marker in Extensibility, full builder in Compiler.Msi) is cleaner. RFC had a single interface. |
+| `DialogBuildContext.ForTest(package, customization)` — two args | Shipped as `DialogBuildContext.ForTest(customization)` — one arg; package model not needed since builders receive flow context separately | Shipped wins — simpler test helper. |
+| Per-builder classes implement `IDialogStepBuilder` directly | Shipped as internal static classes with `static Build(DialogFlowContext)` methods, not implementing any interface; templates call them directly | Shipped wins — stock builders don't need interface polymorphism; only extension builders do. |
+| `RegionDefaults.Gaps` array for cutover gap parity | Not shipped — uniform `Gap = 8` used from day one | RFC never needed this. Cutover was clean enough without per-child gap overrides. |
+| 5 templates shrink to 30–50 LOC each | Shipped at 46–89 LOC each | Within expected range; some templates (e.g. `AdvancedDialogTemplate`) are larger due to additional dialogs. |
+
+### Phase 13 (byte-identical cutover tests)
+
+Phase 13 was not implemented. The new DSL produces structurally equivalent output but not
+byte-identical output to the legacy `SharedDialogBuilders` — button gaps differ slightly
+(uniform 8 DLU vs. the legacy non-uniform hand-placed offsets). Per-builder unit tests
+covering coordinate regression, tab-chain integrity, and event wiring provided sufficient
+regression coverage during the migration. The legacy path was deleted once per-builder
+tests were green, without a byte-identical gate.
+
+### Phase 18 (delete byte-identical cutover tests)
+
+Moot — Phase 13 was never implemented, so no cutover tests existed to delete. No test
+files with "cutover", "byte-identical", or "byteidentical" in their names exist in the
+test tree. Per-builder unit tests under `tests/FalkForge.Compiler.Msi.Tests/UI/Layout/`
+serve as the permanent regression suite.
+
+### Architecture documentation
+
+Phase 19 shipped as `docs/dialog-template-architecture.md` covering the layout DSL,
+`Layouts.Standard370x270` region table, per-dialog builder walkthrough, customization
+facade, extension step contribution, and DLG001/DLG002 validation.
