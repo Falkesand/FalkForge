@@ -245,7 +245,10 @@ public static class BundleReader
                 return Result<IReadOnlyList<string>>.Failure(payloadResult.Error);
 
             // Use PackageId as filename — validated to be a safe identifier by BDL028+.
-            // Path.GetFileName is applied as a defence-in-depth safeguard against traversal.
+            // Path.GetFileName is applied as a defence-in-depth safeguard against path traversal.
+            // Phase 3 hardening: Add Windows reserved-device-name check (CON, NUL, AUX, COM1..COM9, LPT1..LPT9)
+            // to prevent File.WriteAllBytes from blocking on crafted bundles. Phase 1 concern deferred;
+            // ExtractPreUIPayloads is not called by the engine bootstrap until Phase 4.
             var safeName = Path.GetFileName(entry.PackageId);
             var outputPath = Path.Combine(preUIDir, safeName);
             File.WriteAllBytes(outputPath, payloadResult.Value);

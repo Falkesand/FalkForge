@@ -4,7 +4,7 @@ namespace FalkForge.Compiler.Bundle.Models;
 /// Describes a pre-UI prerequisite payload that is downloaded at install time
 /// rather than embedded in the bundle.
 /// </summary>
-public sealed class PreUIRemotePayload
+public sealed record PreUIRemotePayload
 {
     /// <summary>HTTPS URL to download the payload from.</summary>
     public required string DownloadUrl { get; init; }

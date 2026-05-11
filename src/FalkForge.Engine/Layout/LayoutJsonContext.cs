@@ -15,4 +15,7 @@ using FalkForge.Engine.Protocol.Manifest;
 [JsonSerializable(typeof(PreUIPackageInfo[]))]
 [JsonSerializable(typeof(PreUIRebootBehavior))]
 [JsonSerializable(typeof(PreUIPayloadMode))]
+[JsonSerializable(typeof(SearchCondition))]
+[JsonSerializable(typeof(SearchCondition[]))]
+[JsonSerializable(typeof(SearchConditionType))]
 internal partial class LayoutJsonContext : JsonSerializerContext;
