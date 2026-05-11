@@ -75,26 +75,23 @@ public class LogCodecTests
     }
 
     [Fact]
-    public void WireVersion2_NewSerializer_IsLargerThanLegacy_By16Guid_Bytes()
+    public void WireVersion2_NewSerializer_IsLargerThanV1_By16Guid_Bytes()
     {
         // WHY: LogCodec was promoted from WireVersion 1 to 2 to append a 16-byte
-        // SessionCorrelationId. The new serializer output must differ from the legacy
-        // output and must be exactly 16 bytes larger (the Guid) plus 1 byte version bump
-        // in the framing header (u16 changed from 0x0001 to 0x0002 — same size, but
-        // the payload is 16 bytes longer). Both share the same 8-byte header so the
-        // body difference is exactly 16 bytes.
-        var message = new LogMessage
+        // SessionCorrelationId. The new serializer output must be exactly 16 bytes larger
+        // than the v1 (legacy) wire format for the same payload. Both share the same
+        // 8-byte header, so the body difference is exactly 16 bytes (the appended Guid).
+        //
+        // v1 wire length = 30 (computed from LegacyMessageSerializer before deletion 2026-05-11).
+        const int legacyWireLength = 30;
+
+        var newBytes = MessageSerializer.Serialize(new LogMessage
         {
             SequenceId = 3,
             Text = "Hello, world.",
             Level = LogLevel.Info,
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        // The new format appends 16 Guid bytes to the payload, so it must be larger.
-        Assert.NotEqual(legacyBytes, newBytes);
-        Assert.Equal(legacyBytes.Length + 16, newBytes.Length);
+        Assert.Equal(legacyWireLength + 16, newBytes.Length);
     }
 }

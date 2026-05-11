@@ -44,17 +44,13 @@ public class ElevateProgressCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new ElevateProgressMessage
-        {
-            SequenceId = 8,
-            Percent = 75,
-        };
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("0100020408000000080000004B000000");
+        var actual = MessageSerializer.Serialize(new ElevateProgressMessage { SequenceId = 8, Percent = 75 });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

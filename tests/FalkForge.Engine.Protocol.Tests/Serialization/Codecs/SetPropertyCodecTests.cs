@@ -46,18 +46,18 @@ public class SetPropertyCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new SetPropertyMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000802100000000B00000009555345524C4556454C0131");
+        var actual = MessageSerializer.Serialize(new SetPropertyMessage
         {
             SequenceId = 11,
             PropertyName = "USERLEVEL",
             Value = "1",
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

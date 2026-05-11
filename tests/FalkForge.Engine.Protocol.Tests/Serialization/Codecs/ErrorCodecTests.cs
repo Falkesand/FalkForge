@@ -46,18 +46,18 @@ public class ErrorCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new ErrorMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010008011A000000050000001156616C69646174696F6E206661696C656401000000");
+        var actual = MessageSerializer.Serialize(new ErrorMessage
         {
             SequenceId = 5,
             Message = "Validation failed",
             Kind = ErrorKind.Validation,
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

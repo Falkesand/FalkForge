@@ -67,17 +67,17 @@ public class PhaseChangedCodecTests
     }
 
     [Fact]
-    public void WireVersion2_NewSerializer_IsLargerThanLegacy_By16Guid_Bytes()
+    public void WireVersion2_NewSerializer_IsLargerThanV1_By16Guid_Bytes()
     {
         // WHY: PhaseChangedCodec was promoted from WireVersion 1 to 2 to append a 16-byte
-        // SessionCorrelationId. The new serializer output must differ from the legacy
-        // output and must be exactly 16 bytes larger (the Guid appended to the payload).
-        var message = new PhaseChangedMessage { SequenceId = 4, Phase = EnginePhase.Detecting };
+        // SessionCorrelationId. The new serializer output must be exactly 16 bytes larger
+        // than the v1 (legacy) wire format for the same payload.
+        //
+        // v1 wire length = 16 (computed from LegacyMessageSerializer before deletion 2026-05-11).
+        const int legacyWireLength = 16;
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
+        var newBytes = MessageSerializer.Serialize(new PhaseChangedMessage { SequenceId = 4, Phase = EnginePhase.Detecting });
 
-        Assert.NotEqual(legacyBytes, newBytes);
-        Assert.Equal(legacyBytes.Length + 16, newBytes.Length);
+        Assert.Equal(legacyWireLength + 16, newBytes.Length);
     }
 }

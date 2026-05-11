@@ -38,13 +38,13 @@ public class DetectBeginCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new DetectBeginMessage { SequenceId = 11 };
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000101040000000B000000");
+        var actual = MessageSerializer.Serialize(new DetectBeginMessage { SequenceId = 11 });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

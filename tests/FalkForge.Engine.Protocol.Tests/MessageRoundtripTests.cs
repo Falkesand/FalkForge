@@ -8,8 +8,8 @@ public class MessageRoundtripTests
 {
     private static T RoundTrip<T>(T message) where T : EngineMessage
     {
-        var bytes = LegacyMessageSerializer.Serialize(message);
-        var result = LegacyMessageDeserializer.Deserialize(bytes);
+        var bytes = MessageSerializer.Serialize(message);
+        var result = MessageDeserializer.Deserialize(bytes);
         Assert.True(result.IsSuccess, $"Deserialization failed: {(result.IsFailure ? result.Error.Message : "")}");
         Assert.IsType<T>(result.Value);
         return (T)result.Value;
@@ -499,7 +499,7 @@ public class MessageRoundtripTests
     public void Deserialize_TooShort_ReturnsFailure()
     {
         var data = new byte[] { 0x01, 0x00, 0x01 }; // only 3 bytes, need 8 minimum
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -518,7 +518,7 @@ public class MessageRoundtripTests
         writer.Write(0u); // sequenceId
         var data = stream.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -536,7 +536,7 @@ public class MessageRoundtripTests
         writer.Write(0u);
         var data = stream.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -554,7 +554,7 @@ public class MessageRoundtripTests
         writer.Write(0u);   // only 4 bytes available
         var data = stream.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -572,7 +572,7 @@ public class MessageRoundtripTests
         writer.Write(0u);
         var data = stream.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -590,7 +590,7 @@ public class MessageRoundtripTests
         writer.Write(0u);
         var data = stream.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -617,7 +617,7 @@ public class MessageRoundtripTests
         writer.Write(payloadLen);
         var data = stream.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);

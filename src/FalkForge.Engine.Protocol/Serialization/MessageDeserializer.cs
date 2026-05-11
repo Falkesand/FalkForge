@@ -19,7 +19,7 @@ namespace FalkForge.Engine.Protocol.Serialization;
 public static class MessageDeserializer
 {
     /// <summary>Maximum payload length accepted from the wire (1 MiB).</summary>
-    internal const int MaxPayloadSize = 1 * 1024 * 1024;
+    public const int MaxPayloadSize = 1 * 1024 * 1024;
 
     /// <summary>Header size: wire version (u16) + type (u16) + payload length (i32).</summary>
     private const int HeaderSize = 8;

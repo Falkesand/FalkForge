@@ -76,20 +76,21 @@ public class UpdateAvailableCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new UpdateAvailableMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString(
+            "01000C013F0000000B00000005312E322E33094275672066697865731C68747470733A2F2F6578616D706C652E636F6D2F752E62756E646C650D2F746D702F752E62756E646C65");
+        var actual = MessageSerializer.Serialize(new UpdateAvailableMessage
         {
             SequenceId = 11,
             Version = "1.2.3",
             ReleaseNotes = "Bug fixes",
             DownloadUrl = "https://example.com/u.bundle",
             LocalPath = "/tmp/u.bundle",
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

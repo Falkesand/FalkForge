@@ -89,26 +89,31 @@ public class DetectCompleteCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_empty_array()
+    public void GoldenBytes_empty_array_wire_format_stable()
     {
-        var message = new DetectCompleteMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010002010D00000003000000000000000000000000");
+        var actual = MessageSerializer.Serialize(new DetectCompleteMessage
         {
             SequenceId = 3,
             State = InstallState.NotInstalled,
             CurrentVersion = null,
             Features = System.Array.Empty<FeatureState>(),
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_populated_array()
+    public void GoldenBytes_populated_array_wire_format_stable()
     {
-        var message = new DetectCompleteMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString(
+            "01000201410000000B0000000100000005392E392E3902000000" +
+            "014105416C70686100010000640000000000000001420442657461084F7074696F6E616C000001C800000000000000");
+        var actual = MessageSerializer.Serialize(new DetectCompleteMessage
         {
             SequenceId = 11,
             State = InstallState.Installed,
@@ -118,12 +123,9 @@ public class DetectCompleteCodecTests
                 new FeatureState("A", "Alpha", null, true, false, false, 100L),
                 new FeatureState("B", "Beta", "Optional", false, false, true, 200L),
             },
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]

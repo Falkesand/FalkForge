@@ -5,7 +5,7 @@ using Xunit;
 namespace FalkForge.Engine.Protocol.Tests;
 
 /// <summary>
-/// Boundary tests for LegacyMessageDeserializer targeting surviving Stryker mutants:
+/// Boundary tests for <see cref="MessageDeserializer"/> targeting surviving Stryker mutants:
 /// - MinHeaderSize boundary (< vs <=)
 /// - Payload length condition (|| vs &&)
 /// - MaxPayloadSize boundary (> vs >=)
@@ -24,7 +24,7 @@ public class MessageDeserializerTests
         // with <=, length==7 would still fail (7 <= 8), so this test alone is not enough.
         // Combined with the 8-byte test below it constrains both sides of the boundary.
         var data = new byte[7];
-        var result = LegacyMessageDeserializer.Deserialize(data, 7);
+        var result = MessageDeserializer.Deserialize(new ReadOnlySpan<byte>(data, 0, 7));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -38,11 +38,10 @@ public class MessageDeserializerTests
         // Kills the `< MinHeaderSize` → `<= MinHeaderSize` mutation:
         // with <=, length==8 would be rejected (8 <= 8 is true), but it must NOT be.
         //
-        // After the 8-byte header is consumed (version+type+payloadLength), the attempt to read
-        // sequenceId at line 39 will throw EndOfStreamException — which is NOT caught there.
-        // That propagation is expected; what matters is the "too short" guard did NOT fire.
-        // We verify this by checking the thrown exception is EndOfStreamException, not a result
-        // with "Message too short".
+        // After the 8-byte header passes the guard, processing continues into the body.
+        // With payloadLength=0 and no body bytes, the codec read fails (EndOfStreamException
+        // is caught internally and returned as a codec-read failure). The important assertion
+        // is that the failure is NOT "Message too short" — proving the guard did not fire.
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
         writer.Write((ushort)1);                        // protocol version
@@ -52,10 +51,10 @@ public class MessageDeserializerTests
 
         Assert.Equal(8, header.Length);
 
-        // The "too short" guard passed (length==8 >= MinHeaderSize==8), so processing continues
-        // into the body where ReadUInt32 for sequenceId throws EndOfStreamException.
-        // This proves the length guard evaluated correctly (did not reject 8 bytes).
-        Assert.Throws<EndOfStreamException>(() => LegacyMessageDeserializer.Deserialize(header, 8));
+        // "too short" guard did NOT fire: result is a failure, but not "Message too short".
+        var result = MessageDeserializer.Deserialize(header);
+        Assert.True(result.IsFailure);
+        Assert.DoesNotContain("too short", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -74,7 +73,7 @@ public class MessageDeserializerTests
         bw.Write(0u);  // sequenceId
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         // Must succeed — DetectBegin has no additional payload fields.
         Assert.True(result.IsSuccess);
@@ -95,7 +94,7 @@ public class MessageDeserializerTests
         bw.Write(0u);
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -112,11 +111,11 @@ public class MessageDeserializerTests
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
         bw.Write((ushort)MessageType.DetectBegin);
-        bw.Write(LegacyMessageDeserializer.MaxPayloadSize + 1);
+        bw.Write(MessageDeserializer.MaxPayloadSize + 1);
         bw.Write(0u);
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -134,11 +133,11 @@ public class MessageDeserializerTests
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
         bw.Write((ushort)MessageType.DetectBegin);
-        bw.Write(LegacyMessageDeserializer.MaxPayloadSize);  // exactly at the limit
+        bw.Write(MessageDeserializer.MaxPayloadSize);  // exactly at the limit
         bw.Write(0u);              // sequenceId (4 bytes), but payload claims 1MB beyond this
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         // Must fail with "truncated", not "Invalid payload length"
         Assert.True(result.IsFailure);
@@ -163,7 +162,7 @@ public class MessageDeserializerTests
         bw.Write(1u);  // sequenceId
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         // DetectBegin has no further fields — should succeed.
         Assert.True(result.IsSuccess);
@@ -185,7 +184,7 @@ public class MessageDeserializerTests
         bw.Write(0u);  // only 4 bytes actually present
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
@@ -222,7 +221,7 @@ public class MessageDeserializerTests
 
         var data = ms.ToArray();
 
-        var result = LegacyMessageDeserializer.Deserialize(data);
+        var result = MessageDeserializer.Deserialize(data);
 
         // The EndOfStreamException must be caught and converted to a failure result.
         Assert.True(result.IsFailure);

@@ -43,13 +43,13 @@ public class PlanBeginCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new PlanBeginMessage { SequenceId = 13, Action = InstallAction.Modify };
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000301080000000D00000003000000");
+        var actual = MessageSerializer.Serialize(new PlanBeginMessage { SequenceId = 13, Action = InstallAction.Modify });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

@@ -46,18 +46,18 @@ public class SetFeatureSelectionCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new SetFeatureSelectionMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000402120000000A0000000C466561747572652E436F726500");
+        var actual = MessageSerializer.Serialize(new SetFeatureSelectionMessage
         {
             SequenceId = 10,
             FeatureId = "Feature.Core",
             IsSelected = false,
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

@@ -8,8 +8,8 @@ public class UpdateMessageTests
 {
     private static T RoundTrip<T>(T message) where T : EngineMessage
     {
-        var bytes = LegacyMessageSerializer.Serialize(message);
-        var result = LegacyMessageDeserializer.Deserialize(bytes);
+        var bytes = MessageSerializer.Serialize(message);
+        var result = MessageDeserializer.Deserialize(bytes);
         Assert.True(result.IsSuccess, $"Deserialization failed: {(result.IsFailure ? result.Error.Message : "")}");
         Assert.IsType<T>(result.Value);
         return (T)result.Value;
@@ -84,7 +84,7 @@ public class UpdateMessageTests
             DownloadUrl = "https://example.com/update.exe"
         };
 
-        var bytes = LegacyMessageSerializer.Serialize(message);
+        var bytes = MessageSerializer.Serialize(message);
 
         // Verify the MessageType in the serialized header (bytes 2-3, little-endian ushort)
         var typeValue = BitConverter.ToUInt16(bytes, 2);
@@ -121,7 +121,7 @@ public class UpdateMessageTests
             PercentComplete = 0
         };
 
-        var bytes = LegacyMessageSerializer.Serialize(message);
+        var bytes = MessageSerializer.Serialize(message);
 
         var typeValue = BitConverter.ToUInt16(bytes, 2);
         Assert.Equal((ushort)MessageType.UpdateDownloadProgress, typeValue);
@@ -181,7 +181,7 @@ public class UpdateMessageTests
     {
         var message = new LaunchUpdateMessage { SequenceId = 301 };
 
-        var bytes = LegacyMessageSerializer.Serialize(message);
+        var bytes = MessageSerializer.Serialize(message);
 
         var typeValue = BitConverter.ToUInt16(bytes, 2);
         Assert.Equal((ushort)MessageType.LaunchUpdate, typeValue);
@@ -197,7 +197,7 @@ public class UpdateMessageTests
             LocalPath = @"C:\cache\update.exe"
         };
 
-        var bytes = LegacyMessageSerializer.Serialize(message);
+        var bytes = MessageSerializer.Serialize(message);
 
         var typeValue = BitConverter.ToUInt16(bytes, 2);
         Assert.Equal((ushort)MessageType.UpdateReady, typeValue);

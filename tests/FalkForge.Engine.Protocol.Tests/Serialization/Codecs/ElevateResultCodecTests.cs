@@ -74,36 +74,36 @@ public class ElevateResultCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_with_payload()
+    public void GoldenBytes_with_payload_wire_format_stable()
     {
-        var message = new ElevateResultMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000104110000000400000001047761726E01020000000102");
+        var actual = MessageSerializer.Serialize(new ElevateResultMessage
         {
             SequenceId = 4,
             Success = true,
             ErrorMessage = "warn",
             ResultPayload = new byte[] { 0x01, 0x02 },
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_without_payload()
+    public void GoldenBytes_without_payload_wire_format_stable()
     {
-        var message = new ElevateResultMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010001040700000009000000000000");
+        var actual = MessageSerializer.Serialize(new ElevateResultMessage
         {
             SequenceId = 9,
             Success = false,
             ErrorMessage = null,
             ResultPayload = null,
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

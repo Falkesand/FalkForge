@@ -8,9 +8,8 @@ namespace FalkForge.Engine.Protocol.Tests.Serialization.Codecs;
 
 /// <summary>
 /// Boundary tests for <see cref="CancelCodec"/>. The codec carries no payload
-/// other than the inherited <see cref="EngineMessage.SequenceId"/> and must
-/// produce bytes that match <see cref="LegacyMessageSerializer"/> via the
-/// <see cref="MessageSerializer"/> facade.
+/// other than the inherited <see cref="EngineMessage.SequenceId"/>. The golden-byte
+/// test locks the wire format: <c>[v1:u16][Type:u16][PayloadLen:i32][SeqId:u32]</c>.
 /// </summary>
 public class CancelCodecTests
 {
@@ -41,13 +40,13 @@ public class CancelCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new CancelMessage { SequenceId = 7 };
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010001020400000007000000");
+        var actual = MessageSerializer.Serialize(new CancelMessage { SequenceId = 7 });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

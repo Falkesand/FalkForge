@@ -73,34 +73,24 @@ public class ApplyCompleteCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_null_error()
+    public void GoldenBytes_null_error_wire_format_stable()
     {
-        var message = new ApplyCompleteMessage
-        {
-            SequenceId = 2,
-            ExitCode = 0,
-            ErrorMessage = null,
-        };
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("0100060109000000020000000000000000");
+        var actual = MessageSerializer.Serialize(new ApplyCompleteMessage { SequenceId = 2, ExitCode = 0, ErrorMessage = null });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_with_error_message()
+    public void GoldenBytes_with_error_message_wire_format_stable()
     {
-        var message = new ApplyCompleteMessage
-        {
-            SequenceId = 99,
-            ExitCode = 1603,
-            ErrorMessage = "Setup failed",
-        };
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010006011500000063000000430600000C5365747570206661696C6564");
+        var actual = MessageSerializer.Serialize(new ApplyCompleteMessage { SequenceId = 99, ExitCode = 1603, ErrorMessage = "Setup failed" });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

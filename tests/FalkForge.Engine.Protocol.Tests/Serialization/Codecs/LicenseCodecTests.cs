@@ -69,18 +69,18 @@ public class LicenseCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new LicenseMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010010011D00000007000000020000001453616D706C65206C6963656E736520746578742E");
+        var actual = MessageSerializer.Serialize(new LicenseMessage
         {
             SequenceId = 7,
             Action = LicenseAction.Declined,
             LicenseContent = "Sample license text.",
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

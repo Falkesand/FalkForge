@@ -48,19 +48,19 @@ public class UpdateDownloadProgressCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer()
+    public void GoldenBytes_wire_format_stable()
     {
-        var message = new UpdateDownloadProgressMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000E0118000000090000003930000000000000320901000000000012000000");
+        var actual = MessageSerializer.Serialize(new UpdateDownloadProgressMessage
         {
             SequenceId = 9,
             BytesReceived = 12345L,
             TotalBytes = 67890L,
             PercentComplete = 18,
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 }

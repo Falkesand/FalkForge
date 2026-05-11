@@ -75,35 +75,35 @@ public class PlanCompleteCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_empty_array()
+    public void GoldenBytes_empty_array_wire_format_stable()
     {
-        var message = new PlanCompleteMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010004011000000002000000000000000000000000000000");
+        var actual = MessageSerializer.Serialize(new PlanCompleteMessage
         {
             SequenceId = 2,
             TotalDiskSpaceRequired = 0L,
             PackageIds = System.Array.Empty<string>(),
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_populated_array()
+    public void GoldenBytes_populated_array_wire_format_stable()
     {
-        var message = new PlanCompleteMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("0100040121000000630000007F969800000000000300000005416C70686104426574610547616D6D61");
+        var actual = MessageSerializer.Serialize(new PlanCompleteMessage
         {
             SequenceId = 99,
             TotalDiskSpaceRequired = 9_999_999L,
             PackageIds = new[] { "Alpha", "Beta", "Gamma" },
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var newBytes = MessageSerializer.Serialize(message);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]

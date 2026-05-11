@@ -75,48 +75,35 @@ public class SetSecurePropertyCodecTests
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_short_payload()
+    public void GoldenBytes_short_payload_wire_format_stable()
     {
-        var message = new SetSecurePropertyMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("01000902120000000200000005544F4B454E04000000DEADBEEF");
+        var actual = MessageSerializer.Serialize(new SetSecurePropertyMessage
         {
             SequenceId = 2,
             PropertyName = "TOKEN",
             SecureValue = SensitiveBytes.FromPlaintext(new byte[] { 0xde, 0xad, 0xbe, 0xef }),
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        // Re-create because PostWrite will have disposed the first message's SecureValue.
-        var message2 = new SetSecurePropertyMessage
-        {
-            SequenceId = 2,
-            PropertyName = "TOKEN",
-            SecureValue = SensitiveBytes.FromPlaintext(new byte[] { 0xde, 0xad, 0xbe, 0xef }),
-        };
-        var newBytes = MessageSerializer.Serialize(message2);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
-    public void ByteParity_with_legacy_serializer_empty_payload()
+    public void GoldenBytes_empty_payload_wire_format_stable()
     {
-        var message = new SetSecurePropertyMessage
+        // Golden bytes lock the wire format against accidental drift.
+        // Computed from LegacyMessageSerializer before legacy deletion (2026-05-11).
+        var expected = Convert.FromHexString("010009020E0000006300000005454D50545900000000");
+        var actual = MessageSerializer.Serialize(new SetSecurePropertyMessage
         {
             SequenceId = 99,
             PropertyName = "EMPTY",
             SecureValue = SensitiveBytes.FromPlaintext(ReadOnlySpan<byte>.Empty),
-        };
+        });
 
-        var legacyBytes = LegacyMessageSerializer.Serialize(message);
-        var message2 = new SetSecurePropertyMessage
-        {
-            SequenceId = 99,
-            PropertyName = "EMPTY",
-            SecureValue = SensitiveBytes.FromPlaintext(ReadOnlySpan<byte>.Empty),
-        };
-        var newBytes = MessageSerializer.Serialize(message2);
-
-        Assert.Equal(legacyBytes, newBytes);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
