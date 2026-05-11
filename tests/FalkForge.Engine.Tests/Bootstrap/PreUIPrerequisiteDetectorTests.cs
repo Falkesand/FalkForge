@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Tests.Bootstrap;
 
+using FalkForge;
 using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Tests.Mocks;
 using FalkForge.Engine.Protocol.Manifest;
@@ -61,7 +62,7 @@ public sealed class PreUIPrerequisiteDetectorTests
         // Arrange — registry has matching version value
         var registry = new MockRegistry()
             .SetStringValue(
-                Platform.RegistryRoot.LocalMachine,
+                RegistryRoot.LocalMachine,
                 @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
                 "10.0.0",
                 "10.0.0");
@@ -123,7 +124,7 @@ public sealed class PreUIPrerequisiteDetectorTests
         // Prereq must be reported as missing because not ALL conditions pass.
         var registry = new MockRegistry()
             .SetStringValue(
-                Platform.RegistryRoot.LocalMachine,
+                RegistryRoot.LocalMachine,
                 @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
                 "10.0.0",
                 "10.0.0");

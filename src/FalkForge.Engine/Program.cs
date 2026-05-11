@@ -4,11 +4,13 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Text.Json;
+using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.Layout;
+using FalkForge.Platform.Windows;
 
 internal static class Program
 {
@@ -341,6 +343,20 @@ internal static class Program
         {
             Console.Error.WriteLine($"Failed to deserialize embedded manifest: {ex.Message}");
             return 1;
+        }
+
+        // Phase 2: probe pre-UI prerequisites and log missing ones.
+        // UI still launches even if prerequisites are missing — Phase 3+ will block/install.
+        if (manifest.PreUIPackages.Length > 0)
+        {
+            var detector = new PreUIPrerequisiteDetector(new WindowsRegistry(), WindowsFileSystemProvider.Instance);
+            var missing = detector.FindMissing(manifest.PreUIPackages);
+            if (missing.Count > 0)
+            {
+                Console.Error.WriteLine($"[pre-ui] {missing.Count} prerequisite(s) missing (Phase 2 log-only):");
+                foreach (var p in missing)
+                    Console.Error.WriteLine($"[pre-ui]   - {p.Id}: {p.DisplayName}");
+            }
         }
 
         // Create cache directory for extracted payloads
