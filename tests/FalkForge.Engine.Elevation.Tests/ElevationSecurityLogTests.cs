@@ -96,6 +96,12 @@ public sealed class ElevationSecurityLogTests : IDisposable
 
         WriterField.SetValue(null, null);
         InitializedField.SetValue(null, false);
+
+        // Also reset the correlation id field added for session correlation support.
+        var correlationField = typeof(ElevationSecurityLog).GetField(
+            "_correlationId",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        correlationField?.SetValue(null, string.Empty);
     }
 
     /// <summary>
@@ -131,7 +137,8 @@ public sealed class ElevationSecurityLogTests : IDisposable
         // real startup, but here we inject directly, so only our entry exists)
         Assert.Single(lines);
         var parts = lines[0].Split('\t');
-        Assert.Equal(4, parts.Length);
+        // Format: timestamp\tlevel\tcategory\tmessage\tcorrelationId (5 fields)
+        Assert.Equal(5, parts.Length);
 
         // [0] timestamp — parseable ISO-8601
         Assert.True(DateTimeOffset.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture,
@@ -146,6 +153,9 @@ public sealed class ElevationSecurityLogTests : IDisposable
 
         // [3] message
         Assert.Equal("PID recycling detected", parts[3]);
+
+        // [4] correlation id — empty when not set
+        Assert.Equal(string.Empty, parts[4]);
     }
 
     [Fact]
@@ -159,7 +169,8 @@ public sealed class ElevationSecurityLogTests : IDisposable
 
         Assert.Single(lines);
         var parts = lines[0].Split('\t');
-        Assert.Equal(4, parts.Length);
+        // 5-column format: timestamp\tlevel\tcategory\tmessage\tcorrelationId
+        Assert.Equal(5, parts.Length);
         Assert.Equal("ERROR", parts[1]);
         Assert.Equal("Connection", parts[2]);
         Assert.Equal("Pipe connect failed", parts[3]);
@@ -176,7 +187,8 @@ public sealed class ElevationSecurityLogTests : IDisposable
 
         Assert.Single(lines);
         var parts = lines[0].Split('\t');
-        Assert.Equal(4, parts.Length);
+        // 5-column format: timestamp\tlevel\tcategory\tmessage\tcorrelationId
+        Assert.Equal(5, parts.Length);
         Assert.Equal("INFO", parts[1]);
         Assert.Equal("Startup", parts[2]);
         Assert.Equal("Elevation process started", parts[3]);
@@ -336,12 +348,12 @@ public sealed class ElevationSecurityLogTests : IDisposable
         // Correct total line count
         Assert.Equal(expectedLines, lines.Length);
 
-        // Every line is a complete 4-field tab-delimited record — no interleaving
+        // Every line is a complete 5-field tab-delimited record — no interleaving
         foreach (var line in lines)
         {
             var parts = line.Split('\t');
-            Assert.True(parts.Length == 4,
-                $"Line has {parts.Length} fields (expected 4), indicating interleaving: '{line}'");
+            Assert.True(parts.Length == 5,
+                $"Line has {parts.Length} fields (expected 5), indicating interleaving: '{line}'");
 
             // Timestamp field must be parseable
             Assert.True(DateTimeOffset.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture,
@@ -424,19 +436,20 @@ public sealed class ElevationSecurityLogTests : IDisposable
     [Fact]
     public void WriteEntry_WhenMessageContainsTabChar_DelimiterStaysParseable()
     {
-        // The log format is tab-delimited: [timestamp]\t[level]\t[category]\t[message].
-        // If the message itself contains a tab, a naive Split('\t') on the full line
-        // yields more than 4 fields. The format must remain parseable: the first three
-        // delimiters mark the fixed fields; everything from field index 3 onward is
-        // the message body.
+        // Log format: [timestamp]\t[level]\t[category]\t[message]\t[correlationId]
+        // If the message contains a tab, a naive Split('\t') yields more than 5 fields.
+        // The format is designed so fields 0-2 (timestamp, level, category) and the
+        // LAST field (correlationId) are always fixed. The message field sits between
+        // field index 3 and the last field; any tabs inside the message are preserved.
+        //
+        // Recovery pattern: split without limit, then:
+        //   timestamp = parts[0], level = parts[1], category = parts[2],
+        //   correlationId = parts[last], message = join(parts[3..last-1])
         //
         // This test verifies that:
         //  (a) no exception is thrown when writing a tab-containing message, AND
-        //  (b) the first 3 fields are still correctly recoverable (timestamp, level, category),
-        //      and the message body can be recovered by joining the remaining fields.
-        //
-        // If the format is found to be ambiguous (field[3] alone is not the full message),
-        // this test documents the boundary and the consumer must use a 4-field limit on Split.
+        //  (b) fields 0-2 and the last field are correctly recoverable, AND
+        //  (c) the message is recoverable by joining parts[3] to parts[length-2].
 
         InjectFreshWriter();
 
@@ -448,10 +461,11 @@ public sealed class ElevationSecurityLogTests : IDisposable
 
         var line = lines[0];
 
-        // Split with no limit — will produce more than 4 parts if message has tabs
+        // Split with no limit — yields timestamp, WARNING, TabTest, a, b, c, (empty)
+        // (7 fields for this message with an empty correlationId at the end)
         var allParts = line.Split('\t');
-        Assert.True(allParts.Length >= 4,
-            "Line must have at least 4 tab-delimited segments.");
+        Assert.True(allParts.Length >= 5,
+            "Line must have at least 5 tab-delimited segments.");
 
         // Fields 0-2 are always fixed (timestamp, level, category)
         Assert.True(DateTimeOffset.TryParse(allParts[0],
@@ -461,8 +475,11 @@ public sealed class ElevationSecurityLogTests : IDisposable
         Assert.Equal("WARNING", allParts[1]);
         Assert.Equal("TabTest", allParts[2]);
 
-        // Field 3 onward is the message body — joining recovers the original text
-        var recoveredMessage = string.Join('\t', allParts[3..]);
+        // Last field is the correlation id — empty when not set
+        Assert.Equal(string.Empty, allParts[allParts.Length - 1]);
+
+        // Message is the join of parts[3] through parts[length-2]
+        var recoveredMessage = string.Join('\t', allParts[3..(allParts.Length - 1)]);
         Assert.Equal(tabMessage, recoveredMessage);
     }
 }

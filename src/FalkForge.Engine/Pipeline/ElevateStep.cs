@@ -15,11 +15,23 @@ internal sealed class ElevateStep : IElevateStep
 {
     private readonly IElevatedCommandGateway _gateway;
     private readonly IUiChannel _uiChannel;
+    private readonly Guid _correlationId;
 
     public ElevateStep(IElevatedCommandGateway gateway, IUiChannel uiChannel)
+        : this(gateway, uiChannel, Guid.Empty)
+    {
+    }
+
+    /// <summary>
+    /// Creates an <see cref="ElevateStep"/> that will propagate
+    /// <paramref name="correlationId"/> to the elevated companion after
+    /// <see cref="IElevatedCommandGateway.StartAsync"/> succeeds.
+    /// </summary>
+    public ElevateStep(IElevatedCommandGateway gateway, IUiChannel uiChannel, Guid correlationId)
     {
         _gateway = gateway;
         _uiChannel = uiChannel;
+        _correlationId = correlationId;
     }
 
     /// <inheritdoc/>
@@ -39,6 +51,10 @@ internal sealed class ElevateStep : IElevateStep
             }
 
             ctx.ElevationGateway = _gateway;
+
+            // Propagate session correlation id to the elevated companion so its log
+            // entries can be matched against engine logs from the same install session.
+            _gateway.SetCorrelationId(_correlationId);
 
             await _uiChannel.SendAsync(
                 new PipelineEvent.Log(LogLevel.Info, "Elevation established"),

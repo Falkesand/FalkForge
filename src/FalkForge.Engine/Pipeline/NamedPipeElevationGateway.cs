@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Pipeline;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using FalkForge.Engine.Elevation;
+using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
 
 /// <summary>
@@ -125,6 +126,29 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
             await pipe.DisposeAsync();
             return Result<Unit>.Failure(ErrorKind.ElevationError, $"Elevation failed: {ex.Message}");
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Sends a <see cref="SessionStartMessage"/> over the elevation pipe so the
+    /// companion's <see cref="ElevationSecurityLog"/> can stamp the same id on every
+    /// log entry. Fire-and-forget: if the send fails (e.g. companion exited early)
+    /// we degrade gracefully — log correlation is observability, not a correctness gate.
+    /// Must be called after <see cref="StartAsync"/> succeeds.
+    /// </remarks>
+    public void SetCorrelationId(Guid id)
+    {
+        if (_disposed || !_started || _pipe is null)
+            return;
+
+        var message = new SessionStartMessage
+        {
+            CorrelationId = id,
+            StartedUtc = DateTimeOffset.UtcNow
+        };
+
+        // Fire-and-forget: correlation propagation is best-effort.
+        _ = _pipe.SendAsync(message);
     }
 
     /// <inheritdoc/>

@@ -12,6 +12,9 @@ internal static class ElevationSecurityLog
     private static readonly object Lock = new();
     private static StreamWriter? _writer;
     private static bool _initialized;
+    // WHY: volatile so that reads in WriteEntryUnsafe always see the latest value set
+    // by SetCorrelationId without acquiring a lock on every log call.
+    private static volatile string _correlationId = string.Empty;
 
     /// <summary>
     /// Initializes the log file. Safe to call multiple times; only the first call takes effect.
@@ -52,6 +55,23 @@ internal static class ElevationSecurityLog
     }
 
     /// <summary>
+    /// Sets the session correlation id that will be written as a fifth tab-separated
+    /// column on every subsequent log entry. Call once after receiving a
+    /// <c>SessionStartMessage</c> from the engine. Thread-safe; the write is
+    /// atomic because <see cref="string"/> assignment is reference-sized.
+    /// </summary>
+    /// <remarks>
+    /// Security: <paramref name="id"/> is a <see cref="Guid"/> — already strongly typed,
+    /// safe by construction. Formatted as "D" (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+    /// </remarks>
+    internal static void SetCorrelationId(Guid id)
+    {
+        // WHY: Guid.Empty maps to empty string so log consumers can parse lines uniformly
+        // (5 fields always present; empty 5th field = no id set).
+        _correlationId = id == Guid.Empty ? string.Empty : id.ToString("D");
+    }
+
+    /// <summary>
     /// Logs a security event at WARNING level.
     /// </summary>
     internal static void SecurityEvent(string category, string message)
@@ -88,9 +108,17 @@ internal static class ElevationSecurityLog
 
     /// <summary>
     /// Writes an entry without acquiring the lock. Caller must hold <see cref="Lock"/>.
+    /// Log format: <c>timestamp\tlevel\tcategory\tmessage\tcorrelationId</c>.
+    /// The fifth column (correlationId) is empty when no id has been set via
+    /// <see cref="SetCorrelationId"/>. This is a BREAKING change from the prior
+    /// 4-column format; log consumers must handle 5 tab-separated fields.
     /// </summary>
     private static void WriteEntryUnsafe(string level, string category, string message)
     {
+        // Snapshot the volatile field once per entry to avoid a TOCTOU race if
+        // SetCorrelationId is called concurrently (the snapshot is reference-atomic).
+        var correlationId = _correlationId;
+
         var timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
         _writer!.Write(timestamp);
         _writer.Write('\t');
@@ -98,7 +126,9 @@ internal static class ElevationSecurityLog
         _writer.Write('\t');
         _writer.Write(category);
         _writer.Write('\t');
-        _writer.WriteLine(message);
+        _writer.Write(message);
+        _writer.Write('\t');
+        _writer.WriteLine(correlationId);
     }
 
     /// <summary>

@@ -20,6 +20,12 @@ public sealed class InProcessElevationGateway : IElevatedCommandGateway
     public List<(string CommandName, byte[] Payload)> SentCommands { get; } = [];
 
     /// <summary>
+    /// The last correlation id received via <see cref="SetCorrelationId"/>.
+    /// <see cref="Guid.Empty"/> when not yet called.
+    /// </summary>
+    public Guid LastCorrelationId { get; private set; }
+
+    /// <summary>
     /// Creates an in-process gateway whose <see cref="SendCommandAsync"/> delegates
     /// to <paramref name="handler"/>. Pass <c>null</c> to use a default handler that
     /// always returns an empty success payload.
@@ -46,6 +52,9 @@ public sealed class InProcessElevationGateway : IElevatedCommandGateway
     public static InProcessElevationGateway AlwaysFails(string message) =>
         new((_, _, _, _) =>
             Task.FromResult(Result<byte[]>.Failure(ErrorKind.ElevationError, message)));
+
+    /// <inheritdoc/>
+    public void SetCorrelationId(Guid id) => LastCorrelationId = id;
 
     /// <inheritdoc/>
     public Task<Result<Unit>> StartAsync(CancellationToken ct)

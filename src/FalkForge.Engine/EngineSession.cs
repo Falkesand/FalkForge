@@ -52,6 +52,18 @@ public sealed class EngineSession : IAsyncDisposable
     /// </summary>
     internal IEngineLogger? Logger => _logger;
 
+    /// <summary>
+    /// The session correlation id stamped on every log entry emitted by this session.
+    /// The same id is propagated to the UI channel (via <see cref="IUiChannel.SetSessionCorrelationId"/>)
+    /// and to the elevated companion (via <see cref="IElevatedCommandGateway.SetCorrelationId"/>)
+    /// so that log streams from all three processes can be matched during diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// Generated at construction time by <c>StampCorrelationId</c>. Returns
+    /// <see cref="Guid.Empty"/> when no logger was configured (e.g. headless test sessions).
+    /// </remarks>
+    public Guid CorrelationId => _logger?.SessionCorrelationId ?? Guid.Empty;
+
     private EngineSession(
         IUiChannel channel,
         IInstallerPipeline pipeline,

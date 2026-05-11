@@ -188,8 +188,11 @@ public sealed class InstallerPipelineBuilder
             ? new PlanStep(new Planner(), uiChannel, _variableStore)
             : null;
 
+        // Pass the session correlation id from the logger (if any) so the ElevateStep
+        // can forward it to the elevated companion via SetCorrelationId after handshake.
+        var correlationId = _logger?.SessionCorrelationId ?? Guid.Empty;
         IElevateStep? elevateStep = _elevationGateway is not null
-            ? new ElevateStep(_elevationGateway, uiChannel)
+            ? new ElevateStep(_elevationGateway, uiChannel, correlationId)
             : null;
 
         IApplyStep? applyStep = (_packageExecutor is not null && _journalStore is not null)

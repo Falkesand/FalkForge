@@ -258,6 +258,11 @@ internal static class Program
                 MinimumLogLevel = programArgs.MinimumLogLevel
             });
 
+        // Print the session correlation id so operators can grep all three log files
+        // (UI, Engine, Elevation) for the same id. Safe: Guid "D" format is fixed-length
+        // and contains only hex digits and hyphens — no injection risk.
+        Console.Out.WriteLine($"Session: {session.CorrelationId:D}");
+
         var outcome = await session.RunUntilShutdown(cts.Token);
         return outcome.State switch
         {
@@ -439,6 +444,8 @@ internal static class Program
                 LogPath = programArgs?.LogPath,
                 MinimumLogLevel = programArgs?.MinimumLogLevel
             });
+
+        Console.Out.WriteLine($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
         return outcome.State switch

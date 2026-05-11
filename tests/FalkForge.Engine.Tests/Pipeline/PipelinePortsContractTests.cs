@@ -252,6 +252,8 @@ public sealed class PipelinePortsContractTests
     {
         public Task<Result<Unit>> StartAsync(CancellationToken ct) => Task.FromResult(Result<Unit>.Success(Unit.Value));
 
+        public void SetCorrelationId(Guid id) { /* no-op for contract test double */ }
+
         public Task<Result<byte[]>> SendCommandAsync(
             string commandName,
             byte[] payload,

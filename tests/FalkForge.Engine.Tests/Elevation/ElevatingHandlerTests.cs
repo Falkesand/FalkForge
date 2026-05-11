@@ -116,6 +116,8 @@ public sealed class ElevatingHandlerTests
         public Task<Result<Unit>> StartAsync(CancellationToken ct) =>
             Task.FromResult(Result<Unit>.Failure(ErrorKind.ElevationError, _message));
 
+        public void SetCorrelationId(Guid id) { /* no-op for failing stub */ }
+
         public Task<Result<byte[]>> SendCommandAsync(
             string commandName, byte[] payload,
             IProgress<int>? progress, CancellationToken ct) =>

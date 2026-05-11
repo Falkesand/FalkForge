@@ -77,6 +77,15 @@ public sealed class ElevatedHost : IAsyncDisposable
 
     private async Task HandleMessageAsync(EngineMessage message)
     {
+        if (message is SessionStartMessage sessionStart)
+        {
+            // Propagate the session correlation id to the security log so every
+            // subsequent log entry carries the same id as the engine and UI logs.
+            ElevationSecurityLog.SetCorrelationId(sessionStart.CorrelationId);
+            ElevationSecurityLog.Info("Session", $"Session correlation id set: {sessionStart.CorrelationId:D}");
+            return;
+        }
+
         if (message is ElevateExecuteMessage executeMsg)
         {
             Action<int> onProgress = percent =>

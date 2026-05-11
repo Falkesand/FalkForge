@@ -33,6 +33,7 @@ public enum MessageType : ushort
 
     // Engine -> Elevated (0x03xx)
     ElevateExecute = 0x0301,
+    SessionStart = 0x0302,
 
     // Elevated -> Engine (0x04xx)
     ElevateResult = 0x0401,
