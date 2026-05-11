@@ -17,9 +17,13 @@ The two surfaces are **independent**. Extensions never run inside the Engine or 
 public interface IFalkForgeExtension
 {
     string Name { get; }
-    string Version => "1.0.0";              // default
-    string? MinHostVersion => null;          // default = no requirement
+    string Version => "0.0.0";              // default
+    string MinHostVersion => "0.0.0";       // default = compatible with any host
     void Register(IExtensionRegistry registry);
+
+    // Returns validation rules contributed by this extension.
+    // Default: empty. Override to add extension-specific diagnostics.
+    ImmutableArray<ValidationRule> GetValidationRules() => [];
 }
 ```
 
@@ -34,7 +38,6 @@ public interface IExtensionRegistry
 {
     void RegisterTableContributor(IMsiTableContributor contributor);
     void RegisterComponentContributor(IComponentContributor contributor);
-    void RegisterValidator(IExtensionValidator validator);
     void RegisterDryRunContributor(IDryRunContributor contributor);
     void RegisterDialogStep(IDialogStepBuilder builder);
 }
@@ -49,8 +52,6 @@ The registry is short-lived: a fresh instance is created per `MsiAuthoring.Compi
 - **`IMsiTableContributor`** — produces `IReadOnlyList<MsiTableRow>` for a specific MSI table (`TableName`). Rows are dictionaries of column-name → value. The current `CollectingExtensionRegistry` implementation **discards table contributors** (it has an empty `RegisterTableContributor` body); table data is contributed via Recipe Producers in `FalkForge.Compiler.Msi.Recipe.Producers` instead. Table contributors remain part of the contract for backward compatibility and for callers that wire their own `IExtensionRegistry`. `<TBD>` — there is no internal call path that consumes `IMsiTableContributor` rows in the current pipeline.
 
 - **`IComponentContributor`** — `GetAdditionalFiles(ExtensionContext)` returns `FileEntryModel`s to merge into the package's component set. Same status as table contributors: the default registry collects but does not invoke them. `<TBD>`.
-
-- **`IExtensionValidator`** — `Validate(ExtensionContext, ValidationResult)` is invoked **before** any table emission. Errors aggregate across all validators (no short-circuit) and surface as `ErrorKind.Validation` with the format `"Extension validation failed: <code>: <msg>; ..."`.
 
 - **`IDryRunContributor`** — `GetDryRunActions(DryRunIntent)` returns descriptive `DryRunAction`s for `Install` / `Uninstall` / `Repair`. Used by callers that want a human-readable summary of side effects. The default `CollectingExtensionRegistry` accepts but discards them; concrete shipped extensions implement `IDryRunContributor` directly on the extension class so callers can iterate `extensions.OfType<IDryRunContributor>()`.
 
@@ -79,7 +80,7 @@ Read-only snapshot passed into validators and component contributors. `OutputDir
    - Throws `PluginCompatibilityException` if `MinHostVersion` is greater than `CurrentHostVersion` (`1.0.0`).
    - Otherwise calls `extension.Register(registry)` and adds `Name` to `registeredNames`.
 4. After all extensions have registered, the compiler drains the registry:
-   - All `IExtensionValidator`s run against a single shared `ValidationResult`. Errors are aggregated (not short-circuited). Any error fails the compile.
+   - Extension validation rules (contributed via `GetValidationRules()`) are merged into `ModelValidator` and run alongside core rules. Violations aggregate across all rules; any `Error`-severity violation fails the compile.
    - Dialog step builders feed `DialogStepRegistry` for DLG001 validation.
 5. Recipe producers run (`MsiRecipeBuilder` → `IMultiTableProducer` chain). Extensions cannot mutate the registry after `Register` has returned, because the registry instance leaves scope.
 
@@ -138,9 +139,10 @@ Removing an extension requires a rebuild.
 
 ### Authoring Walkthrough
 
-A minimal extension that contributes a validator:
+A minimal extension that contributes validation rules via `GetValidationRules()`:
 
 ```csharp
+using System.Collections.Immutable;
 using FalkForge.Extensibility;
 using FalkForge.Validation;
 
@@ -148,25 +150,32 @@ public sealed class MyOrgExtension : IFalkForgeExtension
 {
     public string Name => "MyOrg.FalkForge.Extensions.AuditTrail";
     public string Version => "1.2.0";
-    public string? MinHostVersion => "1.0.0";
+    public string MinHostVersion => "1.0.0";
 
     public void Register(IExtensionRegistry registry)
     {
-        registry.RegisterValidator(new AuditTrailValidator());
+        // Contribute table rows, dry-run actions, dialog steps here.
+        // Validation rules are contributed separately via GetValidationRules().
     }
 
-    private sealed class AuditTrailValidator : IExtensionValidator
-    {
-        public void Validate(ExtensionContext ctx, ValidationResult result)
-        {
-            if (string.IsNullOrEmpty(ctx.Package.Manufacturer))
-            {
-                result.AddError("AT001", "AuditTrail requires Manufacturer to be set.");
-            }
-        }
-    }
+    public ImmutableArray<ValidationRule> GetValidationRules() =>
+    [
+        ValidationRule.Single(
+            new RuleId("AT001"),
+            Severity.Error,
+            ModelSection.Package,
+            "Manufacturer required by AuditTrail",
+            "AuditTrail extension requires Manufacturer to be set for compliance logging.",
+            static ctx => string.IsNullOrEmpty(ctx.Package.Manufacturer)
+                ? new Violation(new RuleId("AT001"), Severity.Error,
+                    ModelPath.Root.Field("Manufacturer"),
+                    "AuditTrail requires Manufacturer to be set.")
+                : null),
+    ];
 }
 ```
+
+Rules returned by `GetValidationRules()` are merged into the `ModelValidator` singleton registry during `MsiAuthoring.Compile`. They appear in `forge rules list` output, fire during `forge validate`, and are individually suppressible with `--ignore AT001`. See `docs/rules-as-data-architecture.md` for the full rule-authoring guide.
 
 Activation in a build host:
 
