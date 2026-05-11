@@ -432,3 +432,9 @@ mutation-reports/
 .claude/scheduled_tasks.lock
 .pipeline-complete
 reports/
+
+# Knowledge graph output (regenerable via graphify update .)
+graphify-out/
+
+# SBOM scan output (regenerable via DepSafe)
+*-sbom.cdx.json
