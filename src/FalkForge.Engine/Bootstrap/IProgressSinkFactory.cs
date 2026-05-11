@@ -8,8 +8,13 @@ public interface IProgressSinkFactory
 {
     /// <summary>
     /// Creates an <see cref="IProgressSink"/> ready to receive progress notifications.
-    /// The caller is responsible for disposing the returned instance if it implements
-    /// <see cref="IDisposable"/>.
+    /// The caller owns the returned instance and must dispose it when the run completes.
     /// </summary>
-    IProgressSink Create();
+    IProgressSinkHandle Create();
 }
+
+/// <summary>
+/// Combines <see cref="IProgressSink"/> with <see cref="IDisposable"/> so callers always
+/// dispose the handle, ensuring native resources (e.g. TaskDialog window) are released.
+/// </summary>
+public interface IProgressSinkHandle : IProgressSink, IDisposable { }

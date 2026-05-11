@@ -5,6 +5,7 @@ using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Engine.Bootstrap;
+using FalkForge.Engine.Execution;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
@@ -176,7 +177,8 @@ internal static class Program
         // Bootstrapper mode: if we ARE the bundle, extract and orchestrate
         if (manifestPath is null && HasEmbeddedBundle())
         {
-            return await RunAsBootstrapper(programArgs);
+            var bootstrapperArgs = BootstrapperArgs.Parse(args);
+            return await RunAsBootstrapper(programArgs, bootstrapperArgs);
         }
 
         if (manifestPath is null)
@@ -306,7 +308,7 @@ internal static class Program
     /// Self-extraction bootstrapper mode. Extracts payloads and manifest from the embedded bundle,
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
-    private static async Task<int> RunAsBootstrapper(ProgramArgs? programArgs = null)
+    private static async Task<int> RunAsBootstrapper(ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -343,20 +345,6 @@ internal static class Program
         {
             Console.Error.WriteLine($"Failed to deserialize embedded manifest: {ex.Message}");
             return 1;
-        }
-
-        // Phase 2: probe pre-UI prerequisites and log missing ones.
-        // UI still launches even if prerequisites are missing — Phase 3+ will block/install.
-        if (manifest.PreUIPackages.Length > 0)
-        {
-            var detector = new PreUIPrerequisiteDetector(new WindowsRegistry(), WindowsFileSystemProvider.Instance);
-            var missing = detector.FindMissing(manifest.PreUIPackages);
-            if (missing.Count > 0)
-            {
-                Console.Error.WriteLine($"[pre-ui] {missing.Count} prerequisite(s) missing (Phase 2 log-only):");
-                foreach (var p in missing)
-                    Console.Error.WriteLine($"[pre-ui]   - {p.Id}: {p.DisplayName}");
-            }
         }
 
         // Create cache directory for extracted payloads
@@ -410,6 +398,42 @@ internal static class Program
         {
             Console.Error.WriteLine("No UI executable found in bundle payloads.");
             return 1;
+        }
+
+        // Phase 3+: pre-UI prerequisite bootstrap. Detects missing prerequisites, elevates
+        // if needed, installs them, and returns the action the bootstrapper should take.
+        {
+            var orchestrator = new PreUIBootstrapOrchestrator(
+                new DefaultPreUIPrerequisiteDetector(),
+                new PreUIPrerequisiteInstaller(new ProcessRunner(), cacheDir),
+                new DefaultElevationProbe(),
+                new DefaultElevatedSelfRelauncher(),
+                new TaskDialogProgressSinkFactory());
+
+            var bootstrapOutcome = await orchestrator.RunAsync(
+                manifest,
+                bootstrapperArgs ?? BootstrapperArgs.Default,
+                extractionDir: cacheDir,
+                ownExecutablePath: exePath,
+                ct: CancellationToken.None);
+
+            switch (bootstrapOutcome)
+            {
+                case PreUIBootstrapOutcome.LaunchUi:
+                    break; // continue to UI launch below
+
+                case PreUIBootstrapOutcome.ExitSuccess:
+                    return 0; // elevated child: done; parent continues to UI
+
+                case PreUIBootstrapOutcome.ExitCancelled:
+                    return 2;
+
+                case PreUIBootstrapOutcome.ExitFailed:
+                    return 1;
+
+                case PreUIBootstrapOutcome.ExitRebootRequired:
+                    return 3;
+            }
         }
 
         // Generate pipe name and shared secret

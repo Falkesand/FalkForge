@@ -32,7 +32,7 @@ using FalkForge.Engine.Protocol.Manifest;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class PreUIPrerequisiteInstaller
+public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
 {
     private const int ExitCodeSoftReboot = 3010;
     private const int ExitCodeForcedReboot = 1641;

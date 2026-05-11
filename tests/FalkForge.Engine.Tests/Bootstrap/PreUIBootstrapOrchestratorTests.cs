@@ -64,7 +64,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // circuit immediately. Detector and installer must never be called — the orchestrator
         // must not pay any detection cost for bundles that don't use this feature.
         var detector   = new RecordingDetector(missing: []);
-        var installer  = new RecordingInstaller(PreUIResult.Success());
+        var installer  = new RecordingInstaller(new PreUIResult.Success());
         var probe      = new FakeElevationProbe(isElevated: false);
         var relauncher = new FakeRelauncher(exitCode: 0);
 
@@ -96,7 +96,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // UI launch (LaunchUi). It does NOT try to install locally.
         var pkg = MakePackage();
         var detector   = new RecordingDetector(missing: [pkg]);
-        var installer  = new RecordingInstaller(PreUIResult.Success());
+        var installer  = new RecordingInstaller(new PreUIResult.Success());
         var probe      = new FakeElevationProbe(isElevated: false);
         var relauncher = new FakeRelauncher(exitCode: 0); // child succeeded
 
@@ -125,7 +125,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // propagate failure so RunAsBootstrapper can Environment.Exit(1).
         var pkg = MakePackage();
         var detector   = new RecordingDetector(missing: [pkg]);
-        var installer  = new RecordingInstaller(PreUIResult.Success());
+        var installer  = new RecordingInstaller(new PreUIResult.Success());
         var probe      = new FakeElevationProbe(isElevated: false);
         var relauncher = new FakeRelauncher(exitCode: 1); // child failed
 
@@ -152,7 +152,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // The orchestrator must map this to ExitCancelled so the process exits cleanly.
         var pkg = MakePackage();
         var detector   = new RecordingDetector(missing: [pkg]);
-        var installer  = new RecordingInstaller(PreUIResult.Success());
+        var installer  = new RecordingInstaller(new PreUIResult.Success());
         var probe      = new FakeElevationProbe(isElevated: false);
         var relauncher = new FakeRelauncher(exitCode: 2); // UAC dismissed
 
@@ -180,7 +180,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // knows to continue to the UI. The relauncher must never be called.
         var pkg = MakePackage();
         var detector   = new RecordingDetector(missing: [pkg]);
-        var installer  = new RecordingInstaller(PreUIResult.Success());
+        var installer  = new RecordingInstaller(new PreUIResult.Success());
         var probe      = new FakeElevationProbe(isElevated: true); // we ARE elevated
         var relauncher = new FakeRelauncher(exitCode: 0);
 
@@ -211,7 +211,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // so the engine continues to spawn the UI from this elevated process.
         var pkg = MakePackage();
         var detector   = new RecordingDetector(missing: [pkg]);
-        var installer  = new RecordingInstaller(PreUIResult.Success());
+        var installer  = new RecordingInstaller(new PreUIResult.Success());
         var probe      = new FakeElevationProbe(isElevated: true); // user ran as admin
         var relauncher = new FakeRelauncher(exitCode: 0);
 
@@ -368,12 +368,13 @@ public sealed class PreUIBootstrapOrchestratorTests
 
     private sealed class NullProgressSinkFactory : IProgressSinkFactory
     {
-        public IProgressSink Create() => new NullProgressSink();
+        public IProgressSinkHandle Create() => new NullProgressSink();
     }
 
-    private sealed class NullProgressSink : IProgressSink
+    private sealed class NullProgressSink : IProgressSinkHandle
     {
         public void SetMessage(string text) { }
         public void SetPercent(int percent) { }
+        public void Dispose() { }
     }
 }
