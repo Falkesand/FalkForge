@@ -28,7 +28,7 @@ public sealed class ServiceSchemaTests
         Assert.Equal(1, row.ErrorControl);
         Assert.Equal("LocalSystem", row.StartName);
         Assert.Equal("comp1", row.Component_);
-        Assert.Equal("A service", row.Description_);
+        Assert.Equal("A service", row.Description);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class ServiceSchemaTests
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value[0].DisplayName);
-        Assert.Null(result.Value[0].Description_);
+        Assert.Null(result.Value[0].Description);
     }
 
     [Fact]

@@ -18,12 +18,14 @@ public sealed record ServiceRow(
     string? Password,
     string? Arguments,
     string  Component_,
-    string? Description_);
+    string? Description);
 
 /// <summary>
 /// Declarative read schema for the MSI <c>ServiceInstall</c> table.
 /// Columns: ServiceInstall (PK), Name, DisplayName, ServiceType, StartType, ErrorControl,
-///          LoadOrderGroup, Dependencies, StartName, Password, Arguments, Component_, Description_.
+///          LoadOrderGroup, Dependencies, StartName, Password, Arguments, Component_, Description.
+/// Note: the last column is "Description" (not "Description_") — the MSI standard table
+/// uses an un-suffixed name here unlike the FK convention used by Component_, Feature_ etc.
 /// </summary>
 public static class ServiceSchema
 {
@@ -39,12 +41,12 @@ public static class ServiceSchema
     public static readonly ReadColumn Password        = new("Password",        ReadColumnType.String,  true,  9);
     public static readonly ReadColumn Arguments       = new("Arguments",       ReadColumnType.String,  true,  10);
     public static readonly ReadColumn Component_      = new("Component_",      ReadColumnType.String,  false, 11);
-    public static readonly ReadColumn Description_    = new("Description_",    ReadColumnType.String,  true,  12);
+    public static readonly ReadColumn Description     = new("Description",     ReadColumnType.String,  true,  12);
 
     public static readonly TableReadSchema<ServiceRow> Schema = new(
         TableName: "ServiceInstall",
         Columns: [ServiceInstall, Name, DisplayName, ServiceType, StartType, ErrorControl,
-                  LoadOrderGroup, Dependencies, StartName, Password, Arguments, Component_, Description_],
+                  LoadOrderGroup, Dependencies, StartName, Password, Arguments, Component_, Description],
         Map: row => Result<ServiceRow>.Success(new ServiceRow(
             row.String(ServiceInstall),
             row.String(Name),
@@ -58,5 +60,5 @@ public static class ServiceSchema
             row.StringOrNull(Password),
             row.StringOrNull(Arguments),
             row.String(Component_),
-            row.StringOrNull(Description_))));
+            row.StringOrNull(Description))));
 }

@@ -201,7 +201,7 @@ public static class MsiPackageReconstructor
                     Name = r.Name,
                     DisplayName = r.DisplayName ?? r.Name,
                     Executable = r.ServiceInstall,
-                    Description = r.Description_,
+                    Description = r.Description,
                     StartMode = startMode,
                     Account = account,
                     UserName = userName,
