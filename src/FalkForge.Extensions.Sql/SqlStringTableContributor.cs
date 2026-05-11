@@ -9,6 +9,9 @@ public sealed class SqlStringTableContributor : IMsiTableContributor
 
     public string TableName => "SqlString";
 
+    /// <inheritdoc/>
+    public ITableReadSchema? ReadSchema => SqlTableReadSchemas.String;
+
     /// <summary>Exposes the registered SqlString models for validation.</summary>
     public IReadOnlyList<SqlStringModel> Items => _entries;
 

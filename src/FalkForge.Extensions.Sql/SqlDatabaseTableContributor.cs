@@ -9,6 +9,9 @@ public sealed class SqlDatabaseTableContributor : IMsiTableContributor
 
     public string TableName => "SqlDatabase";
 
+    /// <inheritdoc/>
+    public ITableReadSchema? ReadSchema => SqlTableReadSchemas.Database;
+
     /// <summary>Exposes the registered database models for validation.</summary>
     public IReadOnlyList<SqlDatabaseModel> Items => _entries;
 

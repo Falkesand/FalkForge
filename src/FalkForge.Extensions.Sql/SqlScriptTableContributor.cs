@@ -9,6 +9,9 @@ public sealed class SqlScriptTableContributor : IMsiTableContributor
 
     public string TableName => "SqlScript";
 
+    /// <inheritdoc/>
+    public ITableReadSchema? ReadSchema => SqlTableReadSchemas.Script;
+
     /// <summary>Exposes the registered script models for validation.</summary>
     public IReadOnlyList<SqlScriptModel> Items => _entries;
 
