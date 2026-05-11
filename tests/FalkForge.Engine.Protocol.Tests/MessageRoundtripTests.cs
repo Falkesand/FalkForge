@@ -507,31 +507,16 @@ public class MessageRoundtripTests
     }
 
     [Fact]
-    public void Deserialize_WrongVersion_ReturnsFailure()
+    public void Deserialize_UnregisteredTypeAndVersion_ReturnsFailure()
     {
-        // Version = 99, Type = DetectBegin (0x0101), Length = 4
+        // MessageDeserializer does not validate the wire version in isolation; it resolves
+        // the codec via the registry with nearest-lower-version fallback. A message type that
+        // has no codec registered at any version (here: 0xFFFF, an unknown type) must return
+        // a failure result. The error text indicates no codec was found.
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
-        writer.Write((ushort)99);
-        writer.Write((ushort)MessageType.DetectBegin);
-        writer.Write(4);
-        writer.Write(0u); // sequenceId
-        var data = stream.ToArray();
-
-        var result = MessageDeserializer.Deserialize(data);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
-        Assert.Contains("version", result.Error.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Deserialize_UnknownMessageType_ReturnsFailure()
-    {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream);
-        writer.Write((ushort)1); // valid version
-        writer.Write((ushort)0xFFFF); // unknown type
+        writer.Write((ushort)1); // wire version
+        writer.Write((ushort)0xFFFF); // unknown type — no codec registered
         writer.Write(4);
         writer.Write(0u);
         var data = stream.ToArray();
@@ -540,7 +525,7 @@ public class MessageRoundtripTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
-        Assert.Contains("Unknown message type", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No codec registered", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

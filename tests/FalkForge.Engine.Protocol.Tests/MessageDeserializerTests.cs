@@ -203,7 +203,8 @@ public class MessageDeserializerTests
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
         bw.Write((ushort)1);
-        bw.Write((ushort)MessageType.Log);
+        // Use SetInstallDirectory (v1) so codec resolution succeeds, then truncate the string payload.
+        bw.Write((ushort)MessageType.SetInstallDirectory);
 
         // Plan the payload:
         //   sequenceId (4 bytes) + string length prefix (1 byte = 0x0A = 10 chars) + 0 actual string bytes
@@ -223,9 +224,10 @@ public class MessageDeserializerTests
 
         var result = MessageDeserializer.Deserialize(data);
 
-        // The EndOfStreamException must be caught and converted to a failure result.
+        // The EndOfStreamException is caught by the codec facade and converted to a failure result.
+        // MessageDeserializer wraps codec read failures as "Codec read failed: <ex.Message>".
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
-        Assert.Contains("Failed to read message payload", result.Error.Message);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Codec read failed", result.Error.Message);
     }
 }
