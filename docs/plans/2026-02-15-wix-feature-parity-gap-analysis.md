@@ -1,7 +1,7 @@
 # FalkForge vs WiX Toolset 6.0.2 — Feature Gap Analysis
 
 **Date:** 2026-02-15
-**Status:** Active
+**Status:** HISTORICAL — frozen at Phase 8 baseline (2026-02-15); subsequent phases and the Phase 9 recipe cutover are not reflected here.
 **Purpose:** Track feature parity between FalkForge and WiX Toolset 6.0.2
 **Last updated:** 2026-02-15 (after Phase 8 merge)
 

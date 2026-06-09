@@ -1,6 +1,6 @@
 # Native Pre-UI Prerequisite Bootstrap — Plan (2026-05-11)
 
-Status: SCOPING. No code yet.
+Status: IMPLEMENTED 2026-06-09 — all 25 TDD rows shipped (rows 20-25 in commits c417601..10d1ab1).
 Owner: TBD.
 Goal: VS/Office-style native bootstrap probe + install of runtime prereqs (e.g. .NET 10 Desktop) BEFORE engine spawns the managed WPF UI process.
 
