@@ -1,5 +1,7 @@
 # Demo 52: MSIX Advanced
 
+> **Experimental:** The FalkForge MSIX compiler (`Compiler.Msix`) is experimental. Studio is wired to it, but CLI dispatch (`forge build --format msix`) is not yet implemented. This demo builds via the API only.
+
 Demonstrates advanced MSIX packaging features including multiple applications, file type associations, protocol
 handlers, auto-update settings, package dependencies, and visual elements with logos.
 
