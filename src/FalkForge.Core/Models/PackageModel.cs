@@ -27,7 +27,11 @@ public sealed class PackageModel
     ///         files, product identity, and source-date epoch.</item>
     ///       <item>Normal mode — compiler assigns a fresh <see cref="Guid"/> each time the
     ///         recipe is built, guaranteeing uniqueness across independent build runs even
-    ///         when <see cref="ProductCode"/> is pinned.</item>
+    ///         when <see cref="ProductCode"/> is pinned. When constructed via
+    ///         <c>PackageBuilder.Build()</c>, the model carries <see langword="null"/> here
+    ///         so the compiler always derives a new code per packaging event; reproducible
+    ///         mode also leaves it <see langword="null"/> for content-digest derivation in
+    ///         the compiler layer.</item>
     ///     </list>
     ///     </para>
     ///     <para>

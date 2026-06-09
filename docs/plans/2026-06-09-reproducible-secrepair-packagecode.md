@@ -1,6 +1,6 @@
 # Reproducible() × SECREPAIR — PackageCode Uniqueness Fix — Plan (2026-06-09)
 
-Status: SCOPING. Owner: TBD.
+Status: IMPLEMENTED (commits 645a6a4, 8d9d5d8, af0de14 + fix pass). Owner: TBD.
 GitHub issue: https://github.com/Falkesand/FalkForge/issues/1
 Goal: Make `Reproducible()` emit a unique PackageCode for non-identical packages so secure repair (SECREPAIR, KB2918614) no longer fails, while preserving byte-identical output for identical inputs.
 
@@ -74,8 +74,8 @@ Note: `SummaryInfoPatcher` does not touch PID 9, so no patcher change needed. IC
 
 | # | Question | Status |
 |---|----------|--------|
-| 1 | Does anything else key off PackageCode == ProductCode (decompiler round-trip, patch/MSP baseline validation)? | Check `PatchCompiler` and `Decompiler` before GREEN. |
-| 2 | Should the digest include non-file model content (registry, properties) so any model change refreshes PackageCode? | Lean yes — serialize the recipe tables into the digest rather than files only. Decide at implementation. |
+| 1 | Does anything else key off PackageCode == ProductCode (decompiler round-trip, patch/MSP baseline validation)? | Verified: PatchCompiler uses `patch.Id`, MsmCompiler uses `module.Id`, Decompiler `GetSummaryProperty` is a stub — no PackageCode==ProductCode dependency. **RESOLVED.** |
+| 2 | Should the digest include non-file model content (registry, properties) so any model change refreshes PackageCode? | Decided: files + identity + epoch digest only. Registry/property changes do not affect SECREPAIR validation of the byte stream; full-recipe digest would be circular via RecipeContentHasher. InstanceId nonce covers normal-mode uniqueness. **RESOLVED.** |
 | 3 | Manual SECREPAIR repro on real Windows before or after fix? | Before, to attach log evidence to issue #1. |
 
 ## 8. Out of Scope

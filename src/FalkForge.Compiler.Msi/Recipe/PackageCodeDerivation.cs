@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using FalkForge;
 using FalkForge.Builders;
 
 namespace FalkForge.Compiler.Msi.Recipe;
@@ -29,8 +30,11 @@ internal static class PackageCodeDerivation
     /// <summary>
     ///     Derives a deterministic PackageCode GUID from the content of
     ///     <paramref name="resolved"/>.
+    ///     Returns <see cref="ErrorKind.FileNotFound"/> if any payload source file
+    ///     cannot be read, so callers always receive a typed <see cref="Result{T}"/>
+    ///     rather than an unhandled IO exception.
     /// </summary>
-    public static Guid Derive(ResolvedPackage resolved)
+    public static Result<Guid> Derive(ResolvedPackage resolved)
     {
         ArgumentNullException.ThrowIfNull(resolved);
 
@@ -78,7 +82,9 @@ internal static class PackageCodeDerivation
         foreach (var file in sorted)
         {
             AppendString(hasher, file.FileId);
-            AppendFileSha256(hasher, file.SourcePath);
+            var fileResult = AppendFileSha256(hasher, file.SourcePath);
+            if (fileResult.IsFailure)
+                return Result<Guid>.Failure(fileResult.Error);
         }
 
         var digest = hasher.GetCurrentHash();
@@ -86,8 +92,11 @@ internal static class PackageCodeDerivation
         // Convert digest to a deterministic GUID via UUID-v5 convention.
         // GuidUtility expects a hex string as the "name" — use the full 64-char
         // hex of the digest so every bit participates.
-        var digestHex = Convert.ToHexString(digest); // no allocation on .NET 5+
-        return GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, digestHex);
+        // Note: Convert.ToHexString allocates a new string; acceptable here as
+        // this path runs once per Build() call, not in a hot loop.
+        var digestHex = Convert.ToHexString(digest);
+        return Result<Guid>.Success(
+            GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, digestHex));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -96,24 +105,30 @@ internal static class PackageCodeDerivation
     {
         // Encode length prefix to prevent prefix-collision attacks between
         // strings (e.g. "AB"+"C" vs "A"+"BC").
-        Span<byte> lenBytes = stackalloc byte[sizeof(int)];
-        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBytes, value.Length);
-        hasher.AppendData(lenBytes);
-
-        // Rent a byte buffer sized for UTF-8 worst case; avoid heap for short strings.
+        // Write the UTF-8 byte count (not the UTF-16 char count) so the prefix
+        // matches the byte sequence that follows for non-ASCII identifiers.
         var maxBytes = Encoding.UTF8.GetMaxByteCount(value.Length);
         if (maxBytes <= 256)
         {
             Span<byte> buf = stackalloc byte[maxBytes];
             var written = Encoding.UTF8.GetBytes(value, buf);
+
+            Span<byte> lenBytes = stackalloc byte[sizeof(int)];
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBytes, written);
+            hasher.AppendData(lenBytes);
             hasher.AppendData(buf[..written]);
         }
         else
         {
+            // Rent a byte buffer sized for UTF-8 worst case; avoid heap for short strings.
             var buf = System.Buffers.ArrayPool<byte>.Shared.Rent(maxBytes);
             try
             {
                 var written = Encoding.UTF8.GetBytes(value, buf);
+
+                Span<byte> lenBytes = stackalloc byte[sizeof(int)];
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBytes, written);
+                hasher.AppendData(lenBytes);
                 hasher.AppendData(buf.AsSpan(0, written));
             }
             finally
@@ -127,8 +142,10 @@ internal static class PackageCodeDerivation
     ///     Streams <paramref name="filePath"/> through SHA-256 in 64 KiB chunks
     ///     and appends the 32-byte digest to <paramref name="hasher"/>.
     ///     No whole-file byte[] allocation (Gate 6).
+    ///     Returns <see cref="ErrorKind.FileNotFound"/> if the file cannot be opened
+    ///     or read, surfacing IO errors as typed failures instead of exceptions.
     /// </summary>
-    private static void AppendFileSha256(IncrementalHash hasher, string filePath)
+    private static Result<Unit> AppendFileSha256(IncrementalHash hasher, string filePath)
     {
         // 64 KiB read buffer — rented to avoid heap pressure for large files.
         const int BufferSize = 64 * 1024;
@@ -151,6 +168,22 @@ internal static class PackageCodeDerivation
             Span<byte> fileDigest = stackalloc byte[32];
             fileHasher.GetCurrentHash(fileDigest);
             hasher.AppendData(fileDigest);
+            return Result<Unit>.Success(Unit.Value);
+        }
+        catch (FileNotFoundException)
+        {
+            return Result<Unit>.Failure(ErrorKind.FileNotFound,
+                $"Payload source file not found: {filePath}");
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Result<Unit>.Failure(ErrorKind.FileNotFound,
+                $"Payload source directory not found for: {filePath}");
+        }
+        catch (IOException ex)
+        {
+            return Result<Unit>.Failure(ErrorKind.IoError,
+                $"IO error reading payload source file '{filePath}': {ex.Message}");
         }
         finally
         {
