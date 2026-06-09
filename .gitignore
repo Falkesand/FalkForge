@@ -439,3 +439,11 @@ graphify-out/
 
 # SBOM scan output (regenerable via DepSafe)
 *-sbom.cdx.json
+
+# Tool output (regenerable)
+stryker-results.txt
+StrykerOutput/
+mutantnet-results/
+profile-output/
+.assessment-scratch/
+build.log
