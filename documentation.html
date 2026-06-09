@@ -761,6 +761,18 @@
         </div>
       </div>
 
+      <!-- Section 21: Plugin System -->
+      <div class="nav-section" data-section="plugins">
+        <a href="#plugins" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">21. Plugin System</span>
+        </a>
+        <div class="nav-children">
+          <a href="#plugins-interfaces">Interfaces</a>
+          <a href="#plugins-registry">PluginRegistry</a>
+          <a href="#plugins-shipped">Shipped Plugins</a>
+        </div>
+      </div>
+
     </div>
   </nav>
 
@@ -946,11 +958,11 @@ dotnet publish -c Release</code></pre>
   <h2>Solution Structure</h2>
 
   <p>
-    FalkForge is organized into 21 source projects and 21 test projects, each with a single
-    responsibility.
+    FalkForge is organized into 29 source projects and 26 test projects, each with a single
+    responsibility. Source projects live under <code>src/</code>; test projects under <code>tests/</code>.
   </p>
 
-  <h3>Source Projects (21)</h3>
+  <h3>Source Projects (29)</h3>
   <table class="api-table">
     <thead>
       <tr><th>Project</th><th>Description</th></tr>
@@ -959,28 +971,36 @@ dotnet publish -c Release</code></pre>
       <tr><td><code>FalkForge.Core</code></td><td>Domain model, fluent builder API, validation, core types (Result, Error, MsiProperty, Condition)</td></tr>
       <tr><td><code>FalkForge.Compiler.Msi</code></td><td>MSI/MSM/MSP/MST generation via <code>msi.dll</code> P/Invoke, cabinet building, ICE validation</td></tr>
       <tr><td><code>FalkForge.Compiler.Bundle</code></td><td>Self-extracting EXE bundle compiler with manifest generation and payload embedding</td></tr>
-      <tr><td><code>FalkForge.Engine</code></td><td>NativeAOT installer runtime &mdash; state machine, detection, planning, execution, rollback</td></tr>
+      <tr><td><code>FalkForge.Compiler.Msix</code></td><td><span class="badge">Experimental</span> MSIX and <code>.msixbundle</code> compiler. Wired into Studio; full CLI dispatch not yet implemented. Entry points: <code>InstallerMsix.BuildMsix()</code> / <code>BuildMsixBundle()</code>.</td></tr>
+      <tr><td><code>FalkForge.Engine</code></td><td>NativeAOT installer runtime &mdash; pipeline, phase steps, detection, planning, execution, rollback, logging, metrics</td></tr>
       <tr><td><code>FalkForge.Engine.Elevation</code></td><td>NativeAOT elevated companion process for privileged operations</td></tr>
-      <tr><td><code>FalkForge.Engine.Protocol</code></td><td>IPC message types, binary serialization, named pipe transport with HMAC-SHA256 handshake</td></tr>
+      <tr><td><code>FalkForge.Engine.Protocol</code></td><td>IPC message types, binary serialization, named pipe transport with HMAC-SHA256 handshake, <code>ProgramArgs</code> log-flag parser</td></tr>
       <tr><td><code>FalkForge.Platform</code></td><td>OS abstractions (IFileSystem, IRegistry)</td></tr>
       <tr><td><code>FalkForge.Platform.Windows</code></td><td>Windows P/Invoke implementations: IFileSystem, IRegistry, IMsiApi (MsiInstallProduct/MsiConfigureProduct)</td></tr>
-      <tr><td><code>FalkForge.Extensibility</code></td><td>Extension system interfaces (IFalkForgeExtension, IComponentContributor, IMsiTableContributor)</td></tr>
+      <tr><td><code>FalkForge.Extensibility</code></td><td>Extension system interfaces (IFalkForgeExtension, IComponentContributor, IMsiTableContributor, ITableQuery, ITableReadSchema)</td></tr>
       <tr><td><code>FalkForge.Extensions.Util</code></td><td>XmlConfig, UserManagement, FileShare, QuietExec, RemoveFolderEx, InternetShortcut</td></tr>
+      <tr><td><code>FalkForge.Extensions.Dependency</code></td><td>Provider/consumer ref-counting (WiX-compatible) via HKLM registry</td></tr>
       <tr><td><code>FalkForge.Extensions.Firewall</code></td><td>Windows Firewall rule definitions and validation</td></tr>
       <tr><td><code>FalkForge.Extensions.DotNet</code></td><td>.NET runtime detection via registry and filesystem probing</td></tr>
+      <tr><td><code>FalkForge.Extensions.Driver</code></td><td>Windows driver install/uninstall actions (.inf / DIFx)</td></tr>
+      <tr><td><code>FalkForge.Extensions.Http</code></td><td>HTTP listener / URL ACL reservations (<code>http.sys</code>)</td></tr>
       <tr><td><code>FalkForge.Extensions.Iis</code></td><td>IIS AppPool, WebSite, WebBinding, Certificate configuration</td></tr>
       <tr><td><code>FalkForge.Extensions.Sql</code></td><td>SQL Server database creation, script execution, string execution</td></tr>
-      <tr><td><code>FalkForge.Ui.Abstractions</code></td><td>IInstallerEngine, base ViewModels, PageResult, InstallerState</td></tr>
+      <tr><td><code>FalkForge.Ui.Abstractions</code></td><td>IInstallerEngine, base ViewModels, PageResult, InstallerState, SensitiveBytes</td></tr>
       <tr><td><code>FalkForge.Ui</code></td><td>WPF + ReactiveUI installer UI, custom UI framework (InstallerPage, InstallerApp)</td></tr>
       <tr><td><code>FalkForge.Sdk</code></td><td>MSBuild SDK targets for source generation (netstandard2.0)</td></tr>
+      <tr><td><code>FalkForge.Studio</code></td><td>WPF authoring environment for editing installer definitions visually</td></tr>
       <tr><td><code>FalkForge.Testing</code></td><td>Test utilities, mocks, shared test infrastructure</td></tr>
       <tr><td><code>FalkForge.Localization</code></td><td>JSON-based localization with culture fallback chains</td></tr>
-      <tr><td><code>FalkForge.Decompiler</code></td><td>MSI decompiler producing PackageModel or C# source (Windows-only)</td></tr>
-      <tr><td><code>FalkForge.Cli</code></td><td>Spectre.Console CLI: build, validate, inspect, decompile commands</td></tr>
+      <tr><td><code>FalkForge.Decompiler</code></td><td>MSI / Bundle / WiX&nbsp;Burn decompiler producing PackageModel / BundleModel / C# source</td></tr>
+      <tr><td><code>FalkForge.Cli</code></td><td>Spectre.Console CLI: build, validate, inspect, decompile, extract, winget, rules, bundle commands</td></tr>
+      <tr><td><code>FalkForge.Plugins.Sql</code></td><td>SQL Server discovery, listing, connection testing</td></tr>
+      <tr><td><code>FalkForge.Plugins.Odbc</code></td><td>ODBC DSN checking and admin launcher (Windows-only)</td></tr>
+      <tr><td><code>FalkForge.Plugins.FileSystem</code></td><td>Folder browser dialog (WPF, Windows-only)</td></tr>
     </tbody>
   </table>
 
-  <h3>Test Projects (21)</h3>
+  <h3>Test Projects (26)</h3>
   <table class="api-table">
     <thead>
       <tr><th>Project</th><th>Tests For</th></tr>
@@ -988,22 +1008,27 @@ dotnet publish -c Release</code></pre>
     <tbody>
       <tr><td><code>FalkForge.Core.Tests</code></td><td>Core domain model, builders, validation</td></tr>
       <tr><td><code>FalkForge.Compiler.Msi.Tests</code></td><td>MSI compiler, table emission, cabinet building</td></tr>
+      <tr><td><code>FalkForge.Compiler.Msix.Tests</code></td><td>MSIX compiler (experimental)</td></tr>
       <tr><td><code>FalkForge.Compiler.Bundle.Tests</code></td><td>Bundle compiler, manifest, payload embedding</td></tr>
-      <tr><td><code>FalkForge.Engine.Tests</code></td><td>Engine state machine, detection, planning, execution</td></tr>
+      <tr><td><code>FalkForge.Engine.Tests</code></td><td>Engine session, pipeline, phase steps, runner, rollback</td></tr>
       <tr><td><code>FalkForge.Engine.Elevation.Tests</code></td><td>Elevated command dispatch</td></tr>
-      <tr><td><code>FalkForge.Engine.Protocol.Tests</code></td><td>Protocol serialization, transport</td></tr>
+      <tr><td><code>FalkForge.Engine.Protocol.Tests</code></td><td>Protocol serialization, transport, golden-byte parity</td></tr>
       <tr><td><code>FalkForge.Ui.Abstractions.Tests</code></td><td>PageResult, InstallerState</td></tr>
       <tr><td><code>FalkForge.Ui.Tests</code></td><td>WPF UI, custom UI framework</td></tr>
+      <tr><td><code>FalkForge.Studio.Tests</code></td><td>Studio editors and view-models</td></tr>
       <tr><td><code>FalkForge.Integration.Tests</code></td><td>End-to-end integration scenarios</td></tr>
+      <tr><td><code>FalkForge.Extensibility.Tests</code></td><td>Extension interfaces, table contributors, rule merging</td></tr>
       <tr><td><code>FalkForge.Extensions.Util.Tests</code></td><td>Utility extension actions</td></tr>
+      <tr><td><code>FalkForge.Extensions.Dependency.Tests</code></td><td>Dependency provider/consumer validation</td></tr>
       <tr><td><code>FalkForge.Extensions.Firewall.Tests</code></td><td>Firewall rule validation</td></tr>
       <tr><td><code>FalkForge.Extensions.DotNet.Tests</code></td><td>.NET detection logic</td></tr>
+      <tr><td><code>FalkForge.Extensions.Driver.Tests</code></td><td>Driver extension actions</td></tr>
+      <tr><td><code>FalkForge.Extensions.Http.Tests</code></td><td>HTTP listener / URL ACL extension</td></tr>
       <tr><td><code>FalkForge.Extensions.Iis.Tests</code></td><td>IIS configuration validation</td></tr>
       <tr><td><code>FalkForge.Extensions.Sql.Tests</code></td><td>SQL extension validation</td></tr>
       <tr><td><code>FalkForge.Localization.Tests</code></td><td>Localization loading, fallback, resolution</td></tr>
-      <tr><td><code>FalkForge.Decompiler.Tests</code></td><td>MSI decompilation and C# emission</td></tr>
+      <tr><td><code>FalkForge.Decompiler.Tests</code></td><td>MSI/bundle/Burn decompilation and C# emission</td></tr>
       <tr><td><code>FalkForge.Cli.Tests</code></td><td>CLI commands, JSON config loading</td></tr>
-      <tr><td><code>FalkForge.Extensions.Dependency.Tests</code></td><td>Dependency provider/consumer validation</td></tr>
       <tr><td><code>FalkForge.Platform.Windows.Tests</code></td><td>IMsiApi contract, P/Invoke bindings</td></tr>
       <tr><td><code>FalkForge.Plugins.Odbc.Tests</code></td><td>ODBC DSN management</td></tr>
       <tr><td><code>FalkForge.Plugins.Sql.Tests</code></td><td>SQL Server discovery, connection testing</td></tr>
@@ -1015,19 +1040,27 @@ dotnet publish -c Release</code></pre>
   +--&gt; Platform --&gt; Platform.Windows
   +--&gt; Engine.Protocol (AOT-safe) --&gt; Ui.Abstractions --&gt; Ui (WPF + ReactiveUI)
   |                                +--&gt; Compiler.Bundle
-  +--&gt; Compiler.Msi (Core + Platform)
-  +--&gt; Extensibility (standalone)
-  +--&gt; Extensions.Util       (Core + Extensibility)
-  +--&gt; Extensions.Firewall   (Core + Extensibility)
-  +--&gt; Extensions.DotNet     (Core + Extensibility + Platform)
-  +--&gt; Extensions.Iis        (Core + Extensibility)
-  +--&gt; Extensions.Sql        (Core + Extensibility)
-  +--&gt; Testing               (Core + Platform)
-  +--&gt; Localization           (Core)
-  +--&gt; Decompiler             (Core + Compiler.Msi, Windows-only)
+  +--&gt; Compiler.Msi              (Core + Platform)
+  +--&gt; Compiler.Msix             (Core + Platform, Windows-only, experimental)
+  +--&gt; Extensibility             (standalone)
+  +--&gt; Extensions.Util           (Core + Extensibility)
+  +--&gt; Extensions.Dependency     (Core + Extensibility)
+  +--&gt; Extensions.Firewall       (Core + Extensibility)
+  +--&gt; Extensions.DotNet         (Core + Extensibility + Platform)
+  +--&gt; Extensions.Driver         (Core + Extensibility)
+  +--&gt; Extensions.Http           (Core + Extensibility)
+  +--&gt; Extensions.Iis            (Core + Extensibility)
+  +--&gt; Extensions.Sql            (Core + Extensibility)
+  +--&gt; Testing                   (Core + Platform)
+  +--&gt; Localization              (Core)
+  +--&gt; Decompiler                (Core + Compiler.Msi + Compiler.Bundle)
+  +--&gt; Plugins.Sql               (Core + Microsoft.Data.SqlClient)
+  +--&gt; Plugins.Odbc              (Core, Windows-only)
+  +--&gt; Plugins.FileSystem        (Core, Windows-only)
+  +--&gt; Studio                    (Core + Compiler.Msi/Msix/Bundle + Decompiler + Ui)
 
 Executables:
-  Engine     = Engine.Protocol + Platform.Windows + Compiler.Msi
+  Engine     = Engine.Pipeline + Engine.Protocol + Platform.Windows
   Elevation  = Engine.Protocol + Platform.Windows
   Cli        = Core + Compiler.Msi + Compiler.Bundle + Decompiler
              + Localization + Extensibility + all Extensions</code></pre>
@@ -3858,6 +3891,41 @@ p.CreateFolder(cf =&gt; cf
     p.EnableRestartManagerSupport();
 }, new MsiCompiler());</code></pre>
 
+  <!-- 7.28 WinGet Manifest -->
+  <h3 id="msi-winget-builder">7.28 WinGet Manifest Generation</h3>
+  <p>
+    <code>PackageBuilder.WinGet()</code> attaches a WinGet manifest configuration to the MSI build.
+    When configured, the compiler emits a three-file WinGet singleton manifest (version YAML, installer
+    YAML, locale YAML) alongside the <code>.msi</code> output. The SHA-256 of the installer payload is
+    computed during emission so the manifest is publishable as-is.
+  </p>
+
+<pre><code class="language-csharp">var compiler = new MsiCompiler();
+Installer.Build(p =&gt;
+{
+    p.Name("Acme Web App").Manufacturer("Acme")
+     .Version("1.2.3").UpgradeCode(Guid.Parse("..."));
+
+    // ... product configuration ...
+
+    p.WinGet(w =&gt; w
+        .PackageIdentifier("Acme.WebApp")        // "Publisher.PackageName"
+        .License("MIT")                          // SPDX license identifier
+        .ShortDescription("Sample web app")
+        .InstallerUrl("https://acme.example/app.msi")
+        .Tags("web", "sample"));
+}, compiler);
+// Produces: AcmeWebApp.msi
+//   + manifests/Acme.WebApp.yaml
+//   + manifests/Acme.WebApp.installer.yaml
+//   + manifests/Acme.WebApp.locale.en-US.yaml</code></pre>
+
+  <p>
+    The CLI command <code>forge winget &lt;file.msi&gt; --id ... --license ... --desc ...</code>
+    (see Section 14) generates the same three-file set from an existing MSI that was not built with
+    <code>PackageBuilder.WinGet()</code> &mdash; useful for retrofitting legacy installers.
+  </p>
+
 </section>
 <!-- Section 8: Bundle Builder API -->
 <section class="section" id="bundle-builders">
@@ -4311,6 +4379,36 @@ public sealed class BundleCompiler
     <code>MspPackage</code>, and <code>BundlePackage</code>. The <code>BundleUiType</code> enum defines
     three UI modes: <code>BuiltIn</code>, <code>Custom</code>, and <code>Silent</code>.
   </div>
+
+  <h3 id="bundle-delta-updates">Delta Updates</h3>
+  <p>
+    <code>BundleBuilder.DeltaFrom(oldBundlePath)</code> switches the compiler into delta mode: instead
+    of emitting a full self-extracting bundle, the compiler produces a smaller artifact that contains
+    only the differences from the supplied previous bundle. Differences are computed with the Octodiff
+    rsync-style algorithm over the compressed payloads. The TOC includes a flag byte plus
+    <code>BaseSha256Hash</code> and <code>ReconstructedSha256Hash</code> per delta payload, so the
+    engine can verify that the base bundle present on the target machine matches the one used at delta
+    compile time.
+  </p>
+
+<pre><code class="language-csharp">Installer.BuildBundle(b =&gt;
+{
+    b.Name("Acme Suite").Version("1.2.0")
+     .BundleId(Guid.Parse("..."))
+     .DeltaFrom("./previous/AcmeSuite-1.1.0.exe");   // enable delta mode
+
+    b.Chain(c =&gt; c.MsiPackage("acme-core.msi"));
+});
+// Produces: AcmeSuite-1.2.0-delta.exe (much smaller than a full bundle)</code></pre>
+
+  <p>
+    The engine's <code>UpdateDownloader</code> is delta-aware: it inspects the manifest update feed
+    (<code>UpdateFeedEntry.DeltaUrl</code> + <code>DeltaSha256</code>) and tries the delta artifact
+    first, applies it via <code>DeltaApplicator</code>, and verifies the reconstructed bundle's
+    SHA-256 against <code>ReconstructedSha256Hash</code>. If anything fails (wrong base, hash mismatch,
+    download error) the engine falls back to the full bundle URL. Older engines that don't understand
+    delta flags simply skip the delta entry and download the full URL.
+  </p>
 </section>
 
 <!-- Section 9: Extension System -->
@@ -4331,7 +4429,8 @@ public sealed class BundleCompiler
 
   <h4>IFalkForgeExtension</h4>
   <p>
-    Primary entry point for all extensions. Provides a name and a registration callback.
+    Primary entry point for all extensions. Provides a name, optional version metadata, a registration
+    callback, and a hook for contributing validation rules.
   </p>
   <table class="api-table">
     <thead>
@@ -4339,7 +4438,10 @@ public sealed class BundleCompiler
     </thead>
     <tbody>
       <tr><td><code>Name</code></td><td><code>string</code></td><td>Unique extension name.</td></tr>
-      <tr><td><code>Register(IExtensionRegistry registry)</code></td><td><code>void</code></td><td>Called to register contributors and validators with the compiler.</td></tr>
+      <tr><td><code>Version</code></td><td><code>string</code></td><td>Optional semantic version of the extension implementation (defaults to <code>"0.0.0"</code>). Surfaces in error messages and diagnostics.</td></tr>
+      <tr><td><code>MinHostVersion</code></td><td><code>string</code></td><td>Optional minimum FalkForge host version. <code>ExtensionRegistration.Register</code> rejects the extension with <code>PluginCompatibilityException</code> if the host is older or the value cannot be parsed.</td></tr>
+      <tr><td><code>Register(IExtensionRegistry registry)</code></td><td><code>void</code></td><td>Called to register contributors with the compiler.</td></tr>
+      <tr><td><code>GetValidationRules()</code></td><td><code>ImmutableArray&lt;ValidationRule&gt;</code></td><td>Returns the rules this extension contributes. Merged into <code>ModelValidator.Inspect</code> alongside core rules. Default implementation returns an empty array, so existing extensions need no changes.</td></tr>
     </tbody>
   </table>
 
@@ -4354,9 +4456,21 @@ public sealed class BundleCompiler
     <tbody>
       <tr><td><code>RegisterTableContributor(IMsiTableContributor contributor)</code></td><td><code>void</code></td><td>Registers an MSI table contributor.</td></tr>
       <tr><td><code>RegisterComponentContributor(IComponentContributor contributor)</code></td><td><code>void</code></td><td>Registers a component contributor.</td></tr>
-      <tr><td><code>RegisterValidator(IExtensionValidator validator)</code></td><td><code>void</code></td><td>Registers a validation contributor.</td></tr>
+      <tr><td><code>RegisterDryRunContributor(IDryRunContributor contributor)</code></td><td><code>void</code></td><td>Registers a dry-run contributor used by <code>forge build --dry-run</code> and <code>forge validate</code>.</td></tr>
+      <tr><td><code>RegisterDialogStep(IDialogStepBuilder builder)</code></td><td><code>void</code></td><td>Registers an extension-contributed dialog step. The step becomes available for insertion via <code>DialogCustomization.InsertStep(name, after:)</code>. <code>DLG001</code> will not fire for names registered here.</td></tr>
     </tbody>
   </table>
+
+  <div class="note">
+    <strong>IExtensionValidator was removed.</strong> The earlier <code>IExtensionValidator</code>
+    cluster (<code>Validate(ExtensionContext, ValidationResult)</code>) and the corresponding
+    <code>RegisterValidator</code> method were retired. All extension diagnostics are now contributed
+    via <code>IFalkForgeExtension.GetValidationRules()</code> returning a
+    <code>ImmutableArray&lt;ValidationRule&gt;</code>, which the model validator merges with the core
+    rule set before <code>ModelValidator.Inspect</code> runs. The data-as-rules model means each rule
+    is a first-class object the CLI can list and explain (<code>forge rules list</code> /
+    <code>forge rules explain &lt;RuleId&gt;</code>).
+  </div>
 
   <h4>IComponentContributor</h4>
   <table class="api-table">
@@ -4379,15 +4493,17 @@ public sealed class BundleCompiler
     </tbody>
   </table>
 
-  <h4>IExtensionValidator</h4>
-  <table class="api-table">
-    <thead>
-      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
-    </thead>
-    <tbody>
-      <tr><td><code>Validate(ExtensionContext context, ValidationResult result)</code></td><td><code>void</code></td><td>Validates extension configuration and adds errors to the result.</td></tr>
-    </tbody>
-  </table>
+  <h4>ValidationRule (data-as-rules)</h4>
+  <p>
+    Each rule is a first-class object that names itself with a stable <code>RuleId</code>, declares
+    its <code>Severity</code>, carries a human description and a recommended fix, and exposes the
+    actual diagnostic via an <code>Inspect</code> delegate (which the engine calls during
+    <code>ModelValidator.Inspect</code> with the current package model and an emitter). Extensions
+    contribute their rule set by overriding <code>IFalkForgeExtension.GetValidationRules()</code>.
+    Because rules are values rather than virtual methods, the CLI can enumerate them
+    (<code>forge rules list</code>) and print their full metadata
+    (<code>forge rules explain &lt;RuleId&gt;</code>) without instantiating any compiler internals.
+  </p>
 
   <h4>ExtensionContext</h4>
   <p>Context object passed to all extension callbacks during compilation.</p>
@@ -5712,15 +5828,15 @@ Installer.Build(p =&gt; p
     </div>
 </div>
 
-<h3>State Machine</h3>
+<h3>Phases</h3>
 
 <p>
-    The engine is driven by <code>EngineStateMachine</code>, which transitions through a defined set
-    of phases. Each phase is handled by a dedicated <code>IEnginePhaseHandler</code> implementation.
-    The state machine validates transitions and notifies the UI of each phase change.
+    A single installer run flows through up to seven phases, in this order. Each phase is implemented as
+    a dedicated step class (see <strong>Phase Steps</strong>, below); ordering and entry conditions are
+    enforced by <code>IInstallerPipeline</code> rather than by a state machine.
 </p>
 
-<!-- State Machine Diagram -->
+<!-- Phase Diagram -->
 <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; padding: 20px 0;">
     <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; padding: 8px 16px; font-weight: bold;">Initializing</div>
     <div>&rarr;</div>
@@ -5737,82 +5853,291 @@ Installer.Build(p =&gt; p
     <div style="background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 6px; padding: 8px 16px; font-weight: bold;">Shutdown</div>
 </div>
 <div style="text-align: center; padding-bottom: 20px;">
-    <span style="color: #c62828; font-weight: bold;">Error path:</span> Any phase &rarr;
+    <span style="color: #c62828; font-weight: bold;">Error path:</span> any phase &rarr;
     <span style="background: #ffebee; border: 1px solid #ef9a9a; border-radius: 6px; padding: 4px 12px; font-weight: bold;">Failed</span> &rarr;
     <span style="background: #ffebee; border: 1px solid #ef9a9a; border-radius: 6px; padding: 4px 12px; font-weight: bold;">RollingBack</span> &rarr;
     <span style="background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 6px; padding: 4px 12px; font-weight: bold;">Shutdown</span>
 </div>
 
-<p>Valid transitions enforced by <code>EngineStateMachine.IsValidTransition()</code>:</p>
-
-<table class="api-table">
-    <thead><tr><th>From</th><th>To</th><th>Condition</th></tr></thead>
-    <tbody>
-        <tr><td>Initializing</td><td>Detecting</td><td>Always</td></tr>
-        <tr><td>Detecting</td><td>Planning</td><td>Always</td></tr>
-        <tr><td>Planning</td><td>Elevating</td><td>PerMachine scope</td></tr>
-        <tr><td>Planning</td><td>Applying</td><td>PerUser scope (no elevation needed)</td></tr>
-        <tr><td>Elevating</td><td>Applying</td><td>Always</td></tr>
-        <tr><td>Applying</td><td>Completing</td><td>Success</td></tr>
-        <tr><td>Applying</td><td>RollingBack</td><td>User cancellation during apply</td></tr>
-        <tr><td>Completing</td><td>Shutdown</td><td>Always</td></tr>
-        <tr><td>Any</td><td>Failed</td><td>On error</td></tr>
-        <tr><td>Failed</td><td>RollingBack</td><td>If journal exists</td></tr>
-        <tr><td>Failed</td><td>Shutdown</td><td>No rollback possible</td></tr>
-        <tr><td>RollingBack</td><td>Shutdown</td><td>Always</td></tr>
-    </tbody>
-</table>
-
-<h3>EngineHost</h3>
+<h3>EngineSession</h3>
 <p>
-    <code>EngineHost</code> (<code>src/FalkForge.Engine/EngineHost.cs</code>) is the top-level orchestrator.
-    It wires all dependencies using manual constructor injection (required for NativeAOT -- no reflection/DI containers),
-    creates the pipe server, builds the phase handler chain, and runs the state machine loop.
+    <code>EngineSession</code> (<code>src/FalkForge.Engine/EngineSession.cs</code>) is the public facade for
+    running the installer engine. It owns the lifetime of the pipeline, the UI channel, the logger, and the
+    journal store, and exposes a single <code>RunUntilShutdown</code> entry point that returns an
+    <code>EngineOutcome</code>. Construction is via static factories; the constructor is private.
 </p>
 
-<pre><code class="language-csharp">public sealed class EngineHost : IAsyncDisposable
+<pre><code class="language-csharp">public sealed class EngineSession : IAsyncDisposable
 {
-    public EngineHost(InstallerManifest manifest, IPlatformServices platform,
-                      PipeConnectionOptions? pipeOptions = null);
-    public async Task&lt;int&gt; RunAsync(CancellationToken ct = default);
-    public static Task HandleUiMessageAsync(EngineMessage message,
-                                            EngineContext? context,
-                                            EngineStateMachine? stateMachine);
+    public static EngineSession BindToPipe(
+        string? pipeName,
+        string manifestPath,
+        EngineSessionOptions? options = null);
+
+    public async Task&lt;EngineOutcome&gt; RunUntilShutdown(CancellationToken ct = default);
+
+    public async ValueTask DisposeAsync();
+}
+
+public readonly record struct EngineOutcome(
+    EngineTerminalState State,        // Completed | Cancelled | RolledBack | Failed
+    Error? Error,
+    RollbackSummary? Rollback,
+    TimeSpan Duration,
+    IReadOnlyList&lt;string&gt; LogFiles);
+
+public sealed record EngineSessionOptions
+{
+    public IEngineLogger? Logger { get; init; }
+    public string? LogDirectory { get; init; }
+    public string? LogPath { get; init; }
+    public LogLevel? MinimumLogLevel { get; init; }
+    public PipeConnectionOptions? PipeOptions { get; init; }
+    public TimeSpan? HandshakeTimeout { get; init; }
+    public bool WriteJournal { get; init; } = true;
 }</code></pre>
 
-<h3>EngineContext</h3>
 <p>
-    <code>EngineContext</code> (<code>src/FalkForge.Engine/EngineContext.cs</code>) is the shared mutable
-    state passed to all phase handlers. Thread-safe fields use <code>volatile</code> or
-    <code>ConcurrentDictionary</code>.
+    <code>BindToPipe</code> performs the following construction sequence: builds an
+    <code>EngineLogger</code> with a pipe-fanout callback, stamps a fresh <code>SessionCorrelationId</code>
+    (<code>Guid.NewGuid()</code>) on both the logger and the channel, loads the manifest from disk,
+    acquires <code>InstanceLock</code>, creates the <code>NamedPipeUiChannel</code> (or a null channel when
+    <code>pipeName</code> is omitted), wires <code>MsiExecutor</code> / <code>MsuExecutor</code> /
+    <code>MspExecutor</code> / <code>BundleExecutor</code> / <code>ExeExecutor</code> /
+    <code>NetRuntimeExecutor</code> into a single <code>PackageExecutor</code>, creates the
+    <code>FileSystemJournalStore</code> and undo operations, conditionally creates the
+    <code>NamedPipeElevationGateway</code> if a companion <code>.exe</code> is available, and finally calls
+    <code>InstallerPipelineBuilder.Build()</code>.
+</p>
+
+<h3>InstanceLock</h3>
+<p>
+    <code>InstanceLock</code> (<code>src/FalkForge.Engine/InstanceLock.cs</code>) prevents two concurrent
+    engine instances from running against the same bundle, which would otherwise produce MSI error 1618
+    ("Another installation is already in progress"). The lock is implemented as a machine-wide
+    <code>Semaphore(1, 1)</code> (not a <code>Mutex</code> &mdash; so it is intentionally not thread
+    re-entrant) named <code>Global\FalkForge_Install_{bundleId}</code>. If
+    <code>SeCreateGlobalPrivilege</code> is not held, it falls back to the <code>Local\</code> namespace.
+</p>
+
+<pre><code class="language-csharp">public static class InstanceLock
+{
+    public static bool TryAcquire(string bundleId, out IDisposable? lockHandle);
+}</code></pre>
+
+<p>
+    <code>EngineSession.BindToPipe</code> calls <code>TryAcquire</code> immediately after loading the
+    manifest. If acquisition fails an <code>InvalidOperationException</code> is propagated to the caller.
+    Disposing the handle releases the semaphore at session teardown.
+</p>
+
+<h3>Installer Pipeline</h3>
+<p>
+    <code>IInstallerPipeline</code> (<code>src/FalkForge.Engine/Pipeline/IInstallerPipeline.cs</code>) is the
+    top-level phase coordinator. It enforces phase ordering (<code>Detect</code> &rarr; <code>Plan</code>
+    &rarr; <code>Apply</code>, with optional <code>Elevate</code> between Plan and Apply, and
+    <code>Rollback</code> on failure) and exposes each phase as an async <code>Result&lt;Unit&gt;</code>
+    method rather than throwing on failure.
+</p>
+
+<pre><code class="language-csharp">public interface IInstallerPipeline : IAsyncDisposable
+{
+    Task&lt;Result&lt;Unit&gt;&gt; DetectAsync(CancellationToken ct);
+    Task&lt;Result&lt;Unit&gt;&gt; PlanAsync(UiRequest.Plan request, CancellationToken ct);
+    Task&lt;Result&lt;Unit&gt;&gt; ElevateAsync(CancellationToken ct);
+    Task&lt;Result&lt;Unit&gt;&gt; ApplyAsync(CancellationToken ct);
+    Task&lt;Result&lt;Unit&gt;&gt; RollbackAsync(CancellationToken ct);
+    Result&lt;Unit&gt; ExportPlan(string? outputPath);
+}</code></pre>
+
+<p>
+    The default implementation, <code>InstallerPipeline</code>, holds references to up to five phase steps
+    and uses a private <code>Phase</code> enum to guard against out-of-sequence calls. Out-of-order
+    invocations return <code>ErrorKind.EngineError</code> instead of throwing. Calling
+    <code>ElevateAsync</code> when no elevation gateway was supplied is a successful no-op.
+</p>
+
+<h4>InstallerPipelineBuilder</h4>
+<p>
+    A fluent builder that accepts port implementations and conditionally constructs phase steps based on
+    which dependencies were supplied. Missing steps become successful no-op pass-throughs. All
+    <code>With*</code> methods return <code>this</code> for chaining.
+</p>
+
+<pre><code class="language-csharp">public sealed class InstallerPipelineBuilder
+{
+    public InstallerPipelineBuilder WithClock(IClock clock);
+    public InstallerPipelineBuilder WithRandom(IRandomSource random);
+    public InstallerPipelineBuilder WithJournalStore(IJournalStore store);
+    public InstallerPipelineBuilder WithPayloadCache(IPayloadCache cache);
+    public InstallerPipelineBuilder WithPayloadSource(IPayloadSource source);
+    public InstallerPipelineBuilder WithLayoutStore(ILayoutStore store);
+    public InstallerPipelineBuilder WithUiChannel(IUiChannel channel);
+    public InstallerPipelineBuilder WithElevationGateway(IElevatedCommandGateway gateway);
+    public InstallerPipelineBuilder WithManifest(InstallerManifest manifest);
+    public InstallerPipelineBuilder WithRegistry(IRegistry registry);
+    public InstallerPipelineBuilder WithPackageExecutor(PackageExecutor executor);
+    public InstallerPipelineBuilder WithVariableStore(VariableStore variables);
+    public InstallerPipelineBuilder WithUndoOperations(IReadOnlyList&lt;IUndoOperation&gt; ops);
+    public InstallerPipelineBuilder WithLogger(IEngineLogger logger);
+    public IInstallerPipeline Build();
+}</code></pre>
+
+<p>
+    Conditional wiring: a <code>DetectStep</code> is created only if both manifest and registry are
+    present; an <code>ElevateStep</code> is created only if an elevation gateway was supplied; both
+    <code>ApplyStep</code> and <code>RollbackStep</code> are created only if a journal store was supplied.
+    This design lets the same pipeline type drive production runs, plan-only export, and unit-test
+    scenarios with stub channels.
+</p>
+
+<h3>PipelineRunner</h3>
+<p>
+    <code>PipelineRunner</code> (<code>src/FalkForge.Engine/Pipeline/PipelineRunner.cs</code>) is the
+    production event loop that drives the pipeline. It consumes <code>UiRequest</code> events from
+    <code>IUiChannel</code> and invokes the matching phase method on <code>IInstallerPipeline</code>.
+</p>
+
+<pre><code class="language-csharp">public sealed class PipelineRunner
+{
+    public PipelineRunner(
+        IInstallerPipeline pipeline,
+        IUiChannel uiChannel,
+        IEngineLogger? logger = null,
+        bool isPlanOnly = false,
+        string? planOnlyOutputPath = null);
+
+    public async Task&lt;int&gt; RunAsync(CancellationToken ct);
+}</code></pre>
+
+<p>
+    The event loop is an <code>await foreach</code> over
+    <code>IUiChannel.ReadRequestsAsync(ct)</code>:
 </p>
 
 <table class="api-table">
-    <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+    <thead><tr><th>Inbound request</th><th>Behavior</th></tr></thead>
     <tbody>
-        <tr><td>Manifest</td><td>InstallerManifest</td><td>The installer manifest (required)</td></tr>
-        <tr><td>Platform</td><td>IPlatformServices</td><td>OS abstractions (registry, filesystem)</td></tr>
-        <tr><td>UiPipe</td><td>PipeServer?</td><td>Named pipe to the UI process</td></tr>
-        <tr><td>Variables</td><td>VariableStore</td><td>Thread-safe variable storage</td></tr>
-        <tr><td>DetectedState</td><td>InstallState</td><td>Current installation state</td></tr>
-        <tr><td>DetectedVersion</td><td>string?</td><td>Currently installed version</td></tr>
-        <tr><td>RequestedAction</td><td>InstallAction</td><td>User-requested action (Install/Uninstall/Repair)</td></tr>
-        <tr><td>CurrentPlan</td><td>InstallPlan?</td><td>Active installation plan</td></tr>
-        <tr><td>UserCancelled</td><td>bool (volatile)</td><td>Cancellation flag from UI</td></tr>
-        <tr><td>FeatureSelections</td><td>ConcurrentDictionary&lt;string, bool&gt;</td><td>User feature choices</td></tr>
-        <tr><td>Journal</td><td>RollbackJournal?</td><td>Rollback journal for undo</td></tr>
-        <tr><td>ElevationClient</td><td>IElevationClient?</td><td>Elevated process client</td></tr>
-        <tr><td>RebootRequired</td><td>bool (volatile)</td><td>Whether a reboot is needed</td></tr>
-        <tr><td>ExitCode</td><td>int</td><td>Final exit code</td></tr>
+        <tr><td><code>UiRequest.Detect</code></td><td>Calls <code>DetectAsync</code>. On failure, emits a <code>Failed</code> event and exits with code 1.</td></tr>
+        <tr><td><code>UiRequest.Plan</code></td><td>Calls <code>PlanAsync</code>, then automatically calls <code>ElevateAsync</code> if elevation is required by the plan.</td></tr>
+        <tr><td><code>UiRequest.Apply</code></td><td>Calls <code>ApplyAsync</code>. On success emits <code>PhaseChanged(Completing)</code> and shuts down.</td></tr>
+        <tr><td><code>UiRequest.Cancel</code> / <code>UiRequest.Shutdown</code></td><td>Sends a shutdown frame to the UI and returns exit code 0.</td></tr>
     </tbody>
 </table>
+
+<p>
+    If the <code>CancellationToken</code> fires during <code>ApplyAsync</code>, the runner calls
+    <code>RollbackAsync(CancellationToken.None)</code> so rollback cannot itself be cancelled, then
+    returns exit code 3. <code>EngineMeter.RecordError</code> is called on every failure path.
+</p>
+
+<p>Exit codes returned by <code>RunAsync</code>:</p>
+
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+        <tr><td>0</td><td>Success, or clean cancellation before apply</td></tr>
+        <tr><td>1</td><td>Phase error (detection, planning, elevation, or apply without rollback)</td></tr>
+        <tr><td>3</td><td>Rolled back after cancellation or failure during apply</td></tr>
+    </tbody>
+</table>
+
+<h3>Phase Steps</h3>
+<p>
+    The pipeline holds up to five phase steps, each an <code>internal sealed class</code>. All receive a
+    <code>PipelineContext</code> &mdash; a mutable state bag threaded through the run &mdash; as the first
+    argument to <code>ExecuteAsync</code>.
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Step</th><th>Responsibility</th></tr></thead>
+    <tbody>
+        <tr><td><code>DetectStep</code></td><td>Runs <code>PackageDetector</code> against the manifest and the optional update check. Populates <code>ctx.Detection</code>, <code>ctx.RelatedBundles</code>, <code>ctx.AvailableUpdate</code>.</td></tr>
+        <tr><td><code>PlanStep</code></td><td>Runs the <code>Planner</code>, checks architecture compatibility against the host machine, populates <code>ctx.Plan</code>.</td></tr>
+        <tr><td><code>ElevateStep</code></td><td>Calls <code>IElevatedCommandGateway.StartAsync</code>, which launches the companion <code>.exe</code> and performs the HMAC handshake. Sets <code>ctx.ElevationGateway</code>.</td></tr>
+        <tr><td><code>ApplyStep</code></td><td>Executes every <code>PlanAction</code> via <code>PackageExecutor</code>, drives <code>RestartManager</code>, and journals undo entries.</td></tr>
+        <tr><td><code>RollbackStep</code></td><td>Reads the journal in reverse and dispatches each entry to the matching <code>IUndoOperation</code>.</td></tr>
+    </tbody>
+</table>
+
+<h4>PipelineContext</h4>
+<p>
+    <code>PipelineContext</code> (<code>src/FalkForge.Engine/Pipeline/PipelineContext.cs</code>) replaces
+    the older shared-context singleton. Each step reads and writes the fields it owns; downstream steps
+    consume the populated state.
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Property</th><th>Type</th><th>Owner</th></tr></thead>
+    <tbody>
+        <tr><td>Manifest</td><td>InstallerManifest</td><td>set at construction</td></tr>
+        <tr><td>Detection</td><td>DetectionResult?</td><td>DetectStep</td></tr>
+        <tr><td>RelatedBundles</td><td>IReadOnlyList&lt;RelatedBundleInfo&gt;</td><td>DetectStep</td></tr>
+        <tr><td>AvailableUpdate</td><td>UpdateCheckResult?</td><td>DetectStep</td></tr>
+        <tr><td>PlanRequest</td><td>UiRequest.Plan?</td><td>PlanStep</td></tr>
+        <tr><td>Plan</td><td>InstallPlan?</td><td>PlanStep</td></tr>
+        <tr><td>IsPlanOnly / SilentMode / IsDryRun</td><td>bool</td><td>PlanStep</td></tr>
+        <tr><td>ElevationGateway</td><td>IElevatedCommandGateway?</td><td>ElevateStep</td></tr>
+        <tr><td>RebootRequired</td><td>bool</td><td>ApplyStep</td></tr>
+    </tbody>
+</table>
+
+<h3>IUiChannel</h3>
+<p>
+    <code>IUiChannel</code> (<code>src/FalkForge.Engine/Pipeline/IUiChannel.cs</code>) is the cross-process
+    UI communication port. It hides binary message framing, the HMAC pipe handshake, and the
+    <code>EngineMessage</code> wire-frame subtypes from pipeline code.
+</p>
+
+<pre><code class="language-csharp">public interface IUiChannel : IAsyncDisposable
+{
+    void SetSessionCorrelationId(Guid id);
+    Task SendAsync(PipelineEvent evt, CancellationToken ct);
+    IAsyncEnumerable&lt;UiRequest&gt; ReadRequestsAsync(CancellationToken ct);
+}</code></pre>
+
+<p>
+    The production implementation, <code>NamedPipeUiChannel</code>, performs the HMAC handshake on
+    <code>StartAsync</code>, translates outbound <code>PipelineEvent</code> values into the corresponding
+    <code>EngineMessage</code> frame, and translates inbound frames back into <code>UiRequest</code> values.
+    A null implementation is available for headless and CLI scenarios via
+    <code>NamedPipeUiChannel.CreateNullChannel()</code>.
+</p>
+
+<h3>IElevatedCommandGateway</h3>
+<p>
+    <code>IElevatedCommandGateway</code>
+    (<code>src/FalkForge.Engine/Pipeline/IElevatedCommandGateway.cs</code>) is the elevated-process port.
+    It hides HMAC handshake, PID and process-start-time verification, child-process spawning, and pipe
+    framing from <code>ElevateStep</code> and <code>ApplyStep</code>.
+</p>
+
+<pre><code class="language-csharp">public interface IElevatedCommandGateway : IAsyncDisposable
+{
+    Task&lt;Result&lt;Unit&gt;&gt; StartAsync(CancellationToken ct);
+    Task&lt;Result&lt;byte[]&gt;&gt; SendCommandAsync(
+        string commandName,
+        byte[] payload,
+        IProgress&lt;int&gt;? progress,
+        CancellationToken ct);
+}</code></pre>
+
+<p>
+    The production implementation, <code>NamedPipeElevationGateway</code>, launches
+    <code>FalkForge.Engine.Elevation.exe</code> as a child process, performs the HMAC handshake, and
+    verifies that the resulting process matches the expected PID and start time. Start-time verification
+    defends against PID recycling. The <code>progress</code> callback receives values in
+    <code>[0,&nbsp;100]</code> during long-running MSI commands.
+</p>
 
 <div class="note">
     <strong>NativeAOT Constraints:</strong> The engine targets NativeAOT compilation with
     <code>PublishAot: true</code>, <code>InvariantGlobalization: true</code>, and
-    <code>IlcOptimizationPreference: Size</code>. This means no reflection, no dynamic types,
-    no BinaryFormatter. All dependency injection is manual (constructor injection), and all
-    serialization uses the custom binary protocol in <code>MessageSerializer</code>.
+    <code>IlcOptimizationPreference: Size</code>. No reflection, no dynamic types, no
+    <code>BinaryFormatter</code>. All dependency injection is manual (constructor injection), all
+    serialization uses the binary protocol in <code>MessageSerializer</code>, and the channel and
+    gateway abstractions exist so the pipeline can be unit-tested without spawning real pipes or
+    processes.
 </div>
 
 <!-- Detection -->
@@ -6037,7 +6362,7 @@ Installer.Build(p =&gt; p
 <ol>
     <li><strong>UI Process:</strong> <code>InstallerPage</code> calls <code>Engine.SetProperty()</code> or <code>Engine.SetSecureProperty()</code></li>
     <li><strong>EngineClient:</strong> Serializes to <code>SetPropertyMessage</code> (0x0208) or <code>SetSecurePropertyMessage</code> (0x0209) over named pipe</li>
-    <li><strong>EngineHost:</strong> Validates property name, stores in <code>EngineContext.UserProperties</code>; secrets stored as <code>SecureVariable</code> in <code>VariableStore</code></li>
+    <li><strong>NamedPipeUiChannel:</strong> Validates the property name (regex check, built-in variable allowlist, length cap) and translates the frame into a <code>UiRequest</code>; <code>PipelineRunner</code> stores the value in <code>VariableStore</code>. Secrets are wrapped as <code>SecureVariable</code> and tracked separately so they can be redacted from logs.</li>
     <li><strong>Planner:</strong> Copies user properties to <code>PlanAction.Properties</code>; secrets use bracket references (<code>[DB_PASSWORD]</code>) resolved at execution time</li>
     <li><strong>MsiExecutor:</strong> Resolves bracket references from <code>VariableStore</code>, builds property string, calls <code>IMsiApi.InstallProduct(packagePath, properties)</code></li>
 </ol>
@@ -6211,6 +6536,111 @@ op       -> '=' | '&lt;&gt;' | '&lt;' | '&gt;' | '&lt;=' | '&gt;=' | '~='</code>
     <li><code>ExeRollbackOperation</code> -- Runs the recorded uninstall command</li>
     <li><code>CacheCleanupOperation</code> -- Deletes cached payloads</li>
 </ul>
+
+<!-- Logging & Metrics -->
+<h3 id="engine-logging">Logging &amp; Metrics</h3>
+
+<h4>EngineLogger</h4>
+<p>
+    <code>EngineLogger</code> (<code>src/FalkForge.Engine/Logging/EngineLogger.cs</code>) is a file-based
+    logger with an optional pipe-fanout callback so log entries can also stream to the UI. Each entry
+    carries a category, level, message, optional property bag, and the active
+    <code>SessionCorrelationId</code> so engine, UI, and elevated logs can be correlated after the fact.
+</p>
+
+<pre><code class="language-csharp">public sealed class EngineLogger : IEngineLogger, IDisposable
+{
+    public EngineLogger(
+        string path,
+        EngineLoggerOptions? options = null,
+        Action&lt;LogEntry&gt;? pipeCallback = null);
+
+    public Guid SessionCorrelationId { get; set; }
+
+    public void SetMinimumLevel(LogLevel level);
+
+    public void Log(LogLevel level, string category, string message,
+                    IReadOnlyDictionary&lt;string, string&gt;? properties = null);
+
+    public void Verbose(string category, string message);
+    public void Debug(string category, string message);
+    public void Info(string category, string message);
+    public void Warning(string category, string message);
+    public void Error(string category, string message);
+
+    public static string GetDefaultLogPath();
+    public void Dispose();
+}
+
+public sealed record EngineLoggerOptions
+{
+    public long RotationSizeThresholdBytes { get; init; } = long.MaxValue;
+    public int RetentionCount { get; init; } = 5;
+    public static EngineLoggerOptions Default { get; }
+}</code></pre>
+
+<p>
+    Default behavior writes a single log to <code>%TEMP%\FalkForge\install_*.log</code>. When
+    <code>RotationSizeThresholdBytes</code> is set to a finite value, the logger renames the active file
+    to <code>install_*.log.1</code> on threshold and keeps up to <code>RetentionCount</code> backups.
+</p>
+
+<h4><code>--log</code> / <code>--log-level</code> CLI flags</h4>
+<p>
+    The engine accepts two logging flags forwarded from the bootstrapper. Parsing is centralized in
+    <code>ProgramArgs</code> (<code>src/FalkForge.Engine.Protocol/ProgramArgs.cs</code>) so the engine and
+    the UI process share a single parser and the values cannot drift across processes.
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Flag</th><th>Aliases</th><th>Argument</th></tr></thead>
+    <tbody>
+        <tr><td><code>--log</code></td><td><code>/log</code>, <code>/L</code></td><td>File path or directory (auto-appends <code>engine.log</code>); path traversal (<code>..</code>) is rejected</td></tr>
+        <tr><td><code>--log-level</code></td><td><code>/lv</code></td><td><code>LogLevel</code> enum value (<code>Verbose</code>, <code>Debug</code>, <code>Info</code>, <code>Warning</code>, <code>Error</code>)</td></tr>
+    </tbody>
+</table>
+
+<p>
+    <code>ProgramArgs.ToLogFlagsCommandLine()</code> formats the parsed values back into a command-line
+    string that <code>Bootstrapper.BuildUiArgs</code> uses when spawning the UI process, so the same log
+    configuration flows transparently into every child.
+</p>
+
+<h4>EngineMeter (System.Diagnostics.Metrics)</h4>
+<p>
+    <code>EngineMeter</code> (<code>src/FalkForge.Engine/Logging/EngineMeter.cs</code>) is the central
+    metrics facade. It uses <code>System.Diagnostics.Metrics</code> (NativeAOT and trim-safe, no
+    reflection) with instrument names following OpenTelemetry semantic conventions under the
+    <code>falkforge.engine.*</code> prefix.
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Instrument</th><th>Kind</th><th>Recording method</th></tr></thead>
+    <tbody>
+        <tr><td><code>falkforge.engine.phase.transitions</code></td><td>Counter</td><td><code>RecordPhaseTransition(EnginePhase, double ms)</code></td></tr>
+        <tr><td><code>falkforge.engine.phase.duration_ms</code></td><td>Histogram</td><td><code>RecordPhaseTransition(EnginePhase, double ms)</code></td></tr>
+        <tr><td><code>falkforge.engine.payload.downloads</code></td><td>Counter</td><td><code>RecordPayloadDownload(bool, long, PayloadKind)</code></td></tr>
+        <tr><td><code>falkforge.engine.payload.size_bytes</code></td><td>Histogram</td><td><code>RecordPayloadDownload(bool, long, PayloadKind)</code></td></tr>
+        <tr><td><code>falkforge.engine.retry.count</code></td><td>Counter</td><td><code>RecordRetry(RetryOperation)</code></td></tr>
+        <tr><td><code>falkforge.engine.error.count</code></td><td>Counter</td><td><code>RecordError(ErrorKind)</code></td></tr>
+    </tbody>
+</table>
+
+<p>
+    The static <code>EngineMeter</code> is consumed across the pipeline: <code>PipelineRunner</code> calls
+    <code>RecordError</code> on every failure path; download and retry sites record their own metrics.
+    Any host that wants to scrape these can subscribe to the <code>falkforge.engine</code> meter via
+    <code>MeterListener</code>.
+</p>
+
+<h4>SessionCorrelationId</h4>
+<p>
+    A fresh <code>Guid</code> is generated by <code>EngineSession.BindToPipe</code> and stamped onto the
+    logger via <code>StampCorrelationId</code> and onto the channel via
+    <code>IUiChannel.SetSessionCorrelationId</code>. <code>NamedPipeUiChannel</code> then embeds it in
+    every outbound <code>LogMessage</code> and <code>PhaseChangedMessage</code> frame, so engine, UI, and
+    elevated log files can be reconciled by correlation ID without relying on timestamps.
+</p>
 </section>
 
 <!-- ============================================================ -->
@@ -6227,13 +6657,21 @@ op       -> '=' | '&lt;&gt;' | '&lt;' | '&gt;' | '&lt;=' | '&gt;=' | '~='</code>
 <h3>Binary Protocol Format</h3>
 <p>
     All messages use a fixed-header binary format with length-prefix framing on the transport layer.
+    Each frame consists of an 8-byte wire header followed by a codec-authored payload. The codec for
+    each message type owns the payload layout, beginning with a <code>SequenceId:u32</code>.
 </p>
 
-<pre><code>Wire format:
-+------------------+------------------+------------------+------------------+----------+
-| Version (ushort) |  Type (ushort)   |  Length (int32)  | SequenceId (uint)| Payload  |
-|     2 bytes      |     2 bytes      |     4 bytes      |     4 bytes      | variable |
-+------------------+------------------+------------------+------------------+----------+
+<pre><code>Wire frame:
++----------------------+------------------+----------------------+----------+
+| WireVersion (ushort) |  Type (ushort)   | PayloadLength (int32)|  Payload |
+|       2 bytes        |     2 bytes      |        4 bytes       | variable |
++----------------------+------------------+----------------------+----------+
+
+Codec body (first field is always SequenceId):
++--------------------+------------------------------+
+|  SequenceId (u32)  |  Type-specific fields ...    |
+|      4 bytes       |          variable            |
++--------------------+------------------------------+
 
 Transport framing (length-prefix):
 +------------------+---------------------------+
@@ -6243,11 +6681,10 @@ Transport framing (length-prefix):
 <table class="api-table">
     <thead><tr><th>Field</th><th>Size</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>Version</td><td>2 bytes</td><td>Protocol version (currently 1)</td></tr>
-        <tr><td>Type</td><td>2 bytes</td><td>MessageType enum value</td></tr>
-        <tr><td>Length</td><td>4 bytes</td><td>Payload length in bytes (excludes header)</td></tr>
-        <tr><td>SequenceId</td><td>4 bytes</td><td>Monotonically increasing message sequence ID</td></tr>
-        <tr><td>Payload</td><td>variable</td><td>Type-specific binary data</td></tr>
+        <tr><td>WireVersion</td><td>2 bytes</td><td>Per-message wire version. Multiple versions of the same <code>MessageType</code> can be registered side-by-side (see <em>Codec Architecture</em>).</td></tr>
+        <tr><td>Type</td><td>2 bytes</td><td><code>MessageType</code> enum value</td></tr>
+        <tr><td>PayloadLength</td><td>4 bytes</td><td>Payload length in bytes (excludes header)</td></tr>
+        <tr><td>Payload</td><td>variable</td><td>Codec-authored body, starting with <code>SequenceId:u32</code>, then type-specific fields</td></tr>
     </tbody>
 </table>
 
@@ -6283,11 +6720,111 @@ Transport framing (length-prefix):
         <tr><td>0x0206</td><td>RequestPlan</td><td>UI &rarr; Engine</td><td>Action (InstallAction)</td><td>UI requests planning for a specific action</td></tr>
         <tr><td>0x0207</td><td>RequestApply</td><td>UI &rarr; Engine</td><td>(none)</td><td>UI confirms readiness to apply</td></tr>
         <tr><td>0x0208</td><td>SetProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), Value (string)</td><td>Sets an MSI property for package execution. Phase-gated: only accepted during Initializing, Detecting, or Planning.</td></tr>
-        <tr><td>0x0209</td><td>SetSecureProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), SecureValue (byte[])</td><td>Sets a secret property via named pipe. Value stored in pinned, zeroed-on-dispose memory. Never appears on command line.</td></tr>
+        <tr><td>0x0209</td><td>SetSecureProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), SecureValue (<code>SensitiveBytes</code>)</td><td>Sets a secret property via named pipe. <code>SecureValue</code> is a <code>SensitiveBytes</code> struct that zeroes its backing array on dispose. The codec applies three-layer zeroing (write reveal, read scratch, PostWrite). Never appears on the command line.</td></tr>
         <tr><td>0x0301</td><td>ElevateExecute</td><td>Engine &rarr; Elevated</td><td>CommandName, CommandPayload (byte[])</td><td>Execute an elevated command</td></tr>
         <tr><td>0x0401</td><td>ElevateResult</td><td>Elevated &rarr; Engine</td><td>Success, ErrorMessage?, ResultPayload?</td><td>Result of an elevated command execution</td></tr>
     </tbody>
 </table>
+
+<!-- Codec Architecture -->
+<h3 id="protocol-codec">Codec Architecture</h3>
+
+<p>
+    The original <code>LegacyMessageSerializer</code> was a paired switch &mdash; one write-side method
+    and one read-side method, each dispatching on every concrete message type by hand. Adding a field on
+    one side without the other produced silent data corruption rather than a compile error, and there was
+    no way to evolve the wire format without a flag day. The protocol layer was refactored in 2026 into a
+    codec registry that fixes both problems.
+</p>
+
+<p>
+    Each message type now has a dedicated <code>MessageCodec&lt;T&gt;</code> in
+    <code>src/FalkForge.Engine.Protocol/Serialization/Codecs/</code>. The codec owns the entire payload
+    layout, including the leading <code>SequenceId:u32</code>. <code>MessageSerializer</code> writes the
+    wire header, then hands a <code>BinaryWriter</code> to the codec; <code>MessageDeserializer</code>
+    reads the header, resolves the codec via <code>MessageCodecRegistry.ForRead(type, wireVersion)</code>,
+    then hands a <code>BinaryReader</code> back.
+</p>
+
+<pre><code class="language-csharp">public interface IMessageCodec
+{
+    MessageType Type        { get; }
+    ushort      WireVersion { get; }
+    Type        MessageClrType { get; }
+
+    EngineMessage ReadErased(BinaryReader reader);
+    Action&lt;EngineMessage&gt;? PostWrite { get; }
+}
+
+public sealed record MessageCodec&lt;T&gt; : IMessageCodec where T : EngineMessage
+{
+    public required MessageType                   Type;
+    public required ushort                        WireVersion;
+    public required ImmutableArray&lt;FieldDescriptor&gt; Fields;
+    public required Action&lt;BinaryWriter, T&gt;       Write;
+    public required Func&lt;BinaryReader, T&gt;         Read;
+    public Action&lt;T&gt;?                             PostWrite;
+}
+
+public static class MessageCodecRegistry
+{
+    public static void Register(IMessageCodec codec);
+    public static IMessageCodec ForRead(MessageType type, ushort wireVersion);
+}</code></pre>
+
+<h4>Version Negotiation</h4>
+<p>
+    Each codec is keyed by <code>(MessageType, WireVersion)</code>. <code>ForRead</code> tries an exact
+    match first, then falls back to the nearest registered version below the requested version. Multiple
+    versions of the same <code>MessageType</code> can be registered side-by-side, so an old peer running
+    <code>WireVersion = 1</code> and a new peer running <code>WireVersion = 2</code> can coexist without
+    a flag day.
+</p>
+
+<p>
+    Example: <code>LogCodec</code> and <code>PhaseChangedCodec</code> were promoted to
+    <code>WireVersion = 2</code> to append a 16-byte <code>SessionCorrelationId</code> (a <code>Guid</code>)
+    to the payload. The V1 codec remains registered, so older peers continue to read those frames; the V2
+    codec adds the trailing GUID for newer peers.
+</p>
+
+<h4>Golden-Byte Tests</h4>
+<p>
+    Every codec ships a pair of tests: a round-trip test (write then read, assert equality on all
+    fields) and a golden-byte test (assert that the serialized wire bytes equal a hard-coded hex string).
+    The golden-byte test is computed once and locked in source. If a future change accidentally reorders
+    a field or swaps a width, the golden-byte test fails immediately rather than silently corrupting
+    deployed installers. These tests replaced the old <code>LegacyMessageSerializer</code> parity suite
+    when the codec migration completed.
+</p>
+
+<h4>Secure Property Lifecycle</h4>
+<p>
+    <code>SetSecurePropertyMessage</code> is <code>IDisposable</code>; its <code>SecureValue</code> is a
+    <code>SensitiveBytes</code> struct that wraps a <code>byte[]</code> and zeroes it on dispose.
+    <code>SetSecurePropertyCodec</code> applies three layers of zeroing:
+</p>
+<ol>
+    <li><strong>Write-side reveal buffer.</strong> The codec borrows the plaintext as a scoped
+        <code>ReadOnlySpan&lt;byte&gt;</code> via <code>SensitiveBytes.Borrow()</code>, writes it to the
+        <code>BinaryWriter</code>, and the span goes out of scope at end of <code>Write</code>.</li>
+    <li><strong>Read-side scratch buffer.</strong> The codec rents from <code>ArrayPool&lt;byte&gt;.Shared</code>,
+        reads into the rented buffer, copies into a fresh <code>SensitiveBytes</code> via
+        <code>SensitiveBytes.FromPlaintext</code>, then zeroes the scratch with
+        <code>CryptographicOperations.ZeroMemory</code> and returns it with <code>clearArray: true</code>.</li>
+    <li><strong>PostWrite hook.</strong> <code>SetSecurePropertyCodec.PostWrite</code> calls
+        <code>msg.Dispose()</code>, which zeroes the message's <code>SensitiveBytes</code> immediately
+        after framing completes. One-shot messages cannot leak even if the caller forgets a
+        <code>using</code> block.</li>
+</ol>
+
+<h4>SessionCorrelationId Flow</h4>
+<p>
+    <code>EngineSession.BindToPipe</code> generates a fresh <code>Guid</code> and stamps it on both the
+    logger and the channel. <code>NamedPipeUiChannel.TranslateEvent</code> embeds the GUID in every
+    outbound <code>LogMessage</code> (V2) and <code>PhaseChangedMessage</code> (V2) frame, so engine, UI,
+    and elevated log files can be correlated after the fact without relying on timestamps.
+</p>
 
 <!-- Transport -->
 <h3 id="protocol-transport">Transport</h3>
@@ -6507,6 +7044,58 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     use conditional enabling of the Next button on the license dialog (enabled only when
     <code>LicenseAccepted = "1"</code>).
 </div>
+
+<h3>Dialog Customization API</h3>
+
+<p>
+    Beyond picking a template, callers can <strong>insert</strong> custom dialog steps into the dialog
+    flow without copying a whole template. RFC Cycle 6 added an extension-driven dialog-injection API:
+    extensions register named dialog builders, and the package author requests insertions by name in the
+    fluent API. The compiler resolves each insertion against the registry at build time. If an insertion
+    references a name that was not registered, the build fails with diagnostic <strong>DLG001</strong>.
+</p>
+
+<pre><code class="language-csharp">// FalkForge.Extensibility/IDialogStepBuilder.cs &mdash; public contract
+public interface IDialogStepBuilder
+{
+    string Name { get; }
+}</code></pre>
+
+<p>
+    Extensions that ship dialog steps register an <code>IDialogStepBuilder</code> with the extension
+    context. Extensions that need to emit a full <code>MsiDialogModel</code> implement the compiler-side
+    extension <code>IMsiDialogStepBuilder</code> (internal to <code>FalkForge.Compiler.Msi</code>) which
+    adds a <code>Build(DialogBuildContext)</code> method. Plain <code>IDialogStepBuilder</code>
+    registrations (name only) are accepted &mdash; they satisfy <code>DLG001</code> name-only references
+    but cannot produce dialog rows themselves; they exist so extension authors can reserve a name without
+    coupling to compiler internals.
+</p>
+
+<p>Composition surface in the fluent API:</p>
+
+<pre><code class="language-csharp">package
+    .UseDialogSet(MsiDialogSet.InstallDir)
+    .InsertDialogStep("MyPostLicenseStep", after: "LicenseAgreementDlg")
+    .InsertDialogStep("MyPreInstallStep",  before: "InstallDirDlg");</code></pre>
+
+<p>
+    Internals (not part of the public API but documented here for diagnostic clarity):
+    <code>DialogStepRegistry</code> is the frozen registry of named builders;
+    <code>DialogBuildContext</code> threads the <code>DialogCustomizationModel</code> + registry through
+    dialog composition; <code>InsertedDialogStep</code> is the model row produced by each
+    <code>InsertDialogStep</code> call.
+</p>
+
+<h4>Validation</h4>
+
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Severity</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>DLG001</td><td>Error</td><td>An <code>InsertedDialogStep</code> references a step name that is not registered in the <code>DialogStepRegistry</code>. Fix: register the builder via the owning extension before compiling.</td></tr>
+        <tr><td>DLG002</td><td>Error</td><td>Two <code>InsertedDialogStep</code> entries declare the same logical position (same <code>before</code>/<code>after</code> anchor with the same target). Fix: give them distinct anchors or merge them.</td></tr>
+    </tbody>
+</table>
+
 </section>
 
 <!-- ============================================================ -->
@@ -6516,47 +7105,88 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 <h2>14. CLI Tool</h2>
 
 <p>
-    The <code>forge</code> CLI (<code>src/FalkForge.Cli/</code>) is built with Spectre.Console
-    and provides commands for building, validating, inspecting, and decompiling installers.
-    It accepts both C# script files and JSON configuration files as input.
+    The <code>forge</code> CLI (<code>src/FalkForge.Cli/</code>) is built with Spectre.Console and
+    provides commands for building, validating, inspecting, decompiling, and extracting installers, plus
+    WinGet manifest generation and validation-rule discovery. It accepts both C# script files
+    (<code>.cs</code> / <code>.csx</code>) and JSON configuration files as input.
+</p>
+
+<p>
+    Nine commands are registered (some grouped under a <code>rules</code> or <code>bundle</code> branch):
+    <code>build</code>, <code>validate</code>, <code>inspect</code>, <code>decompile</code>,
+    <code>extract</code>, <code>winget</code>, <code>rules&nbsp;list</code>, <code>rules&nbsp;explain</code>,
+    <code>bundle&nbsp;detach</code>, <code>bundle&nbsp;reattach</code>. All commands that emit results accept
+    a <code>--json</code> flag which switches output to a CI-friendly JSON envelope.
 </p>
 
 <h3>Commands</h3>
 
 <h4>build</h4>
-<p>Compiles an installer definition into an MSI or bundle.</p>
+<p>Compiles an installer definition into an MSI, MSM, MSP, MST, MSIX, or bundle EXE.</p>
 <pre><code class="language-bash">forge build &lt;project&gt; [options]
 
 # Arguments:
-#   &lt;project&gt;     Path to .cs or .json installer definition
+#   &lt;project&gt;                Path to .cs / .csx / .json installer definition
 
 # Options:
-#   -o, --output           Output directory path
-#   -c, --configuration    Build configuration (default: Release)
-#   --verbose              Enable verbose output
+#   -o, --output             Output directory path
+#   -c, --configuration      Build configuration (default: Release)
+#   --format                 Target format: msi | msix | bundle | msm | msp | mst
+#   --verbose                Enable verbose output
+#   --json                   Emit a JSON envelope to stdout (CI/automation)
+#   --dry-run                Validate + plan, but do not write any output artifacts
+#   --reproducible           Reproducible build (uses SOURCE_DATE_EPOCH or git HEAD)
+#   --sbom                   Emit a CycloneDX SBOM sidecar
+#   --no-sign                Skip Sigil code signing
+#   --winget                 Emit a WinGet singleton manifest alongside the MSI
+#   --winget-url &lt;URL&gt;       InstallerUrl to embed in the manifest
+#   --ice                    Run ICE validation (default: on for .msi)
+#   --no-ice                 Disable ICE validation
+#   --ice-cub-path &lt;PATH&gt;    Override the default darice.cub
+#   --suppress-ice &lt;NAMES&gt;   Comma-separated list of ICE names to suppress
+#   --ice-warnings-as-errors Treat ICE warnings as errors
+#   --ice-report &lt;PATH&gt;      Export ICE results to JSON
 
 # Examples:
 forge build installer.cs
 forge build installer.cs -o ./output
-forge build installer.cs -c Debug --verbose
-forge build installer.json</code></pre>
+forge build installer.cs --dry-run --json
+forge build installer.cs --reproducible --sbom
+forge build installer.cs --winget --winget-url https://example.com/app.msi</code></pre>
 
 <h4>validate</h4>
-<p>Runs validators on an installer definition without producing output.</p>
+<p>
+    Runs validators on an installer definition (or an already-built MSI) without producing output.
+    Supports rule suppression and severity escalation for CI gating.
+</p>
 <pre><code class="language-bash">forge validate &lt;project&gt; [options]
 
 # Arguments:
-#   &lt;project&gt;     Path to .cs or .json installer definition
+#   &lt;project&gt;                Path to .cs / .json / .msi
 
 # Options:
-#   --verbose     Enable verbose output
+#   --verbose                Enable verbose output
+#   --json                   Emit a JSON envelope to stdout
+#   --ignore &lt;RULEID&gt;        Suppress a rule (repeatable; also accepts comma-separated)
+#   --warn-as-error          Promote all warnings to errors
+#   --stop-on-first-error    Halt after the first error
+#   --ice                    Run ICE on .msi input
+#   --ice-cub-path &lt;PATH&gt;    Override the default darice.cub
+#   --suppress-ice &lt;NAMES&gt;   Comma-separated list of ICE names to suppress
+#   --ice-warnings-as-errors Treat ICE warnings as errors
+#   --ice-report &lt;PATH&gt;      Export ICE results to JSON
 
 # Examples:
 forge validate installer.cs
-forge validate installer.json --verbose</code></pre>
+forge validate installer.cs --ignore PKG003 --ignore SVC001
+forge validate installer.cs --warn-as-error --stop-on-first-error
+forge validate package.msi --ice --ice-warnings-as-errors</code></pre>
 
 <h4>inspect</h4>
-<p>Displays MSI metadata including summary info and table list. <strong>Windows-only</strong> (requires msi.dll).</p>
+<p>
+    Displays MSI metadata including summary info, feature tree, and table list.
+    <strong>Windows-only</strong> (requires <code>msi.dll</code>).
+</p>
 <pre><code class="language-bash">forge inspect &lt;file.msi&gt; [options]
 
 # Arguments:
@@ -6564,10 +7194,14 @@ forge validate installer.json --verbose</code></pre>
 
 # Options:
 #   --verbose     Show detailed table list
+#   --json        Emit a JSON envelope to stdout
+#   --sbom        Extract a CycloneDX SBOM from the MSI integrity table (if present)
 
 # Examples:
 forge inspect package.msi
-forge inspect package.msi --verbose</code></pre>
+forge inspect package.msi --verbose
+forge inspect package.msi --json
+forge inspect package.msi --sbom</code></pre>
 
 <h4>decompile</h4>
 <p>Decompiles an MSI or bundle EXE into C# source code.</p>
@@ -6582,8 +7216,77 @@ forge inspect package.msi --verbose</code></pre>
 # Examples:
 forge decompile package.msi
 forge decompile package.msi -o installer.cs
-forge decompile bundle.exe
 forge decompile bundle.exe -o installer.cs</code></pre>
+
+<h4>extract</h4>
+<p>
+    Extracts files from an MSI / MSM or packaged payloads from an EXE bundle. For bundles,
+    <code>--list</code> enumerates payload package IDs without writing files, and
+    <code>--package</code> can be repeated to extract specific packages only.
+</p>
+<pre><code class="language-bash">forge extract &lt;file&gt; [options]
+
+# Arguments:
+#   &lt;file&gt;        Path to .msi, .msm, or .exe bundle
+
+# Options:
+#   -o, --output  Output directory (required unless --list)
+#   --list        List bundle packages without extracting (bundles only)
+#   --package     Specific PackageId(s) to extract (repeatable; bundles only)
+
+# Examples:
+forge extract package.msi -o ./files
+forge extract bundle.exe --list
+forge extract bundle.exe --package WebApp --package SqlServer -o ./payloads</code></pre>
+
+<h4>winget</h4>
+<p>
+    Generates a WinGet singleton manifest (3-file YAML set) from an existing MSI. SHA-256 of the
+    installer payload is computed during emission so the manifest is publishable as-is.
+</p>
+<pre><code class="language-bash">forge winget &lt;file.msi&gt; --id &lt;PackageId&gt; --license &lt;SPDX&gt; --desc &lt;text&gt; [options]
+
+# Arguments:
+#   &lt;file.msi&gt;    Path to MSI file
+
+# Options (required):
+#   --id          PackageIdentifier in "Publisher.PackageName" format
+#   --license     SPDX license identifier (e.g. MIT, Apache-2.0)
+#   --desc        Short description (single line)
+
+# Options:
+#   --url         InstallerUrl for the manifest
+#   -o, --output  Output directory (default: current)
+
+# Examples:
+forge winget package.msi --id Acme.WebApp --license MIT --desc "Sample web app"
+forge winget package.msi --id Acme.WebApp --license MIT --desc "Sample" \
+                         --url https://acme.example/app.msi -o ./manifest</code></pre>
+
+<h4>rules list</h4>
+<p>Enumerates validation rules. Useful for CI configuration and rule discovery.</p>
+<pre><code class="language-bash">forge rules list [options]
+
+# Options:
+#   --target      Target model: package | merge | patch | transform (default: package)
+#   --section     Section filter (e.g. Service, Registry, CustomTable)
+#   --severity    Severity filter (error | warning | info)
+#   --prefix      Rule ID prefix filter (e.g. PKG, SVC, REG)
+#   --json        Emit a JSON array instead of human-readable output
+
+# Examples:
+forge rules list
+forge rules list --section Service
+forge rules list --prefix PKG --severity error
+forge rules list --target merge --json</code></pre>
+
+<h4>rules explain</h4>
+<p>Prints the full metadata for a single validation rule (description, cause, fix, examples).</p>
+<pre><code class="language-bash">forge rules explain &lt;ruleId&gt;
+
+# Examples:
+forge rules explain PKG001
+forge rules explain SVC003</code></pre>
 
 <h4>bundle detach / bundle reattach</h4>
 <p>Bundle signing operations for detaching and reattaching PE stubs.</p>
@@ -6765,9 +7468,12 @@ Result&lt;string&gt; result = resolver.Resolve("Welcome to !(loc.ProductName)", 
 <h2>16. Decompiler</h2>
 
 <p>
-    The decompiler (<code>src/FalkForge.Decompiler/</code>) reverse-engineers MSI databases and
-    FalkForge/WiX bundle EXEs into <code>PackageModel</code> objects or fluent C# source code.
-    MSI decompilation is <strong>Windows-only</strong> (<code>[SupportedOSPlatform("windows")]</code>).
+    The decompiler (<code>src/FalkForge.Decompiler/</code>) reverse-engineers existing MSI databases,
+    native FalkForge <code>.exe</code> bundles, and WiX Burn <code>.exe</code> bundles into
+    <code>PackageModel</code> / <code>BundleModel</code> objects or fluent C# source code that can be
+    fed back into the FalkForge build pipeline. MSI decompilation is
+    <strong>Windows-only</strong> (<code>[SupportedOSPlatform("windows")]</code>); bundle and WiX Burn
+    decompilation are cross-platform.
 </p>
 
 <h3>MsiDecompiler</h3>
@@ -6776,57 +7482,223 @@ Result&lt;string&gt; result = resolver.Resolve("Welcome to !(loc.ProductName)", 
 <pre><code class="language-csharp">[SupportedOSPlatform("windows")]
 public sealed class MsiDecompiler
 {
-    // Open and decompile an MSI file to a PackageModel
-    public Result&lt;PackageModel&gt; Decompile(string msiPath);
-
-    // Decompile an MSI file to fluent C# source code
-    public Result&lt;string&gt; DecompileToCSharp(string msiPath);
-
-    // Constructor with injected table access for testing
+    public MsiDecompiler();
     public MsiDecompiler(IMsiTableAccess tableAccess);
+    public MsiDecompiler(IReadOnlyList&lt;IMsiTableContributor&gt; contributors);
+    public MsiDecompiler(IMsiTableAccess tableAccess,
+                         IReadOnlyList&lt;IMsiTableContributor&gt; contributors);
+
+    public Result&lt;PackageModel&gt;    Decompile(string msiPath);
+    public Result&lt;MsiReadRecipe&gt;   DecompileToRecipe(string msiPath);
+    public Result&lt;string&gt;          DecompileToCSharp(string msiPath);
 }</code></pre>
+
+<p>
+    Construction is overloaded so the caller can mix in custom <code>IMsiTableContributor</code>s &mdash;
+    each one supplies an optional <code>ReadSchema</code>, so extension tables (Firewall, SQL, etc.) are
+    round-trip without the decompiler core knowing about them.
+</p>
 
 <h3>IMsiTableAccess</h3>
 <p><code>src/FalkForge.Decompiler/IMsiTableAccess.cs</code></p>
-<p>Abstraction for MSI database reads, enabling unit tests without real MSI files.</p>
-<pre><code class="language-csharp">public interface IMsiTableAccess : IDisposable
+<p>
+    Abstraction for MSI database reads, enabling unit tests without a real MSI file.
+    Extends <code>ITableQuery</code> (from <code>FalkForge.Extensibility</code>) so extension
+    <code>ReadSchema</code>s can be evaluated without referencing the Decompiler assembly.
+</p>
+<pre><code class="language-csharp">public interface IMsiTableAccess : IDisposable, ITableQuery
 {
-    Result&lt;List&lt;string?[]&gt;&gt; QueryTable(string tableName, string[] columns);
     Result&lt;string?&gt; GetSummaryProperty(int propertyId);
-    Result&lt;bool&gt; TableExists(string tableName);
+    // Inherited from ITableQuery:
+    //   Result&lt;bool&gt;              TableExists(string tableName);
+    //   Result&lt;List&lt;string?[]&gt;&gt;  QueryTable(string tableName, string[] columns);
+}
+
+// Production implementation:
+[SupportedOSPlatform("windows")]
+public sealed class MsiTableAccess : IMsiTableAccess
+{
+    public static Result&lt;MsiTableAccess&gt; Open(string msiPath);
 }</code></pre>
+
+<h3>Recipe Pipeline (MsiReadRecipe + Schemas)</h3>
+<p>
+    Per-table readers were replaced by a single schema-driven engine. Each table is described by a
+    <code>TableReadSchema&lt;TRow&gt;</code>, and the static <code>TableReadEngine</code> drives any schema
+    against an <code>ITableQuery</code>. The collected typed rows are bundled in an
+    <code>MsiReadRecipe</code> snapshot, which the internal <code>MsiPackageReconstructor</code> turns into
+    a <code>PackageModel</code>. <code>MsiDecompiler.DecompileToRecipe</code> exposes the snapshot stage so
+    callers can inspect the raw rows.
+</p>
+
+<pre><code class="language-csharp">// Recipe/TableReadEngine.cs
+public static class TableReadEngine
+{
+    public static Result&lt;List&lt;TRow&gt;&gt; ReadOne&lt;TRow&gt;(
+        TableReadSchema&lt;TRow&gt; schema,
+        ITableQuery access);
+}
+
+// Recipe/TableReadSchema.cs
+public sealed record TableReadSchema&lt;TRow&gt;(
+    string                       TableName,
+    ImmutableArray&lt;ReadColumn&gt;   Columns,
+    RowMapper&lt;TRow&gt;              Map,
+    string                       DiagnosticCode = "DEC003")
+    : ITableReadSchema;
+
+// Recipe/MsiReadRecipe.cs
+public sealed record MsiReadRecipe
+{
+    public required IReadOnlyList&lt;PropertyRow&gt;           Properties        { get; init; }
+    public required IReadOnlyList&lt;DirectoryRow&gt;          Directories       { get; init; }
+    public required IReadOnlyList&lt;ComponentRow&gt;          Components        { get; init; }
+    public required IReadOnlyList&lt;FileRow&gt;               Files             { get; init; }
+    public required IReadOnlyList&lt;FeatureRow&gt;            Features          { get; init; }
+    public required IReadOnlyList&lt;FeatureComponentsRow&gt;  FeatureComponents { get; init; }
+    public required IReadOnlyList&lt;RegistryRow&gt;           RegistryEntries   { get; init; }
+    public required IReadOnlyList&lt;ServiceRow&gt;            Services          { get; init; }
+    public required IReadOnlyList&lt;ShortcutRow&gt;           Shortcuts         { get; init; }
+    public required IReadOnlyList&lt;UpgradeRow&gt;            Upgrades          { get; init; }
+    public IReadOnlyDictionary&lt;string, IReadOnlyList&lt;object&gt;&gt; ExtensionRows { get; init; }
+}</code></pre>
+
+<p>Schemas shipped in <code>Recipe/Schemas/</code>:</p>
+<table class="api-table">
+    <thead><tr><th>Schema</th><th>Row type</th><th>MSI table</th></tr></thead>
+    <tbody>
+        <tr><td><code>PropertySchema</code></td><td><code>PropertyRow</code></td><td><code>Property</code></td></tr>
+        <tr><td><code>DirectorySchema</code></td><td><code>DirectoryRow</code></td><td><code>Directory</code></td></tr>
+        <tr><td><code>ComponentSchema</code></td><td><code>ComponentRow</code></td><td><code>Component</code></td></tr>
+        <tr><td><code>FileSchema</code></td><td><code>FileRow</code></td><td><code>File</code></td></tr>
+        <tr><td><code>FeatureSchema</code> / <code>FeatureComponentsSchema</code></td><td><code>FeatureRow</code> / <code>FeatureComponentsRow</code></td><td><code>Feature</code> / <code>FeatureComponents</code></td></tr>
+        <tr><td><code>RegistrySchema</code></td><td><code>RegistryRow</code></td><td><code>Registry</code></td></tr>
+        <tr><td><code>ServiceSchema</code></td><td><code>ServiceRow</code></td><td><code>ServiceInstall</code></td></tr>
+        <tr><td><code>ShortcutSchema</code></td><td><code>ShortcutRow</code></td><td><code>Shortcut</code></td></tr>
+        <tr><td><code>UpgradeSchema</code></td><td><code>UpgradeRow</code></td><td><code>Upgrade</code></td></tr>
+    </tbody>
+</table>
+
+<h3>Extension Round-Trip (ITableQuery + ITableReadSchema)</h3>
+<p>
+    Custom MSI tables contributed by extensions are round-trip via two interfaces in
+    <code>FalkForge.Extensibility</code>:
+</p>
+
+<pre><code class="language-csharp">// Extensibility/ITableQuery.cs &mdash; minimal read abstraction
+public interface ITableQuery
+{
+    Result&lt;bool&gt;              TableExists(string tableName);
+    Result&lt;List&lt;string?[]&gt;&gt;   QueryTable(string tableName, string[] columns);
+}
+
+// Extensibility/ITableReadSchema.cs &mdash; type-erased schema marker
+public interface ITableReadSchema
+{
+    string TableName { get; }
+    Result&lt;IReadOnlyList&lt;object&gt;&gt; ReadErased(ITableQuery query);
+}
+
+// Extensibility/IMsiTableContributor.cs &mdash; gained ReadSchema property
+public interface IMsiTableContributor
+{
+    string                          TableName  { get; }
+    IReadOnlyList&lt;MsiTableRow&gt;      GetRows(ExtensionContext context);
+    ITableReadSchema?               ReadSchema => null;
+}</code></pre>
+
+<p>
+    Each contributor that opts into round-trip exposes a <code>ReadSchema</code>. Currently:
+    <code>FirewallTableContributor</code> (<code>WixFirewallException</code>),
+    <code>SqlDatabaseTableContributor</code> (<code>SqlDatabase</code>), and
+    <code>SqlScriptTableContributor</code> (<code>SqlScript</code>). The schema is consumed via the
+    erased <code>ReadErased</code> bridge so neither the engine nor the decompiler core needs to know the
+    concrete <code>TRow</code> type.
+</p>
 
 <h3>CSharpEmitter</h3>
 <p><code>src/FalkForge.Decompiler/CSharpEmitter.cs</code></p>
 <p>
     Converts a <code>PackageModel</code> into fluent C# source code using the FalkForge builder API.
     Emits <code>using</code> directives, builder property assignments, and method calls for features,
-    registry entries, services, shortcuts, properties, and major upgrade configuration.
+    registry entries, services, shortcuts, properties, and major-upgrade configuration.
 </p>
 
-<h3>Table Readers</h3>
-<p>Each MSI table has a dedicated reader in <code>src/FalkForge.Decompiler/TableReaders/</code>:</p>
-<table class="api-table">
-    <thead><tr><th>Reader</th><th>MSI Table</th><th>Output</th></tr></thead>
-    <tbody>
-        <tr><td>PropertyTableReader</td><td>Property</td><td>Key/value properties + user-defined PropertyModels</td></tr>
-        <tr><td>DirectoryTableReader</td><td>Directory</td><td>Directory entries for path resolution</td></tr>
-        <tr><td>ComponentTableReader</td><td>Component</td><td>Component entries with conditions and key paths</td></tr>
-        <tr><td>FileTableReader</td><td>File</td><td>File entries with component references</td></tr>
-        <tr><td>FeatureTableReader</td><td>Feature</td><td>FeatureModel list with hierarchy</td></tr>
-        <tr><td>RegistryTableReader</td><td>Registry</td><td>RegistryEntryModel list</td></tr>
-        <tr><td>ServiceTableReader</td><td>ServiceInstall</td><td>ServiceModel list</td></tr>
-        <tr><td>ShortcutTableReader</td><td>Shortcut</td><td>ShortcutModel list</td></tr>
-        <tr><td>UpgradeTableReader</td><td>Upgrade</td><td>MajorUpgradeModel (if applicable)</td></tr>
-    </tbody>
-</table>
+<h3>BundleDecompiler (native FalkForge bundles)</h3>
+<p><code>src/FalkForge.Decompiler/BundleDecompiler.cs</code></p>
+<p>
+    Decompiles a native FalkForge self-extracting <code>.exe</code> bundle. Parses the footer magic,
+    reads the JSON installer manifest, walks the TOC entries, and maps the result to a
+    <code>BundleModel</code>. Cross-platform &mdash; no Windows-only dependencies.
+</p>
+
+<pre><code class="language-csharp">public sealed class BundleDecompiler
+{
+    public Result&lt;BundleModel&gt; Decompile(string bundlePath);
+    public Result&lt;string&gt;      DecompileToCSharp(string bundlePath);
+}
+
+public interface IBundleAccess
+{
+    Result&lt;InstallerManifest&gt; ReadManifest();
+    Result&lt;TocEntry[]&gt;        ReadToc();
+}</code></pre>
+
+<p>
+    Internal helpers: <code>BundleAccess</code> reads the binary format; <code>ManifestMapper</code>
+    maps the parsed <code>InstallerManifest</code> + TOC into a <code>BundleModel</code>;
+    <code>BundleCSharpEmitter</code> generates fluent C#.
+</p>
+
+<h3>WixBundleDecompiler (WiX Burn bundles)</h3>
+<p><code>src/FalkForge.Decompiler/WixBundleDecompiler.cs</code></p>
+<p>
+    Decompiles a WiX Burn (<code>.wixburn</code> PE section) bundle. The PE parser locates the
+    <code>.wixburn</code> section, extracts the UX cabinet, parses the Burn manifest XML, and maps the
+    document to a <code>BundleModel</code>. Burn elements without a FalkForge equivalent are collected
+    into <code>WixUnmappedFeature</code> records so they appear as comments in the emitted C# instead of
+    being silently dropped.
+</p>
+
+<pre><code class="language-csharp">public sealed class WixBundleDecompiler
+{
+    public Result&lt;BundleModel&gt; Decompile(string bundlePath);
+    public Result&lt;string&gt;      DecompileToCSharp(string bundlePath);
+}
+
+public interface IWixBurnAccess
+{
+    Result&lt;XDocument&gt; ReadManifest();
+}
+
+public sealed record WixUnmappedFeature(
+    string Category,
+    string Description,
+    string OriginalXml);</code></pre>
+
+<p>
+    Unmapped categories include Burn <code>Variable</code>, <code>Search</code>,
+    <code>BootstrapperApplication</code>, <code>MsiProperty</code>, <code>ExitCode</code>,
+    <code>ApprovedExeForElevation</code>, and <code>BootstrapperExtension</code>.
+</p>
 
 <h3>Error Codes</h3>
 <table class="api-table">
-    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <thead><tr><th>Code</th><th>Subsystem</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>DEC001</td><td>Cannot open MSI file (null path, file not found, or open failure)</td></tr>
-        <tr><td>DEC003</td><td>Failed to read a specific MSI table (Component, File, Feature, etc.)</td></tr>
+        <tr><td>DEC001</td><td>MSI</td><td>Cannot open MSI file (null path, file not found, or open failure)</td></tr>
+        <tr><td>DEC003</td><td>MSI</td><td>Row shape or type mismatch in a table read (default schema diagnostic)</td></tr>
+        <tr><td>BDC001</td><td>Bundle</td><td>Invalid or missing bundle path</td></tr>
+        <tr><td>BDC002</td><td>Bundle</td><td>Invalid bundle format / magic mismatch</td></tr>
+        <tr><td>BDC003</td><td>Bundle</td><td>Manifest deserialization failure</td></tr>
+        <tr><td>BDC004</td><td>Bundle</td><td>TOC read failure</td></tr>
+        <tr><td>WBD001</td><td>Burn</td><td>Invalid or missing bundle path</td></tr>
+        <tr><td>WBD002</td><td>Burn</td><td>PE header invalid or too small</td></tr>
+        <tr><td>WBD003</td><td>Burn</td><td>No <code>.wixburn</code> section in PE</td></tr>
+        <tr><td>WBD004</td><td>Burn</td><td><code>.wixburn</code> magic mismatch / no containers</td></tr>
+        <tr><td>WBD005</td><td>Burn</td><td>UX container extraction failed</td></tr>
+        <tr><td>WBD006</td><td>Burn</td><td>Manifest file not found in UX cabinet</td></tr>
+        <tr><td>WMM001</td><td>Burn</td><td>Manifest XML has no root element</td></tr>
     </tbody>
 </table>
 </section>
@@ -8338,6 +9210,15 @@ package.CustomAction(ca => ca
 <!-- Section 20: MSIX Packaging -->
 <section class="section" id="msix">
   <h2>20. MSIX Packaging</h2>
+
+  <div class="warning">
+    <strong>Experimental.</strong> <code>FalkForge.Compiler.Msix</code> is wired into the fluent API
+    and FalkForge Studio, but the <code>forge</code> CLI dispatch is not yet implemented and no demo
+    projects ship for MSIX. The diagnostic code <code>FF_MSIX001</code> is emitted when MSIX features
+    are used. Expect API churn before MSIX leaves experimental status. Use it for feedback, not
+    production deployment.
+  </div>
+
   <p>
     FalkForge supports building MSIX packages, the modern Windows application packaging format.
     MSIX provides clean install/uninstall, automatic updates via <code>.appinstaller</code> files,
@@ -8938,6 +9819,110 @@ InstallerMsix.BuildMsix(Args.ToArray(), msix =&gt;
     return compiler.Compile(model, outputPath);
 });</code></pre>
 
+</section>
+
+<!-- ============================================================ -->
+<!-- Section 21: Plugin System                                     -->
+<!-- ============================================================ -->
+<section id="plugins">
+<h2>21. Plugin System</h2>
+
+<p>
+    The plugin system lets the UI layer pull in extra services &mdash; SQL discovery, ODBC management,
+    folder pickers &mdash; without those services being baked into the core. Plugins register typed
+    services into a frozen registry at startup; consuming code resolves them by interface and never sees
+    the concrete implementation.
+</p>
+
+<p>
+    Unlike extensions (Section 9), which contribute MSI tables and validators at compile time, plugins
+    contribute runtime services to the installer process. Both systems exist because compile-time and
+    runtime concerns have different lifetimes, dependencies, and registration models.
+</p>
+
+<h3 id="plugins-interfaces">Interfaces</h3>
+
+<pre><code class="language-csharp">// Core/Plugins/IInstallerPlugin.cs
+public interface IInstallerPlugin
+{
+    string Name { get; }
+    void RegisterServices(IPluginServiceRegistry registry);
+}
+
+// Core/Plugins/IPluginServiceRegistry.cs &mdash; write surface
+public interface IPluginServiceRegistry
+{
+    void Register&lt;T&gt;(T instance) where T : class;
+}
+
+// Core/Plugins/IPluginServices.cs &mdash; read surface
+public interface IPluginServices
+{
+    T? GetService&lt;T&gt;() where T : class;
+    bool TryGetService&lt;T&gt;(out T? service) where T : class;
+}</code></pre>
+
+<p>
+    Registration is <strong>first-registration-wins</strong>: if two plugins try to register the same
+    service type, the first one is kept and the second is silently ignored. This makes load order
+    deterministic and avoids surprises from accidental override. Call <code>Freeze()</code> on the
+    registry once startup is complete; further <code>Register</code> calls throw
+    <code>InvalidOperationException</code>.
+</p>
+
+<h3 id="plugins-registry">PluginRegistry</h3>
+
+<p>
+    <code>PluginRegistry</code> (<code>src/FalkForge.Core/Plugins/PluginRegistry.cs</code>) is the
+    bulk-composition helper. Pass in a list of <code>IInstallerPlugin</code> instances; each one's
+    <code>RegisterServices</code> is called against a shared registry, and the result is frozen and
+    exposed as <code>IPluginServices</code>.
+</p>
+
+<pre><code class="language-csharp">var services = PluginRegistry.Compose(new IInstallerPlugin[]
+{
+    new SqlServerPlugin(),
+    new OdbcPlugin(),
+    new FolderBrowserPlugin(),
+});
+
+// Consumers resolve by interface:
+var sql     = services.GetService&lt;ISqlServerDiscovery&gt;();
+var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
+
+<h3 id="plugins-shipped">Shipped Plugins</h3>
+
+<table class="api-table">
+    <thead><tr><th>Plugin</th><th>Project</th><th>Registers</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr>
+            <td><strong>SqlServerPlugin</strong></td>
+            <td><code>FalkForge.Plugins.Sql</code></td>
+            <td><code>ISqlServerDiscovery</code>, <code>IDatabaseLister</code>, <code>IConnectionTester</code></td>
+            <td>Enumerates SQL Server instances via SQL Browser broadcast, lists databases, validates connection strings. Depends on <code>Microsoft.Data.SqlClient</code>.</td>
+        </tr>
+        <tr>
+            <td><strong>OdbcPlugin</strong></td>
+            <td><code>FalkForge.Plugins.Odbc</code></td>
+            <td><code>IOdbcManager</code></td>
+            <td>Checks for ODBC drivers + user/system DSNs and can launch the ODBC Data Source Administrator. Windows-only.</td>
+        </tr>
+        <tr>
+            <td><strong>FolderBrowserPlugin</strong></td>
+            <td><code>FalkForge.Plugins.FileSystem</code></td>
+            <td><code>IFolderBrowser</code></td>
+            <td>Wraps the modern Windows folder-picker dialog (<code>IFileOpenDialog</code> with
+            <code>FOS_PICKFOLDERS</code>). WPF, Windows-only.</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="note">
+    Plugins are optional &mdash; consuming code should always use <code>TryGetService</code> or check the
+    result of <code>GetService</code> for null. A custom-UI page that asks for
+    <code>ISqlServerDiscovery</code> when the SQL plugin is not loaded simply gets <code>null</code> and
+    can fall back to manual entry.
+</div>
 </section>
 
   </main>

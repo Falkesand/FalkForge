@@ -1,6 +1,6 @@
 # documentation.html — Regen Scoping (2026-05-11)
 
-Status: SCOPING. No edits to `documentation.html` yet.
+Status: DONE 2026-05-11 (committed 2026-06-10) — all scoped sections regenerated; Section 21 Plugin System added; fragments re-sliced and SHA-verified.
 Owner: TBD.
 Branch: `main` at `6496e61`.
 
