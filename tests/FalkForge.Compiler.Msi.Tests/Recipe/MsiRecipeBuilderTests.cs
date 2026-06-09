@@ -208,8 +208,14 @@ public sealed class MsiRecipeBuilderTests
         Assert.Contains("MyProduct", info.Comments, StringComparison.Ordinal);
         // Template defaults to x64;1033 for ProcessorArchitecture.X64.
         Assert.Equal("x64;1033", info.Template);
-        // RevisionNumber is the ProductCode GUID in upper-case registry-format braces.
-        Assert.Equal(productCode.ToString("B").ToUpperInvariant(), info.RevisionNumber);
+        // RevisionNumber is the PackageCode: a fresh GUID per build in normal mode,
+        // not a copy of ProductCode. Assert it is a valid GUID in "B" upper-case format
+        // and differs from the product identity. Collision probability (~1/2^122) is
+        // negligible and acceptable in tests.
+        Assert.True(
+            Guid.TryParse(info.RevisionNumber, out _),
+            $"RevisionNumber '{info.RevisionNumber}' is not a valid GUID.");
+        Assert.NotEqual(productCode.ToString("B").ToUpperInvariant(), info.RevisionNumber);
         Assert.Equal(1252, info.CodePage);
         Assert.Equal("FalkForge", info.CreatingApplication);
         Assert.Equal(2, info.WordCount);
