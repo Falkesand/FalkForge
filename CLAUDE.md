@@ -1,6 +1,6 @@
 # FalkForge
 
-<!-- RULES_SYNCED_FROM_GLOBAL: 2026-05-09 -->
+<!-- RULES_SYNCED_FROM_GLOBAL: 2026-06-09 -->
 
 C# MSI/Bundle installer framework. Fluent API, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI. Extensions: Firewall, IIS, SQL, .NET, Dependency, Util. Output: MSI, MSM, MSP, MST, EXE bundle.
 
@@ -251,24 +251,19 @@ Subagent dispatches MUST include this propagation line:
 
 ## HARD LIMITS — Non-Negotiable Gates
 
+<!-- RULES_SYNCED_FROM_GLOBAL: 2026-06-09 -->
+
 Violating any gate means STOP, undo, and redo correctly.
 
 ### GATE 1: TDD — Test Before Code, Always
 
-**No production code without a failing test first.**
+No production code without a failing test first. Cycle:
+1. **RED** — write failing test, run, confirm fail. Do NOT commit.
+2. **GREEN** — minimal impl to pass. All tests green.
+3. **COMMIT** — fast-lane pipeline (see Commit Sequence). Test commit (`test:`) first, then impl commit (`feat:`/`fix:`).
+4. **REFACTOR** — clean up, all green, fast-lane pipeline, commit (`refactor:`).
 
-1. **RED** — Write failing test. Run it. Confirm fail. Commit: `test: <description>`
-2. **GREEN** — Minimal implementation to pass. Confirm pass. Commit: `feat/fix: <description>`
-3. **REFACTOR** — Clean up. All tests green. Commit: `refactor: <description>`
-
-Hard violations (STOP and redo):
-- Implementation before failing test → DELETE it, test first
-- Test + implementation in same commit → SPLIT into two commits
-- Skipping "confirm RED" → RUN it, see it fail
-- Plan step combining "write test + implement" → SPLIT into two steps
-
-Applies to: bug fixes, features, behavior-changing refactors, new classes/methods.
-Does NOT apply to: XAML-only cosmetic changes, config files, docs.
+If you wrote impl before test, delete it and start over. Never combine "write test + implement" into one plan step. Applies to bug fixes, features, behavior-changing refactors, new types/methods. Skips XAML-cosmetic, config, docs.
 
 ### GATE 2: Full Solution Build After Every File Edit
 
@@ -282,13 +277,13 @@ After every .cs or .xaml edit, `dotnet build <solution>.slnx`. Not the project �
 
 `dotnet test <solution>.slnx` before every commit. No `--filter`, no exceptions.
 
-### GATE 4: Code Review Before Every Commit
+### GATE 4: Code Review Before Every Merge
 
-Run `superpowers:code-reviewer` with Opus 4.6, Sonnet 4.6, Haiku 4.5. All three approve.
+`superpowers:code-reviewer` with Opus 4.6 and Sonnet 4.6 on the full branch diff. Both approve. Runs once per branch at the Merge Gate, not per commit — per-commit review only guards the feature branch, which nothing ships from.
 
-### GATE 5: Security & Quality Audit Before Every Commit
+### GATE 5: Security & Quality Audit Before Every Merge
 
-In order: `roslynator` → `quickdup` → OWASP scan (injection, secrets, deserialization, SSRF) → Performance review (heap allocs, N+1, blocking async, disposal, unbounded collections).
+At the Merge Gate, in order: `roslynator` → `quickdup` → OWASP scan (injection, secrets, deserialization, SSRF) → perf review (heap allocs, N+1, blocking async, disposal, unbounded collections). All on the full branch diff.
 
 ### GATE 6: Memory Efficiency — Zero-Waste Code
 
@@ -328,24 +323,26 @@ When two patterns or two pieces of guidance contradict, pick one (more recent, m
 ### Fail loud
 "Completed" is wrong if any step was skipped. "Tests pass" is wrong if any were filtered, skipped, or marked inconclusive. Surface uncertainty, partial results, and silent fallbacks — never hide them in a success summary. If the pipeline (see Commit Sequence) couldn't run a step, say so explicitly and stop.
 
-## Commit Sequence — The Full Pipeline
+## Commit Sequence — Fast Lane (every commit; in order, restart from 1 on any failure)
 
-Execute IN ORDER. If any step fails, fix and restart from step 1.
+1. `dotnet build <sln>.slnx` — zero errors/warnings
+2. `dotnet test <sln>.slnx --logger trx` — all pass
+3. `csharp-roslyn: get_diagnostics` on changed files — clean
+4. `git commit`
 
-```
-1. dotnet build <solution>.slnx              → zero errors/warnings
-2. dotnet test <solution>.slnx --logger trx  → all pass
-3. csharp-roslyn: get_diagnostics            → clean
-4. csharp-roslyn: analyze_change_impact      → review blast radius
-5. jb inspectcode (if XAML changed)          → clean
-6. roslynator                                → clean
-7. quickdup                                  → no new duplication
-8. superpowers:code-reviewer (Opus 4.6)      → approved
-9. superpowers:code-reviewer (Sonnet 4.6)    → approved
-10. superpowers:code-reviewer (Haiku 4.5)    → approved
-11. Security audit (OWASP checklist)         → no findings
-12. git commit                               → only after ALL above pass
-```
+## Merge Gate — Deep Lane (once per branch, before merge to main; restart on any failure)
+
+1. `dotnet build` + `dotnet test` — re-verify green
+2. `csharp-roslyn: analyze_change_impact` — review full-branch blast radius
+3. `jb inspectcode` if XAML changed — clean
+4. `roslynator` — clean
+5. `quickdup` — no new duplication
+6. `superpowers:code-reviewer` Opus 4.6 on full branch diff — approved
+7. `superpowers:code-reviewer` Sonnet 4.6 on full branch diff — approved
+8. Security audit (OWASP checklist) + perf review on full branch diff — no findings
+9. Merge to main — only after ALL above pass
+
+Single-commit hotfix branches still pass the full Merge Gate — it is per-branch, not per-commit-count.
 
 ## graphify
 
