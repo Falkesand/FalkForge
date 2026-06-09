@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FalkForge;
+using FalkForge.Builders;
 using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Extensibility;
@@ -69,6 +70,68 @@ public sealed class MsiRecipeBuilderHashTests
         Assert.True(r1.IsSuccess);
         Assert.True(r2.IsSuccess);
         Assert.False(r1.Value.ContentHash.Span.SequenceEqual(r2.Value.ContentHash.Span));
+    }
+
+    /// <summary>
+    ///     Review finding (sonnet MED-2): two DISTINCT <see cref="ResolvedPackage"/>
+    ///     instances with identical content in reproducible mode must produce
+    ///     byte-equal <see cref="MsiDatabaseRecipe.ContentHash"/>.
+    ///     WHY: guards that <see cref="ResolvedPackage.InstanceId"/> — the per-instance
+    ///     nonce used in normal mode — never leaks into the reproducible digest.
+    ///     If InstanceId contaminated the reproducible path, two independent build
+    ///     invocations would produce different ContentHash values even for identical
+    ///     inputs, breaking the reproducibility guarantee.
+    ///
+    ///     Expected GREEN today (the nonce is already gated on ReproducibleOptions).
+    ///     This test is a regression guard against future refactors.
+    /// </summary>
+    [Fact]
+    public void Reproducible_SameInputs_TwoInstances_SameContentHash()
+    {
+        // Two DISTINCT ResolvedPackage instances — different InstanceId values —
+        // but identical Package content and the same reproducible epoch.
+        var productCode = new Guid("FFFF0000-0000-0000-0000-000000000006");
+        const long epoch = 1577836800L; // 2020-01-01T00:00:00Z
+
+        ResolvedPackage instance1 = MakeReproduciblePackage(productCode, epoch);
+        ResolvedPackage instance2 = MakeReproduciblePackage(productCode, epoch);
+
+        // Confirm the instances are distinct objects with different InstanceIds.
+        Assert.NotSame(instance1, instance2);
+        Assert.NotEqual(instance1.InstanceId, instance2.InstanceId);
+
+        Result<MsiDatabaseRecipe> r1 = MsiRecipeBuilder.Build(
+            instance1, new List<IMsiTableContributor>(), new MsiRecipeBuildOptions());
+
+        Result<MsiDatabaseRecipe> r2 = MsiRecipeBuilder.Build(
+            instance2, new List<IMsiTableContributor>(), new MsiRecipeBuildOptions());
+
+        Assert.True(r1.IsSuccess);
+        Assert.True(r2.IsSuccess);
+
+        // Both RecipeContentHash values must be byte-equal — InstanceId must not
+        // contaminate the reproducible-mode digest path.
+        Assert.True(
+            r1.Value.ContentHash.Span.SequenceEqual(r2.Value.ContentHash.Span),
+            "ContentHash differed between two distinct ResolvedPackage instances with " +
+            "identical reproducible inputs — InstanceId may have leaked into the digest.");
+    }
+
+    private static ResolvedPackage MakeReproduciblePackage(Guid productCode, long epoch)
+    {
+        return new ResolvedPackage
+        {
+            Package = new PackageModel
+            {
+                Name = "ReproTest",
+                Manufacturer = "FalkForge Tests",
+                Version = new Version(2, 0, 0),
+                ProductCode = productCode,
+                ReproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch },
+            },
+            Components = new List<ResolvedComponent>(),
+            Files = new List<ResolvedFile>(),
+        };
     }
 
     private static ResolvedPackage MakeResolvedPackage(string name, string manufacturer)

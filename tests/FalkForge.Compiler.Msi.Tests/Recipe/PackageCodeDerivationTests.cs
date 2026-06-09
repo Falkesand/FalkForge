@@ -234,6 +234,72 @@ public sealed class PackageCodeDerivationTests
         return path;
     }
 
+    /// <summary>
+    ///     Review finding (opus LOW-1): a missing payload source file in reproducible
+    ///     mode must surface as a <see cref="Result{T}"/> failure with
+    ///     <see cref="ErrorKind.FileNotFound"/>, not as an unhandled
+    ///     <see cref="System.IO.FileNotFoundException"/> escaping the compiler.
+    ///     WHY: the FalkForge Result&lt;T&gt; contract requires that all compiler
+    ///     IO errors are represented as typed failures so callers can handle them
+    ///     uniformly without catching exceptions.
+    ///
+    ///     RED today: <c>PackageCodeDerivation.AppendFileSha256</c> opens the
+    ///     <c>FileStream</c> directly; a missing file throws
+    ///     <see cref="System.IO.FileNotFoundException"/> which escapes
+    ///     <c>MsiRecipeBuilder.Build</c> unhandled.
+    /// </summary>
+    [Fact]
+    public void Reproducible_MissingSourceFile_ReturnsFileNotFoundFailure()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            // Point the resolved file at a path that does not exist on disk.
+            var missingPath = System.IO.Path.Combine(tempDir, "does_not_exist.dll");
+
+            var package = new PackageModel
+            {
+                Name = "MissingFileTest",
+                Manufacturer = "FalkForge Tests",
+                Version = new Version(1, 0, 0),
+                ProductCode = new Guid("EEEEEEEE-0000-0000-0000-000000000005"),
+                ReproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = TestEpoch },
+            };
+
+            var installDir = KnownFolder.ProgramFiles / "MissingFileTest" / "App";
+
+            var resolvedFile = new ResolvedFile
+            {
+                SourcePath = missingPath,
+                TargetDirectory = installDir,
+                FileName = "does_not_exist.dll",
+                FileSize = 0,
+                ComponentId = "MainComponent",
+                FileId = "file_missing",
+            };
+
+            var resolved = new ResolvedPackage
+            {
+                Package = package,
+                Components = [],
+                Files = [resolvedFile],
+            };
+
+            // Act — must NOT throw; must return a failure Result.
+            var result = MsiRecipeBuilder.Build(resolved, [], new MsiRecipeBuildOptions());
+
+            Assert.False(result.IsSuccess,
+                "Expected failure when source file is missing, but Build returned success.");
+            Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
+            Assert.Contains(missingPath, result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDir);
+        }
+    }
+
     private static void TryDeleteDirectory(string path)
     {
         try
