@@ -457,6 +457,13 @@ public sealed class PackageBuilder
             ? _features
             : [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }];
 
+        // Reproducible mode: leave PackageCode null so the compiler derives it
+        // from a content digest (ensuring different payloads → different codes).
+        // Normal mode: capture a fresh GUID now so it is stable for the lifetime
+        // of this PackageModel (e.g. if the model is compiled more than once in
+        // the same process, all compilations share the same PackageCode).
+        var packageCode = _reproducibleOptions is not null ? (Guid?)null : Guid.NewGuid();
+
         return new PackageModel
         {
             Name = Name,
@@ -464,6 +471,7 @@ public sealed class PackageBuilder
             Version = Version,
             UpgradeCode = upgradeCode,
             ProductCode = productCode,
+            PackageCode = packageCode,
             Scope = Scope,
             Architecture = Architecture,
             DefaultInstallDirectory = defaultInstallDir,

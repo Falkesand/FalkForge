@@ -10,6 +10,33 @@ public sealed class PackageModel
     public required Version Version { get; init; }
     public Guid UpgradeCode { get; init; }
     public Guid ProductCode { get; init; }
+
+    /// <summary>
+    ///     MSI PackageCode (SummaryInformation PID 9 / RevisionNumber).
+    ///     <para>
+    ///     The MSI specification requires every non-identical package to carry a unique
+    ///     PackageCode so that Windows Installer can distinguish cached packages at repair
+    ///     time (SECREPAIR / KB2918614). ProductCode encodes product identity; PackageCode
+    ///     encodes the specific package bytes.
+    ///     </para>
+    ///     <para>
+    ///     <b>null</b> (the default) means "let the compiler decide":
+    ///     <list type="bullet">
+    ///       <item>Reproducible mode (<see cref="ReproducibleOptions"/> is set) — compiler
+    ///         derives a deterministic GUID from a SHA-256 content digest of the resolved
+    ///         files, product identity, and source-date epoch.</item>
+    ///       <item>Normal mode — compiler assigns a fresh <see cref="Guid"/> each time the
+    ///         recipe is built, guaranteeing uniqueness across independent build runs even
+    ///         when <see cref="ProductCode"/> is pinned.</item>
+    ///     </list>
+    ///     </para>
+    ///     <para>
+    ///     Set an explicit value only when you need to pin the PackageCode for a known
+    ///     binary-identical re-release (e.g. mirror distribution of a pre-built MSI).
+    ///     </para>
+    /// </summary>
+    public Guid? PackageCode { get; init; }
+
     public InstallScope Scope { get; init; } = InstallScope.PerMachine;
     public ProcessorArchitecture Architecture { get; init; } = ProcessorArchitecture.X64;
     public InstallPath? DefaultInstallDirectory { get; init; }

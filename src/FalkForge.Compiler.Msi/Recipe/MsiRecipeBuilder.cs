@@ -250,9 +250,18 @@ public static class MsiRecipeBuilder
             Comments = pkg.Description ??
                        $"This installer database contains the logic and data required to install {pkg.Name}.",
             Template = GetPlatformTemplate(pkg.Architecture),
-            // PID_REVNUMBER for MSI databases is the PackageCode (ProductCode) GUID
-            // in upper-case registry-format braces — matches legacy MsiCompiler behaviour.
-            RevisionNumber = pkg.ProductCode.ToString("B").ToUpperInvariant(),
+            // PID_REVNUMBER is the MSI PackageCode — must be unique per distinct package
+            // byte sequence (SECREPAIR / KB2918614). Resolution order:
+            //   1. Explicit PackageCode on the model (rare — pinned re-releases only).
+            //   2. Reproducible mode → content digest via PackageCodeDerivation.Derive().
+            //   3. Normal mode (null PackageCode) → derive from content + ResolvedPackage.InstanceId.
+            //      InstanceId is a per-instance Guid assigned at ResolvedPackage construction,
+            //      so two separate packaging events (different ResolvedPackage objects) produce
+            //      different PackageCodes even with identical content, while multiple
+            //      MsiRecipeBuilder.Build() calls on the *same* instance remain stable.
+            RevisionNumber = (pkg.PackageCode ??
+                PackageCodeDerivation.Derive(resolved))
+                .ToString("B").ToUpperInvariant(),
             CodePage = 1252,
             CreatingApplication = "FalkForge",
             // WordCount 2 = compressed cabinet + long file-names support flag.
