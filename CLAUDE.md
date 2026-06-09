@@ -2,17 +2,17 @@
 
 <!-- RULES_SYNCED_FROM_GLOBAL: 2026-06-09 -->
 
-C# MSI/Bundle installer framework. Fluent API, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI. Extensions: Firewall, IIS, SQL, .NET, Dependency, Util. Output: MSI, MSM, MSP, MST, EXE bundle.
+C# MSI/Bundle installer framework. Fluent API, MSI compiler via P/Invoke, NativeAOT bundle engine with WPF UI. Extensions: Firewall, IIS, SQL, .NET, Dependency, Util, Driver, Http. Output: MSI, MSM, MSP, MST, EXE bundle.
 
 ## Build & Test
 ```bash
 dotnet build          # 0 warnings (TreatWarningsAsErrors)
-dotnet test           # ~2484 tests, xUnit 2.9.3
+dotnet test           # ~3500 tests, xUnit 2.9.3
 dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 .NET 10, C# latest, nullable enabled, central package mgmt. SDK 10.0.103.
 
-## Solution (26 src + 22 test projects)
+## Solution (29 src + 26 test projects)
 | Project | Purpose |
 |---------|---------|
 | Core | Domain model, fluent API, validation |
@@ -30,6 +30,9 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 | Extensions.DotNet | .NET runtime detection (registry + filesystem) |
 | Extensions.Iis | AppPool, WebSite, WebBinding, Certificate |
 | Extensions.Sql | SQL Server DB creation, script/string execution |
+| Extensions.Driver | Device driver install via PnP: DriverModel, DriverBuilder, DriverTableContributor, DriverValidator |
+| Extensions.Http | URL ACL + SNI SSL bindings via netsh: Builders, Models, Validation, Compilation |
+| Studio | WPF visual installer builder |
 | Ui.Abstractions | IInstallerEngine, PageResult, InstallerState, SensitiveBytes |
 | Ui | WPF + ReactiveUI installer UI + Custom UI framework |
 | Sdk | MSBuild SDK targets (netstandard2.0) |
@@ -41,7 +44,7 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 | Plugins.Odbc | ODBC DSN checking, admin launcher (Windows-only) |
 | Plugins.FileSystem | Folder browser dialog (WPF, Windows-only) |
 
-Tests mirror src: `FalkForge.{Project}.Tests/` (21 projects incl. Integration.Tests, Platform.Windows.Tests)
+Tests mirror src: `FalkForge.{Project}.Tests/` (26 projects incl. Integration.Tests, Platform.Windows.Tests)
 
 ## Dependency Graph
 ```
@@ -52,7 +55,7 @@ Core (no deps)
   ├→ Compiler.Msi (Core + Platform)
   ├→ Compiler.Msix (Core + Platform; Windows-only; experimental)
   ├→ Extensibility (standalone)
-  ├→ Extensions.* (Core + Extensibility; DotNet also + Platform)
+  ├→ Extensions.* (Core + Extensibility; DotNet also + Platform; Driver/Http standalone)
   ├→ Testing (Core + Platform), Localization (Core)
   ├→ Decompiler (Core + Compiler.Msi + Compiler.Bundle)
   └→ Plugins.Sql (Core + SqlClient), Plugins.Odbc/FileSystem (Core, Windows-only)
@@ -70,8 +73,9 @@ Cli exe:       Core + Compiler.Msi/Bundle + Decompiler + Localization + Extensib
 
 **WinGet** (`Core/WinGet/`) -- `PackageBuilder.WinGet(w => w.PackageIdentifier("Publisher.App").License("MIT").ShortDescription("..."))`. Auto-generates 3-file WinGet manifest (version + installer + locale YAML) alongside MSI output. SHA-256 computed at compile time. `forge winget <msi>` CLI for existing MSIs.
 **Delta Updates** (`Compiler.Bundle/Compilation/DeltaBundleCompiler`) -- `BundleBuilder.DeltaFrom(oldBundlePath)` generates delta bundles using Octodiff. Only changed payload bytes are included. Engine downloads delta-first, falls back to full bundle. TOC uses flag byte for backward compatibility.
+**PackageCode** -- `PackageModel.PackageCode` (`Guid?`): `PackageBuilder.Build()` assigns fresh GUID per build (normal) or `null` (reproducible); compiler derives content-digest UUID v5 via `PackageCodeDerivation` so non-identical packages never share a PackageCode (SECREPAIR, issue #1).
 
-**MsiProperty** (`Core/MsiProperty.cs`) -- Type-safe MSI property refs. ~45 built-in statics. `Custom(string)` factory. `/` for path composition. Comparison operators return `Condition`.
+**MsiProperty** (`Core/MsiProperty.cs`) -- Type-safe MSI property refs. ~46 built-in statics. `Custom(string)` factory. `/` for path composition. Comparison operators return `Condition`.
 **Condition** (`Core/Condition.cs`) -- Type-safe MSI conditions. Pre-composed: Is64BitOS, IsPrivileged, IsAdmin, IsWindows10/11OrLater, IsInstalled/Installing/Uninstalling/Repairing. Operators: `&` AND, `|` OR, `!` NOT. `Property()`, `Raw()` factories. Implicit string conversion.
 **Reference Handles** -- Typed cross-refs: `ContainerRef`, `RollbackBoundaryRef` (Compiler.Bundle), `AppPoolRef`, `CertificateRef` (Extensions.Iis), `SqlDatabaseRef` (Extensions.Sql). `Define*` returns ref; consumer methods accept via overloads.
 
@@ -96,7 +100,7 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 
 **WinGet/** (`Core/WinGet/`): WinGetManifestWriter (3-file YAML manifest generation), WinGetConfig model. PackageBuilder.WinGet() fluent configuration.
 
-**Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-008, REG001-007, CTB001-011, MUP001/003, DNG001-002 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002
+**Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-005/SVC009-011, REG007/RRG001-003, CTB001-011, MUP001/003, DNG001-002 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002
 
 ## Compiler.Msi (`src/FalkForge.Compiler.Msi/`)
 Compilers: MsiCompiler (ICompiler), MsmCompiler, PatchCompiler, TransformCompiler
@@ -109,7 +113,7 @@ Interop/: NativeMethods.Msi (msi.dll LibraryImport), NativeMethods.Cabinet (cabi
 Signing/, Validation/IceValidator
 UI/: MsiDialogModel, MsiControlModel, MsiControlEventModel, MsiControlConditionModel, IDialogTemplate. Dialog tables produced via DialogSetProducer in the recipe pipeline.
 UI/Templates/: Minimal, InstallDir, FeatureTree, Mondo, Advanced DialogTemplates
-BuiltInLocalizationExtensions (`AddBuiltInCultures()`), Localization/en-US.json + sv-SE.json (36 keys each)
+BuiltInLocalizationExtensions (`AddBuiltInCultures()`), Localization/en-US.json + sv-SE.json (48 keys each)
 
 ## Engine Architecture (3-process model)
 ```
@@ -129,9 +133,10 @@ Phases: Initializing → Detecting → Planning → Elevating → Applying → C
 - Journal/: RollbackJournal, JournalEntry, RollbackExecutor | UndoOperations/: IUndoOperation, MsiUninstallOperation, ExeRollbackOperation, CacheCleanupOperation
 - RestartManager/: IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
 - Logging/: IEngineLogger, EngineLogger (per-session GUID subdirectory for unpredictable log paths), LogEntry, NullLogger
+- Bootstrap/: PreUIBootstrapOrchestrator, PreUIPrerequisiteDetector/Installer (+ interfaces IPreUIPrerequisiteDetector/Installer), PreUIBootstrapOutcome, PreUIResult, IProgressSink, IProgressSinkFactory, DefaultBootstrapAdapters, WindowsFileSystemProvider, ElevatedSelfRelauncher/IElevatedSelfRelauncher, ElevationProbe/IElevationProbe, Native/ — native pre-UI prerequisite bootstrap (RunAsBootstrapper)
 
 **Engine.Protocol** (`src/FalkForge.Engine.Protocol/`):
-- Messages/ (25 types): Detect/Plan/Apply Begin/Complete, Request Detect/Plan/Apply, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Result, UpdateAvailable/Ready, SetPropertyMessage (0x0208), SetSecurePropertyMessage (0x0209)
+- Messages/ (29 types): Detect/Plan/Apply Begin/Complete, Request Detect/Plan/Apply, Progress, Error, PhaseChanged, Cancel, Log, Shutdown, ElevateExecute/Progress/Result, UpdateAvailable/DownloadProgress/Ready, SetPropertyMessage (0x0208), SetSecurePropertyMessage (0x0209), SessionStart, License, LaunchUpdate, SetFeatureSelection, SetInstallDirectory, ShutdownRequest/Response
 - Serialization/: MessageSerializer, MessageDeserializer -- binary [Version:u16][Type:u16][Length:i32][Payload]
 - Transport/: PipeServer, PipeClient, PipeConnectionOptions, PipeSecurityValidator -- HMAC-SHA256 handshake
 - Manifest/: InstallerManifest (+ IsDeltaUpdate, BaseVersion, BaseBundleSha256), PackageInfo, PackageType, RelatedBundleEntry, RollbackBoundaryInfo, ManifestChainItem, PackageManifestChainItem, RollbackBoundaryManifestChainItem, ManifestDependencyProvider/Consumer, UpdatePolicy (NotifyOnly/DownloadAndPrompt/AutoUpdate), ManifestUpdateFeed. TocEntry gains IsDelta, BaseSha256Hash, ReconstructedSha256Hash for delta payloads. UpdateFeedEntry gains DeltaUrl, DeltaSha256, DeltaSize.
@@ -180,6 +185,8 @@ IFalkForgeExtension (Name + Register), IComponentContributor, IMsiTableContribut
 | DotNet | Registry + filesystem probing | NET001-003 |
 | Iis | AppPool, WebSite, WebBinding, Certificate. Refs: AppPoolRef, CertificateRef. net10.0 | IIS001-011 |
 | Sql | DB creation, script/string exec. Ref: SqlDatabaseRef | SQL001-013 |
+| Driver | Device driver install via PnP (INF-based). DriverModel, DriverBuilder, DriverTableContributor, DriverValidator | DRV001+ |
+| Http | URL ACL reservation + SNI SSL certificate bindings via netsh. HttpBuilder, Models, Validation, Compilation | HTTP001+ |
 
 ## Localization (`src/FalkForge.Localization/`)
 LocalizationModel, LocalizationLoader (JSON), CultureFallbackChain (specific→parent→default), LocalizedStringResolver (`!(loc.StringId)` with circular detection), LocalizationBuilder (AddCulture/DefaultCulture/AddJsonFile/Build/DetectCulture), PackageBuilderExtensions. LOC001-004.
@@ -195,7 +202,7 @@ Program.cs, Commands/: Build (Roslyn+JSON), Validate, Inspect, Decompile (.msi�
 Settings/: Build, Validate, Inspect, Decompile, BundleDetach, BundleReattach Settings
 ExitCodes (0=success, 1=validation, 2=compilation, 3=runtime), IConsoleOutput, SpectreConsoleOutput, ScriptLoader, MsiInspector, MsiInspectionResult
 JsonConfigLoader (JSN001-014), Models/ (19 DTOs): InstallerConfig (root), ProductConfig, FeatureConfig, FileConfig, RegistryConfig, ShortcutConfig, ServiceConfig, EnvironmentVariableConfig, LaunchConditionConfig, MajorUpgradeConfig, ExtensionsConfig, FirewallRuleConfig, IisConfig, IisAppPoolConfig, IisWebSiteConfig, IisBindingConfig, SqlConfig, SqlScriptConfig, DotNetSearchConfig
-Refs: Core, Compiler.Msi/Bundle, Decompiler, Localization, Extensibility, all 6 extensions
+Refs: Core, Compiler.Msi/Bundle, Decompiler, Localization, Extensibility, all 8 extensions
 
 ## SDK (`src/FalkForge.Sdk/`)
 Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeOutput` (export metadata), `_GenerateProjectOutputs` (→ProjectOutputs.g.cs from ProjectReference ReferenceOutputAssembly=false), `_WriteFalkProjectOutputsSource` (RoslynCodeTaskFactory, identifier sanitization, XML-escaped docs). Generated `ProjectOutputs` class with static artifact path properties.
@@ -215,11 +222,53 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 10 | advanced-bundle | Rollback boundaries, related bundles, MSU/MSP |
 | 11 | custom-ui-simple | InstallerPage\<TView\> + InstallerApp.Run() |
 | 12 | custom-ui-vstyle | VS-style dark theme, borderless, workloads |
+| 13 | glass-ui | Glass UI (acrylic/blur WPF theme) |
 | 14 | lifecycle-hooks | Detect/plan/apply hooks, SetProperty, SetSecureProperty |
+| 15 | bundle-signing | Bundle code signing (detach/sign/reattach) |
+| 15 | msix-basic | Minimal MSIX package (experimental) |
+| 16 | features | Feature tree with conditions |
+| 17 | services | Windows service install/uninstall/control |
+| 18 | environment-variables | Environment variable management |
+| 19 | file-associations | File type associations + verbs |
+| 20 | custom-actions | Custom actions (DLL, EXE, script) |
+| 21 | launch-conditions | Launch condition checks |
+| 22 | ini-files | INI file modification |
+| 23 | permissions | File/registry permission grants |
+| 24 | fonts | Font installation |
+| 25 | file-operations | Move, duplicate, remove files; create folders |
+| 26 | custom-tables | Custom MSI database tables |
+| 27 | gac-assembly | GAC assembly registration |
+| 28 | sequence-scheduling | Custom sequence scheduling |
+| 29 | ext-firewall | Windows Firewall extension |
+| 30 | ext-iis | IIS extension (AppPool, WebSite, bindings) |
+| 31 | ext-sql | SQL Server extension |
+| 32 | ext-dotnet | .NET runtime detection extension |
+| 33 | ext-util | Util extension (XML config transforms) |
+| 34 | ext-dependency | Dependency extension (Provides/Requires) |
+| 35 | bundle-simple | Simple EXE bundle |
+| 36 | bundle-exe-package | EXE package in bundle |
+| 37 | bundle-msu-package | MSU (Windows Update) package in bundle |
+| 38 | bundle-nested | Nested bundle |
+| 39 | bundle-remote-payload | Remote payload download |
+| 40 | bundle-variables | Bundle variables and conditions |
+| 41 | bundle-rollback | Rollback boundaries |
+| 42 | bundle-update-feed | Auto-update feed integration |
+| 43 | bundle-layout | Bundle layout (containers) |
+| 44 | merge-module | MSM merge module |
+| 45 | patch | MSP patch package |
+| 46 | transform | MST transform |
+| 47 | powershell-actions | PowerShell custom actions |
+| 48 | com-registration | COM server registration |
+| 49 | http-extension | HTTP extension (URL ACL + SNI SSL) |
+| 50 | driver-install | Device driver installation |
+| 51 | ice-validation | ICE validation configuration |
+| 52 | msix-advanced | Advanced MSIX packaging (experimental) |
+| 53 | delta-updates | Delta bundle updates (Octodiff) |
+| MAS | MAS | MultiAccess Suite — production-grade multi-page enterprise installer |
 JSON demos (`demo/json/`, 7 files): 01-minimal, 02-installdir, 03-featuretree, 04-mondo, 05-advanced, 06-web-server, 07-database-app + payload/
 
 ## Documentation
-`documentation.html` (357KB, ~7000L). 18 sections, dark/light theme, sidebar+search. Source: `docs/gen/`.
+`documentation.html` (540KB, ~10100L). 18 sections, dark/light theme, sidebar+search. Source: `docs/gen/`.
 
 ## Namespaces
 ```
@@ -234,12 +283,13 @@ FalkForge.Engine.Elevation                   Elevated process
 FalkForge.Platform{,.Windows}                OS abstractions + Windows impl
 FalkForge.Ui{,.Abstractions,.ViewModels,.Localization}
 FalkForge.Extensibility                      Extension interfaces
-FalkForge.Extensions.{Util,Dependency,Firewall,DotNet,Iis,Sql}
+FalkForge.Extensions.{Util,Dependency,Firewall,DotNet,Iis,Sql,Driver,Http}
 FalkForge.Plugins{,.Sql,.Odbc,.FileSystem}
 FalkForge.Localization                       JSON localization + culture fallback
 FalkForge.Decompiler{,.TableReaders}         MSI/Bundle decompiler
 FalkForge.Cli{,.Commands,.Models,.Settings}  CLI tool
 FalkForge.Sdk                                MSBuild SDK (netstandard2.0)
+FalkForge.Studio                             WPF visual installer builder
 ```
 
 ## Communication Mode
