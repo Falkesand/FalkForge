@@ -12,7 +12,7 @@ Minimal MSIX package using the FalkForge MSIX compiler.
 ## Build
 
 ```bash
-forge build msix-basic.csx --format msix -o ./output
+dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output
 ```
 
 ## What This Shows

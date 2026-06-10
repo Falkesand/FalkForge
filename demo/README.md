@@ -6,7 +6,7 @@ Practical examples showing how to build Windows Installer packages with FalkForg
 
 FalkForge supports two ways to define installers:
 
-1. **C# Fluent API** (demos 01-46) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
+1. **C# Fluent API** (demos 01-53 + MAS) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
 2. **JSON Configuration** (demos 01-07 in `demo/json/`) -- Declarative JSON files validated and built by the `forge` CLI. Use this for straightforward packages that do not need custom code.
 
 Both approaches produce standard `.msi` Windows Installer packages (or `.exe` bundles). The C# demos cover the full API surface; the JSON demos show the subset available through declarative configuration.
@@ -54,6 +54,7 @@ Key properties:
 | #  | Name                  | Lines | Description                                                      |
 |----|-----------------------|-------|------------------------------------------------------------------|
 | 15 | Bundle Signing        | ~209  | Detach/sign/reattach workflow with Store, Timestamp, Algorithm   |
+| 15 | MSIX Basic *(exp.)*  | ~45   | Minimal MSIX package via C# script (experimental Compiler.Msix)  |
 | 16 | Features              | ~92   | Feature tree with AllowSameVersionUpgrades, Schedule, MigrateFeatures |
 | 17 | Services              | ~119  | Service install with FailureActions, DependsOnGroup, credentials |
 | 18 | Environment Variables | ~75   | System and user-scoped environment variables                     |
@@ -110,7 +111,8 @@ Key properties:
 | 49 | HTTP Extension      | ~45   | URL ACL reservations and SNI SSL certificate bindings            |
 | 50 | Driver Install      | ~55   | Device driver installation from INF files                        |
 | 51 | ICE Validation      | ~32   | MSI ICE validation with suppression, warnings-as-errors, reports |
-| 52 | MSIX Advanced       | ~78   | Multi-app MSIX with file associations, updates, dependencies     |
+| 52 | MSIX Advanced *(exp.)* | ~78 | Multi-app MSIX with file associations, updates, dependencies (experimental) |
+| 53 | Delta Updates       | ~79   | Delta bundle workflow using Octodiff: build v1, then v2 delta    |
 
 ## JSON Demo Index
 
@@ -265,6 +267,32 @@ Which FalkForge features each MSI-producing demo covers:
 | Ext: SQL                |    |    |    |    |    |    | x  |
 | Ext: .NET Detection     |    |    |    |    |    |    | x  |
 
+## Production Demo
+
+### MAS -- MultiAccess Suite
+
+A production-grade, multi-page enterprise installer for the MultiAccess Suite. Showcases the full FalkForge.Ui framework in a realistic scenario: plugin integration, custom window shell, conditional page navigation (Standard vs. Advanced install path), SQL Server discovery, ODBC configuration, and a rich confirmation summary.
+
+| Demo | Lines | Description |
+|------|-------|-------------|
+| MAS  | ~900  | Multi-page enterprise installer: 10 pages, 5 MSI packages, 1 bundle, custom shell, plugins |
+
+**Key features:** `Plugin<SqlPlugin>()`, `Plugin<OdbcPlugin>()`, `Plugin<FileSystemPlugin>()`, `CustomWindow<MasInstallerWindow>()`, `PageResult.GoTo<T>()` for non-linear navigation, `ISqlServerDiscovery`, `IDatabaseLister`, `SharedState.Get/Set`, localization with language selection.
+
+```bash
+# Build the 5 MSI packages
+dotnet run --project demo/MAS/packages/MultiAccess/MultiAccess.csproj -- -o ./output
+dotnet run --project demo/MAS/packages/MultiServer/MultiServer.csproj -- -o ./output
+dotnet run --project demo/MAS/packages/MultiServerEx/MultiServerEx.csproj -- -o ./output
+dotnet run --project demo/MAS/packages/Konfigurera/Konfigurera.csproj -- -o ./output
+dotnet run --project demo/MAS/packages/Concatenate/Concatenate.csproj -- -o ./output
+
+# Build the bundle (custom UI)
+dotnet run --project demo/MAS/bundle/MASBundle.csproj -- -o ./output
+```
+
+See [`demo/MAS/README.md`](MAS/README.md) for the full description including engine integration and per-MSI progress details.
+
 ## Building C# Demos
 
 Each C# demo is a standalone .NET console application.
@@ -370,7 +398,7 @@ dotnet build demo/45-patch/
 dotnet build demo/46-transform/
 ```
 
-### Advanced feature demos (47-52)
+### Advanced feature demos (47-53)
 
 ```bash
 dotnet build demo/47-powershell-actions/
@@ -380,10 +408,22 @@ dotnet build demo/50-driver-install/
 dotnet build demo/51-ice-validation/
 ```
 
-Demo 52 (MSIX Advanced) uses a C# script:
+Demo 52 (MSIX Advanced) uses a C# script (experimental):
 
 ```bash
 dotnet script demo/52-msix-advanced/msix-advanced.csx -- -o ./output
+```
+
+Demo 15 (MSIX Basic) also uses a C# script (experimental):
+
+```bash
+dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output
+```
+
+Demo 53 (Delta Updates):
+
+```bash
+dotnet run --project demo/53-delta-updates/ -- -o ./output
 ```
 
 ## Validating JSON Demos
