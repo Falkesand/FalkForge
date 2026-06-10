@@ -256,6 +256,15 @@ dotnet publish -c Release   # NativeAOT for Engine + Elevation
 
 **Requirements:** .NET 10 SDK (10.0.103+), Windows (for MSI compilation and P/Invoke)
 
+> **NuGet lock files:** The solution uses `RestorePackagesWithLockFile=true` (set in
+> `Directory.Build.props`). After adding or changing any package reference, regenerate the
+> lock files before committing:
+> ```bash
+> dotnet restore --force-evaluate
+> ```
+> Commit the updated `packages.lock.json` files alongside the `.csproj` change so CI
+> reproducibility is preserved.
+
 ## Demos
 
 55 demo projects covering every feature:

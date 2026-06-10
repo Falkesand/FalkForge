@@ -718,7 +718,7 @@
           <a href="#demo-gallery-extensions">Extension Demos (29&ndash;34)</a>
           <a href="#demo-gallery-bundle-advanced">Bundle Advanced (35&ndash;43)</a>
           <a href="#demo-gallery-output-types">Output Types (44&ndash;46)</a>
-          <a href="#demo-gallery-advanced-features">Advanced Features (47&ndash;52)</a>
+          <a href="#demo-gallery-advanced-features">Advanced Features (47&ndash;53)</a>
           <a href="#demo-gallery-json">JSON Mode (01&ndash;07)</a>
           <a href="#ice-validation">ICE Validation</a>
           <a href="#powershell-ca">PowerShell Custom Actions</a>
@@ -3926,6 +3926,57 @@ Installer.Build(p =&gt;
     <code>PackageBuilder.WinGet()</code> &mdash; useful for retrofitting legacy installers.
   </p>
 
+  <!-- ================================================================ -->
+  <!-- 7.29 PackageCode semantics                                        -->
+  <!-- ================================================================ -->
+  <h3 id="msi-package-code">7.29 PackageCode Semantics</h3>
+  <p>
+    <code>PackageModel.PackageCode</code> (<code>Guid?</code>) is the MSI SummaryInformation
+    <em>RevisionNumber</em> (PID&nbsp;9). The Windows Installer specification requires every
+    non-identical package to carry a unique PackageCode so that the installer service can
+    distinguish cached packages at repair time (SECREPAIR&nbsp;/ KB2918614).
+    <code>ProductCode</code> encodes <em>product identity</em>; <code>PackageCode</code> encodes the
+    <em>specific package bytes</em>. Two MSI files with the same <code>ProductCode</code> but
+    different content <em>must</em> have different <code>PackageCode</code> values, or Windows
+    Installer may use a stale cached copy during repair instead of the updated package.
+  </p>
+
+  <h4>How the compiler assigns PackageCode</h4>
+  <table class="api-table">
+    <thead>
+      <tr><th>Scenario</th><th>PackageCode value</th><th>Behavior</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Normal build</strong> (no <code>Reproducible()</code>, no explicit value)</td>
+        <td><code>null</code> &rarr; compiler generates a fresh <code>Guid.NewGuid()</code></td>
+        <td>Every packaging event produces a unique PackageCode. Guarantees uniqueness even when
+            <code>ProductCode</code> is pinned for upgrade detection.</td>
+      </tr>
+      <tr>
+        <td><strong>Reproducible build</strong> (<code>PackageBuilder.Reproducible()</code>)</td>
+        <td><code>null</code> &rarr; compiler derives a deterministic UUID&nbsp;v5 via
+            <code>PackageCodeDerivation.Derive()</code></td>
+        <td>SHA-256 is computed over: ProductCode, Version, source-date epoch, and each resolved
+            file&rsquo;s SHA-256 (ordered by FileId). The digest is converted to a UUID&nbsp;v5 GUID
+            using the FalkForge namespace. Identical inputs reproduce the same PackageCode;
+            non-identical packages always produce a different code (SECREPAIR-safe).</td>
+      </tr>
+      <tr>
+        <td><strong>Explicit value</strong></td>
+        <td>The supplied <code>Guid</code> is written as-is</td>
+        <td>Use only when pinning the code for a known binary-identical re-release (e.g. mirror
+            distribution of a pre-built MSI). Do not reuse across content-different builds.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    Source: <code>src/FalkForge.Core/Models/PackageModel.cs</code>,
+    <code>src/FalkForge.Core/Builders/PackageBuilder.cs</code>,
+    <code>src/FalkForge.Compiler.Msi/Recipe/PackageCodeDerivation.cs</code>.
+  </p>
+
 </section>
 <!-- Section 8: Bundle Builder API -->
 <section class="section" id="bundle-builders">
@@ -6568,7 +6619,7 @@ op       -> '=' | '&lt;&gt;' | '&lt;' | '&gt;' | '&lt;=' | '&gt;=' | '~='</code>
     public void Warning(string category, string message);
     public void Error(string category, string message);
 
-    public static string GetDefaultLogPath();
+    public static string GetDefaultLogPath(ISystemClock? clock = null);
     public void Dispose();
 }
 
@@ -6580,9 +6631,15 @@ public sealed record EngineLoggerOptions
 }</code></pre>
 
 <p>
-    Default behavior writes a single log to <code>%TEMP%\FalkForge\install_*.log</code>. When
-    <code>RotationSizeThresholdBytes</code> is set to a finite value, the logger renames the active file
-    to <code>install_*.log.1</code> on threshold and keeps up to <code>RetentionCount</code> backups.
+    Log rotation is <strong>enabled by default</strong> for every production session. <code>EngineSession.BindToPipe</code>
+    and <code>EngineSession.BindToChannel</code> both construct <code>EngineLogger</code> with
+    <code>RotationSizeThresholdBytes = 10&nbsp;MB</code> and <code>RetentionCount = 5</code>: when the active log
+    file reaches 10&nbsp;MB it is renamed to <code>install_*.log.1</code> (shifting older backups up to
+    <code>.5</code>, dropping the oldest) and a fresh file is opened. Up to five backup files are retained per
+    session. <code>EngineLoggerOptions.Default</code> has <code>RotationSizeThresholdBytes = long.MaxValue</code>
+    which effectively disables rotation, but <code>EngineSession</code> does not use <code>Default</code>
+    &mdash; it always applies the 10&nbsp;MB / 5-file policy. Pass a custom <code>EngineLoggerOptions</code>
+    via <code>EngineSessionOptions.Logger</code> to override.
 </p>
 
 <h4><code>--log</code> / <code>--log-level</code> CLI flags</h4>
@@ -6631,6 +6688,31 @@ public sealed record EngineLoggerOptions
     <code>RecordError</code> on every failure path; download and retry sites record their own metrics.
     Any host that wants to scrape these can subscribe to the <code>falkforge.engine</code> meter via
     <code>MeterListener</code>.
+</p>
+
+<h4>Session-end metrics snapshot</h4>
+<p>
+    <code>EngineMeter.Snapshot()</code> returns a point-in-time <code>IReadOnlyDictionary&lt;string, long&gt;</code>
+    of all in-process counters accumulated since process start (keys are the <code>EngineMeter.SnapshotKey</code>
+    string constants). <code>EngineMeter.FlushToLogger(IEngineLogger)</code> calls <code>Snapshot()</code> and
+    writes the result as a single structured log entry at <code>LogLevel.Info</code> with category
+    <code>"Metrics"</code>. <code>EngineSession.DisposeAsync</code> calls <code>FlushToLogger</code>
+    automatically, so every session ends with a metrics summary in the log file regardless of whether an
+    OpenTelemetry collector is configured. The snapshot properties are:
+</p>
+<table class="api-table">
+    <thead><tr><th>Key (<code>SnapshotKey</code>)</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>phase_transitions</code></td><td>Total engine phase transitions this session.</td></tr>
+        <tr><td><code>payload_downloads_success</code></td><td>Successful payload downloads this session.</td></tr>
+        <tr><td><code>payload_downloads_failure</code></td><td>Failed payload downloads this session.</td></tr>
+        <tr><td><code>retries</code></td><td>Total operation retries (download, MSI install, etc.) this session.</td></tr>
+        <tr><td><code>errors</code></td><td>Terminal pipeline errors this session.</td></tr>
+    </tbody>
+</table>
+<p>
+    The counters are process-lifetime scoped (implemented with <code>Interlocked</code> fields); call
+    <code>EngineMeter.ResetForTesting()</code> in tests to reset them between runs.
 </p>
 
 <h4>SessionCorrelationId</h4>
@@ -7112,7 +7194,7 @@ public interface IDialogStepBuilder
 </p>
 
 <p>
-    Nine commands are registered (some grouped under a <code>rules</code> or <code>bundle</code> branch):
+    Ten leaf commands are registered (some grouped under a <code>rules</code> or <code>bundle</code> branch):
     <code>build</code>, <code>validate</code>, <code>inspect</code>, <code>decompile</code>,
     <code>extract</code>, <code>winget</code>, <code>rules&nbsp;list</code>, <code>rules&nbsp;explain</code>,
     <code>bundle&nbsp;detach</code>, <code>bundle&nbsp;reattach</code>. All commands that emit results accept
@@ -8108,7 +8190,7 @@ public sealed record WixUnmappedFeature(
 <h2>18. Demo Gallery</h2>
 
 <p>
-    FalkForge ships with 52 C# demo projects and 7 JSON configuration demos
+    FalkForge ships with 53 C# demo projects and 7 JSON configuration demos
     that collectively showcase the framework's full capabilities &mdash;
     from minimal MSI installers to complex multi-project bundles with custom WPF UI.
 </p>
@@ -8398,7 +8480,7 @@ public sealed record WixUnmappedFeature(
 </tbody>
 </table>
 
-<h3 id="demo-gallery-advanced-features">Advanced Features (47&ndash;52)</h3>
+<h3 id="demo-gallery-advanced-features">Advanced Features (47&ndash;53)</h3>
 <table>
 <thead>
 <tr><th>#</th><th>Name</th><th>Description</th><th>Key Features</th></tr>
@@ -8433,6 +8515,13 @@ public sealed record WixUnmappedFeature(
     <td>52</td><td>MSIX Advanced</td>
     <td>Advanced MSIX packaging with visual assets and capabilities</td>
     <td><span class="badge">MSIX</span> <span class="badge">Advanced</span> <span class="badge">Capabilities</span></td>
+</tr>
+<tr>
+    <td>53</td><td>Delta Updates</td>
+    <td>Delta bundle updates via Octodiff: builds a v1 base bundle and a v2 delta bundle containing only
+        binary diffs of changed payloads. Demonstrates <code>BundleBuilder.DeltaFrom(v1Path)</code>,
+        <code>DeltaBundleCompiler</code>, and delta-first download with automatic full-bundle fallback.</td>
+    <td><span class="badge">DeltaFrom</span> <span class="badge">DeltaBundleCompiler</span> <span class="badge">Octodiff</span> <span class="badge">UpdateFeed</span></td>
 </tr>
 </tbody>
 </table>
