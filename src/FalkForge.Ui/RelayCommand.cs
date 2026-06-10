@@ -10,10 +10,38 @@ internal sealed class RelayCommand : ICommand
 
     /// <summary>
     /// Optional callback invoked when the async execute delegate throws an unhandled exception
-    /// (excluding <see cref="OperationCanceledException"/>). Defaults to <see langword="null"/>,
-    /// which falls back to <see cref="Trace.TraceError"/>. Inject in tests or application startup
-    /// to route exceptions to a visible error surface (e.g., a ViewModel's StatusMessage).
+    /// (excluding <see cref="OperationCanceledException"/>).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Static and process-wide.</strong> This property is shared by every
+    /// <see cref="RelayCommand"/> instance in the process. Assigning it affects all commands,
+    /// not only the one currently being configured.
+    /// </para>
+    /// <para>
+    /// <strong>Single-subscriber, last-writer-wins.</strong> The setter replaces any previously
+    /// registered handler. Unlike an event, there is no multicast accumulation — only the most
+    /// recently assigned delegate is invoked.
+    /// </para>
+    /// <para>
+    /// <strong>Setter is not thread-safe.</strong> Assign during application startup or test
+    /// setup, before commands are invoked concurrently.
+    /// </para>
+    /// <para>
+    /// <strong>Null fallback.</strong> When the value is <see langword="null"/>, exceptions fall
+    /// back to <see cref="Trace.TraceError"/> so they are at least visible in a debug trace
+    /// listener.
+    /// </para>
+    /// <para>
+    /// <strong><see cref="OperationCanceledException"/> is never routed.</strong> Cancellation is
+    /// treated as expected shutdown behaviour and is swallowed silently regardless of the handler.
+    /// </para>
+    /// <para>
+    /// <strong>Test hygiene.</strong> Test code that sets this property must restore the previous
+    /// value in a <see langword="try"/>/<see langword="finally"/> block to avoid leaking the
+    /// override into subsequent tests.
+    /// </para>
+    /// </remarks>
     public static Action<Exception>? UnhandledException { get; set; }
 
     public RelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
