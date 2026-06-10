@@ -22,13 +22,13 @@
       },
       "ReactiveUI.WPF": {
         "type": "Direct",
-        "requested": "[23.1.8, )",
-        "resolved": "23.1.8",
-        "contentHash": "n6XIEIbrv/rXbfr37AC2DWyyFCbZZZc2Mzfz9L5A1CKxFA1E3P7ARGwZkat1GTYd6rlKb0m1Bn6Pfrno/kltjw==",
+        "requested": "[23.2.28, )",
+        "resolved": "23.2.28",
+        "contentHash": "N4RcIxM4h4dxTFw5BIM0uSc55l2Mt6pPt9HOxfVgBxwmE/XEKGeNIM6+HoiJX2XFVmRe/U9cs1cvF7hod7M1pA==",
         "dependencies": {
-          "DynamicData": "9.4.1",
-          "ReactiveUI": "23.1.8",
-          "Splat": "19.3.1",
+          "DynamicData": "9.4.31",
+          "ReactiveUI": "23.2.28",
+          "Splat": "19.4.1",
           "System.ComponentModel.Annotations": "5.0.0",
           "System.Reactive": "6.1.0",
           "System.ValueTuple": "4.6.2"
@@ -60,56 +60,50 @@
       },
       "DynamicData": {
         "type": "Transitive",
-        "resolved": "9.4.1",
-        "contentHash": "+SoDTbuzY9j0K+sZfRbbVpGjjylkVMhUQnw6qiPhxzYLBJlwxFpmunXSaNBtTxwC2C9d/XIp0kO7VhMAVuUt7w==",
+        "resolved": "9.4.31",
+        "contentHash": "w2bT92Z5ADtnmtKiC9mzk21h7MtXtZEQKWFyytuHqhPBo7rKPWnvFk/xy1M/VA6XQTbCjRWMNV795w+RizFn4g==",
         "dependencies": {
-          "System.Reactive": "6.0.1"
+          "System.Reactive": "6.1.0"
         }
       },
       "ReactiveUI": {
         "type": "Transitive",
-        "resolved": "23.1.8",
-        "contentHash": "Z8vtRa76RJ4efznElUzoOCYmguuKEndsV4VdPPVyobsYDLdVsoJV/njpCW4OXVnB+Mw/xTTrP6+gxYPU+TF8zw==",
+        "resolved": "23.2.28",
+        "contentHash": "9sSuHnMcLTLhgMTQpQO6Jhz9Cbub3Pg44i6FS4Ot4UtbV8dpwMH3JGzGjT72oav4aSrJlmzbFyI87gX55oPzLA==",
         "dependencies": {
-          "DynamicData": "9.4.1",
-          "Splat": "19.3.1",
+          "DynamicData": "9.4.31",
+          "Splat": "19.4.1",
           "System.Reactive": "6.1.0"
         }
       },
       "Splat": {
         "type": "Transitive",
-        "resolved": "19.3.1",
-        "contentHash": "at6uM1+KfkjyjfYRIiiUjTBUTEwxBysoLOE4zuxGCy6kqNAG9mpSGliTkZtsPe8WqJuU6+Jup7oOoNdjz5R8FQ==",
+        "resolved": "19.4.1",
+        "contentHash": "3VJOloRQA3bgbAxyNAi4mvLAR/mKH3h1agN5pIrUXvp9lAA2/rvUgxOYjt+GZ4suouLfXxkeKcS/bRjSclo1LQ==",
         "dependencies": {
-          "Splat.Builder": "19.3.1",
-          "Splat.Logging": "19.3.1",
-          "System.Reactive": "6.1.0"
+          "Splat.Builder": "19.4.1",
+          "Splat.Logging": "19.4.1"
         }
       },
       "Splat.Builder": {
         "type": "Transitive",
-        "resolved": "19.3.1",
-        "contentHash": "FR9ISOBiEV/wXTq0oU+VrGZmsWVEE/yWkI79oeXF7luvr9P6GKRzZD+acjl+5T8oAJdXPWnBhFTJ/XDpAEW35Q==",
+        "resolved": "19.4.1",
+        "contentHash": "9i0RLWEwfheI8aI17WaW8AJmNlFVi7LaX3XQwAavGqUaJJi7Vp5Eh9umWqVQYBLjs87ztVLmax/OMzMyW2igKQ==",
         "dependencies": {
-          "Splat.Core": "19.3.1",
-          "System.Reactive": "6.1.0"
+          "Splat.Core": "19.4.1"
         }
       },
       "Splat.Core": {
         "type": "Transitive",
-        "resolved": "19.3.1",
-        "contentHash": "MrRbpO/wdWtAfH5c2Nys8Bm7EQ5yi+IAJD3AJsCUMyaRssImIhqmbC7QwfXRnpC2EXOdGENRi0NCTf6y5ODWxQ==",
-        "dependencies": {
-          "System.Reactive": "6.1.0"
-        }
+        "resolved": "19.4.1",
+        "contentHash": "fOjcUDP9YzJPZnSDI2eBO+NwRoEJVFEkTGlh/tFa7GUXc5mtMcQdwak60Ju4DWvPSAfsxlu2geObmhZAQe1VLg=="
       },
       "Splat.Logging": {
         "type": "Transitive",
-        "resolved": "19.3.1",
-        "contentHash": "u4MCO7dFKCX9+dnxNhbAWB9GmtY70fvVGexqr3YoesevExijpYoMiPpsCSYk36bJyKpq9XVgyJBxdg4ChrPS3A==",
+        "resolved": "19.4.1",
+        "contentHash": "bvudJQxxMnHIa9dtZaUUCpvmd96rQxA0yjrZLoB4OSiAJpIxMCDCwnDmG6RhDyW2pS3O0xef2e1STY/oL1PqRw==",
         "dependencies": {
-          "Splat.Core": "19.3.1",
-          "System.Reactive": "6.1.0"
+          "Splat.Core": "19.4.1"
         }
       },
       "System.ComponentModel.Annotations": {
