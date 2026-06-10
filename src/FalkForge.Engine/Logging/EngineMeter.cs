@@ -177,7 +177,18 @@ public static class EngineMeter
     /// Records completion of a payload download.
     /// </summary>
     /// <param name="success">Whether the download completed successfully.</param>
-    /// <param name="sizeBytes">Bytes received. Pass 0 on failure.</param>
+    /// <param name="sizeBytes">
+    /// Bytes received. Pass 0 on failure (or when the size is unknown).
+    /// <para>
+    /// <strong>Divergence from symmetric counter design:</strong> the
+    /// <c>falkforge.engine.payload.size_bytes</c> histogram is recorded only when
+    /// <paramref name="success"/> is <see langword="true"/> AND
+    /// <paramref name="sizeBytes"/> is greater than zero. Failed downloads are
+    /// counted via the <c>falkforge.engine.payload.downloads</c> counter with
+    /// <c>result=failure</c> but do not contribute a size observation, because
+    /// a partial or unknown byte count would skew distribution statistics.
+    /// </para>
+    /// </param>
     /// <param name="kind">Package kind — bounds the cardinality of the <c>kind</c> tag.</param>
     public static void RecordPayloadDownload(bool success, long sizeBytes, PayloadKind kind)
     {

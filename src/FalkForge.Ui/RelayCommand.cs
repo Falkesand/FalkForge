@@ -49,6 +49,15 @@ internal sealed class RelayCommand : ICommand
         }
     }
 
+    /// <summary>
+    /// Raised when <see cref="CanExecute"/> may have changed.
+    /// Delegates to <see cref="CommandManager.RequerySuggested"/>, which is a
+    /// process-wide multicast event — every subscriber registered on any
+    /// <see cref="RelayCommand"/> instance receives the notification, not just
+    /// those targeting this command. This matches standard WPF ICommand
+    /// semantics and is intentional: WPF's CommandManager batches
+    /// re-evaluation of all commands in a single dispatcher pass.
+    /// </summary>
     public event EventHandler? CanExecuteChanged
     {
         add => CommandManager.RequerySuggested += value;
