@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace FalkForge;
 
 /// <summary>
@@ -7,6 +9,13 @@ namespace FalkForge;
 /// </summary>
 public static class FileNameSanitizer
 {
+    // WHY SearchValues: Path.GetInvalidFileNameChars() returns a small, fixed set of chars.
+    // SearchValues<char> builds a constant-time O(1) membership test (bitmap or SIMD probe)
+    // at type-initialisation, avoiding the O(n) Array.IndexOf scan on every character in
+    // every call. Space is not in the OS set on all platforms, so it is added explicitly.
+    private static readonly SearchValues<char> _invalidChars =
+        SearchValues.Create([.. Path.GetInvalidFileNameChars(), ' ']);
+
     /// <summary>
     /// Replaces every character in <paramref name="name"/> that is invalid as a
     /// file-name character, or is a space, with <paramref name="replacement"/>.
@@ -22,12 +31,11 @@ public static class FileNameSanitizer
         if (name.Length == 0)
             return name;
 
-        var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new char[name.Length];
         for (var i = 0; i < name.Length; i++)
         {
             var c = name[i];
-            sanitized[i] = c == ' ' || Array.IndexOf(invalid, c) >= 0 ? replacement : c;
+            sanitized[i] = _invalidChars.Contains(c) ? replacement : c;
         }
         return new string(sanitized);
     }
