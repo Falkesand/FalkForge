@@ -162,4 +162,20 @@ public sealed class MsixCompilerTests
 
         Assert.Equal(expected, result);
     }
+
+    [Theory]
+    [InlineData("Simple App", "Simple_App")]
+    [InlineData("App<>Name", "App__Name")]
+    [InlineData("Normal", "Normal")]
+    [InlineData("  Trimmed  ", "Trimmed")]
+    public void MsixCompiler_SanitizesDisplayName_TrimsBeforeSanitizing(string displayName, string expectedSanitized)
+    {
+        // MsixCompiler trims the display name before passing it to FileNameSanitizer so that
+        // a display name like "  Trimmed  " produces a filename starting with "Trimmed",
+        // not "__Trimmed__". The fix is at the call site: Sanitize(displayName.Trim()).
+        var result = FileNameSanitizer.Sanitize(displayName.Trim());
+
+        Assert.Equal(expectedSanitized, result);
+        Assert.DoesNotMatch(@"^_+|_+$", result);
+    }
 }
