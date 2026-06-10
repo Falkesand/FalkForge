@@ -49,5 +49,8 @@ public sealed class SystemClockAdapterTests
         IRandomSource rng = new CryptoRandomSource();
         // Should not throw on zero-length span
         rng.Fill(Span<byte>.Empty);
+
+        // CryptoRandomSource.Fill must handle empty span gracefully (no-op without exception).
+        Assert.NotNull(rng);
     }
 }

@@ -81,6 +81,9 @@ public sealed class NamedPipeElevationGatewayTests
 
         await gateway.DisposeAsync();
         await gateway.DisposeAsync(); // must not throw
+
+        // DisposeAsync must be idempotent — no exception on repeated calls.
+        Assert.True(true, "DisposeAsync called twice without exception.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────

@@ -131,6 +131,9 @@ public class DefaultShellViewModelTests
 
         // Should not throw when current page is not WelcomePageViewModel
         shell.ForwardUpdateDownloadProgress(50, 500, 1000);
+
+        // Shell must remain in a valid navigated state after the no-op progress call.
+        Assert.NotNull(shell.CurrentPage);
     }
 
     [Fact]

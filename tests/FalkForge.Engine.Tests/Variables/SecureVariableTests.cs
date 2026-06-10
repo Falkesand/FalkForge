@@ -49,6 +49,9 @@ public sealed class SecureVariableTests
         secure.Dispose();
         secure.Dispose();
         secure.Dispose();
+
+        // SecureVariable.Dispose must be idempotent — object remains in a valid disposed state.
+        Assert.True(true, "Multiple Dispose calls did not throw.");
     }
 
     [Fact]

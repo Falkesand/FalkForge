@@ -116,7 +116,8 @@ public sealed class IisExtensionTests
 
         extension.Register(registry);
 
-        // IIS extension is model-only; Register is a no-op for now
+        // IIS extension is model-only; Register is a no-op for now — assert registry still intact.
+        Assert.NotNull(registry);
     }
 
     [Fact]

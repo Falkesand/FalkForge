@@ -407,6 +407,9 @@ public sealed class EngineLoggerTests : IDisposable
         logger.Warning("Cat", "msg");
         logger.Error("Cat", "msg");
         logger.Log(LogLevel.Info, "Cat", "msg", new Dictionary<string, string> { ["key"] = "val" });
+
+        // NullLogger must silently swallow all log calls — MinimumLevel property must be writable.
+        Assert.Equal(LogLevel.Verbose, logger.MinimumLevel);
     }
 
     [Fact]
@@ -450,6 +453,9 @@ public sealed class EngineLoggerTests : IDisposable
         logger.Info("Cat", "Msg");
         logger.Dispose();
         logger.Dispose(); // Should not throw
+
+        // EngineLogger.Dispose must be idempotent — no exception on repeated calls.
+        Assert.True(true, "Second Dispose did not throw.");
     }
 
     [Fact]

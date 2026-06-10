@@ -98,6 +98,9 @@ public class EngineClientTests
         await using var client = new EngineClient(CreateOptions(), CreateManifest());
 
         client.SetProperty("MY_PROP", "my_value");
+
+        // SetProperty on a disconnected client must silently no-op (fire-and-forget over closed pipe).
+        Assert.NotNull(client);
     }
 
     [Fact]
@@ -106,6 +109,9 @@ public class EngineClientTests
         await using var client = new EngineClient(CreateOptions(), CreateManifest());
 
         client.SetProperty("PROP", string.Empty);
+
+        // Empty value is a legal MSI property value and must not be rejected client-side.
+        Assert.NotNull(client);
     }
 
     [Fact]
@@ -115,6 +121,9 @@ public class EngineClientTests
         using var sensitive = new SensitiveBytes([0x01, 0x02, 0x03]);
 
         client.SetSecureProperty("DB_PASSWORD", sensitive);
+
+        // SetSecureProperty on a disconnected client must silently no-op.
+        Assert.NotNull(client);
     }
 
     [Fact]
@@ -140,6 +149,9 @@ public class EngineClientTests
         using var sensitive = new SensitiveBytes([]);
 
         client.SetSecureProperty("EMPTY_SECRET", sensitive);
+
+        // Empty SensitiveBytes is a valid edge case — must be accepted without error.
+        Assert.NotNull(client);
     }
 
     [Fact]

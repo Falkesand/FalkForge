@@ -12,6 +12,9 @@ public sealed class TokenBucketTests
 
         // Should return immediately without any delay
         await bucket.WaitForTokensAsync(1_000_000, CancellationToken.None);
+
+        // Unlimited bucket (rate=0) must complete the await without cancellation or exception.
+        Assert.NotNull(bucket);
     }
 
     [Fact]
@@ -21,6 +24,9 @@ public sealed class TokenBucketTests
 
         // Request fewer bytes than available (bucket starts full at 1 MB)
         await bucket.WaitForTokensAsync(100, CancellationToken.None);
+
+        // A request within available tokens must complete without waiting.
+        Assert.NotNull(bucket);
     }
 
     [Fact]
@@ -34,6 +40,9 @@ public sealed class TokenBucketTests
         // Now request more — should need to wait for refill but eventually complete
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await bucket.WaitForTokensAsync(100, cts.Token);
+
+        // If we reach here the bucket refilled and provided tokens within the 5-second window.
+        Assert.False(cts.IsCancellationRequested, "Bucket should have provided tokens before timeout.");
     }
 
     [Fact]

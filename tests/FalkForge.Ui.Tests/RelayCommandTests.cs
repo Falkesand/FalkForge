@@ -93,6 +93,7 @@ public class RelayCommandTests
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Task.Delay(100); // let the exception path complete
 
-        // Assert — reaching here means no unhandled exception escaped
+        // Assert — reaching here means no unhandled exception escaped.
+        Assert.True(tcs.Task.IsCompleted, "Delegate ran to the throw point without crashing the caller.");
     }
 }

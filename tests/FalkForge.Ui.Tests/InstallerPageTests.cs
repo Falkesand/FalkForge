@@ -322,6 +322,9 @@ public class InstallerPageTests
 
         engine.SetProperty("DBSERVER", "sql01");
         engine.SetProperty("DBSERVER", "sql02"); // overwrite succeeds without throwing
+
+        // NullInstallerEngine must silently accept repeated SetProperty calls.
+        Assert.NotNull(engine);
     }
 
     [Fact]

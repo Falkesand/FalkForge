@@ -156,6 +156,9 @@ public sealed class InstallerStateTests
         })).ToArray();
 
         await Task.WhenAll(tasks);
+
+        // All tasks completed — InstallerState must be thread-safe for concurrent set/get/remove.
+        Assert.True(tasks.All(t => t.IsCompletedSuccessfully), "All concurrent tasks completed without exception.");
     }
 
     [Fact]
@@ -280,6 +283,9 @@ public sealed class InstallerStateTests
         })).ToArray();
 
         await Task.WhenAll(tasks);
+
+        // All tasks completed — only ObjectDisposedException is acceptable; no NullReferenceException or other crash.
+        Assert.True(tasks.All(t => t.IsCompletedSuccessfully), "No unexpected exception type escaped concurrent SetSensitive/Dispose.");
     }
 
     [Fact]

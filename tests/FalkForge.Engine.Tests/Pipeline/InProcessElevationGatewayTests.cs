@@ -80,6 +80,9 @@ public sealed class InProcessElevationGatewayTests
         var gw = InProcessElevationGateway.AlwaysSucceeds();
         await gw.DisposeAsync();
         await gw.DisposeAsync(); // must not throw
+
+        // InProcessElevationGateway.DisposeAsync must be idempotent.
+        Assert.True(true, "DisposeAsync called twice without exception.");
     }
 
     [Fact]

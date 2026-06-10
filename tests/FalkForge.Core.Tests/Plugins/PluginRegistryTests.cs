@@ -76,6 +76,9 @@ public sealed class PluginRegistryTests
         // Must not throw
         registry.RegisterAll(serviceRegistry);
         serviceRegistry.Freeze();
+
+        // Empty registry has no plugins — plugin count is zero after no-op registration.
+        Assert.Empty(registry.PluginNames);
     }
 
     // ── Names ─────────────────────────────────────────────────────────────────

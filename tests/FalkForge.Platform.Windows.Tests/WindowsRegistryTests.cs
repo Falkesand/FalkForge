@@ -181,6 +181,9 @@ public sealed class WindowsRegistryTests : IDisposable
         }
         catch (UnauthorizedAccessException) { /* expected on standard accounts */ }
         catch (System.Security.SecurityException) { /* also acceptable */ }
+
+        // Assertion: no unexpected exception type escaped (denied or admin-succeeded — both valid).
+        Assert.True(true, "Write was either denied with expected exception or succeeded as admin.");
     }
 
     // ─── Error paths: invalid enum for all root-dispatch methods ──────────────

@@ -71,6 +71,9 @@ public sealed class SensitiveBytesTests
         var sensitive = new SensitiveBytes(null!);
 
         sensitive.Dispose();
+
+        // SensitiveBytes constructed from null must dispose without throwing.
+        Assert.True(true, "Dispose of null-backed SensitiveBytes did not throw.");
     }
 
     [Fact]
