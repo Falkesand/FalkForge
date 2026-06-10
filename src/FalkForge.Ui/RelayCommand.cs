@@ -8,6 +8,14 @@ internal sealed class RelayCommand : ICommand
     private readonly Func<bool>? _canExecute;
     private readonly Func<Task> _execute;
 
+    /// <summary>
+    /// Optional callback invoked when the async execute delegate throws an unhandled exception
+    /// (excluding <see cref="OperationCanceledException"/>). Defaults to <see langword="null"/>,
+    /// which falls back to <see cref="Trace.TraceError"/>. Inject in tests or application startup
+    /// to route exceptions to a visible error surface (e.g., a ViewModel's StatusMessage).
+    /// </summary>
+    public static Action<Exception>? UnhandledException { get; set; }
+
     public RelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
     {
         _execute = execute;
@@ -31,9 +39,13 @@ internal sealed class RelayCommand : ICommand
         }
         catch (Exception ex)
         {
-            // Prevent unhandled exceptions from crashing the application.
-            // Engine errors are surfaced via StatusMessage on the ViewModel.
-            Trace.TraceError($"RelayCommand: {ex}");
+            // Route to the registered observer so callers can surface errors visibly
+            // (e.g., set StatusMessage on a ViewModel). Fall back to Trace when none set.
+            var handler = UnhandledException;
+            if (handler is not null)
+                handler(ex);
+            else
+                Trace.TraceError($"RelayCommand: {ex}");
         }
     }
 
