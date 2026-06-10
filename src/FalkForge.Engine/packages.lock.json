@@ -1,0 +1,114 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "IDisposableAnalyzers": {
+        "type": "Direct",
+        "requested": "[4.0.8, )",
+        "resolved": "4.0.8",
+        "contentHash": "vNi4NMG0CcJyjXxiNDcQ21FwV/whM9o9OEZKD+oP7tuxAqFEzX/x5OhC3OZJqW/w+8GOtCmJPBquYgMWgz0rfQ=="
+      },
+      "Meziantou.Analyzer": {
+        "type": "Direct",
+        "requested": "[3.0.43, )",
+        "resolved": "3.0.43",
+        "contentHash": "T7THuFRNsvDz4VM/fUvBPfAMWZrsdBosLeghRDp7DD7joMz+3IFJB0y8HQTm3XfpD569ftO4XBH2NKDaBKp0NA=="
+      },
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "4y+VsQOcs4EiTSINdCpCWi/aLRbIbGTxSezQXd8uGVhzbDRm1FNVTZDyCUQixE0+g9UFusvfxVcF68YYz7RzxA=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "4Iw41e2h7I4t70SJcX2GCmbyKJIlA273Cfm9RJMM050/3VBejGAG1KcthP5Z2L6SQcbfbf6BhNWO26+ZG+GzMg=="
+      },
+      "Microsoft.VisualStudio.Threading.Analyzers": {
+        "type": "Direct",
+        "requested": "[17.14.15, )",
+        "resolved": "17.14.15",
+        "contentHash": "mXQPJsbuUD2ydq4/ffd8h8tSOFCXec+2xJOVNCvXjuMOq/+5EKHq3D2m2MC2+nUaXeFMSt66VS/J4HdKBixgcw=="
+      },
+      "Octopus.Octodiff": {
+        "type": "Direct",
+        "requested": "[2.0.549, )",
+        "resolved": "2.0.549",
+        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
+      },
+      "SecurityCodeScan.VS2019": {
+        "type": "Direct",
+        "requested": "[5.6.7, )",
+        "resolved": "5.6.7",
+        "contentHash": "WIE9RJswdSc2j+rLz2gW6U+gMUjMHzY2j7C/CL8/R2olXNM/+twarfMnWqm+rZodDBvaYDApJyxM8mVYf9FGrQ=="
+      },
+      "SonarAnalyzer.CSharp": {
+        "type": "Direct",
+        "requested": "[10.7.0.110445, )",
+        "resolved": "10.7.0.110445",
+        "contentHash": "U4v2LWopxADYkUv7Z5CX7ifKMdDVqHb7a1bzppIQnQi4WQR6z1Zi5rDkCHlVYGEd1U/WMz1IJCU8OmFZLJpVig=="
+      },
+      "falkforge.compiler.msi": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )",
+          "FalkForge.Localization": "[1.0.0, )",
+          "FalkForge.Platform": "[1.0.0, )",
+          "FalkForge.Platform.Windows": "[1.0.0, )"
+        }
+      },
+      "falkforge.core": {
+        "type": "Project"
+      },
+      "falkforge.engine.protocol": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensibility": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.localization": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.platform": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.platform.windows": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Platform": "[1.0.0, )"
+        }
+      }
+    },
+    "net10.0/win-x64": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "4y+VsQOcs4EiTSINdCpCWi/aLRbIbGTxSezQXd8uGVhzbDRm1FNVTZDyCUQixE0+g9UFusvfxVcF68YYz7RzxA==",
+        "dependencies": {
+          "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.9"
+        }
+      },
+      "runtime.win-x64.Microsoft.DotNet.ILCompiler": {
+        "type": "Transitive",
+        "resolved": "10.0.9",
+        "contentHash": "UEY5D3CvpctP5tcewYlnFS8JNReAEFTfAs//ZN733Oq9BXbTSZBCmBWnCs8JKgduHHa3u4oJ9ehfrZzV1xOFNA=="
+      }
+    }
+  }
+}

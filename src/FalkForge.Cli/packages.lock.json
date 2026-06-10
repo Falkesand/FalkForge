@@ -1,0 +1,198 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "IDisposableAnalyzers": {
+        "type": "Direct",
+        "requested": "[4.0.8, )",
+        "resolved": "4.0.8",
+        "contentHash": "vNi4NMG0CcJyjXxiNDcQ21FwV/whM9o9OEZKD+oP7tuxAqFEzX/x5OhC3OZJqW/w+8GOtCmJPBquYgMWgz0rfQ=="
+      },
+      "Meziantou.Analyzer": {
+        "type": "Direct",
+        "requested": "[3.0.43, )",
+        "resolved": "3.0.43",
+        "contentHash": "T7THuFRNsvDz4VM/fUvBPfAMWZrsdBosLeghRDp7DD7joMz+3IFJB0y8HQTm3XfpD569ftO4XBH2NKDaBKp0NA=="
+      },
+      "Microsoft.CodeAnalysis.CSharp.Scripting": {
+        "type": "Direct",
+        "requested": "[5.3.0, )",
+        "resolved": "5.3.0",
+        "contentHash": "dKZE07CR6DMf1YxUmzV4+kXUn7lFPkT+Q84fvv75cAi4sx/tdl3gIxfBMp8ZnY9GYQK4Z+CIylVNfznaPSo2wQ==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.CSharp": "[5.3.0]",
+          "Microsoft.CodeAnalysis.Common": "[5.3.0]",
+          "Microsoft.CodeAnalysis.Scripting.Common": "[5.3.0]"
+        }
+      },
+      "Microsoft.VisualStudio.Threading.Analyzers": {
+        "type": "Direct",
+        "requested": "[17.14.15, )",
+        "resolved": "17.14.15",
+        "contentHash": "mXQPJsbuUD2ydq4/ffd8h8tSOFCXec+2xJOVNCvXjuMOq/+5EKHq3D2m2MC2+nUaXeFMSt66VS/J4HdKBixgcw=="
+      },
+      "SecurityCodeScan.VS2019": {
+        "type": "Direct",
+        "requested": "[5.6.7, )",
+        "resolved": "5.6.7",
+        "contentHash": "WIE9RJswdSc2j+rLz2gW6U+gMUjMHzY2j7C/CL8/R2olXNM/+twarfMnWqm+rZodDBvaYDApJyxM8mVYf9FGrQ=="
+      },
+      "SonarAnalyzer.CSharp": {
+        "type": "Direct",
+        "requested": "[10.7.0.110445, )",
+        "resolved": "10.7.0.110445",
+        "contentHash": "U4v2LWopxADYkUv7Z5CX7ifKMdDVqHb7a1bzppIQnQi4WQR6z1Zi5rDkCHlVYGEd1U/WMz1IJCU8OmFZLJpVig=="
+      },
+      "Spectre.Console": {
+        "type": "Direct",
+        "requested": "[0.53.1, )",
+        "resolved": "0.53.1",
+        "contentHash": "wNLoytZpc7brgH3V9ZmrRyQqplOQUnNkEu1qSjRnEa0KOGvWAxgdEG6jmFTfyXKzO7p1pTLBHYH+AgxsWi69Cg=="
+      },
+      "Spectre.Console.Cli": {
+        "type": "Direct",
+        "requested": "[0.53.1, )",
+        "resolved": "0.53.1",
+        "contentHash": "y//7ZZ0shhvgXzoJXJzMaLGA4dPem8qCbkyv9khfE8NQDlH4hPVsHOHYoz6uzAwiTX9Yd7OnX3wNOX/wRfPUOg==",
+        "dependencies": {
+          "Spectre.Console": "0.53.1"
+        }
+      },
+      "Microsoft.CodeAnalysis.Analyzers": {
+        "type": "Transitive",
+        "resolved": "5.3.0-2.25625.1",
+        "contentHash": "4Yhh2fnu3G+J0J1lDc8WZVgMjgbynSeTfkl5IFJMFrmiIO0sc7Tjx+f3sFVV8Sd35PrIUWfof0RWc3lAMl7Azg=="
+      },
+      "Microsoft.CodeAnalysis.Common": {
+        "type": "Transitive",
+        "resolved": "5.3.0",
+        "contentHash": "uC0qk3jzTQY7i90ehfnCqaOZpBUGJyPMiHJ3c0jOb8yaPBjWzIhVdNxPbeVzI74DB0C+YgBKPLqUkgFZzua5Mg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1"
+        }
+      },
+      "Microsoft.CodeAnalysis.CSharp": {
+        "type": "Transitive",
+        "resolved": "5.3.0",
+        "contentHash": "SQFNGQF4f7UfDXKxMzzGNMr3fjrPDIjLfmRvvVgDCw+dyvEHDaRfHuKA5q0Pr0/JW0Gcw89TxrxrS/MjwBvluQ==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.Common": "[5.3.0]"
+        }
+      },
+      "Microsoft.CodeAnalysis.Scripting.Common": {
+        "type": "Transitive",
+        "resolved": "5.3.0",
+        "contentHash": "Enl1poxX+fnMij0xp+b5iWovtWlXa0QBawtajIEdnv8NJNqo+fGwtoNAIDDVoIRcNUHIykUIgzYMmZEwHFD5xQ==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.Common": "[5.3.0]"
+        }
+      },
+      "falkforge.compiler.bundle": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Engine.Protocol": "[1.0.0, )",
+          "FalkForge.Platform": "[1.0.0, )",
+          "Octopus.Octodiff": "[2.0.549, )"
+        }
+      },
+      "falkforge.compiler.msi": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )",
+          "FalkForge.Localization": "[1.0.0, )",
+          "FalkForge.Platform": "[1.0.0, )",
+          "FalkForge.Platform.Windows": "[1.0.0, )"
+        }
+      },
+      "falkforge.core": {
+        "type": "Project"
+      },
+      "falkforge.decompiler": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Compiler.Bundle": "[1.0.0, )",
+          "FalkForge.Compiler.Msi": "[1.0.0, )",
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )"
+        }
+      },
+      "falkforge.engine.protocol": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensibility": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensions.dotnet": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )",
+          "FalkForge.Platform": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensions.firewall": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensions.iis": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensions.sql": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensions.util": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )"
+        }
+      },
+      "falkforge.localization": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.platform": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.platform.windows": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Platform": "[1.0.0, )"
+        }
+      },
+      "Octopus.Octodiff": {
+        "type": "CentralTransitive",
+        "requested": "[2.0.549, )",
+        "resolved": "2.0.549",
+        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
+      }
+    }
+  }
+}
