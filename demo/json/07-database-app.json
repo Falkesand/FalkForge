@@ -7,17 +7,19 @@
   },
   "ui": "InstallDir",
   "installDirectory": "Contoso/DatabaseApp",
-  "majorUpgrade": {
-    "downgradeMessage": "A newer version is already installed."
-  },
+  "majorUpgrade": {},
   "features": [
     {
       "id": "Application",
       "title": "Database Application",
       "required": true,
       "files": [
-        { "source": "payload/dbapp.exe" },
-        { "source": "payload/dbapp.dll" }
+        {
+          "source": "payload/dbapp.exe"
+        },
+        {
+          "source": "payload/dbapp.dll"
+        }
       ]
     }
   ],
@@ -53,5 +55,8 @@
         "variableName": "DOTNET8_INSTALLED"
       }
     ]
+  },
+  "downgrade": {
+    "message": "A newer version is already installed."
   }
 }

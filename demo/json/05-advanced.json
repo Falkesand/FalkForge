@@ -11,8 +11,6 @@
   "installDirectory": "Contoso/AdvancedDemo",
   "license": "payload/eula.rtf",
   "majorUpgrade": {
-    "allowDowngrades": false,
-    "downgradeMessage": "Cannot install an older version over a newer one.",
     "schedule": "AfterInstallExecute"
   },
   "launchConditions": [
@@ -41,8 +39,12 @@
             "icon": "payload/app.ico"
           }
         },
-        { "source": "payload/app.dll" },
-        { "source": "payload/config.json" }
+        {
+          "source": "payload/app.dll"
+        },
+        {
+          "source": "payload/config.json"
+        }
       ],
       "registry": [
         {
@@ -83,7 +85,9 @@
           "title": "Monitor Service",
           "description": "System health monitoring",
           "files": [
-            { "source": "payload/monitor-svc.exe" }
+            {
+              "source": "payload/monitor-svc.exe"
+            }
           ],
           "services": [
             {
@@ -102,7 +106,9 @@
           "description": "Automatic update checker",
           "default": false,
           "files": [
-            { "source": "payload/update-svc.exe" }
+            {
+              "source": "payload/update-svc.exe"
+            }
           ],
           "services": [
             {
@@ -122,7 +128,9 @@
       "title": "Command-Line Tools",
       "description": "CLI utilities and scripts",
       "files": [
-        { "source": "payload/cli-tool.exe" }
+        {
+          "source": "payload/cli-tool.exe"
+        }
       ],
       "environmentVariables": [
         {
@@ -139,8 +147,14 @@
       "description": "Offline documentation and tutorials",
       "default": false,
       "files": [
-        { "source": "payload/manual.pdf" }
+        {
+          "source": "payload/manual.pdf"
+        }
       ]
     }
-  ]
+  ],
+  "downgrade": {
+    "allow": false,
+    "message": "Cannot install an older version over a newer one."
+  }
 }

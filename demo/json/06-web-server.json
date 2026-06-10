@@ -7,18 +7,22 @@
   },
   "ui": "InstallDir",
   "installDirectory": "Contoso/WebServerApp",
-  "majorUpgrade": {
-    "downgradeMessage": "A newer version is already installed."
-  },
+  "majorUpgrade": {},
   "features": [
     {
       "id": "WebApp",
       "title": "Web Application",
       "required": true,
       "files": [
-        { "source": "payload/webapp.dll" },
-        { "source": "payload/web.config" },
-        { "source": "payload/appsettings.json" }
+        {
+          "source": "payload/webapp.dll"
+        },
+        {
+          "source": "payload/web.config"
+        },
+        {
+          "source": "payload/appsettings.json"
+        }
       ]
     }
   ],
@@ -60,11 +64,22 @@
           "directory": "[INSTALLDIR]",
           "appPool": "WebAppPool",
           "bindings": [
-            { "protocol": "http", "port": 80, "host": "localhost" },
-            { "protocol": "https", "port": 443, "host": "localhost" }
+            {
+              "protocol": "http",
+              "port": 80,
+              "host": "localhost"
+            },
+            {
+              "protocol": "https",
+              "port": 443,
+              "host": "localhost"
+            }
           ]
         }
       ]
     }
+  },
+  "downgrade": {
+    "message": "A newer version is already installed."
   }
 }

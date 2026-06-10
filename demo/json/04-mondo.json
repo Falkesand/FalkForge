@@ -11,8 +11,6 @@
   "installDirectory": "Contoso/EnterpriseSuite",
   "license": "payload/license.rtf",
   "majorUpgrade": {
-    "allowDowngrades": false,
-    "downgradeMessage": "A newer version is already installed. Please uninstall it first.",
     "schedule": "AfterInstallValidate"
   },
   "launchConditions": [
@@ -32,8 +30,12 @@
       "description": "Backend services and APIs",
       "required": true,
       "files": [
-        { "source": "payload/server.exe" },
-        { "source": "payload/server.dll" }
+        {
+          "source": "payload/server.exe"
+        },
+        {
+          "source": "payload/server.dll"
+        }
       ],
       "services": [
         {
@@ -67,7 +69,9 @@
             "description": "Launch EnterpriseSuite"
           }
         },
-        { "source": "payload/client.dll" }
+        {
+          "source": "payload/client.dll"
+        }
       ],
       "registry": [
         {
@@ -84,7 +88,9 @@
       "description": "User guides and API reference",
       "default": false,
       "files": [
-        { "source": "payload/docs.chm" }
+        {
+          "source": "payload/docs.chm"
+        }
       ]
     },
     {
@@ -93,8 +99,14 @@
       "description": "Example projects and scripts",
       "default": false,
       "files": [
-        { "source": "payload/samples.zip" }
+        {
+          "source": "payload/samples.zip"
+        }
       ]
     }
-  ]
+  ],
+  "downgrade": {
+    "allow": false,
+    "message": "A newer version is already installed. Please uninstall it first."
+  }
 }

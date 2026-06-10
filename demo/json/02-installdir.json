@@ -8,9 +8,7 @@
   },
   "ui": "InstallDir",
   "installDirectory": "Contoso/NotepadClone",
-  "majorUpgrade": {
-    "downgradeMessage": "A newer version is already installed."
-  },
+  "majorUpgrade": {},
   "features": [
     {
       "id": "MainFeature",
@@ -25,7 +23,9 @@
             "description": "Launch NotepadClone"
           }
         },
-        { "source": "payload/NotepadClone.dll" }
+        {
+          "source": "payload/NotepadClone.dll"
+        }
       ],
       "registry": [
         {
@@ -36,5 +36,8 @@
         }
       ]
     }
-  ]
+  ],
+  "downgrade": {
+    "message": "A newer version is already installed."
+  }
 }
