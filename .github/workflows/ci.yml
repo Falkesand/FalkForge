@@ -10,13 +10,12 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
 
       - name: Restore
         run: dotnet restore FalkForge.slnx
@@ -28,22 +27,24 @@ jobs:
         run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: test-results
-          path: TestResults/**/*.trx
+          path: |
+            TestResults/**
+            tests/**/bin/**/TestResults/**
+          if-no-files-found: warn
 
   code-quality:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
 
       - name: Build
         run: dotnet build FalkForge.slnx -c Release
