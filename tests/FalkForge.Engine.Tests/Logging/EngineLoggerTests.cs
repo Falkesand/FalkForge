@@ -451,11 +451,14 @@ public sealed class EngineLoggerTests : IDisposable
         var path = GetLogPath();
         var logger = new EngineLogger(path);
         logger.Info("Cat", "Msg");
-        logger.Dispose();
-        logger.Dispose(); // Should not throw
 
         // EngineLogger.Dispose must be idempotent — no exception on repeated calls.
-        Assert.True(true, "Second Dispose did not throw.");
+        var ex = Record.Exception(() =>
+        {
+            logger.Dispose();
+            logger.Dispose(); // Should not throw
+        });
+        Assert.Null(ex);
     }
 
     [Fact]

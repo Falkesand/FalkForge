@@ -129,9 +129,9 @@ public sealed class InstallerPipelineTests
     {
         var pipeline = Build();
         await pipeline.DisposeAsync();
-        await pipeline.DisposeAsync(); // must not throw
 
         // InstallerPipeline.DisposeAsync must be idempotent — no exception on repeated calls.
-        Assert.True(true, "DisposeAsync called twice without exception.");
+        var ex = await Record.ExceptionAsync(async () => await pipeline.DisposeAsync());
+        Assert.Null(ex);
     }
 }

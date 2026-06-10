@@ -167,6 +167,7 @@ public sealed class WindowsRegistryTests : IDisposable
     {
         // Writing to HKLM without elevation is denied on standard accounts.
         // On elevated (admin) builds this may succeed — skip rather than fail.
+        bool handled = false;
         try
         {
             _registry.SetStringValue(
@@ -174,16 +175,17 @@ public sealed class WindowsRegistryTests : IDisposable
                 @"SOFTWARE\FalkForgeTestReadOnly",
                 "V", "x");
 
-            // If we get here we are admin — clean up and skip assertion.
+            // If we get here we are admin — clean up and mark handled.
             Microsoft.Win32.Registry.LocalMachine.DeleteSubKey(
                 @"SOFTWARE\FalkForgeTestReadOnly",
                 throwOnMissingSubKey: false);
+            handled = true;
         }
-        catch (UnauthorizedAccessException) { /* expected on standard accounts */ }
-        catch (System.Security.SecurityException) { /* also acceptable */ }
+        catch (UnauthorizedAccessException) { handled = true; /* expected on standard accounts */ }
+        catch (System.Security.SecurityException) { handled = true; /* also acceptable */ }
 
         // Assertion: no unexpected exception type escaped (denied or admin-succeeded — both valid).
-        Assert.True(true, "Write was either denied with expected exception or succeeded as admin.");
+        Assert.True(handled, "Write was either denied with expected exception or succeeded as admin.");
     }
 
     // ─── Error paths: invalid enum for all root-dispatch methods ──────────────
