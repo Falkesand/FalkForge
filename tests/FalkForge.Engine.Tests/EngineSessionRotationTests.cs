@@ -10,6 +10,24 @@ using Xunit;
 /// bounded in size.
 /// WHY: EngineLogger has full rotation infrastructure but was wired with default options
 ///      (rotation disabled) — unbounded log files on long installs.
+///
+/// <para>
+/// <strong>BindToPipe rotation test — impracticality note:</strong>
+/// <see cref="EngineSession.BindToPipe"/> uses the identical rotation constants
+/// (EngineSession.cs lines ~200-204) as <see cref="EngineSession.BindToChannel"/>
+/// (lines ~378-382). A separate BindToPipe rotation test is not added because:
+/// <list type="number">
+///   <item>BindToPipe requires a valid manifest JSON file on disk plus a real
+///   Windows named-pipe connection, making it an integration concern beyond the scope
+///   of this assertion.</item>
+///   <item>BindToPipe acquires a Global-scope mutex (instance lock) that serialises
+///   concurrent test runs and cannot be trivially mocked.</item>
+///   <item>The rotation constants are literals shared verbatim in both code paths —
+///   they cannot diverge without the same change touching both branches.</item>
+/// </list>
+/// The existing <see cref="EngineSession_BuiltLogger_HasRotationEnabled_10MB_5Files"/>
+/// test is therefore sufficient coverage for the rotation configuration.
+/// </para>
 /// </summary>
 public sealed class EngineSessionRotationTests : IDisposable
 {
