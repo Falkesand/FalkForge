@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# upload-artifact@v5 still declares a Node 20 runtime; opt all JavaScript
+# actions into Node 24 ahead of the 2026-06-16 default switch.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-and-test:
     runs-on: windows-latest
