@@ -36,7 +36,7 @@ public sealed class MsixCompiler
         }
 
         // Step 5: Create MSIX package
-        var sanitizedName = SanitizeFileName(model.DisplayName);
+        var sanitizedName = FileNameSanitizer.Sanitize(model.DisplayName);
         var msixFileName = $"{sanitizedName}-{model.Version}.msix";
         var msixPath = Path.Combine(outputPath, msixFileName);
         Directory.CreateDirectory(outputPath);
@@ -62,15 +62,6 @@ public sealed class MsixCompiler
         }
 
         return Result<string>.Success(msixPath);
-    }
-
-    internal static string SanitizeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var result = new char[name.Length];
-        for (var i = 0; i < name.Length; i++)
-            result[i] = Array.IndexOf(invalid, name[i]) >= 0 ? '_' : name[i];
-        return new string(result).Trim();
     }
 
     private static Result<Unit> SignPackage(string msixPath, SigningOptions signing)

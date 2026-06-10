@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
+using FalkForge;
 using FalkForge.Cli.Settings;
 using FalkForge.Cli.WinGet;
 using FalkForge.Compiler.Msi;
@@ -178,7 +179,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         var componentCount = CountComponents(package);
         var featureCount = CountFeatures(package.Features);
         var payloadBytes = ComputePayloadBytes(package.Files);
-        var outputFileName = $"{SanitizeFileName(package.Name)}-{package.Version.ToString(3)}.msi";
+        var outputFileName = $"{FileNameSanitizer.Sanitize(package.Name)}-{package.Version.ToString(3)}.msi";
 
         _console.MarkupLine("[cyan]Dry run:[/] no artifacts will be written.");
         _console.MarkupLine($"[grey]Package:[/] {Markup.Escape(package.Name)} v{package.Version}");
@@ -239,20 +240,6 @@ public sealed class BuildCommand : Command<BuildSettings>
             }
         }
         return total;
-    }
-
-    /// <summary>
-    /// Mirrors <c>FileNameSanitizer.Sanitize</c> from FalkForge.Compiler.Msi (internal).
-    /// Replicated here so dry-run can predict the MSI filename without taking a
-    /// dependency on internals.
-    /// </summary>
-    private static string SanitizeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var buffer = new char[name.Length];
-        for (var i = 0; i < name.Length; i++)
-            buffer[i] = Array.IndexOf(invalid, name[i]) >= 0 ? '_' : name[i];
-        return new string(buffer).Replace(' ', '_');
     }
 
     [SupportedOSPlatform("windows")]

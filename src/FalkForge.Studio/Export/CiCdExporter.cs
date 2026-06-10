@@ -1,4 +1,5 @@
 using System.Text;
+using FalkForge;
 using FalkForge.Studio.Project;
 
 namespace FalkForge.Studio.Export;
@@ -17,7 +18,7 @@ public static class CiCdExporter
         if (string.IsNullOrWhiteSpace(project.Product.Name))
             return Result<string>.Failure(new Error(ErrorKind.Validation, "Product name is required."));
 
-        var projectFile = SanitizeFileName(project.Product.Name) + ".ffstudio";
+        var projectFile = FileNameSanitizer.Sanitize(project.Product.Name, '-') + ".ffstudio";
         var artifactPattern = project.ProjectType == "bundle" ? "*.exe" : "*.msi";
 
         return platform switch
@@ -89,20 +90,6 @@ public static class CiCdExporter
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("}");
-        return sb.ToString();
-    }
-
-    private static string SanitizeFileName(string name)
-    {
-        var invalid = System.IO.Path.GetInvalidFileNameChars();
-        var sb = new StringBuilder(name.Length);
-        foreach (var c in name)
-        {
-            if (Array.IndexOf(invalid, c) >= 0 || c == ' ')
-                sb.Append('-');
-            else
-                sb.Append(c);
-        }
         return sb.ToString();
     }
 }
