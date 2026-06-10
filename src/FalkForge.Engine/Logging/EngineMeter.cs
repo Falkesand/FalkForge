@@ -1,12 +1,8 @@
 namespace FalkForge.Engine.Logging;
 
 using System.Diagnostics.Metrics;
+using System.Globalization;
 using FalkForge.Engine.Protocol;
-
-// Infrastructure shipped in Phase 3.3; production call sites are introduced in a
-// follow-up phase (Phase 3.4).  Wiring EngineSession → EngineMeter is intentionally
-// deferred to keep this change reviewable in isolation.
-// See project memory: docs/plans/ and CLAUDE.md project-memory entries.
 
 /// <summary>
 /// Central metrics façade for the FalkForge engine process.
@@ -15,6 +11,13 @@ using FalkForge.Engine.Protocol;
 ///
 /// Metric naming follows the OpenTelemetry semantic conventions where applicable
 /// and uses the <c>falkforge.engine.*</c> prefix for domain-specific instruments.
+///
+/// <para>
+/// <strong>Snapshot bridge</strong> — <see cref="Snapshot"/> reads in-process counters
+/// accumulated during the session and <see cref="FlushToLogger"/> writes them as a
+/// single structured log entry (category <c>"Metrics"</c>) so counter values are
+/// visible in the log file even when no OTel collector is present.
+/// </para>
 /// </summary>
 public static class EngineMeter
 {
@@ -46,6 +49,47 @@ public static class EngineMeter
 
     /// <summary>Counter — one unit per terminal pipeline error. Tag: <c>error_kind</c>.</summary>
     public const string ErrorCounter = "falkforge.engine.error.count";
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Snapshot key constants (used as property keys in FlushToLogger entries)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// String keys used in the <see cref="Snapshot"/> dictionary and in the structured
+    /// log entry written by <see cref="FlushToLogger"/>.  Public so tests can reference
+    /// them without magic strings.
+    /// </summary>
+    public static class SnapshotKey
+    {
+        /// <summary>Total number of phase transitions recorded this session.</summary>
+        public const string PhaseTransitions = "phase_transitions";
+
+        /// <summary>Number of successful payload downloads this session.</summary>
+        public const string PayloadDownloadsSuccess = "payload_downloads_success";
+
+        /// <summary>Number of failed payload downloads this session.</summary>
+        public const string PayloadDownloadsFailure = "payload_downloads_failure";
+
+        /// <summary>Total number of retries across all operations this session.</summary>
+        public const string Retries = "retries";
+
+        /// <summary>Number of terminal pipeline errors this session.</summary>
+        public const string Errors = "errors";
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // In-process snapshot counters
+    // WHY: System.Diagnostics.Metrics instruments push values to listeners but do
+    // not expose a readable accumulated total. We maintain separate long fields
+    // using Interlocked so that Snapshot() can read them without a lock and without
+    // reflection — both requirements for NativeAOT compatibility.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private static long _snapPhaseTransitions;
+    private static long _snapPayloadDownloadsSuccess;
+    private static long _snapPayloadDownloadsFailure;
+    private static long _snapRetries;
+    private static long _snapErrors;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Tag-value enums (bounded cardinality — prevents metric cardinality explosion)
@@ -126,6 +170,7 @@ public static class EngineMeter
         var tag = new KeyValuePair<string, object?>("phase", phase.ToString());
         _phaseTransitions.Add(1, tag);
         _phaseDuration.Record(elapsedMs, tag);
+        Interlocked.Increment(ref _snapPhaseTransitions);
     }
 
     /// <summary>
@@ -139,11 +184,19 @@ public static class EngineMeter
         var resultTag = new KeyValuePair<string, object?>("result", success ? "success" : "failure");
         _payloadDownloads.Add(1, resultTag);
 
-        if (success && sizeBytes > 0)
+        if (success)
         {
-            // Lowercase tag value matches OpenTelemetry semantic convention for package kind.
-            var kindTag = new KeyValuePair<string, object?>("kind", PayloadKindToTag(kind));
-            _payloadSize.Record(sizeBytes, kindTag);
+            Interlocked.Increment(ref _snapPayloadDownloadsSuccess);
+            if (sizeBytes > 0)
+            {
+                // Lowercase tag value matches OpenTelemetry semantic convention for package kind.
+                var kindTag = new KeyValuePair<string, object?>("kind", PayloadKindToTag(kind));
+                _payloadSize.Record(sizeBytes, kindTag);
+            }
+        }
+        else
+        {
+            Interlocked.Increment(ref _snapPayloadDownloadsFailure);
         }
     }
 
@@ -154,6 +207,7 @@ public static class EngineMeter
     public static void RecordRetry(RetryOperation operation)
     {
         _retries.Add(1, new KeyValuePair<string, object?>("operation", RetryOperationToTag(operation)));
+        Interlocked.Increment(ref _snapRetries);
     }
 
     /// <summary>
@@ -167,6 +221,68 @@ public static class EngineMeter
         // ToString() on the enum produces the declared member name (e.g. "DownloadError"),
         // which matches the canonical tag values used in telemetry dashboards.
         _errors.Add(1, new KeyValuePair<string, object?>("error_kind", kind.ToString()));
+        Interlocked.Increment(ref _snapErrors);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Snapshot + logger bridge
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a point-in-time snapshot of all in-process counters accumulated
+    /// since construction (or the last <see cref="ResetForTesting"/> call).
+    /// Keys are the <see cref="SnapshotKey"/> constants.
+    ///
+    /// <para>Thread-safe: each field is read with <see cref="Interlocked.Read"/>.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<string, long> Snapshot() =>
+        new Dictionary<string, long>(5)
+        {
+            [SnapshotKey.PhaseTransitions]        = Interlocked.Read(ref _snapPhaseTransitions),
+            [SnapshotKey.PayloadDownloadsSuccess]  = Interlocked.Read(ref _snapPayloadDownloadsSuccess),
+            [SnapshotKey.PayloadDownloadsFailure]  = Interlocked.Read(ref _snapPayloadDownloadsFailure),
+            [SnapshotKey.Retries]                  = Interlocked.Read(ref _snapRetries),
+            [SnapshotKey.Errors]                   = Interlocked.Read(ref _snapErrors),
+        };
+
+    /// <summary>
+    /// Writes the current counter snapshot as a single structured log entry with
+    /// category <c>"Metrics"</c> and <see cref="LogLevel.Info"/> level.
+    /// All counter values are included as string-valued properties so log parsers
+    /// can extract them without scanning individual lines.
+    ///
+    /// <para>
+    /// Called by <see cref="EngineSession.DisposeAsync"/> so every session ends
+    /// with a metrics summary in the log file regardless of whether an OTel
+    /// collector is configured.
+    /// </para>
+    /// </summary>
+    /// <param name="logger">Logger to write to. Must not be null.</param>
+    public static void FlushToLogger(IEngineLogger logger)
+    {
+        var snap = Snapshot();
+
+        // Build properties as string→string so they serialise correctly through
+        // the existing IReadOnlyDictionary<string,string> LogEntry convention.
+        var properties = new Dictionary<string, string>(snap.Count);
+        foreach (var kvp in snap)
+            properties[kvp.Key] = kvp.Value.ToString(CultureInfo.InvariantCulture);
+
+        logger.Log(LogLevel.Info, category: "Metrics", message: "Session metrics snapshot", properties);
+    }
+
+    /// <summary>
+    /// Resets all in-process snapshot counters to zero.
+    /// <strong>Test use only</strong> — allows tests to start from a clean baseline
+    /// without cross-contamination from prior test runs in the same process.
+    /// </summary>
+    internal static void ResetForTesting()
+    {
+        Interlocked.Exchange(ref _snapPhaseTransitions, 0L);
+        Interlocked.Exchange(ref _snapPayloadDownloadsSuccess, 0L);
+        Interlocked.Exchange(ref _snapPayloadDownloadsFailure, 0L);
+        Interlocked.Exchange(ref _snapRetries, 0L);
+        Interlocked.Exchange(ref _snapErrors, 0L);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

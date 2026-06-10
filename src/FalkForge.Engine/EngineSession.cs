@@ -509,6 +509,12 @@ public sealed class EngineSession : IAsyncDisposable
             await _elevationGateway.DisposeAsync().ConfigureAwait(false);
         await _channel.DisposeAsync().ConfigureAwait(false);
         await _pipeline.DisposeAsync().ConfigureAwait(false);
+
+        // Flush session-level metrics into the log before closing the logger so
+        // the counter values are visible in the log file for every session.
+        if (_logger is not null)
+            EngineMeter.FlushToLogger(_logger);
+
         (_logger as IDisposable)?.Dispose();
         // Fix 2: release the per-bundle global mutex so a reinstall can proceed.
         _instanceLock?.Dispose();
