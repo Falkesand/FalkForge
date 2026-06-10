@@ -447,3 +447,6 @@ mutantnet-results/
 profile-output/
 .assessment-scratch/
 build.log
+
+# Claude Code local config
+.claude/
