@@ -104,6 +104,12 @@ public sealed class EngineLogger : IEngineLogger
     /// <inheritdoc/>
     public Guid SessionCorrelationId { get; set; }
 
+    /// <summary>
+    /// Exposes the active rotation/retention options for test assertions.
+    /// Internal: accessible to FalkForge.Engine.Tests via InternalsVisibleTo.
+    /// </summary>
+    internal EngineLoggerOptions Options => _options;
+
     public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
     {
         // Fast-path level check: read the volatile int directly to avoid the
