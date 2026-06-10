@@ -120,7 +120,7 @@ public sealed class CabinetExtractor : IDisposable
         InitializeCallbacks();
 
         var erf = new NativeMethods.ERF();
-        using var hfdi = new FdiHandle(NativeMethods.FDICreate(
+        var hfdi = new FdiHandle(NativeMethods.FDICreate(
             _allocCallback!,
             _freeCallback!,
             _openCallback!,
@@ -136,6 +136,7 @@ public sealed class CabinetExtractor : IDisposable
                 ErrorKind.CompilationError,
                 $"FDICreate failed. ERF: oper={erf.erfOper}, type={erf.erfType}");
 
+        Result<Dictionary<string, byte[]>>? failure = null;
         try
         {
             var cabPathWithSep = EnsureTrailingBackslash(cabDir);
@@ -151,7 +152,7 @@ public sealed class CabinetExtractor : IDisposable
             if (!success)
             {
                 var detail = _lastCallbackError is not null ? $" Detail: {_lastCallbackError}" : "";
-                return Result<Dictionary<string, byte[]>>.Failure(
+                failure = Result<Dictionary<string, byte[]>>.Failure(
                     ErrorKind.CompilationError,
                     $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}.{detail}");
             }
@@ -159,19 +160,21 @@ public sealed class CabinetExtractor : IDisposable
         finally
         {
             CleanupOpenStreams();
+
+            // FDIDestroy (invoked by hfdi.Dispose) fires native callbacks — at minimum
+            // the free callback for internal FDI buffers. GC.KeepAlive must come AFTER
+            // Dispose so that 'this' (and every rooted delegate field) remains reachable
+            // through the entire destroy sequence. A KeepAlive placed before Dispose
+            // leaves the dispose window uncovered and the delegates can be collected mid-
+            // callback, crashing with "A callback was made on a garbage collected delegate".
+            hfdi.Dispose();
+            GC.KeepAlive(this);
         }
 
-        var extracted = new Dictionary<string, byte[]>(_extractedFiles);
+        if (failure is not null)
+            return failure.Value;
 
-        // The FDI callbacks are rooted in instance fields, so they live as long as
-        // 'this'. The 'using var hfdi' above disposes here at method exit, invoking
-        // FDIDestroy, which can fire the close callback natively. Nothing after the
-        // last _extractedFiles read references 'this', so the JIT could collect this
-        // extractor — and its delegate fields — before FDIDestroy runs, crashing with
-        // "A callback was made on a garbage collected delegate". Keep 'this' alive
-        // until after the SafeHandle (and thus FDIDestroy) has completed.
-        GC.KeepAlive(this);
-        return extracted;
+        return new Dictionary<string, byte[]>(_extractedFiles);
     }
 
     private Result<Dictionary<string, byte[]>> ExtractCore(Stream cabinetStream)
@@ -193,7 +196,7 @@ public sealed class CabinetExtractor : IDisposable
             InitializeCallbacks();
 
             var erf = new NativeMethods.ERF();
-            using var hfdi = new FdiHandle(NativeMethods.FDICreate(
+            var hfdi = new FdiHandle(NativeMethods.FDICreate(
                 _allocCallback!,
                 _freeCallback!,
                 _openCallback!,
@@ -209,6 +212,7 @@ public sealed class CabinetExtractor : IDisposable
                     ErrorKind.CompilationError,
                     $"FDICreate failed. ERF: oper={erf.erfOper}, type={erf.erfType}");
 
+            Result<Dictionary<string, byte[]>>? failure = null;
             try
             {
                 var success = NativeMethods.FDICopy(
@@ -225,7 +229,7 @@ public sealed class CabinetExtractor : IDisposable
                     var detail = _lastCallbackError is not null
                         ? $" Detail: {_lastCallbackError}"
                         : "";
-                    return Result<Dictionary<string, byte[]>>.Failure(
+                    failure = Result<Dictionary<string, byte[]>>.Failure(
                         ErrorKind.CompilationError,
                         $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}.{detail}");
                 }
@@ -233,16 +237,21 @@ public sealed class CabinetExtractor : IDisposable
             finally
             {
                 CleanupOpenStreams();
+
+                // FDIDestroy (invoked by hfdi.Dispose) fires native callbacks — at minimum
+                // the free callback for internal FDI buffers. GC.KeepAlive must come AFTER
+                // Dispose so that 'this' (and every rooted delegate field) remains reachable
+                // through the entire destroy sequence. A KeepAlive placed before Dispose
+                // leaves the dispose window uncovered and the delegates can be collected mid-
+                // callback, crashing with "A callback was made on a garbage collected delegate".
+                hfdi.Dispose();
+                GC.KeepAlive(this);
             }
 
-            var extracted = new Dictionary<string, byte[]>(_extractedFiles);
+            if (failure is not null)
+                return failure.Value;
 
-            // Same hazard as ExtractFromPathCore: 'using var hfdi' disposes at the end
-            // of this block, running FDIDestroy, which can invoke the close callback
-            // natively. Keep 'this' (and its rooted delegate fields) alive until after
-            // that completes so the GC cannot collect a delegate mid-callback.
-            GC.KeepAlive(this);
-            return extracted;
+            return new Dictionary<string, byte[]>(_extractedFiles);
         }
         finally
         {
