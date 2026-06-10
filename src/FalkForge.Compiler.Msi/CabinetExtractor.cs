@@ -161,7 +161,17 @@ public sealed class CabinetExtractor : IDisposable
             CleanupOpenStreams();
         }
 
-        return new Dictionary<string, byte[]>(_extractedFiles);
+        var extracted = new Dictionary<string, byte[]>(_extractedFiles);
+
+        // The FDI callbacks are rooted in instance fields, so they live as long as
+        // 'this'. The 'using var hfdi' above disposes here at method exit, invoking
+        // FDIDestroy, which can fire the close callback natively. Nothing after the
+        // last _extractedFiles read references 'this', so the JIT could collect this
+        // extractor — and its delegate fields — before FDIDestroy runs, crashing with
+        // "A callback was made on a garbage collected delegate". Keep 'this' alive
+        // until after the SafeHandle (and thus FDIDestroy) has completed.
+        GC.KeepAlive(this);
+        return extracted;
     }
 
     private Result<Dictionary<string, byte[]>> ExtractCore(Stream cabinetStream)
@@ -225,7 +235,14 @@ public sealed class CabinetExtractor : IDisposable
                 CleanupOpenStreams();
             }
 
-            return new Dictionary<string, byte[]>(_extractedFiles);
+            var extracted = new Dictionary<string, byte[]>(_extractedFiles);
+
+            // Same hazard as ExtractFromPathCore: 'using var hfdi' disposes at the end
+            // of this block, running FDIDestroy, which can invoke the close callback
+            // natively. Keep 'this' (and its rooted delegate fields) alive until after
+            // that completes so the GC cannot collect a delegate mid-callback.
+            GC.KeepAlive(this);
+            return extracted;
         }
         finally
         {

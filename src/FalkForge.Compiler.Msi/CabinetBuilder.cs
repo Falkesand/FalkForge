@@ -139,6 +139,15 @@ public sealed class CabinetBuilder : IDisposable
         {
             NativeMethods.FCIDestroy(hfci);
             CleanupOpenStreams();
+
+            // The FCI callbacks are rooted in instance fields, so they live exactly as
+            // long as 'this'. But nothing in this finally block (or FCIDestroy, which
+            // takes only the raw handle) references 'this' — the JIT could therefore
+            // collect this CabinetBuilder while FCIDestroy is still invoking the close
+            // callback natively, crashing the process with "A callback was made on a
+            // garbage collected delegate". Keep the instance — and through it every
+            // rooted delegate field — alive until after the last native call.
+            GC.KeepAlive(this);
         }
 
         var resultPath = Path.Combine(outputPath, cabinetFileName);

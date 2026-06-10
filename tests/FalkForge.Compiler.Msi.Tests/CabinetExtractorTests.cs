@@ -450,6 +450,28 @@ public sealed class CabinetExtractorTests : IDisposable
             NativeMethods.FCIDestroy(hfci);
             foreach (var s in ctx.Streams.Values) s.Dispose();
             ctx.Streams.Clear();
+
+            // FCI marshals each delegate above to a native function pointer but does
+            // not root the managed delegate instance. Once the JIT decides a local is
+            // dead after its last C# read (the FCICreate call for the create-set
+            // delegates), the GC may collect it while FCI is still invoking it natively
+            // — terminating the process with "A callback was made on a garbage collected
+            // delegate". Keep every delegate, plus the context that backs their captured
+            // state, alive until after the final native call (FCIDestroy).
+            GC.KeepAlive(alloc);
+            GC.KeepAlive(free);
+            GC.KeepAlive(open);
+            GC.KeepAlive(read);
+            GC.KeepAlive(write);
+            GC.KeepAlive(close);
+            GC.KeepAlive(seek);
+            GC.KeepAlive(del);
+            GC.KeepAlive(placed);
+            GC.KeepAlive(tempFile);
+            GC.KeepAlive(getNext);
+            GC.KeepAlive(status);
+            GC.KeepAlive(getOpen);
+            GC.KeepAlive(ctx);
         }
     }
 
