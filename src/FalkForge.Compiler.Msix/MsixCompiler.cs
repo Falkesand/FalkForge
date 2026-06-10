@@ -36,7 +36,7 @@ public sealed class MsixCompiler
         }
 
         // Step 5: Create MSIX package
-        var sanitizedName = FileNameSanitizer.Sanitize(model.DisplayName);
+        var sanitizedName = FileNameSanitizer.Sanitize(model.DisplayName.Trim());
         var msixFileName = $"{sanitizedName}-{model.Version}.msix";
         var msixPath = Path.Combine(outputPath, msixFileName);
         Directory.CreateDirectory(outputPath);

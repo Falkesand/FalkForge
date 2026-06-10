@@ -3,11 +3,6 @@
         <TargetFramework>net10.0-windows</TargetFramework>
         <RootNamespace>FalkForge.Compiler.Msix</RootNamespace>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <!-- COM interop via [ComImport] + Marshal.ReleaseComObject is not trim-safe.
-             Marking IsTrimmable=false suppresses IL2xxx trim-analysis warnings and
-             prevents the trimmer from stripping COM-activated types (IAppxFactory,
-             IAppxBundleFactory) that have no managed call site the linker can see. -->
-        <IsTrimmable>false</IsTrimmable>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="FalkForge.Compiler.Msix.Tests" />
