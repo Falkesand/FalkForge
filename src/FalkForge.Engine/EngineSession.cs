@@ -200,6 +200,7 @@ public sealed class EngineSession : IAsyncDisposable
             var fileLogger = new EngineLogger(
                 resolvedPath,
                 pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
+                options: new EngineLoggerOptions { RotationSizeThresholdBytes = 10L * 1024 * 1024, RetentionCount = 5 },
                 minimumLevel: startingLevel);
             logger = fileLogger;
             logFilePath = resolvedPath;
@@ -377,6 +378,7 @@ public sealed class EngineSession : IAsyncDisposable
             logger = new EngineLogger(
                 resolvedPath,
                 pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
+                options: new EngineLoggerOptions { RotationSizeThresholdBytes = 10L * 1024 * 1024, RetentionCount = 5 },
                 minimumLevel: startingLevel);
             logFilePath = resolvedPath;
         }
