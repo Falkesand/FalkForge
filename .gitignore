@@ -396,6 +396,10 @@ FodyWeavers.xsd
 demo/35-bundle-simple/MyApp.msi
 demo/36-bundle-exe-package/vcredist_x64.exe
 demo/36-bundle-exe-package/MyApp.msi
+
+# Committed zero-byte payload stub required by demo 10 (siblings hotfix.msu/prereq.exe
+# are tracked; *.msp above would otherwise keep it out of fresh checkouts and CI)
+!demo/10-advanced-bundle/bundle/payload/patch.msp
 demo/37-bundle-msu-package/windows-hotfix-kb123456.msu
 demo/37-bundle-msu-package/MyApp.msi
 demo/38-bundle-nested/ChildSetup.exe
