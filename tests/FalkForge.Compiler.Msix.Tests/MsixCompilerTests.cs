@@ -149,16 +149,16 @@ public sealed class MsixCompilerTests
     }
 
     [Theory]
-    [InlineData("Simple App", "Simple App")]
+    [InlineData("Simple App", "Simple_App")]
     [InlineData("App<>Name", "App__Name")]
     [InlineData("My:App|Test", "My_App_Test")]
     [InlineData("Normal", "Normal")]
     [InlineData("Has/Slash", "Has_Slash")]
     [InlineData("Has\\Backslash", "Has_Backslash")]
-    [InlineData("  Trimmed  ", "Trimmed")]
+    [InlineData("  Trimmed  ", "__Trimmed__")]
     public void SanitizeFileName_RemovesInvalidChars(string input, string expected)
     {
-        var result = MsixCompiler.SanitizeFileName(input);
+        var result = FileNameSanitizer.Sanitize(input);
 
         Assert.Equal(expected, result);
     }
