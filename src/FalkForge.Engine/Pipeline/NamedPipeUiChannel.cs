@@ -184,6 +184,21 @@ public sealed class NamedPipeUiChannel : IUiChannel
                 ReleaseNotes = notes
             },
 
+        PipelineEvent.UpdateDownloadProgress(var received, var total, var percent) =>
+            new UpdateDownloadProgressMessage
+            {
+                BytesReceived = received,
+                TotalBytes = total,
+                PercentComplete = percent
+            },
+
+        PipelineEvent.UpdateReady(var version, var localPath) =>
+            new UpdateReadyMessage
+            {
+                Version = version,
+                LocalPath = localPath
+            },
+
         _ => null
     };
 

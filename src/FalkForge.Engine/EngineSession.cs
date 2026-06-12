@@ -2,6 +2,7 @@ namespace FalkForge.Engine;
 
 using System.Diagnostics;
 using FalkForge.Engine.Cache;
+using FalkForge.Engine.Download;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal.UndoOperations;
@@ -43,6 +44,8 @@ public sealed class EngineSession : IAsyncDisposable
     private readonly IElevatedCommandGateway? _elevationGateway;
     // Fix 2: per-bundle global mutex released on session dispose.
     private readonly IDisposable? _instanceLock;
+    // Shared HttpClient for the auto-update feed/payload downloads; owned by the session.
+    private readonly HttpClient? _updateHttpClient;
     private bool _disposed;
 
     /// <summary>
@@ -71,7 +74,8 @@ public sealed class EngineSession : IAsyncDisposable
         string? logFilePath,
         FileSystemJournalStore? journalStore,
         IElevatedCommandGateway? elevationGateway,
-        IDisposable? instanceLock = null)
+        IDisposable? instanceLock = null,
+        HttpClient? updateHttpClient = null)
     {
         _channel = channel;
         _pipeline = pipeline;
@@ -80,6 +84,7 @@ public sealed class EngineSession : IAsyncDisposable
         _journalStore = journalStore;
         _elevationGateway = elevationGateway;
         _instanceLock = instanceLock;
+        _updateHttpClient = updateHttpClient;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -276,11 +281,6 @@ public sealed class EngineSession : IAsyncDisposable
         var platform = new WindowsPlatformServices();
         var processRunner = new ProcessRunner();
 
-        // Note: production payload-download wiring is not yet present. When PayloadDownloader
-        // / UpdateChecker / HttpPayloadSource are constructed in the live engine, build their
-        // HttpClient via EngineHttpClientFactory.Create() so the redirect cap is enforced
-        // consistently. Unit tests already cover the cap behavior at the downloader level.
-
         var msiExecutor = new MsiExecutor(
             static () => null,
             static () => null,
@@ -322,6 +322,45 @@ public sealed class EngineSession : IAsyncDisposable
             elevationGateway = new NamedPipeElevationGateway(new ProcessLauncher(), companionExePath);
         }
 
+        // ── Auto-update services ────────────────────────────────────────────
+        // When the manifest carries an update feed, construct the live update components
+        // (feed checker, payload downloader, signature-enforcing launcher) and wire them so
+        // DetectStep checks for updates and — for DownloadAndPrompt / AutoUpdate — downloads
+        // and (per policy) launches. The shared HttpClient is built via EngineHttpClientFactory
+        // so the redirect cap is enforced; its lifetime is owned by the session.
+        HttpClient? updateHttpClient = null;
+        FalkForge.Engine.Pipeline.UpdateService? updateService = null;
+        FalkForge.Engine.Download.UpdateChecker? updateCheckerForBuilder = null;
+        if (manifest.UpdateFeed is not null)
+        {
+            updateHttpClient = EngineHttpClientFactory.Create();
+            var payloadDownloader = new FalkForge.Engine.Download.PayloadDownloader(updateHttpClient);
+            var updateChecker = new FalkForge.Engine.Download.UpdateChecker(updateHttpClient, logger);
+
+            // The update cache lives under the bundle's cache directory. DefaultUpdateLauncher
+            // enforces path containment against this root plus Authenticode verification with
+            // the manifest's pinned publisher thumbprint (UpdatePublisherThumbprint).
+            var updateCacheDir = Path.Combine(cacheLayout.GetBundlePath(manifest.BundleId), "Updates");
+            try { Directory.CreateDirectory(updateCacheDir); }
+            catch (IOException ex) { logger.Warning("Engine", $"Failed to create update cache dir: {ex.Message}"); }
+            catch (UnauthorizedAccessException ex) { logger.Warning("Engine", $"Failed to create update cache dir: {ex.Message}"); }
+
+            IUpdateLauncher updateLauncher = new DefaultUpdateLauncher(
+                cacheRoot: updateCacheDir,
+                authenticodeValidator: OperatingSystem.IsWindows() ? new AuthenticodeValidator() : null,
+                expectedThumbprint: manifest.UpdatePublisherThumbprint);
+
+            updateService = new FalkForge.Engine.Pipeline.UpdateService(
+                manifest.UpdateFeed,
+                updateCacheDir,
+                payloadDownloader.DownloadAsync,
+                updateLauncher,
+                uiChannel,
+                logger);
+
+            updateCheckerForBuilder = updateChecker;
+        }
+
         // ── Pipeline ────────────────────────────────────────────────────────
         var variableStore = new VariableStore();
         var pipelineBuilder = new InstallerPipelineBuilder()
@@ -340,9 +379,14 @@ public sealed class EngineSession : IAsyncDisposable
         if (elevationGateway is not null)
             pipelineBuilder = pipelineBuilder.WithElevationGateway(elevationGateway);
 
+        if (updateService is not null && updateCheckerForBuilder is not null)
+            pipelineBuilder = pipelineBuilder.WithUpdateServices(updateCheckerForBuilder, updateService);
+
         var pipeline = pipelineBuilder.Build();
 
-        return new EngineSession(uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway, instanceLock);
+        return new EngineSession(
+            uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway,
+            instanceLock, updateHttpClient);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -518,6 +562,8 @@ public sealed class EngineSession : IAsyncDisposable
         (_logger as IDisposable)?.Dispose();
         // Fix 2: release the per-bundle global mutex so a reinstall can proceed.
         _instanceLock?.Dispose();
+        // Release the auto-update HttpClient (only created when the manifest has an update feed).
+        _updateHttpClient?.Dispose();
     }
 
     // ──────────────────────────────────────────────────────────────────────────

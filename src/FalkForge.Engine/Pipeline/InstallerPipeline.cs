@@ -16,6 +16,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     private readonly IElevateStep? _elevateStep;
     private readonly IApplyStep? _applyStep;
     private readonly IRollbackStep? _rollbackStep;
+    private readonly UpdateService? _updateService;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Shared mutable context threaded through all phase steps
@@ -36,6 +37,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         IElevateStep? elevateStep,
         IApplyStep? applyStep,
         IRollbackStep? rollbackStep,
+        UpdateService? updateService = null,
         FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null)
     {
         _detectStep = detectStep;
@@ -43,6 +45,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         _elevateStep = elevateStep;
         _applyStep = applyStep;
         _rollbackStep = rollbackStep;
+        _updateService = updateService;
 
         // Pre-seed the context manifest so PlanStep can operate even when
         // DetectStep is absent (e.g. headless / ordering-only tests).
@@ -152,6 +155,20 @@ internal sealed class InstallerPipeline : IInstallerPipeline
             return Unit.Value;
 
         return await _rollbackStep.ExecuteAsync(_ctx, ct);
+    }
+
+    /// <inheritdoc/>
+    public Result<Unit> LaunchUpdate()
+    {
+        if (_disposed)
+            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
+
+        // No update services configured → nothing to launch. Treat as a benign no-op so a
+        // stray LaunchUpdate request on a non-updating installer does not fail the session.
+        if (_updateService is null)
+            return Unit.Value;
+
+        return _updateService.LaunchReadyUpdate();
     }
 
     /// <inheritdoc/>

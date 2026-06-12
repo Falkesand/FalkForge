@@ -149,9 +149,27 @@ public sealed class PipelineRunner
                         return 0;
 
                     case UiRequest.LaunchUpdate:
-                        // Update launch not yet wired in the pipeline — log and ignore
-                        _logger?.Warning("PipelineRunner", "LaunchUpdate request received but not yet supported by pipeline runner.");
-                        break;
+                        _logger?.Info("PipelineRunner", "LaunchUpdate requested");
+                        var launchResult = _pipeline.LaunchUpdate();
+                        if (launchResult.IsFailure)
+                        {
+                            // Surface the typed failure to the UI (e.g. Authenticode refusal must
+                            // show an error, never silence). The session continues so the user can
+                            // proceed with the current installer or retry.
+                            _logger?.Warning("PipelineRunner",
+                                $"Update launch refused: {launchResult.Error.Message}");
+                            EngineMeter.RecordError(launchResult.Error.Kind);
+                            await _uiChannel.SendAsync(
+                                new PipelineEvent.Failed(launchResult.Error.Kind, launchResult.Error.Message), ct);
+                            break;
+                        }
+
+                        // Handoff: the update installer is now running. Shut the current engine
+                        // down through the normal shutdown path so log/journal flush runs and the
+                        // two installers do not fight over the same bundle.
+                        _logger?.Info("PipelineRunner", "Update launched — shutting down for handoff");
+                        await SendShutdownAsync(ct);
+                        return 0;
 
                     case UiRequest.Cancel:
                     case UiRequest.Shutdown:

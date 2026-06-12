@@ -23,17 +23,20 @@ internal sealed class DetectStep : IDetectStep
     private readonly IRegistry _registry;
     private readonly IUiChannel _uiChannel;
     private readonly UpdateChecker? _updateChecker;
+    private readonly UpdateService? _updateService;
 
     public DetectStep(
         InstallerManifest manifest,
         IRegistry registry,
         IUiChannel uiChannel,
-        UpdateChecker? updateChecker = null)
+        UpdateChecker? updateChecker = null,
+        UpdateService? updateService = null)
     {
         _manifest = manifest;
         _registry = registry;
         _uiChannel = uiChannel;
         _updateChecker = updateChecker;
+        _updateService = updateService;
     }
 
     /// <inheritdoc/>
@@ -113,5 +116,13 @@ internal sealed class DetectStep : IDetectStep
             new PipelineEvent.Log(LogLevel.Info,
                 $"Update available: {update.Version} at {update.DownloadUrl}"),
             ct);
+
+        // For DownloadAndPrompt / AutoUpdate policies, kick off the background download now.
+        // UpdateService is a no-op for NotifyOnly (notification already happened above) and
+        // never throws — an update failure must not block detection or the install.
+        if (_updateService is not null)
+        {
+            await _updateService.HandleUpdateAsync(update, ct).ConfigureAwait(false);
+        }
     }
 }

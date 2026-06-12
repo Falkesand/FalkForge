@@ -41,6 +41,8 @@ public sealed class InstallerPipelineBuilder
     private VariableStore? _variableStore;
     private IReadOnlyList<IUndoOperation>? _undoOperations;
     private IEngineLogger? _logger;
+    private FalkForge.Engine.Download.UpdateChecker? _updateChecker;
+    private UpdateService? _updateService;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -166,6 +168,23 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Registers the auto-update services that turn the manifest's update feed into live
+    /// behavior: <paramref name="checker"/> fetches the feed during <see cref="DetectStep"/>,
+    /// and <paramref name="service"/> performs the per-policy download/launch and is consulted
+    /// by <see cref="IInstallerPipeline.LaunchUpdateAsync"/> when the UI requests a launch.
+    /// When not registered, the pipeline behaves as before (no update check, LaunchUpdate is a
+    /// no-op).
+    /// </summary>
+    internal InstallerPipelineBuilder WithUpdateServices(
+        FalkForge.Engine.Download.UpdateChecker checker,
+        UpdateService service)
+    {
+        _updateChecker = checker;
+        _updateService = service;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -181,7 +200,7 @@ public sealed class InstallerPipelineBuilder
         var uiChannel = _uiChannel ?? NullUiChannel.Instance;
 
         IDetectStep? detectStep = (_manifest is not null && _registry is not null)
-            ? new DetectStep(_manifest, _registry, uiChannel)
+            ? new DetectStep(_manifest, _registry, uiChannel, _updateChecker, _updateService)
             : null;
 
         IPlanStep? planStep = (_manifest is not null)
@@ -207,6 +226,7 @@ public sealed class InstallerPipelineBuilder
                 _logger)
             : null;
 
-        return new InstallerPipeline(detectStep, planStep, elevateStep, applyStep, rollbackStep, _manifest);
+        return new InstallerPipeline(
+            detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest);
     }
 }

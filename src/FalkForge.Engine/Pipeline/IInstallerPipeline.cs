@@ -47,6 +47,16 @@ public interface IInstallerPipeline : IAsyncDisposable
     Result<Unit> ExportPlan(string? outputPath);
 
     /// <summary>
+    /// Launches the downloaded-and-verified update bundle in response to a UI
+    /// <see cref="UiRequest.LaunchUpdate"/>. Resolves the cached path remembered during
+    /// detection, runs the launcher (which enforces Authenticode + path containment), and
+    /// returns a typed failure when no update is ready or the launch is refused — so the caller
+    /// can surface a security error to the UI rather than silently ignoring the request.
+    /// Returns success (no-op) when no update services are configured.
+    /// </summary>
+    Result<Unit> LaunchUpdate();
+
+    /// <summary>
     /// Executes the rollback step to undo any partially applied changes.
     /// Always called with <see cref="CancellationToken.None"/> so that a user
     /// cancellation (which caused the rollback) does not also cancel the undo work.

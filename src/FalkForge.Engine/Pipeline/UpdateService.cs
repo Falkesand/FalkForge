@@ -1,0 +1,127 @@
+namespace FalkForge.Engine.Pipeline;
+
+using FalkForge.Engine.Download;
+using FalkForge.Engine.Logging;
+using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Engine.Protocol.Messages;
+
+/// <summary>
+/// Live auto-update coordinator owned by the pipeline. Turns a detected update into the
+/// per-policy behavior the design documents specify, and remembers the verified cached
+/// bundle path so a later <see cref="UiRequest.LaunchUpdate"/> from the UI can run it.
+///
+/// <para>Policy behavior (per docs/plans/2026-03-06-auto-updater-design.md):</para>
+/// <list type="bullet">
+///   <item><description><b>NotifyOnly</b> — no download; <see cref="DetectStep"/> already
+///   emitted <see cref="PipelineEvent.UpdateAvailable"/>. This service does nothing.</description></item>
+///   <item><description><b>DownloadAndPrompt</b> — background-download (delta-first, SHA-256
+///   verified), emit <see cref="PipelineEvent.UpdateDownloadProgress"/> then
+///   <see cref="PipelineEvent.UpdateReady"/>; launch only when the user later requests it.</description></item>
+///   <item><description><b>AutoUpdate</b> — same download flow; launch immediately unless
+///   <see cref="ManifestUpdateFeed.PromptBeforeAutoUpdate"/> is set (then behaves like
+///   DownloadAndPrompt).</description></item>
+/// </list>
+///
+/// <para>Reuses the fully-tested <see cref="UpdateDownloader"/> for the delta-first download,
+/// verification, and policy launch decision. The message sink adapts the downloader's
+/// <c>EngineMessage</c> output onto <see cref="IUiChannel"/> <see cref="PipelineEvent"/>s so the
+/// pipeline port abstraction is preserved.</para>
+/// </summary>
+internal sealed class UpdateService
+{
+    private readonly ManifestUpdateFeed _feed;
+    private readonly string _cacheDir;
+    private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> _download;
+    private readonly IUpdateLauncher _launcher;
+    private readonly IUiChannel _channel;
+    private readonly IEngineLogger _logger;
+
+    private string? _readyUpdatePath;
+
+    internal UpdateService(
+        ManifestUpdateFeed feed,
+        string cacheDir,
+        Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
+        IUpdateLauncher launcher,
+        IUiChannel channel,
+        IEngineLogger logger)
+    {
+        _feed = feed;
+        _cacheDir = cacheDir;
+        _download = download;
+        _launcher = launcher;
+        _channel = channel;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// True once a verified update bundle has been downloaded and is ready to launch.
+    /// </summary>
+    internal bool HasReadyUpdate => _readyUpdatePath is not null;
+
+    /// <summary>
+    /// Handles a detected update according to the configured policy. For NotifyOnly this is a
+    /// no-op (notification already happened during detection). For DownloadAndPrompt / AutoUpdate
+    /// it downloads, emits progress + ready events, and remembers the cached path. The
+    /// <see cref="UpdateDownloader"/> performs the AutoUpdate-without-prompt launch itself.
+    /// Never throws: an update failure must never block the install.
+    /// </summary>
+    internal async Task HandleUpdateAsync(UpdateInfo update, CancellationToken ct)
+    {
+        if (_feed.Policy == UpdatePolicy.NotifyOnly)
+            return;
+
+        var downloader = new UpdateDownloader(
+            _download,
+            SendAdaptedMessageAsync,
+            _logger,
+            _feed.Policy,
+            _feed.AllowResumeDownload,
+            _launcher,
+            _feed.PromptBeforeAutoUpdate,
+            _feed.ShowDownloadErrors);
+
+        await downloader.StartAsync(update, _cacheDir, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Launches the previously-downloaded, verified update bundle. Returns a typed failure
+    /// (rather than silently doing nothing) when no update is ready, so the caller can surface
+    /// the condition to the UI. The launcher itself enforces Authenticode verification and
+    /// path containment, so a refused launch (e.g. signature mismatch) returns its failure here.
+    /// </summary>
+    internal Result<Unit> LaunchReadyUpdate()
+    {
+        if (_readyUpdatePath is null)
+            return Result<Unit>.Failure(new Error(ErrorKind.EngineError,
+                "UPD005: No update has been downloaded and verified; nothing to launch."));
+
+        return _launcher.Launch(_readyUpdatePath);
+    }
+
+    /// <summary>
+    /// Adapts an <see cref="EngineMessage"/> emitted by <see cref="UpdateDownloader"/> onto the
+    /// pipeline's <see cref="IUiChannel"/> as a <see cref="PipelineEvent"/>. Also intercepts the
+    /// ready message to remember the cached path for a later launch request.
+    /// </summary>
+    private Task SendAdaptedMessageAsync(EngineMessage message, CancellationToken ct)
+    {
+        switch (message)
+        {
+            case UpdateDownloadProgressMessage p:
+                return _channel.SendAsync(
+                    new PipelineEvent.UpdateDownloadProgress(p.BytesReceived, p.TotalBytes, p.PercentComplete),
+                    ct);
+
+            case UpdateReadyMessage r:
+                _readyUpdatePath = r.LocalPath;
+                return _channel.SendAsync(new PipelineEvent.UpdateReady(r.Version, r.LocalPath), ct);
+
+            case ErrorMessage e:
+                return _channel.SendAsync(new PipelineEvent.Failed(e.Kind, e.Message), ct);
+
+            default:
+                return Task.CompletedTask;
+        }
+    }
+}

@@ -34,4 +34,25 @@ public abstract record PipelineEvent
         string NewVersion,
         string DownloadUrl,
         string? ReleaseNotes = null) : PipelineEvent;
+
+    /// <summary>
+    /// Progress of a background update download. Emitted while the engine downloads a
+    /// newer bundle for a <c>DownloadAndPrompt</c> or <c>AutoUpdate</c> policy.
+    /// <paramref name="TotalBytes"/> is the content length when known; otherwise the
+    /// percent is 0 and the UI shows an indeterminate indicator.
+    /// </summary>
+    public sealed record UpdateDownloadProgress(
+        long BytesReceived,
+        long TotalBytes,
+        int PercentComplete) : PipelineEvent;
+
+    /// <summary>
+    /// A downloaded-and-verified update bundle is cached locally and ready to launch.
+    /// Emitted after the background download completes (and, for <c>AutoUpdate</c> without
+    /// a prompt, immediately before the engine launches it). The UI uses this to offer the
+    /// user an "Install update" action that maps to <see cref="UiRequest.LaunchUpdate"/>.
+    /// </summary>
+    public sealed record UpdateReady(
+        string Version,
+        string LocalPath) : PipelineEvent;
 }
