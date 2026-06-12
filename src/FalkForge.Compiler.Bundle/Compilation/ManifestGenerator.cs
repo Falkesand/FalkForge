@@ -125,6 +125,7 @@ public sealed class ManifestGenerator
             CustomUiProjectPath = model.UiConfig?.CustomUiProjectPath,
             LicenseFile = model.UiConfig?.LicenseFile,
             UpdateFeed = updateFeed,
+            UpdatePublisherThumbprint = model.UpdateFeed?.PublisherThumbprint,
             Scope = model.Scope,
             MaxBytesPerSecond = model.MaxBytesPerSecond,
             IsDryRun = model.IsDryRun,

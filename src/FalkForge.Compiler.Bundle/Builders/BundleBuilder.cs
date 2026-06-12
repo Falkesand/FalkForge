@@ -28,6 +28,7 @@ public sealed class BundleBuilder
     private InstallScope _scope = InstallScope.PerMachine;
     private BundleUiConfig? _uiConfig;
     private UpdateFeedConfig? _updateFeed;
+    private string? _updatePublisherThumbprint;
     private Guid? _upgradeCode;
     private string _version = "1.0.0";
     private SbomOptions? _sbomOptions;
@@ -147,6 +148,21 @@ public sealed class BundleBuilder
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(feedUrl);
         _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy, AllowResumeDownload = allowResume };
+        return this;
+    }
+
+    /// <summary>
+    /// Pins the Authenticode publisher thumbprint (SHA-1, 40 hex characters) that the engine
+    /// must verify on a downloaded update bundle before launching it. A mismatch aborts the
+    /// launch as a security error. Requires an update feed to be configured via
+    /// <see cref="UpdateFeed"/>; the thumbprint is carried on the update feed config and
+    /// surfaces in the manifest as <c>UpdatePublisherThumbprint</c>.
+    /// </summary>
+    /// <param name="thumbprint">The expected certificate thumbprint (40 hex characters).</param>
+    public BundleBuilder PinUpdatePublisher(string thumbprint)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(thumbprint);
+        _updatePublisherThumbprint = thumbprint;
         return this;
     }
 
@@ -354,7 +370,18 @@ public sealed class BundleBuilder
             DependencyRequirements = _dependencyRequirements.AsReadOnly(),
             Containers = _containers.AsReadOnly(),
             UiConfig = _uiConfig,
-            UpdateFeed = _updateFeed,
+            UpdateFeed = _updatePublisherThumbprint is not null && _updateFeed is not null
+                ? new UpdateFeedConfig
+                {
+                    FeedUrl = _updateFeed.FeedUrl,
+                    Policy = _updateFeed.Policy,
+                    AllowResumeDownload = _updateFeed.AllowResumeDownload,
+                    ShowDownloadProgress = _updateFeed.ShowDownloadProgress,
+                    ShowDownloadErrors = _updateFeed.ShowDownloadErrors,
+                    PromptBeforeAutoUpdate = _updateFeed.PromptBeforeAutoUpdate,
+                    PublisherThumbprint = _updatePublisherThumbprint
+                }
+                : _updateFeed,
             MaxBytesPerSecond = _maxBytesPerSecond,
             SbomOptions = _sbomOptions,
             Integrity = _integrity,

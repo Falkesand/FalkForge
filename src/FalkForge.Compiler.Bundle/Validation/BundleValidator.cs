@@ -183,6 +183,15 @@ public sealed class BundleValidator
             if (feedUri.Scheme != Uri.UriSchemeHttps)
                 return Result<Unit>.Failure(ErrorKind.BundleError,
                     $"BDL025: Update feed URL must use HTTPS scheme, got '{feedUri.Scheme}'.");
+
+            // BDL031: Pinned publisher thumbprint must be a 40-character SHA-1 hex string.
+            // An invalid thumbprint would silently never match a real certificate, turning
+            // the security pin into an always-fail gate that blocks every update.
+            var thumbprint = model.UpdateFeed.PublisherThumbprint;
+            if (thumbprint is not null && !IsValidSha1Thumbprint(thumbprint))
+                return Result<Unit>.Failure(ErrorKind.BundleError,
+                    $"BDL031: Update publisher thumbprint '{thumbprint}' is not a valid SHA-1 Authenticode " +
+                    "thumbprint (expected 40 hexadecimal characters).");
         }
 
         // BDL027: EnableFeatureSelection only valid for MsiPackage
@@ -226,5 +235,26 @@ public sealed class BundleValidator
         }
 
         return Unit.Value;
+    }
+
+    /// <summary>
+    /// Validates that a string is a well-formed SHA-1 Authenticode thumbprint:
+    /// exactly 40 hexadecimal characters. Avoids regex/LINQ to keep the hot validation
+    /// path allocation-free (Gate 6).
+    /// </summary>
+    private static bool IsValidSha1Thumbprint(string thumbprint)
+    {
+        const int Sha1HexLength = 40;
+        if (thumbprint.Length != Sha1HexLength)
+            return false;
+
+        foreach (var c in thumbprint)
+        {
+            var isHex = c is (>= '0' and <= '9') or (>= 'a' and <= 'f') or (>= 'A' and <= 'F');
+            if (!isHex)
+                return false;
+        }
+
+        return true;
     }
 }
