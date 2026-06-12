@@ -36,7 +36,11 @@ internal sealed class UpdateService
     private readonly IUiChannel _channel;
     private readonly IEngineLogger _logger;
 
-    private string? _readyUpdatePath;
+    // Written once by the download callback (SendAdaptedMessageAsync, on the download task) and
+    // read later by HasReadyUpdate / LaunchReadyUpdate (on the UI-request path). volatile is
+    // sufficient: there is a single writer and the path is only ever set, never mutated, so no
+    // read-modify-write races exist — only cross-thread visibility needs guaranteeing.
+    private volatile string? _readyUpdatePath;
 
     internal UpdateService(
         ManifestUpdateFeed feed,

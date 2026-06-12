@@ -172,7 +172,7 @@ public sealed class InstallerPipelineBuilder
     /// Registers the auto-update services that turn the manifest's update feed into live
     /// behavior: <paramref name="checker"/> fetches the feed during <see cref="DetectStep"/>,
     /// and <paramref name="service"/> performs the per-policy download/launch and is consulted
-    /// by <see cref="IInstallerPipeline.LaunchUpdateAsync"/> when the UI requests a launch.
+    /// by <see cref="IInstallerPipeline.LaunchUpdate"/> when the UI requests a launch.
     /// When not registered, the pipeline behaves as before (no update check, LaunchUpdate is a
     /// no-op).
     /// </summary>

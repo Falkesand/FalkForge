@@ -42,8 +42,9 @@ public sealed class InstallerManifest
     /// different publisher.
     /// </para>
     /// <para>
-    /// Authored via <c>BundleBuilder.WithUpdateFeed(...).PinUpdatePublisher("&lt;thumbprint&gt;")</c>
-    /// (authoring wiring not yet implemented — set the manifest field directly for now).
+    /// Authored via the fluent API:
+    /// <c>BundleBuilder.UpdateFeed(...).PinUpdatePublisher("&lt;thumbprint&gt;")</c>. The thumbprint
+    /// is carried on the update feed config and surfaces here through the manifest generator.
     /// </para>
     /// </summary>
     public string? UpdatePublisherThumbprint { get; init; }
