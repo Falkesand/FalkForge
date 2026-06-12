@@ -29,6 +29,12 @@ app.Configure(config =>
         .WithExample("plan", "installer.exe", "-o", "plan.json")
         .WithExample("plan", "installer.exe", "--json");
 
+    config.AddCommand<PlanDiffCommand>("plan-diff")
+        .WithDescription("Diff two installer artifacts (MSI or EXE bundle) and report what changed")
+        .WithExample("plan-diff", "v1.msi", "v2.msi")
+        .WithExample("plan-diff", "v1.exe", "v2.exe", "--markdown")
+        .WithExample("plan-diff", "v1.msi", "v2.msi", "--json");
+
     config.AddCommand<VerifyCommand>("verify")
         .WithDescription("Independently verify a shipped artifact by rebuilding from source and byte-comparing")
         .WithExample("verify", "app.msi", "--rebuild", "installer.csproj")
