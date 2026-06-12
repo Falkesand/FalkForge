@@ -162,12 +162,95 @@ sha256sum MyApp.exe   # compare against components[].hashes[].content
 
 `BundleBuilder.Integrity()` enables pure-.NET ECDSA-P256 signing of the bundle's payload
 hash list. The signature is embedded in the bundle manifest. The engine verifies the
-signature before the Apply phase.
+signature before the Apply phase via `PayloadIntegrityGate`.
 
 ### What is signed
 
 The signed envelope covers the ordered list of `(packageId, sha256Hash)` pairs for every
-embedded payload. Any tampered payload (or added/removed package) fails verification.
+embedded payload. The envelope also embeds the **public half** of the signing key so the
+verifier needs nothing external.
+
+### Threat model — read this before relying on it
+
+The security property you get depends entirely on **how the verifying key reaches the
+engine**. There are two distinct modes, and the difference is not cosmetic.
+
+#### Ephemeral / self-describing-key mode (default) — *integrity, not authorship*
+
+In the default mode the verifying key is carried **inside the envelope** (`.WithEphemeralKey()`
+generates a fresh key per build; even `.WithPemKey(...)` only changes *which* key signs — the
+public half is still embedded in the bundle the engine reads). This proves **internal
+consistency**:
+
+- the payload bytes match their manifest hashes (cache layer), and
+- those hashes are the ones covered by the signature, and
+- every package that will run is in the signed set (set-coverage, see below).
+
+It therefore **detects casual tampering in transit** — an attacker who flips bytes in a
+payload, swaps a hash, or appends an unsigned package without re-signing is caught.
+
+It does **NOT prove authorship.** An attacker who fully rewrites the bundle can recompute
+the hashes, re-sign the file list with **their own** ECDSA key, and embed **their own** public
+key. The engine has no out-of-band reference to compare that key against, so verification
+**passes**. In-band pinning (a fingerprint stored inside the same bundle) adds nothing here,
+because the attacker rewrites the pin in the same pass. This is an honest limitation of any
+self-describing-key scheme, not a bug.
+
+> **Do not claim "an attacker cannot forge the signature" for default mode.** They can — by
+> signing with their own key. Default mode is tamper-*evidence*, equivalent to a checksum the
+> builder vouches for, not a publisher identity proof.
+
+#### Pinned-publisher mode — *authorship*
+
+To get authorship, a **host embedding the engine** supplies an expected publisher-key
+fingerprint **out-of-band** — through a channel the attacker cannot rewrite, namely the host's
+own binary or configuration, *never* the bundle. The fingerprint is the SHA-256 of the signer's
+SubjectPublicKeyInfo (uppercase hex; colon-separated and lowercase forms are accepted). When
+supplied, `PayloadIntegrityGate` requires the envelope's embedded key to match the pin, so a
+bundle re-signed by an untrusted publisher is rejected with `INT005`.
+
+```csharp
+// Host wiring (the host that embeds FalkForge.Engine), e.g. via PipelineContext:
+ctx.ExpectedPublisherKeyFingerprint = "9F86D081884C7D659A2FEAA0C55AD015...";
+```
+
+This is the practical seam available today. End-to-end publisher-key distribution (so a plain
+bundle download is authorship-verifiable without host wiring) is deferred to the signed-feed
+(TUF-lite) phase — see the ADR note below.
+
+##### ADR note — why in-band pinning waits for the signed feed
+
+A pin only adds security if it arrives over a channel the attacker does not also control. The
+bundle is fully attacker-controlled in the rewrite threat model, so any fingerprint embedded
+*in* the bundle is rewritten alongside the key it is meant to pin — it is self-defeating. The
+two channels that are *not* the bundle are (a) the host binary embedding the engine — handled
+today by `ExpectedPublisherKeyFingerprint`, and (b) a separately-signed update feed whose root
+key is trusted on first use / shipped with the host — deferred to Phase 4. Until (b) exists,
+authorship verification for a standalone bundle download is only available to hosts that pin
+via (a). Shipping a fake in-band pin would imply a guarantee we cannot keep, so we deliberately
+do not.
+
+### Set coverage (signed manifests are exhaustive)
+
+Once a manifest is signed, the gate enforces verification in **both** directions:
+
+- **signed → manifest:** every signed entry binds to a manifest package with a matching hash
+  (`INT002` on mismatch / `INT003`/`INT002` on a signed entry with no package), and
+- **manifest → signed:** every package in the manifest is in the signed set (`INT004`
+  otherwise).
+
+The second direction closes the gap where an attacker appends an unsigned package to a validly
+signed bundle and has it execute alongside the signed ones.
+
+### Unsigned manifests pass (deliberate, backward-compatible)
+
+If `manifest.ManifestSignature` is `null` the gate returns success and the install proceeds.
+This is **intentional**: bundles built without `.Integrity()` predate the feature and must keep
+working, and the gate is an *additive* defense, not a mandatory signing requirement. The
+trade-off is explicit — an attacker can strip the signature entirely (set it to `null`) and the
+gate will not object, exactly as it would not object to a bundle that was never signed. Making
+signatures mandatory would be a host-policy decision (e.g. a future "require-signed" mode),
+not a property of the gate today.
 
 ### Fluent API
 
@@ -175,8 +258,11 @@ embedded payload. Any tampered payload (or added/removed package) fails verifica
 Installer.BuildBundle(b => b
     .Name("MyBundle").Version("1.0.0")
     .Integrity(i => i
-        .WithEphemeralKey()        // dev / test
-        // or .WithPemKey(privateKeyPem)  // production: load from vault
+        .WithEphemeralKey()        // dev / test — integrity only
+        // or .WithPemKey(privateKeyPem)  // production: load from vault.
+        //    NOTE: PemKey changes WHICH key signs but the public half is still
+        //    embedded in the bundle. Authorship still requires a host-side pin
+        //    (ExpectedPublisherKeyFingerprint) verified out-of-band.
     )
     .Chain(c => c.MsiPackage("output/MyApp-1.0.0.msi", p => p.Id("MyApp"))));
 ```
@@ -184,12 +270,14 @@ Installer.BuildBundle(b => b
 ### Engine gate
 
 Before the Apply phase, `ApplyStep` reads `ctx.Manifest.ManifestSignature`. When present,
-it verifies the ECDSA signature against the embedded payload hashes. Any mismatch produces
-`ErrorKind.SecurityError` and aborts the installation.
+`PayloadIntegrityGate.Verify` checks the ECDSA signature, the optional publisher pin, the
+hash bindings, and set coverage. Any failure produces `ErrorKind.SecurityError` and aborts the
+installation before a single package runs.
 
 ### Artifact location
 
-The signature is embedded in the bundle manifest (inside the EXE). No external file.
+The signature is embedded in the bundle manifest (inside the EXE). No external file. The
+publisher pin, when used, lives in the host — not the artifact.
 
 ---
 
@@ -391,6 +479,11 @@ once plan support is confirmed or the repository is made public.
 
 | Code | Description |
 |------|-------------|
+| INT001 | Manifest integrity signature verification failed (tampering or wrong key) |
+| INT002 | Signed hash does not match the manifest package hash, or a signed entry has no package |
+| INT003 | Malformed integrity envelope (parse failure, missing key/signature, bad base64) |
+| INT004 | Manifest package is not covered by the integrity signature (set-coverage violation) |
+| INT005 | Publisher key pin mismatch — bundle signed by a key other than the pinned publisher |
 | SBM001 | Failed to compute SHA-256 hash for SBOM component |
 | SBM002 | Failed to write SBOM output file |
 | PLN001 | Detection phase failed during plan-only mode |
