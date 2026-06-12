@@ -46,11 +46,21 @@ internal static class EcdsaManifestSigner
         return IntegrityEnvelopeCodec.Serialize(envelope);
     }
 
+    /// <summary>
+    /// Creates the ECDSA key for signing. Transfers ownership of the returned
+    /// <see cref="ECDsa"/> instance to the caller: <see cref="Sign"/> immediately
+    /// disposes it via <c>using var key = keyResult.Value</c>. On failure the
+    /// result carries no disposable value.
+    /// </summary>
     private static Result<ECDsa> CreateKey(IntegrityConfiguration? config)
     {
         var keyPath = config?.SigningKeyPath;
         if (string.IsNullOrEmpty(keyPath))
+        {
+#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes via `using var key`.
             return ECDsa.Create(ECCurve.NamedCurves.nistP256);
+#pragma warning restore IDISP005
+        }
 
         if (!File.Exists(keyPath))
             return Result<ECDsa>.Failure(ErrorKind.SecurityError,
@@ -61,7 +71,9 @@ internal static class EcdsaManifestSigner
             var pem = File.ReadAllText(keyPath);
             var ecdsa = ECDsa.Create();
             ecdsa.ImportFromPem(pem);
+#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes via `using var key`.
             return ecdsa;
+#pragma warning restore IDISP005
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or CryptographicException)
         {

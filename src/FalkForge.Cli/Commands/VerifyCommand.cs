@@ -107,7 +107,7 @@ internal sealed class VerifyCommand : Command<VerifySettings>
 
         try
         {
-            return ExecuteWithTempDir(settings, output, result, artifactPath, projectPath, artifactExt, epoch, tempDir, ct);
+            return ExecuteWithTempDir(output, result, artifactPath, projectPath, artifactExt, epoch, tempDir, ct);
         }
         finally
         {
@@ -118,13 +118,12 @@ internal sealed class VerifyCommand : Command<VerifySettings>
                 if (Directory.Exists(tempDir))
                     Directory.Delete(tempDir, recursive: true);
             }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            catch (IOException) { /* best-effort cleanup — failure must not mask a completed verification */ }
+            catch (UnauthorizedAccessException) { /* best-effort cleanup — failure must not mask a completed verification */ }
         }
     }
 
     private int ExecuteWithTempDir(
-        VerifySettings settings,
         IConsoleOutput output,
         IDictionary<string, string?> result,
         string artifactPath,
@@ -139,8 +138,10 @@ internal sealed class VerifyCommand : Command<VerifySettings>
         RebuildResult rebuild;
         try
         {
+#pragma warning disable VSTHRD002 // Console app — no sync context, no deadlock risk.
             rebuild = _runner.RebuildAsync(projectPath, tempDir, epoch, RebuildTimeout, ct)
                 .GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
         }
         catch (OperationCanceledException)
         {
@@ -193,7 +194,7 @@ internal sealed class VerifyCommand : Command<VerifySettings>
             return ExitCodes.Success;
         }
 
-        return ReportMismatch(output, result, artifactPath, rebuiltPath, artifactExt, report);
+        return ReportMismatch(output, result, rebuiltPath, artifactExt, report);
     }
 
     /// <summary>
@@ -204,7 +205,6 @@ internal sealed class VerifyCommand : Command<VerifySettings>
     private static int ReportMismatch(
         IConsoleOutput output,
         IDictionary<string, string?> result,
-        string artifactPath,
         string rebuiltPath,
         string artifactExt,
         ComparisonReport report)
