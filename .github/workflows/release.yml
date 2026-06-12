@@ -1,0 +1,147 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Upload-artifact@v5 still declares a Node 20 runtime; opt all JavaScript
+# actions into Node 24 ahead of the 2026-06-16 default switch.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    permissions:
+      id-token: write       # required for OIDC token used by attest-build-provenance
+      contents: write       # required to create the GitHub Release and upload assets
+      attestations: write   # required to write build provenance attestations
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore FalkForge.slnx
+
+      - name: Build (Release)
+        run: dotnet build FalkForge.slnx --no-restore -c Release
+
+      # Full test suite must be green before any release artifact is published.
+      # A test failure here aborts the workflow — no release is created.
+      - name: Test (full suite)
+        run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults --blame-hang-timeout 120s
+
+      # --- Publish NativeAOT artifacts ---
+      # Engine and Elevation require a RID for NativeAOT compilation.
+      # win-x64 is the only supported target for Windows MSI P/Invoke.
+
+      - name: Publish Engine (NativeAOT, win-x64)
+        run: >
+          dotnet publish src/FalkForge.Engine/FalkForge.Engine.csproj
+          -c Release -r win-x64 --self-contained
+          -o release-artifacts/engine
+
+      - name: Publish Engine.Elevation (NativeAOT, win-x64)
+        run: >
+          dotnet publish src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj
+          -c Release -r win-x64 -f net10.0-windows --self-contained
+          -o release-artifacts/elevation
+
+      # Cli is a standard managed exe (no NativeAOT); publish as self-contained win-x64
+      # so it ships without requiring .NET on the target machine.
+      - name: Publish CLI (self-contained, win-x64)
+        run: >
+          dotnet publish src/FalkForge.Cli/FalkForge.Cli.csproj
+          -c Release -r win-x64 --self-contained
+          -o release-artifacts/cli
+
+      # --- Collect and checksum ---
+
+      - name: Collect release artifacts
+        shell: pwsh
+        run: |
+          $out = "release-artifacts/dist"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          # Engine exe
+          Copy-Item "release-artifacts/engine/FalkForge.Engine.exe"           "$out/FalkForge.Engine.exe"
+          # Elevation exe
+          Copy-Item "release-artifacts/elevation/FalkForge.Engine.Elevation.exe" "$out/FalkForge.Engine.Elevation.exe"
+          # CLI exe
+          Copy-Item "release-artifacts/cli/forge.exe"                          "$out/forge.exe"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $distDir = "release-artifacts/dist"
+          $checksumFile = "$distDir/SHA256SUMS.txt"
+          $lines = Get-ChildItem -Path $distDir -File |
+            Where-Object { $_.Name -ne "SHA256SUMS.txt" } |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLower()
+              "$hash  $($_.Name)"
+            }
+          $lines | Set-Content -Path $checksumFile -Encoding UTF8
+          Write-Host "Checksums written to $checksumFile"
+          $lines | ForEach-Object { Write-Host $_ }
+
+      # --- SLSA-style build provenance attestation ---
+      # Attests that the artifacts were produced by this exact workflow run.
+      # Verification: gh attestation verify <file> --repo Falkesand/FalkForge
+      #
+      # NOTE: continue-on-error: true — GitHub build provenance attestations require
+      # the repository to be on a paid plan when running on private repos with
+      # GitHub-hosted runners. Until this repo is public (or plan confirmed), the
+      # attestation step is best-effort and will not block the release on failure.
+      # A warning step below makes any failure visible in the workflow summary.
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        continue-on-error: true
+        with:
+          subject-path: |
+            release-artifacts/dist/FalkForge.Engine.exe
+            release-artifacts/dist/FalkForge.Engine.Elevation.exe
+            release-artifacts/dist/forge.exe
+            release-artifacts/dist/SHA256SUMS.txt
+
+      - name: Warn if attestation skipped or failed
+        if: steps.attest.outcome != 'success'
+        shell: pwsh
+        run: |
+          Write-Host "::warning::Build provenance attestation did not complete (outcome: ${{ steps.attest.outcome }})."
+          Write-Host "::warning::Possible causes: private repo on free plan, OIDC token unavailable, or transient API error."
+          Write-Host "::warning::Artifacts are still released. Re-run after confirming plan support or making the repo public."
+
+      # --- Publish GitHub Release ---
+      # Uses the gh CLI (pre-installed on windows-latest) rather than a third-party
+      # release action to minimize the dependency surface.
+
+      - name: Create GitHub Release and upload artifacts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $distDir = "release-artifacts/dist"
+
+          # Collect file paths for upload
+          $files = Get-ChildItem -Path $distDir -File | ForEach-Object { $_.FullName }
+
+          $fileArgs = $files -join " "
+
+          gh release create $tag `
+            --repo "${{ github.repository }}" `
+            --title "FalkForge $tag" `
+            --generate-notes `
+            $files
+
+          Write-Host "Release $tag created with $($files.Count) artifact(s)."
