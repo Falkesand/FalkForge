@@ -238,6 +238,41 @@ public sealed class MessageDeserializerFuzzTests
         }
     }
 
+    /// <summary>
+    /// Pinned regression for the bit-flip frame that escaped the codec read guard
+    /// (fuzz seed 0xFACC1002, iteration 105, LogMessage baseline). The corrupting
+    /// flips shift the length-prefixed Text field so that fewer than 16 bytes remain
+    /// for the trailing 16-byte SessionCorrelationId GUID. <c>new Guid(byte[])</c>
+    /// then throws <see cref="ArgumentException"/> ("Byte array for Guid must be
+    /// exactly 16 bytes long"), which the deserializer's original catch filter
+    /// (<see cref="IOException"/>/<see cref="EndOfStreamException"/>/
+    /// <see cref="InvalidOperationException"/> only) did not cover, so it escaped as
+    /// an unhandled throw. The facade contract is "never throws for malformed wire
+    /// input" — this frame must return a typed <see cref="Result{T}"/> failure.
+    /// </summary>
+    [Fact]
+    public void Deserialize_LogFrameCorruptingGuidLength_ReturnsFailureNotThrows()
+    {
+        // Exact bytes produced by the fuzz harness at seed 0xFACC1002, iteration 105.
+        var malformed = Convert.FromHexString(
+            "02000A011D000000060000020C74677374020000000000000800C000000400000000004000");
+
+        Result<EngineMessage> result;
+        try
+        {
+            result = MessageDeserializer.Deserialize(malformed);
+        }
+        catch (Exception ex)
+        {
+            Assert.Fail(
+                $"Malformed Log frame must not throw; deserializer leaked {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
+
+        Assert.True(result.IsFailure,
+            "Corrupted Log frame should be rejected as a typed failure, not parsed.");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static byte[] MutateBitFlips(Random rng, byte[] input, int flips)
