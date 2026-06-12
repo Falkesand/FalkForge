@@ -29,6 +29,12 @@ app.Configure(config =>
         .WithExample("plan", "installer.exe", "-o", "plan.json")
         .WithExample("plan", "installer.exe", "--json");
 
+    config.AddCommand<VerifyCommand>("verify")
+        .WithDescription("Independently verify a shipped artifact by rebuilding from source and byte-comparing")
+        .WithExample("verify", "app.msi", "--rebuild", "installer.csproj")
+        .WithExample("verify", "installer.exe", "--rebuild", "installer.csproj", "--json")
+        .WithExample("verify", "app.msi", "--rebuild", "installer.csproj", "--source-date-epoch", "1577836800");
+
     config.AddCommand<InspectCommand>("inspect")
         .WithDescription("Display MSI metadata (tables, features, summary info)")
         .WithExample("inspect", "package.msi")
