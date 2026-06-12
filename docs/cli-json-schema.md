@@ -10,7 +10,7 @@ The `--json` flag is supported on:
 | `forge validate` | implemented |
 | `forge inspect` | implemented (Windows-only) |
 | `forge plan` | implemented — extracts bundle manifest, launches engine headless in plan-only mode, renders package action summary |
-| `forge verify` | implemented — rebuilds the source project reproducibly and byte-compares against a shipped artifact; emits a VERIFIED/MISMATCH/REBUILD-FAILED verdict |
+| `forge verify` | implemented — rebuilds the source project reproducibly and byte-compares against a shipped artifact; emits a VERIFIED/MISMATCH/REBUILD-FAILED/SETUP-ERROR verdict |
 | `forge rules list` | implemented — raw JSON array (not the common envelope; see [forge rules list --json](#forge-rules-list---json)) |
 
 Source of truth: [`src/FalkForge.Cli/JsonConsoleOutput.cs`](../src/FalkForge.Cli/JsonConsoleOutput.cs) and [`src/FalkForge.Cli/Commands/`](../src/FalkForge.Cli/Commands/).
@@ -229,7 +229,8 @@ forge plan installer.exe --json
 | `VERIFIED` | `0` | Rebuilt artifact is byte-identical to the shipped artifact. |
 | `MISMATCH` | `1` | Bytes differ. The diagnostic reports the signed size delta, the total differing-byte count, the first differing offsets (hex), and — for bundles — the structural region (`footer` / `TOC` / `payload/manifest/stub`) the first difference falls in. |
 | `REBUILD-FAILED` | `2` | The rebuild process exited non-zero (the project did not build). |
-| (setup failure) | `3` | Artifact or project missing, epoch unresolved, or the rebuild produced no artifact of the expected type. |
+| `SETUP-ERROR` | `3` | The rebuild succeeded (exit 0) but produced no artifact of the expected type — a project/config mismatch, not a build failure. Distinct from `REBUILD-FAILED` so a verdict maps to exactly one exit code. |
+| (no verdict) | `3` | IO/setup failure *before* the rebuild ran: artifact or project missing, or epoch unresolved. The envelope carries no `verdict` key in this case. |
 
 **Envelope:** standard. The `result` map carries: `verdict` (always), `expectedSize`/`actualSize` (after a successful rebuild), and on `MISMATCH` also `sizeDelta`, `differingBytes`, `firstDifferingOffset`, and for bundles `region` and `signed`.
 
@@ -246,7 +247,7 @@ forge plan installer.exe --json
 - `0` — `VERIFIED`
 - `1` — `MISMATCH`
 - `2` — `REBUILD-FAILED`
-- `3` — setup/IO failure
+- `3` — `SETUP-ERROR` (rebuild produced no artifact) or pre-rebuild setup/IO failure (no verdict)
 
 **Example:**
 

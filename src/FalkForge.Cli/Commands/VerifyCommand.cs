@@ -18,9 +18,11 @@ namespace FalkForge.Cli.Commands;
 ///   <item><c>VERIFIED</c> (exit 0) — rebuilt artifact is byte-identical.</item>
 ///   <item><c>MISMATCH</c> (exit 1) — bytes differ; the diagnostic reports the size delta, total
 ///   differing-byte count, first differing offsets, and (for bundles) the region that differs.</item>
-///   <item><c>REBUILD-FAILED</c> (exit 2) — the rebuild process exited non-zero.</item>
-///   <item>exit 3 — IO/setup failure (artifact missing, no rebuilt artifact produced, epoch
-///   unresolved).</item>
+///   <item><c>REBUILD-FAILED</c> (exit 2) — the rebuild process exited non-zero (build failed).</item>
+///   <item><c>SETUP-ERROR</c> (exit 3) — the rebuild succeeded but produced no artifact of the
+///   expected type (a project/config mismatch, not a build failure).</item>
+///   <item>exit 3 (no verdict) — IO/setup failure before the rebuild: artifact missing, project
+///   missing, or epoch unresolved.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -169,9 +171,13 @@ internal sealed class VerifyCommand : Command<VerifySettings>
 
         if (rebuiltPath is null)
         {
-            result["verdict"] = "REBUILD-FAILED";
+            // The rebuild process exited 0 — the build itself succeeded — but emitted no
+            // artifact of the expected type. This is a setup/config mismatch, not a build
+            // failure, so it gets a distinct verdict (SETUP-ERROR) at exit 3. Reusing
+            // REBUILD-FAILED here would map one verdict to two exit codes (2 and 3).
+            result["verdict"] = "SETUP-ERROR";
             output.WriteError(
-                $"REBUILD-FAILED: rebuild succeeded but produced no {artifactExt} artifact. " +
+                $"SETUP-ERROR: rebuild succeeded but produced no {artifactExt} artifact. " +
                 "Ensure the project builds the same artifact type as the one being verified.");
             return ExitCodes.RuntimeError;
         }
