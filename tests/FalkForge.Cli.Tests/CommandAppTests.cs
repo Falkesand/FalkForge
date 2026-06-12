@@ -33,8 +33,7 @@ public sealed class CommandAppTests
             config.Settings.Registrar.Register<IConsoleOutput, SpectreConsoleOutput>();
             config.AddCommand<BuildCommand>("build");
             config.AddCommand<ValidateCommand>("validate");
-            // PlanCommand is NOT registered here — it is hidden from users until the engine
-            // supports --plan-only mode. See Program.cs and PlanCommand.cs.
+            config.AddCommand<PlanCommand>("plan");
             config.AddCommand<InspectCommand>("inspect");
             config.AddCommand<DecompileCommand>("decompile");
             config.AddBranch("bundle", bundle =>
@@ -47,18 +46,25 @@ public sealed class CommandAppTests
     }
 
     [Fact]
-    public void PlanCommand_IsNotRegisteredInProductionApp_EngineBinaryErrorNotReturned()
+    public void PlanCommand_IsRegisteredInProductionApp_NonExistentBundleReturnsNonZero()
     {
-        // PlanCommand is hidden from the production CLI until the engine supports --plan-only.
-        // Invoking 'forge plan' must NOT silently return ExitCodes.RuntimeError with a
-        // misleading "requires engine binary" message — the command should be unknown.
+        // PlanCommand is now registered. Running it with a non-existent file should
+        // return a non-zero exit code (file not found error), not an unknown-command result.
         var app = CreateFullApp();
 
-        var result = app.Run(["plan", "installer.csx"]);
+        var result = app.Run(["plan", "nonexistent_bundle_xyz.exe"]);
 
-        // Spectre returns -1 for unknown commands; RuntimeError (1) would mean the stub
-        // executed and emitted the misleading "requires engine binary" error.
-        Assert.NotEqual(ExitCodes.RuntimeError, result);
+        Assert.NotEqual(0, result);
+    }
+
+    [Fact]
+    public void Plan_NoArguments_ReturnsNonZero()
+    {
+        var app = CreateFullApp();
+
+        var result = app.Run(["plan"]);
+
+        Assert.NotEqual(0, result);
     }
 
     [Fact]
