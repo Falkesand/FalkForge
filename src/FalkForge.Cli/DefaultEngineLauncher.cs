@@ -5,7 +5,9 @@ using System.Text;
 
 /// <summary>
 /// Production implementation of <see cref="IEngineLauncher"/>.
-/// Starts the engine as a child process, captures stdout, and returns when it exits.
+/// Starts the engine as a child process, captures stdout and stderr, and returns when it exits.
+/// On cancellation, kills the entire subprocess tree so it does not keep holding temp manifest
+/// files or bundle locks after the caller's scope ends.
 /// </summary>
 internal sealed class DefaultEngineLauncher : IEngineLauncher
 {
@@ -17,7 +19,7 @@ internal sealed class DefaultEngineLauncher : IEngineLauncher
         {
             Arguments = string.Join(" ", args.Select(EscapeArg)),
             RedirectStandardOutput = true,
-            RedirectStandardError = false,
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -25,18 +27,38 @@ internal sealed class DefaultEngineLauncher : IEngineLauncher
         using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
         var stdoutBuilder = new StringBuilder();
+        var stderrBuilder = new StringBuilder();
+
         process.OutputDataReceived += (_, e) =>
         {
             if (e.Data is not null)
                 stdoutBuilder.AppendLine(e.Data);
         };
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is not null)
+                stderrBuilder.AppendLine(e.Data);
+        };
 
         process.Start();
         process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
 
-        await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation was requested while the engine was running. Kill the entire process
+            // tree so the subprocess does not keep holding temp manifest files or bundle locks
+            // after this method returns. Swallow Kill failures (e.g. process already exited
+            // between the cancellation firing and this handler running), then rethrow.
+            try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+            throw;
+        }
 
-        return new EngineLaunchResult(process.ExitCode, stdoutBuilder.ToString());
+        return new EngineLaunchResult(process.ExitCode, stdoutBuilder.ToString(), stderrBuilder.ToString());
     }
 
     /// <summary>

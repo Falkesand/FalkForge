@@ -155,6 +155,9 @@ internal sealed class PlanCommand : Command<PlanSettings>
             output.WriteError($"Engine exited with code {launchResult.ExitCode}.");
             if (!string.IsNullOrWhiteSpace(launchResult.Stdout))
                 output.WriteError(launchResult.Stdout.Trim());
+            // Surface stderr so crash output and engine validation errors are visible.
+            if (!string.IsNullOrWhiteSpace(launchResult.Stderr))
+                output.WriteError(launchResult.Stderr.Trim());
             return ExitCodes.RuntimeError;
         }
 
