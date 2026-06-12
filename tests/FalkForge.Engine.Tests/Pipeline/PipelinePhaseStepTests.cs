@@ -1,10 +1,12 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
+using System.Security.Cryptography;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.RestartManager;
 using FalkForge.Engine.Tests.Logging;
@@ -590,6 +592,93 @@ public sealed class PipelinePhaseStepTests
 
         // Nothing journaled in dry-run — nothing to roll back
         Assert.Empty(journalStore.Entries);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ApplyStep — integrity gate (Phase 2.1)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ApplyStep_SignedManifest_MatchingHashes_Applies()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        var pkg = ExePackage("Signed");           // Sha256Hash = "DEADBEEF"
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignManifest(key, pkg, ("Signed", "DEADBEEF"));
+
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Plan = BuildPlanFor(pkg, PlanActionType.Install)
+        };
+
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var step = new ApplyStep(BuildExecutorWith(runner), journalStore, channel);
+
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        // The payload actually executed (gate let it through).
+        Assert.NotNull(runner.LastFileName);
+    }
+
+    [Fact]
+    public async Task ApplyStep_TamperedSignedManifest_AbortsBeforeExecuting()
+    {
+        await using var channel = new FakeUiChannel();
+        using var journalStore = new InMemoryJournalStore();
+
+        // Sign "Signed=AABB" but the manifest package now claims DEADBEEF — as if the
+        // payload (and its unsigned package hash) were swapped after signing.
+        var pkg = ExePackage("Signed");           // Sha256Hash = "DEADBEEF"
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignManifest(key, pkg, ("Signed", "AABB"));
+
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Plan = BuildPlanFor(pkg, PlanActionType.Install)
+        };
+
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var step = new ApplyStep(BuildExecutorWith(runner), journalStore, channel);
+
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        // Critical: nothing executed — the gate ran before any payload.
+        Assert.Null(runner.LastFileName);
+        Assert.Empty(journalStore.Entries);
+    }
+
+    /// <summary>
+    /// Builds a manifest whose embedded signature envelope is signed by <paramref name="key"/>
+    /// over the supplied (packageId, hash) entries.
+    /// </summary>
+    private static InstallerManifest SignManifest(
+        ECDsa key,
+        PackageInfo package,
+        params (string id, string hash)[] entries)
+    {
+        var files = entries
+            .Select(e => new ManifestFileEntry { Name = e.id, Sha256 = e.hash })
+            .ToList();
+        var signature = IntegrityEnvelopeCodec.Serialize(IntegrityEnvelopeCodec.Sign(files, key));
+
+        return new InstallerManifest
+        {
+            Name = "TestApp",
+            Manufacturer = "Acme",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerUser,
+            Packages = [package],
+            ManifestSignature = signature
+        };
     }
 
     // ──────────────────────────────────────────────────────────────────────────
