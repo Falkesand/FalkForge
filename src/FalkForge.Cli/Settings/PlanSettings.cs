@@ -7,8 +7,8 @@ namespace FalkForge.Cli.Settings;
 
 public sealed class PlanSettings : CommandSettings
 {
-    [CommandArgument(0, "<project>")]
-    [Description("Path to the installer script or JSON config")]
+    [CommandArgument(0, "<bundle>")]
+    [Description("Path to the compiled bundle EXE to plan")]
     public string ProjectPath { get; init; } = string.Empty;
 
     [CommandOption("--output <path>")]
