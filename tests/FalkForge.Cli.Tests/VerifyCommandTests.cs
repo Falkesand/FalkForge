@@ -121,11 +121,16 @@ public sealed class VerifyCommandTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
-    // RuntimeError: rebuild succeeds but produces no matching artifact -> exit 3
+    // SETUP-ERROR: rebuild succeeds (exit 0) but produces no matching artifact -> exit 3.
+    // The build itself succeeded, so this is NOT a REBUILD-FAILED: reusing that verdict for
+    // both exit 2 (build failed) and exit 3 (no artifact) made the verdict ambiguous — the
+    // same string mapped to two exit codes. No-artifact is a setup/config mismatch (the
+    // project builds a different artifact type) and gets its own verdict so verdict<->exit
+    // is one-to-one.
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Execute_RebuildProducesNoArtifact_ReturnsRuntimeError()
+    public void Execute_RebuildProducesNoArtifact_ReturnsRuntimeErrorWithSetupErrorVerdict()
     {
         var artifact = TempArtifact(".msi", [1, 2, 3]);
         var runner = new FakeRebuildRunner(exitCode: 0, emittedArtifactBytes: null, emittedExt: ".msi");
@@ -141,6 +146,9 @@ public sealed class VerifyCommandTests : IDisposable
         var code = command.Execute(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, code);
+        // Distinct verdict — must NOT be REBUILD-FAILED (that is the exit-2 build-failure verdict).
+        Assert.Contains(output.AllOutput, m => m.Contains("SETUP-ERROR", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(output.AllOutput, m => m.Contains("REBUILD-FAILED", StringComparison.OrdinalIgnoreCase));
     }
 
     // -------------------------------------------------------------------------
