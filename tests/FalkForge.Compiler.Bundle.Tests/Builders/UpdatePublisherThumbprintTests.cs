@@ -114,7 +114,35 @@ public sealed class UpdatePublisherThumbprintTests : IDisposable
         Assert.True(result.IsSuccess);
     }
 
-    private BundleModel CreateModel(UpdateFeedConfig updateFeed)
+    [Fact]
+    public void Build_PinWithoutUpdateFeed_CarriesThumbprintForValidation()
+    {
+        // A pinned thumbprint without an update feed must NOT be silently dropped: it must
+        // survive Build() so the validator can fail it loudly (intent: a security pin the
+        // author thought was active but that never reached the manifest is a silent
+        // misconfiguration, not a no-op).
+        var model = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .PinUpdatePublisher(ValidThumbprint)
+            .Build();
+
+        Assert.Null(model.UpdateFeed);
+        Assert.Equal(ValidThumbprint, model.UpdatePublisherThumbprint);
+    }
+
+    [Fact]
+    public void Validate_PinWithoutUpdateFeed_ReturnsBdl032()
+    {
+        var model = CreateModel(updateFeed: null, pinnedThumbprint: ValidThumbprint);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BDL032", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    private BundleModel CreateModel(UpdateFeedConfig? updateFeed, string? pinnedThumbprint = null)
     {
         var sourceFile = Path.Combine(_tempDir, "app.msi");
         File.WriteAllText(sourceFile, "content");
@@ -137,7 +165,8 @@ public sealed class UpdatePublisherThumbprintTests : IDisposable
                     SourcePath = sourceFile
                 }
             ],
-            UpdateFeed = updateFeed
+            UpdateFeed = updateFeed,
+            UpdatePublisherThumbprint = pinnedThumbprint
         };
     }
 }
