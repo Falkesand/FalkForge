@@ -312,7 +312,13 @@ public static class MsiAuthoring
 
         // Step 9: ICE validation. Reproducible builds skip ICE because ICE
         // dialog boxes can perturb the file in ways that drift the digest.
-        IceConfiguration iceConfig = package.IceConfiguration ?? new IceConfiguration();
+        // Default IceConfiguration for forge build uses lenient cub-absent behavior:
+        // developer machines without the Windows SDK should not fail the build unless
+        // the user has explicitly configured strict ICE via PackageBuilder.Ice().
+        // CLI forge validate --ice and CI pipelines that need strict checking must use
+        // the explicit config path or set SkipWhenCubUnavailable = false.
+        IceConfiguration iceConfig = package.IceConfiguration
+            ?? new IceConfiguration { SkipWhenCubUnavailable = true };
         if (iceConfig.Enabled && package.ReproducibleOptions is null)
         {
             IceValidator iceValidator = new();

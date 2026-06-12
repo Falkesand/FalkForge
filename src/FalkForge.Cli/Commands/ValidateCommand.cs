@@ -136,7 +136,10 @@ public sealed class ValidateCommand : Command<ValidateSettings>
             CubFilePath = settings.IceCubPath,
             SuppressedIces = settings.SuppressIce?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [],
             WarningsAsErrors = settings.IceWarningsAsErrors,
-            ReportPath = settings.IceReport
+            ReportPath = settings.IceReport,
+            // Default is strict (false) — forge validate --ice explicitly requested ICE; a
+            // missing darice.cub should be a hard error unless the caller opts out.
+            SkipWhenCubUnavailable = settings.IceSkipWhenCubUnavailable,
         };
 
         var validator = new IceValidator();

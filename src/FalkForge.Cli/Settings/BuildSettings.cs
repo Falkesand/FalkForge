@@ -88,6 +88,12 @@ public sealed class BuildSettings : CommandSettings
     [Description("Export ICE validation results to JSON file")]
     public string? IceReport { get; init; }
 
+    [CommandOption("--ice-skip-when-cub-unavailable")]
+    [Description("Silently skip ICE validation when darice.cub is not found (lenient mode). " +
+                 "By default, a missing darice.cub causes a build failure.")]
+    [DefaultValue(false)]
+    public bool IceSkipWhenCubUnavailable { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(ProjectPath))
@@ -123,6 +129,7 @@ public sealed class BuildSettings : CommandSettings
         CubFilePath = IceCubPath,
         SuppressedIces = SuppressIce?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [],
         WarningsAsErrors = IceWarningsAsErrors,
-        ReportPath = IceReport
+        ReportPath = IceReport,
+        SkipWhenCubUnavailable = IceSkipWhenCubUnavailable,
     };
 }

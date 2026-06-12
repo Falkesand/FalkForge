@@ -13,7 +13,13 @@ public sealed class IceValidator
         // Windows SDK locations
         @"C:\Program Files (x86)\Windows Kits\10\bin",
         @"C:\Program Files\Windows Kits\10\bin",
-        @"C:\Program Files (x86)\MSI\darice.cub"
+        @"C:\Program Files (x86)\MSI\darice.cub",
+        // WiX Toolset 3.x ships darice.cub alongside its own tools — present on GitHub
+        // Actions runners that have WiX installed and on many developer workstations.
+        @"C:\Program Files (x86)\WiX Toolset v3.14",
+        @"C:\Program Files (x86)\WiX Toolset v3.11",
+        @"C:\Program Files\WiX Toolset v3.14",
+        @"C:\Program Files\WiX Toolset v3.11",
     ];
 
     /// <summary>
@@ -58,7 +64,19 @@ public sealed class IceValidator
 
         var cubPath = config.CubFilePath ?? FindDariceCub();
         if (cubPath is null)
-            return Result<IceValidationResult>.Success(IceValidationResult.Success());
+        {
+            // Strict default: fail loud so callers know ICE was never run.
+            // SkipWhenCubUnavailable = true opts out to the old lenient behavior for environments
+            // that intentionally lack the Windows SDK (developer machines, containers, CI runners
+            // where SDK is not provisioned and ICE checking is explicitly waived).
+            if (config.SkipWhenCubUnavailable)
+                return Result<IceValidationResult>.Success(IceValidationResult.Success());
+
+            return Result<IceValidationResult>.Failure(
+                ErrorKind.Validation,
+                "ICE validation cannot run: darice.cub was not found. Install the Windows SDK " +
+                "or set SkipWhenCubUnavailable = true to waive ICE validation on this machine.");
+        }
 
         if (!File.Exists(msiPath))
             return Result<IceValidationResult>.Failure(ErrorKind.FileNotFound, $"MSI file not found: {msiPath}");

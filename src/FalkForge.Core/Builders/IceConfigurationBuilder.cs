@@ -9,6 +9,7 @@ public sealed class IceConfigurationBuilder
     private readonly List<string> _suppressedIces = [];
     private bool _warningsAsErrors;
     private string? _reportPath;
+    private bool _skipWhenCubUnavailable;
 
     public IceConfigurationBuilder Disable()
     {
@@ -40,6 +41,17 @@ public sealed class IceConfigurationBuilder
         return this;
     }
 
+    /// <summary>
+    /// Opts out of strict fail-loud behavior: if darice.cub cannot be found, ICE validation
+    /// is silently skipped rather than returning a failure. Use on developer machines or build
+    /// environments that intentionally lack the Windows SDK.
+    /// </summary>
+    public IceConfigurationBuilder SkipWhenCubUnavailable(bool value = true)
+    {
+        _skipWhenCubUnavailable = value;
+        return this;
+    }
+
     public IceConfiguration Build() => new()
     {
         Enabled = _enabled,
@@ -47,5 +59,6 @@ public sealed class IceConfigurationBuilder
         SuppressedIces = [.. _suppressedIces],
         WarningsAsErrors = _warningsAsErrors,
         ReportPath = _reportPath,
+        SkipWhenCubUnavailable = _skipWhenCubUnavailable,
     };
 }

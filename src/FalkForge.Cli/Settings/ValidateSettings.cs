@@ -41,6 +41,12 @@ public sealed class ValidateSettings : CommandSettings
     [Description("Export ICE results to JSON file")]
     public string? IceReport { get; init; }
 
+    [CommandOption("--ice-skip-when-cub-unavailable")]
+    [Description("Silently skip ICE validation when darice.cub is not found (lenient mode). " +
+                 "By default with --ice, a missing darice.cub returns an error.")]
+    [DefaultValue(false)]
+    public bool IceSkipWhenCubUnavailable { get; init; }
+
     [CommandOption("--ignore <RULEID>")]
     [Description("Rule ID(s) to suppress. Accepts comma-separated values or repeated flags (e.g. --ignore PKG001,PKG002).")]
     public string[]? IgnoreRules { get; init; }
