@@ -80,4 +80,46 @@ public class PhaseChangedCodecTests
 
         Assert.Equal(legacyWireLength + 16, newBytes.Length);
     }
+
+    /// <summary>
+    /// Locks the wire format of <see cref="PhaseChangedMessage"/> against accidental
+    /// field-order or type drift. Uses fully-deterministic inputs (SequenceId=1,
+    /// Phase=Initializing(0), SessionCorrelationId=Guid.Empty). Do not update this constant
+    /// without bumping WireVersion.
+    /// </summary>
+    /// <remarks>
+    /// Restores golden-byte coverage lost when this test was erroneously deleted in commit
+    /// 45e287c. Coverage is now 29/29 (all registered codecs have a GoldenBytes_wire_format_stable
+    /// test, as required by docs/protocol-versioning.md).
+    ///
+    /// Layout:
+    /// [WireVersion:u16=2][Type:u16=0x0109][PayloadLen:i32=24]
+    /// [SeqId:u32=1][Phase:i32=0 (Initializing)][SessionCorrelationId:16 zero bytes]
+    /// </remarks>
+    [Fact]
+    public void GoldenBytes_wire_format_stable()
+    {
+        var expected = Convert.FromHexString(
+            "020009011800000001000000" +         // header + SeqId=1
+            "00000000" +                          // Phase = Initializing = 0
+            "00000000000000000000000000000000"); // SessionCorrelationId = Guid.Empty
+
+        var actual = MessageSerializer.Serialize(new PhaseChangedMessage
+        {
+            SequenceId = 1,
+            Phase = EnginePhase.Initializing,
+            SessionCorrelationId = Guid.Empty,
+        });
+
+        Assert.Equal(expected, actual);
+
+        // Round-trip: deserializing the golden bytes must produce an equal message.
+        using var ms = new MemoryStream(actual);
+        using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+        ms.Position = 8; // skip the 8-byte framing header (WireVer+Type+PayloadLen)
+        var roundTripped = PhaseChangedCodec.Instance.Read(br);
+        Assert.Equal((uint)1, roundTripped.SequenceId);
+        Assert.Equal(EnginePhase.Initializing, roundTripped.Phase);
+        Assert.Equal(Guid.Empty, roundTripped.SessionCorrelationId);
+    }
 }

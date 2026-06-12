@@ -94,4 +94,50 @@ public class LogCodecTests
 
         Assert.Equal(legacyWireLength + 16, newBytes.Length);
     }
+
+    /// <summary>
+    /// Locks the wire format of <see cref="LogMessage"/> against accidental field-order or
+    /// type drift. Uses fully-deterministic inputs (SequenceId=1, Text="Hi",
+    /// Level=Verbose(0), SessionCorrelationId=Guid.Empty) so the byte array is stable across
+    /// machines and time. Do not update this constant without bumping WireVersion.
+    /// </summary>
+    /// <remarks>
+    /// Restores golden-byte coverage lost when this test was erroneously deleted in commit
+    /// 45e287c. Coverage is now 29/29 (all registered codecs have a GoldenBytes_wire_format_stable
+    /// test, as required by docs/protocol-versioning.md).
+    ///
+    /// Layout:
+    /// [WireVersion:u16=2][Type:u16=0x010A][PayloadLen:i32=27]
+    /// [SeqId:u32=1][Text:len7bit(2)+'H'+'i'][Level:i32=0][SessionCorrelationId:16 zero bytes]
+    /// </remarks>
+    [Fact]
+    public void GoldenBytes_wire_format_stable()
+    {
+        var expected = Convert.FromHexString(
+            "02000A011B000000" +  // header: WireVer=2, Type=0x010A, PayloadLen=27
+            "01000000" +          // SequenceId = 1
+            "024869" +            // Text = "Hi" (BinaryWriter 7-bit length prefix 0x02, then UTF-8 bytes)
+            "00000000" +          // Level = Verbose = 0
+            "00000000000000000000000000000000"); // SessionCorrelationId = Guid.Empty
+
+        var actual = MessageSerializer.Serialize(new LogMessage
+        {
+            SequenceId = 1,
+            Text = "Hi",
+            Level = LogLevel.Verbose,
+            SessionCorrelationId = Guid.Empty,
+        });
+
+        Assert.Equal(expected, actual);
+
+        // Round-trip: deserializing the golden bytes must produce an equal message.
+        using var ms = new MemoryStream(actual);
+        using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+        ms.Position = 8; // skip the 8-byte framing header (WireVer+Type+PayloadLen)
+        var roundTripped = LogCodec.Instance.Read(br);
+        Assert.Equal((uint)1, roundTripped.SequenceId);
+        Assert.Equal("Hi", roundTripped.Text);
+        Assert.Equal(LogLevel.Verbose, roundTripped.Level);
+        Assert.Equal(Guid.Empty, roundTripped.SessionCorrelationId);
+    }
 }
