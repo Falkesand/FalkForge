@@ -31,6 +31,24 @@ public sealed class InstallerManifest
     public string? BaseBundleSha256 { get; init; }
 
     /// <summary>
+    /// Optional Authenticode certificate thumbprint (SHA-1, hex) that the downloaded update
+    /// bundle must present before the engine launches it. When non-null, the engine's
+    /// <c>DefaultUpdateLauncher</c> passes this value to <c>IAuthenticodeValidator</c> and
+    /// refuses to start any update whose certificate thumbprint does not match exactly.
+    /// <para>
+    /// Leave <c>null</c> (the default) to accept any valid Authenticode signature.
+    /// Setting this field pins the publisher identity and prevents a compromised CA from
+    /// issuing a certificate that passes signature verification but originates from a
+    /// different publisher.
+    /// </para>
+    /// <para>
+    /// Authored via <c>BundleBuilder.WithUpdateFeed(...).PinUpdatePublisher("&lt;thumbprint&gt;")</c>
+    /// (authoring wiring not yet implemented — set the manifest field directly for now).
+    /// </para>
+    /// </summary>
+    public string? UpdatePublisherThumbprint { get; init; }
+
+    /// <summary>
     /// Prerequisite packages that the engine must detect and optionally install
     /// before spawning the managed WPF UI process.
     /// Empty array means no pre-UI prerequisites (the default; back-compat with older bundles).
