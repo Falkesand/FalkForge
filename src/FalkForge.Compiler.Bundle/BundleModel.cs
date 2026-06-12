@@ -23,6 +23,15 @@ public sealed class BundleModel
     public IReadOnlyList<BundleDependencyRequirementModel> DependencyRequirements { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
     public UpdateFeedConfig? UpdateFeed { get; init; }
+
+    /// <summary>
+    /// Pinned Authenticode publisher thumbprint as authored via
+    /// <see cref="Builders.BundleBuilder.PinUpdatePublisher"/>, carried independently of
+    /// <see cref="UpdateFeed"/> so the validator can fail a pin that has no update feed to
+    /// attach to (BDL032) rather than silently dropping it. When an update feed IS present the
+    /// thumbprint is also merged into <see cref="UpdateFeedConfig.PublisherThumbprint"/>.
+    /// </summary>
+    public string? UpdatePublisherThumbprint { get; init; }
     public long MaxBytesPerSecond { get; init; }
     public SbomOptions? SbomOptions { get; init; }
 

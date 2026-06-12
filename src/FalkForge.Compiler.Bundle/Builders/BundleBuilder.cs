@@ -382,6 +382,9 @@ public sealed class BundleBuilder
                     PublisherThumbprint = _updatePublisherThumbprint
                 }
                 : _updateFeed,
+            // Carry the pin independently of the feed so a pin without an update feed survives to
+            // the validator (BDL032) instead of being silently dropped.
+            UpdatePublisherThumbprint = _updatePublisherThumbprint,
             MaxBytesPerSecond = _maxBytesPerSecond,
             SbomOptions = _sbomOptions,
             Integrity = _integrity,

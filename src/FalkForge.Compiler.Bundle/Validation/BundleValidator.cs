@@ -194,6 +194,16 @@ public sealed class BundleValidator
                     "thumbprint (expected 40 hexadecimal characters).");
         }
 
+        // BDL032: A pinned publisher thumbprint is meaningless without an update feed — the
+        // engine only enforces it on a downloaded update bundle. Pinning one without configuring
+        // UpdateFeed is a silent misconfiguration (the author believes updates are publisher-locked
+        // when no update path exists), so fail loud rather than drop the pin.
+        if (model.UpdatePublisherThumbprint is not null && model.UpdateFeed is null)
+            return Result<Unit>.Failure(ErrorKind.BundleError,
+                "BDL032: An update publisher thumbprint was pinned via PinUpdatePublisher but no " +
+                "update feed is configured. Call UpdateFeed(...) to configure an update feed, or " +
+                "remove the PinUpdatePublisher pin.");
+
         // BDL027: EnableFeatureSelection only valid for MsiPackage
         foreach (var pkg in model.Packages)
         {
