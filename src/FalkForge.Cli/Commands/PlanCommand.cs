@@ -80,12 +80,39 @@ internal sealed class PlanCommand : Command<PlanSettings>
         var tempDir = Path.Combine(
             Path.GetTempPath(), "FalkForge", $"plan_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            return ExecuteWithTempDir(settings, output, tempDir, content.ManifestJsonBytes, ct);
+        }
+        finally
+        {
+            // Best-effort cleanup of the per-run scratch directory so repeated invocations do not
+            // accumulate orphaned temp directories. Swallow IO failures (e.g. a file still held by
+            // a slow-exiting engine) — a cleanup failure must not turn a successful plan into an error.
+            try
+            {
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private int ExecuteWithTempDir(
+        PlanSettings settings,
+        IConsoleOutput output,
+        string tempDir,
+        byte[] manifestJsonBytes,
+        CancellationToken ct)
+    {
         var manifestPath = Path.Combine(tempDir, "manifest.json");
         var planOutputPath = settings.OutputPath ?? Path.Combine(tempDir, "plan.json");
 
         try
         {
-            File.WriteAllBytes(manifestPath, content.ManifestJsonBytes);
+            File.WriteAllBytes(manifestPath, manifestJsonBytes);
         }
         catch (Exception ex)
         {
