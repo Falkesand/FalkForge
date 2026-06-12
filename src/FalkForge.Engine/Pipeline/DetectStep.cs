@@ -62,10 +62,27 @@ internal sealed class DetectStep : IDetectStep
                     $"Detection complete: state={detection.State}, version={detection.CurrentVersion ?? "none"}"),
                 ct);
 
-            // Update check: best-effort, never fails the detection phase.
+            // Update check: best-effort, never fails the detection phase. An unexpected throw from
+            // the update flow (e.g. a download blow-up) must be swallowed and logged so detection —
+            // and therefore the install — still proceeds. Cancellation is the one exception we must
+            // honor: it has to propagate so a user-cancelled session actually stops.
             if (_updateChecker is not null && _manifest.UpdateFeed is not null)
             {
-                await CheckForUpdateAsync(ctx, ct);
+                try
+                {
+                    await CheckForUpdateAsync(ctx, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await _uiChannel.SendAsync(
+                        new PipelineEvent.Log(LogLevel.Warning,
+                            $"Update check failed unexpectedly and was skipped: {ex.Message}"),
+                        ct);
+                }
             }
 
             return Unit.Value;
