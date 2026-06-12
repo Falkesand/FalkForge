@@ -89,6 +89,16 @@ internal sealed class BundleAccess : IBundleAccess
                             // Found magic, seek to position after magic and read manifest
                             _stream.Seek(_stream.Position - bytesRead + i + Magic.Length, SeekOrigin.Begin);
                             var manifestLength = _reader.ReadInt32();
+
+                            // Sanity cap: reject absurdly large manifest length claims before
+                            // allocating. Without this, a crafted bundle with Int32.MaxValue
+                            // triggers a ~2 GiB heap allocation (DoS vector).
+                            const int maxManifestBytes = 64 * 1024 * 1024; // 64 MiB
+                            if (manifestLength < 0 || manifestLength > maxManifestBytes)
+                                return Result<InstallerManifest>.Failure(ErrorKind.BundleError,
+                                    $"Invalid manifest length: {manifestLength}. " +
+                                    $"Manifest length must be between 0 and {maxManifestBytes} bytes (BDC003).");
+
                             var manifestBytes = _reader.ReadBytes(manifestLength);
                             var json = Encoding.UTF8.GetString(manifestBytes);
 
