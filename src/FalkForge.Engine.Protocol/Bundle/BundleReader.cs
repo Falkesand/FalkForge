@@ -10,6 +10,27 @@ public static class BundleReader
 
     public static ReadOnlySpan<byte> BundleMagic => Magic;
 
+    /// <summary>
+    /// Upper bound for an embedded manifest JSON length read from untrusted bundle bytes.
+    /// Shared with <c>FalkForge.Decompiler.BundleAccess</c>, which parses the identical
+    /// FALKBUNDLE manifest region — the two readers genuinely read the same field, so they
+    /// use the same cap (previously 10 MB here vs 64 MiB there, an unjustified split). 64 MiB
+    /// is generous for a JSON manifest while still rejecting absurd length claims before any
+    /// allocation.
+    /// </summary>
+    public const int MaxManifestBytes = 64 * 1024 * 1024;
+
+    /// <summary>
+    /// Absolute upper bound for a single compressed payload read eagerly into memory from
+    /// untrusted TOC size fields. A claimed size above this is rejected before
+    /// <see cref="BinaryReader.ReadBytes(int)"/> is called, so a crafted bundle cannot force a
+    /// multi-gigabyte allocation (DoS). Real bundle payloads are individual installers; 512 MiB
+    /// comfortably exceeds any legitimate single embedded package while capping the blast radius.
+    /// The physical bound (payload must fit within the remaining file bytes) is enforced
+    /// additionally and is usually tighter.
+    /// </summary>
+    public const int MaxCompressedPayloadBytes = 512 * 1024 * 1024;
+
     public static Result<BundleContent> Extract(string bundlePath)
     {
         try
@@ -62,12 +83,23 @@ public static class BundleReader
                     reconstructedSha256Hash = reader.ReadString();
                 }
 
-                // Validate fields from untrusted binary data to prevent
-                // ArgumentOutOfRangeException in ReadBytes or OutOfMemoryException
-                // from excessively large allocations.
+                // Validate fields from untrusted binary data BEFORE any allocation. Negative
+                // values are impossible; sizes above the absolute payload cap or beyond the
+                // physical end of the file are crafted length-field attacks (allocation DoS).
                 if (offset < 0 || compressedSize < 0 || originalSize < 0)
                     return Result<BundleContent>.Failure(ErrorKind.PayloadError,
                         $"TOC entry '{packageId}' has negative size or offset — possible corrupted or crafted bundle");
+
+                if (compressedSize > MaxCompressedPayloadBytes || originalSize > MaxCompressedPayloadBytes)
+                    return Result<BundleContent>.Failure(ErrorKind.PayloadError,
+                        $"TOC entry '{packageId}' claims a payload size above the {MaxCompressedPayloadBytes}-byte cap — possible crafted bundle (allocation DoS)");
+
+                // Physical bound: the claimed compressed bytes must fit between the entry offset
+                // and the end of the file. A larger claim cannot be satisfied and is rejected
+                // before ReadBytes attempts the allocation.
+                if (offset > stream.Length || compressedSize > stream.Length - offset)
+                    return Result<BundleContent>.Failure(ErrorKind.PayloadError,
+                        $"TOC entry '{packageId}' claims more payload bytes ({compressedSize}) than the file holds past its offset — possible crafted bundle");
 
                 entries[i] = new TocEntry
                 {
@@ -139,7 +171,7 @@ public static class BundleReader
                     stream.Seek(manifestLenPos, SeekOrigin.Begin);
                     var manifestLen = reader.ReadInt32();
 
-                    if (manifestLen > 0 && manifestLen < 10_000_000) // sanity: max 10 MB manifest
+                    if (manifestLen > 0 && manifestLen <= MaxManifestBytes) // shared cap with BundleAccess
                     {
                         manifestJsonBytes = reader.ReadBytes(manifestLen);
                         if (manifestJsonBytes.Length != manifestLen)
@@ -150,8 +182,12 @@ public static class BundleReader
 
             return new BundleContent { TocEntries = entries, BundlePath = bundlePath, ManifestJsonBytes = manifestJsonBytes };
         }
+        // OutOfMemoryException is deliberately NOT caught here: with the size caps and the
+        // physical-bounds check above, no untrusted length field can drive a large allocation,
+        // so an OOM would be a genuine fault, not malformed input — masking it as a typed failure
+        // would hide the real problem (the original code swallowed it as ordinary control flow).
         catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException
-                                       or ArgumentOutOfRangeException or OutOfMemoryException)
+                                       or ArgumentOutOfRangeException)
         {
             return Result<BundleContent>.Failure(ErrorKind.PayloadError, $"Failed to read bundle: {ex.Message}");
         }
