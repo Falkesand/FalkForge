@@ -15,6 +15,25 @@ public sealed class BuildSettingsIceTests
         Assert.Null(config.CubFilePath);
         Assert.Empty(config.SuppressedIces);
         Assert.False(config.WarningsAsErrors);
+        // Default is strict — SkipWhenCubUnavailable must be false unless explicitly set
+        Assert.False(config.SkipWhenCubUnavailable);
+    }
+
+    /// <summary>
+    /// --ice-skip-when-cub-unavailable enables lenient mode for build environments
+    /// without the Windows SDK, so that forge build does not fail on a missing darice.cub.
+    /// </summary>
+    [Fact]
+    public void BuildIceConfiguration_SkipWhenCubUnavailable_SetsLenientFlag()
+    {
+        var settings = new BuildSettings
+        {
+            ProjectPath = "test.csx",
+            IceSkipWhenCubUnavailable = true
+        };
+        var config = settings.BuildIceConfiguration();
+
+        Assert.True(config.SkipWhenCubUnavailable);
     }
 
     [Fact]
