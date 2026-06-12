@@ -1,19 +1,19 @@
 namespace FalkForge.Engine.Integrity;
 
 using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
-/// Verifies the integrity of installer payloads at engine runtime.
-/// Validates the ECDSA-P256 signature over the file hash manifest,
-/// then verifies each payload file's SHA-256 hash against the signed entries.
+/// Verifies the integrity of installer payloads laid out in a directory.
+/// Validates the ECDSA-P256 signature over the file hash manifest, then verifies
+/// each payload file's SHA-256 hash against the signed entries. The signature math
+/// is shared with the build-time signer via <see cref="IntegrityEnvelopeCodec"/>.
 /// </summary>
 internal static class IntegrityVerifier
 {
     /// <summary>
-    /// Verifies manifest signature and payload file integrity.
+    /// Verifies manifest signature and payload file integrity for files in a directory.
     /// </summary>
     /// <param name="manifest">The installer manifest, potentially containing a signature envelope.</param>
     /// <param name="payloadDirectory">The directory containing payload files to verify.</param>
@@ -26,84 +26,24 @@ internal static class IntegrityVerifier
         if (manifest.ManifestSignature is null)
             return Result<Unit>.Success(default);
 
-        // Parse the signature envelope
-        ManifestSignatureEnvelope? envelope;
-        try
-        {
-            envelope = JsonSerializer.Deserialize(
-                manifest.ManifestSignature,
-                IntegritySignatureContext.Default.ManifestSignatureEnvelope);
-        }
-        catch (JsonException)
-        {
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
+        if (envelope is null)
             return Result<Unit>.Failure(ErrorKind.IntegrityError,
                 "INT003: Failed to parse manifest signature envelope.");
-        }
 
-        if (envelope is null)
-        {
-            return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                "INT003: Manifest signature envelope is null after deserialization.");
-        }
-
-        // Validate required fields
         if (string.IsNullOrEmpty(envelope.PublicKey) || string.IsNullOrEmpty(envelope.Signature))
         {
             return Result<Unit>.Failure(ErrorKind.IntegrityError,
                 "INT003: Manifest signature envelope is missing required fields (publicKey or signature).");
         }
 
-        // Verify ECDSA signature over the files list
-        var signatureResult = VerifySignature(envelope);
-        if (signatureResult.IsFailure)
-            return signatureResult;
+        if (!IntegrityEnvelopeCodec.VerifySignature(envelope))
+        {
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                "INT001: Manifest signature verification failed. The installer may have been tampered with.");
+        }
 
-        // Verify each file's SHA-256 hash
         return VerifyFileHashes(envelope.Files, payloadDirectory);
-    }
-
-    private static Result<Unit> VerifySignature(ManifestSignatureEnvelope envelope)
-    {
-        byte[] publicKeyBytes;
-        byte[] signatureBytes;
-
-        try
-        {
-            publicKeyBytes = Convert.FromBase64String(envelope.PublicKey);
-            signatureBytes = Convert.FromBase64String(envelope.Signature);
-        }
-        catch (FormatException)
-        {
-            return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                "INT003: Invalid base64 encoding in manifest signature envelope.");
-        }
-
-        // Recompute the hash over the serialized files array
-        var filesJson = JsonSerializer.Serialize(
-            envelope.Files,
-            IntegritySignatureContext.Default.IReadOnlyListManifestFileEntry);
-        var filesBytes = Encoding.UTF8.GetBytes(filesJson);
-        var hash = SHA256.HashData(filesBytes);
-
-        // Verify using ECDSA-P256
-        try
-        {
-            using var ecdsa = ECDsa.Create();
-            ecdsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out _);
-
-            if (!ecdsa.VerifyHash(hash, signatureBytes))
-            {
-                return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                    "INT001: Manifest signature verification failed. The installer may have been tampered with.");
-            }
-        }
-        catch (CryptographicException)
-        {
-            return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                "INT001: Manifest signature verification failed due to invalid cryptographic data.");
-        }
-
-        return Result<Unit>.Success(default);
     }
 
     private static Result<Unit> VerifyFileHashes(

@@ -2,8 +2,8 @@ namespace FalkForge.Engine.Tests.Integrity;
 
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using FalkForge.Engine.Integrity;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
 
@@ -64,23 +64,7 @@ public sealed class IntegrityVerifierTests : IDisposable
     private static string CreateSignedEnvelope(
         ECDsa key,
         IReadOnlyList<ManifestFileEntry> files)
-    {
-        var filesJson = JsonSerializer.Serialize(files, IntegritySignatureContext.Default.IReadOnlyListManifestFileEntry);
-        var filesBytes = Encoding.UTF8.GetBytes(filesJson);
-        var hash = SHA256.HashData(filesBytes);
-        var signature = key.SignHash(hash);
-
-        var envelope = new ManifestSignatureEnvelope
-        {
-            Version = 1,
-            Algorithm = "ECDSA-P256",
-            PublicKey = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo()),
-            Files = files,
-            Signature = Convert.ToBase64String(signature)
-        };
-
-        return JsonSerializer.Serialize(envelope, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
-    }
+        => IntegrityEnvelopeCodec.Serialize(IntegrityEnvelopeCodec.Sign(files, key));
 
     // -----------------------------------------------------------------------
     // Tests
@@ -158,25 +142,13 @@ public sealed class IntegrityVerifierTests : IDisposable
             new() { Name = "app.exe", Sha256 = sha256 }
         };
 
-        // Sign with the real key, then substitute a different key's public key
-        var filesJson = JsonSerializer.Serialize(files, IntegritySignatureContext.Default.IReadOnlyListManifestFileEntry);
-        var filesBytes = Encoding.UTF8.GetBytes(filesJson);
-        var hash = SHA256.HashData(filesBytes);
-        var signature = key.SignHash(hash);
-
-        // Use a different key's public key to cause verification failure
+        // Sign with the real key, then substitute a different key's public key so
+        // verification fails: the signature no longer matches the advertised key.
+        var envelope = IntegrityEnvelopeCodec.Sign(files, key);
         using var wrongKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        envelope.PublicKey = Convert.ToBase64String(wrongKey.ExportSubjectPublicKeyInfo());
 
-        var envelope = new ManifestSignatureEnvelope
-        {
-            Version = 1,
-            Algorithm = "ECDSA-P256",
-            PublicKey = Convert.ToBase64String(wrongKey.ExportSubjectPublicKeyInfo()),
-            Files = files,
-            Signature = Convert.ToBase64String(signature)
-        };
-
-        var signatureJson = JsonSerializer.Serialize(envelope, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var signatureJson = IntegrityEnvelopeCodec.Serialize(envelope);
         var manifest = CreateManifest(signatureJson);
 
         // Act
@@ -253,7 +225,7 @@ public sealed class IntegrityVerifierTests : IDisposable
             Files = [],
             Signature = "AAAA"
         };
-        var json = JsonSerializer.Serialize(envelope, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var json = IntegrityEnvelopeCodec.Serialize(envelope);
         var manifest = CreateManifest(json);
 
         // Act

@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Pipeline;
 
 using System.Diagnostics;
 using FalkForge.Engine.Execution;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
@@ -54,6 +55,23 @@ internal sealed class ApplyStep : IApplyStep
         if (ctx.Plan is null)
             return Result<Unit>.Failure(ErrorKind.EngineError,
                 "ApplyStep: plan not populated — PlanStep must run first.");
+
+        // Integrity gate: before executing any payload, prove the manifest's signed
+        // payload hashes are authentic. An unsigned manifest passes through (backward
+        // compatible); a tampered/forged one aborts the install with a SecurityError
+        // before a single package runs. Independent of Authenticode.
+        if (ctx.Manifest is not null)
+        {
+            var integrity = PayloadIntegrityGate.Verify(ctx.Manifest);
+            if (integrity.IsFailure)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Error,
+                        $"Integrity verification failed — installation aborted: {integrity.Error.Message}"),
+                    ct);
+                return integrity;
+            }
+        }
 
         // Restart Manager: start session and shut down conflicting processes before apply.
         // Best-effort — RM failures are logged but never abort the installation.

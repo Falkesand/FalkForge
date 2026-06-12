@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FalkForge.Engine.Integrity;
+using FalkForge.Engine.Protocol.Integrity;
 using Xunit;
 
 namespace FalkForge.Engine.Tests.Integrity;
@@ -31,11 +31,11 @@ public sealed class IntegritySignatureContextRegressionTests
     {
         var envelope = BuildFullEnvelope();
 
-        var json = JsonSerializer.Serialize(envelope, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var json = JsonSerializer.Serialize(envelope, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
 
         Assert.False(string.IsNullOrWhiteSpace(json));
 
-        var parsed = JsonSerializer.Deserialize(json, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var parsed = JsonSerializer.Deserialize(json, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
         Assert.NotNull(parsed);
         Assert.Equal(1, parsed.Version);
         Assert.Equal("ES256", parsed.Algorithm);
@@ -46,7 +46,7 @@ public sealed class IntegritySignatureContextRegressionTests
     [Fact]
     public void ManifestSignatureEnvelope_Json_ContainsNoForbiddenSystemTypes()
     {
-        var json = JsonSerializer.Serialize(BuildFullEnvelope(), IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var json = JsonSerializer.Serialize(BuildFullEnvelope(), IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
 
         Assert.DoesNotContain("System.IntPtr", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("System.Delegate", json, StringComparison.OrdinalIgnoreCase);
@@ -57,7 +57,7 @@ public sealed class IntegritySignatureContextRegressionTests
     [Fact]
     public void ManifestSignatureEnvelope_Json_ContainsNoUnwhitelistedSensitiveKeys()
     {
-        var json = JsonSerializer.Serialize(BuildFullEnvelope(), IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var json = JsonSerializer.Serialize(BuildFullEnvelope(), IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
 
         using var doc = JsonDocument.Parse(json);
         AssertNoSensitiveKeys(doc.RootElement, "$");
@@ -67,8 +67,8 @@ public sealed class IntegritySignatureContextRegressionTests
     public void ManifestFileEntry_RoundTrip_AllFields()
     {
         var envelope = BuildFullEnvelope();
-        var json = JsonSerializer.Serialize(envelope, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
-        var parsed = JsonSerializer.Deserialize(json, IntegritySignatureContext.Default.ManifestSignatureEnvelope);
+        var json = JsonSerializer.Serialize(envelope, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
+        var parsed = JsonSerializer.Deserialize(json, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
 
         Assert.NotNull(parsed);
         Assert.Equal(2, parsed.Files.Count);
