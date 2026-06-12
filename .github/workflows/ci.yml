@@ -28,6 +28,44 @@ jobs:
       - name: Build
         run: dotnet build FalkForge.slnx --no-restore -c Release
 
+      # Provision darice.cub so ICE validation runs in CI.
+      # WiX Toolset 3.x ships darice.cub at a known path and installs in ~30s via
+      # Chocolatey. If the install fails the test step still passes because
+      # MsiCompiler uses SkipWhenCubUnavailable=true by default — but ICE tests
+      # that require a cub will skip rather than providing coverage.
+      # The probe step below reports exactly what was found so failures are visible.
+      - name: Install WiX Toolset (for darice.cub)
+        shell: pwsh
+        run: |
+          choco install wixtoolset --version=3.14.1 -y --no-progress 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::WiX Toolset install failed — ICE validation will not run in this job."
+          }
+
+      - name: Probe darice.cub availability
+        shell: pwsh
+        run: |
+          $searchPaths = @(
+            "C:\Program Files (x86)\WiX Toolset v3.14",
+            "C:\Program Files (x86)\WiX Toolset v3.11",
+            "C:\Program Files (x86)\Windows Kits\10\bin",
+            "C:\Program Files\Windows Kits\10\bin"
+          )
+          $found = $null
+          foreach ($base in $searchPaths) {
+            if (Test-Path $base) {
+              $cub = Get-ChildItem -Path $base -Filter "darice.cub" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($cub) { $found = $cub.FullName; break }
+            }
+          }
+          if ($found) {
+            Write-Host "darice.cub found: $found"
+            Write-Host "ICE validation is ACTIVE for this CI run."
+          } else {
+            Write-Host "::warning::darice.cub not found on this runner. ICE tests will skip. " +
+              "To enable ICE coverage, ensure the Windows SDK or WiX Toolset 3.x is installed."
+          }
+
       - name: Test
         run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults
 
