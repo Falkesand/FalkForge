@@ -1,0 +1,94 @@
+name: Nightly Fuzz
+
+on:
+  schedule:
+    # Run at 02:00 UTC every night (00:00 UTC is busy with other CI).
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: 'Fuzz iterations per parser (default: 50000)'
+        required: false
+        default: '50000'
+
+# Upload-artifact@v5 still declares a Node 20 runtime; opt all JavaScript
+# actions into Node 24 ahead of the 2026-06-16 default switch.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Default iteration count; overridden by workflow_dispatch input when triggered manually.
+  FALKFORGE_FUZZ_ITERATIONS: ${{ github.event.inputs.iterations || '50000' }}
+
+jobs:
+  fuzz:
+    name: Deep fuzz — ${{ matrix.parser }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false   # run all parsers even if one fails
+      matrix:
+        include:
+          - parser: ConditionParser
+            project: tests/FalkForge.Engine.Tests/FalkForge.Engine.Tests.csproj
+            filter: ConditionParserFuzz
+
+          - parser: MessageDeserializer
+            project: tests/FalkForge.Engine.Protocol.Tests/FalkForge.Engine.Protocol.Tests.csproj
+            filter: MessageDeserializerFuzz
+
+          - parser: CabinetExtractor
+            project: tests/FalkForge.Compiler.Msi.Tests/FalkForge.Compiler.Msi.Tests.csproj
+            filter: CabinetExtractorFuzz
+
+          - parser: BundleReader
+            project: tests/FalkForge.Decompiler.Tests/FalkForge.Decompiler.Tests.csproj
+            filter: BundleReaderFuzz|BundleAccessManifestLengthCap
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore FalkForge.slnx
+
+      - name: Build (Release)
+        run: dotnet build FalkForge.slnx --no-restore -c Release
+
+      - name: Run fuzz suite — ${{ matrix.parser }}
+        id: fuzz
+        run: |
+          dotnet test ${{ matrix.project }} `
+            --no-build `
+            --configuration Release `
+            --filter "FullyQualifiedName~${{ matrix.filter }}" `
+            --blame-hang-timeout 120s `
+            --logger "trx;LogFileName=fuzz-${{ matrix.parser }}.trx" `
+            --results-directory ./FuzzResults
+        # FALKFORGE_FUZZ_ITERATIONS is set at job level via env: above.
+
+      - name: Upload fuzz failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: fuzz-failures-${{ matrix.parser }}-${{ github.run_number }}
+          path: |
+            ./FuzzResults/
+          retention-days: 30
+          # The TRX report contains the full assertion message for every failed test,
+          # which includes: seed value, iteration index, and first 32 hex bytes of the
+          # failing input. To reproduce locally:
+          #   1. Find the failing seed and hex in the TRX <Message> element.
+          #   2. Reconstruct the input from the hex or re-run the same RNG sequence.
+          #   3. Call the parser directly: MessageDeserializer.Deserialize(data) etc.
+          #   4. Set FALKFORGE_FUZZ_ITERATIONS=1 and use the specific seed to pin.
+
+      - name: Upload TRX results (always)
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: fuzz-trx-${{ matrix.parser }}-${{ github.run_number }}
+          path: ./FuzzResults/*.trx
+          retention-days: 7
