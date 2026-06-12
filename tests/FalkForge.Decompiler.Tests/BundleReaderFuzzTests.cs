@@ -311,7 +311,62 @@ public sealed class BundleReaderFuzzTests : IDisposable
         Assert.Empty(failures);
     }
 
+    /// <summary>
+    /// Regression: a TOC entry that claims a huge compressedSize (here Int32.MaxValue) while
+    /// only a few real bytes follow must be rejected by a size cap BEFORE BundleReader attempts
+    /// to allocate the buffer. Previously compressedSize/originalSize were only checked for
+    /// non-negativity, so reader.ReadBytes(entry.CompressedSize) tried to allocate ~2 GiB — an
+    /// allocation DoS in the engine bootstrap path. The OutOfMemoryException it could raise was
+    /// also swallowed by the catch filter as if it were ordinary malformed input. The cap turns
+    /// the lying length into a fast, typed failure with no large allocation attempted.
+    /// </summary>
+    [Fact]
+    public void BundleReader_LyingCompressedSize_ReturnsFailureWithoutHugeAllocation()
+    {
+        var path = BuildBundleWithSingleTocEntry(
+            compressedSize: int.MaxValue, originalSize: int.MaxValue, realPayload: [1, 2, 3, 4]);
+
+        // Must complete promptly (no multi-GiB allocation) and return a typed failure.
+        var result = BundleReader.Extract(path);
+
+        Assert.True(result.IsFailure,
+            "A TOC entry whose compressedSize exceeds the payload cap must be rejected, not allocated.");
+        Assert.Contains("size", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private string BuildBundleWithSingleTocEntry(int compressedSize, int originalSize, byte[] realPayload)
+    {
+        var path = Path.Combine(_tempDir, $"liar_{Guid.NewGuid():N}.exe");
+        using var bw = new BinaryWriter(
+            new FileStream(path, FileMode.Create, FileAccess.Write), Encoding.UTF8);
+
+        // Manifest region (tiny valid JSON so the manifest scan has something to find).
+        var json = "{}"u8.ToArray();
+        bw.Write(BundleMagic);
+        bw.Write(json.Length);
+        bw.Write(json);
+
+        // Payload region: the entry's offset points here; only realPayload bytes actually exist.
+        var payloadOffset = bw.BaseStream.Position;
+        bw.Write(realPayload);
+
+        // TOC region.
+        var tocOffset = bw.BaseStream.Position;
+        bw.Write(1);                       // entryCount = 1
+        bw.Write("pkg");                   // packageId (length-prefixed string)
+        bw.Write(payloadOffset);           // offset (int64)
+        bw.Write(compressedSize);          // crafted compressedSize (int32)
+        bw.Write(originalSize);            // crafted originalSize (int32)
+        bw.Write(new string('A', 64));     // sha256Hash (length-prefixed string)
+        bw.Write((byte)0);                 // flags
+
+        // Footer.
+        bw.Write(BundleMagic);
+        bw.Write(tocOffset);
+        return path;
+    }
 
     private string WriteFile(int length, Random rng)
     {
