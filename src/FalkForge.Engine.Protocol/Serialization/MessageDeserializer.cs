@@ -72,7 +72,25 @@ public static class MessageDeserializer
             var message = codecResult.Value.ReadErased(br);
             return Result<EngineMessage>.Success(message);
         }
-        catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidOperationException)
+        // Malformed wire input can surface through any read primitive in a codec body:
+        // EndOfStreamException/IOException (stream exhausted), FormatException
+        // (BinaryReader.ReadString 7-bit length, ReadDecimal), DecoderFallbackException
+        // (invalid UTF-8), OverflowException (length arithmetic),
+        // ArgumentException/ArgumentOutOfRangeException (e.g. new Guid(byte[]) when fewer
+        // than 16 bytes remain, new DateTimeOffset(ticks) out of range), and
+        // IndexOutOfRangeException (span/array slicing). All are untrusted-input failures
+        // and must become typed Result failures — the facade contract is "never throws for
+        // malformed wire input". Fatal conditions (OutOfMemoryException, StackOverflowException)
+        // are deliberately NOT caught here so they propagate as the runtime intends.
+        catch (Exception ex) when (
+            ex is IOException
+                or EndOfStreamException
+                or InvalidOperationException
+                or FormatException
+                or DecoderFallbackException
+                or OverflowException
+                or ArgumentException
+                or IndexOutOfRangeException)
         {
             return Result<EngineMessage>.Failure(
                 ErrorKind.Validation,
