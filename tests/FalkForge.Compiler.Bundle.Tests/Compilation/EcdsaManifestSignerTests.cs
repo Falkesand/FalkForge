@@ -8,7 +8,7 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 
 /// <summary>
 /// Unit A: pure-.NET ECDSA manifest signer.
-/// Pins the wire contract the engine's IntegrityVerifier consumes: an envelope
+/// Pins the wire contract the engine's PayloadIntegrityGate consumes: an envelope
 /// carrying a base64 SubjectPublicKeyInfo public key, a list of {name, sha256}
 /// entries, and a base64 ECDSA signature over SHA-256 of the canonically
 /// serialized entries array. The signer must work WITHOUT the sigil CLI, using an
