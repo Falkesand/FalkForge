@@ -124,6 +124,74 @@ public sealed class PipelinePhaseStepTests
     }
 
     [Fact]
+    public async Task DetectStep_DownloadAndPrompt_UpdateAvailable_TriggersDownload_EmitsUpdateReady()
+    {
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(
+            bundleId, "1.0.0", FalkForge.Engine.Protocol.Manifest.UpdatePolicy.DownloadAndPrompt);
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        var feedJson = BuildFeedJson(bundleId, "2.0.0", "https://cdn.example.com/v2.exe", "abc123");
+        var checker = BuildUpdateChecker(200, feedJson);
+
+        // UpdateService with a fake download that always succeeds (no real HTTP).
+        var service = new FalkForge.Engine.Pipeline.UpdateService(
+            manifest.UpdateFeed!,
+            cacheDir: Path.GetTempPath(),
+            download: (url, sha, dest, progress, resume, ct) =>
+                Task.FromResult(Result<string>.Success(dest)),
+            launcher: new NoOpUpdateLauncher(),
+            channel: channel,
+            logger: new FalkForge.Engine.Logging.NullLogger());
+
+        var step = new DetectStep(manifest, registry, channel, checker, service);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(channel.SentEvents, e => e is PipelineEvent.UpdateReady);
+    }
+
+    private sealed class NoOpUpdateLauncher : FalkForge.Engine.IUpdateLauncher
+    {
+        public Result<Unit> Launch(string updatePath) => Unit.Value;
+    }
+
+    [Fact]
+    public async Task Builder_WithUpdateServices_DetectDownloadsUpdate_EmitsUpdateReady()
+    {
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(
+            bundleId, "1.0.0", FalkForge.Engine.Protocol.Manifest.UpdatePolicy.DownloadAndPrompt);
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+
+        var feedJson = BuildFeedJson(bundleId, "2.0.0", "https://cdn.example.com/v2.exe", "abc123");
+        var checker = BuildUpdateChecker(200, feedJson);
+        var service = new FalkForge.Engine.Pipeline.UpdateService(
+            manifest.UpdateFeed!,
+            cacheDir: Path.GetTempPath(),
+            download: (url, sha, dest, progress, resume, ct) =>
+                Task.FromResult(Result<string>.Success(dest)),
+            launcher: new NoOpUpdateLauncher(),
+            channel: channel,
+            logger: new FalkForge.Engine.Logging.NullLogger());
+
+        await using var pipeline = new InstallerPipelineBuilder()
+            .WithManifest(manifest)
+            .WithRegistry(registry)
+            .WithUiChannel(channel)
+            .WithUpdateServices(checker, service)
+            .Build();
+
+        var result = await pipeline.DetectAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(channel.SentEvents, e => e is PipelineEvent.UpdateReady);
+    }
+
+    [Fact]
     public async Task DetectStep_WithUpdateFeed_NoUpdate_NoEvent()
     {
         var bundleId = Guid.NewGuid();
@@ -855,6 +923,13 @@ public sealed class PipelinePhaseStepTests
     }
 
     private static InstallerManifest ManifestWithUpdateFeed(Guid bundleId, string version) =>
+        ManifestWithUpdateFeed(
+            bundleId, version, FalkForge.Engine.Protocol.Manifest.UpdatePolicy.NotifyOnly);
+
+    private static InstallerManifest ManifestWithUpdateFeed(
+        Guid bundleId,
+        string version,
+        FalkForge.Engine.Protocol.Manifest.UpdatePolicy policy) =>
         new()
         {
             Name = "TestApp",
@@ -866,7 +941,7 @@ public sealed class PipelinePhaseStepTests
             Packages = [MsiPackage("Pkg1")],
             UpdateFeed = new FalkForge.Engine.Protocol.Manifest.ManifestUpdateFeed(
                 "https://updates.example.com/feed.json",
-                FalkForge.Engine.Protocol.Manifest.UpdatePolicy.NotifyOnly,
+                policy,
                 AllowResumeDownload: true)
         };
 

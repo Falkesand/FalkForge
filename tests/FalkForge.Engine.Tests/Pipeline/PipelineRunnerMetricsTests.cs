@@ -176,6 +176,8 @@ public sealed class PipelineRunnerMetricsTests
         public Task<Result<Unit>> RollbackAsync(CancellationToken ct)
             => Task.FromResult(Result<Unit>.Success(Unit.Value));
 
+        public Result<Unit> LaunchUpdate() => Result<Unit>.Success(Unit.Value);
+
         public ValueTask DisposeAsync() => default;
     }
 }

@@ -185,4 +185,25 @@ public sealed class NamedPipeUiChannelTests
         Assert.Equal("2.0.0", typed.Version);
         Assert.Equal("https://cdn.example.com/v2.exe", typed.DownloadUrl);
     }
+
+    [Fact]
+    public void TranslateEvent_UpdateDownloadProgress_Returns_UpdateDownloadProgressMessage()
+    {
+        var msg = NamedPipeUiChannel.TranslateEvent(
+            new PipelineEvent.UpdateDownloadProgress(512_000, 1_000_000, 51));
+        var typed = Assert.IsType<UpdateDownloadProgressMessage>(msg);
+        Assert.Equal(512_000, typed.BytesReceived);
+        Assert.Equal(1_000_000, typed.TotalBytes);
+        Assert.Equal(51, typed.PercentComplete);
+    }
+
+    [Fact]
+    public void TranslateEvent_UpdateReady_Returns_UpdateReadyMessage()
+    {
+        var msg = NamedPipeUiChannel.TranslateEvent(
+            new PipelineEvent.UpdateReady("2.0.0", @"C:\cache\v2.exe"));
+        var typed = Assert.IsType<UpdateReadyMessage>(msg);
+        Assert.Equal("2.0.0", typed.Version);
+        Assert.Equal(@"C:\cache\v2.exe", typed.LocalPath);
+    }
 }

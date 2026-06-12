@@ -97,6 +97,15 @@ public sealed class PipelineRunnerTests
         public bool RollbackCalled { get; private set; }
         public Result<Unit>? RollbackResult { get; set; } = null;
 
+        public Result<Unit> LaunchUpdate()
+        {
+            LaunchUpdateCalled = true;
+            return LaunchUpdateResult ?? Result<Unit>.Success(Unit.Value);
+        }
+
+        public bool LaunchUpdateCalled { get; private set; }
+        public Result<Unit>? LaunchUpdateResult { get; set; } = null;
+
         public ValueTask DisposeAsync() => default;
     }
 
@@ -133,6 +142,58 @@ public sealed class PipelineRunnerTests
         Assert.Contains(EnginePhase.Applying, phases);
         Assert.Contains(EnginePhase.Completing, phases);
         Assert.Contains(EnginePhase.Shutdown, phases);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // LaunchUpdate dispatch + process handoff
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task LaunchUpdate_Success_CallsPipelineLaunch_AndShutsDown()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel)
+        {
+            LaunchUpdateResult = Result<Unit>.Success(Unit.Value)
+        };
+        var runner = new PipelineRunner(pipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.LaunchUpdate());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        // Handoff: after a successful launch the engine shuts down cleanly through the normal
+        // shutdown path so log/journal flush runs and the two installers do not fight.
+        Assert.Equal(0, exitCode);
+        Assert.True(pipeline.LaunchUpdateCalled);
+        Assert.Contains(channel.SentEvents,
+            e => e is PipelineEvent.PhaseChanged { Phase: EnginePhase.Shutdown });
+    }
+
+    [Fact]
+    public async Task LaunchUpdate_Failure_SurfacesErrorToUi_DoesNotShutDown()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel)
+        {
+            // Authenticode refusal surfaces as a SecurityError from the launcher.
+            LaunchUpdateResult = Result<Unit>.Failure(
+                new Error(ErrorKind.SecurityError, "UPD006: signature invalid"))
+        };
+        var runner = new PipelineRunner(pipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.LaunchUpdate());
+        // A later Shutdown lets the runner terminate so the test does not hang; the assertion
+        // is that the failed launch produced an error event and did NOT itself shut down.
+        channel.EnqueueRequest(new UiRequest.Shutdown());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        Assert.True(pipeline.LaunchUpdateCalled);
+        Assert.Contains(channel.SentEvents,
+            e => e is PipelineEvent.Failed { Kind: ErrorKind.SecurityError });
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -543,6 +604,8 @@ public sealed class PipelineRunnerTests
         }
 
         public Result<Unit> ExportPlan(string? outputPath) => Unit.Value;
+
+        public Result<Unit> LaunchUpdate() => Unit.Value;
 
         public ValueTask DisposeAsync() => default;
     }
