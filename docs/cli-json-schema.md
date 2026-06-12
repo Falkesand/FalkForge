@@ -10,6 +10,7 @@ The `--json` flag is supported on:
 | `forge validate` | implemented |
 | `forge inspect` | implemented (Windows-only) |
 | `forge plan` | implemented — extracts bundle manifest, launches engine headless in plan-only mode, renders package action summary |
+| `forge verify` | implemented — rebuilds the source project reproducibly and byte-compares against a shipped artifact; emits a VERIFIED/MISMATCH/REBUILD-FAILED verdict |
 | `forge rules list` | implemented — raw JSON array (not the common envelope; see [forge rules list --json](#forge-rules-list---json)) |
 
 Source of truth: [`src/FalkForge.Cli/JsonConsoleOutput.cs`](../src/FalkForge.Cli/JsonConsoleOutput.cs) and [`src/FalkForge.Cli/Commands/`](../src/FalkForge.Cli/Commands/).
@@ -210,6 +211,52 @@ forge plan installer.exe --json
 ```
 
 **Engine binary requirement:** `forge plan` requires `FalkForge.Engine.exe` to be built (NativeAOT publish) and co-located with the `forge` CLI binary. If the engine is absent the command exits with code `3` and an actionable error message.
+
+## forge verify --json
+
+**Purpose:** independently verify that a shipped artifact came from a given source. Rebuilds the source project in reproducible mode and byte-compares the result against the supplied artifact. Identical bytes prove provenance — no trust in the build host required.
+
+**Usage:** `forge verify <artifact.msi|artifact.exe> --rebuild <project> [--source-date-epoch <epoch>] [--json]`
+
+**Behaviour:** the command (a) checks the artifact and the `--rebuild` project both exist, (b) resolves `SOURCE_DATE_EPOCH` from `--source-date-epoch`, else the env var, else the git HEAD commit time (same rules as `forge build --reproducible`), (c) rebuilds the project via `dotnet run --project <project> -- -o <tempdir>` with that epoch pinned, (d) locates the rebuilt artifact of the same extension in the temp dir, (e) byte-compares it against the shipped artifact, and (f) emits a verdict. The temp directory is always cleaned up.
+
+> **The rebuild project must opt into reproducible mode** by calling `package.Reproducible()` (MSI) or `BundleBuilder.Reproducible()` (bundle). Without it, two builds differ in PackageCode/ProductCode and timestamps and will never match; `forge verify` then reports `MISMATCH` rather than silently passing.
+
+**Verdicts:**
+
+| Verdict | Exit | Meaning |
+|---------|------|---------|
+| `VERIFIED` | `0` | Rebuilt artifact is byte-identical to the shipped artifact. |
+| `MISMATCH` | `1` | Bytes differ. The diagnostic reports the signed size delta, the total differing-byte count, the first differing offsets (hex), and — for bundles — the structural region (`footer` / `TOC` / `payload/manifest/stub`) the first difference falls in. |
+| `REBUILD-FAILED` | `2` | The rebuild process exited non-zero (the project did not build). |
+| (setup failure) | `3` | Artifact or project missing, epoch unresolved, or the rebuild produced no artifact of the expected type. |
+
+**Envelope:** standard. The `result` map carries: `verdict` (always), `expectedSize`/`actualSize` (after a successful rebuild), and on `MISMATCH` also `sizeDelta`, `differingBytes`, `firstDifferingOffset`, and for bundles `region` and `signed`.
+
+**Signed bundles (known physics):** FalkForge bundles are ECDSA-signed by default (`manifestSignature` in the embedded manifest). ECDSA is non-deterministic, so **a signed bundle can never byte-match across independent rebuilds.** When `forge verify` detects a `manifestSignature` in the rebuilt bundle, the `MISMATCH` diagnostic says so plainly and points to the `FALKFORGE_NO_SIGN` environment variable: rebuild and ship with `FALKFORGE_NO_SIGN` set to make the bundle deterministic and byte-verifiable, or verify the signed bundle's payloads via the detach workflow (`forge bundle detach`) instead. MSI artifacts are unaffected; signed-MSI (Authenticode) verification is not supported and reports a mismatch.
+
+**Representative messages (success):**
+- `info` — `VERIFIED: rebuilt artifact is byte-identical (<N> bytes). The artifact provably came from this source.`
+
+**Representative messages (mismatch):**
+- `error` — `MISMATCH: rebuilt artifact differs from the shipped artifact.`
+- `info` — size delta, differing-byte count, first differing offsets, and region/signed notes
+
+**Exit codes:**
+- `0` — `VERIFIED`
+- `1` — `MISMATCH`
+- `2` — `REBUILD-FAILED`
+- `3` — setup/IO failure
+
+**Example:**
+
+```bash
+forge verify app.msi --rebuild installer.csproj --source-date-epoch 1577836800 --json
+```
+
+```json
+{"version":1,"command":"verify","exitCode":0,"messages":[{"level":"info","text":"VERIFIED: rebuilt artifact is byte-identical (12,288 bytes). The artifact provably came from this source."}],"result":{"verdict":"VERIFIED","expectedSize":"12288","actualSize":"12288"}}
+```
 
 ## Exit Code Reference
 

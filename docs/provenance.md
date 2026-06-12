@@ -65,6 +65,13 @@ forge build installer.csx --reproducible
 sha256sum output/MyApp-1.0.0.msi   # must match across both runs
 ```
 
+To verify a *shipped* artifact against its source in one step — rebuild reproducibly and
+byte-compare automatically — use [`forge verify --rebuild`](cli-json-schema.md#forge-verify---json):
+
+```bash
+forge verify MyApp-1.0.0.msi --rebuild installer.csproj   # -> VERIFIED / MISMATCH
+```
+
 ---
 
 ## 2. SBOM Sidecars (CycloneDX 1.6)
