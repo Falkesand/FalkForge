@@ -52,6 +52,11 @@ public sealed class AuthenticodeValidator : IAuthenticodeValidator
         var pFilePath = Marshal.StringToHGlobalUni(filePath);
         var pFileInfo = nint.Zero;
         var pData = nint.Zero;
+        // Tracks whether WinVerifyTrust(VERIFY) was called so the finally can issue the
+        // matching WinVerifyTrust(CLOSE). If the VERIFY call itself throws (e.g. SEHException
+        // on a corrupt or specially-crafted file), pData is still allocated and the WinTrust
+        // state handle must be released unconditionally.
+        var verifyWasCalled = false;
         try
         {
             var fileInfo = new NativeMethods.WINTRUST_FILE_INFO
@@ -82,13 +87,8 @@ public sealed class AuthenticodeValidator : IAuthenticodeValidator
             Marshal.StructureToPtr(data, pData, fDeleteOld: false);
 
             var actionId = NativeMethods.WINTRUST_ACTION_GENERIC_VERIFY_V2;
+            verifyWasCalled = true;
             var status = NativeMethods.WinVerifyTrust(nint.Zero, in actionId, pData);
-
-            // Always close the WinTrust state handle to release provider resources.
-            var closeData = Marshal.PtrToStructure<NativeMethods.WINTRUST_DATA>(pData);
-            closeData.dwStateAction = NativeMethods.WTD_STATE_ACTION_CLOSE;
-            Marshal.StructureToPtr(closeData, pData, fDeleteOld: true);
-            NativeMethods.WinVerifyTrust(nint.Zero, in actionId, pData);
 
             // 0 = trusted; anything else is the HRESULT-style trust error from WinVerifyTrust.
             if (status == 0)
@@ -99,6 +99,18 @@ public sealed class AuthenticodeValidator : IAuthenticodeValidator
         }
         finally
         {
+            // Release the WinTrust provider state handle unconditionally when pData was
+            // allocated and the VERIFY call was attempted (even if it threw). Without this
+            // close call, the WinTrust provider leaks its internal state on every exception.
+            if (pData != nint.Zero && verifyWasCalled)
+            {
+                var actionId = NativeMethods.WINTRUST_ACTION_GENERIC_VERIFY_V2;
+                var closeData = Marshal.PtrToStructure<NativeMethods.WINTRUST_DATA>(pData);
+                closeData.dwStateAction = NativeMethods.WTD_STATE_ACTION_CLOSE;
+                Marshal.StructureToPtr(closeData, pData, fDeleteOld: true);
+                NativeMethods.WinVerifyTrust(nint.Zero, in actionId, pData);
+            }
+
             if (pData != nint.Zero)
                 Marshal.FreeHGlobal(pData);
             if (pFileInfo != nint.Zero)
