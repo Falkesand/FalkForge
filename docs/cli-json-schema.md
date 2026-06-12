@@ -9,7 +9,7 @@ The `--json` flag is supported on:
 | `forge build` | implemented |
 | `forge validate` | implemented |
 | `forge inspect` | implemented (Windows-only) |
-| `forge plan` | envelope implemented; underlying plan dispatcher pending engine binary integration |
+| `forge plan` | implemented — extracts bundle manifest, launches engine headless in plan-only mode, renders package action summary |
 | `forge rules list` | implemented — raw JSON array (not the common envelope; see [forge rules list --json](#forge-rules-list---json)) |
 
 Source of truth: [`src/FalkForge.Cli/JsonConsoleOutput.cs`](../src/FalkForge.Cli/JsonConsoleOutput.cs) and [`src/FalkForge.Cli/Commands/`](../src/FalkForge.Cli/Commands/).
@@ -178,29 +178,38 @@ forge inspect installer.msi --json
 
 ## forge plan --json
 
-**Purpose:** run the installer pipeline through detect + plan and emit the install plan as JSON without performing any installation. The CLI envelope is wired up; the underlying engine dispatch is not yet implemented because it requires the NativeAOT engine binary to be built and located on disk.
+**Purpose:** run the installer pipeline through detect + plan and emit the install plan without performing any installation. Accepts a compiled bundle EXE as input.
 
-**Current behaviour:** the command writes an `error`-level message indicating that the engine binary is required, then emits the standard envelope with `exitCode = 3`.
+**Behaviour:** the command (a) extracts the embedded manifest from the bundle EXE via `BundleReader.Extract`, (b) writes the manifest to a temp directory, (c) locates `FalkForge.Engine.exe` alongside the CLI binary, (d) launches the engine headless with `--manifest <path> --plan-only [--plan-output <path>]`, (e) reads the plan JSON written by the engine, and (f) renders a package action summary to the console (or to the `--output` file).
 
-**Envelope:** standard. The `result` map is empty. Once the engine subprocess is wired in (`PlanCommand.BuildEngineArgs` is the entry point), the plan payload — currently produced by the engine via `--plan-only` and `--plan-output` — will be promoted into a structured field. The exact shape will be added to this document at that time; today no plan steps appear in the JSON output.
+**Envelope:** standard. The `result` map is empty. The plan content surfaces in `messages` as an `info`-level package action summary. The raw plan JSON is available at the `--output` path for programmatic consumption.
 
-**Representative messages (current placeholder):**
-- `error` — `The 'forge plan' command requires the engine binary to be compiled first.`
-- `error` — `Project: <path>`
+**Representative messages (success):**
+- `info` — `Plan produced: <N> package action(s)`
+- `info` — `  <packageId>  <action>` — one entry per package in the plan
+
+**Representative messages (failure):**
+- `error` — `File not found: <path>` — bundle EXE does not exist
+- `error` — `Failed to read bundle: <reason>` — bundle is not a valid FALKBUNDLE
+- `error` — `Engine binary 'FalkForge.Engine.exe' not found. Ensure the engine is built and placed in the same directory as the forge CLI.`
+- `error` — `Engine exited with code <N>.` — engine subprocess failed
+- `error` — `Engine did not produce a plan file.` — engine succeeded but wrote no output
 
 **Exit codes:**
-- `3` — runtime error (file not found, or engine binary not yet integrated — current default)
-- `0` — reserved for successful plan emission once engine integration lands
+- `0` — plan produced successfully
+- `3` — runtime error (file not found, invalid bundle, engine not found, engine failure, IO error)
 
-**Example (current placeholder output):**
+**Example:**
 
 ```bash
-forge plan installer.csx --json
+forge plan installer.exe --json
 ```
 
 ```json
-{"version":1,"command":"plan","exitCode":3,"messages":[{"level":"error","text":"The 'forge plan' command requires the engine binary to be compiled first."},{"level":"error","text":"Project: installer.csx"}]}
+{"version":1,"command":"plan","exitCode":0,"messages":[{"level":"info","text":"Plan produced: 2 package action(s)"},{"level":"info","text":"  MyApp.msi  Install"},{"level":"info","text":"  prereq.msi  Install"}]}
 ```
+
+**Engine binary requirement:** `forge plan` requires `FalkForge.Engine.exe` to be built (NativeAOT publish) and co-located with the `forge` CLI binary. If the engine is absent the command exits with code `3` and an actionable error message.
 
 ## Exit Code Reference
 
@@ -219,7 +228,7 @@ Defined in [`src/FalkForge.Cli/ExitCodes.cs`](../src/FalkForge.Cli/ExitCodes.cs)
 - New optional fields may be added under existing objects without bumping `version`. Consumers must ignore unknown fields.
 - Existing fields will not be renamed, retyped, or removed without a major version bump (`version` increment).
 - The `result` map is reserved for command-specific structured data. New keys may appear over time; consumers should treat unknown keys as opaque.
-- Per-command `data` shapes are not yet first-class fields on the envelope. They are tracked here as roadmap notes (see `forge plan` and `forge inspect` sections); when promoted, they will appear under `result` (string-valued summary keys) or under a new typed field, with a `version` bump if the change is breaking.
+- Per-command `data` shapes are not yet first-class fields on the envelope. Command-specific structured data (e.g. inspection results, plan package list) currently surfaces as text in `messages`. When promoted to typed fields they will appear under `result` or a new typed field, with a `version` bump if the change is breaking.
 
 ## forge rules list --json
 
