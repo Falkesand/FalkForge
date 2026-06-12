@@ -40,6 +40,42 @@ public sealed class MessageCodecRegistryTests
     }
 
     [Fact]
+    public void All_contains_exactly_29_registered_codecs()
+    {
+        // WHY: This count assertion is the meta-gate that prevents a new codec from
+        // shipping without a corresponding golden-byte test. When a new codec is added
+        // to MessageCodecRegistry, this test fails — the author must then:
+        //   1. Add a GoldenBytes_wire_format_stable test in the matching CodecTests file.
+        //   2. Bump this expected count by one.
+        // Do not bump the count without adding the golden-byte test first.
+        //
+        // Current count: 29 codecs for 29 MessageType enum values.
+        // (Log and PhaseChanged each have exactly one codec — WireVersion 2 only;
+        //  the removed WireVersion 1 codecs are intentionally absent per single-version contract.)
+        Assert.Equal(29, MessageCodecRegistry.All.Count);
+    }
+
+    [Fact]
+    public void All_registered_types_resolve_at_their_own_wire_version()
+    {
+        // Every codec in the registry must be self-consistent: ForRead(codec.Type, codec.WireVersion)
+        // must return that exact codec. This guards against registration bugs where a codec is
+        // inserted under the wrong key.
+        var failures = new System.Collections.Generic.List<string>();
+
+        foreach (var codec in MessageCodecRegistry.All)
+        {
+            var result = MessageCodecRegistry.ForRead(codec.Type, codec.WireVersion);
+            if (result.IsFailure || result.Value.WireVersion != codec.WireVersion)
+            {
+                failures.Add($"{codec.Type} v{codec.WireVersion}: {(result.IsFailure ? result.Error.Message : $"resolved to v{result.Value.WireVersion}")}");
+            }
+        }
+
+        Assert.Empty(failures);
+    }
+
+    [Fact]
     public void ForRead_returns_failure_with_descriptive_message_naming_type_and_version()
     {
         var result = MessageCodecRegistry.ForRead(UnregisteredType, wireVersion: 9);
