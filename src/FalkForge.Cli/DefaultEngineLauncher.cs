@@ -40,16 +40,56 @@ internal sealed class DefaultEngineLauncher : IEngineLauncher
     }
 
     /// <summary>
-    /// Wraps an argument in double quotes and escapes internal double quotes.
-    /// Uses the standard Windows escaping convention (backslash before quote).
+    /// Quotes an argument per the Windows <c>CommandLineToArgvW</c> rules so the child engine
+    /// process receives it intact. A backslash is special ONLY when it precedes a double-quote
+    /// (or the closing quote of a quoted argument); interior backslashes — including every
+    /// backslash in a normal Windows path — must stay single. The previous implementation
+    /// doubled all backslashes, corrupting paths such as <c>C:\Users\John Doe\manifest.json</c>.
     /// </summary>
-    private static string EscapeArg(string arg)
+    internal static string EscapeArg(string arg)
     {
-        // If arg has no special characters, pass as-is
-        if (arg.Length > 0 && !arg.Contains(' ') && !arg.Contains('"'))
+        // No spaces, tabs or quotes: the argument needs no quoting at all (and must not be
+        // mangled). This is the common case for plain Windows paths without spaces.
+        if (arg.Length > 0 && arg.IndexOfAny([' ', '\t', '"']) < 0)
             return arg;
 
-        // Wrap in quotes, escaping embedded quotes
-        return "\"" + arg.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        var sb = new StringBuilder(arg.Length + 2);
+        sb.Append('"');
+
+        var i = 0;
+        while (i < arg.Length)
+        {
+            // Count the run of backslashes starting at i.
+            var backslashes = 0;
+            while (i < arg.Length && arg[i] == '\\')
+            {
+                backslashes++;
+                i++;
+            }
+
+            if (i == arg.Length)
+            {
+                // Trailing backslashes precede the closing quote: double them so the quote is
+                // not escaped, but they are not interpreted as part of an escape sequence.
+                sb.Append('\\', backslashes * 2);
+            }
+            else if (arg[i] == '"')
+            {
+                // Backslashes before a literal quote are doubled, then the quote is escaped.
+                sb.Append('\\', backslashes * 2 + 1);
+                sb.Append('"');
+                i++;
+            }
+            else
+            {
+                // Backslashes not followed by a quote are emitted verbatim (single).
+                sb.Append('\\', backslashes);
+                sb.Append(arg[i]);
+                i++;
+            }
+        }
+
+        sb.Append('"');
+        return sb.ToString();
     }
 }
