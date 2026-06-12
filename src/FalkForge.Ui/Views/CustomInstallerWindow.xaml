@@ -2,24 +2,42 @@
         x:ClassModifier="internal"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:FalkForge.Ui.Converters"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackground}">
     <Window.Resources>
         <SolidColorBrush x:Key="WindowBackground" Color="#FFFFFF" />
         <SolidColorBrush x:Key="AccentBrush" Color="#0078D4" />
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!-- Dry-run warning banner — visible only when IsDryRun is true -->
+        <Border Grid.Row="0"
+                Background="#FFF3CD"
+                BorderThickness="0,0,0,1"
+                BorderBrush="#FFC107"
+                Padding="16,6"
+                AutomationProperties.Name="Dry run mode active — no changes will be made"
+                Visibility="{Binding IsDryRun, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="DRY RUN — no changes will be made"
+                       FontWeight="SemiBold"
+                       Foreground="#856404"
+                       HorizontalAlignment="Center"
+                       AutomationProperties.LiveSetting="Polite" />
+        </Border>
+
         <!-- Page content area -->
-        <ContentPresenter Grid.Row="0" Content="{Binding CurrentView}" />
+        <ContentPresenter Grid.Row="1" Content="{Binding CurrentView}" />
 
         <!-- Navigation bar -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="{DynamicResource WindowBackground}"
                 BorderThickness="0,1,0,0"
                 BorderBrush="#E0E0E0"
@@ -78,7 +96,7 @@
         </Border>
 
         <!-- Drag handle for borderless mode (invisible, covers top area) -->
-        <Rectangle Grid.Row="0" Height="32" VerticalAlignment="Top"
+        <Rectangle Grid.Row="1" Height="32" VerticalAlignment="Top"
                    Fill="Transparent"
                    x:Name="DragHandle"
                    MouseLeftButtonDown="DragHandle_MouseLeftButtonDown" />

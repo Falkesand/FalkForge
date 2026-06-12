@@ -87,6 +87,13 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// True when the engine manifest was built with <c>BundleBuilder.DryRun()</c> or
+    /// the installer was launched with <c>--dry-run</c>. Drives the persistent
+    /// "DRY RUN — no changes will be made" banner in the window chrome.
+    /// </summary>
+    public bool IsDryRun => _engine.Manifest.IsDryRun;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public event EventHandler? CloseRequested;
