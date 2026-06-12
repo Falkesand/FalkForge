@@ -37,10 +37,15 @@ jobs:
       - name: Install WiX Toolset (for darice.cub)
         shell: pwsh
         run: |
-          choco install wixtoolset --version=3.14.1 -y --no-progress 2>&1 | Out-Null
+          $output = choco install wixtoolset -y --no-progress 2>&1
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::warning::WiX Toolset install failed — ICE validation will not run in this job."
+            Write-Host ($output | Select-Object -Last 15 | Out-String)
           }
+          # This step is advisory: ICE coverage is desirable but its absence is
+          # handled (probe step reports it; tests use SkipWhenCubUnavailable).
+          # A lingering non-zero $LASTEXITCODE from choco must not fail the job.
+          exit 0
 
       - name: Probe darice.cub availability
         shell: pwsh
