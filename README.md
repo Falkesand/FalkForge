@@ -285,6 +285,30 @@ dotnet publish -c Release   # NativeAOT for Engine + Elevation
 
 Full documentation is available in [documentation.html](documentation.html) -- a self-contained 9,000+ line reference with dark/light theme and searchable sidebar covering all 18 sections.
 
+## Releases & Provenance
+
+Release artifacts (Engine, Engine.Elevation, CLI) are published automatically on version tag pushes
+via the [release workflow](.github/workflows/release.yml). Each release includes a `SHA256SUMS.txt`
+checksum file alongside the binaries.
+
+**Build provenance attestation** is generated for every release using
+[GitHub build provenance](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds).
+Verify an artifact before running it:
+
+```bash
+gh attestation verify forge.exe --repo Falkesand/FalkForge
+gh attestation verify FalkForge.Engine.exe --repo Falkesand/FalkForge
+```
+
+> **Note:** Attestation is best-effort while this repository is private. GitHub build
+> provenance attestations require a paid plan for private repos on GitHub-hosted runners.
+> The release workflow continues and publishes artifacts even when attestation is unavailable;
+> a warning is written to the workflow summary. Attestation will be unconditionally enforced
+> once the repository is public or plan support is confirmed.
+
+For the full supply-chain provenance surface (SBOM, ECDSA payload integrity, reproducible
+builds, WinGet manifests, and plan export), see [docs/provenance.md](docs/provenance.md).
+
 ## License
 
 Proprietary. All rights reserved.

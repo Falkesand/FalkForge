@@ -338,6 +338,52 @@ is blocked with `PLN004` and a clear list of unsupported extension names.
 | WinGet manifest | `.WinGet()` fluent / `forge winget` | `{name}.winget*.yaml` | WinGet CLI validation |
 | Plan JSON | `forge plan` | stdout / `-o <file>` | `jq` / change management tools |
 | Reproducible build | `.Reproducible()` fluent | N/A (determinism property) | `sha256sum` across two builds |
+| GitHub build provenance | Release workflow (automatic on `v*` tag) | GitHub Attestations API | `gh attestation verify <file> --repo Falkesand/FalkForge` |
+
+---
+
+## 7. GitHub Release Attestations
+
+### What it is
+
+Every release build produced by the [release workflow](../.github/workflows/release.yml)
+generates a SLSA-style build provenance attestation via
+[`actions/attest-build-provenance`](https://github.com/actions/attest-build-provenance).
+The attestation records the exact workflow run, commit SHA, repository, and artifact digests
+in a signed statement stored in the GitHub Attestations API.
+
+This is complementary to the compile-time provenance features (SBOM, ECDSA payload
+integrity, reproducible builds) — it attests to the *build environment* rather than the
+*installer content*.
+
+### What is attested
+
+- `FalkForge.Engine.exe` — NativeAOT bundle engine
+- `FalkForge.Engine.Elevation.exe` — NativeAOT elevated companion process
+- `forge.exe` — CLI tool
+- `SHA256SUMS.txt` — checksum manifest for all release files
+
+### Verification
+
+```bash
+# Verify a downloaded artifact before running it
+gh attestation verify forge.exe --repo Falkesand/FalkForge
+gh attestation verify FalkForge.Engine.exe --repo Falkesand/FalkForge
+gh attestation verify FalkForge.Engine.Elevation.exe --repo Falkesand/FalkForge
+```
+
+A successful verify confirms:
+- The file was produced by a GitHub Actions workflow in `Falkesand/FalkForge`.
+- The workflow ran against a specific commit SHA (visible in the attestation output).
+- The file has not been tampered with since it was uploaded.
+
+### Private repo note
+
+GitHub build provenance attestations require a paid plan for private repositories
+using GitHub-hosted runners. While this repository is private, the attestation step
+runs with `continue-on-error: true` — artifacts are still released and the workflow
+writes a warning to the summary if attestation fails. Enforcement will be unconditional
+once plan support is confirmed or the repository is made public.
 
 ---
 
