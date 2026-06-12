@@ -159,6 +159,74 @@ public sealed class PipelinePhaseStepTests
     }
 
     [Fact]
+    public async Task DetectStep_UpdateServiceThrows_DetectStillSucceeds()
+    {
+        // Intent: the update flow is documented as "best-effort, never fails the detection phase".
+        // An unexpected exception from the update download (not a graceful Result failure) must NOT
+        // bubble out of ExecuteAsync and fail detection — the install must proceed.
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(
+            bundleId, "1.0.0", FalkForge.Engine.Protocol.Manifest.UpdatePolicy.DownloadAndPrompt);
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        var feedJson = BuildFeedJson(bundleId, "2.0.0", "https://cdn.example.com/v2.exe", "abc123");
+        var checker = BuildUpdateChecker(200, feedJson);
+
+        // Download delegate throws a non-cancellation exception mid-flight.
+        var service = new FalkForge.Engine.Pipeline.UpdateService(
+            manifest.UpdateFeed!,
+            cacheDir: Path.GetTempPath(),
+            download: (url, sha, dest, progress, resume, ct) =>
+                throw new InvalidOperationException("simulated download blow-up"),
+            launcher: new NoOpUpdateLauncher(),
+            channel: channel,
+            logger: new FalkForge.Engine.Logging.NullLogger());
+
+        var step = new DetectStep(manifest, registry, channel, checker, service);
+
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task DetectStep_CancellationDuringUpdate_PropagatesCancellation()
+    {
+        // Intent: best-effort update handling must NOT swallow cancellation. When the token is
+        // cancelled, ExecuteAsync must surface the cancellation (not silently succeed).
+        var bundleId = Guid.NewGuid();
+        var manifest = ManifestWithUpdateFeed(
+            bundleId, "1.0.0", FalkForge.Engine.Protocol.Manifest.UpdatePolicy.DownloadAndPrompt);
+        var registry = new MockRegistry();
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        var feedJson = BuildFeedJson(bundleId, "2.0.0", "https://cdn.example.com/v2.exe", "abc123");
+        var checker = BuildUpdateChecker(200, feedJson);
+
+        using var cts = new CancellationTokenSource();
+        var service = new FalkForge.Engine.Pipeline.UpdateService(
+            manifest.UpdateFeed!,
+            cacheDir: Path.GetTempPath(),
+            download: (url, sha, dest, progress, resume, ct) =>
+            {
+                cts.Cancel();
+                ct.ThrowIfCancellationRequested();
+                return Task.FromResult(Result<string>.Success(dest));
+            },
+            launcher: new NoOpUpdateLauncher(),
+            channel: channel,
+            logger: new FalkForge.Engine.Logging.NullLogger());
+
+        var step = new DetectStep(manifest, registry, channel, checker, service);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => step.ExecuteAsync(ctx, cts.Token));
+    }
+
+    [Fact]
     public async Task Builder_WithUpdateServices_DetectDownloadsUpdate_EmitsUpdateReady()
     {
         var bundleId = Guid.NewGuid();
