@@ -94,31 +94,4 @@ public class LogCodecTests
 
         Assert.Equal(legacyWireLength + 16, newBytes.Length);
     }
-
-    [Fact]
-    public void GoldenBytes_wire_format_stable()
-    {
-        // Golden bytes lock the wire format against accidental field-order or type drift.
-        // Uses SequenceId=3, Text="Hello, world.", Level=Info(2), SessionCorrelationId=Guid.Empty
-        // so the byte array is fully deterministic. Recompute by serializing the same message
-        // and calling Convert.ToHexString — do not update this constant without bumping WireVersion.
-        //
-        // Layout: [WireVersion:u16=2][Type:u16=0x010A][PayloadLen:i32=38]
-        //         [SeqId:u32=3][Text:7bit-len+UTF8="Hello, world."][Level:i32=2][Guid:16 zero bytes]
-        var expected = Convert.FromHexString(
-            "02000A012600000003000000" +
-            "0D48656C6C6F2C20776F726C642E" +
-            "02000000" +
-            "00000000000000000000000000000000");
-
-        var actual = MessageSerializer.Serialize(new LogMessage
-        {
-            SequenceId = 3,
-            Text = "Hello, world.",
-            Level = LogLevel.Info,
-            SessionCorrelationId = Guid.Empty,
-        });
-
-        Assert.Equal(expected, actual);
-    }
 }

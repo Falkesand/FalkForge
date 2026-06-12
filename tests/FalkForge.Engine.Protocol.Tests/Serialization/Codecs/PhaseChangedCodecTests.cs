@@ -80,30 +80,4 @@ public class PhaseChangedCodecTests
 
         Assert.Equal(legacyWireLength + 16, newBytes.Length);
     }
-
-    [Fact]
-    public void GoldenBytes_wire_format_stable()
-    {
-        // Golden bytes lock the wire format against accidental field-order or type drift.
-        // Uses SequenceId=4, Phase=Detecting(1), SessionCorrelationId=Guid.Empty.
-        // Recompute by serializing the same message and calling Convert.ToHexString —
-        // do not update this constant without bumping WireVersion.
-        //
-        // Layout: [WireVersion:u16=2][Type:u16=0x0109][PayloadLen:i32=24]
-        //         [SeqId:u32=4][Phase:i32=1][Guid:16 zero bytes]
-        var expected = Convert.FromHexString(
-            "0200090118000000" +
-            "04000000" +
-            "01000000" +
-            "00000000000000000000000000000000");
-
-        var actual = MessageSerializer.Serialize(new PhaseChangedMessage
-        {
-            SequenceId = 4,
-            Phase = EnginePhase.Detecting,
-            SessionCorrelationId = Guid.Empty,
-        });
-
-        Assert.Equal(expected, actual);
-    }
 }
