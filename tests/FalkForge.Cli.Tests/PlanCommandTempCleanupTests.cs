@@ -62,6 +62,11 @@ public sealed class PlanCommandTempCleanupTests
     // Enough for BundleReader.Extract to return a non-empty manifest so PlanCommand reaches its
     // temp-dir creation + engine-launch path (the engine binary is absent in the test host, so the
     // command exits afterward — exactly the path whose cleanup we are asserting).
+    //
+    // SYNC NOTE: This hand-built binary layout must stay in sync with BundleContent/BundleReader
+    // (PayloadEmbedder writes it, BundleReader.Extract reads it). If the format changes,
+    // BundleReader.Extract will fail at extraction with a format error — not silently pass — so
+    // a drift will surface as a hard test failure here, not a silent green.
     private static void CreateMinimalBundle(string path)
     {
         var magic = Encoding.ASCII.GetBytes("FALKBUNDLE\0\0\0\0\0\0");

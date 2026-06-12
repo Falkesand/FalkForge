@@ -25,8 +25,17 @@ public sealed class IceValidator
     /// <summary>
     ///     Validates an MSI file using ICE (Internal Consistency Evaluators).
     ///     Requires Windows SDK to be installed for darice.cub.
-    ///     Returns success with empty messages if darice.cub is not found.
+    ///     Returns success with empty messages if darice.cub is not found (lenient fallback).
     /// </summary>
+    /// <remarks>
+    ///     <b>Behavior difference from <see cref="Validate(string, IceConfiguration)"/>:</b>
+    ///     this overload silently skips ICE validation when darice.cub is unavailable and
+    ///     returns an empty success result. Use <c>Validate(msiPath, new IceConfiguration())</c>
+    ///     for strict behavior: that overload fails loud when darice.cub is missing unless
+    ///     <see cref="IceConfiguration.SkipWhenCubUnavailable"/> is explicitly set to <c>true</c>.
+    ///     Choose this overload only in contexts where ICE validation is advisory (opt-in); choose
+    ///     <see cref="Validate(string, IceConfiguration)"/> when ICE must run or the build fails.
+    /// </remarks>
     public Result<IceValidationResult> Validate(string msiPath)
     {
         if (!File.Exists(msiPath))

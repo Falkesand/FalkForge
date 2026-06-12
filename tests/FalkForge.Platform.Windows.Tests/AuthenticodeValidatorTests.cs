@@ -77,7 +77,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
     {
         var signed = EmbeddedSignedFile();
         if (signed is null)
-            return; // No embedded-signed reference file available on this machine.
+            Assert.Skip("No embedded-signed reference file (dotnet.exe) found on this machine — positive-path test skipped.");
 
         // Copy a genuinely-signed file, then flip a byte in the middle. The embedded signature
         // no longer matches the file hash, so WinVerifyTrust must reject it.
@@ -97,7 +97,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
     {
         var signed = EmbeddedSignedFile();
         if (signed is null)
-            return; // Positive case requires a reliably embedded-signed file; skip if absent.
+            Assert.Skip("No embedded-signed reference file (dotnet.exe) found on this machine — positive-path test skipped.");
 
         var result = _validator.ValidateSignature(signed, expectedThumbprint: null);
 
@@ -109,7 +109,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
     {
         var signed = EmbeddedSignedFile();
         if (signed is null)
-            return;
+            Assert.Skip("No embedded-signed reference file (dotnet.exe) found on this machine — positive-path test skipped.");
 
         // Trust verification passes, but the pinned thumbprint does not match the signer —
         // pinning must layer on top of (not bypass) a successful WinVerifyTrust result.
