@@ -4,6 +4,7 @@ using FalkForge.Engine;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Logging;
 using Xunit;
@@ -158,5 +159,45 @@ public sealed class UpdateServiceTests
 
         Assert.True(launchResult.IsFailure);
         Assert.Empty(launcher.Launched);
+    }
+
+    /// <summary>
+    /// A background download error must NOT terminate the installation session.
+    /// The ErrorMessage from the downloader must be mapped to a warning log event
+    /// (PipelineEvent.Log at Warning level), never to PipelineEvent.Failed which is
+    /// session-terminating. Intent: a transient network failure during a background
+    /// update download silently degrades (no auto-update) without killing the install.
+    /// </summary>
+    [Fact]
+    public async Task HandleUpdate_DownloadError_EmitsLogWarning_NotFailed()
+    {
+        var channel = new RecordingUiChannel();
+        var launcher = new FakeLauncher();
+
+        // Inject a download function that always returns failure to simulate a network error.
+        var feed = new ManifestUpdateFeed(
+            "https://cdn.example.com/feed.json",
+            UpdatePolicy.DownloadAndPrompt,
+            AllowResumeDownload: true,
+            ShowDownloadProgress: true,
+            ShowDownloadErrors: true,
+            PromptBeforeAutoUpdate: false);
+
+        var service = new UpdateService(
+            feed,
+            cacheDir: "/cache",
+            download: (url, sha, dest, progress, resume, ct) =>
+                Task.FromResult(Result<string>.Failure(new Error(ErrorKind.DownloadError, "UPD-TEST: simulated network failure"))),
+            launcher: launcher,
+            channel: channel,
+            logger: new NullLogger());
+
+        await service.HandleUpdateAsync(TestUpdate, CancellationToken.None);
+
+        // Must NOT emit a session-terminating Failed event.
+        Assert.DoesNotContain(channel.Events, e => e is PipelineEvent.Failed);
+
+        // Must emit at least one warning-level log event describing the failure.
+        Assert.Contains(channel.Events, e => e is PipelineEvent.Log log && log.Level == LogLevel.Warning);
     }
 }
