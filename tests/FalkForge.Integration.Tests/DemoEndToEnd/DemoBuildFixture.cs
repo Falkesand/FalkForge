@@ -18,6 +18,33 @@ public sealed class DemoBuildFixture : IDisposable
     public DemoBuildFixture()
     {
         Directory.CreateDirectory(_tempRoot);
+
+        // Force-killed test runs skip Dispose, leaving falk-demo-e2e-* roots in %TEMP%.
+        // Self-heal on next run: delete sibling roots older than 24 hours (best-effort, never throw).
+        try
+        {
+            var tempPath = Path.GetTempPath();
+            foreach (var dir in Directory.EnumerateDirectories(tempPath, "falk-demo-e2e-*"))
+            {
+                if (dir == _tempRoot)
+                    continue;
+
+                try
+                {
+                    var created = Directory.GetCreationTimeUtc(dir);
+                    if (DateTime.UtcNow - created > TimeSpan.FromHours(24))
+                        Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    // Best effort per directory — locked handles, permissions, etc.
+                }
+            }
+        }
+        catch
+        {
+            // Never throw from constructor.
+        }
     }
 
     public DemoBuildResult GetOrBuild(DemoExpectation demo) =>
@@ -57,6 +84,11 @@ public sealed class DemoBuildFixture : IDisposable
 
         // Demos using .Reproducible() require SOURCE_DATE_EPOCH
         process.StartInfo.Environment["SOURCE_DATE_EPOCH"] = "1577836800";
+
+        // Disable MSBuild node reuse so worker nodes don't linger between test runs.
+        // With nodeReuse:true (the default), cross-SDK orphan nodes accumulate on machines
+        // with many SDK installations and degrade subsequent builds. CI impact is minimal.
+        process.StartInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
 
         process.Start();
 
