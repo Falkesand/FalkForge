@@ -71,7 +71,7 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
 
         try
         {
-            Process.Start(new ProcessStartInfo(updatePath) { UseShellExecute = true });
+            using var process = Process.Start(new ProcessStartInfo(updatePath) { UseShellExecute = true });
             return Result<Unit>.Success(Unit.Value);
         }
         catch (Exception ex)
