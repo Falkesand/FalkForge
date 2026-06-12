@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Pipeline;
 
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Logging;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -68,8 +69,13 @@ internal sealed class UpdateService
     /// no-op (notification already happened during detection). For DownloadAndPrompt / AutoUpdate
     /// it downloads, emits progress + ready events, and remembers the cached path. The
     /// <see cref="UpdateDownloader"/> performs the AutoUpdate-without-prompt launch itself.
-    /// Never throws: an update failure must never block the install.
     /// </summary>
+    /// <remarks>
+    /// Callers must treat this method as potentially throwing; it does not catch exceptions
+    /// internally. <see cref="FalkForge.Engine.Phases.DetectStep"/> wraps the call in a
+    /// best-effort guard so that a download failure does not block the install session — but
+    /// that guard lives in the caller, not here.
+    /// </remarks>
     internal async Task HandleUpdateAsync(UpdateInfo update, CancellationToken ct)
     {
         if (_feed.Policy == UpdatePolicy.NotifyOnly)
@@ -122,7 +128,13 @@ internal sealed class UpdateService
                 return _channel.SendAsync(new PipelineEvent.UpdateReady(r.Version, r.LocalPath), ct);
 
             case ErrorMessage e:
-                return _channel.SendAsync(new PipelineEvent.Failed(e.Kind, e.Message), ct);
+            {
+                // Map download errors to a warning log, not a session-terminating Failed event.
+                // A best-effort background update failure must never kill the install session.
+                var msg = $"Update download failed (non-fatal): [{e.Kind}] {e.Message}";
+                _logger.Warning("UpdateService", msg);
+                return _channel.SendAsync(new PipelineEvent.Log(LogLevel.Warning, msg), ct);
+            }
 
             default:
                 return Task.CompletedTask;
