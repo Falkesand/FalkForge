@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
@@ -42,15 +41,19 @@ internal static class BundleSbomHelper
             if (model.SbomOptions is not null)
                 components.AddRange(model.SbomOptions.AdditionalComponents);
 
+            // Serial number + timestamp are deterministic under SOURCE_DATE_EPOCH so a
+            // reproducible build emits a byte-identical SBOM sidecar (was Guid.NewGuid + UtcNow).
+            var identity = ReproducibleSbomIdentity.Resolve(components, model.Name, model.Version);
+
             var doc = new SbomDocument
             {
-                SerialNumber = "urn:uuid:" + Guid.NewGuid(),
+                SerialNumber = identity.SerialNumber,
                 Metadata = new SbomMetadata
                 {
                     Name = model.Name,
                     Version = model.Version,
                     Manufacturer = model.Manufacturer,
-                    Timestamp = GetReproducibleTimestamp()
+                    Timestamp = identity.Timestamp
                 },
                 Components = components,
                 Dependencies = []
@@ -62,13 +65,5 @@ internal static class BundleSbomHelper
         {
             return Result<Unit>.Failure(ErrorKind.IoError, $"Bundle SBOM generation failed: {ex.Message}");
         }
-    }
-
-    private static DateTimeOffset GetReproducibleTimestamp()
-    {
-        var epoch = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
-        if (epoch is not null && long.TryParse(epoch, out var seconds))
-            return DateTimeOffset.FromUnixTimeSeconds(seconds);
-        return DateTimeOffset.UtcNow;
     }
 }

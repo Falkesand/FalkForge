@@ -43,15 +43,20 @@ internal static class SbomHelper
             if (package.SbomOptions is not null)
                 components.AddRange(package.SbomOptions.AdditionalComponents);
 
+            // Deterministic serial + timestamp under SOURCE_DATE_EPOCH so a reproducible build
+            // emits a byte-identical SBOM sidecar (was Guid.NewGuid + UtcNow).
+            var identity = ReproducibleSbomIdentity.Resolve(
+                components, package.Name, package.Version.ToString());
+
             var doc = new SbomDocument
             {
-                SerialNumber = "urn:uuid:" + Guid.NewGuid(),
+                SerialNumber = identity.SerialNumber,
                 Metadata = new SbomMetadata
                 {
                     Name = package.Name,
                     Version = package.Version.ToString(),
                     Manufacturer = package.Manufacturer,
-                    Timestamp = GetReproducibleTimestamp()
+                    Timestamp = identity.Timestamp
                 },
                 Components = components,
                 Dependencies = []
@@ -63,13 +68,5 @@ internal static class SbomHelper
         {
             return Result<Unit>.Failure(ErrorKind.IoError, $"SBOM generation failed: {ex.Message}");
         }
-    }
-
-    private static DateTimeOffset GetReproducibleTimestamp()
-    {
-        var epoch = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
-        if (epoch is not null && long.TryParse(epoch, out var seconds))
-            return DateTimeOffset.FromUnixTimeSeconds(seconds);
-        return DateTimeOffset.UtcNow;
     }
 }

@@ -123,15 +123,19 @@ internal static class BundleIntegritySigner
         if (model.SbomOptions is not null)
             components.AddRange(model.SbomOptions.AdditionalComponents);
 
+        // Deterministic serial + timestamp under SOURCE_DATE_EPOCH so the attestation SBOM is
+        // reproducible (was Guid.NewGuid + UtcNow, which broke byte-identical rebuilds).
+        var identity = ReproducibleSbomIdentity.Resolve(components, model.Name, model.Version);
+
         var doc = new SbomDocument
         {
-            SerialNumber = "urn:uuid:" + Guid.NewGuid(),
+            SerialNumber = identity.SerialNumber,
             Metadata = new SbomMetadata
             {
                 Name = model.Name,
                 Version = model.Version,
                 Manufacturer = model.Manufacturer,
-                Timestamp = DateTimeOffset.UtcNow
+                Timestamp = identity.Timestamp
             },
             Components = components,
             Dependencies = []
