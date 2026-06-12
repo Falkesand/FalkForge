@@ -94,6 +94,17 @@ internal sealed class PipelineContext
     /// </summary>
     public IRestartManager? RestartManager { get; set; }
 
+    /// <summary>
+    /// Optional out-of-band publisher key pin consumed by the integrity gate in
+    /// <see cref="ApplyStep"/>. When set, it is the SHA-256 fingerprint (uppercase hex)
+    /// of the expected signer's SubjectPublicKeyInfo public key. A host embedding the
+    /// engine supplies this from a channel the attacker cannot rewrite (its own binary or
+    /// config) to prove <i>authorship</i>: the bundle's embedded signing key must match the
+    /// pin, rejecting a bundle re-signed by an untrusted publisher. Null (default) means
+    /// the gate proves internal consistency only, not authorship.
+    /// </summary>
+    public string? ExpectedPublisherKeyFingerprint { get; set; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ElevateStep
     // ──────────────────────────────────────────────────────────────────────────

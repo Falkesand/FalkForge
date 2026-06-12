@@ -62,7 +62,8 @@ internal sealed class ApplyStep : IApplyStep
         // before a single package runs. Independent of Authenticode.
         if (ctx.Manifest is not null)
         {
-            var integrity = PayloadIntegrityGate.Verify(ctx.Manifest);
+            var integrity = PayloadIntegrityGate.Verify(
+                ctx.Manifest, ctx.ExpectedPublisherKeyFingerprint);
             if (integrity.IsFailure)
             {
                 await _uiChannel.SendAsync(
