@@ -131,6 +131,103 @@ public sealed class PayloadIntegrityGateTests
     }
 
     [Fact]
+    public void Verify_SignedManifest_PackageNotInSignedSet_ReturnsSecurityError()
+    {
+        // The envelope signs only package A. The manifest carries A (signed) AND an extra
+        // package B that is NOT in the signed set. Without a set-coverage check, B would be
+        // executed despite never having been signed — an attacker could append an unsigned
+        // malicious package to a signed bundle and have it run. Every executable package in a
+        // signed manifest must be covered by the signature.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"));
+        var manifest = ManifestWith(sig, Package("A", "AABB"), Package("B", "CCDD"));
+
+        var result = PayloadIntegrityGate.Verify(manifest);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("B", result.Error.Message);
+    }
+
+    [Fact]
+    public void Verify_ReSigningAttacker_NoPin_PassesAndDocumentsLimitation()
+    {
+        // SECURITY BOUNDARY (default ephemeral / self-describing-key mode):
+        // The verifying key is carried INSIDE the envelope. An attacker who fully rewrites the
+        // bundle can recompute the hashes, re-sign the file list with THEIR OWN key, and embed
+        // THEIR OWN public key. With no out-of-band pin, the gate has nothing to compare that key
+        // against, so verification PASSES. This test pins that reality so it cannot regress
+        // silently: default mode proves internal consistency / casual-tamper detection, NOT
+        // authorship. Authorship requires the publisher-key pin (asserted in the next test).
+        using var attackerKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var attackerSig = SignEnvelope(attackerKey, ("A", "AABB"));
+        var manifest = ManifestWith(attackerSig, Package("A", "AABB"));
+
+        // No pin supplied -> attacker's self-consistent re-signed bundle is accepted.
+        var result = PayloadIntegrityGate.Verify(manifest, expectedPublisherKeyFingerprint: null);
+
+        Assert.True(result.IsSuccess,
+            "Default mode cannot detect a full re-sign with the attacker's own key — this is the documented limitation.");
+    }
+
+    [Fact]
+    public void Verify_ReSigningAttacker_WithPublisherPin_ReturnsSecurityError()
+    {
+        // Same attacker re-sign, but now the host pins the EXPECTED publisher key fingerprint
+        // out-of-band. The attacker signed with a different key, so its embedded public key does
+        // not match the pin -> the gate rejects the bundle. This is what proves authorship.
+        using var publisherKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var attackerKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+
+        var expectedFingerprint =
+            Convert.ToHexString(SHA256.HashData(publisherKey.ExportSubjectPublicKeyInfo()));
+
+        var attackerSig = SignEnvelope(attackerKey, ("A", "AABB"));
+        var manifest = ManifestWith(attackerSig, Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, expectedFingerprint);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("INT005", result.Error.Message);
+    }
+
+    [Fact]
+    public void Verify_WithPublisherPin_MatchingKey_ReturnsSuccess()
+    {
+        // The genuine publisher signs; the host pins that same key's fingerprint. Pin matches,
+        // every package is covered, hashes bind -> success.
+        using var publisherKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var expectedFingerprint =
+            Convert.ToHexString(SHA256.HashData(publisherKey.ExportSubjectPublicKeyInfo()));
+
+        var sig = SignEnvelope(publisherKey, ("A", "AABB"));
+        var manifest = ManifestWith(sig, Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, expectedFingerprint);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void Verify_WithPublisherPin_TolueratesColonSeparatedLowercaseFingerprint()
+    {
+        // Hosts commonly paste fingerprints in colon-separated lowercase display format.
+        // The pin comparison normalizes separators and case so such a pin still matches.
+        using var publisherKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var raw = Convert.ToHexString(SHA256.HashData(publisherKey.ExportSubjectPublicKeyInfo()));
+        var displayFormat = string.Join(':',
+            Enumerable.Range(0, raw.Length / 2).Select(i => raw.Substring(i * 2, 2).ToLowerInvariant()));
+
+        var sig = SignEnvelope(publisherKey, ("A", "AABB"));
+        var manifest = ManifestWith(sig, Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, displayFormat);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
     public void Verify_HashComparisonIsCaseInsensitive()
     {
         // PackageCache emits uppercase hex; tolerate case so a lowercase-signed entry still binds.
