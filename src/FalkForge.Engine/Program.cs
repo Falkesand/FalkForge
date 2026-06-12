@@ -92,10 +92,6 @@ internal static class Program
             }
         }
 
-        // Suppress unused warning — plan-only not yet wired into pipeline runner
-        _ = planOnly;
-        _ = planOutputPath;
-
         // Self-extraction mode: list or extract payloads and exit
         if (extractList || extractDir is not null)
         {
@@ -259,7 +255,9 @@ internal static class Program
             {
                 PipeOptions = pipeOptions,
                 LogPath = programArgs.LogPath,
-                MinimumLogLevel = programArgs.MinimumLogLevel
+                MinimumLogLevel = programArgs.MinimumLogLevel,
+                IsPlanOnly = planOnly,
+                PlanOnlyOutputPath = planOutputPath
             });
 
         // Print the session correlation id so operators can grep all three log files

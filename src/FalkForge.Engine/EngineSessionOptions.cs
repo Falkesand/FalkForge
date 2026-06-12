@@ -71,6 +71,24 @@ public sealed record EngineSessionOptions
     public ISystemClock? Clock { get; init; }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Plan-only mode options
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// When <c>true</c>, the session runs only through detection and planning,
+    /// then exports the plan and exits without invoking Apply. Intended for
+    /// <c>forge plan</c> / headless CI use cases.
+    /// </summary>
+    public bool IsPlanOnly { get; init; }
+
+    /// <summary>
+    /// Optional path for plan JSON output when <see cref="IsPlanOnly"/> is <c>true</c>.
+    /// When <c>null</c>, the plan JSON is written to stdout. Ignored when
+    /// <see cref="IsPlanOnly"/> is <c>false</c>.
+    /// </summary>
+    public string? PlanOnlyOutputPath { get; init; }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Test-only injection point (exposed via EngineSession.BindToChannel)
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -80,4 +98,13 @@ public sealed record EngineSessionOptions
     /// Consumed by <see cref="EngineSession.BindToChannel"/>.
     /// </summary>
     internal IUiChannel? Channel { get; init; }
+
+    /// <summary>
+    /// Test-only: installer manifest to seed into the pipeline when using
+    /// <see cref="EngineSession.BindToChannel"/>. Enables plan-only integration tests
+    /// without requiring a named-pipe or a real manifest file on disk.
+    /// Ignored by <see cref="EngineSession.BindToPipe"/> which always loads the manifest
+    /// from the file at <c>manifestPath</c>.
+    /// </summary>
+    internal FalkForge.Engine.Protocol.Manifest.InstallerManifest? SeedManifest { get; init; }
 }

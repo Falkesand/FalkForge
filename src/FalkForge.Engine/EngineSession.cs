@@ -46,6 +46,8 @@ public sealed class EngineSession : IAsyncDisposable
     private readonly IDisposable? _instanceLock;
     // Shared HttpClient for the auto-update feed/payload downloads; owned by the session.
     private readonly HttpClient? _updateHttpClient;
+    private readonly bool _isPlanOnly;
+    private readonly string? _planOnlyOutputPath;
     private bool _disposed;
 
     /// <summary>
@@ -75,7 +77,9 @@ public sealed class EngineSession : IAsyncDisposable
         FileSystemJournalStore? journalStore,
         IElevatedCommandGateway? elevationGateway,
         IDisposable? instanceLock = null,
-        HttpClient? updateHttpClient = null)
+        HttpClient? updateHttpClient = null,
+        bool isPlanOnly = false,
+        string? planOnlyOutputPath = null)
     {
         _channel = channel;
         _pipeline = pipeline;
@@ -85,6 +89,8 @@ public sealed class EngineSession : IAsyncDisposable
         _elevationGateway = elevationGateway;
         _instanceLock = instanceLock;
         _updateHttpClient = updateHttpClient;
+        _isPlanOnly = isPlanOnly;
+        _planOnlyOutputPath = planOnlyOutputPath;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -386,7 +392,9 @@ public sealed class EngineSession : IAsyncDisposable
 
         return new EngineSession(
             uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway,
-            instanceLock, updateHttpClient);
+            instanceLock, updateHttpClient,
+            isPlanOnly: options.IsPlanOnly,
+            planOnlyOutputPath: options.PlanOnlyOutputPath);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -441,11 +449,18 @@ public sealed class EngineSession : IAsyncDisposable
         if (logger is not null)
             channel.SetSessionCorrelationId(logger.SessionCorrelationId);
 
-        var pipeline = new InstallerPipelineBuilder()
-            .WithUiChannel(channel)
-            .Build();
+        var pipelineBuilder = new InstallerPipelineBuilder()
+            .WithUiChannel(channel);
 
-        return new EngineSession(channel, pipeline, logger, logFilePath, journalStore: null, elevationGateway: null);
+        // Seed a manifest when one is supplied (test-only path for plan-only integration tests).
+        if (options.SeedManifest is not null)
+            pipelineBuilder = pipelineBuilder.WithManifest(options.SeedManifest);
+
+        var pipeline = pipelineBuilder.Build();
+
+        return new EngineSession(channel, pipeline, logger, logFilePath, journalStore: null, elevationGateway: null,
+            isPlanOnly: options.IsPlanOnly,
+            planOnlyOutputPath: options.PlanOnlyOutputPath);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -488,7 +503,8 @@ public sealed class EngineSession : IAsyncDisposable
         // returns exit-code 0 for both Apply-success and Cancel/Shutdown; the presence
         // of a Completing event distinguishes the two cases.
         var observer = new ObservingUiChannel(_channel);
-        var runner = new PipelineRunner(_pipeline, observer, _logger);
+        var runner = new PipelineRunner(_pipeline, observer, _logger,
+            isPlanOnly: _isPlanOnly, planOnlyOutputPath: _planOnlyOutputPath);
         int exitCode;
         try
         {
