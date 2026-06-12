@@ -136,8 +136,6 @@ jobs:
           # Collect file paths for upload
           $files = Get-ChildItem -Path $distDir -File | ForEach-Object { $_.FullName }
 
-          $fileArgs = $files -join " "
-
           gh release create $tag `
             --repo "${{ github.repository }}" `
             --title "FalkForge $tag" `
