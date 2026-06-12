@@ -111,6 +111,12 @@ public sealed class BundleCompiler
         if (embedResult.IsFailure)
             return Result<string>.Failure(embedResult.Error);
 
+        // Step 6: SBOM sidecar — opt-in via SbomOptions or FALKFORGE_GENERATE_SBOM env var.
+        // Uses the already-computed payload hashes; never re-reads files.
+        var sbomResult = BundleSbomHelper.WriteSbomSidecar(model, payloads, outputFilePath);
+        if (sbomResult.IsFailure)
+            return Result<string>.Failure(sbomResult.Error);
+
         return outputFilePath;
     }
 

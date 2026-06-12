@@ -50,7 +50,11 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         // Pre-seed the context manifest so PlanStep can operate even when
         // DetectStep is absent (e.g. headless / ordering-only tests).
         if (seedManifest is not null)
+        {
             _ctx.Manifest = seedManifest;
+            // Propagate the dry-run flag so ApplyStep simulates instead of executing.
+            _ctx.IsDryRun = seedManifest.IsDryRun;
+        }
     }
 
     /// <inheritdoc/>
