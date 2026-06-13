@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 using FalkForge.Models;
@@ -12,6 +13,32 @@ public sealed class CSharpEmitter
 {
     private readonly StringBuilder _sb = new();
     private int _indent;
+
+    /// <summary>
+    /// Reverse map from an MSI known-folder token to the C# <see cref="KnownFolder"/>
+    /// static member name, so the emitter can render a fully-qualified member access
+    /// (e.g. <c>"ProgramFilesFolder"</c> → <c>KnownFolder.ProgramFiles</c>).
+    /// </summary>
+    private static readonly FrozenDictionary<string, string> TokenToMemberName =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["ProgramFilesFolder"]    = "ProgramFiles",
+            ["ProgramFiles64Folder"]  = "ProgramFiles64",
+            ["CommonAppDataFolder"]   = "CommonAppData",
+            ["LocalAppDataFolder"]    = "LocalAppData",
+            ["AppDataFolder"]         = "AppData",
+            ["SystemFolder"]          = "SystemFolder",
+            ["System64Folder"]        = "System64Folder",
+            ["WindowsFolder"]         = "WindowsFolder",
+            ["TempFolder"]            = "TempFolder",
+            ["DesktopFolder"]         = "DesktopFolder",
+            ["StartMenuFolder"]       = "StartMenuFolder",
+            ["ProgramMenuFolder"]     = "ProgramMenuFolder",
+            ["StartupFolder"]         = "StartupFolder",
+            ["CommonFilesFolder"]     = "CommonFilesFolder",
+            ["CommonFiles64Folder"]   = "CommonFiles64Folder",
+            ["FontsFolder"]           = "FontsFolder",
+        }.ToFrozenDictionary(StringComparer.Ordinal);
 
     public string Emit(PackageModel package)
     {
@@ -43,6 +70,7 @@ public sealed class CSharpEmitter
         AppendLine();
 
         EmitFeatures(package.Features);
+        EmitFiles(package.Files);
         EmitRegistryEntries(package.RegistryEntries);
         EmitServices(package.Services);
         EmitShortcuts(package.Shortcuts);
@@ -84,6 +112,56 @@ public sealed class CSharpEmitter
             AppendLine("});");
             AppendLine();
         }
+    }
+
+    private void EmitFiles(IReadOnlyList<FileEntryModel> files)
+    {
+        // Skip wildcard FromDirectory markers (FileName == "*"): they are not real
+        // payload files, so emitting .Add("*") would create a non-resolvable key.
+        // Decompiled models never produce these (the reconstructor always sets a
+        // concrete long name), but the emitter is also used by plain "forge decompile".
+        var realFiles = files.Where(f => f.FileName != "*").ToList();
+        if (realFiles.Count == 0)
+            return;
+
+        // Group by target directory so files installed to the same location share one
+        // Files(...) block, matching how a hand-authored installer reads.
+        foreach (var group in realFiles.GroupBy(f => f.TargetDirectory))
+        {
+            var rendered = RenderInstallPath(group.Key);
+
+            AppendLine("builder.Files(files =>");
+            AppendLine("{");
+            _indent++;
+            foreach (var file in group)
+            {
+                var key = PayloadPath.For(file.TargetDirectory.Segments, file.FileName);
+                AppendLine($"files.Add({Quote(key)}).To({rendered});");
+            }
+            _indent--;
+            AppendLine("});");
+            AppendLine();
+        }
+    }
+
+    /// <summary>
+    /// Renders an <see cref="InstallPath"/> as a C# expression
+    /// (e.g. <c>KnownFolder.ProgramFiles / "Demo" / "App"</c>).
+    /// Throws when the root token has no <see cref="KnownFolder"/> member — emitting
+    /// an unmapped folder would produce non-compiling code, so we fail loud instead.
+    /// </summary>
+    private static string RenderInstallPath(InstallPath path)
+    {
+        var token = path.Root.Token;
+        if (!TokenToMemberName.TryGetValue(token, out var member))
+            throw new InvalidOperationException(
+                $"Cannot render unknown KnownFolder token '{token}'.");
+
+        var sb = new StringBuilder("KnownFolder.").Append(member);
+        foreach (var segment in path.Segments)
+            sb.Append(" / ").Append(Quote(segment));
+
+        return sb.ToString();
     }
 
     private void EmitRegistryEntries(IReadOnlyList<RegistryEntryModel> entries)
