@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
     <ProjectReference Include="..\..\src\FalkForge.Decompiler\FalkForge.Decompiler.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
