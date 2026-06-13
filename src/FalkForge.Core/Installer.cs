@@ -11,7 +11,28 @@ public static class Installer
         var builder = new PackageBuilder();
         configure(builder);
         var package = builder.Build();
+        return BuildCore(args, package, compiler);
+    }
 
+    /// <summary>
+    ///     Builds an MSI from an already-constructed <see cref="PackageModel" />.
+    ///     Intended for generated migration programs that obtain a model directly from
+    ///     the decompiler's emitted <c>builder.Build()</c> call and then compile it to
+    ///     the path supplied via <c>-o</c>/<c>--output</c>.
+    /// </summary>
+    /// <param name="args">Command-line arguments (supports -o/--output for output path).</param>
+    /// <param name="model">The pre-built package model to validate and compile.</param>
+    /// <param name="compiler">The compiler that writes the MSI artifact.</param>
+    /// <returns>Exit code: 0 for success, 1 for validation or compilation failure.</returns>
+    public static int Build(string[] args, PackageModel model, ICompiler compiler)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(compiler);
+        return BuildCore(args, model, compiler);
+    }
+
+    private static int BuildCore(string[] args, PackageModel package, ICompiler? compiler)
+    {
         var validation = ModelValidator.Inspect(package);
         if (!validation.IsValid)
         {

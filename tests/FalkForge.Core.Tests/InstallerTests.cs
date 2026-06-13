@@ -172,7 +172,7 @@ public sealed class InstallerTests
     public void Build_PrebuiltModel_NullModel_Throws()
     {
         var compiler = new MockCompiler();
-        Assert.Throws<ArgumentNullException>((Action)(() => Installer.Build([], null!, compiler)));
+        Assert.Throws<ArgumentNullException>((Action)(() => Installer.Build([], (PackageModel)null!, compiler)));
     }
 
     [Fact]
