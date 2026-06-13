@@ -53,6 +53,12 @@ app.Configure(config =>
         .WithExample("decompile", "bundle.exe")
         .WithExample("decompile", "bundle.exe", "-o", "installer.cs");
 
+    config.AddCommand<MigrateCommand>("migrate")
+        .WithDescription("Migrate an existing installer (.msi, .msm, or .exe) to a buildable FalkForge C# project")
+        .WithExample("migrate", "package.msi", "--falkforge-src", "../FalkForge/src")
+        .WithExample("migrate", "bundle.exe", "-o", "./migrated", "--falkforge-src", "../FalkForge/src")
+        .WithExample("migrate", "legacy.exe", "--falkforge-src", "../FalkForge/src");
+
     config.AddCommand<ExtractCommand>("extract")
         .WithDescription("Extract files from an MSI or payloads from an EXE bundle")
         .WithExample("extract", "package.msi", "-o", "./output")
