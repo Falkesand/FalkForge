@@ -159,6 +159,9 @@ public sealed class MigrationBundleGeneratorTests
         Assert.Contains("Microsoft.NET.Sdk", csproj);
         Assert.Contains("net10.0-windows", csproj);
         Assert.Contains("<OutputType>Exe</OutputType>", csproj);
+        // ImplicitUsings must be enabled so the emitted bundle program resolves System.*
+        // (Guid, Version) outside the repo, where Directory.Build.props does not apply.
+        Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", csproj);
         Assert.Contains("payload/**", csproj);
         Assert.Contains("PreserveNewest", csproj);
     }

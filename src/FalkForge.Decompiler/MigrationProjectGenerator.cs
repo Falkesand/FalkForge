@@ -323,6 +323,7 @@ public sealed class MigrationProjectGenerator
                     <OutputType>Exe</OutputType>
                     <TargetFramework>net10.0-windows</TargetFramework>
                     <Nullable>enable</Nullable>
+                    <ImplicitUsings>enable</ImplicitUsings>
                   </PropertyGroup>
                   <ItemGroup>
                     <ProjectReference Include="{src}/FalkForge.Core/FalkForge.Core.csproj" />
@@ -467,6 +468,7 @@ public sealed class MigrationProjectGenerator
                     <OutputType>Exe</OutputType>
                     <TargetFramework>net10.0-windows</TargetFramework>
                     <Nullable>enable</Nullable>
+                    <ImplicitUsings>enable</ImplicitUsings>
                   </PropertyGroup>
                   <ItemGroup>
                     <ProjectReference Include="{src}/FalkForge.Core/FalkForge.Core.csproj" />

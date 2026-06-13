@@ -165,6 +165,19 @@ public sealed class MigrationProjectGeneratorTests
     }
 
     [Fact]
+    public void Generate_Csproj_EnablesImplicitUsings()
+    {
+        // The emitted Program.cs relies on System.* (Version, Guid) being globally
+        // imported. Outside the repo the in-repo Directory.Build.props does not apply,
+        // so the generated csproj must enable ImplicitUsings itself or the project will
+        // not compile (CS0246 for Version/Guid).
+        var value = RunWithMock();
+        var csproj = value.TextFiles[$"{ProjectName}.csproj"];
+
+        Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", csproj);
+    }
+
+    [Fact]
     public void Generate_Csproj_ReferencesFalkForgeCoreWithInjectedPath()
     {
         // WHY: Users build against their local FalkForge source, not a NuGet package.

@@ -90,20 +90,16 @@ public sealed class CSharpEmitter
             AppendLine($"builder.Feature({Quote(feature.Id)}, f =>");
             AppendLine("{");
             _indent++;
-            AppendLine($"f.Title({Quote(feature.Title)});");
-            if (feature.Description is not null)
-                AppendLine($"f.Description({Quote(feature.Description)});");
-            if (feature.IsRequired)
-                AppendLine("f.Required();");
+            // FeatureBuilder exposes Title/Description/IsRequired as settable PROPERTIES,
+            // not fluent methods, and nests children via Feature(id, ...), not Child(...).
+            EmitFeatureBody("f", feature);
 
             foreach (var child in feature.Children)
             {
-                AppendLine($"f.Child({Quote(child.Id)}, c =>");
+                AppendLine($"f.Feature({Quote(child.Id)}, c =>");
                 AppendLine("{");
                 _indent++;
-                AppendLine($"c.Title({Quote(child.Title)});");
-                if (child.Description is not null)
-                    AppendLine($"c.Description({Quote(child.Description)});");
+                EmitFeatureBody("c", child);
                 _indent--;
                 AppendLine("});");
             }
@@ -112,6 +108,15 @@ public sealed class CSharpEmitter
             AppendLine("});");
             AppendLine();
         }
+    }
+
+    private void EmitFeatureBody(string varName, FeatureModel feature)
+    {
+        AppendLine($"{varName}.Title = {Quote(feature.Title)};");
+        if (feature.Description is not null)
+            AppendLine($"{varName}.Description = {Quote(feature.Description)};");
+        if (feature.IsRequired)
+            AppendLine($"{varName}.IsRequired = true;");
     }
 
     private void EmitFiles(IReadOnlyList<FileEntryModel> files)
@@ -184,24 +189,47 @@ public sealed class CSharpEmitter
                 _ => "RegistryRoot.LocalMachine"
             };
 
-            var valueStr = entry.Value switch
-            {
-                string s => Quote(s),
-                int i => i.ToString(CultureInfo.InvariantCulture),
-                _ => "null"
-            };
-
-            AppendLine($"r.Key({rootStr}, {Quote(entry.Key)})");
+            // RegistryBuilder.Key takes (root, key, Action<RegistryKeyBuilder>); the inner
+            // builder writes values via DWord(name, int), Value(name, string),
+            // or DefaultValue(string) when there is no value name.
+            AppendLine($"r.Key({rootStr}, {Quote(entry.Key)}, k =>");
+            AppendLine("{");
             _indent++;
-            if (entry.ValueName is not null)
-                AppendLine($".Name({Quote(entry.ValueName)})");
-            AppendLine($".Value({valueStr});");
+            EmitRegistryValue(entry);
             _indent--;
+            AppendLine("});");
         }
 
         _indent--;
         AppendLine("});");
         AppendLine();
+    }
+
+    private void EmitRegistryValue(RegistryEntryModel entry)
+    {
+        if (entry.ValueType == RegistryValueType.DWord)
+        {
+            // DWord values are stored as int; ValueName is required for a named DWord.
+            var dword = entry.Value switch
+            {
+                int i => i.ToString(CultureInfo.InvariantCulture),
+                _ => "0"
+            };
+            AppendLine($"k.DWord({Quote(entry.ValueName ?? string.Empty)}, {dword});");
+            return;
+        }
+
+        var stringValue = entry.Value switch
+        {
+            string s => s,
+            int i => i.ToString(CultureInfo.InvariantCulture),
+            _ => string.Empty
+        };
+
+        if (entry.ValueName is null)
+            AppendLine($"k.DefaultValue({Quote(stringValue)});");
+        else
+            AppendLine($"k.Value({Quote(entry.ValueName)}, {Quote(stringValue)});");
     }
 
     private void EmitServices(IReadOnlyList<ServiceModel> services)
@@ -211,14 +239,15 @@ public sealed class CSharpEmitter
             AppendLine($"builder.Service({Quote(service.Name)}, s =>");
             AppendLine("{");
             _indent++;
-            AppendLine($"s.DisplayName({Quote(service.DisplayName)});");
-            AppendLine($"s.Executable({Quote(service.Executable)});");
+            // ServiceBuilder exposes these as settable PROPERTIES, not fluent methods.
+            AppendLine($"s.DisplayName = {Quote(service.DisplayName)};");
+            AppendLine($"s.Executable = {Quote(service.Executable)};");
             if (service.Description is not null)
-                AppendLine($"s.Description({Quote(service.Description)});");
+                AppendLine($"s.Description = {Quote(service.Description)};");
             if (service.StartMode != ServiceStartMode.Automatic)
-                AppendLine($"s.StartMode(ServiceStartMode.{service.StartMode});");
+                AppendLine($"s.StartMode = ServiceStartMode.{service.StartMode};");
             if (service.Account != ServiceAccount.LocalSystem)
-                AppendLine($"s.Account(ServiceAccount.{service.Account});");
+                AppendLine($"s.Account = ServiceAccount.{service.Account};");
             _indent--;
             AppendLine("});");
             AppendLine();
@@ -229,17 +258,27 @@ public sealed class CSharpEmitter
     {
         foreach (var shortcut in shortcuts)
         {
+            // ShortcutBuilder uses WithDescription/WithArguments for metadata and an
+            // OnDesktop/OnStartMenu/OnStartup terminal call that registers the shortcut.
+            // The terminal On* call must come LAST: each one snapshots the current builder
+            // state into a ShortcutModel, so the metadata has to be set beforehand.
             AppendLine($"builder.Shortcut({Quote(shortcut.Name)}, {Quote(shortcut.TargetFile)})");
             _indent++;
-            foreach (var location in shortcut.Locations)
-            {
-                AppendLine($".Location(ShortcutLocation.{location})");
-            }
             if (shortcut.Description is not null)
-                AppendLine($".Description({Quote(shortcut.Description)})");
+                AppendLine($".WithDescription({Quote(shortcut.Description)})");
             if (shortcut.Arguments is not null)
-                AppendLine($".Arguments({Quote(shortcut.Arguments)})");
-            AppendLine(".Add();");
+                AppendLine($".WithArguments({Quote(shortcut.Arguments)})");
+
+            var location = shortcut.Locations.Count > 0
+                ? shortcut.Locations[0]
+                : ShortcutLocation.StartMenu;
+            var terminal = location switch
+            {
+                ShortcutLocation.Desktop => ".OnDesktop();",
+                ShortcutLocation.Startup => ".OnStartup();",
+                _ => ".OnStartMenu();"
+            };
+            AppendLine(terminal);
             _indent--;
             AppendLine();
         }
@@ -281,10 +320,8 @@ public sealed class CSharpEmitter
         }
         else
         {
-            if (downgrade.ErrorMessage is not null)
-                AppendLine($"builder.Downgrade(d => d.Block({Quote(downgrade.ErrorMessage)}));");
-            else
-                AppendLine("builder.Downgrade(d => d.Block());");
+            // DowngradeBuilder.Block requires a message argument (no parameterless overload).
+            AppendLine($"builder.Downgrade(d => d.Block({Quote(downgrade.ErrorMessage ?? string.Empty)}));");
         }
         AppendLine();
     }

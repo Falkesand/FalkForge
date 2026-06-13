@@ -52,10 +52,13 @@ public sealed class CSharpEmitterTests
         var emitter = new CSharpEmitter();
         var source = emitter.Emit(model);
 
+        // FeatureBuilder exposes Title/Description/IsRequired as settable properties,
+        // not fluent methods — the prior expectations (f.Title("..."), f.Required())
+        // encoded code that did not compile against the real builder API.
         Assert.Contains("builder.Feature(\"Main\"", source);
-        Assert.Contains("f.Title(\"Main Feature\")", source);
-        Assert.Contains("f.Description(\"The main feature\")", source);
-        Assert.Contains("f.Required()", source);
+        Assert.Contains("f.Title = \"Main Feature\";", source);
+        Assert.Contains("f.Description = \"The main feature\";", source);
+        Assert.Contains("f.IsRequired = true;", source);
     }
 
     [Fact]
@@ -109,10 +112,13 @@ public sealed class CSharpEmitterTests
         var emitter = new CSharpEmitter();
         var source = emitter.Emit(model);
 
+        // ServiceBuilder exposes DisplayName/Executable/Description as settable
+        // properties, not fluent methods — the prior method-call expectations did
+        // not compile against the real builder API.
         Assert.Contains("builder.Service(\"MySvc\"", source);
-        Assert.Contains("s.DisplayName(\"My Service\")", source);
-        Assert.Contains("s.Executable(\"svc.exe\")", source);
-        Assert.Contains("s.Description(\"A service\")", source);
+        Assert.Contains("s.DisplayName = \"My Service\";", source);
+        Assert.Contains("s.Executable = \"svc.exe\";", source);
+        Assert.Contains("s.Description = \"A service\";", source);
     }
 
     [Fact]
@@ -138,9 +144,12 @@ public sealed class CSharpEmitterTests
         var emitter = new CSharpEmitter();
         var source = emitter.Emit(model);
 
+        // ShortcutBuilder registers a shortcut via a terminal OnDesktop/OnStartMenu/
+        // OnStartup call (not .Add()), with metadata set via WithDescription/WithArguments.
+        // The prior .Location(...)/.Add() expectations did not compile.
         Assert.Contains("builder.Shortcut(\"My App\", \"app.exe\")", source);
-        Assert.Contains("ShortcutLocation.Desktop", source);
-        Assert.Contains(".Add()", source);
+        Assert.Contains(".WithDescription(\"Launch the app\")", source);
+        Assert.Contains(".OnDesktop();", source);
     }
 
     [Fact]
@@ -314,7 +323,7 @@ public sealed class CSharpEmitterTests
             Features = [new FeatureModel { Id = "Core", Title = "Core", IsRequired = true }]
         };
         var source = new CSharpEmitter().Emit(model);
-        Assert.Contains("f.Required()", source);
+        Assert.Contains("f.IsRequired = true;", source);
     }
 
     [Fact]
@@ -326,7 +335,7 @@ public sealed class CSharpEmitterTests
             Features = [new FeatureModel { Id = "Opt", Title = "Optional", IsRequired = false }]
         };
         var source = new CSharpEmitter().Emit(model);
-        Assert.DoesNotContain("f.Required()", source);
+        Assert.DoesNotContain("f.IsRequired = true;", source);
     }
 
     [Fact]
