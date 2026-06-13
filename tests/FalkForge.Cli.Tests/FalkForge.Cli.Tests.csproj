@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <ProjectReference Include="..\..\src\FalkForge.Cli\FalkForge.Cli.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
   </ItemGroup>
 </Project>
