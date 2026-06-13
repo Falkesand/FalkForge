@@ -251,6 +251,48 @@ public sealed class MigrationProjectGeneratorTests
         Assert.StartsWith("#", report.TrimStart());
     }
 
+    // ── report honesty ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void NotMigratedSection_WithEnvironmentVariables_NamesEnvironmentVariables()
+    {
+        // WHY: the report must HONESTLY disclose model features the emitter does not
+        // yet emit. Environment variables present in the decompiled model are silently
+        // lost, so the report must name them so the migrator knows to add them by hand.
+        var model = new FalkForge.Models.PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+            EnvironmentVariables =
+            [
+                new FalkForge.Models.EnvironmentVariableModel { Name = "PATH", Value = "x" }
+            ]
+        };
+
+        var section = MigrationProjectGenerator.BuildNotMigratedSection(model);
+
+        Assert.Contains("Not yet migrated", section);
+        Assert.Contains("environment variable", section, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NotMigratedSection_EmptyLongTail_SaysAllMapped()
+    {
+        // WHY: when no unemitted features are present the report must say so positively,
+        // not leave the reader guessing whether something was dropped.
+        var model = new FalkForge.Models.PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+        };
+
+        var section = MigrationProjectGenerator.BuildNotMigratedSection(model);
+
+        Assert.Contains("All present features were mapped.", section);
+    }
+
     // ── error paths ──────────────────────────────────────────────────────────
 
     [Fact]
