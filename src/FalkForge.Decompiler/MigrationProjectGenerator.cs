@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Text;
+using FalkForge.Models;
 
 namespace FalkForge.Decompiler;
 
@@ -71,15 +72,18 @@ public sealed class MigrationProjectGenerator
         // Reuse injected decompiler (tests) or create a fresh one (production).
         var decompiler = _msiDecompiler ?? new MsiDecompiler();
 
-        var csharpResult = decompiler.DecompileToCSharp(inputPath);
-        if (csharpResult.IsFailure)
-            return Result<MigrationResult>.Failure(csharpResult.Error);
+        // Decompile to the model first so the report can honestly enumerate which
+        // model features are still not emitted; emit C# from the same model.
+        var modelResult = decompiler.Decompile(inputPath);
+        if (modelResult.IsFailure)
+            return Result<MigrationResult>.Failure(modelResult.Error);
 
-        var emittedFragment = csharpResult.Value;
+        var model = modelResult.Value;
+        var emittedFragment = new CSharpEmitter().Emit(model);
 
         var programCs   = BuildProgramCs(emittedFragment);
         var csproj      = BuildCsproj(options);
-        var report      = BuildReport(inputPath, options);
+        var report      = BuildReport(inputPath, options, model);
 
         var files = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -88,8 +92,21 @@ public sealed class MigrationProjectGenerator
             ["MIGRATION-REPORT.md"]                   = report,
         };
 
+        // Extract payload bytes only on the production path (a real MSI file on disk).
+        // The injected-mock decompiler has no cabinet access, so its Payloads stay empty.
+        IReadOnlyDictionary<string, byte[]> payloads =
+            new Dictionary<string, byte[]>(StringComparer.Ordinal);
+
+        if (_msiDecompiler is null && File.Exists(inputPath))
+        {
+            var payloadResult = MsiPayloadExtractor.Extract(inputPath);
+            if (payloadResult.IsFailure)
+                return Result<MigrationResult>.Failure(payloadResult.Error);
+            payloads = payloadResult.Value;
+        }
+
         return Result<MigrationResult>.Success(
-            new MigrationResult(files, []));
+            new MigrationResult(files, [], payloads));
     }
 
     private static string BuildProgramCs(string emittedFragment)
@@ -183,7 +200,7 @@ public sealed class MigrationProjectGenerator
                 """;
     }
 
-    private static string BuildReport(string inputPath, MigrationOptions options)
+    private static string BuildReport(string inputPath, MigrationOptions options, PackageModel model)
     {
         var fileName = Path.GetFileName(inputPath);
         var ext      = Path.GetExtension(inputPath).ToUpperInvariant().TrimStart('.');
@@ -196,16 +213,51 @@ public sealed class MigrationProjectGenerator
                 | Source file | `{fileName}` |
                 | Detected type | {ext} |
                 | Project name | {options.ProjectName} |
-                | Mapping coverage | Full — MSI decompilation maps all supported tables. |
+                | Mapping coverage | MSI decompilation maps the supported tables (see below). |
 
                 ## Notes
 
-                MSI decompilation covers: package metadata, features, registry entries, services,
-                shortcuts, and properties. File payload entries are reconstructed in the model but
-                the generated `Program.cs` does not yet emit `files.Add(...)` calls — place payload
-                files in the `payload/` directory and add them manually to `Program.cs`.
+                MSI decompilation covers: package metadata, features, files (payload entries are
+                emitted as `files.Add("payload/...")` calls and the payload bytes are written to the
+                `payload/` directory), registry entries, services, shortcuts, and properties.
 
                 No unmapped WiX features (this is an MSI source, not a WiX bundle).
+
+                {BuildNotMigratedSection(model)}
                 """;
+    }
+
+    /// <summary>
+    /// Honestly lists model feature categories that are present in the decompiled
+    /// <paramref name="model"/> but are NOT yet emitted by <see cref="CSharpEmitter"/>,
+    /// so the migrator knows exactly what to re-add by hand. Returns a positive
+    /// "all mapped" note when nothing is dropped.
+    /// </summary>
+    internal static string BuildNotMigratedSection(PackageModel model)
+    {
+        var dropped = new List<string>();
+
+        if (model.EnvironmentVariables.Count > 0) dropped.Add("environment variables");
+        if (model.CustomActions.Count > 0)        dropped.Add("custom actions");
+        if (model.CustomTables.Count > 0)          dropped.Add("custom tables");
+        if (model.ExecuteSequenceActions.Count > 0 || model.UISequenceActions.Count > 0)
+            dropped.Add("sequence scheduling");
+        if (model.IniFiles.Count > 0)              dropped.Add("INI files");
+        if (model.FileAssociations.Count > 0)      dropped.Add("file associations");
+        if (model.Fonts.Count > 0)                 dropped.Add("fonts");
+        if (model.Permissions.Count > 0)           dropped.Add("permissions");
+
+        if (dropped.Count == 0)
+            return "## Not yet migrated\n\nAll present features were mapped.";
+
+        var sb = new StringBuilder("## Not yet migrated\n\n");
+        sb.AppendLine(
+            "The following features are present in the source installer but are NOT yet emitted "
+            + "by the migrator. Re-add them manually in `Program.cs`:");
+        sb.AppendLine();
+        foreach (var item in dropped)
+            sb.Append("- ").AppendLine(item);
+
+        return sb.ToString().TrimEnd();
     }
 }

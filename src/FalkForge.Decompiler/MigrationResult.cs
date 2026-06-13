@@ -16,6 +16,15 @@ namespace FalkForge.Decompiler;
 /// be migrated automatically.  Empty for MSI sources; may be non-empty for
 /// WiX bundle sources (handled by a later slice).
 /// </param>
+/// <param name="Payloads">
+/// Payload file bytes extracted from the source installer, keyed by the same
+/// relative <c>payload/...</c> path that the generated <c>Program.cs</c> passes to
+/// <c>files.Add(...)</c> (see <see cref="PayloadPath"/>).  Callers write each value
+/// to its key path under the target directory so the migrated project can repackage
+/// the original files.  Empty when payloads cannot be extracted (e.g. the
+/// mock-decompiler test path, which has no cabinet access).
+/// </param>
 public sealed record MigrationResult(
     IReadOnlyDictionary<string, string> TextFiles,
-    IReadOnlyList<WixUnmappedFeature> Unmapped);
+    IReadOnlyList<WixUnmappedFeature> Unmapped,
+    IReadOnlyDictionary<string, byte[]> Payloads);
