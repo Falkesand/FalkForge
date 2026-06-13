@@ -296,9 +296,10 @@ public sealed class MigrationProjectGeneratorTests
     // ── error paths ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void Generate_BundleInput_ReturnsNotImplementedError()
+    public void Generate_NonExistentBundleInput_FailsGracefully()
     {
-        // Bundle path not implemented in this slice — must fail gracefully, not throw.
+        // A .exe that is neither a readable FALKBUNDLE nor a WiX Burn bundle (here a
+        // non-existent file) must fail gracefully via the bundle routing, not throw.
         var generator = new MigrationProjectGenerator();
 
         var result = generator.Generate("setup.exe", DefaultOptions());
