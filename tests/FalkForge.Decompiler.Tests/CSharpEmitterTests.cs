@@ -329,6 +329,120 @@ public sealed class CSharpEmitterTests
         Assert.DoesNotContain("f.Required()", source);
     }
 
+    [Fact]
+    public void Emit_WithFile_EmitsPayloadAddAndInstallPath()
+    {
+        // WHY: a migrated installer must repackage each payload file at its
+        // original install location. Dropping Files (the prior bug) produced an
+        // installer that shipped zero payload — silently broken.
+        var model = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            Files =
+            [
+                new FileEntryModel
+                {
+                    SourcePath = "foo.dll",
+                    TargetDirectory = KnownFolder.ProgramFiles / "Demo" / "App",
+                    FileName = "foo.dll"
+                }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.Contains(".Add(\"payload/Demo/App/foo.dll\")", source);
+        Assert.Contains("KnownFolder.ProgramFiles / \"Demo\" / \"App\"", source);
+    }
+
+    [Fact]
+    public void Emit_RootLevelFile_EmitsPayloadKeyWithoutSubdir()
+    {
+        // WHY: a file installed directly under the root known folder (no subdir
+        // segments) must still get a payload key — "payload/<fileName>".
+        var model = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            Files =
+            [
+                new FileEntryModel
+                {
+                    SourcePath = "root.txt",
+                    TargetDirectory = KnownFolder.ProgramFiles / string.Empty,
+                    FileName = "root.txt"
+                }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.Contains(".Add(\"payload/root.txt\")", source);
+    }
+
+    [Fact]
+    public void Emit_UnknownRootToken_Throws()
+    {
+        // WHY: emitting an unmapped known-folder token would produce non-compiling
+        // C# (no matching KnownFolder static member). Fail loud instead of shipping
+        // a project that won't build.
+        var unknownRoot = UnknownRootInstallPath();
+        var model = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            Files =
+            [
+                new FileEntryModel
+                {
+                    SourcePath = "x.dll",
+                    TargetDirectory = unknownRoot,
+                    FileName = "x.dll"
+                }
+            ]
+        };
+
+        Assert.Throws<InvalidOperationException>(() => new CSharpEmitter().Emit(model));
+    }
+
+    [Fact]
+    public void Emit_WildcardFile_DoesNotEmitWildcardAdd()
+    {
+        // WHY: FileName "*" is a FromDirectory marker, not a real payload file.
+        // Emitting .Add("*") would create a meaningless, non-resolvable payload key.
+        var model = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            Files =
+            [
+                new FileEntryModel
+                {
+                    SourcePath = "dir",
+                    TargetDirectory = KnownFolder.ProgramFiles / "App",
+                    FileName = "*"
+                }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.DoesNotContain(".Add(\"*\")", source);
+    }
+
+    private static InstallPath UnknownRootInstallPath()
+    {
+        // Build an InstallPath whose Root.Token has no KnownFolder member, to exercise
+        // the emitter's fail-loud path. KnownFolder has a private ctor, so we forge one
+        // via the public this[] indexer on a folder we then can't easily rename —
+        // instead use a reflection-free approach: reuse the wildcard test's StartupFolder
+        // is mapped, so we need a genuinely unknown token. Create via reflection.
+        var ctor = typeof(KnownFolder).GetConstructor(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            binder: null,
+            types: [typeof(string), typeof(string)],
+            modifiers: null)!;
+        var folder = (KnownFolder)ctor.Invoke(["BogusFolder", "Bogus"]);
+        return folder / "Sub";
+    }
+
     private static PackageModel CreateMinimalPackage(string? description = null)
     {
         return new PackageModel
