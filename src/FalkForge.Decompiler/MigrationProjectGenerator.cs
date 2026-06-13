@@ -1,5 +1,7 @@
 using System.Runtime.Versioning;
 using System.Text;
+using FalkForge.Compiler.Bundle;
+using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Models;
 
 namespace FalkForge.Decompiler;
@@ -7,22 +9,24 @@ namespace FalkForge.Decompiler;
 /// <summary>
 /// Generates a compilable FalkForge installer project from an existing installer binary.
 ///
-/// Supported in this slice:
+/// Supported:
 ///   .msi / .msm — full MSI decompilation via <see cref="MsiDecompiler"/> (Windows-only).
-///
-/// Not yet supported (later slice):
-///   .exe — bundle decompilation.
+///   .exe        — bundle decompilation: a native FalkForge bundle (FALKBUNDLE) via
+///                 <see cref="BundleDecompiler"/> (cross-platform), otherwise a WiX Burn
+///                 bundle via <see cref="WixBundleDecompiler"/> (Windows-only).
 /// </summary>
 public sealed class MigrationProjectGenerator
 {
     private readonly MsiDecompiler? _msiDecompiler;
+    private readonly BundleDecompiler? _bundleDecompiler;
+    private readonly WixBundleDecompiler? _wixDecompiler;
 
     /// <summary>
-    /// Creates a generator that opens MSI files directly (real Windows MSI database).
+    /// Creates a generator that opens installer files directly from disk (production path).
     /// </summary>
     public MigrationProjectGenerator()
     {
-        // _msiDecompiler is null; Windows-only path creates one on demand.
+        // All decompilers are null; the production path creates them on demand.
     }
 
     /// <summary>
@@ -33,6 +37,26 @@ public sealed class MigrationProjectGenerator
     public MigrationProjectGenerator(MsiDecompiler msiDecompiler)
     {
         _msiDecompiler = msiDecompiler;
+    }
+
+    /// <summary>
+    /// Creates a generator with an injected native <see cref="BundleDecompiler"/> — for testing
+    /// the FALKBUNDLE branch with a <see cref="IBundleAccess"/> mock (no real bundle on disk).
+    /// </summary>
+    public MigrationProjectGenerator(BundleDecompiler bundleDecompiler)
+    {
+        _bundleDecompiler = bundleDecompiler;
+    }
+
+    /// <summary>
+    /// Creates a generator with injected native and WiX Burn decompilers — for testing the
+    /// WiX fallback branch (the native decompiler is configured to fail, so routing falls
+    /// through to WiX).
+    /// </summary>
+    public MigrationProjectGenerator(BundleDecompiler bundleDecompiler, WixBundleDecompiler wixDecompiler)
+    {
+        _bundleDecompiler = bundleDecompiler;
+        _wixDecompiler = wixDecompiler;
     }
 
     /// <summary>
@@ -55,12 +79,10 @@ public sealed class MigrationProjectGenerator
 
         return ext switch
         {
-            ".exe" => Result<MigrationResult>.Failure(
-                          ErrorKind.Validation,
-                          "Bundle (.exe) migration is not yet implemented. This will be added in a later slice."),
+            ".exe" => GenerateFromBundle(inputPath, options),
             _      => Result<MigrationResult>.Failure(
                           ErrorKind.Validation,
-                          $"Unrecognised installer extension '{ext}'. Supported: .msi, .msm.")
+                          $"Unrecognised installer extension '{ext}'. Supported: .msi, .msm, .exe.")
         };
     }
 
@@ -108,6 +130,263 @@ public sealed class MigrationProjectGenerator
         return Result<MigrationResult>.Success(
             new MigrationResult(files, [], payloads));
     }
+
+    // ── bundle branch ─────────────────────────────────────────────────────────
+
+    private Result<MigrationResult> GenerateFromBundle(string inputPath, MigrationOptions options)
+    {
+        // Mirror DecompileCommand routing: try the native FALKBUNDLE decompiler first
+        // (cross-platform); if it fails, fall back to WiX Burn (Windows-only).
+        var native = _bundleDecompiler ?? new BundleDecompiler();
+        var nativeResult = native.Decompile(inputPath);
+        if (nativeResult.IsSuccess)
+            return GenerateNativeBundle(inputPath, options, nativeResult.Value);
+
+        return GenerateWixBundle(inputPath, options, nativeResult.Error);
+    }
+
+    private Result<MigrationResult> GenerateNativeBundle(string inputPath, MigrationOptions options, BundleModel model)
+    {
+        // ONE map drives both the emitted chain paths and the extracted-bytes keys.
+        var payloadKeys = BundlePayloadPath.BuildMap(model.Packages);
+
+        var emitted = BundleCSharpEmitter.Emit(
+            model,
+            preamble: null,
+            unmappedFeatures: null,
+            packagePathResolver: pkg => Resolve(payloadKeys, pkg));
+
+        var programCs = BuildBundleProgramCs(emitted);
+        var csproj = BuildBundleCsproj(options);
+        var report = BuildBundleReport(inputPath, options, detectedType: "FalkForge bundle", unmapped: []);
+
+        var files = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Program.cs"] = programCs,
+            [$"{options.ProjectName}.csproj"] = csproj,
+            ["MIGRATION-REPORT.md"] = report,
+        };
+
+        var payloads = ExtractBundlePayloads(inputPath, model, payloadKeys);
+
+        return Result<MigrationResult>.Success(new MigrationResult(files, [], payloads));
+    }
+
+    private Result<MigrationResult> GenerateWixBundle(string inputPath, MigrationOptions options, Error nativeError)
+    {
+        if (!OperatingSystem.IsWindows())
+            return Result<MigrationResult>.Failure(
+                ErrorKind.Validation,
+                $"Bundle (.exe) migration requires Windows for WiX Burn bundles. " +
+                $"It is not a native FalkForge bundle ({nativeError.Message}).");
+
+        var wix = _wixDecompiler ?? new WixBundleDecompiler();
+        var wixResult = wix.DecompileWithUnmapped(inputPath);
+        if (wixResult.IsFailure)
+            return Result<MigrationResult>.Failure(wixResult.Error);
+
+        var (model, unmapped) = wixResult.Value;
+
+        // WiX bundles reference their payloads by external SourceFile paths; there are no
+        // FalkForge-embedded payload bytes to extract here, so emit the original paths and
+        // leave Payloads empty (the report's unmapped section flags what needs manual work).
+        var emitted = BundleCSharpEmitter.Emit(model, preamble: null, unmappedFeatures: unmapped);
+
+        var programCs = BuildBundleProgramCs(emitted);
+        var csproj = BuildBundleCsproj(options);
+        var report = BuildBundleReport(inputPath, options, detectedType: "WiX Burn bundle", unmapped: unmapped);
+
+        var files = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Program.cs"] = programCs,
+            [$"{options.ProjectName}.csproj"] = csproj,
+            ["MIGRATION-REPORT.md"] = report,
+        };
+
+        IReadOnlyDictionary<string, byte[]> payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        return Result<MigrationResult>.Success(new MigrationResult(files, unmapped, payloads));
+    }
+
+    private static string Resolve(IReadOnlyDictionary<string, string> map, BundlePackageModel pkg) =>
+        map.TryGetValue(pkg.Id, out var key) ? key : BundlePayloadPath.For(pkg.SourcePath);
+
+    /// <summary>
+    /// Extracts the bundle's embedded chain payload bytes keyed by the SAME payload path
+    /// that the emitted chain references (so the generated code and the written bytes align
+    /// by construction). Returns an empty map when the bundle file cannot be read (e.g. the
+    /// injected-mock test path, which has no real bundle on disk).
+    /// </summary>
+    private IReadOnlyDictionary<string, byte[]> ExtractBundlePayloads(
+        string inputPath, BundleModel model, IReadOnlyDictionary<string, string> payloadKeys)
+    {
+        var payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+
+        // Only attempt extraction on the production path (a real bundle EXE on disk).
+        if (_bundleDecompiler is not null || !File.Exists(inputPath))
+            return payloads;
+
+        var contentResult = BundleReader.Extract(inputPath);
+        if (contentResult.IsFailure)
+            return payloads;
+
+        var packageById = model.Packages.ToDictionary(p => p.Id, StringComparer.Ordinal);
+
+        foreach (var entry in contentResult.Value.TocEntries)
+        {
+            if (!packageById.ContainsKey(entry.PackageId) ||
+                !payloadKeys.TryGetValue(entry.PackageId, out var key))
+                continue;
+
+            var payloadResult = BundleReader.ExtractPayload(inputPath, entry);
+            if (payloadResult.IsSuccess)
+                payloads[key] = payloadResult.Value;
+        }
+
+        return payloads;
+    }
+
+    /// <summary>
+    /// Wraps the emitter's illustrative <c>Installer.BuildBundle(b =&gt; { ... });</c> output
+    /// into the runnable entry point:
+    /// <code>
+    /// var b = new BundleBuilder();
+    /// ... b.X(...) ...
+    /// var bundle = b.Build();
+    /// return Installer.BuildBundle(args, outputPath =&gt; new BundleCompiler().Compile(bundle, outputPath));
+    /// </code>
+    /// The emitter body already uses statement-form calls on <c>b</c> (and <c>c</c> inside
+    /// <c>b.Chain</c>), which are valid against a real <see cref="BundleBuilder"/> instance.
+    /// </summary>
+    private static string BuildBundleProgramCs(string emittedFragment)
+    {
+        const string openMarker = "Installer.BuildBundle(b =>";
+        const string compilationUsing = "using FalkForge.Compiler.Bundle.Compilation;";
+
+        var lines = emittedFragment.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var sb = new StringBuilder(emittedFragment.Length + 256);
+
+        var compilationUsingInjected = false;
+        var openMarkerSeen = false;
+        var openBraceSkipped = false;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+
+            // Inject the Compilation using right after the Builders using line.
+            if (!compilationUsingInjected &&
+                line.Contains("using FalkForge.Compiler.Bundle.Builders;", StringComparison.Ordinal))
+            {
+                sb.AppendLine(line);
+                sb.AppendLine(compilationUsing);
+                compilationUsingInjected = true;
+                continue;
+            }
+
+            // Replace the "Installer.BuildBundle(b =>" header with the builder construction.
+            if (!openMarkerSeen && line.Contains(openMarker, StringComparison.Ordinal))
+            {
+                sb.AppendLine("var b = new BundleBuilder();");
+                openMarkerSeen = true;
+                continue;
+            }
+
+            // Skip the single "{" line that opened the lambda body.
+            if (openMarkerSeen && !openBraceSkipped && line.Trim() == "{")
+            {
+                openBraceSkipped = true;
+                continue;
+            }
+
+            // Replace the closing "});" of the lambda with the build + runnable entry point.
+            if (openMarkerSeen && line.Trim() == "});")
+            {
+                sb.AppendLine("var bundle = b.Build();");
+                sb.AppendLine("return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));");
+                openMarkerSeen = false;
+                continue;
+            }
+
+            sb.AppendLine(line);
+        }
+
+        return sb.ToString();
+    }
+
+    private static string BuildBundleCsproj(MigrationOptions options)
+    {
+        var src = options.FalkForgeSourcePath.Replace('\\', '/');
+
+        return $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>net10.0-windows</TargetFramework>
+                    <Nullable>enable</Nullable>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <ProjectReference Include="{src}/FalkForge.Core/FalkForge.Core.csproj" />
+                    <ProjectReference Include="{src}/FalkForge.Compiler.Bundle/FalkForge.Compiler.Bundle.csproj" />
+                  </ItemGroup>
+                  <ItemGroup>
+                    <None Include="payload/**" CopyToOutputDirectory="PreserveNewest" />
+                  </ItemGroup>
+                </Project>
+                """;
+    }
+
+    private static string BuildBundleReport(
+        string inputPath,
+        MigrationOptions options,
+        string detectedType,
+        IReadOnlyList<WixUnmappedFeature> unmapped)
+    {
+        var fileName = Path.GetFileName(inputPath);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Migration Report");
+        sb.AppendLine();
+        sb.AppendLine("| Field | Value |");
+        sb.AppendLine("|-------|-------|");
+        sb.AppendLine($"| Source file | `{fileName}` |");
+        sb.AppendLine($"| Detected type | {detectedType} |");
+        sb.AppendLine($"| Project name | {options.ProjectName} |");
+        sb.AppendLine();
+        sb.AppendLine("## Notes");
+        sb.AppendLine();
+        sb.AppendLine(
+            "Bundle decompilation maps the chain (packages and rollback boundaries), bundle "
+            + "identity, variables, features, related bundles, containers, and UI configuration. "
+            + "Native FalkForge bundles also have their embedded chain payloads extracted into the "
+            + "`payload/` directory; each chained package references its payload-relative path.");
+        sb.AppendLine();
+        sb.AppendLine("## Not yet migrated");
+        sb.AppendLine();
+        sb.AppendLine(
+            "UI assets (logo, theme, watermark, banner), container download URLs, and custom UI "
+            + "project paths are not preserved. Re-add them manually in `Program.cs` if required.");
+
+        if (unmapped.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Unmapped WiX Burn features");
+            sb.AppendLine();
+            sb.AppendLine(
+                "The following WiX Burn features have no FalkForge equivalent and were NOT migrated. "
+                + "Re-implement them manually:");
+            sb.AppendLine();
+            foreach (var feature in unmapped)
+            {
+                sb.Append("- **").Append(feature.Category).Append("**: ").AppendLine(feature.Description);
+                if (!string.IsNullOrEmpty(feature.OriginalXml) && feature.OriginalXml.Length <= 200)
+                    sb.Append("  - `").Append(feature.OriginalXml).AppendLine("`");
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    // ── MSI program.cs builder ─────────────────────────────────────────────────
 
     private static string BuildProgramCs(string emittedFragment)
     {

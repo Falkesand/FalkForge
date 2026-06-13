@@ -68,17 +68,50 @@ public sealed class WixBundleDecompiler
         return DecompileToCSharpFromAccess(access, bundlePath);
     }
 
+    /// <summary>
+    /// Decompiles a WiX Burn bundle into both the mapped <see cref="BundleModel"/> and the
+    /// list of WiX features that have no FalkForge equivalent. Used by the migration
+    /// generator, which surfaces the unmapped features in its report and result.
+    /// When a bundle access was injected via constructor, <paramref name="bundlePath"/> is ignored.
+    /// </summary>
+    public Result<(BundleModel Model, IReadOnlyList<WixUnmappedFeature> Unmapped)> DecompileWithUnmapped(string bundlePath)
+    {
+        if (_injectedAccess is not null)
+            return DecompileWithUnmappedFromAccess(_injectedAccess);
+
+        if (string.IsNullOrWhiteSpace(bundlePath))
+            return Result<(BundleModel, IReadOnlyList<WixUnmappedFeature>)>.Failure(
+                ErrorKind.Validation, "WBD001: Bundle path cannot be null or empty.");
+
+        var openResult = WixBurnAccess.Open(bundlePath);
+        if (openResult.IsFailure)
+            return Result<(BundleModel, IReadOnlyList<WixUnmappedFeature>)>.Failure(openResult.Error);
+
+        using var access = openResult.Value;
+        return DecompileWithUnmappedFromAccess(access);
+    }
+
     private static Result<BundleModel> DecompileFromAccess(IWixBurnAccess access)
+    {
+        var mapResult = DecompileWithUnmappedFromAccess(access);
+        return mapResult.IsFailure
+            ? Result<BundleModel>.Failure(mapResult.Error)
+            : Result<BundleModel>.Success(mapResult.Value.Model);
+    }
+
+    private static Result<(BundleModel Model, IReadOnlyList<WixUnmappedFeature> Unmapped)> DecompileWithUnmappedFromAccess(
+        IWixBurnAccess access)
     {
         var manifestResult = access.ReadManifest();
         if (manifestResult.IsFailure)
-            return Result<BundleModel>.Failure(manifestResult.Error);
+            return Result<(BundleModel, IReadOnlyList<WixUnmappedFeature>)>.Failure(manifestResult.Error);
 
         var mapResult = WixManifestMapper.Map(manifestResult.Value, access.BundleId);
         if (mapResult.IsFailure)
-            return Result<BundleModel>.Failure(mapResult.Error);
+            return Result<(BundleModel, IReadOnlyList<WixUnmappedFeature>)>.Failure(mapResult.Error);
 
-        return Result<BundleModel>.Success(mapResult.Value.Model);
+        var (model, unmapped) = mapResult.Value;
+        return Result<(BundleModel, IReadOnlyList<WixUnmappedFeature>)>.Success((model, unmapped));
     }
 
     private static Result<string> DecompileToCSharpFromAccess(IWixBurnAccess access, string bundlePath)

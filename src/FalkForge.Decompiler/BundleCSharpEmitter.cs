@@ -16,7 +16,8 @@ internal static class BundleCSharpEmitter
     public static string Emit(
         BundleModel bundle,
         string? preamble = null,
-        IReadOnlyList<WixUnmappedFeature>? unmappedFeatures = null)
+        IReadOnlyList<WixUnmappedFeature>? unmappedFeatures = null,
+        Func<BundlePackageModel, string>? packagePathResolver = null)
     {
         var sb = new StringBuilder();
         var indent = 0;
@@ -74,7 +75,7 @@ internal static class BundleCSharpEmitter
         EmitRelatedBundles(bundle.RelatedBundles, AppendLine);
         EmitContainers(bundle.Containers, AppendLine);
         EmitUiConfig(bundle.UiConfig, AppendLine);
-        EmitChain(bundle.Chain, AppendLine, ref indent);
+        EmitChain(bundle.Chain, AppendLine, ref indent, packagePathResolver);
 
         indent--;
         AppendLine("});");
@@ -167,7 +168,8 @@ internal static class BundleCSharpEmitter
     private static void EmitChain(
         IReadOnlyList<ChainItem> chain,
         Action<string> appendLine,
-        ref int indent)
+        ref int indent,
+        Func<BundlePackageModel, string>? packagePathResolver)
     {
         if (chain.Count == 0)
             return;
@@ -185,7 +187,7 @@ internal static class BundleCSharpEmitter
                     EmitRollbackBoundary(rb.Boundary, appendLine);
                     break;
                 case PackageChainItem pkg:
-                    EmitPackage(pkg.Package, appendLine, ref indent);
+                    EmitPackage(pkg.Package, appendLine, ref indent, packagePathResolver);
                     break;
             }
         }
@@ -211,7 +213,8 @@ internal static class BundleCSharpEmitter
     private static void EmitPackage(
         BundlePackageModel package,
         Action<string> appendLine,
-        ref int indent)
+        ref int indent,
+        Func<BundlePackageModel, string>? packagePathResolver)
     {
         var methodName = package.Type switch
         {
@@ -224,14 +227,20 @@ internal static class BundleCSharpEmitter
             _ => "ExePackage"
         };
 
+        // The migration generator supplies a resolver that maps the package to its
+        // payload-relative key (payload/<name>) so the emitted chain path matches the
+        // extracted-bytes key by construction. Plain decompilation passes no resolver
+        // and emits the original SourcePath verbatim.
+        var sourcePath = packagePathResolver?.Invoke(package) ?? package.SourcePath;
+
         var hasBody = HasPackageBody(package);
         if (!hasBody)
         {
-            appendLine($"c.{methodName}({Quote(package.SourcePath)}, p => {{ }});");
+            appendLine($"c.{methodName}({Quote(sourcePath)}, p => {{ }});");
             return;
         }
 
-        appendLine($"c.{methodName}({Quote(package.SourcePath)}, p =>");
+        appendLine($"c.{methodName}({Quote(sourcePath)}, p =>");
         appendLine("{");
         indent++;
 
