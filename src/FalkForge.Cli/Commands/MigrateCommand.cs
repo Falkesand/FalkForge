@@ -15,11 +15,25 @@ public sealed class MigrateCommand : Command<MigrateSettings>
 {
     private readonly IConsoleOutput _console;
 
+    // Test-seam: injects a pre-built MigrationResult, bypassing the generator.
+    private readonly MigrationResult? _injectedResult;
+
     public MigrateCommand() : this(new SpectreConsoleOutput()) { }
 
     public MigrateCommand(IConsoleOutput console)
     {
         _console = console;
+    }
+
+    /// <summary>
+    /// Test-seam constructor. Injects a pre-built <see cref="MigrationResult"/> so tests
+    /// can exercise the write phase (containment checks, IO handling) in isolation without
+    /// needing a real installer file to decompile.
+    /// </summary>
+    internal MigrateCommand(IConsoleOutput console, MigrationResult injectedResult)
+    {
+        _console = console;
+        _injectedResult = injectedResult;
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] MigrateSettings settings, CancellationToken cancellationToken)
@@ -29,7 +43,8 @@ public sealed class MigrateCommand : Command<MigrateSettings>
         if (!File.Exists(filePath))
         {
             _console.WriteError($"File not found: {filePath}");
-            return ExitCodes.ValidationFailure;
+            // FIX D: align with DecompileCommand convention — FileNotFound → RuntimeError.
+            return ExitCodes.RuntimeError;
         }
 
         var extension = Path.GetExtension(filePath);
@@ -61,42 +76,95 @@ public sealed class MigrateCommand : Command<MigrateSettings>
             ? Path.GetFullPath(settings.OutputPath)
             : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), stem + "-migrated"));
 
-        _console.MarkupLine($"[grey]Migrating: {Markup.Escape(filePath)}[/]");
+        MigrationResult migration;
 
-        var generateResult = new MigrationProjectGenerator().Generate(
-            filePath,
-            new MigrationOptions(FalkForgeSourcePath: falkForgeSrc, ProjectName: projectName));
-
-        if (generateResult.IsFailure)
+        if (_injectedResult is not null)
         {
-            _console.WriteError(generateResult.Error.Message);
-            return ExitCodes.FromErrorKind(generateResult.Error.Kind);
+            // Test-seam: skip generation and use the pre-built result.
+            migration = _injectedResult;
+        }
+        else
+        {
+            _console.MarkupLine($"[grey]Migrating: {Markup.Escape(filePath)}[/]");
+
+            var generateResult = new MigrationProjectGenerator().Generate(
+                filePath,
+                new MigrationOptions(FalkForgeSourcePath: falkForgeSrc, ProjectName: projectName));
+
+            if (generateResult.IsFailure)
+            {
+                _console.WriteError(generateResult.Error.Message);
+                return ExitCodes.FromErrorKind(generateResult.Error.Kind);
+            }
+
+            migration = generateResult.Value;
         }
 
-        var migration = generateResult.Value;
+        // FIX C: wrap all file/directory IO so OS errors surface as clean messages, not stack traces.
+        try
+        {
+            return WriteOutput(outDir, migration);
+        }
+        catch (IOException ex)
+        {
+            _console.WriteError(ex.Message);
+            return ExitCodes.RuntimeError;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _console.WriteError(ex.Message);
+            return ExitCodes.RuntimeError;
+        }
+    }
 
+    /// <summary>
+    /// Writes all text files and payloads from <paramref name="migration"/> into
+    /// <paramref name="outDir"/>, applying path-containment checks on every entry.
+    /// Returns <see cref="ExitCodes.ValidationFailure"/> if any traversal attempt is detected;
+    /// <see cref="ExitCodes.Success"/> otherwise.
+    /// </summary>
+    private int WriteOutput(string outDir, MigrationResult migration)
+    {
         Directory.CreateDirectory(outDir);
+
+        var rejectedCount = 0;
+
+        // FIX A: containment check on TextFiles (previously unchecked).
         foreach (var (relativePath, content) in migration.TextFiles)
         {
-            var fullPath = Path.GetFullPath(Path.Combine(outDir, relativePath));
+            if (!TryResolveContained(outDir, relativePath, out var fullPath))
+            {
+                // FIX B: log security-relevant rejection naming the offending key.
+                _console.WriteError($"Text file key '{relativePath}' would escape the output directory. Skipping.");
+                rejectedCount++;
+                continue;
+            }
             var dir = Path.GetDirectoryName(fullPath)!;
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
             File.WriteAllText(fullPath, content);
         }
 
-        var resolvedBase = Path.GetFullPath(outDir + Path.DirectorySeparatorChar);
+        // FIX A: replace OrdinalIgnoreCase StartsWith containment with OS-correct helper.
         foreach (var (key, bytes) in migration.Payloads)
         {
-            var resolvedKey = Path.GetFullPath(Path.Combine(outDir, key));
-            if (!resolvedKey.StartsWith(resolvedBase, StringComparison.OrdinalIgnoreCase))
+            if (!TryResolveContained(outDir, key, out var resolvedKey))
             {
+                // FIX B: log security-relevant rejection naming the offending key.
                 _console.WriteError($"Payload key '{key}' would escape the output directory. Skipping.");
+                rejectedCount++;
                 continue;
             }
             var dir = Path.GetDirectoryName(resolvedKey)!;
             Directory.CreateDirectory(dir);
             File.WriteAllBytes(resolvedKey, bytes);
+        }
+
+        // FIX B: any rejected entry → non-zero exit so CI sees the traversal attempt.
+        if (rejectedCount > 0)
+        {
+            _console.WriteError($"{rejectedCount} path-traversal attempt(s) detected and blocked. Migration output is incomplete.");
+            return ExitCodes.ValidationFailure;
         }
 
         _console.MarkupLine($"[green]Migration complete:[/] {Markup.Escape(outDir)}");
@@ -108,6 +176,31 @@ public sealed class MigrateCommand : Command<MigrateSettings>
             _console.MarkupLine($"  See [grey]MIGRATION-REPORT.md[/] for details.");
 
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Resolves <paramref name="relativeKey"/> relative to <paramref name="outDir"/> and
+    /// verifies the result stays strictly inside that directory.
+    /// Uses <see cref="Path.GetRelativePath"/> to perform an OS-correct containment check
+    /// that does not rely on string case comparison.
+    /// Returns <see langword="false"/> when the resolved path is rooted, equals <c>..</c>,
+    /// or starts with <c>../</c> (or <c>..\</c> on Windows).
+    /// </summary>
+    private static bool TryResolveContained(string outDir, string relativeKey, [NotNullWhen(true)] out string? fullPath)
+    {
+        fullPath = Path.GetFullPath(Path.Combine(outDir, relativeKey));
+        var rel = Path.GetRelativePath(outDir, fullPath);
+
+        if (Path.IsPathRooted(rel) ||
+            rel == ".." ||
+            rel.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+            rel.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            fullPath = null;
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
