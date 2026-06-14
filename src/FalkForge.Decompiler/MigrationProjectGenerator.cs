@@ -17,6 +17,11 @@ namespace FalkForge.Decompiler;
 /// </summary>
 public sealed class MigrationProjectGenerator
 {
+    // Decompression-bomb guard for bundle payload extraction (FIX 4): cap the cumulative
+    // uncompressed bytes of all chain payloads a single bundle may expand to. 4 GiB mirrors
+    // the MSI-side cap in MsiPayloadExtractor.
+    private const long MaxBundlePayloadBytes = 4L * 1024 * 1024 * 1024;
+
     private readonly MsiDecompiler? _msiDecompiler;
     private readonly BundleDecompiler? _bundleDecompiler;
     private readonly WixBundleDecompiler? _wixDecompiler;
@@ -182,9 +187,11 @@ public sealed class MigrationProjectGenerator
             ["MIGRATION-REPORT.md"] = report,
         };
 
-        var payloads = ExtractBundlePayloads(inputPath, model, payloadKeys);
+        var payloadsResult = ExtractBundlePayloads(inputPath, payloadKeys);
+        if (payloadsResult.IsFailure)
+            return Result<MigrationResult>.Failure(payloadsResult.Error);
 
-        return Result<MigrationResult>.Success(new MigrationResult(files, [], payloads));
+        return Result<MigrationResult>.Success(new MigrationResult(files, [], payloadsResult.Value));
     }
 
     private Result<MigrationResult> GenerateWixBundle(string inputPath, MigrationOptions options, Error nativeError)
@@ -228,36 +235,56 @@ public sealed class MigrationProjectGenerator
     /// <summary>
     /// Extracts the bundle's embedded chain payload bytes keyed by the SAME payload path
     /// that the emitted chain references (so the generated code and the written bytes align
-    /// by construction). Returns an empty map when the bundle file cannot be read (e.g. the
-    /// injected-mock test path, which has no real bundle on disk).
+    /// by construction).
+    ///
+    /// <para>
+    /// Returns an empty-but-successful map only on the non-production path (an injected-mock
+    /// decompiler or no real bundle on disk), where there are no bytes to extract by design.
+    /// On the production path a <see cref="BundleReader.Extract"/> failure is surfaced as a
+    /// <see cref="Result{T}"/> failure rather than swallowed — otherwise the generated
+    /// Program.cs would reference payloads that were never written (FIX 5).
+    /// </para>
     /// </summary>
-    private IReadOnlyDictionary<string, byte[]> ExtractBundlePayloads(
-        string inputPath, BundleModel model, IReadOnlyDictionary<string, string> payloadKeys)
+    private Result<IReadOnlyDictionary<string, byte[]>> ExtractBundlePayloads(
+        string inputPath, IReadOnlyDictionary<string, string> payloadKeys)
     {
         var payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
 
         // Only attempt extraction on the production path (a real bundle EXE on disk).
+        // The injected-mock path has no bytes to extract — return an empty success.
         if (_bundleDecompiler is not null || !File.Exists(inputPath))
-            return payloads;
+            return Result<IReadOnlyDictionary<string, byte[]>>.Success(payloads);
 
         var contentResult = BundleReader.Extract(inputPath);
         if (contentResult.IsFailure)
-            return payloads;
+            return Result<IReadOnlyDictionary<string, byte[]>>.Failure(contentResult.Error);
 
-        var packageById = model.Packages.ToDictionary(p => p.Id, StringComparer.Ordinal);
+        // Decompression-bomb / unbounded-memory guard: cap the cumulative payload bytes a
+        // single bundle may expand to (mirrors the MSI cabinet cap). 4 GiB is generous for
+        // real bundles yet bounds the memory a hostile bundle can force us to allocate.
+        var remainingBudget = MaxBundlePayloadBytes;
 
         foreach (var entry in contentResult.Value.TocEntries)
         {
-            if (!packageById.ContainsKey(entry.PackageId) ||
-                !payloadKeys.TryGetValue(entry.PackageId, out var key))
+            if (!payloadKeys.TryGetValue(entry.PackageId, out var key))
                 continue;
 
             var payloadResult = BundleReader.ExtractPayload(inputPath, entry);
-            if (payloadResult.IsSuccess)
-                payloads[key] = payloadResult.Value;
+            if (payloadResult.IsFailure)
+                return Result<IReadOnlyDictionary<string, byte[]>>.Failure(payloadResult.Error);
+
+            var bytes = payloadResult.Value;
+            remainingBudget -= bytes.LongLength;
+            if (remainingBudget < 0)
+                return Result<IReadOnlyDictionary<string, byte[]>>.Failure(
+                    ErrorKind.LayoutError,
+                    $"Bundle payload extraction aborted: cumulative size exceeded the " +
+                    $"{MaxBundlePayloadBytes}-byte budget.");
+
+            payloads[key] = bytes;
         }
 
-        return payloads;
+        return Result<IReadOnlyDictionary<string, byte[]>>.Success(payloads);
     }
 
     /// <summary>
