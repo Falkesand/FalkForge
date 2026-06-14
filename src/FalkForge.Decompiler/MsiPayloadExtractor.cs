@@ -19,6 +19,11 @@ namespace FalkForge.Decompiler;
 [SupportedOSPlatform("windows")]
 public static class MsiPayloadExtractor
 {
+    // Decompression-bomb guard for migration: cap the cumulative uncompressed cabinet bytes
+    // a single MSI may expand to. 4 GiB is generous for legitimate installers yet bounds the
+    // memory a hostile (zip-bomb) MSI can force this process to allocate.
+    private const long MaxTotalUncompressedBytes = 4L * 1024 * 1024 * 1024;
+
     /// <summary>
     /// Opens the MSI at <paramref name="msiPath"/> and returns its payload bytes
     /// keyed by relative payload path. Cabinets that cannot be read are skipped;
@@ -97,6 +102,10 @@ public static class MsiPayloadExtractor
 
         var payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
 
+        // Cumulative uncompressed-byte budget shared across every embedded cabinet, so a
+        // multi-cab decompression bomb cannot bypass the cap by spreading bytes over cabs.
+        var remainingBudget = MaxTotalUncompressedBytes;
+
         foreach (var mediaRow in mediaResult.Value)
         {
             var cabinetName = mediaRow[2];
@@ -120,13 +129,16 @@ public static class MsiPayloadExtractor
                 continue; // Cabinet may not exist; skip gracefully.
 
             using var cabStream = new MemoryStream(streamResult.Value);
-            var extractResult = CabinetExtractor.Extract(cabStream);
+            var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget);
             if (extractResult.IsFailure)
                 return Result<IReadOnlyDictionary<string, byte[]>>.Failure(extractResult.Error);
 
             foreach (var (cabFileKey, fileData) in extractResult.Value)
+            {
+                remainingBudget -= fileData.LongLength;
                 if (fileKeyToPayloadKey.TryGetValue(cabFileKey, out var payloadKey))
                     payloads[payloadKey] = fileData;
+            }
         }
 
         return Result<IReadOnlyDictionary<string, byte[]>>.Success(payloads);

@@ -31,6 +31,13 @@ public sealed class CabinetExtractor : IDisposable
     // Tracks the last callback error for diagnostic messages on failure.
     private string? _lastCallbackError;
 
+    // Decompression-bomb guard. Maximum cumulative uncompressed bytes this extractor will
+    // collect before aborting; the running total is summed as each file completes. Default is
+    // unbounded (long.MaxValue) so existing callers — notably "forge extract" — are unchanged.
+    private long _maxTotalBytes = long.MaxValue;
+    private long _totalExtractedBytes;
+    private bool _budgetExceeded;
+
     // Directory that contains the primary cabinet on disk. fdintNEXT_CABINET
     // resolves continuation names against this directory so span chains work.
     // Null when extracting from a stream (spanning is unsupported in that mode).
@@ -93,7 +100,21 @@ public sealed class CabinetExtractor : IDisposable
     /// </summary>
     /// <param name="cabinetStream">The cabinet data stream. Must be readable.</param>
     /// <returns>A dictionary mapping file names to their extracted byte contents.</returns>
-    public static Result<Dictionary<string, byte[]>> Extract(Stream cabinetStream)
+    public static Result<Dictionary<string, byte[]>> Extract(Stream cabinetStream) =>
+        Extract(cabinetStream, long.MaxValue);
+
+    /// <summary>
+    ///     Extracts all files from a cabinet stream into memory, aborting if the cumulative
+    ///     uncompressed size exceeds <paramref name="maxTotalBytes"/>. This bounds the memory
+    ///     a hostile (zip-bomb) cabinet can force the process to allocate.
+    /// </summary>
+    /// <param name="cabinetStream">The cabinet data stream. Must be readable.</param>
+    /// <param name="maxTotalBytes">
+    ///     Maximum cumulative uncompressed bytes to collect. Use <see cref="long.MaxValue"/>
+    ///     for unbounded extraction (the historical behaviour).
+    /// </param>
+    /// <returns>A dictionary mapping file names to their extracted byte contents.</returns>
+    public static Result<Dictionary<string, byte[]>> Extract(Stream cabinetStream, long maxTotalBytes)
     {
         ArgumentNullException.ThrowIfNull(cabinetStream);
 
@@ -101,7 +122,7 @@ public sealed class CabinetExtractor : IDisposable
             return Result<Dictionary<string, byte[]>>.Failure(
                 ErrorKind.InvalidOperation, "Cabinet stream must be readable.");
 
-        using var extractor = new CabinetExtractor();
+        using var extractor = new CabinetExtractor { _maxTotalBytes = maxTotalBytes };
         return extractor.ExtractCore(cabinetStream);
     }
 
@@ -151,10 +172,14 @@ public sealed class CabinetExtractor : IDisposable
 
             if (!success)
             {
-                var detail = _lastCallbackError is not null ? $" Detail: {_lastCallbackError}" : "";
-                failure = Result<Dictionary<string, byte[]>>.Failure(
-                    ErrorKind.CompilationError,
-                    $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}.{detail}");
+                failure = _budgetExceeded
+                    ? Result<Dictionary<string, byte[]>>.Failure(
+                        ErrorKind.LayoutError,
+                        $"Cabinet extraction aborted: {_lastCallbackError}")
+                    : Result<Dictionary<string, byte[]>>.Failure(
+                        ErrorKind.CompilationError,
+                        $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}." +
+                        (_lastCallbackError is not null ? $" Detail: {_lastCallbackError}" : ""));
             }
         }
         finally
@@ -226,12 +251,14 @@ public sealed class CabinetExtractor : IDisposable
 
                 if (!success)
                 {
-                    var detail = _lastCallbackError is not null
-                        ? $" Detail: {_lastCallbackError}"
-                        : "";
-                    failure = Result<Dictionary<string, byte[]>>.Failure(
-                        ErrorKind.CompilationError,
-                        $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}.{detail}");
+                    failure = _budgetExceeded
+                        ? Result<Dictionary<string, byte[]>>.Failure(
+                            ErrorKind.LayoutError,
+                            $"Cabinet extraction aborted: {_lastCallbackError}")
+                        : Result<Dictionary<string, byte[]>>.Failure(
+                            ErrorKind.CompilationError,
+                            $"FDICopy failed. ERF: oper={erf.erfOper}, type={erf.erfType}." +
+                            (_lastCallbackError is not null ? $" Detail: {_lastCallbackError}" : ""));
                 }
             }
             finally
@@ -451,7 +478,23 @@ public sealed class CabinetExtractor : IDisposable
                 {
                     if (_outputHandleNames.TryGetValue(handle, out var name))
                     {
-                        _extractedFiles[name] = ms.ToArray();
+                        var bytes = ms.ToArray();
+
+                        // Decompression-bomb guard: abort once the cumulative uncompressed size
+                        // would exceed the configured budget, before retaining these bytes.
+                        _totalExtractedBytes += bytes.LongLength;
+                        if (_totalExtractedBytes > _maxTotalBytes)
+                        {
+                            _budgetExceeded = true;
+                            _lastCallbackError =
+                                $"Cumulative uncompressed size exceeded the {_maxTotalBytes}-byte budget.";
+                            ms.Dispose();
+                            _openStreams.Remove(handle);
+                            _outputHandleNames.Remove(handle);
+                            return -1; // Abort FDICopy.
+                        }
+
+                        _extractedFiles[name] = bytes;
                         _outputHandleNames.Remove(handle);
                     }
 
