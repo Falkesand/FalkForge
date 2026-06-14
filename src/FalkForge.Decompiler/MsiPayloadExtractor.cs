@@ -65,7 +65,12 @@ public static class MsiPayloadExtractor
                 componentDirMap[compId] = dirId;
         }
 
-        // Map: cabinet file key → relative payload path (root-excluded segments + long name).
+        // Map: cabinet file key → UNIQUE relative payload path. The shared Deduplicator runs
+        // over the File rows in table order, identically to CSharpEmitter.EmitFiles, so two
+        // files installing to the same directory under the same name each get a distinct key
+        // on BOTH sides (otherwise the second file's bytes would overwrite the first's — silent
+        // data loss). Single source of truth: PayloadPath.Deduplicator.
+        var dedup = new PayloadPath.Deduplicator();
         var fileKeyToPayloadKey = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var row in fileResult.Value)
         {
@@ -82,7 +87,7 @@ public static class MsiPayloadExtractor
             var (_, relativePath) = resolver.FindRootFolder(dirId);
             var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
             var longName = ParseLongFileName(fileNameField);
-            fileKeyToPayloadKey[fileKey] = PayloadPath.For(segments, longName);
+            fileKeyToPayloadKey[fileKey] = dedup.Next(segments, longName);
         }
 
         var mediaResult = db.QueryRows(
@@ -99,6 +104,14 @@ public static class MsiPayloadExtractor
                 continue; // Only embedded cabinets are supported here.
 
             var streamName = cabinetName[1..];
+
+            // The cabinet stream name comes from the attacker-controlled Media.Cabinet column.
+            // It is interpolated into an MSI-SQL query, so an embedded quote would inject SQL.
+            // Allowlist-validate against the legal MSI stream-name shape (<=62 chars, no quotes
+            // or other metacharacters) and skip anything that does not match — defense in depth
+            // for a malicious MSI (A03: Injection).
+            if (!IsValidStreamName(streamName))
+                continue;
 
             var streamResult = db.ReadStream(
                 $"SELECT `Name`, `Data` FROM `_Streams` WHERE `Name` = '{streamName}'",
@@ -117,6 +130,29 @@ public static class MsiPayloadExtractor
         }
 
         return Result<IReadOnlyDictionary<string, byte[]>>.Success(payloads);
+    }
+
+    /// <summary>
+    /// Validates an MSI cabinet stream name against a strict allowlist before it is
+    /// interpolated into an MSI-SQL <c>WHERE</c> clause. MSI stream names are at most
+    /// 62 characters; here we additionally restrict to letters, digits, dot, underscore,
+    /// and hyphen so no MSI-SQL metacharacter (notably a single quote) can be injected.
+    /// Exposed internally so the rule can be unit-tested directly.
+    /// </summary>
+    internal static bool IsValidStreamName(string streamName)
+    {
+        if (string.IsNullOrEmpty(streamName) || streamName.Length > 62)
+            return false;
+
+        foreach (var ch in streamName)
+        {
+            var ok = ch is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9')
+                or '.' or '_' or '-';
+            if (!ok)
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>

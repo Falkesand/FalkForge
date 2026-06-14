@@ -44,4 +44,49 @@ public static class PayloadPath
 
         return $"payload/{string.Join('/', segments)}/{fileName}";
     }
+
+    /// <summary>
+    /// Deterministically assigns a UNIQUE payload key for every file even when two files
+    /// install to the same directory under the same name (legal in MSI: distinct File rows
+    /// may share a FileName within one directory). The single source of truth for collision
+    /// disambiguation: both the byte extractor and the C# emitter create one of these and
+    /// feed it files in File-table order, so each side derives identical unique keys.
+    ///
+    /// <para>
+    /// The first file to claim a base key keeps the unqualified <c>payload/&lt;dir&gt;/&lt;name&gt;</c>
+    /// form; each later collision is qualified with a 1-based occurrence index inserted before
+    /// the file name (<c>payload/&lt;dir&gt;/&lt;name&gt;__2/&lt;name&gt;</c>), guaranteeing both
+    /// uniqueness and a stable, order-driven mapping shared by both producers.
+    /// </para>
+    /// </summary>
+    public sealed class Deduplicator
+    {
+        // base key → number of files already assigned to it (in File-table order).
+        private readonly Dictionary<string, int> _seen = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Returns the unique payload key for the next file at <paramref name="segments"/>
+        /// with <paramref name="fileName"/>, qualifying duplicates deterministically.
+        /// </summary>
+        public string Next(IReadOnlyList<string> segments, string fileName)
+        {
+            ArgumentNullException.ThrowIfNull(segments);
+            ArgumentNullException.ThrowIfNull(fileName);
+
+            var baseKey = For(segments, fileName);
+            var count = _seen.TryGetValue(baseKey, out var c) ? c : 0;
+            _seen[baseKey] = count + 1;
+
+            if (count == 0)
+                return baseKey;
+
+            // Insert a per-occurrence subdirectory before the file name so the qualified
+            // key stays a valid relative path and the file name on disk is preserved.
+            var occurrence = count + 1;
+            var slash = baseKey.LastIndexOf('/');
+            var prefix = baseKey[..slash];
+            var name = baseKey[(slash + 1)..];
+            return $"{prefix}/{name}__{occurrence.ToString(System.Globalization.CultureInfo.InvariantCulture)}/{name}";
+        }
+    }
 }

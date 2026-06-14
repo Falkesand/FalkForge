@@ -171,6 +171,15 @@ public sealed class CSharpEmitter
         if (realFiles.Count == 0)
             return;
 
+        // Assign each file its UNIQUE payload key in File-table order BEFORE grouping, using
+        // the shared Deduplicator. MsiPayloadExtractor drives the identical algorithm over the
+        // same File order, so the .Add(key) here matches the extracted-bytes key by construction
+        // — even when two files in one directory share a name (last-wins data loss otherwise).
+        var dedup = new PayloadPath.Deduplicator();
+        var keyByFile = new Dictionary<FileEntryModel, string>(ReferenceEqualityComparer.Instance);
+        foreach (var file in realFiles)
+            keyByFile[file] = dedup.Next(file.TargetDirectory.Segments, file.FileName);
+
         // Group by target directory so files installed to the same location share one
         // Files(...) block, matching how a hand-authored installer reads.
         foreach (var group in realFiles.GroupBy(f => f.TargetDirectory))
@@ -182,8 +191,7 @@ public sealed class CSharpEmitter
             _indent++;
             foreach (var file in group)
             {
-                var key = PayloadPath.For(file.TargetDirectory.Segments, file.FileName);
-                AppendLine($"files.Add({Quote(key)}).To({rendered});");
+                AppendLine($"files.Add({Quote(keyByFile[file])}).To({rendered});");
             }
             _indent--;
             AppendLine("});");
