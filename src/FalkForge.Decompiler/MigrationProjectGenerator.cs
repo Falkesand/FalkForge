@@ -361,7 +361,10 @@ public sealed class MigrationProjectGenerator
 
     private static string BuildBundleCsproj(MigrationOptions options)
     {
-        var src = options.FalkForgeSourcePath.Replace('\\', '/');
+        // XML-escape the operator-supplied source path before it lands in an XML attribute;
+        // a '&', '<', or '"' would otherwise produce a malformed csproj that will not load.
+        var src = System.Security.SecurityElement.Escape(
+            options.FalkForgeSourcePath.Replace('\\', '/'));
 
         return $"""
                 <Project Sdk="Microsoft.NET.Sdk">
@@ -457,38 +460,24 @@ public sealed class MigrationProjectGenerator
 
         if (!emittedFragment.Contains(msiUsing, StringComparison.Ordinal))
         {
-            // Insert after the last "using ..." line in the block.
-            // Find the index of the first blank line that ends the using block.
+            // Inject the using before the first blank line that follows the using block.
+            // Track whether a using line has been seen with a flag (no per-line buffer scan).
             var lines = emittedFragment.Split('\n');
-            var insertedUsing = false;
-            foreach (var rawLine in lines)
-            {
-                var line = rawLine.TrimEnd('\r');
-                sb.AppendLine(line);
-                if (!insertedUsing && string.IsNullOrWhiteSpace(line))
-                {
-                    // This blank line separates the using block from the body — insert before it.
-                    // Back up: remove the blank line we just added, add using, re-add blank line.
-                    // Actually: we already wrote it. Insert the using BEFORE the blank line.
-                    // Redo: clear last blank line, write using, write blank line.
-                    // Simpler approach: detect last using line, inject immediately after.
-                    insertedUsing = true;
-                }
-            }
-
-            // Simpler and more robust: rebuild with injection.
-            sb.Clear();
+            var sawUsing = false;
             var usingBlockDone = false;
             foreach (var rawLine in lines)
             {
                 var line = rawLine.TrimEnd('\r');
-                if (!usingBlockDone && string.IsNullOrWhiteSpace(line) &&
-                    sb.ToString().Contains("using ", StringComparison.Ordinal))
+                if (!usingBlockDone && sawUsing && string.IsNullOrWhiteSpace(line))
                 {
                     // End of using block — inject our using before the blank separator.
                     sb.AppendLine(msiUsing);
                     usingBlockDone = true;
                 }
+
+                if (line.StartsWith("using ", StringComparison.Ordinal))
+                    sawUsing = true;
+
                 sb.AppendLine(line);
             }
         }
@@ -506,7 +495,10 @@ public sealed class MigrationProjectGenerator
     private static string BuildCsproj(MigrationOptions options)
     {
         // Forward slashes in XML paths — consistent cross-platform and readable.
-        var src = options.FalkForgeSourcePath.Replace('\\', '/');
+        // XML-escape the operator-supplied source path before it lands in an XML attribute;
+        // a '&', '<', or '"' would otherwise produce a malformed csproj that will not load.
+        var src = System.Security.SecurityElement.Escape(
+            options.FalkForgeSourcePath.Replace('\\', '/'));
 
         return $"""
                 <Project Sdk="Microsoft.NET.Sdk">
