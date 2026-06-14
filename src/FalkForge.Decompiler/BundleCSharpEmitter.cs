@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using FalkForge.Compiler.Bundle;
+using static FalkForge.Decompiler.CSharpStringLiteral;
 
 namespace FalkForge.Decompiler;
 
@@ -461,14 +462,4 @@ internal static class BundleCSharpEmitter
         }
     }
 
-    private static string Quote(string value)
-    {
-        var escaped = value
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\n", "\\n")
-            .Replace("\r", "\\r")
-            .Replace("\t", "\\t");
-        return $"\"{escaped}\"";
-    }
 }

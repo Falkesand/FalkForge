@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 using FalkForge.Models;
+using static FalkForge.Decompiler.CSharpStringLiteral;
 
 namespace FalkForge.Decompiler;
 
@@ -388,14 +389,4 @@ public sealed class CSharpEmitter
         _sb.AppendLine(line);
     }
 
-    private static string Quote(string value)
-    {
-        var escaped = value
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\n", "\\n")
-            .Replace("\r", "\\r")
-            .Replace("\t", "\\t");
-        return $"\"{escaped}\"";
-    }
 }
