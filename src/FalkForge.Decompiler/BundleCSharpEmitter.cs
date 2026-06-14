@@ -250,21 +250,46 @@ internal static class BundleCSharpEmitter
         appendLine("});");
     }
 
+    // The chain dispatches each package type to a different builder, and those builders
+    // expose different members. Emitting a member the dispatched builder lacks produces
+    // C# that does not compile (CS1061). HasPackageBody and EmitPackageBody therefore gate
+    // every type-specific call by package.Type so the generated body only ever calls
+    // members the corresponding builder actually defines:
+    //   Msi/Exe/NetRuntime → BundlePackageBuilder (Version, Container, RemotePayload, ExitCode, Property)
+    //   MsuPackage         → MsuPackageBuilder (KbArticle)
+    //   MspPackage         → MspPackageBuilder (PatchCode, TargetProductCode)
+    //   BundlePackage      → NestedBundlePackageBuilder (no extra members)
+    // All four share Id, DisplayName, Vital and InstallCondition.
+    private static bool SupportsBundlePackageBuilderMembers(BundlePackageType type) =>
+        type is BundlePackageType.MsiPackage
+            or BundlePackageType.ExePackage
+            or BundlePackageType.NetRuntime;
+
     private static bool HasPackageBody(BundlePackageModel package)
     {
         var defaultId = Path.GetFileNameWithoutExtension(package.SourcePath);
+
+        // Shared members — legal on every package builder.
         if (package.Id != defaultId) return true;
         if (package.DisplayName != defaultId) return true;
-        if (package.Version is not null) return true;
         if (!package.Vital) return true;
         if (package.InstallCondition is not null) return true;
-        if (package.Properties.Count > 0) return true;
-        if (package.ExitCodes.Count > 0) return true;
-        if (package.RemotePayload is not null) return true;
-        if (package.ContainerId is not null) return true;
-        if (package.KbArticle is not null) return true;
-        if (package.PatchCode is not null) return true;
-        if (package.TargetProductCode is not null) return true;
+
+        // Members only BundlePackageBuilder exposes (Msi/Exe/NetRuntime).
+        if (SupportsBundlePackageBuilderMembers(package.Type))
+        {
+            if (package.Version is not null) return true;
+            if (package.Properties.Count > 0) return true;
+            if (package.ExitCodes.Count > 0) return true;
+            if (package.RemotePayload is not null) return true;
+            if (package.ContainerId is not null) return true;
+        }
+
+        // Type-specific members on the dedicated builders.
+        if (package.Type == BundlePackageType.MsuPackage && package.KbArticle is not null) return true;
+        if (package.Type == BundlePackageType.MspPackage &&
+            (package.PatchCode is not null || package.TargetProductCode is not null)) return true;
+
         return false;
     }
 
@@ -274,14 +299,12 @@ internal static class BundleCSharpEmitter
     {
         var defaultId = Path.GetFileNameWithoutExtension(package.SourcePath);
 
+        // Shared members — legal on every package builder.
         if (package.Id != defaultId)
             appendLine($"p.Id({Quote(package.Id)});");
 
         if (package.DisplayName != defaultId)
             appendLine($"p.DisplayName({Quote(package.DisplayName)});");
-
-        if (package.Version is not null)
-            appendLine($"p.Version({Quote(package.Version)});");
 
         if (!package.Vital)
             appendLine("p.Vital(false);");
@@ -289,14 +312,37 @@ internal static class BundleCSharpEmitter
         if (package.InstallCondition is not null)
             appendLine($"p.InstallCondition({Quote(package.InstallCondition)});");
 
-        if (package.KbArticle is not null)
-            appendLine($"p.KbArticle({Quote(package.KbArticle)});");
+        // Type-specific members — gated so the emitted call binds to a real builder member.
+        switch (package.Type)
+        {
+            case BundlePackageType.MsiPackage:
+            case BundlePackageType.ExePackage:
+            case BundlePackageType.NetRuntime:
+                EmitBundlePackageBuilderMembers(package, appendLine);
+                break;
+            case BundlePackageType.MsuPackage:
+                if (package.KbArticle is not null)
+                    appendLine($"p.KbArticle({Quote(package.KbArticle)});");
+                break;
+            case BundlePackageType.MspPackage:
+                if (package.PatchCode is not null)
+                    appendLine($"p.PatchCode({Quote(package.PatchCode)});");
+                if (package.TargetProductCode is not null)
+                    appendLine($"p.TargetProductCode({Quote(package.TargetProductCode)});");
+                break;
+            case BundlePackageType.BundlePackage:
+                // NestedBundlePackageBuilder exposes only the shared members.
+                break;
+        }
+    }
 
-        if (package.PatchCode is not null)
-            appendLine($"p.PatchCode({Quote(package.PatchCode)});");
-
-        if (package.TargetProductCode is not null)
-            appendLine($"p.TargetProductCode({Quote(package.TargetProductCode)});");
+    // Members exposed only by BundlePackageBuilder (Msi/Exe/NetRuntime packages).
+    private static void EmitBundlePackageBuilderMembers(
+        BundlePackageModel package,
+        Action<string> appendLine)
+    {
+        if (package.Version is not null)
+            appendLine($"p.Version({Quote(package.Version)});");
 
         if (package.ContainerId is not null)
             appendLine($"p.Container({Quote(package.ContainerId)});");

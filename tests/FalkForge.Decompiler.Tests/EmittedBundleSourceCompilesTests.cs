@@ -105,7 +105,7 @@ public sealed class EmittedBundleSourceCompilesTests
                 continue;
             }
 
-            if (openMarkerSeen && line.Trim() == "});")
+            if (openMarkerSeen && line == "});")
             {
                 sb.Append("var bundle = b.Build();").Append('\n');
                 sb.Append("return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));").Append('\n');

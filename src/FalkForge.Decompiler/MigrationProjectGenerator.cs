@@ -298,8 +298,12 @@ public sealed class MigrationProjectGenerator
                 continue;
             }
 
-            // Replace the closing "});" of the lambda with the build + runnable entry point.
-            if (openMarkerSeen && line.Trim() == "});")
+            // Replace the closing "});" of the OUTER lambda with the build + runnable entry
+            // point. Inner lambdas (b.Feature, b.Chain, per-package configurators) also close
+            // with "});" but are indented; the emitter writes the outer close at column 0, so
+            // match on the exact zero-indent "});" to avoid swapping a nested block's close
+            // (which would splice the entry point into the middle of the builder calls).
+            if (openMarkerSeen && line == "});")
             {
                 sb.AppendLine("var bundle = b.Build();");
                 sb.AppendLine("return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));");
