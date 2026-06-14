@@ -45,6 +45,52 @@ public sealed class CabinetExtractorTests : IDisposable
     }
 
     [Fact]
+    public void Extract_BudgetExceeded_AbortsWithFailure()
+    {
+        // WHY (FIX 4): a decompression bomb must not be able to force unbounded memory.
+        // With a budget smaller than the file, extraction must abort with a failure rather
+        // than collecting the bytes. A tiny budget against a normal small cab triggers it.
+        var content = "this content is larger than the one-byte budget";
+        var cabPath = BuildCabinet(("payload.txt", content));
+
+        using var cabStream = File.OpenRead(cabPath);
+        var result = CabinetExtractor.Extract(cabStream, maxTotalBytes: 1);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("budget", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Extract_BudgetGenerous_Succeeds()
+    {
+        // WHY (FIX 4): the budget must not break legitimate extraction; a generous cap
+        // returns the file normally. Guards against an off-by-one that rejects valid input.
+        var content = "small payload";
+        var cabPath = BuildCabinet(("payload.txt", content));
+
+        using var cabStream = File.OpenRead(cabPath);
+        var result = CabinetExtractor.Extract(cabStream, maxTotalBytes: 1024 * 1024);
+
+        Assert.True(result.IsSuccess, FailureMessage(result));
+        Assert.Equal(content, System.Text.Encoding.UTF8.GetString(result.Value["payload.txt"]));
+    }
+
+    [Fact]
+    public void Extract_DefaultOverload_IsUnbounded()
+    {
+        // WHY (FIX 4): the original single-arg Extract must remain unbounded so existing
+        // callers (e.g. "forge extract") are unchanged by the new budget feature.
+        var content = "unbounded by default";
+        var cabPath = BuildCabinet(("payload.txt", content));
+
+        using var cabStream = File.OpenRead(cabPath);
+        var result = CabinetExtractor.Extract(cabStream);
+
+        Assert.True(result.IsSuccess, FailureMessage(result));
+        Assert.Equal(content, System.Text.Encoding.UTF8.GetString(result.Value["payload.txt"]));
+    }
+
+    [Fact]
     public void Extract_MultipleFiles_ReturnsAllFiles()
     {
         var cabPath = BuildCabinet(
