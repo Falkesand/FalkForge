@@ -209,4 +209,38 @@ public sealed class MigrationBundleGeneratorTests
         Assert.Contains("c.MsiPackage(\"payload/MyApp.msi\"", prog);
         Assert.DoesNotContain("c.MsiPackage(\"MyApp.msi\"", prog);
     }
+
+    [Fact]
+    public void Generate_ChainPackagesNotInPackagesList_GetDistinctPayloadPaths()
+    {
+        // WHY (FIX 9): the emitter iterates model.Chain, whose package instances may
+        // differ from model.Packages (the mapper synthesises a chain model when a chain
+        // item's id is absent from the package list). The payload-key map must be built
+        // from the SAME collection the emitter iterates, or two chain packages that share
+        // a source file name collide onto one payload path — one set of bytes is dropped.
+        // Building the map from the chain disambiguates the duplicate by package id.
+        var pkgA = new PackageInfo
+        {
+            Id = "Alpha", Type = PackageType.MsiPackage, DisplayName = "Alpha",
+            SourcePath = "setup.msi", Sha256Hash = "a"
+        };
+        var pkgB = new PackageInfo
+        {
+            Id = "Beta", Type = PackageType.MsiPackage, DisplayName = "Beta",
+            SourcePath = "setup.msi", Sha256Hash = "b"
+        };
+
+        // Note: Packages is left EMPTY so both chain items are synthesised models that
+        // live only in the chain — reproducing the divergence FIX 9 guards against.
+        var manifest = CreateManifest(
+            packages: [],
+            chain: [new PackageManifestChainItem(pkgA), new PackageManifestChainItem(pkgB)]);
+
+        var value = RunNativeMock(manifest);
+        var prog = value.TextFiles["Program.cs"];
+
+        // First claimant keeps the unqualified path; the colliding second is qualified by id.
+        Assert.Contains("c.MsiPackage(\"payload/setup.msi\"", prog);
+        Assert.Contains("c.MsiPackage(\"payload/Beta/setup.msi\"", prog);
+    }
 }

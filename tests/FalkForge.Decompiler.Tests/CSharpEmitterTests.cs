@@ -413,6 +413,45 @@ public sealed class CSharpEmitterTests
     }
 
     [Fact]
+    public void TryEmit_UnknownRootToken_ReturnsFailureWithoutThrowing()
+    {
+        // WHY: callers that must honour a Result contract (the migration generator)
+        // need the unsupported-token case as a Failure, not an exception that escapes
+        // and crashes the CLI with a stack trace. The failure message must name the token.
+        var model = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            Files =
+            [
+                new FileEntryModel
+                {
+                    SourcePath = "x.dll",
+                    TargetDirectory = UnknownRootInstallPath(),
+                    FileName = "x.dll"
+                }
+            ]
+        };
+
+        var result = new CSharpEmitter().TryEmit(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("BogusFolder", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryEmit_MappedRootToken_ReturnsSuccess()
+    {
+        // WHY: TryEmit must still succeed for the mapped tokens — guard against a
+        // pre-check that rejects everything.
+        var model = CreateMinimalPackage();
+
+        var result = new CSharpEmitter().TryEmit(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("var model = builder.Build();", result.Value);
+    }
+
+    [Fact]
     public void Emit_WildcardFile_DoesNotEmitWildcardAdd()
     {
         // WHY: FileName "*" is a FromDirectory marker, not a real payload file.
