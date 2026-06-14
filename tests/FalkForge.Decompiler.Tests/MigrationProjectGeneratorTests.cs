@@ -331,6 +331,57 @@ public sealed class MigrationProjectGeneratorTests
         Assert.True(result.IsFailure);
     }
 
+    // ── csproj XML well-formedness ─────────────────────────────────────────────
+
+    [Fact]
+    public void Generate_CsprojWithAmpersandInSourcePath_ProducesWellFormedXml()
+    {
+        // WHY (FIX 6): the source path is interpolated into a ProjectReference Include="..."
+        // attribute. An unescaped '&' (or '<', '"') breaks the csproj so MSBuild cannot load
+        // it. The value must be XML-escaped; parsing the result with XDocument must succeed.
+        using var access = CreateStandardMockAccess();
+        var generator = new MigrationProjectGenerator(new MsiDecompiler(access));
+        var opts = new MigrationOptions(
+            FalkForgeSourcePath: "../R&D/src & more",
+            ProjectName: ProjectName);
+
+        var result = generator.Generate("ignored.msi", opts);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+        var csproj = result.Value.TextFiles[$"{ProjectName}.csproj"];
+
+        // Must parse as well-formed XML (would throw on the raw '&').
+        var doc = System.Xml.Linq.XDocument.Parse(csproj);
+        Assert.NotNull(doc.Root);
+    }
+
+    // ── Program.cs single-injection invariant ──────────────────────────────────
+
+    [Fact]
+    public void Generate_ProgramCs_InjectsUsingAndEntryPointExactlyOnce()
+    {
+        // WHY (FIX 8): BuildProgramCs must inject the MsiCompiler using once and append the
+        // entry point once. The previous dead first loop / buffer-scan rewrite risked
+        // duplicate or misplaced injection; this pins the single-injection invariant.
+        var value = RunWithMock();
+        var prog = value.TextFiles["Program.cs"];
+
+        Assert.Equal(1, CountSubstring(prog, "using FalkForge.Compiler.Msi;"));
+        Assert.Equal(1, CountSubstring(prog, "return Installer.Build(args, model, new MsiCompiler());"));
+    }
+
+    private static int CountSubstring(string haystack, string needle)
+    {
+        var count = 0;
+        var idx = 0;
+        while ((idx = haystack.IndexOf(needle, idx, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            idx += needle.Length;
+        }
+        return count;
+    }
+
     // ── fixture ──────────────────────────────────────────────────────────────
 
     private static MockMsiTableAccess CreateStandardMockAccess()
