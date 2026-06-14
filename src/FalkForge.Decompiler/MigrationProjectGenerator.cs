@@ -101,7 +101,14 @@ public sealed class MigrationProjectGenerator
             return Result<MigrationResult>.Failure(modelResult.Error);
 
         var model = modelResult.Value;
-        var emittedFragment = new CSharpEmitter().Emit(model);
+
+        // Emit via the Result-returning path so an unsupported KnownFolder root token
+        // surfaces as a Failure (preserving the Result<MigrationResult> contract and
+        // avoiding a stack-trace leak) instead of escaping as an exception.
+        var emitResult = new CSharpEmitter().TryEmit(model);
+        if (emitResult.IsFailure)
+            return Result<MigrationResult>.Failure(emitResult.Error);
+        var emittedFragment = emitResult.Value;
 
         var programCs   = BuildProgramCs(emittedFragment);
         var csproj      = BuildCsproj(options);
@@ -148,7 +155,15 @@ public sealed class MigrationProjectGenerator
     private Result<MigrationResult> GenerateNativeBundle(string inputPath, MigrationOptions options, BundleModel model)
     {
         // ONE map drives both the emitted chain paths and the extracted-bytes keys.
-        var payloadKeys = BundlePayloadPath.BuildMap(model.Packages);
+        // Build it from the SAME collection the emitter iterates (the chain's package
+        // instances), not model.Packages — the two may differ, and a chain package id
+        // absent from the map would silently fall back to a path the bytes were never
+        // keyed under. Keying off the chain guarantees alignment by construction.
+        var chainPackages = model.Chain
+            .OfType<PackageChainItem>()
+            .Select(item => item.Package)
+            .ToList();
+        var payloadKeys = BundlePayloadPath.BuildMap(chainPackages);
 
         var emitted = BundleCSharpEmitter.Emit(
             model,

@@ -40,7 +40,49 @@ public sealed class CSharpEmitter
             ["FontsFolder"]           = "FontsFolder",
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Emits the fluent C# source for <paramref name="package"/>, throwing
+    /// <see cref="InvalidOperationException"/> when a known-folder root token has no
+    /// <see cref="KnownFolder"/> member (emitting it would produce non-compiling code).
+    /// Prefer <see cref="TryEmit"/> on paths that must not let the exception escape
+    /// (e.g. the migration generator, which returns the failure via <c>Result</c>).
+    /// </summary>
     public string Emit(PackageModel package)
+    {
+        var result = TryEmit(package);
+        if (result.IsFailure)
+            throw new InvalidOperationException(result.Error.Message);
+        return result.Value;
+    }
+
+    /// <summary>
+    /// Emits the fluent C# source for <paramref name="package"/> as a <see cref="Result{T}"/>:
+    /// a <see cref="ErrorKind.CompilationError"/> failure (naming the unsupported token) when a
+    /// known-folder root token has no <see cref="KnownFolder"/> member, instead of throwing.
+    /// </summary>
+    public Result<string> TryEmit(PackageModel package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        // Fail before writing any output if any file targets an unmapped root token —
+        // emitting it would produce non-compiling C# (no matching KnownFolder member).
+        foreach (var file in package.Files)
+        {
+            if (file.FileName == "*")
+                continue;
+            var token = file.TargetDirectory.Root.Token;
+            if (!TokenToMemberName.ContainsKey(token))
+                return Result<string>.Failure(
+                    ErrorKind.CompilationError,
+                    $"Cannot render unsupported KnownFolder root token '{token}'. " +
+                    "The decompiled installer references a folder FalkForge cannot map to a " +
+                    "KnownFolder member; re-author this file's install location manually.");
+        }
+
+        return Result<string>.Success(EmitCore(package));
+    }
+
+    private string EmitCore(PackageModel package)
     {
         _sb.Clear();
         _indent = 0;
