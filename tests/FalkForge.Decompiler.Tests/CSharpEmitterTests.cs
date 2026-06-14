@@ -413,6 +413,47 @@ public sealed class CSharpEmitterTests
     }
 
     [Fact]
+    public void Emit_TwoSameNameFilesInSameDir_EmitsTwoDistinctAddKeysEachOnce()
+    {
+        // WHY (FIX 3): two distinct File rows may legally install to the SAME directory
+        // under the SAME name. Keying the payload by directory+name alone collides them:
+        // one file's bytes overwrite the other AND the emitter would emit the same
+        // .Add(key) twice. Each file must get a unique key, emitted exactly once.
+        var dir = KnownFolder.ProgramFiles / "App";
+        var model = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            Files =
+            [
+                new FileEntryModel { SourcePath = "a/dup.dll", TargetDirectory = dir, FileName = "dup.dll", ComponentId = "c1" },
+                new FileEntryModel { SourcePath = "b/dup.dll", TargetDirectory = dir, FileName = "dup.dll", ComponentId = "c2" },
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        var firstKey = "payload/App/dup.dll";
+        var secondKey = "payload/App/dup.dll__2/dup.dll";
+
+        Assert.Contains($".Add(\"{firstKey}\")", source);
+        Assert.Contains($".Add(\"{secondKey}\")", source);
+        Assert.Equal(1, CountOccurrences(source, $".Add(\"{firstKey}\")"));
+        Assert.Equal(1, CountOccurrences(source, $".Add(\"{secondKey}\")"));
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var idx = 0;
+        while ((idx = haystack.IndexOf(needle, idx, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            idx += needle.Length;
+        }
+        return count;
+    }
+
+    [Fact]
     public void TryEmit_UnknownRootToken_ReturnsFailureWithoutThrowing()
     {
         // WHY: callers that must honour a Result contract (the migration generator)
