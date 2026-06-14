@@ -1,6 +1,7 @@
 using FalkForge.Cli.Commands;
 using FalkForge.Compiler.Bundle;
 using FalkForge.Compiler.Bundle.Compilation;
+using FalkForge.Decompiler;
 using Spectre.Console.Cli;
 using Xunit;
 
@@ -66,8 +67,9 @@ public sealed class MigrateCommandTests : IDisposable
         return result.Value;
     }
 
+    // FIX D: file-not-found must align with DecompileCommand convention → RuntimeError.
     [Fact]
-    public void Execute_NonExistentFile_ReturnsValidationFailure()
+    public void Execute_NonExistentFile_ReturnsRuntimeError()
     {
         var console = new TestConsoleOutput();
         var command = new MigrateCommand(console);
@@ -75,7 +77,7 @@ public sealed class MigrateCommandTests : IDisposable
 
         var result = command.Execute(CreateContext(), settings, CancellationToken.None);
 
-        Assert.Equal(ExitCodes.ValidationFailure, result);
+        Assert.Equal(ExitCodes.RuntimeError, result);
     }
 
     [Fact]
@@ -178,5 +180,170 @@ public sealed class MigrateCommandTests : IDisposable
         command.Execute(CreateContext(), settings, CancellationToken.None);
 
         Assert.Contains(console.AllOutput, line => line.Contains("Migration complete") || line.Contains(outDir));
+    }
+
+    // ---------------------------------------------------------------------------
+    // FIX A + B: path-traversal containment — hostile keys rejected, exit non-zero
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A TextFiles entry with a path-traversal key must be rejected and must NOT
+    /// create a file outside the output directory.
+    /// Passes a pre-built MigrationResult via the test-seam constructor overload.
+    /// </summary>
+    [Fact]
+    public void Execute_HostileTextFileKey_IsRejectedAndNotWritten()
+    {
+        var bundlePath = BuildRealBundle();
+        var outDir = Path.Combine(_tempDir, "migrate-hostile-txt");
+
+        var hostileKey = ".." + Path.DirectorySeparatorChar + "evil.cs";
+        var textFiles = new Dictionary<string, string>
+        {
+            ["Program.cs"] = "// safe",
+            [hostileKey] = "// hostile"
+        };
+        var migration = new MigrationResult(textFiles, [], new Dictionary<string, byte[]>());
+
+        var console = new TestConsoleOutput();
+        var command = new MigrateCommand(console, migration);
+        var settings = new Settings.MigrateSettings
+        {
+            FilePath = bundlePath,
+            OutputPath = outDir,
+            FalkForgeSourcePath = "../../src"
+        };
+
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+
+        // FIX B: traversal detected → non-zero exit.
+        Assert.Equal(ExitCodes.ValidationFailure, result);
+
+        // FIX A: hostile file must NOT exist outside outDir.
+        var escapedPath = Path.GetFullPath(Path.Combine(outDir, hostileKey));
+        Assert.False(File.Exists(escapedPath), "Hostile text file must not be written outside output directory.");
+
+        // FIX B: error line must name the offending key.
+        Assert.Contains(console.Errors, e => e.Contains("evil.cs") || e.Contains(".."));
+
+        // Safe file was still written.
+        Assert.True(File.Exists(Path.Combine(outDir, "Program.cs")));
+    }
+
+    /// <summary>
+    /// A Payloads entry with a path-traversal key must be rejected.
+    /// Safe payload must still be written.
+    /// </summary>
+    [Fact]
+    public void Execute_HostilePayloadKey_IsRejectedAndNotWritten()
+    {
+        var bundlePath = BuildRealBundle();
+        var outDir = Path.Combine(_tempDir, "migrate-hostile-payload");
+
+        var hostileKey = ".." + Path.DirectorySeparatorChar + "evil.bin";
+        var payloads = new Dictionary<string, byte[]>
+        {
+            ["payload/safe.bin"] = [0x01, 0x02],
+            [hostileKey] = [0xDE, 0xAD]
+        };
+        var migration = new MigrationResult(
+            new Dictionary<string, string> { ["Program.cs"] = "// ok" },
+            [],
+            payloads);
+
+        var console = new TestConsoleOutput();
+        var command = new MigrateCommand(console, migration);
+        var settings = new Settings.MigrateSettings
+        {
+            FilePath = bundlePath,
+            OutputPath = outDir,
+            FalkForgeSourcePath = "../../src"
+        };
+
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+
+        Assert.Equal(ExitCodes.ValidationFailure, result);
+
+        var escapedPath = Path.GetFullPath(Path.Combine(outDir, hostileKey));
+        Assert.False(File.Exists(escapedPath), "Hostile payload must not be written outside output directory.");
+
+        Assert.Contains(console.Errors, e => e.Contains("evil.bin") || e.Contains(".."));
+
+        // Safe payload still written.
+        Assert.True(File.Exists(Path.Combine(outDir, "payload", "safe.bin")));
+    }
+
+    /// <summary>
+    /// A normal nested payload key like <c>payload/sub/file.bin</c> must be accepted and written.
+    /// </summary>
+    [Fact]
+    public void Execute_NestedPayloadKey_IsAcceptedAndWritten()
+    {
+        var bundlePath = BuildRealBundle();
+        var outDir = Path.Combine(_tempDir, "migrate-nested");
+
+        var payloads = new Dictionary<string, byte[]>
+        {
+            ["payload/sub/file.bin"] = [0xAB, 0xCD]
+        };
+        var migration = new MigrationResult(
+            new Dictionary<string, string> { ["Program.cs"] = "// ok" },
+            [],
+            payloads);
+
+        var console = new TestConsoleOutput();
+        var command = new MigrateCommand(console, migration);
+        var settings = new Settings.MigrateSettings
+        {
+            FilePath = bundlePath,
+            OutputPath = outDir,
+            FalkForgeSourcePath = "../../src"
+        };
+
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, result);
+        Assert.True(File.Exists(Path.Combine(outDir, "payload", "sub", "file.bin")));
+    }
+
+    // ---------------------------------------------------------------------------
+    // FIX C: IO failure → RuntimeError + no stack trace in error output
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// When the output directory path already exists as a *file*, Directory.CreateDirectory
+    /// throws IOException. The command must catch it, return RuntimeError, and emit
+    /// only the exception message — no stack trace, no internal paths.
+    /// </summary>
+    [Fact]
+    public void Execute_OutputDirIsExistingFile_ReturnsRuntimeError()
+    {
+        var bundlePath = BuildRealBundle();
+
+        // Create a file at outDir path so Directory.CreateDirectory throws IOException.
+        var outDir = Path.Combine(_tempDir, "not-a-dir.txt");
+        File.WriteAllText(outDir, "I am a file, not a directory.");
+
+        var migration = new MigrationResult(
+            new Dictionary<string, string> { ["Program.cs"] = "// ok" },
+            [],
+            new Dictionary<string, byte[]>());
+
+        var console = new TestConsoleOutput();
+        var command = new MigrateCommand(console, migration);
+        var settings = new Settings.MigrateSettings
+        {
+            FilePath = bundlePath,
+            OutputPath = outDir,
+            FalkForgeSourcePath = "../../src"
+        };
+
+        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+
+        Assert.Equal(ExitCodes.RuntimeError, result);
+
+        // Must emit an error message with no stack-trace markers.
+        Assert.NotEmpty(console.Errors);
+        Assert.DoesNotContain(console.Errors, e => e.Contains("   at "));
     }
 }
