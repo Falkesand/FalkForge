@@ -288,36 +288,36 @@ public sealed class MigrationProjectGenerator
     }
 
     /// <summary>
-    /// Wraps the emitter's illustrative <c>Installer.BuildBundle(b =&gt; { ... });</c> output
-    /// into the runnable entry point:
+    /// Converts the emitter's real-builder fragment into the runnable entry point by injecting
+    /// the <c>using FalkForge.Compiler.Bundle.Compilation;</c> namespace right after the
+    /// Builders using line and appending the compile call after the fragment's final
+    /// <c>var bundle = b.Build();</c> line:
     /// <code>
     /// var b = new BundleBuilder();
     /// ... b.X(...) ...
     /// var bundle = b.Build();
     /// return Installer.BuildBundle(args, outputPath =&gt; new BundleCompiler().Compile(bundle, outputPath));
     /// </code>
-    /// The emitter body already uses statement-form calls on <c>b</c> (and <c>c</c> inside
-    /// <c>b.Chain</c>), which are valid against a real <see cref="BundleBuilder"/> instance.
+    /// The emitter already emits the fragment in this shape, so no text-transform is needed —
+    /// only the Compilation using injection and the entry-point append.
     /// </summary>
     private static string BuildBundleProgramCs(string emittedFragment)
     {
-        const string openMarker = "Installer.BuildBundle(b =>";
         const string compilationUsing = "using FalkForge.Compiler.Bundle.Compilation;";
+        const string buildersUsing = "using FalkForge.Compiler.Bundle.Builders;";
+        const string entryPoint =
+            "return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));";
 
         var lines = emittedFragment.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var sb = new StringBuilder(emittedFragment.Length + 256);
 
         var compilationUsingInjected = false;
-        var openMarkerSeen = false;
-        var openBraceSkipped = false;
 
-        for (var i = 0; i < lines.Length; i++)
+        foreach (var line in lines)
         {
-            var line = lines[i];
-
             // Inject the Compilation using right after the Builders using line.
             if (!compilationUsingInjected &&
-                line.Contains("using FalkForge.Compiler.Bundle.Builders;", StringComparison.Ordinal))
+                line.Contains(buildersUsing, StringComparison.Ordinal))
             {
                 sb.AppendLine(line);
                 sb.AppendLine(compilationUsing);
@@ -325,36 +325,10 @@ public sealed class MigrationProjectGenerator
                 continue;
             }
 
-            // Replace the "Installer.BuildBundle(b =>" header with the builder construction.
-            if (!openMarkerSeen && line.Contains(openMarker, StringComparison.Ordinal))
-            {
-                sb.AppendLine("var b = new BundleBuilder();");
-                openMarkerSeen = true;
-                continue;
-            }
-
-            // Skip the single "{" line that opened the lambda body.
-            if (openMarkerSeen && !openBraceSkipped && line.Trim() == "{")
-            {
-                openBraceSkipped = true;
-                continue;
-            }
-
-            // Replace the closing "});" of the OUTER lambda with the build + runnable entry
-            // point. Inner lambdas (b.Feature, b.Chain, per-package configurators) also close
-            // with "});" but are indented; the emitter writes the outer close at column 0, so
-            // match on the exact zero-indent "});" to avoid swapping a nested block's close
-            // (which would splice the entry point into the middle of the builder calls).
-            if (openMarkerSeen && line == "});")
-            {
-                sb.AppendLine("var bundle = b.Build();");
-                sb.AppendLine("return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));");
-                openMarkerSeen = false;
-                continue;
-            }
-
             sb.AppendLine(line);
         }
+
+        sb.AppendLine(entryPoint);
 
         return sb.ToString();
     }

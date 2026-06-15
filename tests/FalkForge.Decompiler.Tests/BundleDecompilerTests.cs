@@ -100,7 +100,7 @@ public sealed class BundleDecompilerTests
         var result = decompiler.DecompileToCSharp("dummy.exe");
 
         Assert.True(result.IsSuccess);
-        Assert.Contains("Installer.BuildBundle", result.Value);
+        Assert.Contains("new BundleBuilder()", result.Value);
         Assert.Contains("Test Bundle", result.Value);
     }
 

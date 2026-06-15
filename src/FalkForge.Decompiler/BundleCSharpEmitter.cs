@@ -52,9 +52,7 @@ internal static class BundleCSharpEmitter
         AppendLine("using FalkForge.Compiler.Bundle.Builders;");
         AppendLine();
 
-        AppendLine("Installer.BuildBundle(b =>");
-        AppendLine("{");
-        indent++;
+        AppendLine("var b = new BundleBuilder();");
 
         AppendLine($"b.Name({Quote(bundle.Name)});");
         AppendLine($"b.Manufacturer({Quote(bundle.Manufacturer)});");
@@ -78,8 +76,7 @@ internal static class BundleCSharpEmitter
         EmitUiConfig(bundle.UiConfig, AppendLine);
         EmitChain(bundle.Chain, AppendLine, ref indent, packagePathResolver);
 
-        indent--;
-        AppendLine("});");
+        AppendLine("var bundle = b.Build();");
 
         return sb.ToString();
     }

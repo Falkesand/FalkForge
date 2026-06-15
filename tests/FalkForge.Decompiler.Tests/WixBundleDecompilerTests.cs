@@ -93,7 +93,7 @@ public sealed class WixBundleDecompilerTests
         var result = decompiler.DecompileToCSharp("dummy.exe");
 
         Assert.True(result.IsSuccess);
-        Assert.Contains("Installer.BuildBundle", result.Value);
+        Assert.Contains("new BundleBuilder()", result.Value);
         Assert.Contains("FalkForge.Compiler.Bundle.Builders", result.Value);
     }
 
