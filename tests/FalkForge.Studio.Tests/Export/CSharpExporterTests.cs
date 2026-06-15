@@ -301,6 +301,40 @@ public class CSharpExporterTests
     }
 
     [Fact]
+    public void Export_StringWithLineSeparator_EscapesAsUnicode()
+    {
+        // WHY: U+2028 (LINE SEPARATOR) is a legal runtime character but terminates a C#
+        // double-quoted string literal in source. If the exporter emits it verbatim, the
+        // generated .csx will not compile, so it must be escaped as a 2028 sequence. The input is
+        // built via a C# \u escape so this test source file itself stays plain ASCII.
+        var project = CreateMinimalProject();
+        project.Product.Description = "before2028after";
+
+        var result = CSharpExporter.Export(project);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("before\\u2028after", result.Value);
+        // The raw separator must NOT survive into the emitted literal.
+        Assert.DoesNotContain("before2028after", result.Value);
+    }
+
+    [Fact]
+    public void Export_StringWithControlChar_EscapesAsUnicode()
+    {
+        // WHY: a control character below U+0020 (here U+0001) is legal at runtime but corrupts
+        // a C# source string literal. The exporter must escape it as a 0001 sequence so the generated
+        // script still compiles. The input control char is built via a C# \u escape.
+        var project = CreateMinimalProject();
+        project.Product.Description = "a0001b";
+
+        var result = CSharpExporter.Export(project);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("a\\u0001b", result.Value);
+        Assert.DoesNotContain("a0001b", result.Value);
+    }
+
+    [Fact]
     public void Export_StringWithBackslash_EscapesCorrectly()
     {
         var project = CreateMinimalProject();
