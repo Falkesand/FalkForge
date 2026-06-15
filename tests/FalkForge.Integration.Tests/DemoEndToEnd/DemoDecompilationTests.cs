@@ -93,10 +93,7 @@ public sealed class DemoDecompilationTests
             $"Bundle C# decompilation failed for '{demo.Name}': {(result.IsFailure ? result.Error.Message : "")}");
         Assert.False(string.IsNullOrWhiteSpace(result.Value),
             $"Decompiled C# for bundle '{demo.Name}' is empty");
-        // The emitter generates Installer.BuildBundle(b => { ... }) for round-tripped bundles.
-        // (Prior assertion looked for "BundleBuilder" but no output path of the emitter ever
-        // produces that literal — it was only ever satisfied when BDC003 caused the test to
-        // skip the assertion via early return; that skip path is now removed.)
-        Assert.Contains("Installer.BuildBundle", result.Value);
+        // The emitter generates a real-builder fragment: var b = new BundleBuilder(); ... b.Build();
+        Assert.Contains("new BundleBuilder()", result.Value);
     }
 }

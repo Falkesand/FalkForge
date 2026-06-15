@@ -63,28 +63,27 @@ public sealed class EmittedBundleSourceCompilesTests
 
     /// <summary>
     /// Faithful replica of <c>MigrationProjectGenerator.BuildBundleProgramCs</c>: inject the
-    /// Compilation using after the Builders using line, swap the
-    /// <c>Installer.BuildBundle(b =&gt;</c> header for <c>var b = new BundleBuilder();</c>, skip
-    /// the opening lambda <c>{</c>, and replace the closing <c>});</c> with the build +
-    /// runnable entry point. MUST stay in lockstep with the production wrapper; if that method
-    /// changes, change this too (the compile guard is only meaningful if it wraps identically).
+    /// Compilation using right after the Builders using line, then append the runnable entry
+    /// point after the emitted fragment (which already ends with <c>var bundle = b.Build();</c>).
+    /// MUST stay in lockstep with the production wrapper; if that method changes, change this
+    /// too (the compile guard is only meaningful if it wraps identically).
     /// </summary>
     private static string WrapAsMigrateGeneratorWould(string emittedFragment)
     {
-        const string openMarker = "Installer.BuildBundle(b =>";
         const string compilationUsing = "using FalkForge.Compiler.Bundle.Compilation;";
+        const string buildersUsing = "using FalkForge.Compiler.Bundle.Builders;";
+        const string entryPoint =
+            "return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));";
 
         var lines = emittedFragment.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var sb = new System.Text.StringBuilder(emittedFragment.Length + 256);
 
         var compilationUsingInjected = false;
-        var openMarkerSeen = false;
-        var openBraceSkipped = false;
 
         foreach (var line in lines)
         {
             if (!compilationUsingInjected &&
-                line.Contains("using FalkForge.Compiler.Bundle.Builders;", StringComparison.Ordinal))
+                line.Contains(buildersUsing, StringComparison.Ordinal))
             {
                 sb.Append(line).Append('\n');
                 sb.Append(compilationUsing).Append('\n');
@@ -92,29 +91,10 @@ public sealed class EmittedBundleSourceCompilesTests
                 continue;
             }
 
-            if (!openMarkerSeen && line.Contains(openMarker, StringComparison.Ordinal))
-            {
-                sb.Append("var b = new BundleBuilder();").Append('\n');
-                openMarkerSeen = true;
-                continue;
-            }
-
-            if (openMarkerSeen && !openBraceSkipped && line.Trim() == "{")
-            {
-                openBraceSkipped = true;
-                continue;
-            }
-
-            if (openMarkerSeen && line == "});")
-            {
-                sb.Append("var bundle = b.Build();").Append('\n');
-                sb.Append("return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));").Append('\n');
-                openMarkerSeen = false;
-                continue;
-            }
-
             sb.Append(line).Append('\n');
         }
+
+        sb.Append(entryPoint).Append('\n');
 
         return sb.ToString();
     }

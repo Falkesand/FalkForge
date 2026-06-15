@@ -15,8 +15,24 @@ public sealed class BundleCSharpEmitterTests
 
         var source = BundleCSharpEmitter.Emit(model);
 
-        Assert.Contains("Installer.BuildBundle(b =>", source);
-        Assert.Contains("});", source);
+        Assert.Contains("var b = new BundleBuilder();", source);
+        Assert.Contains("var bundle = b.Build();", source);
+        Assert.DoesNotContain("Installer.BuildBundle(b =>", source);
+    }
+
+    [Fact]
+    public void Emit_UsesRealBuilderApi_NotNonexistentOverload()
+    {
+        // WHY: Installer.BuildBundle(b => {...}) does not exist. The emitter must emit a
+        // real-builder fragment (new BundleBuilder() + b.X(...) + b.Build()) so that bare
+        // decompile output compiles and forge-migrate can trivially append the entry point.
+        var model = CreateMinimalBundle();
+
+        var source = BundleCSharpEmitter.Emit(model);
+
+        Assert.Contains("new BundleBuilder()", source);
+        Assert.Contains("var bundle = b.Build();", source);
+        Assert.DoesNotContain("Installer.BuildBundle(b =>", source);
     }
 
     [Fact]
