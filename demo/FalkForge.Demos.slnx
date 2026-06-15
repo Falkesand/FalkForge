@@ -94,14 +94,4 @@
         <Project Path="05-enterprise-suite/05-enterprise-suite.csproj" />
         <Project Path="07-extensions-showcase/07-extensions-showcase.csproj" />
     </Folder>
-    <Folder Name="/enterprise/">
-        <Project Path="MAS/MAS.csproj" />
-        <Project Path="MAS/bundle/MASBundle.csproj" />
-        <Project Path="MAS/packages/Concatenate/Concatenate.csproj" />
-        <Project Path="MAS/packages/Konfigurera/Konfigurera.csproj" />
-        <Project Path="MAS/packages/MultiAccess/MultiAccess.csproj" />
-        <Project Path="MAS/packages/MultiServer/MultiServer.csproj" />
-        <Project Path="MAS/packages/MultiServerEx/MultiServerEx.csproj" />
-        <Project Path="MAS/packages/stub/Stub.csproj" />
-    </Folder>
 </Solution>

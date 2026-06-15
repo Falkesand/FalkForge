@@ -266,7 +266,6 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 55 | winget | WinGet manifest generation via `PackageBuilder.WinGet()` (3-file YAML beside MSI) |
 | 56 | verify-and-plan | Provability CLI: `forge plan` / `plan-diff` / `verify --rebuild` (CLI-workflow demo + script) |
 | 57 | reproducible-sbom | Reproducible build under SOURCE_DATE_EPOCH + SBOM (CycloneDX) + ECDSA integrity notes |
-| MAS | MAS | MultiAccess Suite — production-grade multi-page enterprise installer |
 JSON demos (`demo/json/`, 7 files): 01-minimal, 02-installdir, 03-featuretree, 04-mondo, 05-advanced, 06-web-server, 07-database-app + payload/
 
 ## Documentation

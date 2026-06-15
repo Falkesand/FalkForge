@@ -454,3 +454,6 @@ build.log
 
 # Claude Code local config
 .claude/
+
+# MAS — external test solution kept locally under demo/, not part of FalkForge
+/demo/MAS/
