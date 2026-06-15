@@ -74,4 +74,10 @@
         <Project Path="15-bundle-signing/bundle/bundle.csproj" />
         <Project Path="15-bundle-signing/msi-package/msi-package.csproj" />
     </Folder>
+    <Folder Name="/tooling/">
+        <Project Path="54-forge-migrate/54-forge-migrate.csproj" />
+        <Project Path="55-winget/55-winget.csproj" />
+        <Project Path="56-verify-and-plan/56-verify-and-plan.csproj" />
+        <Project Path="57-reproducible-sbom/57-reproducible-sbom.csproj" />
+    </Folder>
 </Solution>
