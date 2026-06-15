@@ -46,7 +46,7 @@
         <tr><td><code>.wxl</code> localization files</td><td>JSON localization</td><td>Culture fallback chain</td></tr>
         <tr><td>Burn bootstrapper</td><td>Bundle engine</td><td>NativeAOT compiled, DPAPI secure properties</td></tr>
         <tr><td><code>wix build</code> CLI</td><td><code>forge build</code> or <code>dotnet run</code></td><td></td></tr>
-        <tr><td><code>wix msi decompile</code></td><td><code>forge decompile</code></td><td>Also decompiles WiX Burn bundles</td></tr>
+        <tr><td><code>wix msi decompile</code></td><td><code>forge decompile</code> / <code>forge migrate</code></td><td>decompile = C# snippet; migrate = full buildable project</td></tr>
         <tr><td>Extension NuGet packages</td><td>Built-in extensions</td><td>No extra packages to install</td></tr>
         <tr><td><code>wix.exe</code></td><td><code>forge</code> CLI</td><td>build, validate, inspect, decompile commands</td></tr>
       </tbody>
@@ -354,10 +354,52 @@ package<span class="punc">.</span><span class="method">AddLaunchCondition</span>
       <li><strong>WinGet manifest generation</strong> &mdash; <code>.WinGet()</code> on PackageBuilder auto-generates the 3-file YAML manifest set. Advanced Installer charges $2,400+/year for this feature.</li>
     </ul>
 
-    <!-- Section 6: Quick Start -->
-    <h2>Quick start &mdash; decompile your existing MSI</h2>
+    <!-- Section 6: forge migrate -->
+    <h2>Migrating your existing installer</h2>
+    <p><code>forge migrate</code> is the recommended starting point for any WiX (or other tool) migration. It reads your compiled <code>.msi</code>, <code>.msm</code>, or WiX Burn <code>.exe</code> and writes a complete, buildable FalkForge C# project &mdash; not just a code snippet.</p>
+
+    <h3>Run it</h3>
+    <pre><code>forge migrate your-product.msi -o ./migrated --falkforge-src /path/to/falkforge/src</code></pre>
+
+    <p>After it finishes, <code>./migrated/</code> contains:</p>
+    <ul>
+      <li><code>Program.cs</code> &mdash; full fluent API installer definition, reconstructed from the MSI database</li>
+      <li><code>YourProduct.csproj</code> &mdash; project file with references to FalkForge.Core and Compiler.Msi</li>
+      <li><code>payload/</code> &mdash; files extracted from the original MSI cabinet</li>
+      <li><code>MIGRATION-REPORT.md</code> &mdash; lists anything that did not map automatically (complex custom actions, unusual sequences, etc.)</li>
+    </ul>
+
+    <p>Build the generated project immediately:</p>
+    <pre><code>dotnet build migrated/</code></pre>
+
+    <p>If the build succeeds, the round-trip is complete. You now have an editable FalkForge project that produces an equivalent installer.</p>
+
+    <h3>Flags</h3>
+    <table>
+      <thead>
+        <tr><th>Flag</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>&lt;file&gt;</code></td><td>Installer to migrate (<code>.msi</code>, <code>.msm</code>, or <code>.exe</code>)</td></tr>
+        <tr><td><code>-o</code> / <code>--output</code></td><td>Output directory (default: <code>&lt;filename&gt;-migrated</code>)</td></tr>
+        <tr><td><code>--falkforge-src</code></td><td>Path to the FalkForge <code>src/</code> directory; sets the <code>ProjectReference</code> in the generated <code>.csproj</code></td></tr>
+      </tbody>
+    </table>
+
+    <details class="deep-dive">
+      <summary>Deep dive: migrate vs. decompile</summary>
+      <div class="deep-dive-content">
+        <p><code>forge decompile</code> produces a C# code snippet you can read and copy from. It is useful for inspecting an MSI or getting a quick translation of one section.</p>
+        <p><code>forge migrate</code> produces a <em>complete project</em> you can edit and rebuild. Use <code>migrate</code> when your goal is to switch your installer to FalkForge permanently. Use <code>decompile</code> when you just want to inspect or lift a pattern.</p>
+      </div>
+    </details>
+
+    <p>See <strong>demo/54-forge-migrate</strong> for a full round-trip example, including a PowerShell script that automates all three steps (build sample MSI &rarr; migrate &rarr; build generated project).</p>
+
+    <!-- Section 7: Quick inspect -->
+    <h2>Just want to inspect? Use decompile</h2>
     <pre><code>forge decompile your-product.msi</code></pre>
-    <p>This generates C# source code from your existing MSI. It won't be perfect &mdash; you'll clean up the output &mdash; but it gives you a working starting point.</p>
+    <p>This generates a C# snippet from your existing MSI. Good for inspecting structure or lifting specific patterns, but it is not a buildable project. Use <code>forge migrate</code> (above) for a full migration.</p>
 
     <nav class="tutorial-nav">
       <a href="index.html">&larr; Back to Tutorials</a>

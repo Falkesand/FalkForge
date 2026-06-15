@@ -20,8 +20,12 @@ Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools
 - **Prerequisite management** -- Built-in package groups for .NET Framework, VC++, ODBC drivers, SQL Server Express.
 - **WinGet manifest generation** -- Generate WinGet package manifests alongside MSI output -- `forge winget` CLI or `.WinGet()` fluent API.
 - **Delta updates** -- Binary delta updates for bundles -- only changed bytes downloaded, Octodiff-powered, automatic fallback to full download.
+- **forge migrate** -- Convert an existing MSI, MSM, or WiX Burn EXE into a complete buildable FalkForge C# project in one command.
+- **forge verify / forge plan / forge plan-diff** -- Verify installer integrity, preview install plans, and diff plans across versions.
+- **Reproducible builds + SBOM** -- Deterministic output under `SOURCE_DATE_EPOCH`; CycloneDX SBOM generated alongside every artifact.
+- **ECDSA payload integrity** -- All bundle payloads signed and verified; tamper detection before execution.
 - **CI/CD pipeline** -- GitHub Actions pipeline with build, test, and Roslynator code quality gates.
-- **52+ demo projects** -- From hello-world to complex multi-package bundles.
+- **57+ demo projects** -- From hello-world to complex multi-package bundles.
 
 ## Quick Start
 
@@ -204,9 +208,13 @@ forge build        Build an installer from .csx or .json definition
 forge validate     Validate an installer definition
 forge inspect      Inspect a compiled MSI (Windows)
 forge decompile    Decompile MSI or EXE bundle to C# (Windows)
+forge migrate      Migrate an existing MSI/EXE to a buildable FalkForge project (Windows)
 forge extract      Extract files from an MSI or EXE bundle to disk
 forge bundle       Detach/reattach bundles for code signing
 forge winget       Generate WinGet manifest from a compiled MSI
+forge verify       Verify installer artifact integrity (ECDSA signatures + hashes)
+forge plan         Preview the install/uninstall plan without executing
+forge plan-diff    Diff install plans between two installer versions
 ```
 
 ## Architecture
@@ -267,7 +275,7 @@ dotnet publish -c Release   # NativeAOT for Engine + Elevation
 
 ## Demos
 
-55 demo projects covering every feature:
+57 demo projects covering every feature:
 
 | Range | Focus |
 |-------|-------|
@@ -279,6 +287,11 @@ dotnet publish -c Release   # NativeAOT for Engine + Elevation
 | 35-43 | Advanced bundles: exe packages, MSU, nested, remote payloads, update feeds |
 | 44-46 | MSM, MSP, MST: merge modules, patches, transforms |
 | 47-52 | PowerShell, COM, HTTP, driver install, ICE validation, advanced MSIX |
+| 53 | Delta bundle updates (Octodiff) |
+| 54 | forge migrate: full MSI-to-FalkForge round-trip |
+| 55 | WinGet manifest generation |
+| 56 | forge verify + forge plan + forge plan-diff |
+| 57 | Reproducible builds + CycloneDX SBOM |
 | json/ | JSON-based definitions (no C# required) |
 
 ## Documentation
