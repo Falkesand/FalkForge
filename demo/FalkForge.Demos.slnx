@@ -34,6 +34,12 @@
         <Project Path="26-custom-tables/26-custom-tables.csproj" />
         <Project Path="27-gac-assembly/27-gac-assembly.csproj" />
         <Project Path="28-sequence-scheduling/28-sequence-scheduling.csproj" />
+        <Project Path="04-dev-toolkit/04-dev-toolkit.csproj" />
+        <Project Path="09-advanced-msi/09-advanced-msi.csproj" />
+        <Project Path="47-powershell-actions/47-powershell-actions.csproj" />
+        <Project Path="48-com-registration/48-com-registration.csproj" />
+        <Project Path="50-driver-install/50-driver-install.csproj" />
+        <Project Path="51-ice-validation/51-ice-validation.csproj" />
     </Folder>
     <Folder Name="/extensions/">
         <Project Path="29-ext-firewall/29-ext-firewall.csproj" />
@@ -42,6 +48,7 @@
         <Project Path="32-ext-dotnet/32-ext-dotnet.csproj" />
         <Project Path="33-ext-util/33-ext-util.csproj" />
         <Project Path="34-ext-dependency/34-ext-dependency.csproj" />
+        <Project Path="49-http-extension/49-http-extension.csproj" />
     </Folder>
     <Folder Name="/bundles/">
         <Project Path="35-bundle-simple/35-bundle-simple.csproj" />
@@ -54,6 +61,8 @@
         <Project Path="42-bundle-update-feed/42-bundle-update-feed.csproj" />
         <Project Path="43-bundle-layout/43-bundle-layout.csproj" />
         <Project Path="53-delta-updates/53-delta-updates.csproj" />
+        <Project Path="10-advanced-bundle/bundle/bundle.csproj" />
+        <Project Path="10-advanced-bundle/msi-package/msi-package.csproj" />
     </Folder>
     <Folder Name="/output-types/">
         <Project Path="44-merge-module/44-merge-module.csproj" />
@@ -79,5 +88,20 @@
         <Project Path="55-winget/55-winget.csproj" />
         <Project Path="56-verify-and-plan/56-verify-and-plan.csproj" />
         <Project Path="57-reproducible-sbom/57-reproducible-sbom.csproj" />
+    </Folder>
+    <Folder Name="/scenarios/">
+        <Project Path="03-client-server/03-client-server.csproj" />
+        <Project Path="05-enterprise-suite/05-enterprise-suite.csproj" />
+        <Project Path="07-extensions-showcase/07-extensions-showcase.csproj" />
+    </Folder>
+    <Folder Name="/enterprise/">
+        <Project Path="MAS/MAS.csproj" />
+        <Project Path="MAS/bundle/MASBundle.csproj" />
+        <Project Path="MAS/packages/Concatenate/Concatenate.csproj" />
+        <Project Path="MAS/packages/Konfigurera/Konfigurera.csproj" />
+        <Project Path="MAS/packages/MultiAccess/MultiAccess.csproj" />
+        <Project Path="MAS/packages/MultiServer/MultiServer.csproj" />
+        <Project Path="MAS/packages/MultiServerEx/MultiServerEx.csproj" />
+        <Project Path="MAS/packages/stub/Stub.csproj" />
     </Folder>
 </Solution>
