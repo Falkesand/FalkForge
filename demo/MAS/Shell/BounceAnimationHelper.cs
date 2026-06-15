@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 
@@ -23,9 +24,9 @@ internal static class BounceAnimationHelper
 
         var storyboard = new Storyboard { RepeatBehavior = RepeatBehavior.Forever };
         Storyboard.SetTarget(forward, bar);
-        Storyboard.SetTargetProperty(forward, new PropertyPath("(Canvas.Left)"));
+        Storyboard.SetTargetProperty(forward, new PropertyPath(Canvas.LeftProperty));
         Storyboard.SetTarget(backward, bar);
-        Storyboard.SetTargetProperty(backward, new PropertyPath("(Canvas.Left)"));
+        Storyboard.SetTargetProperty(backward, new PropertyPath(Canvas.LeftProperty));
         storyboard.Children.Add(forward);
         storyboard.Children.Add(backward);
         return storyboard;
