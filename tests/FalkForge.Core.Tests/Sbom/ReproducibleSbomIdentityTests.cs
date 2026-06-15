@@ -12,6 +12,7 @@ namespace FalkForge.Core.Tests.Sbom;
 /// These tests pin that contract: identical content + identical epoch ⇒ identical identity;
 /// different content ⇒ different serial; no epoch ⇒ fresh (non-deterministic) values.
 /// </summary>
+[Collection("SourceDateEpoch")]
 public sealed class ReproducibleSbomIdentityTests : IDisposable
 {
     private readonly string? _originalEpoch =

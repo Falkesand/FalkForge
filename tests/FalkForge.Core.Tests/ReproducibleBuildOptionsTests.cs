@@ -4,6 +4,7 @@ using FalkForge.Builders;
 using FalkForge.Testing;
 using Xunit;
 
+[Collection("SourceDateEpoch")]
 public sealed class ReproducibleBuildOptionsTests
 {
     [Fact]
