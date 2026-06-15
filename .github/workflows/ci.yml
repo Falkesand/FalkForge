@@ -28,6 +28,12 @@ jobs:
       - name: Build
         run: dotnet build FalkForge.slnx --no-restore -c Release
 
+      # Build every example so demo breakage (e.g. a stale API or an analyzer
+      # error like S3220) is caught here. The demos solution references ../src/*
+      # and restores on its own.
+      - name: Build demos
+        run: dotnet build demo/FalkForge.Demos.slnx -c Release
+
       # Provision darice.cub so ICE validation runs in CI.
       # WiX Toolset 3.x ships darice.cub at a known path and installs in ~30s via
       # Chocolatey. If the install fails the test step still passes because
