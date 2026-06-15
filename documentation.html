@@ -934,6 +934,10 @@ dotnet publish -c Release</code></pre>
       <tr><td><code>forge validate installer.csx</code></td><td>Validate without compiling</td></tr>
       <tr><td><code>forge inspect Package.msi</code></td><td>Display MSI metadata with tree views (Windows-only)</td></tr>
       <tr><td><code>forge decompile Package.msi</code></td><td>Decompile MSI to PackageModel or C# source (Windows-only)</td></tr>
+      <tr><td><code>forge migrate Package.msi</code></td><td>Convert existing .msi/.msm/.exe (WiX Burn) into a buildable FalkForge C# project</td></tr>
+      <tr><td><code>forge plan bundle.exe</code></td><td>Compute and display the install plan for a bundle without running it</td></tr>
+      <tr><td><code>forge plan-diff a.exe b.exe</code></td><td>Diff two installers of the same type and report changes</td></tr>
+      <tr><td><code>forge verify bundle.exe</code></td><td>Independently rebuild from source and byte-compare to prove reproducibility; verdicts: VERIFIED / MISMATCH / REBUILD-FAILED / SETUP-ERROR</td></tr>
     </tbody>
   </table>
 
@@ -7377,6 +7381,106 @@ forge bundle detach installer.exe --stub stub.exe --data bundle.dat
 
 # Reattach signed PE stub to bundle data
 forge bundle reattach --stub signed.exe --data bundle.dat -o installer.exe</code></pre>
+
+<h4>migrate</h4>
+<p>
+    Converts an existing installer (.msi, .msm, or WiX Burn .exe bundle) into a buildable
+    FalkForge C# project. The output directory contains a <code>Program.cs</code>,
+    a <code>.csproj</code>, any extracted payload files, and a
+    <code>MIGRATION-REPORT.md</code> describing what was mapped, what was approximated,
+    and what requires manual follow-up. Intended for teams moving off WiX.
+</p>
+<pre><code class="language-bash">forge migrate &lt;file&gt; [options]
+
+# Arguments:
+#   &lt;file&gt;                   Path to .msi, .msm, or .exe (WiX Burn bundle)
+
+# Options:
+#   -o, --output &lt;dir&gt;       Output directory for the generated project (default: current)
+#   --falkforge-src &lt;path&gt;   Path to a local FalkForge source checkout (uses NuGet if omitted)
+
+# Examples:
+forge migrate legacy.msi -o ./migrated
+forge migrate product-setup.exe -o ./migrated --falkforge-src ../FalkForge</code></pre>
+
+<p>See also: <a href="#demos">Demo 54 &mdash; forge migrate</a>.</p>
+
+<h4>plan</h4>
+<p>
+    Computes and displays the install plan for a compiled bundle EXE without executing it.
+    Shows which packages will be installed, repaired, or uninstalled based on the current
+    machine state, and which rollback boundaries are in scope. Useful for verifying bundle
+    logic before shipping.
+</p>
+<pre><code class="language-bash">forge plan &lt;bundle&gt; [options]
+
+# Arguments:
+#   &lt;bundle&gt;          Path to a compiled bundle EXE
+
+# Options:
+#   --output &lt;path&gt;   Write the plan to a file instead of stdout
+#   --json            Emit a JSON envelope to stdout (CI/automation)
+
+# Examples:
+forge plan installer.exe
+forge plan installer.exe --json
+forge plan installer.exe --output plan.txt</code></pre>
+
+<p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>.</p>
+
+<h4>plan-diff</h4>
+<p>
+    Compares two artifacts of the same type (.msi or .exe bundle) and reports the differences
+    between their install plans &mdash; added, removed, and changed packages, features,
+    registry entries, files, and conditions. Use <code>--markdown</code> to embed the diff in
+    a pull-request comment; use <code>--json</code> for machine consumption.
+</p>
+<pre><code class="language-bash">forge plan-diff &lt;old&gt; &lt;new&gt; [options]
+
+# Arguments:
+#   &lt;old&gt;        Path to the baseline artifact (.msi or .exe)
+#   &lt;new&gt;        Path to the updated artifact (same type as &lt;old&gt;)
+
+# Options:
+#   --markdown   Emit diff as a Markdown table (suitable for PR comments)
+#   --json       Emit a JSON envelope to stdout
+
+# Examples:
+forge plan-diff v1.0/app.msi v1.1/app.msi
+forge plan-diff old-setup.exe new-setup.exe --markdown
+forge plan-diff v1.0/app.msi v1.1/app.msi --json</code></pre>
+
+<h4>verify</h4>
+<p>
+    Independently rebuilds an installer from its published source and byte-compares the result
+    against a shipped artifact to prove the binary is reproducible. This lets anyone confirm that
+    the artifact they received matches the published source code without trusting the original
+    build machine or its environment.
+</p>
+<pre><code class="language-bash">forge verify &lt;artifact&gt; --rebuild &lt;project&gt; [options]
+
+# Arguments:
+#   &lt;artifact&gt;                     Path to the shipped .msi or .exe to verify
+
+# Options (required):
+#   --rebuild &lt;project&gt;            Installer project to rebuild from (.cs / .csx / .json / .csproj)
+
+# Options:
+#   --source-date-epoch &lt;epoch&gt;    Unix timestamp to pin the reproducible build clock
+#   --json                         Emit a JSON envelope to stdout
+
+# Verdicts:
+#   VERIFIED       (exit 0)  Artifact matches rebuild byte-for-byte
+#   MISMATCH       (exit 1)  Artifact differs from rebuild
+#   REBUILD-FAILED (exit 2)  Rebuild compilation failed
+#   SETUP-ERROR    (exit 3)  Artifact or project not found / environment error
+
+# Examples:
+forge verify app-1.2.msi --rebuild installer.cs
+forge verify setup.exe --rebuild installer.cs --source-date-epoch 1718150400
+forge verify app-1.2.msi --rebuild installer.cs --json</code></pre>
+
+<p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>.</p>
 
 <h3>Exit Codes</h3>
 <table class="api-table">
