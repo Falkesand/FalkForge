@@ -4,6 +4,9 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Decompiler.Tests" />
+    <!-- Studio's CSharpExporter reuses the shared CSharpStringLiteral.Quote escaper so its
+         exported scripts get the same control-char / line-separator escaping as the decompiler. -->
+    <InternalsVisibleTo Include="FalkForge.Studio" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />

@@ -1,4 +1,5 @@
 using System.Text;
+using FalkForge.Decompiler;
 using FalkForge.Studio.Project;
 
 namespace FalkForge.Studio.Export;
@@ -248,20 +249,12 @@ public static class CSharpExporter
         }
     }
 
-    private static string Literal(string? value)
-    {
-        if (value is null)
-            return "\"\"";
-
-        var escaped = value
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\n", "\\n")
-            .Replace("\r", "\\r")
-            .Replace("\t", "\\t");
-
-        return $"\"{escaped}\"";
-    }
+    // Delegates to the shared CSharpStringLiteral.Quote so exported scripts get full escaping —
+    // including control chars below U+0020 and the Unicode line/paragraph separators
+    // (U+2028/U+2029) — which the previous hand-rolled escaper missed, letting such characters
+    // emit a non-compiling literal. Null preserves the historical "" (empty literal) behaviour.
+    private static string Literal(string? value) =>
+        value is null ? "\"\"" : CSharpStringLiteral.Quote(value);
 
     private static string FormatVersion(string version)
     {

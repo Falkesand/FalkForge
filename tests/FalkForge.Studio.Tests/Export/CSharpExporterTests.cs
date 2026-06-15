@@ -305,33 +305,40 @@ public class CSharpExporterTests
     {
         // WHY: U+2028 (LINE SEPARATOR) is a legal runtime character but terminates a C#
         // double-quoted string literal in source. If the exporter emits it verbatim, the
-        // generated .csx will not compile, so it must be escaped as a 2028 sequence. The input is
-        // built via a C# \u escape so this test source file itself stays plain ASCII.
+        // generated .csx will not compile, so it must be escaped as a backslash-u-2028
+        // sequence. The separator is built numerically as (char)0x2028 so this test source
+        // file itself carries no raw separator.
+        const char lineSeparator = (char)0x2028;
         var project = CreateMinimalProject();
-        project.Product.Description = "before2028after";
+        project.Product.Description = "before" + lineSeparator + "after";
 
         var result = CSharpExporter.Export(project);
 
         Assert.True(result.IsSuccess);
+        // The emitted literal carries the escaped form (backslash, u, 2028).
         Assert.Contains("before\\u2028after", result.Value);
-        // The raw separator must NOT survive into the emitted literal.
-        Assert.DoesNotContain("before2028after", result.Value);
+        // The raw U+2028 character must NOT survive into the emitted literal.
+        Assert.DoesNotContain("before" + lineSeparator + "after", result.Value);
     }
 
     [Fact]
     public void Export_StringWithControlChar_EscapesAsUnicode()
     {
         // WHY: a control character below U+0020 (here U+0001) is legal at runtime but corrupts
-        // a C# source string literal. The exporter must escape it as a 0001 sequence so the generated
-        // script still compiles. The input control char is built via a C# \u escape.
+        // a C# source string literal. The exporter must escape it as a backslash-u-0001 sequence so the
+        // generated script still compiles. The control char is built numerically as (char)0x0001
+        // so this test source file carries no raw control character.
+        const char controlChar = (char)0x0001;
         var project = CreateMinimalProject();
-        project.Product.Description = "a0001b";
+        project.Product.Description = "a" + controlChar + "b";
 
         var result = CSharpExporter.Export(project);
 
         Assert.True(result.IsSuccess);
+        // The emitted literal carries the escaped form (backslash, u, 0001).
         Assert.Contains("a\\u0001b", result.Value);
-        Assert.DoesNotContain("a0001b", result.Value);
+        // The raw U+0001 control character must NOT survive into the emitted literal.
+        Assert.DoesNotContain("a" + controlChar + "b", result.Value);
     }
 
     [Fact]
