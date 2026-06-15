@@ -86,6 +86,10 @@ public static class MsiExtractor
 
         var totalExtracted = 0;
 
+        // Cumulative uncompressed-byte budget shared across every embedded cabinet, so a
+        // multi-cab decompression bomb cannot bypass the cap by spreading bytes over cabs.
+        var remainingBudget = MsiStreamName.MaxTotalUncompressedCabinetBytes;
+
         foreach (var mediaRow in mediaResult.Value)
         {
             var cabinetName = mediaRow[2];
@@ -98,6 +102,14 @@ public static class MsiExtractor
 
             var streamName = cabinetName[1..]; // Remove '#' prefix
 
+            // The cabinet stream name comes from the attacker-controlled Media.Cabinet column.
+            // It is interpolated into an MSI-SQL query, so an embedded quote would inject SQL.
+            // Allowlist-validate against the legal MSI stream-name shape (<=62 chars, no quotes
+            // or other metacharacters) and skip anything that does not match — defense in depth
+            // for a malicious MSI (A03: Injection).
+            if (!MsiStreamName.IsValid(streamName))
+                continue;
+
             // 4. Read the cabinet stream from the _Streams table
             var streamResult = db.ReadStream(
                 $"SELECT `Name`, `Data` FROM `_Streams` WHERE `Name` = '{streamName}'",
@@ -105,9 +117,10 @@ public static class MsiExtractor
             if (streamResult.IsFailure)
                 continue; // Cabinet may not exist; skip gracefully
 
-            // 5. Decompress via CabinetExtractor
+            // 5. Decompress via CabinetExtractor, bounding the cumulative uncompressed size so a
+            // hostile (zip-bomb) cabinet cannot force unbounded memory allocation.
             using var cabStream = new MemoryStream(streamResult.Value);
-            var extractResult = CabinetExtractor.Extract(cabStream);
+            var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget);
             if (extractResult.IsFailure)
                 return Result<int>.Failure(extractResult.Error);
 
@@ -128,6 +141,8 @@ public static class MsiExtractor
                     targetDir = outputDir;
                     targetFileName = cabFileKey;
                 }
+
+                remainingBudget -= fileData.LongLength;
 
                 Directory.CreateDirectory(targetDir);
                 var targetPath = Path.Combine(targetDir, targetFileName);

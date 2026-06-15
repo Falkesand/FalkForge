@@ -19,11 +19,6 @@ namespace FalkForge.Decompiler;
 [SupportedOSPlatform("windows")]
 public static class MsiPayloadExtractor
 {
-    // Decompression-bomb guard for migration: cap the cumulative uncompressed cabinet bytes
-    // a single MSI may expand to. 4 GiB is generous for legitimate installers yet bounds the
-    // memory a hostile (zip-bomb) MSI can force this process to allocate.
-    private const long MaxTotalUncompressedBytes = 4L * 1024 * 1024 * 1024;
-
     /// <summary>
     /// Opens the MSI at <paramref name="msiPath"/> and returns its payload bytes
     /// keyed by relative payload path. Cabinets that cannot be read are skipped;
@@ -104,7 +99,7 @@ public static class MsiPayloadExtractor
 
         // Cumulative uncompressed-byte budget shared across every embedded cabinet, so a
         // multi-cab decompression bomb cannot bypass the cap by spreading bytes over cabs.
-        var remainingBudget = MaxTotalUncompressedBytes;
+        var remainingBudget = MsiStreamName.MaxTotalUncompressedCabinetBytes;
 
         foreach (var mediaRow in mediaResult.Value)
         {
@@ -145,27 +140,12 @@ public static class MsiPayloadExtractor
     }
 
     /// <summary>
-    /// Validates an MSI cabinet stream name against a strict allowlist before it is
-    /// interpolated into an MSI-SQL <c>WHERE</c> clause. MSI stream names are at most
-    /// 62 characters; here we additionally restrict to letters, digits, dot, underscore,
-    /// and hyphen so no MSI-SQL metacharacter (notably a single quote) can be injected.
-    /// Exposed internally so the rule can be unit-tested directly.
+    /// Validates an MSI cabinet stream name against the shared allowlist before it is
+    /// interpolated into an MSI-SQL <c>WHERE</c> clause. Thin wrapper over
+    /// <see cref="MsiStreamName.IsValid"/> retained for the existing direct unit tests;
+    /// the allowlist logic itself lives in one place (<see cref="MsiStreamName"/>).
     /// </summary>
-    internal static bool IsValidStreamName(string streamName)
-    {
-        if (string.IsNullOrEmpty(streamName) || streamName.Length > 62)
-            return false;
-
-        foreach (var ch in streamName)
-        {
-            var ok = ch is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9')
-                or '.' or '_' or '-';
-            if (!ok)
-                return false;
-        }
-
-        return true;
-    }
+    internal static bool IsValidStreamName(string streamName) => MsiStreamName.IsValid(streamName);
 
     /// <summary>
     /// Parses the MSI FileName column format "short|long" and returns the long name,
