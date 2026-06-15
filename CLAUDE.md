@@ -321,7 +321,7 @@ After every .cs or .xaml edit, `dotnet build <solution>.slnx`. Not the project �
 - Fix failures IMMEDIATELY before touching another file
 - Do not batch edits hoping they'll "work together"
 - Zero warnings policy
-- After build succeeds: `csharp-roslyn` MCP → `get_diagnostics` on changed files
+- The build runs the full Roslyn analyzer set under `TreatWarningsAsErrors`, so a clean (zero-warning) build IS the diagnostics gate
 
 ### GATE 3: All Tests Must Pass Before Any Commit
 
@@ -377,13 +377,13 @@ When two patterns or two pieces of guidance contradict, pick one (more recent, m
 
 1. `dotnet build <sln>.slnx` — zero errors/warnings
 2. `dotnet test <sln>.slnx --logger trx` — all pass
-3. `csharp-roslyn: get_diagnostics` on changed files — clean
+3. Diagnostics — covered by step 1: a zero-warning build already runs every analyzer as an error (no separate MCP step)
 4. `git commit`
 
 ## Merge Gate — Deep Lane (once per branch, before merge to main; restart on any failure)
 
 1. `dotnet build` + `dotnet test` — re-verify green
-2. `csharp-roslyn: analyze_change_impact` — review full-branch blast radius
+2. Review full-branch blast radius — read callers of changed public symbols (manual; the `csharp-roslyn` MCP was removed as low-value)
 3. `jb inspectcode` if XAML changed — clean
 4. `roslynator` — clean
 5. `quickdup` — no new duplication
