@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+
+    <!--
+      This project is itself a FalkForge SDK consumer, so Sdk.props (imported
+      transitively by the SDK machinery) would default FalkOutputType to Msi
+      and run FalkGenerateInstaller's auto-build after Build. That auto-build
+      path is not used here: we run the installer manually with -o (like every
+      other demo). Setting None disables FalkGenerateInstaller entirely.
+    -->
+    <FalkOutputType>None</FalkOutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Libraries needed to author and compile an MSI. -->
+    <ProjectReference Include="../../../src/FalkForge.Core/FalkForge.Core.csproj" />
+    <ProjectReference Include="../../../src/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj" />
+
+    <!--
+      The application we want to package. ReferenceOutputAssembly="false"
+      means we do NOT link against DemoApp.dll/exe at compile time; we only
+      want its build OUTPUT PATH. The FalkForge SDK's _GenerateProjectOutputs
+      target queries this reference and emits obj/ProjectOutputs.g.cs with a
+      const for the artifact path.
+    -->
+    <ProjectReference Include="../app/DemoApp.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!--
+    Import the FalkForge SDK targets (relative path; the SDK is NOT
+    NuGet-packaged). _GenerateProjectOutputs runs BeforeTargets=CoreCompile
+    whenever there is a ProjectReference, generating the ProjectOutputs class
+    used in Program.cs.
+  -->
+  <Import Project="../../../src/FalkForge.Sdk/Sdk/Sdk.targets" />
+
+</Project>

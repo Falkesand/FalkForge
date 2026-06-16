@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+
+    <!--
+      Tell the FalkForge SDK what this project produces so referencing
+      installer projects can discover its build output.
+
+      CustomAction => _ComputeFalkArtifactPath resolves to $(TargetPath),
+      which is the project's primary output assembly (DemoApp.exe). There is
+      no "Exe"/"App" output type; CustomAction is the correct value for a
+      plain application whose .exe we want to package.
+    -->
+    <FalkOutputType>CustomAction</FalkOutputType>
+  </PropertyGroup>
+
+  <!--
+    Import the FalkForge SDK targets (relative path; the SDK is NOT
+    NuGet-packaged). This brings in _GetFalkForgeOutput /
+    _ComputeFalkArtifactPath so an installer project can query this
+    project's artifact path during its own build.
+
+    We import Sdk.targets only (not Sdk.props): Sdk.props would default
+    FalkOutputType to Msi, which we do not want here.
+  -->
+  <Import Project="../../../src/FalkForge.Sdk/Sdk/Sdk.targets" />
+
+</Project>

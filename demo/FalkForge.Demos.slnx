@@ -89,6 +89,10 @@
         <Project Path="56-verify-and-plan/56-verify-and-plan.csproj" />
         <Project Path="57-reproducible-sbom/57-reproducible-sbom.csproj" />
     </Folder>
+    <Folder Name="/references/">
+        <Project Path="58-project-references/app/DemoApp.csproj" />
+        <Project Path="58-project-references/installer/installer.csproj" />
+    </Folder>
     <Folder Name="/scenarios/">
         <Project Path="03-client-server/03-client-server.csproj" />
         <Project Path="05-enterprise-suite/05-enterprise-suite.csproj" />
