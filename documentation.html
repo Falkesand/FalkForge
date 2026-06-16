@@ -613,6 +613,9 @@
           <a href="#msi-file-operation-builders">7.25 File Operation Builders</a>
           <a href="#msi-output-type-builders">7.26 Output Type Builders</a>
           <a href="#msi-complete-example">7.27 Complete Example</a>
+          <a href="#msi-winget-builder">7.28 WinGet Manifest</a>
+          <a href="#msi-package-code">7.29 PackageCode Semantics</a>
+          <a href="#msi-project-outputs">7.30 Referencing Project Outputs</a>
         </div>
       </div>
 
@@ -3980,6 +3983,112 @@ Installer.Build(p =&gt;
     <code>src/FalkForge.Core/Builders/PackageBuilder.cs</code>,
     <code>src/FalkForge.Compiler.Msi/Recipe/PackageCodeDerivation.cs</code>.
   </p>
+
+  <!-- ================================================================ -->
+  <!-- 7.30 Referencing another project's build output (ProjectOutputs) -->
+  <!-- ================================================================ -->
+  <h3 id="msi-project-outputs">7.30 Referencing another project's build output (ProjectOutputs)</h3>
+  <p>
+    Hardcoding a path such as <code>files.Add("../app/bin/Debug/net10.0-windows/DemoApp.dll")</code>
+    is fragile: it breaks across Debug/Release configurations, target-framework changes, CI machines
+    with custom output paths, and silently goes stale instead of failing. The FalkForge SDK solves
+    this by generating a typed <code>ProjectOutputs</code> class at build time so that paths are
+    always resolved from MSBuild, not guessed.
+  </p>
+
+  <h4>Setup (3 steps)</h4>
+
+  <p><strong>Step 1 — Import <code>Sdk.targets</code> in both projects.</strong></p>
+  <p>
+    The FalkForge SDK is not NuGet-packaged; import it by relative path. Add the following to the
+    <code>.csproj</code> of <em>both</em> the installer project and the referenced project. Import
+    <code>Sdk.targets</code> only — not <code>Sdk.props</code>, which would default
+    <code>FalkOutputType</code> to <code>Msi</code> and trigger an unwanted build step.
+  </p>
+  <pre><code class="language-xml"><span class="punc">&lt;</span><span class="typ">Import</span> <span class="attr">Project</span><span class="op">=</span><span class="str">&quot;../../../src/FalkForge.Sdk/Sdk/Sdk.targets&quot;</span> <span class="punc">/&gt;</span></code></pre>
+
+  <p><strong>Step 2 — Add a <code>ProjectReference</code> with <code>ReferenceOutputAssembly="false"</code>.</strong></p>
+  <p>
+    In the installer project, reference the other project with
+    <code>ReferenceOutputAssembly="false"</code>. This requests the output path without creating a
+    compile-time assembly reference.
+  </p>
+  <pre><code class="language-xml"><span class="punc">&lt;</span><span class="typ">ProjectReference</span> <span class="attr">Include</span><span class="op">=</span><span class="str">&quot;../app/DemoApp.csproj&quot;</span>
+                   <span class="attr">ReferenceOutputAssembly</span><span class="op">=</span><span class="str">&quot;false&quot;</span> <span class="punc">/&gt;</span></code></pre>
+
+  <p><strong>Step 3 — Set <code>&lt;FalkOutputType&gt;</code> in the referenced project.</strong></p>
+  <p>
+    The referenced project declares what kind of artifact it produces. The SDK uses this to resolve
+    the correct output path:
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th><code>FalkOutputType</code></th><th>Resolves to</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Msi</code></td><td><code>$(TargetDir)$(AssemblyName).msi</code></td><td>Default when <code>Sdk.props</code> is imported</td></tr>
+      <tr><td><code>Bundle</code></td><td><code>$(TargetDir)$(AssemblyName).exe</code></td><td>EXE bundle output</td></tr>
+      <tr><td><code>Module</code></td><td><code>$(TargetDir)$(AssemblyName).msm</code></td><td>Merge module</td></tr>
+      <tr><td><code>Patch</code></td><td><code>$(TargetDir)$(AssemblyName).msp</code></td><td>MSP patch</td></tr>
+      <tr><td><code>CustomAction</code></td><td><code>$(TargetPath)</code></td><td>Primary output assembly (.dll or .exe). Use this for plain apps and libraries whose compiled output you want to package.</td></tr>
+      <tr><td><code>Msix</code></td><td><code>$(TargetDir)$(AssemblyName).msix</code></td><td>MSIX package (experimental)</td></tr>
+      <tr><td><code>MsixBundle</code></td><td><code>$(TargetDir)$(AssemblyName).msixbundle</code></td><td>MSIX bundle (experimental)</td></tr>
+      <tr><td><code>None</code></td><td>—</td><td>Disables the SDK auto-build step. Use on a runnable installer project so you can invoke it manually with <code>-o</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    The SDK generates <code>obj/&hellip;/ProjectOutputs.g.cs</code> at build time. For a referenced
+    project named <code>DemoApp</code> with <code>FalkOutputType=CustomAction</code> the generated
+    file looks like:
+  </p>
+  <pre><code class="language-csharp"><span class="kw">namespace</span> <span class="typ">FalkForge</span><span class="punc">;</span>
+<span class="kw">internal static class</span> <span class="typ">ProjectOutputs</span>
+<span class="punc">{</span>
+    <span class="kw">internal const string</span> <span class="attr">DemoApp</span> <span class="op">=</span> <span class="str">@&quot;C:\repo\app\bin\Debug\net10.0-windows\DemoApp.dll&quot;</span><span class="punc">;</span>
+<span class="punc">}</span></code></pre>
+
+  <h4>Naming rule</h4>
+  <p>
+    The generated property name equals the referenced project's file name
+    (<code>$(MSBuildProjectName)</code>) sanitized to a valid C# identifier: every character outside
+    <code>[A-Za-z0-9_]</code> (including <code>.</code>, <code>-</code>, and spaces) becomes
+    <code>_</code>, and a leading digit gets a <code>_</code> prefix. Examples:
+    <code>DemoApp</code>&nbsp;&rarr;&nbsp;<code>DemoApp</code>;
+    <code>My.Cool-App&nbsp;2</code>&nbsp;&rarr;&nbsp;<code>My_Cool_App_2</code>.
+  </p>
+
+  <h4>Usage</h4>
+  <pre><code class="language-csharp"><span class="cmt">// Single file</span>
+files.<span class="method">Add</span>(<span class="typ">ProjectOutputs</span>.<span class="attr">DemoApp</span>);
+
+<span class="cmt">// Whole output directory — packages everything the app builds</span>
+<span class="cmt">// (exe, dll, runtimeconfig.json, deps.json, pdb, etc.)</span>
+files.<span class="method">FromDirectory</span>(<span class="typ">Path</span>.<span class="method">GetDirectoryName</span>(<span class="typ">ProjectOutputs</span>.<span class="attr">DemoApp</span>)<span class="op">!</span>)
+     .<span class="method">To</span>(<span class="typ">KnownFolder</span>.<span class="attr">ProgramFiles</span> <span class="op">/</span> <span class="str">&quot;Contoso&quot;</span> <span class="op">/</span> <span class="str">&quot;DemoApp&quot;</span>);
+
+<span class="cmt">// Bundle chain</span>
+chain.<span class="method">MsiPackage</span>(<span class="typ">ProjectOutputs</span>.<span class="attr">MyInstaller</span>);
+
+<span class="cmt">// Custom action referencing a managed DLL</span>
+package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutputs</span>.<span class="attr">MyCaProject</span>, <span class="kw">nameof</span>(MyEntryPoint));</code></pre>
+
+  <div class="note">
+    <strong>What does FromDirectory actually package?</strong>
+    When <code>FalkOutputType=CustomAction</code>, <code>ProjectOutputs.DemoApp</code> resolves to
+    the primary <code>.dll</code>. Calling
+    <code>FromDirectory(Path.GetDirectoryName(ProjectOutputs.DemoApp)!)</code> packages every file
+    in that output folder. For a self-contained .NET app this includes the apphost <code>.exe</code>,
+    <code>.dll</code>, <code>.pdb</code>, <code>runtimeconfig.json</code>, and
+    <code>deps.json</code> — exactly what the app needs to run.
+  </div>
+
+  <div class="note">
+    <strong>Set <code>FalkOutputType=None</code> on the installer project itself.</strong>
+    Every demo uses this pattern so the installer project can be run manually with the <code>-o</code>
+    flag without triggering the SDK auto-build step. See
+    <code>demo/58-project-references/</code> for a working end-to-end example.
+  </div>
 
 </section>
 <!-- Section 8: Bundle Builder API -->

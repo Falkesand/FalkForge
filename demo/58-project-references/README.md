@@ -100,7 +100,27 @@ you want to package, `CustomAction` is the right choice because it exports
 
 ### 3. Use the generated constant (`installer/Program.cs`)
 
+The recommended approach is to harvest the **whole output directory**. Because
+`ProjectOutputs.DemoApp` resolves to `$(TargetPath)` (the managed `.dll`),
+`Path.GetDirectoryName` gives the app's output folder, which contains the
+apphost `.exe`, runtime config, deps, and any other build artifacts:
+
 ```csharp
+// ProjectOutputs.DemoApp is a compile-time constant holding the RESOLVED
+// path to the app's primary output (DemoApp.dll) — no hardcoded bin/ path.
+// Deriving its directory and harvesting it packages EVERYTHING the app
+// builds (exe + dll + runtimeconfig.json + deps.json), still with no
+// hardcoded path: the directory follows the resolved artifact path.
+var appOutputDir = Path.GetDirectoryName(ProjectOutputs.DemoApp)!;
+package.Files(files => files
+    .FromDirectory(appOutputDir)
+    .To(KnownFolder.ProgramFiles / "DemoApp"));
+```
+
+If you only need the single managed assembly, use the simpler single-file form:
+
+```csharp
+// Alternative: package just the single resolved artifact.
 package.Files(files => files
     .Add(ProjectOutputs.DemoApp)
     .To(KnownFolder.ProgramFiles / "DemoApp"));
@@ -120,18 +140,21 @@ So `DemoApp` stays `DemoApp`. A project named `My.Cool-App 2` would become
 ## Build and run
 
 ```bash
-# 1. Build the app (produces DemoApp.exe + DemoApp.dll).
+# 1. Build the app (produces DemoApp.exe + DemoApp.dll + supporting files).
 dotnet build app/DemoApp.csproj
 
 # 2. Build the installer. This generates obj/.../ProjectOutputs.g.cs.
 dotnet build installer/installer.csproj
 
 # 3. Run the installer to produce the MSI (manual -o, like the other demos).
-dotnet run --project installer/installer.csproj -- -o ./out/demo.msi
+#    The compiler treats -o as a base directory and emits:
+#      <base>/<PackageName>-<Version>.msi
+#    e.g. out/Project_References_Demo-1.0.0.msi
+dotnet run --project installer/installer.csproj -- -o ./out/
 
-# 4. Prove the MSI contains the app's output.
+# 4. Prove the MSI contains the full app output directory.
 dotnet run --project ../../src/FalkForge.Cli/FalkForge.Cli.csproj -- \
-    extract ./out/<name>.msi -o ./out/verify
+    extract ./out/Project_References_Demo-1.0.0.msi -o ./out/verify
 ```
 
 ## Verified output
@@ -139,15 +162,26 @@ dotnet run --project ../../src/FalkForge.Cli/FalkForge.Cli.csproj -- \
 This sample was built and run end to end:
 
 - `ProjectOutputs.g.cs` is generated with `internal const string DemoApp = @"...\DemoApp.dll";`
-- The installer build is 0 warnings / 0 errors.
-- The produced MSI, when extracted, contains
-  `ProgramFiles/DemoApp/DemoApp.dll` — the app's build output, packaged with no
-  hardcoded `bin/` path.
+- Both builds are 0 warnings / 0 errors.
+- The produced MSI (`Project_References_Demo-1.0.0.msi`), when extracted,
+  contains 5 files under `ProgramFiles/DemoApp/`:
 
-## Note: `.dll`, not `.exe`
+  ```
+  DemoApp.deps.json
+  DemoApp.dll
+  DemoApp.exe
+  DemoApp.pdb
+  DemoApp.runtimeconfig.json
+  ```
+
+  The whole build output directory is packaged — including the apphost `.exe`
+  — with no hardcoded `bin/` path anywhere.
+
+## How `FalkOutputType=CustomAction` relates to the directory harvest
 
 `CustomAction` exports `$(TargetPath)`, which on modern .NET is the managed
-**assembly** (`DemoApp.dll`). The native `DemoApp.exe` apphost launcher is a
-separate file that the SDK does not export. The packaged file is therefore
-`DemoApp.dll` — the real, runnable managed assembly. If you also need the
-apphost `.exe`, add it as an extra file explicitly.
+assembly (`DemoApp.dll`). The apphost `DemoApp.exe` and supporting files live
+in the same output directory. `Path.GetDirectoryName(ProjectOutputs.DemoApp)`
+gives that directory, and `FromDirectory` picks up every file in it. You get
+both the `.dll` and the `.exe` (and everything else) — still without any
+hardcoded path.
