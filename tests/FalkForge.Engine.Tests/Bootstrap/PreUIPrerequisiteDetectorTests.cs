@@ -4,6 +4,7 @@ using FalkForge;
 using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Tests.Mocks;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Testing;
 using Xunit;
 
 /// <summary>

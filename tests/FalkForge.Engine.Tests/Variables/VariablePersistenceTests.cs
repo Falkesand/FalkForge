@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Tests.Variables;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
 using FalkForge.Engine.Variables;
+using FalkForge.Testing;
 using Xunit;
 
 public sealed class VariablePersistenceTests
