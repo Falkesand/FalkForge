@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using FalkForge.Cli.Security;
 using FalkForge.Cli.Settings;
 using FalkForge.Decompiler;
 using Spectre.Console;
@@ -132,7 +133,7 @@ public sealed class MigrateCommand : Command<MigrateSettings>
         // FIX A: containment check on TextFiles (previously unchecked).
         foreach (var (relativePath, content) in migration.TextFiles)
         {
-            if (!TryResolveContained(outDir, relativePath, out var fullPath))
+            if (!ContainedPathResolver.TryResolveContained(outDir, relativePath, out var fullPath))
             {
                 // FIX B: log security-relevant rejection naming the offending key.
                 _console.WriteError($"Text file key '{relativePath}' would escape the output directory. Skipping.");
@@ -148,7 +149,7 @@ public sealed class MigrateCommand : Command<MigrateSettings>
         // FIX A: replace OrdinalIgnoreCase StartsWith containment with OS-correct helper.
         foreach (var (key, bytes) in migration.Payloads)
         {
-            if (!TryResolveContained(outDir, key, out var resolvedKey))
+            if (!ContainedPathResolver.TryResolveContained(outDir, key, out var resolvedKey))
             {
                 // FIX B: log security-relevant rejection naming the offending key.
                 _console.WriteError($"Payload key '{key}' would escape the output directory. Skipping.");
@@ -176,31 +177,6 @@ public sealed class MigrateCommand : Command<MigrateSettings>
             _console.MarkupLine($"  See [grey]MIGRATION-REPORT.md[/] for details.");
 
         return ExitCodes.Success;
-    }
-
-    /// <summary>
-    /// Resolves <paramref name="relativeKey"/> relative to <paramref name="outDir"/> and
-    /// verifies the result stays strictly inside that directory.
-    /// Uses <see cref="Path.GetRelativePath"/> to perform an OS-correct containment check
-    /// that does not rely on string case comparison.
-    /// Returns <see langword="false"/> when the resolved path is rooted, equals <c>..</c>,
-    /// or starts with <c>../</c> (or <c>..\</c> on Windows).
-    /// </summary>
-    private static bool TryResolveContained(string outDir, string relativeKey, [NotNullWhen(true)] out string? fullPath)
-    {
-        fullPath = Path.GetFullPath(Path.Combine(outDir, relativeKey));
-        var rel = Path.GetRelativePath(outDir, fullPath);
-
-        if (Path.IsPathRooted(rel) ||
-            rel == ".." ||
-            rel.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
-            rel.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
-        {
-            fullPath = null;
-            return false;
-        }
-
-        return true;
     }
 
     /// <summary>

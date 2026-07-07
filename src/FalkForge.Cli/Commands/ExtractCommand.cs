@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using FalkForge.Cli.Security;
 using FalkForge.Cli.Settings;
 using FalkForge.Engine.Protocol.Bundle;
 using Spectre.Console;
@@ -111,14 +112,23 @@ public sealed class ExtractCommand : Command<ExtractSettings>
         }
 
         var extracted = 0;
+        var rejectedCount = 0;
         foreach (var entry in targetEntries)
         {
-            var packageDir = Path.Combine(outputDir, entry.PackageId);
+            // entry.PackageId comes from the bundle's own TOC, which a crafted bundle fully
+            // controls. Without containment, a PackageId of "..\..\evil" would let
+            // Path.Combine below write outside outputDir (zip-slip / path traversal, OWASP A03).
+            if (!TryResolvePackagePaths(outputDir, entry.PackageId, out var packageDir, out var targetPath))
+            {
+                _console.WriteError($"Package id '{entry.PackageId}' would escape the output directory. Skipping.");
+                rejectedCount++;
+                continue;
+            }
+
             Directory.CreateDirectory(packageDir);
 
             // Single-pass: streams decompressed bytes to the file while verifying SHA-256;
             // deletes the partial file and fails on mismatch.
-            var targetPath = Path.Combine(packageDir, entry.PackageId);
             var payloadResult = BundleReader.ExtractPayloadToFile(exePath, entry, targetPath);
             if (payloadResult.IsFailure)
             {
@@ -131,8 +141,40 @@ public sealed class ExtractCommand : Command<ExtractSettings>
             _console.MarkupLine($"  [grey]{Markup.Escape(entry.PackageId)}[/] ({FormatSize(entry.OriginalSize)})");
         }
 
+        if (rejectedCount > 0)
+        {
+            _console.WriteError($"{rejectedCount} path-traversal attempt(s) detected and blocked. Extraction output is incomplete.");
+            return ExitCodes.ValidationFailure;
+        }
+
         _console.MarkupLine($"[green]Extracted {extracted} payload(s) to:[/] {Markup.Escape(outputDir)}");
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Resolves the package extraction directory and target file path for
+    /// <paramref name="packageId"/> relative to <paramref name="outputDir"/>, and verifies both
+    /// stay strictly inside it. Internal (not private) so tests can exercise the containment
+    /// check directly with a fabricated hostile PackageId, without needing a real malicious
+    /// bundle file.
+    /// </summary>
+    internal static bool TryResolvePackagePaths(
+        string outputDir,
+        string packageId,
+        [NotNullWhen(true)] out string? packageDir,
+        [NotNullWhen(true)] out string? targetPath)
+    {
+        var relativeKey = Path.Combine(packageId, packageId);
+        if (!ContainedPathResolver.TryResolveContained(outputDir, relativeKey, out var resolved))
+        {
+            packageDir = null;
+            targetPath = null;
+            return false;
+        }
+
+        targetPath = resolved;
+        packageDir = Path.GetDirectoryName(resolved)!;
+        return true;
     }
 
     private int ListPackages(TocEntry[] entries)

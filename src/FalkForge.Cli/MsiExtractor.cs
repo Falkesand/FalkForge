@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using FalkForge.Cli.Security;
 using FalkForge.Compiler.Msi;
 using FalkForge.Decompiler;
 
@@ -127,31 +128,68 @@ public static class MsiExtractor
             // 6. Write extracted files to output directory
             foreach (var (cabFileKey, fileData) in extractResult.Value)
             {
-                string targetDir;
+                string relativeDir;
                 string targetFileName;
 
                 if (fileKeyMap.TryGetValue(cabFileKey, out var mapping))
                 {
-                    targetDir = Path.Combine(outputDir, mapping.DirPath);
+                    relativeDir = mapping.DirPath;
                     targetFileName = mapping.FileName;
                 }
                 else
                 {
                     // Fallback: place unresolved files in output root
-                    targetDir = outputDir;
+                    relativeDir = string.Empty;
                     targetFileName = cabFileKey;
                 }
 
+                // Both relativeDir (resolved from the MSI's own Directory table) and
+                // targetFileName (the MSI's own File table / raw cabinet member name) are
+                // attacker-controlled when the MSI is untrusted. Neither is sanitized upstream,
+                // so a crafted "..\..\" directory name or file name could otherwise write outside
+                // outputDir (zip-slip / path traversal, OWASP A03). Fail loud on the first escape
+                // attempt — a hostile MSI is rejected wholesale rather than partially extracted.
+                var resolveResult = ResolveExtractionTarget(outputDir, relativeDir, targetFileName);
+                if (resolveResult.IsFailure)
+                    return Result<int>.Failure(resolveResult.Error);
+
+                var targetPath = resolveResult.Value;
+
                 remainingBudget -= fileData.LongLength;
 
-                Directory.CreateDirectory(targetDir);
-                var targetPath = Path.Combine(targetDir, targetFileName);
+                var targetDir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(targetDir))
+                    Directory.CreateDirectory(targetDir);
                 File.WriteAllBytes(targetPath, fileData);
                 totalExtracted++;
             }
         }
 
         return totalExtracted;
+    }
+
+    /// <summary>
+    /// Resolves the on-disk write target for a single extracted file, given its resolved
+    /// directory path and file name (both potentially attacker-controlled — see the write loop
+    /// in <see cref="Extract"/>), and verifies the result stays strictly inside
+    /// <paramref name="outputDir"/>. Internal (not private) so tests can exercise the containment
+    /// check directly with fabricated Directory/File table mappings, without needing a real
+    /// malicious MSI.
+    /// </summary>
+    /// <returns>The full target file path on success, or a <see cref="ErrorKind.SecurityError"/>
+    /// failure naming the offending entry when it would escape <paramref name="outputDir"/>.</returns>
+    internal static Result<string> ResolveExtractionTarget(string outputDir, string relativeDir, string fileName)
+    {
+        var relativeKey = Path.Combine(relativeDir, fileName);
+
+        if (!ContainedPathResolver.TryResolveContained(outputDir, relativeKey, out var targetPath))
+        {
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                $"Extraction entry '{relativeKey}' would escape the output directory '{outputDir}' — " +
+                "rejecting untrusted MSI (possible path traversal / zip-slip attack).");
+        }
+
+        return targetPath;
     }
 
     /// <summary>
