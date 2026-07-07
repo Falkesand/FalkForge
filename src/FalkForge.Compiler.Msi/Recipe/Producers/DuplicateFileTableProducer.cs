@@ -18,8 +18,8 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 internal sealed class DuplicateFileTableProducer : ITableProducer
 {
     private const string FallbackComponentId = "MainComponent";
-    private static readonly TableId ComponentTable = TableId.Create("Component").Value;
-    private static readonly TableId FileTable = TableId.Create("File").Value;
+    private static readonly TableId ComponentTable = WellKnownTableIds.Component;
+    private static readonly TableId FileTable = WellKnownTableIds.File;
 
     /// <summary>Static schema describing the <c>DuplicateFile</c> table layout.</summary>
     public static readonly TableSchema TableSchema = BuildSchema();
@@ -91,50 +91,15 @@ internal sealed class DuplicateFileTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "FileKey",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "File_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DestFolder",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DestName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("FileKey", 72),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.String("File_", 72),
+            RecipeColumn.String("DestFolder", 72, nullable: true),
+            RecipeColumn.Localized("DestName", 255, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("DuplicateFile").Value,
+            Name = WellKnownTableIds.DuplicateFile,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(

@@ -80,50 +80,15 @@ internal sealed class ExtensionTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Extension",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ProgId_",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "MIME_",
-                Type = ColumnType.String,
-                Width = 64,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Feature_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Extension", 255),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.String("ProgId_", 255, nullable: true),
+            RecipeColumn.String("MIME_", 64, nullable: true),
+            RecipeColumn.String("Feature_", 38));
 
         return new TableSchema
         {
-            Name = TableId.Create("Extension").Value,
+            Name = WellKnownTableIds.Extension,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

@@ -88,26 +88,12 @@ internal sealed class PropertyTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Property",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Value",
-                Type = ColumnType.Localized,
-                Width = 0,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Property", 72),
+            RecipeColumn.Localized("Value", 0));
 
         return new TableSchema
         {
-            Name = TableId.Create("Property").Value,
+            Name = WellKnownTableIds.Property,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

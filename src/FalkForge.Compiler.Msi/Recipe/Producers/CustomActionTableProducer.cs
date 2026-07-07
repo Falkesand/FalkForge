@@ -62,50 +62,15 @@ internal sealed class CustomActionTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Action",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Type",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Source",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Target",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ExtendedType",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Action", 72),
+            RecipeColumn.Integer("Type", 2),
+            RecipeColumn.String("Source", 72, nullable: true),
+            RecipeColumn.String("Target", 255, nullable: true),
+            RecipeColumn.Integer("ExtendedType", 4, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("CustomAction").Value,
+            Name = WellKnownTableIds.CustomAction,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

@@ -17,7 +17,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 internal sealed class CreateFolderTableProducer : ITableProducer
 {
     private const string FallbackComponentId = "MainComponent";
-    private static readonly TableId ComponentTable = TableId.Create("Component").Value;
+    private static readonly TableId ComponentTable = WellKnownTableIds.Component;
 
     /// <summary>Static schema describing the <c>CreateFolder</c> table layout.</summary>
     public static readonly TableSchema TableSchema = BuildSchema();
@@ -63,26 +63,12 @@ internal sealed class CreateFolderTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Directory_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Directory_", 72),
+            RecipeColumn.String("Component_", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("CreateFolder").Value,
+            Name = WellKnownTableIds.CreateFolder,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
             // Directory_ (col 0) accepts Directory keys or property names — not a strict FK.

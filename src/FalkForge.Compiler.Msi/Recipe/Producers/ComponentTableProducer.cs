@@ -29,7 +29,7 @@ internal sealed class ComponentTableProducer : ITableProducer
         ArgumentNullException.ThrowIfNull(context);
 
         ResolvedPackage resolved = context.Resolved;
-        TableId directoryTable = TableId.Create("Directory").Value;
+        TableId directoryTable = WellKnownTableIds.Directory;
         bool sixtyFourBit =
             resolved.Package.Architecture is ProcessorArchitecture.X64 or ProcessorArchitecture.Arm64;
         InstallPath? installDir = resolved.Package.DefaultInstallDirectory;
@@ -97,60 +97,18 @@ internal sealed class ComponentTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId directoryTable = TableId.Create("Directory").Value;
+        TableId directoryTable = WellKnownTableIds.Directory;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Component",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ComponentId",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Directory_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Attributes",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Condition",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "KeyPath",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Component", 72),
+            RecipeColumn.String("ComponentId", 38, nullable: true),
+            RecipeColumn.String("Directory_", 72),
+            RecipeColumn.Integer("Attributes", 2),
+            RecipeColumn.String("Condition", 255, nullable: true),
+            RecipeColumn.String("KeyPath", 72, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Component").Value,
+            Name = WellKnownTableIds.Component,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec
