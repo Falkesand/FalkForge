@@ -5,8 +5,10 @@ namespace FalkForge.Decompiler;
 
 internal static class WixManifestMapper
 {
+#pragma warning disable S5332 // XML namespace URIs are identifiers defined by the WiX Burn schema, not network endpoints
     private static readonly XNamespace NsV3 = "http://schemas.microsoft.com/wix/2008/Burn";
     private static readonly XNamespace NsV4 = "http://wixtoolset.org/schemas/v4/2008/Burn";
+#pragma warning restore S5332
 
     private static XNamespace DetectNamespace(XElement root)
     {

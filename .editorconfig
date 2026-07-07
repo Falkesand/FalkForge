@@ -20,6 +20,15 @@ indent_size = 2
 [*.cs]
 
 # ─────────────────────────────────────────────────────────────
+# Dead-code detection — promoted to warning (build errors via
+# TreatWarningsAsErrors). Requires EnforceCodeStyleInBuild for
+# the IDE-prefixed rules to fire during build.
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.CA1812.severity = warning      # Avoid uninstantiated internal classes
+dotnet_diagnostic.IDE0051.severity = warning     # Remove unused private member
+dotnet_diagnostic.IDE0052.severity = warning     # Remove unread private member
+
+# ─────────────────────────────────────────────────────────────
 # Meziantou.Analyzer — code quality, fix incrementally
 # ─────────────────────────────────────────────────────────────
 dotnet_diagnostic.MA0002.severity = suggestion   # IEqualityComparer/IComparer parameter

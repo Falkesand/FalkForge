@@ -22,9 +22,9 @@ public sealed class MsiCompiler : ICompiler
     // body (MsiAuthoring.Compile uses its own WindowsFileSystem internally) and will be
     // wired up properly when the IFileSystem injection point is added to MsiAuthoring
     // in Phase 12 cleanup.
-#pragma warning disable S4487 // Unread private members
+#pragma warning disable S4487, IDE0052 // Unread private members
     private readonly IFileSystem _fileSystem;
-#pragma warning restore S4487
+#pragma warning restore S4487, IDE0052
 
     private readonly IReadOnlyList<IFalkForgeExtension> _extensions;
 

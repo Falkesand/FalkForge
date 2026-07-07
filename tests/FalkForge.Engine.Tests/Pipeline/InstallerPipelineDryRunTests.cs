@@ -12,14 +12,6 @@ using Xunit;
 /// </summary>
 public sealed class InstallerPipelineDryRunTests
 {
-    private static UiRequest.Plan DefaultPlan() =>
-        new UiRequest.Plan(
-            InstallAction.Install,
-            InstallDirectory: null,
-            FeatureSelections: new Dictionary<string, bool>(),
-            Properties: new Dictionary<string, string>(),
-            SecureProperties: new Dictionary<string, SensitiveBytes>());
-
     private static InstallerManifest MakeDryRunManifest(bool isDryRun) => new()
     {
         Name = "TestApp",

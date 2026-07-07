@@ -141,6 +141,7 @@ public sealed class MsixBundleCompiler
 
             args.Add(bundlePath);
 
+#pragma warning disable S4036 // PATH lookup is the documented contract: signtool.exe ships with the Windows SDK at a version-dependent location
             var startInfo = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "signtool.exe",
@@ -150,6 +151,7 @@ public sealed class MsixBundleCompiler
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+#pragma warning restore S4036
 
             using var process = System.Diagnostics.Process.Start(startInfo);
             if (process is null)

@@ -4,6 +4,7 @@ using FalkForge.Engine.Detection;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
+using FalkForge.Testing;
 using Xunit;
 
 public sealed class FeatureDetectorTests

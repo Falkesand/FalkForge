@@ -325,7 +325,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         var pkg = MakePackage();
         var detector = new RecordingDetector(missing: [pkg]);
         using var cts = new CancellationTokenSource();
-        var installer = new CancellationCapturingInstaller(cts);
+        var installer = new CancellationCapturingInstaller();
         var probe = new FakeElevationProbe(isElevated: true);
         var relauncher = new FakeRelauncher(exitCode: 0);
 
@@ -423,10 +423,7 @@ public sealed class PreUIBootstrapOrchestratorTests
     /// </summary>
     private sealed class CancellationCapturingInstaller : IPreUIPrerequisiteInstaller
     {
-        private readonly CancellationTokenSource _cts;
         public CancellationToken ReceivedToken { get; private set; }
-
-        public CancellationCapturingInstaller(CancellationTokenSource cts) => _cts = cts;
 
         public Task<PreUIResult> RunAllAsync(
             IReadOnlyList<PreUIPackageInfo> missing,

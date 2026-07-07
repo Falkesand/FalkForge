@@ -47,7 +47,8 @@ public sealed partial class ServiceInstallCommand : IElevatedCommand
             using var process = new Process();
             process.StartInfo = new ProcessStartInfo
             {
-                FileName = "sc.exe",
+                // Absolute path: elevated process must not resolve executables via PATH (S4036).
+                FileName = Path.Combine(Environment.SystemDirectory, "sc.exe"),
                 Arguments = $"create \"{serviceName}\" DisplayName= \"{displayName}\" binPath= \"{normalizedBinaryPath}\" start= auto",
                 UseShellExecute = false,
                 CreateNoWindow = true

@@ -725,7 +725,7 @@ public sealed class PayloadDownloaderTests : IDisposable
     {
         // Handler always returns 301 → same URL (infinite redirect loop).
         // With MaxAutomaticRedirections=5 the HttpClient throws after 5 hops.
-        var handler = new RedirectLoopHandler(redirectCount: 0);
+        var handler = new RedirectLoopHandler();
         var socketsHandler = new SocketsHttpHandler
         {
             MaxAutomaticRedirections = 5,
@@ -754,13 +754,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     /// <summary>Handler that always returns an HTTP 301 redirect to the same URL.</summary>
     private sealed class RedirectLoopHandler : HttpMessageHandler
     {
-        private int _redirectCount;
-
-        public RedirectLoopHandler(int redirectCount) => _redirectCount = redirectCount;
-
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
-            _redirectCount++;
             var response = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
             response.Headers.Location = request.RequestUri; // redirect back to same URL
             return Task.FromResult(response);

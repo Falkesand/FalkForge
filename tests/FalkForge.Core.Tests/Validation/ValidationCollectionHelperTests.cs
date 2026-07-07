@@ -11,11 +11,6 @@ namespace FalkForge.Core.Tests.Validation;
 /// </summary>
 public sealed class ValidationCollectionHelperTests
 {
-    private static Violation MakeViolation(string ruleId, int index) =>
-        new(new RuleId(ruleId), Severity.Error,
-            ModelPath.Root.Field("Items").Index(index),
-            $"Item at {index} is invalid.");
-
     [Fact]
     public void ValidateCollection_empty_list_returns_empty()
     {

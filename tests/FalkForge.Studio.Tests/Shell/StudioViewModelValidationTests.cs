@@ -6,15 +6,6 @@ namespace FalkForge.Studio.Tests.Shell;
 
 public class StudioViewModelValidationTests
 {
-    private static StudioViewModel CreateViewModel(Action<StudioProject>? configure = null)
-    {
-        var vm = new StudioViewModel();
-        // Access internal project via NewProject + LoadProject would reset state,
-        // so we build by modifying the default project through the view model's public API.
-        // Instead, we create a fresh VM and manipulate the project before validation.
-        return vm;
-    }
-
     [Fact]
     public void RunValidation_EmptyName_AddsError()
     {

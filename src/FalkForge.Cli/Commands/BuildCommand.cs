@@ -307,6 +307,7 @@ public sealed class BuildCommand : Command<BuildSettings>
 
         try
         {
+#pragma warning disable S4036 // PATH lookup is the platform contract for git (install location varies; developer CLI tool)
             var psi = new ProcessStartInfo("git", "log -1 --format=%ct")
             {
                 RedirectStandardOutput = true,
@@ -314,6 +315,7 @@ public sealed class BuildCommand : Command<BuildSettings>
                 CreateNoWindow = true,
                 WorkingDirectory = gitWorkingDirectory ?? Directory.GetCurrentDirectory()
             };
+#pragma warning restore S4036
             using var proc = Process.Start(psi)!;
             var output = proc.StandardOutput.ReadToEnd().Trim();
 

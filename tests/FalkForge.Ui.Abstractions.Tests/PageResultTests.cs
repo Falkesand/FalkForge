@@ -96,5 +96,7 @@ public sealed class PageResultTests
             _ => throw new ArgumentException($"Unknown singleton: {fieldName}")
         };
 
+#pragma warning disable CA1812 // Used only as the generic type argument to PageResult.GoTo<TPage>(); never instantiated by design
     private sealed class DummyPage;
+#pragma warning restore CA1812
 }
