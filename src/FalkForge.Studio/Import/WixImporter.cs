@@ -6,8 +6,10 @@ namespace FalkForge.Studio.Import;
 
 internal static class WixImporter
 {
+#pragma warning disable S5332 // XML namespace URIs are identifiers defined by the WiX schema, not network endpoints
     private static readonly XNamespace WixV3Ns = "http://schemas.microsoft.com/wix/2006/wi";
     private static readonly XNamespace WixV4Ns = "http://wixtoolset.org/schemas/v4/wxs";
+#pragma warning restore S5332
 
     public static Result<StudioProject> Import(string wxsPath)
     {

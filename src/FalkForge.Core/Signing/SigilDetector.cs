@@ -23,6 +23,7 @@ internal static class SigilDetector
 
             try
             {
+#pragma warning disable S4036 // PATH lookup is the documented contract: sigil is a user-installed build-time CLI tool (like git/dotnet)
                 var psi = new ProcessStartInfo("sigil", "--version")
                 {
                     RedirectStandardOutput = true,
@@ -30,6 +31,7 @@ internal static class SigilDetector
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
+#pragma warning restore S4036
 
                 using var process = Process.Start(psi);
                 if (process is null)

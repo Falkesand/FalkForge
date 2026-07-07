@@ -68,7 +68,9 @@ internal static class LogPathActions
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "explorer.exe",
+                    // Absolute path avoids PATH-based executable resolution (S4036).
+                    FileName = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"),
                     Arguments = $"/select,\"{logPath}\"",
                     UseShellExecute = false
                 });

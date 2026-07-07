@@ -34,7 +34,9 @@ return Installer.Build(args, p =>
     {
         s.Thumbprint("ABC123DEF456");
         s.Store("My");
+#pragma warning disable S5332 // RFC 3161 timestamp responses are countersigned; http is the documented endpoint convention
         s.Timestamp("http://timestamp.digicert.com");
+#pragma warning restore S5332
         s.Algorithm("sha256");
         s.WithDescription("FalkForge Demo Installer", "https://example.com");
     });

@@ -19,6 +19,7 @@ internal sealed class DefaultRebuildRunner : IRebuildRunner
         TimeSpan timeout,
         CancellationToken ct)
     {
+#pragma warning disable S4036 // PATH lookup is the platform contract for the dotnet host (install location varies)
         var psi = new ProcessStartInfo("dotnet")
         {
             RedirectStandardOutput = true,
@@ -27,6 +28,7 @@ internal sealed class DefaultRebuildRunner : IRebuildRunner
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(projectPath)) ?? Directory.GetCurrentDirectory(),
         };
+#pragma warning restore S4036
 
         foreach (var arg in BuildArguments(projectPath, outputDir))
             psi.ArgumentList.Add(arg);

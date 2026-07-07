@@ -7,6 +7,7 @@ var http = new HttpExtension();
 
 // --- URL reservation for a web service ---
 // Reserves http://+:8080/api/ so the service can listen without admin privileges.
+#pragma warning disable S5332 // URL ACL reservation strings use the http scheme by definition (netsh http add urlacl)
 http.AddUrlReservation("http://+:8080/api/", url =>
     url.AllowNetworkService());
 
@@ -14,6 +15,7 @@ http.AddUrlReservation("http://+:8080/api/", url =>
 // Allows all built-in users to listen on the management port.
 http.AddUrlReservation("http://+:9090/admin/", url =>
     url.AllowBuiltinUsers());
+#pragma warning restore S5332
 
 // --- SNI SSL certificate binding ---
 // Binds an SSL certificate to a specific hostname for HTTPS traffic.
