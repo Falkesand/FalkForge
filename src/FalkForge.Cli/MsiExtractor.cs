@@ -1,5 +1,4 @@
 using System.Runtime.Versioning;
-using FalkForge.Cli.Security;
 using FalkForge.Compiler.Msi;
 using FalkForge.Decompiler;
 

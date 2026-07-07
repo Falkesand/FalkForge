@@ -1,13 +1,14 @@
-using FalkForge.Cli.Security;
 using Xunit;
 
-namespace FalkForge.Cli.Tests.Security;
+namespace FalkForge.Tests;
 
 /// <summary>
-/// Covers the path-containment check shared by every CLI write path that resolves an untrusted
-/// key (MSI Directory/File table entry, bundle TOC PackageId, migration payload key) against an
-/// output directory. A crafted "..\..\" segment or an absolute path must never resolve outside
-/// the base directory (zip-slip / path traversal, OWASP A03: Injection).
+/// Canonical unit-test set for <see cref="ContainedPathResolver"/>, the single shared
+/// path-containment check (moved to FalkForge.Core and used by both Cli and Engine.Protocol).
+/// A crafted "..\..\" segment, an absolute path, a sibling directory sharing the base name as a
+/// prefix, or illegal input (embedded NUL, pathologically long) must never resolve inside the
+/// base directory (zip-slip / path traversal, OWASP A03: Injection) — and illegal input must be
+/// rejected gracefully, never by throwing.
 /// </summary>
 public sealed class ContainedPathResolverTests : IDisposable
 {
@@ -72,7 +73,7 @@ public sealed class ContainedPathResolverTests : IDisposable
     /// An embedded NUL character (possible in a crafted MSI table value or bundle TOC string)
     /// makes Path.GetFullPath throw ArgumentException. The resolver must swallow that and treat
     /// the key as non-contained — a hostile input must produce a graceful reject, never an
-    /// unhandled exception crashing the CLI with a stack trace.
+    /// unhandled exception crashing the caller with a stack trace.
     /// </summary>
     [Fact]
     public void TryResolveContained_NulByteInKey_ReturnsFalseInsteadOfThrowing()

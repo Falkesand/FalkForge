@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using FalkForge.Cli.Security;
 using FalkForge.Cli.Settings;
 using FalkForge.Decompiler;
 using Spectre.Console;
