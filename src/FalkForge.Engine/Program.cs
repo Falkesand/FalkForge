@@ -318,7 +318,9 @@ internal static class Program
 
         var exePath = Environment.ProcessPath!;
 
-        // Extract bundle content (validates integrity)
+        // Extract bundle content (reads TOC + manifest; validates their bounds, but does NOT
+        // decode or verify any payload bytes — each payload's SHA-256 is checked below at the
+        // point of extraction via ExtractPayloadToFile).
         var extractResult = BundleReader.Extract(exePath);
         if (extractResult.IsFailure)
         {
