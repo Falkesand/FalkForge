@@ -67,4 +67,54 @@ public sealed class ContainedPathResolverTests : IDisposable
         Assert.True(resolved);
         Assert.Equal(Path.GetFullPath(Path.Combine(_baseDir, relativeKey)), fullPath);
     }
+
+    /// <summary>
+    /// An embedded NUL character (possible in a crafted MSI table value or bundle TOC string)
+    /// makes Path.GetFullPath throw ArgumentException. The resolver must swallow that and treat
+    /// the key as non-contained — a hostile input must produce a graceful reject, never an
+    /// unhandled exception crashing the CLI with a stack trace.
+    /// </summary>
+    [Fact]
+    public void TryResolveContained_NulByteInKey_ReturnsFalseInsteadOfThrowing()
+    {
+        var hostileKey = "evil\0name.txt";
+
+        var resolved = ContainedPathResolver.TryResolveContained(_baseDir, hostileKey, out var fullPath);
+
+        Assert.False(resolved);
+        Assert.Null(fullPath);
+    }
+
+    /// <summary>
+    /// A pathologically long key (beyond the OS maximum path length) makes path resolution throw
+    /// PathTooLongException. Same contract as the NUL case: graceful reject, no crash.
+    /// </summary>
+    [Fact]
+    public void TryResolveContained_PathTooLongKey_ReturnsFalseInsteadOfThrowing()
+    {
+        var hostileKey = new string('a', 40_000);
+
+        var resolved = ContainedPathResolver.TryResolveContained(_baseDir, hostileKey, out var fullPath);
+
+        Assert.False(resolved);
+        Assert.Null(fullPath);
+    }
+
+    /// <summary>
+    /// A sibling directory sharing the base directory's name as a prefix (e.g. base "out" vs
+    /// sibling "out-evil") must be rejected. This is exactly the case a naive
+    /// String.StartsWith(baseDir) containment check gets wrong — "C:\out-evil\f.txt" starts with
+    /// "C:\out" — and why the resolver uses Path.GetRelativePath instead.
+    /// </summary>
+    [Fact]
+    public void TryResolveContained_SiblingDirectoryWithBaseNamePrefix_ReturnsFalse()
+    {
+        var baseName = Path.GetFileName(_baseDir);
+        var hostileKey = Path.Combine("..", baseName + "-evil", "f.txt");
+
+        var resolved = ContainedPathResolver.TryResolveContained(_baseDir, hostileKey, out var fullPath);
+
+        Assert.False(resolved);
+        Assert.Null(fullPath);
+    }
 }

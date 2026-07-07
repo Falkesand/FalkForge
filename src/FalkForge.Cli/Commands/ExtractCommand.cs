@@ -116,20 +116,22 @@ public sealed class ExtractCommand : Command<ExtractSettings>
         foreach (var entry in targetEntries)
         {
             // entry.PackageId comes from the bundle's own TOC, which a crafted bundle fully
-            // controls. Without containment, a PackageId of "..\..\evil" would let
-            // Path.Combine below write outside outputDir (zip-slip / path traversal, OWASP A03).
-            if (!TryResolvePackagePaths(outputDir, entry.PackageId, out var packageDir, out var targetPath))
+            // controls. Without containment, a PackageId of "..\..\evil" would write outside
+            // outputDir (zip-slip / path traversal, OWASP A03). The pre-check here gives the
+            // CLI its skip-and-report convention (hostile entries skipped, safe ones extracted,
+            // non-zero exit); BundleReader's contained overload below enforces the same
+            // containment again at the engine choke point (defense in depth).
+            if (!TryResolvePackagePaths(outputDir, entry.PackageId, out _, out _))
             {
                 _console.WriteError($"Package id '{entry.PackageId}' would escape the output directory. Skipping.");
                 rejectedCount++;
                 continue;
             }
 
-            Directory.CreateDirectory(packageDir);
-
             // Single-pass: streams decompressed bytes to the file while verifying SHA-256;
             // deletes the partial file and fails on mismatch.
-            var payloadResult = BundleReader.ExtractPayloadToFile(exePath, entry, targetPath);
+            var payloadResult = BundleReader.ExtractPayloadToFile(
+                exePath, entry, outputDir, Path.Combine(entry.PackageId, entry.PackageId));
             if (payloadResult.IsFailure)
             {
                 _console.WriteError($"Failed to extract '{entry.PackageId}': {payloadResult.Error.Message}");

@@ -210,7 +210,8 @@ public static class BundleReader
 
     /// <summary>
     /// Extracts a single decompressed payload from a bundle file into memory, verifying its
-    /// SHA-256 in the same single decompression pass. Prefer <see cref="ExtractPayloadToFile"/>
+    /// SHA-256 in the same single decompression pass. Prefer
+    /// <see cref="ExtractPayloadToFile(string, TocEntry, string, string)"/>
     /// when the destination is a file — that path streams and never materialises the whole
     /// payload. This byte[] overload exists for callers that genuinely need the bytes in memory
     /// (e.g. delta-diffing an old bundle).
@@ -255,6 +256,37 @@ public static class BundleReader
     }
 
     /// <summary>
+    /// Containment choke point for every extraction whose destination is derived from an
+    /// untrusted name (typically the TOC's attacker-controlled <see cref="TocEntry.PackageId"/>).
+    /// Resolves <paramref name="relativeDestination"/> against
+    /// <paramref name="destinationDirectory"/>, rejects anything that escapes it (path traversal
+    /// / zip-slip — including absolute paths and illegal characters such as an embedded NUL, all
+    /// rejected gracefully rather than by throwing), creates the missing parent directories
+    /// inside the destination directory, then streams + verifies via the raw overload.
+    /// Returns the resolved full destination path on success so callers never re-derive it from
+    /// the untrusted name.
+    /// </summary>
+    public static Result<string> ExtractPayloadToFile(
+        string bundlePath, TocEntry entry, string destinationDirectory, string relativeDestination)
+    {
+        if (!ContainedPathResolver.TryResolveContained(destinationDirectory, relativeDestination, out var destinationPath))
+        {
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                $"Payload '{entry.PackageId}' resolves outside the destination directory " +
+                $"'{destinationDirectory}' — rejecting crafted bundle (path traversal / zip-slip).");
+        }
+
+        var parentDir = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(parentDir))
+            Directory.CreateDirectory(parentDir);
+
+        var extractResult = ExtractPayloadToFile(bundlePath, entry, destinationPath);
+        return extractResult.IsFailure
+            ? Result<string>.Failure(extractResult.Error)
+            : destinationPath;
+    }
+
+    /// <summary>
     /// Streams the payload for <paramref name="entry"/> from the bundle straight to
     /// <paramref name="destinationPath"/>, decompressing and verifying its SHA-256 in a single
     /// pass. No decompressed-payload-sized buffer is allocated. The decompressed bytes are
@@ -264,8 +296,14 @@ public static class BundleReader
     /// fix). On a SHA-256 mismatch (or any read/decompress error) the temp file is deleted and a
     /// failure Result is returned; any pre-existing file at <paramref name="destinationPath"/> is
     /// left untouched.
+    /// <para>
+    /// Internal on purpose: <paramref name="destinationPath"/> is written verbatim with no
+    /// containment check, so this overload must only ever receive a trusted, caller-fixed path.
+    /// Destinations derived from untrusted names (TOC PackageIds) must go through the public
+    /// <see cref="ExtractPayloadToFile(string, TocEntry, string, string)"/> overload instead.
+    /// </para>
     /// </summary>
-    public static Result<Unit> ExtractPayloadToFile(string bundlePath, TocEntry entry, string destinationPath)
+    internal static Result<Unit> ExtractPayloadToFile(string bundlePath, TocEntry entry, string destinationPath)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
         var tempPath = $"{destinationPath}.{Guid.NewGuid():N}.tmp";
@@ -434,19 +472,20 @@ public static class BundleReader
         foreach (var entry in preUIEntries)
         {
             // Use PackageId as filename — validated to be a safe identifier by BDL028+.
-            // Path.GetFileName is applied as a defence-in-depth safeguard against path traversal.
+            // Path.GetFileName is kept as a defence-in-depth safeguard on top of the contained
+            // overload's containment check (which also handles NUL/absolute-path injection).
             // Phase 3 hardening: Add Windows reserved-device-name check (CON, NUL, AUX, COM1..COM9, LPT1..LPT9)
             // to prevent File.WriteAllBytes from blocking on crafted bundles. Phase 1 concern deferred;
             // ExtractPreUIPayloads is not called by the engine bootstrap until Phase 4.
             var safeName = Path.GetFileName(entry.PackageId);
-            var outputPath = Path.Combine(preUIDir, safeName);
 
-            // Single-pass stream-decompress + SHA-256 verify straight to the pre-UI file.
-            var extractResult = ExtractPayloadToFile(bundlePath, entry, outputPath);
+            // Single-pass stream-decompress + SHA-256 verify straight to the pre-UI file,
+            // through the containment choke point.
+            var extractResult = ExtractPayloadToFile(bundlePath, entry, preUIDir, safeName);
             if (extractResult.IsFailure)
                 return Result<IReadOnlyList<string>>.Failure(extractResult.Error);
 
-            extractedPaths.Add(outputPath);
+            extractedPaths.Add(extractResult.Value);
         }
 
         return Result<IReadOnlyList<string>>.Success(extractedPaths.AsReadOnly());

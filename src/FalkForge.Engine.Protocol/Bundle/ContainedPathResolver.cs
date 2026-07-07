@@ -1,24 +1,18 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace FalkForge.Cli.Security;
+namespace FalkForge.Engine.Protocol.Bundle;
 
 /// <summary>
-/// Shared path-containment check used by every CLI command that writes files at a location named
-/// by an untrusted input — an MSI Directory/File table entry, a bundle TOC <c>PackageId</c>, or a
-/// migration payload key. A crafted <c>..\..\</c> segment (or an absolute path) in any of those
-/// must never let a write escape the caller's output directory (path traversal / zip-slip, OWASP
-/// A03: Injection).
+/// Path-containment check for the bundle extraction choke point
+/// (<see cref="BundleReader.ExtractPayloadToFile(string, TocEntry, string, string)"/>). TOC
+/// <c>PackageId</c> strings are attacker-controlled in a crafted bundle, so any write destination
+/// derived from one must be proven to stay inside the intended extraction directory (path
+/// traversal / zip-slip, OWASP A03: Injection).
 /// <para>
-/// Callers follow two deliberate conventions on rejection: <c>MsiExtractor</c> fails the whole
-/// extraction loud on the first escape attempt (a hostile MSI is rejected wholesale), while
-/// <c>MigrateCommand</c> and <c>ExtractCommand</c>'s bundle path skip-and-report each hostile
-/// entry and exit non-zero (multi-entry outputs where the safe entries are still useful). Pick
-/// one of these two for new callers; do not invent a third.
-/// </para>
-/// <para>
-/// An equivalent internal copy exists in <c>FalkForge.Engine.Protocol</c> (BundleReader's
-/// containment choke point) — deliberate small duplication across the assembly boundary rather
-/// than a shared dependency from the AOT-safe protocol assembly onto CLI code.
+/// This is a deliberate near-duplicate of <c>FalkForge.Cli.Security.ContainedPathResolver</c>:
+/// the CLI helper is internal to that assembly, and this AOT-safe protocol assembly must not
+/// depend on CLI code, so each layer carries its own copy rather than sharing a third one.
+/// Keep the two in sync when the containment rules change.
 /// </para>
 /// </summary>
 internal static class ContainedPathResolver
@@ -46,7 +40,7 @@ internal static class ContainedPathResolver
         catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
         {
             // Embedded NUL (ArgumentException) or an absurdly long key (PathTooLongException)
-            // from a crafted input — reject as non-contained instead of crashing the command.
+            // from a crafted TOC — reject as non-contained instead of crashing the engine.
             fullPath = null;
             return false;
         }
