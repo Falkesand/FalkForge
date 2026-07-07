@@ -75,58 +75,16 @@ internal sealed class MediaTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "DiskId",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "LastSequence",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DiskPrompt",
-                Type = ColumnType.Localized,
-                Width = 64,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Cabinet",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "VolumeLabel",
-                Type = ColumnType.String,
-                Width = 32,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Source",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.Integer("DiskId", 2),
+            RecipeColumn.Integer("LastSequence", 2),
+            RecipeColumn.Localized("DiskPrompt", 64, nullable: true),
+            RecipeColumn.String("Cabinet", 255, nullable: true),
+            RecipeColumn.String("VolumeLabel", 32, nullable: true),
+            RecipeColumn.String("Source", 72, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Media").Value,
+            Name = WellKnownTableIds.Media,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

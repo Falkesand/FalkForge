@@ -16,7 +16,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </summary>
 internal sealed class FontTableProducer : ITableProducer
 {
-    private static readonly TableId FileTable = TableId.Create("File").Value;
+    private static readonly TableId FileTable = WellKnownTableIds.File;
 
     /// <summary>Static schema describing the <c>Font</c> table layout.</summary>
     public static readonly TableSchema TableSchema = BuildSchema();
@@ -72,26 +72,12 @@ internal sealed class FontTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "File_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "FontTitle",
-                Type = ColumnType.String,
-                Width = 128,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("File_", 72),
+            RecipeColumn.String("FontTitle", 128, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Font").Value,
+            Name = WellKnownTableIds.Font,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

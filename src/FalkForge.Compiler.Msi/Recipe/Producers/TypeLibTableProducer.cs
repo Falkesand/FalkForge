@@ -88,80 +88,24 @@ internal sealed class TypeLibTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
-        TableId featureTable = TableId.Create("Feature").Value;
+        TableId componentTable = WellKnownTableIds.Component;
+        TableId featureTable = WellKnownTableIds.Feature;
 
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "LibID",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Language",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // LONG in MSI DDL; nullable per DDL but producer always sets it
-                Name = "Version",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Directory_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Feature_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // LONG in MSI DDL; nullable per DDL; legacy emitter always writes 0
-                Name = "Cost",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("LibID", 38),
+            RecipeColumn.Integer("Language", 2),
+            RecipeColumn.String("Component_", 72),
+            // LONG in MSI DDL; nullable per DDL but producer always sets it
+            RecipeColumn.Integer("Version", 4, nullable: true),
+            RecipeColumn.String("Description", 255, nullable: true),
+            RecipeColumn.String("Directory_", 72, nullable: true),
+            RecipeColumn.String("Feature_", 38),
+            // LONG in MSI DDL; nullable per DDL; legacy emitter always writes 0
+            RecipeColumn.Integer("Cost", 4, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("TypeLib").Value,
+            Name = WellKnownTableIds.TypeLib,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0),

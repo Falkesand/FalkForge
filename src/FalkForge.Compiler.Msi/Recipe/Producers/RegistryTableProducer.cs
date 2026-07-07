@@ -26,7 +26,7 @@ internal sealed class RegistryTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
         string defaultComponentId =
             resolved.Components.Count > 0
@@ -77,60 +77,18 @@ internal sealed class RegistryTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Registry",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Root",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Key",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Value",
-                Type = ColumnType.Localized,
-                Width = 0,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Registry", 72),
+            RecipeColumn.Integer("Root", 2),
+            RecipeColumn.Localized("Key", 255),
+            RecipeColumn.Localized("Name", 255, nullable: true),
+            RecipeColumn.Localized("Value", 0, nullable: true),
+            RecipeColumn.String("Component_", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("Registry").Value,
+            Name = WellKnownTableIds.Registry,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

@@ -30,6 +30,56 @@ public sealed record RecipeColumn
     public required bool Nullable { get; init; }
     public required bool LocalizableKey { get; init; }
 
+    /// <summary>
+    /// Creates a plain (non-localized) string column. Factored out because the
+    /// vast majority of <c>TableSchema.Columns</c> declarations across the
+    /// recipe producers are string columns differing only in name/width/nullability —
+    /// this shortcut removes that boilerplate without changing the resulting
+    /// <see cref="RecipeColumn"/> shape.
+    /// </summary>
+    public static RecipeColumn String(string name, int width, bool nullable = false, bool localizableKey = false)
+        => new()
+        {
+            Name = name,
+            Type = ColumnType.String,
+            Width = width,
+            Nullable = nullable,
+            LocalizableKey = localizableKey,
+        };
+
+    /// <summary>Creates a 32-bit integer column.</summary>
+    public static RecipeColumn Integer(string name, int width, bool nullable = false)
+        => new()
+        {
+            Name = name,
+            Type = ColumnType.Integer,
+            Width = width,
+            Nullable = nullable,
+            LocalizableKey = false,
+        };
+
+    /// <summary>Creates a localized (transform-eligible) string column.</summary>
+    public static RecipeColumn Localized(string name, int width, bool nullable = false)
+        => new()
+        {
+            Name = name,
+            Type = ColumnType.Localized,
+            Width = width,
+            Nullable = nullable,
+            LocalizableKey = false,
+        };
+
+    /// <summary>Creates a binary stream-reference column.</summary>
+    public static RecipeColumn Binary(string name, int width, bool nullable = false)
+        => new()
+        {
+            Name = name,
+            Type = ColumnType.Binary,
+            Width = width,
+            Nullable = nullable,
+            LocalizableKey = false,
+        };
+
     private static string ValidateName(string value)
     {
         if (value is null)

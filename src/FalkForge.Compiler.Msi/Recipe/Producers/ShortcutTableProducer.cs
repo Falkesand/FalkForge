@@ -28,8 +28,8 @@ internal sealed class ShortcutTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId directoryTable = TableId.Create("Directory").Value;
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId directoryTable = WellKnownTableIds.Directory;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
         string defaultComponentId =
             resolved.Components.Count > 0
@@ -86,109 +86,25 @@ internal sealed class ShortcutTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId directoryTable = TableId.Create("Directory").Value;
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId directoryTable = WellKnownTableIds.Directory;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Shortcut",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Directory_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.Localized,
-                Width = 128,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Target",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Arguments",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Hotkey",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Icon_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "IconIndex",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ShowCmd",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "WkDir",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Shortcut", 72),
+            RecipeColumn.String("Directory_", 72),
+            RecipeColumn.Localized("Name", 128),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.String("Target", 255),
+            RecipeColumn.String("Arguments", 255, nullable: true),
+            RecipeColumn.Localized("Description", 255, nullable: true),
+            RecipeColumn.Integer("Hotkey", 2, nullable: true),
+            RecipeColumn.String("Icon_", 72, nullable: true),
+            RecipeColumn.Integer("IconIndex", 2, nullable: true),
+            RecipeColumn.Integer("ShowCmd", 2, nullable: true),
+            RecipeColumn.String("WkDir", 72, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Shortcut").Value,
+            Name = WellKnownTableIds.Shortcut,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(

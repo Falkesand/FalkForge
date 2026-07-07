@@ -24,8 +24,8 @@ internal sealed class FeatureComponentsTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId featureTable = TableId.Create("Feature").Value;
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId featureTable = WellKnownTableIds.Feature;
+        TableId componentTable = WellKnownTableIds.Component;
 
         ResolvedPackage resolved = context.Resolved;
         string defaultFeatureId =
@@ -49,29 +49,15 @@ internal sealed class FeatureComponentsTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId featureTable = TableId.Create("Feature").Value;
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId featureTable = WellKnownTableIds.Feature;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Feature_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Feature_", 38),
+            RecipeColumn.String("Component_", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("FeatureComponents").Value,
+            Name = WellKnownTableIds.FeatureComponents,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
             ForeignKeys = ImmutableArray.Create(

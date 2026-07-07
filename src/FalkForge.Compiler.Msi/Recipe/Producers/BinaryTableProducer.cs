@@ -80,26 +80,12 @@ internal sealed class BinaryTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Data",
-                Type = ColumnType.Binary,
-                Width = 0,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Name", 72),
+            RecipeColumn.Binary("Data", 0));
 
         return new TableSchema
         {
-            Name = TableId.Create("Binary").Value,
+            Name = WellKnownTableIds.Binary,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

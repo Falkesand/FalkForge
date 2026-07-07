@@ -30,7 +30,7 @@ internal sealed class FileTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         int sequence = 1;
         foreach (ResolvedFile file in context.Resolved.Files)
@@ -84,76 +84,20 @@ internal sealed class FileTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "File",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "FileName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "FileSize",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Version",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Language",
-                Type = ColumnType.String,
-                Width = 20,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Attributes",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Sequence",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("File", 72),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.Localized("FileName", 255),
+            RecipeColumn.Integer("FileSize", 4),
+            RecipeColumn.String("Version", 72, nullable: true),
+            RecipeColumn.String("Language", 20, nullable: true),
+            RecipeColumn.Integer("Attributes", 2, nullable: true),
+            RecipeColumn.Integer("Sequence", 2));
 
         return new TableSchema
         {
-            Name = TableId.Create("File").Value,
+            Name = WellKnownTableIds.File,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

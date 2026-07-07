@@ -130,119 +130,35 @@ internal sealed class ClassTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
-        TableId appIdTable = TableId.Create("AppId").Value;
-        TableId iconTable = TableId.Create("Icon").Value;
-        TableId featureTable = TableId.Create("Feature").Value;
+        TableId componentTable = WellKnownTableIds.Component;
+        TableId appIdTable = WellKnownTableIds.AppId;
+        TableId iconTable = WellKnownTableIds.Icon;
+        TableId featureTable = WellKnownTableIds.Feature;
 
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "CLSID",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Context",
-                Type = ColumnType.String,
-                Width = 32,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ProgId_Default",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // AppId_ nullable per DDL; producer writes null when ComClassModel.AppId is absent
-                Name = "AppId_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // FileTypeMask nullable per DDL; ComClassModel has no such field — always null
-                Name = "FileTypeMask",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // Icon_ nullable per DDL; ComClassModel has no Icon field — always null
-                Name = "Icon_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // SHORT in MSI DDL; nullable per DDL; legacy emitter always writes 0
-                Name = "IconIndex",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // DefInprocHandler nullable per DDL; holds threading model string
-                // for InprocServer32 classes; null for LocalServer32 classes
-                Name = "DefInprocHandler",
-                Type = ColumnType.String,
-                Width = 32,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // Argument nullable per DDL; ComClassModel has no Argument field — always null
-                Name = "Argument",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Feature_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("CLSID", 38),
+            RecipeColumn.String("Context", 32),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.String("ProgId_Default", 255, nullable: true),
+            RecipeColumn.String("Description", 255, nullable: true),
+            // AppId_ nullable per DDL; producer writes null when ComClassModel.AppId is absent
+            RecipeColumn.String("AppId_", 38, nullable: true),
+            // FileTypeMask nullable per DDL; ComClassModel has no such field — always null
+            RecipeColumn.String("FileTypeMask", 255, nullable: true),
+            // Icon_ nullable per DDL; ComClassModel has no Icon field — always null
+            RecipeColumn.String("Icon_", 72, nullable: true),
+            // SHORT in MSI DDL; nullable per DDL; legacy emitter always writes 0
+            RecipeColumn.Integer("IconIndex", 2, nullable: true),
+            // DefInprocHandler nullable per DDL; holds threading model string
+            // for InprocServer32 classes; null for LocalServer32 classes
+            RecipeColumn.String("DefInprocHandler", 32, nullable: true),
+            // Argument nullable per DDL; ComClassModel has no Argument field — always null
+            RecipeColumn.String("Argument", 255, nullable: true),
+            RecipeColumn.String("Feature_", 38));
 
         return new TableSchema
         {
-            Name = TableId.Create("Class").Value,
+            Name = WellKnownTableIds.Class,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0),

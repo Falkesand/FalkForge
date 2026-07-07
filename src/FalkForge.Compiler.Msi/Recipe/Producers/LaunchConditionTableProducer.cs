@@ -81,26 +81,12 @@ internal sealed class LaunchConditionTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Condition",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Condition", 255),
+            RecipeColumn.Localized("Description", 255));
 
         return new TableSchema
         {
-            Name = TableId.Create("LaunchCondition").Value,
+            Name = WellKnownTableIds.LaunchCondition,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

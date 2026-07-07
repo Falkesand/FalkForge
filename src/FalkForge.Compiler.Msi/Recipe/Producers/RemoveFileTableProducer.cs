@@ -25,7 +25,7 @@ internal sealed class RemoveFileTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
         IReadOnlyList<RemoveFileModel> removeFiles = resolved.Package.RemoveFiles;
 
@@ -67,52 +67,17 @@ internal sealed class RemoveFileTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "FileKey",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "FileName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DirProperty",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "InstallMode",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("FileKey", 72),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.Localized("FileName", 255, nullable: true),
+            RecipeColumn.String("DirProperty", 72),
+            RecipeColumn.Integer("InstallMode", 2));
 
         return new TableSchema
         {
-            Name = TableId.Create("RemoveFile").Value,
+            Name = WellKnownTableIds.RemoveFile,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             // DirProperty (col 3) accepts Directory keys or property names resolved at install

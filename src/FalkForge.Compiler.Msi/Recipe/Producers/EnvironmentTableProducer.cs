@@ -28,7 +28,7 @@ internal sealed class EnvironmentTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
         IReadOnlyList<EnvironmentVariableModel> envVars = resolved.Package.EnvironmentVariables;
 
@@ -63,44 +63,16 @@ internal sealed class EnvironmentTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Environment",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Value",
-                Type = ColumnType.Localized,
-                Width = 0,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Environment", 72),
+            RecipeColumn.Localized("Name", 255),
+            RecipeColumn.Localized("Value", 0, nullable: true),
+            RecipeColumn.String("Component_", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("Environment").Value,
+            Name = WellKnownTableIds.Environment,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

@@ -19,20 +19,20 @@ internal sealed partial class DialogSetProducer
         // `Control_First` CHAR(50) NN, `Control_Default` CHAR(50), `Control_Cancel` CHAR(50)
         // PRIMARY KEY `Dialog`
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "Dialog",          Type = ColumnType.String,  Width = 72,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "HCentering",      Type = ColumnType.Integer, Width = 2,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "VCentering",      Type = ColumnType.Integer, Width = 2,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Width",           Type = ColumnType.Integer, Width = 2,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Height",          Type = ColumnType.Integer, Width = 2,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Attributes",      Type = ColumnType.Integer, Width = 4,   Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "Title",           Type = ColumnType.String,  Width = 128, Nullable = true,  LocalizableKey = true  },
-            new RecipeColumn { Name = "Control_First",   Type = ColumnType.String,  Width = 50,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Control_Default", Type = ColumnType.String,  Width = 50,  Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "Control_Cancel",  Type = ColumnType.String,  Width = 50,  Nullable = true,  LocalizableKey = false });
+            RecipeColumn.String("Dialog", 72),
+            RecipeColumn.Integer("HCentering", 2),
+            RecipeColumn.Integer("VCentering", 2),
+            RecipeColumn.Integer("Width", 2),
+            RecipeColumn.Integer("Height", 2),
+            RecipeColumn.Integer("Attributes", 4, nullable: true),
+            RecipeColumn.String("Title", 128, nullable: true, localizableKey: true),
+            RecipeColumn.String("Control_First", 50),
+            RecipeColumn.String("Control_Default", 50, nullable: true),
+            RecipeColumn.String("Control_Cancel", 50, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Dialog").Value,
+            Name = WellKnownTableIds.Dialog,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
@@ -46,22 +46,22 @@ internal sealed partial class DialogSetProducer
         // Property CHAR(50), Text LONGCHAR LOC, Control_Next CHAR(50), Help CHAR(255) LOC
         // PRIMARY KEY Dialog_, Control
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "Dialog_",       Type = ColumnType.String,  Width = 72,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Control",       Type = ColumnType.String,  Width = 50,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Type",          Type = ColumnType.String,  Width = 20,   Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "X",             Type = ColumnType.Integer, Width = 2,    Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Y",             Type = ColumnType.Integer, Width = 2,    Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Width",         Type = ColumnType.Integer, Width = 2,    Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Height",        Type = ColumnType.Integer, Width = 2,    Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Attributes",    Type = ColumnType.Integer, Width = 4,    Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "Property",      Type = ColumnType.String,  Width = 50,   Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "Text",          Type = ColumnType.String,  Width = 0,    Nullable = true,  LocalizableKey = true  }, // LONGCHAR
-            new RecipeColumn { Name = "Control_Next",  Type = ColumnType.String,  Width = 50,   Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "Help",          Type = ColumnType.String,  Width = 255,  Nullable = true,  LocalizableKey = true  });
+            RecipeColumn.String("Dialog_", 72),
+            RecipeColumn.String("Control", 50),
+            RecipeColumn.String("Type", 20),
+            RecipeColumn.Integer("X", 2),
+            RecipeColumn.Integer("Y", 2),
+            RecipeColumn.Integer("Width", 2),
+            RecipeColumn.Integer("Height", 2),
+            RecipeColumn.Integer("Attributes", 4, nullable: true),
+            RecipeColumn.String("Property", 50, nullable: true),
+            RecipeColumn.String("Text", 0, nullable: true, localizableKey: true), // LONGCHAR
+            RecipeColumn.String("Control_Next", 50, nullable: true),
+            RecipeColumn.String("Help", 255, nullable: true, localizableKey: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Control").Value,
+            Name = WellKnownTableIds.Control,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
@@ -74,16 +74,16 @@ internal sealed partial class DialogSetProducer
         // Event CHAR(50) NN, Argument CHAR(255) NN, Condition CHAR(255), Ordering SHORT
         // PRIMARY KEY Dialog_, Control_, Event, Argument, Condition
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "Dialog_",   Type = ColumnType.String,  Width = 72,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Control_",  Type = ColumnType.String,  Width = 50,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Event",     Type = ColumnType.String,  Width = 50,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Argument",  Type = ColumnType.String,  Width = 255, Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Condition", Type = ColumnType.String,  Width = 255, Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "Ordering",  Type = ColumnType.Integer, Width = 2,   Nullable = true,  LocalizableKey = false });
+            RecipeColumn.String("Dialog_", 72),
+            RecipeColumn.String("Control_", 50),
+            RecipeColumn.String("Event", 50),
+            RecipeColumn.String("Argument", 255),
+            RecipeColumn.String("Condition", 255, nullable: true),
+            RecipeColumn.Integer("Ordering", 2, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("ControlEvent").Value,
+            Name = WellKnownTableIds.ControlEvent,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0), new ColumnIndex(1), new ColumnIndex(2),
@@ -98,14 +98,14 @@ internal sealed partial class DialogSetProducer
         // Action CHAR(50) NN, Condition CHAR(255) NN
         // PRIMARY KEY Dialog_, Control_, Action, Condition
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "Dialog_",   Type = ColumnType.String, Width = 72,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Control_",  Type = ColumnType.String, Width = 50,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Action",    Type = ColumnType.String, Width = 50,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Condition", Type = ColumnType.String, Width = 255, Nullable = false, LocalizableKey = false });
+            RecipeColumn.String("Dialog_", 72),
+            RecipeColumn.String("Control_", 50),
+            RecipeColumn.String("Action", 50),
+            RecipeColumn.String("Condition", 255));
 
         return new TableSchema
         {
-            Name = TableId.Create("ControlCondition").Value,
+            Name = WellKnownTableIds.ControlCondition,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0), new ColumnIndex(1),
@@ -120,14 +120,14 @@ internal sealed partial class DialogSetProducer
         // Event CHAR(50) NN, Attribute CHAR(50) NN
         // PRIMARY KEY Dialog_, Control_, Event
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "Dialog_",   Type = ColumnType.String, Width = 72, Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Control_",  Type = ColumnType.String, Width = 50, Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Event",     Type = ColumnType.String, Width = 50, Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Attribute", Type = ColumnType.String, Width = 50, Nullable = false, LocalizableKey = false });
+            RecipeColumn.String("Dialog_", 72),
+            RecipeColumn.String("Control_", 50),
+            RecipeColumn.String("Event", 50),
+            RecipeColumn.String("Attribute", 50));
 
         return new TableSchema
         {
-            Name = TableId.Create("EventMapping").Value,
+            Name = WellKnownTableIds.EventMapping,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0), new ColumnIndex(1), new ColumnIndex(2)),
@@ -141,15 +141,15 @@ internal sealed partial class DialogSetProducer
         // Size SHORT NN, Color LONG, StyleBits SHORT
         // PRIMARY KEY TextStyle
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "TextStyle",  Type = ColumnType.String,  Width = 72, Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "FaceName",   Type = ColumnType.String,  Width = 32, Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Size",       Type = ColumnType.Integer, Width = 2,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Color",      Type = ColumnType.Integer, Width = 4,  Nullable = true,  LocalizableKey = false },
-            new RecipeColumn { Name = "StyleBits",  Type = ColumnType.Integer, Width = 2,  Nullable = true,  LocalizableKey = false });
+            RecipeColumn.String("TextStyle", 72),
+            RecipeColumn.String("FaceName", 32),
+            RecipeColumn.Integer("Size", 2),
+            RecipeColumn.Integer("Color", 4, nullable: true),
+            RecipeColumn.Integer("StyleBits", 2, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("TextStyle").Value,
+            Name = WellKnownTableIds.TextStyle,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
@@ -161,12 +161,12 @@ internal sealed partial class DialogSetProducer
         // UIText DDL: Key CHAR(72) NN, Text CHAR(255) LOC
         // PRIMARY KEY Key
         ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
-            new RecipeColumn { Name = "Key",  Type = ColumnType.String, Width = 72,  Nullable = false, LocalizableKey = false },
-            new RecipeColumn { Name = "Text", Type = ColumnType.String, Width = 255, Nullable = true,  LocalizableKey = true  });
+            RecipeColumn.String("Key", 72),
+            RecipeColumn.String("Text", 255, nullable: true, localizableKey: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("UIText").Value,
+            Name = WellKnownTableIds.UIText,
             Columns = cols,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

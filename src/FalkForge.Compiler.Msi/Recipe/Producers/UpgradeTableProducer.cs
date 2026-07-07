@@ -113,66 +113,17 @@ internal sealed class UpgradeTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "UpgradeCode",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "VersionMin",
-                Type = ColumnType.String,
-                Width = 20,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "VersionMax",
-                Type = ColumnType.String,
-                Width = 20,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Language",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Attributes",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Remove",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ActionProperty",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("UpgradeCode", 38),
+            RecipeColumn.String("VersionMin", 20, nullable: true),
+            RecipeColumn.String("VersionMax", 20, nullable: true),
+            RecipeColumn.String("Language", 255, nullable: true),
+            RecipeColumn.Integer("Attributes", 4),
+            RecipeColumn.String("Remove", 255, nullable: true),
+            RecipeColumn.String("ActionProperty", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("Upgrade").Value,
+            Name = WellKnownTableIds.Upgrade,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0),

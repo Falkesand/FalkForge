@@ -31,7 +31,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId directoryTable = TableId.Create("Directory").Value;
+        TableId directoryTable = WellKnownTableIds.Directory;
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         HashSet<string> emitted = new(StringComparer.Ordinal);
 
@@ -217,32 +217,11 @@ internal sealed class DirectoryTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId directoryTable = TableId.Create("Directory").Value;
+        TableId directoryTable = WellKnownTableIds.Directory;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Directory",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Directory_Parent",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DefaultDir",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Directory", 72),
+            RecipeColumn.String("Directory_Parent", 72, nullable: true),
+            RecipeColumn.Localized("DefaultDir", 255));
 
         return new TableSchema
         {

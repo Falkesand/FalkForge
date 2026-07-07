@@ -31,8 +31,8 @@ internal sealed class FeatureTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId featureTable = TableId.Create("Feature").Value;
-        TableId directoryTable = TableId.Create("Directory").Value;
+        TableId featureTable = WellKnownTableIds.Feature;
+        TableId directoryTable = WellKnownTableIds.Directory;
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         foreach (FeatureModel feature in context.Resolved.Package.Features)
         {
@@ -86,73 +86,17 @@ internal sealed class FeatureTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId featureTable = TableId.Create("Feature").Value;
-        TableId directoryTable = TableId.Create("Directory").Value;
+        TableId featureTable = WellKnownTableIds.Feature;
+        TableId directoryTable = WellKnownTableIds.Directory;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Feature",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Feature_Parent",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Title",
-                Type = ColumnType.Localized,
-                Width = 64,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Display",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Level",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Directory_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Attributes",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Feature", 38),
+            RecipeColumn.String("Feature_Parent", 38, nullable: true),
+            RecipeColumn.Localized("Title", 64, nullable: true),
+            RecipeColumn.Localized("Description", 255, nullable: true),
+            RecipeColumn.Integer("Display", 2, nullable: true),
+            RecipeColumn.Integer("Level", 2),
+            RecipeColumn.String("Directory_", 72, nullable: true),
+            RecipeColumn.Integer("Attributes", 2));
 
         return new TableSchema
         {

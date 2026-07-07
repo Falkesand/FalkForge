@@ -74,50 +74,15 @@ internal sealed class MsiLockPermissionsExTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "MsiLockPermissionsEx",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "LockObject",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Table",
-                Type = ColumnType.String,
-                Width = 32,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "SDDLText",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Condition",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("MsiLockPermissionsEx", 72),
+            RecipeColumn.String("LockObject", 72),
+            RecipeColumn.String("Table", 32),
+            RecipeColumn.String("SDDLText", 255),
+            RecipeColumn.String("Condition", 255, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("MsiLockPermissionsEx").Value,
+            Name = WellKnownTableIds.MsiLockPermissionsEx,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
