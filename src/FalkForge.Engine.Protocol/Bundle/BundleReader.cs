@@ -221,11 +221,19 @@ public static class BundleReader
         try
         {
             using var source = File.OpenRead(bundlePath);
-            // Pre-size the in-memory buffer to the (untrusted) OriginalSize hint to avoid repeated
-            // MemoryStream doubling. The SHA-256 verification below is the real integrity gate, so
-            // a wrong hint only affects capacity, never correctness.
-            using var destination = new MemoryStream(
-                entry.OriginalSize is > 0 and <= MaxCompressedPayloadBytes ? entry.OriginalSize : 0);
+            // Pre-size the in-memory buffer using a modest heuristic rather than trusting the
+            // (untrusted) OriginalSize claim outright. DecompressToStreamAndHash enforces
+            // OriginalSize as a hard upper bound during decompression, so a crafted claim can no
+            // longer force a runaway WRITE — but reading it directly here would still force a
+            // large up-front ALLOCATION before a single byte is verified. Capping the hint to a
+            // small multiple of the physically bounds-checked CompressedSize avoids that
+            // speculative allocation while still avoiding MemoryStream's doubling for legitimate
+            // payloads (compressed size is a reasonable proxy since gzip rarely exceeds ~4x
+            // expansion for real installer payloads).
+            var originalSizeHint = entry.OriginalSize is > 0 and <= MaxCompressedPayloadBytes ? entry.OriginalSize : 0;
+            var heuristicCap = Math.Max(4096L, (long)entry.CompressedSize * 4);
+            var capacityHint = (int)Math.Min(originalSizeHint, heuristicCap);
+            using var destination = new MemoryStream(capacityHint);
             var actualHash = DecompressToStreamAndHash(source, entry, destination, buffer);
 
             if (!string.Equals(actualHash, entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
@@ -249,35 +257,44 @@ public static class BundleReader
     /// <summary>
     /// Streams the payload for <paramref name="entry"/> from the bundle straight to
     /// <paramref name="destinationPath"/>, decompressing and verifying its SHA-256 in a single
-    /// pass. No decompressed-payload-sized buffer is allocated. On a SHA-256 mismatch (or any
-    /// read/decompress error) the partially written output file is deleted and a failure Result
-    /// is returned, so a corrupt payload never leaves a usable file behind.
+    /// pass. No decompressed-payload-sized buffer is allocated. The decompressed bytes are
+    /// written to a temporary file beside the destination first and only <see cref="File.Move"/>-d
+    /// onto <paramref name="destinationPath"/> once the SHA-256 check succeeds — an unverified
+    /// (possibly tampered) payload is never reachable at the public destination path (TOCTOU
+    /// fix). On a SHA-256 mismatch (or any read/decompress error) the temp file is deleted and a
+    /// failure Result is returned; any pre-existing file at <paramref name="destinationPath"/> is
+    /// left untouched.
     /// </summary>
     public static Result<Unit> ExtractPayloadToFile(string bundlePath, TocEntry entry, string destinationPath)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+        var tempPath = $"{destinationPath}.{Guid.NewGuid():N}.tmp";
         try
         {
             string actualHash;
             using (var source = File.OpenRead(bundlePath))
-            using (var destination = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var destination = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 actualHash = DecompressToStreamAndHash(source, entry, destination, buffer);
             }
 
             if (!string.Equals(actualHash, entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
             {
-                TryDeleteFile(destinationPath);
+                TryDeleteFile(tempPath);
                 return Result<Unit>.Failure(ErrorKind.PayloadError,
                     $"Payload '{entry.PackageId}' integrity check failed — SHA-256 mismatch");
             }
 
+            // Verified: publish atomically. The destination is only ever replaced with a
+            // known-good payload, so a reader racing this call either sees the old file (or
+            // nothing) or the fully-verified new one — never a partially written or tampered one.
+            File.Move(tempPath, destinationPath, overwrite: true);
             return Unit.Value;
         }
         catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException
                                        or UnauthorizedAccessException or ArgumentOutOfRangeException)
         {
-            TryDeleteFile(destinationPath);
+            TryDeleteFile(tempPath);
             return Result<Unit>.Failure(ErrorKind.PayloadError,
                 $"Failed to extract payload '{entry.PackageId}': {ex.Message}");
         }
@@ -339,12 +356,35 @@ public static class BundleReader
         using var gzip = new GZipStream(bounded, CompressionMode.Decompress);
         using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
+        long totalRead = 0;
         int read;
         while ((read = gzip.Read(buffer, 0, buffer.Length)) > 0)
         {
+            totalRead += read;
+
+            // OriginalSize is an untrusted TOC field. Without this cap, a crafted payload with a
+            // small CompressedSize but a huge true decompressed size (a decompression bomb) would
+            // exhaust disk/memory before the SHA-256 check below ever runs. Abort the instant the
+            // declared bound is exceeded, before writing or hashing the excess bytes.
+            if (totalRead > entry.OriginalSize)
+                throw new InvalidDataException(
+                    $"Payload '{entry.PackageId}' decompressed beyond its declared size " +
+                    $"({entry.OriginalSize} bytes) — possible decompression bomb");
+
             hasher.AppendData(buffer, 0, read);
             destination.Write(buffer, 0, read);
         }
+
+        // Exact-size check for full payloads only: a delta payload's TocEntry.OriginalSize is the
+        // RECONSTRUCTED (final) file size, not the (smaller, by construction) delta blob decoded
+        // here, so equality does not hold for IsDelta entries — the bound check above still caps
+        // them. Full payloads are compressed straight from a source file of exactly OriginalSize
+        // bytes, so any mismatch here is corruption the SHA-256 check below would also catch;
+        // this gives an earlier, clearer diagnostic.
+        if (!entry.IsDelta && totalRead != entry.OriginalSize)
+            throw new InvalidDataException(
+                $"Payload '{entry.PackageId}' decompressed to {totalRead} bytes, expected " +
+                $"{entry.OriginalSize}");
 
         return Convert.ToHexString(hasher.GetHashAndReset());
     }
