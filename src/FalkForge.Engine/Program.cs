@@ -149,16 +149,18 @@ internal static class Program
             Console.WriteLine($"Extracting {Path.GetFileName(selfPath)}...");
             foreach (var entry in toExtract)
             {
-                var payloadResult = BundleReader.ExtractPayload(selfPath, entry);
+                var packageDir = Path.Combine(extractDir!, entry.PackageId);
+                Directory.CreateDirectory(packageDir);
+
+                // Single-pass: streams decompressed bytes to the file while verifying SHA-256;
+                // deletes the partial file and fails on mismatch.
+                var payloadResult = BundleReader.ExtractPayloadToFile(
+                    selfPath, entry, Path.Combine(packageDir, $"{entry.PackageId}.dat"));
                 if (payloadResult.IsFailure)
                 {
                     Console.Error.WriteLine($"  Failed: {entry.PackageId} — {payloadResult.Error.Message}");
                     return 2;
                 }
-
-                var packageDir = Path.Combine(extractDir!, entry.PackageId);
-                Directory.CreateDirectory(packageDir);
-                File.WriteAllBytes(Path.Combine(packageDir, $"{entry.PackageId}.dat"), payloadResult.Value);
 
                 var sizeStr = entry.OriginalSize < 1024 * 1024
                     ? $"{entry.OriginalSize / 1024.0:F1} KB"
@@ -357,20 +359,20 @@ internal static class Program
         string? uiExePath = null;
         foreach (var entry in content.TocEntries)
         {
-            var payloadResult = BundleReader.ExtractPayload(content.BundlePath, entry);
-            if (payloadResult.IsFailure)
-            {
-                Console.Error.WriteLine($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
-                return 1;
-            }
-
             var payloadFileName = entry.PackageId;
             var payloadPath = Path.Combine(cacheDir, payloadFileName);
             var payloadDir = Path.GetDirectoryName(payloadPath);
             if (payloadDir is not null)
                 Directory.CreateDirectory(payloadDir);
 
-            await File.WriteAllBytesAsync(payloadPath, payloadResult.Value);
+            // Single-pass: streams decompressed bytes to the cache file while verifying SHA-256
+            // (verify-before-use — a payload that fails integrity never lands on disk).
+            var payloadResult = BundleReader.ExtractPayloadToFile(content.BundlePath, entry, payloadPath);
+            if (payloadResult.IsFailure)
+            {
+                Console.Error.WriteLine($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
+                return 1;
+            }
 
             // Identify the UI executable: an .exe that is not the engine itself
             if (payloadFileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
