@@ -91,6 +91,110 @@ public sealed class CabinetExtractorTests : IDisposable
     }
 
     [Fact]
+    public void Extract_UncompressedSizeFieldCorrupted_NeverThrowsOutOfMemory()
+    {
+        // WHY (deep-fuzz regression): the FDI notify callback pre-sizes the output
+        // MemoryStream from pfdin.cb, the uncompressed-size field read straight out of
+        // the CFFILE record — untrusted, unvalidated. A corrupted/attacker-controlled cab
+        // that sets this field to int.MaxValue makes `new MemoryStream(int.MaxValue)`
+        // throw OutOfMemoryException ("Array dimensions exceeded supported range"),
+        // escaping the Result<T>-only contract and crashing the process.
+        //
+        // Sweep every 4-byte-aligned window of a tiny valid cabinet, overwriting it with
+        // int.MaxValue: this deterministically hits the CFFILE.cbFile field regardless of
+        // its exact byte offset, without hand-decoding the cabinet format.
+        var cabPath = BuildCabinet(("regress.txt", "hello regression"));
+        var validBytes = File.ReadAllBytes(cabPath);
+
+        var sawFailure = false;
+        for (var pos = 0; pos <= validBytes.Length - 4; pos++)
+        {
+            var mutated = (byte[])validBytes.Clone();
+            BitConverter.GetBytes(int.MaxValue).CopyTo(mutated, pos);
+
+            Result<Dictionary<string, byte[]>> result = default;
+            var thrown = Record.Exception(() =>
+            {
+                using var ms = new MemoryStream(mutated);
+                result = CabinetExtractor.Extract(ms);
+            });
+
+            Assert.True(thrown is null,
+                $"Extract must never throw (pos={pos}): {thrown}");
+            if (result.IsFailure) sawFailure = true;
+        }
+
+        Assert.True(sawFailure,
+            "Expected at least one corrupted-size mutation to be rejected as a Failure.");
+    }
+
+    [Fact]
+    public void Extract_FileLargerThanInitialCapacityCeiling_RoundTripsByteExact()
+    {
+        // WHY: the OOM fix clamps the output MemoryStream's INITIAL capacity to a 1 MiB
+        // ceiling from the untrusted pfdin.cb hint. That clamp must be initial-capacity-only
+        // — the stream has to grow past 1 MiB as real bytes arrive so nothing is truncated.
+        // The existing large-file test is 100 KiB (under the ceiling) and can't prove this.
+        // Use ~3 MiB of non-trivial, non-zero content (a deterministic pseudo-random-but-
+        // compressible byte pattern) so the extractor buffers real bytes well beyond the cap,
+        // then assert the recovered bytes match the input exactly in length and content.
+        const int payloadSize = 3 * 1024 * 1024; // 3 MiB, comfortably over the 1 MiB ceiling
+        var payload = new byte[payloadSize];
+        // Deterministic, non-zero, mildly compressible pattern: a rolling mix so the cab
+        // holds meaningful data (not a trivial all-zero run) yet still compresses.
+        for (var i = 0; i < payload.Length; i++)
+            payload[i] = (byte)((i * 31 + (i >> 8) * 7) & 0xFF);
+
+        var sourcePath = Path.Combine(_tempDir, "big.bin");
+        File.WriteAllBytes(sourcePath, payload);
+
+        var outputDir = Path.Combine(_tempDir, $"cab_big_{Guid.NewGuid():N}");
+        var files = new[]
+        {
+            new ResolvedFile
+            {
+                SourcePath = sourcePath,
+                TargetDirectory = KnownFolder.ProgramFiles / "TestApp",
+                FileName = "big.bin",
+                FileSize = payload.Length,
+                ComponentId = "C_big",
+                FileId = "big.bin",
+            },
+        };
+
+        using var builder = new CabinetBuilder();
+        var buildResult = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+        Assert.True(buildResult.IsSuccess, $"BuildCabinet failed: {(buildResult.IsFailure ? buildResult.Error.Message : "")}");
+
+        using var cabStream = File.OpenRead(buildResult.Value);
+        var result = CabinetExtractor.Extract(cabStream);
+
+        Assert.True(result.IsSuccess, FailureMessage(result));
+        var extracted = result.Value["big.bin"];
+        Assert.Equal(payload.Length, extracted.Length); // no truncation at the 1 MiB boundary
+        Assert.Equal(payload, extracted);               // byte-exact content
+    }
+
+    [Fact]
+    public void Extract_DeclaredSizeExceedsBudget_AbortsBeforeAllocating()
+    {
+        // WHY: the decompression-bomb budget must be enforced against the DECLARED
+        // (attacker-controlled) uncompressed size at allocation time, in FdintCopyFile —
+        // not only against the ACTUAL bytes collected afterward in FdintCloseFileInfo.
+        // Asserting the same LayoutError kind as the existing after-the-fact guard proves
+        // callers can't tell the two code paths apart.
+        var content = "content bigger than a 1-byte budget";
+        var cabPath = BuildCabinet(("early.txt", content));
+
+        using var cabStream = File.OpenRead(cabPath);
+        var result = CabinetExtractor.Extract(cabStream, maxTotalBytes: 1);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.LayoutError, result.Error.Kind);
+        Assert.Contains("budget", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Extract_MultipleFiles_ReturnsAllFiles()
     {
         var cabPath = BuildCabinet(
