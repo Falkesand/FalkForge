@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,6 +10,12 @@ public static class BundleReader
     private static readonly byte[] Magic = Encoding.ASCII.GetBytes("FALKBUNDLE\0\0\0\0\0\0");
 
     public static ReadOnlySpan<byte> BundleMagic => Magic;
+
+    /// <summary>
+    /// Copy-buffer size for the streaming decompress/verify/extract paths. Rented from
+    /// <see cref="ArrayPool{T}"/> per operation, matching <c>BundleDetacher</c>'s pattern.
+    /// </summary>
+    private const int CopyBufferSize = 64 * 1024;
 
     /// <summary>
     /// Upper bound for an embedded manifest JSON length read from untrusted bundle bytes.
@@ -115,26 +122,12 @@ public static class BundleReader
                 };
             }
 
-            // Verify SHA-256 integrity of each payload
-            foreach (var entry in entries)
-            {
-                stream.Seek(entry.Offset, SeekOrigin.Begin);
-                var compressedData = reader.ReadBytes(entry.CompressedSize);
-
-                if (compressedData.Length != entry.CompressedSize)
-                    return Result<BundleContent>.Failure(ErrorKind.PayloadError,
-                        $"Payload '{entry.PackageId}' integrity check failed — truncated data");
-
-                using var compressedStream = new MemoryStream(compressedData);
-                using var gzip = new GZipStream(compressedStream, CompressionMode.Decompress);
-                using var decompressed = new MemoryStream();
-                gzip.CopyTo(decompressed);
-
-                var actualHash = Convert.ToHexString(SHA256.HashData(decompressed.ToArray()));
-                if (!string.Equals(actualHash, entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
-                    return Result<BundleContent>.Failure(ErrorKind.PayloadError,
-                        $"Payload '{entry.PackageId}' integrity check failed — SHA-256 mismatch");
-            }
+            // Payload SHA-256 verification is deliberately NOT done here. Reading the TOC and
+            // manifest must decode zero payload bytes (perf finding A1): list-only callers pay
+            // nothing, and extraction/verification pays a single decompression pass instead of
+            // two. Every caller that consumes payload bytes verifies them at the point of use via
+            // ExtractPayload / ExtractPayloadToFile / VerifyPayload — the verify-before-use
+            // security invariant is preserved, only relocated.
 
             // Read embedded manifest JSON.
             // Bundle format: [stub][magic 16][manifestLen int32][manifestJson bytes][payloads][TOC][footer]
@@ -216,32 +209,156 @@ public static class BundleReader
     }
 
     /// <summary>
-    /// Extracts a single decompressed payload from a bundle file using the TOC entry metadata.
+    /// Extracts a single decompressed payload from a bundle file into memory, verifying its
+    /// SHA-256 in the same single decompression pass. Prefer <see cref="ExtractPayloadToFile"/>
+    /// when the destination is a file — that path streams and never materialises the whole
+    /// payload. This byte[] overload exists for callers that genuinely need the bytes in memory
+    /// (e.g. delta-diffing an old bundle).
     /// </summary>
     public static Result<byte[]> ExtractPayload(string bundlePath, TocEntry entry)
     {
+        var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
         try
         {
-            using var stream = File.OpenRead(bundlePath);
-            stream.Seek(entry.Offset, SeekOrigin.Begin);
-            using var reader = new BinaryReader(stream);
-            var compressedData = reader.ReadBytes(entry.CompressedSize);
+            using var source = File.OpenRead(bundlePath);
+            // Pre-size the in-memory buffer to the (untrusted) OriginalSize hint to avoid repeated
+            // MemoryStream doubling. The SHA-256 verification below is the real integrity gate, so
+            // a wrong hint only affects capacity, never correctness.
+            using var destination = new MemoryStream(
+                entry.OriginalSize is > 0 and <= MaxCompressedPayloadBytes ? entry.OriginalSize : 0);
+            var actualHash = DecompressToStreamAndHash(source, entry, destination, buffer);
 
-            if (compressedData.Length != entry.CompressedSize)
+            if (!string.Equals(actualHash, entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
                 return Result<byte[]>.Failure(ErrorKind.PayloadError,
-                    $"Payload '{entry.PackageId}' truncated during extraction");
+                    $"Payload '{entry.PackageId}' integrity check failed — SHA-256 mismatch");
 
-            using var compressedStream = new MemoryStream(compressedData);
-            using var gzip = new GZipStream(compressedStream, CompressionMode.Decompress);
-            using var decompressed = new MemoryStream();
-            gzip.CopyTo(decompressed);
-
-            return decompressed.ToArray();
+            return destination.ToArray();
         }
-        catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException)
+        catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException
+                                       or UnauthorizedAccessException or ArgumentOutOfRangeException)
         {
             return Result<byte[]>.Failure(ErrorKind.PayloadError,
                 $"Failed to extract payload '{entry.PackageId}': {ex.Message}");
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Streams the payload for <paramref name="entry"/> from the bundle straight to
+    /// <paramref name="destinationPath"/>, decompressing and verifying its SHA-256 in a single
+    /// pass. No decompressed-payload-sized buffer is allocated. On a SHA-256 mismatch (or any
+    /// read/decompress error) the partially written output file is deleted and a failure Result
+    /// is returned, so a corrupt payload never leaves a usable file behind.
+    /// </summary>
+    public static Result<Unit> ExtractPayloadToFile(string bundlePath, TocEntry entry, string destinationPath)
+    {
+        var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+        try
+        {
+            string actualHash;
+            using (var source = File.OpenRead(bundlePath))
+            using (var destination = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                actualHash = DecompressToStreamAndHash(source, entry, destination, buffer);
+            }
+
+            if (!string.Equals(actualHash, entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
+            {
+                TryDeleteFile(destinationPath);
+                return Result<Unit>.Failure(ErrorKind.PayloadError,
+                    $"Payload '{entry.PackageId}' integrity check failed — SHA-256 mismatch");
+            }
+
+            return Unit.Value;
+        }
+        catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException
+                                       or UnauthorizedAccessException or ArgumentOutOfRangeException)
+        {
+            TryDeleteFile(destinationPath);
+            return Result<Unit>.Failure(ErrorKind.PayloadError,
+                $"Failed to extract payload '{entry.PackageId}': {ex.Message}");
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Verifies the SHA-256 of the payload for <paramref name="entry"/> by streaming the
+    /// decompressed bytes through the hash and discarding them — no file is written and no
+    /// payload-sized buffer is allocated. Use before a payload is consumed on a path that does
+    /// not itself write the payload to disk.
+    /// </summary>
+    public static Result<Unit> VerifyPayload(string bundlePath, TocEntry entry)
+    {
+        var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+        try
+        {
+            string actualHash;
+            using (var source = File.OpenRead(bundlePath))
+            {
+                actualHash = DecompressToStreamAndHash(source, entry, Stream.Null, buffer);
+            }
+
+            if (!string.Equals(actualHash, entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
+                return Result<Unit>.Failure(ErrorKind.PayloadError,
+                    $"Payload '{entry.PackageId}' integrity check failed — SHA-256 mismatch");
+
+            return Unit.Value;
+        }
+        catch (Exception ex) when (ex is IOException or EndOfStreamException or InvalidDataException
+                                       or UnauthorizedAccessException or ArgumentOutOfRangeException)
+        {
+            return Result<Unit>.Failure(ErrorKind.PayloadError,
+                $"Failed to verify payload '{entry.PackageId}': {ex.Message}");
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Decompresses the payload at <paramref name="entry"/>'s offset (bounded to its compressed
+    /// size so concatenated gzip members from the next payload are never consumed) into
+    /// <paramref name="destination"/>, computing SHA-256 over the decompressed bytes with a single
+    /// streaming pass. Returns the upper-case hex hash. The caller owns <paramref name="source"/>.
+    /// </summary>
+    private static string DecompressToStreamAndHash(Stream source, TocEntry entry, Stream destination, byte[] buffer)
+    {
+        source.Seek(entry.Offset, SeekOrigin.Begin);
+
+        // GZipStream transparently concatenates adjacent gzip members. Payloads are written
+        // back-to-back, so without an explicit byte bound the decompressor would run straight
+        // into the next payload. BoundedReadStream stops it exactly at this payload's end.
+        using var bounded = new BoundedReadStream(source, entry.CompressedSize);
+        using var gzip = new GZipStream(bounded, CompressionMode.Decompress);
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        int read;
+        while ((read = gzip.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            hasher.AppendData(buffer, 0, read);
+            destination.Write(buffer, 0, read);
+        }
+
+        return Convert.ToHexString(hasher.GetHashAndReset());
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort cleanup; the failure Result already tells the caller the payload is bad.
         }
     }
 
@@ -276,10 +393,6 @@ public static class BundleReader
         var extractedPaths = new List<string>(preUIEntries.Length);
         foreach (var entry in preUIEntries)
         {
-            var payloadResult = ExtractPayload(bundlePath, entry);
-            if (payloadResult.IsFailure)
-                return Result<IReadOnlyList<string>>.Failure(payloadResult.Error);
-
             // Use PackageId as filename — validated to be a safe identifier by BDL028+.
             // Path.GetFileName is applied as a defence-in-depth safeguard against path traversal.
             // Phase 3 hardening: Add Windows reserved-device-name check (CON, NUL, AUX, COM1..COM9, LPT1..LPT9)
@@ -287,11 +400,54 @@ public static class BundleReader
             // ExtractPreUIPayloads is not called by the engine bootstrap until Phase 4.
             var safeName = Path.GetFileName(entry.PackageId);
             var outputPath = Path.Combine(preUIDir, safeName);
-            File.WriteAllBytes(outputPath, payloadResult.Value);
+
+            // Single-pass stream-decompress + SHA-256 verify straight to the pre-UI file.
+            var extractResult = ExtractPayloadToFile(bundlePath, entry, outputPath);
+            if (extractResult.IsFailure)
+                return Result<IReadOnlyList<string>>.Failure(extractResult.Error);
+
             extractedPaths.Add(outputPath);
         }
 
         return Result<IReadOnlyList<string>>.Success(extractedPaths.AsReadOnly());
+    }
+
+    /// <summary>
+    /// A read-only view over an underlying stream that returns EOF after a fixed number of bytes.
+    /// Used to cap <see cref="GZipStream"/> at a single payload's compressed size so it does not
+    /// run into the next payload (GZipStream transparently decodes concatenated gzip members).
+    /// The underlying stream is owned by the caller and is never closed by this wrapper.
+    /// </summary>
+    private sealed class BoundedReadStream(Stream inner, long length) : Stream
+    {
+        private long _remaining = length;
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_remaining <= 0)
+                return 0;
+
+            var toRead = (int)Math.Min(count, _remaining);
+            var read = inner.Read(buffer, offset, toRead);
+            _remaining -= read;
+            return read;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>
