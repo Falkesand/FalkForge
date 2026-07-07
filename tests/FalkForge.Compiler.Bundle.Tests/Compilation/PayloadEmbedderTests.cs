@@ -158,9 +158,9 @@ public sealed class PayloadEmbedderTests : IDisposable
     }
 
     [Fact]
-    public void Extract_TamperedPayload_ReturnsFailure()
+    public void TamperedPayload_IsDetectedAtVerification_NotAtTocRead()
     {
-        // Arrange: create a valid bundle, extract it to confirm it works, then tamper
+        // Arrange: create a valid bundle, extract it to confirm it works, then tamper.
         var stubPath = CreateStub();
         var outputPath = Path.Combine(_tempDir, "tampered.exe");
         // Use large repetitive data to ensure GZip compressed output is non-trivial
@@ -177,12 +177,12 @@ public sealed class PayloadEmbedderTests : IDisposable
         var embedResult = _embedder.Embed(stubPath, outputPath, manifest, payloads);
         Assert.True(embedResult.IsSuccess);
 
-        // Extract once to get TOC entry offset, then tamper at that offset
+        // Extract once to get the TOC entry offset, then tamper at that offset.
         var validResult = PayloadEmbedder.Extract(outputPath);
-        Assert.True(validResult.IsSuccess, "Pre-tamper extraction must succeed");
+        Assert.True(validResult.IsSuccess, "Pre-tamper TOC read must succeed");
         var entry = validResult.Value.TocEntries[0];
 
-        // Act: tamper with the compressed payload at the exact offset stored in the TOC
+        // Act: tamper with the compressed payload at the exact offset stored in the TOC.
         var bundleBytes = File.ReadAllBytes(outputPath);
         var payloadStart = (int)entry.Offset;
         // Flip bytes in the compressed data region
@@ -190,10 +190,17 @@ public sealed class PayloadEmbedderTests : IDisposable
             bundleBytes[payloadStart + i] ^= 0xFF;
         File.WriteAllBytes(outputPath, bundleBytes);
 
-        // Assert: extraction should detect the integrity failure
-        var result = PayloadEmbedder.Extract(outputPath);
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.PayloadError, result.Error.Kind);
+        // Assert: the reader no longer decodes payloads during Extract (TOC/manifest read is
+        // decode-free, perf finding A1), so the TOC still reads cleanly...
+        var tocResult = PayloadEmbedder.Extract(outputPath);
+        Assert.True(tocResult.IsSuccess, "TOC read must not touch payload bytes");
+
+        // ...but the tamper MUST be caught the moment the payload is verified/extracted. This is
+        // the relocated verify-before-use invariant: detection moved out of Extract into the
+        // per-payload verify/extract methods, it did not disappear.
+        var verifyResult = BundleReader.VerifyPayload(outputPath, tocResult.Value.TocEntries[0]);
+        Assert.True(verifyResult.IsFailure);
+        Assert.Equal(ErrorKind.PayloadError, verifyResult.Error.Kind);
     }
 
     [Fact]

@@ -113,18 +113,19 @@ public sealed class ExtractCommand : Command<ExtractSettings>
         var extracted = 0;
         foreach (var entry in targetEntries)
         {
-            var payloadResult = BundleReader.ExtractPayload(exePath, entry);
+            var packageDir = Path.Combine(outputDir, entry.PackageId);
+            Directory.CreateDirectory(packageDir);
+
+            // Single-pass: streams decompressed bytes to the file while verifying SHA-256;
+            // deletes the partial file and fails on mismatch.
+            var targetPath = Path.Combine(packageDir, entry.PackageId);
+            var payloadResult = BundleReader.ExtractPayloadToFile(exePath, entry, targetPath);
             if (payloadResult.IsFailure)
             {
                 _console.WriteError($"Failed to extract '{entry.PackageId}': {payloadResult.Error.Message}");
                 return ExitCodes.FromErrorKind(payloadResult.Error.Kind);
             }
 
-            var packageDir = Path.Combine(outputDir, entry.PackageId);
-            Directory.CreateDirectory(packageDir);
-
-            var targetPath = Path.Combine(packageDir, entry.PackageId);
-            File.WriteAllBytes(targetPath, payloadResult.Value);
             extracted++;
 
             _console.MarkupLine($"  [grey]{Markup.Escape(entry.PackageId)}[/] ({FormatSize(entry.OriginalSize)})");

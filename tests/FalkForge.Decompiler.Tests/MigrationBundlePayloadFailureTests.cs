@@ -9,10 +9,10 @@ namespace FalkForge.Decompiler.Tests;
 ///
 /// WHY this matters:
 /// The generated Program.cs references each chained package by its payload-relative path,
-/// expecting the migration to have written those bytes. If BundleReader.Extract fails on a
-/// real bundle and the generator swallows it (returning an empty payload map and a SUCCESS),
-/// the migrated project compiles but references payload files that were never written — a
-/// silently broken migration. The generator must surface the extraction failure as a
+/// expecting the migration to have written those bytes. If BundleReader.ExtractPayload fails on
+/// a payload in a real bundle and the generator swallows it (returning an empty payload map and
+/// a SUCCESS), the migrated project compiles but references payload files that were never
+/// written — a silently broken migration. The generator must surface the extraction failure as a
 /// Result failure instead, mirroring the MSI path's fail-loud behaviour.
 /// </summary>
 public sealed class MigrationBundlePayloadFailureTests : IDisposable
@@ -34,8 +34,8 @@ public sealed class MigrationBundlePayloadFailureTests : IDisposable
     public void Generate_BundlePayloadCorrupted_ReturnsFailureNotEmptySuccess()
     {
         // Arrange: a real native bundle, then corrupt a payload byte so the manifest/TOC
-        // still decompile (BundleDecompiler succeeds) but BundleReader.Extract fails its
-        // per-payload SHA-256 integrity check.
+        // still decompile (BundleDecompiler succeeds) but BundleReader.ExtractPayload fails
+        // its SHA-256 integrity check when the generator reads the payload back.
         var payloadPath = Path.Combine(_tempDir, "MyApp.msi");
         File.WriteAllBytes(payloadPath, [0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80]);
 

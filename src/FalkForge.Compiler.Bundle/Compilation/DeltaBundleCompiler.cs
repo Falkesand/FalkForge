@@ -46,6 +46,14 @@ public sealed class DeltaBundleCompiler
 
         foreach (var entry in oldContent.TocEntries)
         {
+            // If extraction fails for an old payload (e.g. a corrupted/tampered old bundle on
+            // disk), the entry is deliberately left out of oldPayloads rather than aborting the
+            // whole delta compile. Step 5 below does a TryGetValue lookup against this
+            // dictionary and silently falls back to a full embed for that package only — every
+            // other unaffected package still gets its delta. This compiler layer has no logging
+            // infrastructure to raise a warning through, so this comment is the signal; behaviour
+            // is covered by
+            // DeltaBundleCompilerTests.Compile_OldPayloadCorrupted_FallsBackToFullEmbedForAffectedPackageOnly.
             var payloadResult = BundleReader.ExtractPayload(oldBundlePath, entry);
             if (payloadResult.IsSuccess)
                 oldPayloads[entry.PackageId] = (entry, payloadResult.Value);
