@@ -145,4 +145,68 @@ public sealed class ExtractCommandTests
 
         Assert.True(result.Successful);
     }
+
+    // ---------------------------------------------------------------------------
+    // Zip-slip containment on bundle extraction — entry.PackageId comes from a crafted
+    // bundle's own TOC and must never be trusted directly (OWASP A03: Injection).
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void TryResolvePackagePaths_HostilePackageId_IsRejected()
+    {
+        var outputDir = Path.Combine(Path.GetTempPath(), $"falk-extract-bundle-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outputDir);
+        try
+        {
+            var hostilePackageId = ".." + Path.DirectorySeparatorChar + ".." + Path.DirectorySeparatorChar + "evil";
+
+            var resolved = ExtractCommand.TryResolvePackagePaths(outputDir, hostilePackageId, out var packageDir, out var targetPath);
+
+            Assert.False(resolved);
+            Assert.Null(packageDir);
+            Assert.Null(targetPath);
+        }
+        finally
+        {
+            try { Directory.Delete(outputDir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void TryResolvePackagePaths_AbsolutePathInjection_IsRejected()
+    {
+        var outputDir = Path.Combine(Path.GetTempPath(), $"falk-extract-bundle-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outputDir);
+        try
+        {
+            var resolved = ExtractCommand.TryResolvePackagePaths(outputDir, @"C:\Windows\System32\evil", out var packageDir, out var targetPath);
+
+            Assert.False(resolved);
+            Assert.Null(packageDir);
+            Assert.Null(targetPath);
+        }
+        finally
+        {
+            try { Directory.Delete(outputDir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void TryResolvePackagePaths_WellBehavedPackageId_ResolvesInsideOutputDir()
+    {
+        var outputDir = Path.Combine(Path.GetTempPath(), $"falk-extract-bundle-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outputDir);
+        try
+        {
+            var resolved = ExtractCommand.TryResolvePackagePaths(outputDir, "MyPackage", out var packageDir, out var targetPath);
+
+            Assert.True(resolved);
+            Assert.Equal(Path.GetFullPath(Path.Combine(outputDir, "MyPackage")), packageDir);
+            Assert.Equal(Path.GetFullPath(Path.Combine(outputDir, "MyPackage", "MyPackage")), targetPath);
+        }
+        finally
+        {
+            try { Directory.Delete(outputDir, recursive: true); } catch (IOException) { }
+        }
+    }
 }

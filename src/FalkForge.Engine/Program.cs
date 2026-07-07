@@ -149,13 +149,12 @@ internal static class Program
             Console.WriteLine($"Extracting {Path.GetFileName(selfPath)}...");
             foreach (var entry in toExtract)
             {
-                var packageDir = Path.Combine(extractDir!, entry.PackageId);
-                Directory.CreateDirectory(packageDir);
-
                 // Single-pass: streams decompressed bytes to the file while verifying SHA-256;
-                // deletes the partial file and fails on mismatch.
+                // deletes the partial file and fails on mismatch. The contained overload rejects
+                // a crafted PackageId (e.g. "..\..\evil") that would escape extractDir — the TOC
+                // is attacker-controlled, so the destination is never composed from it unguarded.
                 var payloadResult = BundleReader.ExtractPayloadToFile(
-                    selfPath, entry, Path.Combine(packageDir, $"{entry.PackageId}.dat"));
+                    selfPath, entry, extractDir!, Path.Combine(entry.PackageId, $"{entry.PackageId}.dat"));
                 if (payloadResult.IsFailure)
                 {
                     Console.Error.WriteLine($"  Failed: {entry.PackageId} — {payloadResult.Error.Message}");
@@ -165,7 +164,7 @@ internal static class Program
                 var sizeStr = entry.OriginalSize < 1024 * 1024
                     ? $"{entry.OriginalSize / 1024.0:F1} KB"
                     : $"{entry.OriginalSize / (1024.0 * 1024.0):F1} MB";
-                Console.WriteLine($"  {entry.PackageId} ({sizeStr}) → {packageDir}");
+                Console.WriteLine($"  {entry.PackageId} ({sizeStr}) → {Path.GetDirectoryName(payloadResult.Value)}");
             }
 
             Console.WriteLine($"Extracted to {extractDir}");
@@ -362,14 +361,13 @@ internal static class Program
         foreach (var entry in content.TocEntries)
         {
             var payloadFileName = entry.PackageId;
-            var payloadPath = Path.Combine(cacheDir, payloadFileName);
-            var payloadDir = Path.GetDirectoryName(payloadPath);
-            if (payloadDir is not null)
-                Directory.CreateDirectory(payloadDir);
 
             // Single-pass: streams decompressed bytes to the cache file while verifying SHA-256
-            // (verify-before-use — a payload that fails integrity never lands on disk).
-            var payloadResult = BundleReader.ExtractPayloadToFile(content.BundlePath, entry, payloadPath);
+            // (verify-before-use — a payload that fails integrity never lands on disk). The
+            // contained overload rejects a crafted PackageId (e.g. "..\..\evil") that would
+            // escape cacheDir — the TOC is attacker-controlled, so the destination is never
+            // composed from it unguarded, and the resolved path comes from the overload itself.
+            var payloadResult = BundleReader.ExtractPayloadToFile(content.BundlePath, entry, cacheDir, payloadFileName);
             if (payloadResult.IsFailure)
             {
                 Console.Error.WriteLine($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
@@ -380,7 +378,7 @@ internal static class Program
             if (payloadFileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
                 && !payloadFileName.Contains("Engine", StringComparison.OrdinalIgnoreCase))
             {
-                uiExePath = payloadPath;
+                uiExePath = payloadResult.Value;
             }
         }
 

@@ -16,7 +16,7 @@ namespace FalkForge.Engine.Protocol.Tests.Bundle;
 /// <list type="bullet">
 ///   <item><see cref="BundleReader.Extract"/> reads TOC + manifest only and NEVER touches
 ///     payload bytes — a bundle whose payload region is corrupt still lists correctly.</item>
-///   <item><see cref="BundleReader.ExtractPayloadToFile"/> streams decompressed bytes straight to
+///   <item><see cref="BundleReader.ExtractPayloadToFile(string, TocEntry, string)"/> streams decompressed bytes straight to
 ///     the destination file while verifying SHA-256 in one pass; a tampered payload fails and the
 ///     partial output file is deleted.</item>
 ///   <item><see cref="BundleReader.VerifyPayload"/> verifies SHA-256 without writing any file.</item>
