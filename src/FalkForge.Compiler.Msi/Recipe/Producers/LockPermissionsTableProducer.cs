@@ -77,50 +77,15 @@ internal sealed class LockPermissionsTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "LockObject",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Table",
-                Type = ColumnType.String,
-                Width = 32,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Domain",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "User",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Permission",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("LockObject", 72),
+            RecipeColumn.String("Table", 32),
+            RecipeColumn.String("Domain", 255, nullable: true),
+            RecipeColumn.String("User", 255),
+            RecipeColumn.Integer("Permission", 4, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("LockPermissions").Value,
+            Name = WellKnownTableIds.LockPermissions,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0),

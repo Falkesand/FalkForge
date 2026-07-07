@@ -404,35 +404,14 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         //      (`Action` CHAR(72) NOT NULL, `Condition` CHAR(255), `Sequence` SHORT
         //       PRIMARY KEY `Action`)
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Action",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Condition",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // SHORT in MSI DDL — represented as Integer with Width=2.
-                Name = "Sequence",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Action", 72),
+            RecipeColumn.String("Condition", 255, nullable: true),
+            // SHORT in MSI DDL — represented as Integer with Width=2.
+            RecipeColumn.Integer("Sequence", 2, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("InstallExecuteSequence").Value,
+            Name = WellKnownTableIds.InstallExecuteSequence,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

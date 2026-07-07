@@ -89,56 +89,21 @@ internal sealed class MsiAssemblyTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
-        TableId featureTable = TableId.Create("Feature").Value;
+        TableId componentTable = WellKnownTableIds.Component;
+        TableId featureTable = WellKnownTableIds.Feature;
 
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Feature_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // Nullable per MSI DDL; legacy emitter always writes null
-                Name = "File_Manifest",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "File_Application",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                // SHORT in MSI DDL; nullable per DDL; producer always sets it
-                Name = "Attributes",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.String("Feature_", 38),
+            // Nullable per MSI DDL; legacy emitter always writes null
+            RecipeColumn.String("File_Manifest", 72, nullable: true),
+            RecipeColumn.String("File_Application", 72, nullable: true),
+            // SHORT in MSI DDL; nullable per DDL; producer always sets it
+            RecipeColumn.Integer("Attributes", 2, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("MsiAssembly").Value,
+            Name = WellKnownTableIds.MsiAssembly,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             // File_Manifest (col 2) is always null — FK omitted to avoid misleading

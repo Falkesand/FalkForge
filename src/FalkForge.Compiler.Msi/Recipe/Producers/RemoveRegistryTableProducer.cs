@@ -27,7 +27,7 @@ internal sealed class RemoveRegistryTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
         IReadOnlyList<RemoveRegistryModel> entries = resolved.Package.RemoveRegistryEntries;
 
@@ -79,52 +79,17 @@ internal sealed class RemoveRegistryTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "RemoveRegistry",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Root",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Key",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("RemoveRegistry", 72),
+            RecipeColumn.Integer("Root", 2),
+            RecipeColumn.Localized("Key", 255),
+            RecipeColumn.Localized("Name", 255, nullable: true),
+            RecipeColumn.String("Component_", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("RemoveRegistry").Value,
+            Name = WellKnownTableIds.RemoveRegistry,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

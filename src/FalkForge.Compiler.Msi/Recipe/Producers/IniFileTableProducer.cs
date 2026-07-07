@@ -17,7 +17,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 internal sealed class IniFileTableProducer : ITableProducer
 {
     private const string FallbackComponentId = "MainComponent";
-    private static readonly TableId ComponentTable = TableId.Create("Component").Value;
+    private static readonly TableId ComponentTable = WellKnownTableIds.Component;
 
     /// <summary>Static schema describing the <c>IniFile</c> table layout.</summary>
     public static readonly TableSchema TableSchema = BuildSchema();
@@ -78,82 +78,25 @@ internal sealed class IniFileTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "IniFile",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "FileName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DirProperty",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Section",
-                Type = ColumnType.Localized,
-                Width = 96,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Key",
-                Type = ColumnType.Localized,
-                Width = 128,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Value",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Action",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("IniFile", 72),
+            RecipeColumn.Localized("FileName", 255),
+            RecipeColumn.String("DirProperty", 72, nullable: true),
+            RecipeColumn.Localized("Section", 96),
+            RecipeColumn.Localized("Key", 128),
+            RecipeColumn.Localized("Value", 255, nullable: true),
+            RecipeColumn.Integer("Action", 2),
+            RecipeColumn.String("Component_", 72));
 
         return new TableSchema
         {
-            Name = TableId.Create("IniFile").Value,
+            Name = WellKnownTableIds.IniFile,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec
             {
                 SourceColumn = new ColumnIndex(7),
-                TargetTable = componentTable,
+                TargetTable = ComponentTable,
             }),
         };
     }

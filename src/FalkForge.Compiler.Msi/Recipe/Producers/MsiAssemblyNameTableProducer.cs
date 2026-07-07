@@ -102,37 +102,16 @@ internal sealed class MsiAssemblyNameTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
 
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Value",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.String("Name", 255),
+            RecipeColumn.String("Value", 255));
 
         return new TableSchema
         {
-            Name = TableId.Create("MsiAssemblyName").Value,
+            Name = WellKnownTableIds.MsiAssemblyName,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(
                 new ColumnIndex(0),

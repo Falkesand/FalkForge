@@ -32,7 +32,7 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
 
         Dictionary<string, string> fileNameToComponent = BuildFileNameLookup(resolved);
@@ -159,116 +159,25 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "ServiceInstall",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Name",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DisplayName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ServiceType",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "StartType",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ErrorControl",
-                Type = ColumnType.Integer,
-                Width = 4,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "LoadOrderGroup",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Dependencies",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "StartName",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Password",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Arguments",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("ServiceInstall", 72),
+            RecipeColumn.String("Name", 255),
+            RecipeColumn.Localized("DisplayName", 255, nullable: true),
+            RecipeColumn.Integer("ServiceType", 4),
+            RecipeColumn.Integer("StartType", 4),
+            RecipeColumn.Integer("ErrorControl", 4),
+            RecipeColumn.String("LoadOrderGroup", 255, nullable: true),
+            RecipeColumn.String("Dependencies", 255, nullable: true),
+            RecipeColumn.String("StartName", 255, nullable: true),
+            RecipeColumn.String("Password", 255, nullable: true),
+            RecipeColumn.String("Arguments", 255, nullable: true),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.Localized("Description", 255, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("ServiceInstall").Value,
+            Name = WellKnownTableIds.ServiceInstall,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

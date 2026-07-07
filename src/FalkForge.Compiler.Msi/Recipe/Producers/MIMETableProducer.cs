@@ -60,34 +60,13 @@ internal sealed class MIMETableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "ContentType",
-                Type = ColumnType.String,
-                Width = 64,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Extension_",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "CLSID",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("ContentType", 64),
+            RecipeColumn.String("Extension_", 255),
+            RecipeColumn.String("CLSID", 38, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("MIME").Value,
+            Name = WellKnownTableIds.MIME,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

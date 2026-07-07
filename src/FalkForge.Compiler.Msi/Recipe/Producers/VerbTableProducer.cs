@@ -79,52 +79,17 @@ internal sealed class VerbTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Extension_",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Verb",
-                Type = ColumnType.String,
-                Width = 32,
-                Nullable = false,
-                LocalizableKey = false,
-            },
+            RecipeColumn.String("Extension_", 255),
+            RecipeColumn.String("Verb", 32),
             // SHORT maps to ColumnType.Integer with Width=2 — same convention
             // used by ProgIdTableProducer.IconIndex and MediaTableProducer.
-            new RecipeColumn
-            {
-                Name = "Sequence",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Command",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Argument",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.Integer("Sequence", 2, nullable: true),
+            RecipeColumn.Localized("Command", 255, nullable: true),
+            RecipeColumn.Localized("Argument", 255, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("Verb").Value,
+            Name = WellKnownTableIds.Verb,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

@@ -23,7 +23,7 @@ internal sealed class FeatureConditionTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId featureTable = TableId.Create("Feature").Value;
+        TableId featureTable = WellKnownTableIds.Feature;
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         foreach (FeatureModel feature in context.Resolved.Package.Features)
         {
@@ -55,36 +55,15 @@ internal sealed class FeatureConditionTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId featureTable = TableId.Create("Feature").Value;
+        TableId featureTable = WellKnownTableIds.Feature;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "Feature_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Level",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Condition",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("Feature_", 38),
+            RecipeColumn.Integer("Level", 2),
+            RecipeColumn.String("Condition", 255));
 
         return new TableSchema
         {
-            Name = TableId.Create("Condition").Value,
+            Name = WellKnownTableIds.Condition,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
             ForeignKeys = ImmutableArray.Create(new ForeignKeySpec

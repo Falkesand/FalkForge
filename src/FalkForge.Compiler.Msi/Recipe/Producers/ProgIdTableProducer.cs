@@ -135,58 +135,16 @@ internal sealed class ProgIdTableProducer : ITableProducer
     private static TableSchema BuildSchema()
     {
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "ProgId",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "ProgId_Parent",
-                Type = ColumnType.String,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Class_",
-                Type = ColumnType.String,
-                Width = 38,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Description",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Icon_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "IconIndex",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = true,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("ProgId", 255),
+            RecipeColumn.String("ProgId_Parent", 255, nullable: true),
+            RecipeColumn.String("Class_", 38, nullable: true),
+            RecipeColumn.Localized("Description", 255, nullable: true),
+            RecipeColumn.String("Icon_", 72, nullable: true),
+            RecipeColumn.Integer("IconIndex", 2, nullable: true));
 
         return new TableSchema
         {
-            Name = TableId.Create("ProgId").Value,
+            Name = WellKnownTableIds.ProgId,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,

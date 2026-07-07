@@ -25,7 +25,7 @@ internal sealed class MoveFileTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
         IReadOnlyList<MoveFileModel> moveFiles = resolved.Package.MoveFiles;
 
@@ -72,68 +72,19 @@ internal sealed class MoveFileTableProducer : ITableProducer
 
     private static TableSchema BuildSchema()
     {
-        TableId componentTable = TableId.Create("Component").Value;
+        TableId componentTable = WellKnownTableIds.Component;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
-            new RecipeColumn
-            {
-                Name = "FileKey",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Component_",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "SourceName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "SourceFolder",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DestName",
-                Type = ColumnType.Localized,
-                Width = 255,
-                Nullable = true,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "DestFolder",
-                Type = ColumnType.String,
-                Width = 72,
-                Nullable = false,
-                LocalizableKey = false,
-            },
-            new RecipeColumn
-            {
-                Name = "Options",
-                Type = ColumnType.Integer,
-                Width = 2,
-                Nullable = false,
-                LocalizableKey = false,
-            });
+            RecipeColumn.String("FileKey", 72),
+            RecipeColumn.String("Component_", 72),
+            RecipeColumn.Localized("SourceName", 255, nullable: true),
+            RecipeColumn.String("SourceFolder", 72, nullable: true),
+            RecipeColumn.Localized("DestName", 255, nullable: true),
+            RecipeColumn.String("DestFolder", 72),
+            RecipeColumn.Integer("Options", 2));
 
         return new TableSchema
         {
-            Name = TableId.Create("MoveFile").Value,
+            Name = WellKnownTableIds.MoveFile,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
             // SourceFolder (col 3) and DestFolder (col 5) are MSI property/directory references
