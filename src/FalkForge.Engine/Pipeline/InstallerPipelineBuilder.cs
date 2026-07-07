@@ -21,7 +21,7 @@ public sealed class InstallerPipelineBuilder
     // _elevationGateway will be wired into download/cache/elevation steps in
     // the next session once the old EngineHost is retired.
     // ──────────────────────────────────────────────────────────────────────────
-#pragma warning disable S4487
+#pragma warning disable S4487, IDE0052
     private ISystemClock? _clock;
     private IRandomSource? _random;
     private IRollbackJournalStore? _journalStore;
@@ -30,7 +30,7 @@ public sealed class InstallerPipelineBuilder
     private ILayoutStore? _layoutStore;
     private IUiChannel? _uiChannel;
     private IElevatedCommandGateway? _elevationGateway;
-#pragma warning restore S4487
+#pragma warning restore S4487, IDE0052
 
     // ──────────────────────────────────────────────────────────────────────────
     // Phase-step components

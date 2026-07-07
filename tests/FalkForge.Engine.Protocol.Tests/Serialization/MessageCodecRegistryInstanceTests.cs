@@ -138,8 +138,10 @@ public sealed class MessageCodecRegistryInstanceTests
         public override MessageType Type => MessageType.DetectBegin;
     }
 
+#pragma warning disable CA1812 // Used only via typeof(StubMessageB) as a distinct CLR type marker; never instantiated by design
     private sealed class StubMessageB : EngineMessage
     {
         public override MessageType Type => MessageType.DetectBegin;
     }
+#pragma warning restore CA1812
 }
