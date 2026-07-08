@@ -72,7 +72,10 @@ public static class IntegritySbomGenerator
             writer.WriteEndObject();
         }
 
-        return System.Text.Encoding.UTF8.GetString(ms.ToArray());
+        // TryGetBuffer exposes the writer's flushed bytes without copying to a
+        // throwaway array first; the writer is disposed above so the buffer is final.
+        ms.TryGetBuffer(out ArraySegment<byte> buffer);
+        return System.Text.Encoding.UTF8.GetString(buffer.Array!, buffer.Offset, buffer.Count);
     }
 
     public static string GenerateCycloneDx(SbomPackageInfo package, IReadOnlyList<SbomFileEntry> files)
@@ -125,6 +128,9 @@ public static class IntegritySbomGenerator
             writer.WriteEndObject();
         }
 
-        return System.Text.Encoding.UTF8.GetString(ms.ToArray());
+        // TryGetBuffer exposes the writer's flushed bytes without copying to a
+        // throwaway array first; the writer is disposed above so the buffer is final.
+        ms.TryGetBuffer(out ArraySegment<byte> buffer);
+        return System.Text.Encoding.UTF8.GetString(buffer.Array!, buffer.Offset, buffer.Count);
     }
 }
