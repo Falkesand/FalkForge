@@ -10,8 +10,7 @@
         <LangVersion>latest</LangVersion>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-        <!-- NU1608: SecurityCodeScan.VS2019 has transitive dep on Microsoft.CodeAnalysis 3.4.0 which conflicts with 5.3.0 -->
-        <NoWarn>$(NoWarn);NU1608</NoWarn>
+        <!-- NU1608 no longer fires: bumping Microsoft.CodeAnalysis.CSharp.Scripting to 5.6.0 aligned the transitive Roslyn versions, resolving the former SecurityCodeScan.VS2019 conflict, so the suppression is obsolete (verified via force-restore + clean build). -->
     </PropertyGroup>
 
     <ItemGroup>
