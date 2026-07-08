@@ -225,6 +225,7 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 13 | glass-ui | Glass UI (acrylic/blur WPF theme) |
 | 14 | lifecycle-hooks | Detect/plan/apply hooks, SetProperty, SetSecureProperty |
 | 15 | bundle-signing | Bundle code signing (detach/sign/reattach) |
+| 15 | msix-basic | Minimal MSIX package via the experimental `Compiler.Msix` (API-only, no CLI dispatch) |
 | 16 | features | Feature tree with conditions |
 | 17 | services | Windows service install/uninstall/control |
 | 18 | environment-variables | Environment variable management |
@@ -261,6 +262,7 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 49 | http-extension | HTTP extension (URL ACL + SNI SSL) |
 | 50 | driver-install | Device driver installation |
 | 51 | ice-validation | ICE validation configuration |
+| 52 | msix-advanced | Advanced MSIX packaging: multi-app, file associations, protocol handlers, auto-update, dependencies |
 | 53 | delta-updates | Delta bundle updates (Octodiff) |
 | 54 | forge-migrate | `forge migrate` MSI/WiX-Burn → buildable C# project (CLI-workflow demo + script) |
 | 55 | winget | WinGet manifest generation via `PackageBuilder.WinGet()` (3-file YAML beside MSI) |

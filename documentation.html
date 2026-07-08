@@ -722,6 +722,7 @@
           <a href="#demo-gallery-bundle-advanced">Bundle Advanced (35&ndash;43)</a>
           <a href="#demo-gallery-output-types">Output Types (44&ndash;46)</a>
           <a href="#demo-gallery-advanced-features">Advanced Features (47&ndash;53)</a>
+          <a href="#demo-gallery-provability">Provability &amp; Supply Chain (54&ndash;58)</a>
           <a href="#demo-gallery-json">JSON Mode (01&ndash;07)</a>
           <a href="#ice-validation">ICE Validation</a>
           <a href="#powershell-ca">PowerShell Custom Actions</a>
@@ -8403,7 +8404,7 @@ public sealed record WixUnmappedFeature(
 <h2>18. Demo Gallery</h2>
 
 <p>
-    FalkForge ships with 53 C# demo projects and 7 JSON configuration demos
+    FalkForge ships with 58 C# demo projects and 7 JSON configuration demos
     that collectively showcase the framework's full capabilities &mdash;
     from minimal MSI installers to complex multi-project bundles with custom WPF UI.
 </p>
@@ -8735,6 +8736,40 @@ public sealed record WixUnmappedFeature(
         binary diffs of changed payloads. Demonstrates <code>BundleBuilder.DeltaFrom(v1Path)</code>,
         <code>DeltaBundleCompiler</code>, and delta-first download with automatic full-bundle fallback.</td>
     <td><span class="badge">DeltaFrom</span> <span class="badge">DeltaBundleCompiler</span> <span class="badge">Octodiff</span> <span class="badge">UpdateFeed</span></td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="demo-gallery-provability">Provability &amp; Supply Chain (54&ndash;58)</h3>
+<table>
+<thead>
+<tr><th>#</th><th>Name</th><th>Description</th><th>Key Features</th></tr>
+</thead>
+<tbody>
+<tr>
+    <td>54</td><td>forge migrate</td>
+    <td>Decompiles an existing MSI (or WiX Burn EXE) into a buildable FalkForge C# project via a single CLI command</td>
+    <td><span class="badge">forge migrate</span> <span class="badge">RoundTrip</span> <span class="badge">MIGRATION-REPORT</span></td>
+</tr>
+<tr>
+    <td>55</td><td>WinGet Manifest Generation</td>
+    <td>Generates the 3-file WinGet manifest set at compile time with an automatic SHA-256 of the compiled MSI</td>
+    <td><span class="badge">PackageBuilder.WinGet</span> <span class="badge">SHA-256</span> <span class="badge">winget-pkgs</span></td>
+</tr>
+<tr>
+    <td>56</td><td>Verify and Plan &mdash; Provability Commands</td>
+    <td>The three provability CLI commands: <code>forge verify --rebuild</code> (byte-for-byte rebuild proof), <code>forge plan-diff</code> (version-to-version diff), and <code>forge plan</code> (pre-run install plan)</td>
+    <td><span class="badge">forge verify</span> <span class="badge">forge plan-diff</span> <span class="badge">forge plan</span> <span class="badge">Reproducible</span></td>
+</tr>
+<tr>
+    <td>57</td><td>Reproducible Builds + SBOM</td>
+    <td>Reproducible builds pinned to <code>SOURCE_DATE_EPOCH</code>, a CycloneDX SBOM sidecar with per-file SHA-256 hashes, and ECDSA payload integrity notes for bundles</td>
+    <td><span class="badge">Reproducible</span> <span class="badge">Sbom</span> <span class="badge">CycloneDX</span> <span class="badge">ECDSA</span></td>
+</tr>
+<tr>
+    <td>58</td><td>Project References</td>
+    <td>References another project's build output via the generated <code>ProjectOutputs</code> class instead of a hardcoded <code>bin/</code> path</td>
+    <td><span class="badge">ProjectOutputs</span> <span class="badge">Source Generator</span> <span class="badge">ProjectReference</span></td>
 </tr>
 </tbody>
 </table>
