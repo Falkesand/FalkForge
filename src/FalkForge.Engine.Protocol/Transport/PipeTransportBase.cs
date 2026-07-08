@@ -7,6 +7,7 @@
 namespace FalkForge.Engine.Protocol.Transport;
 
 using System.Buffers;
+using System.Buffers.Binary;
 using System.IO.Pipes;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Serialization;
@@ -49,12 +50,18 @@ public abstract class PipeTransportBase : IAsyncDisposable
             return Result<Unit>.Failure(ErrorKind.TransportError,
                 $"Message exceeds max size: {data.Length} > {_options.MaxMessageSize}");
 
+        // Combine the 4-byte little-endian length prefix and the payload into ONE pooled
+        // buffer written with a single WriteAsync. This removes the per-send
+        // BitConverter.GetBytes(...) 4-byte allocation and halves the pipe write syscalls.
+        // The framing bytes on the wire are unchanged: [length:i32 little-endian][payload].
+        var frameLength = sizeof(int) + data.Length;
+        var frame = ArrayPool<byte>.Shared.Rent(frameLength);
         try
         {
-            // Length-prefix framing
-            var lengthBytes = BitConverter.GetBytes(data.Length);
-            await _pipe.WriteAsync(lengthBytes, ct);
-            await _pipe.WriteAsync(data, ct);
+            BinaryPrimitives.WriteInt32LittleEndian(frame, data.Length);
+            data.CopyTo(frame, sizeof(int));
+
+            await _pipe.WriteAsync(frame.AsMemory(0, frameLength), ct);
             await _pipe.FlushAsync(ct);
 
             return Unit.Value;
@@ -62,6 +69,15 @@ public abstract class PipeTransportBase : IAsyncDisposable
         catch (IOException ex)
         {
             return Result<Unit>.Failure(ErrorKind.TransportError, $"Send failed: {ex.Message}");
+        }
+        finally
+        {
+            // SECURITY: this pooled frame carried the full wire bytes, which for a
+            // SetSecurePropertyMessage include plaintext secret material. Clear on return so
+            // the secret is not left in a process-wide pooled buffer for the next Rent() —
+            // anywhere in the process — to read. Mirrors SetSecurePropertyCodec's own
+            // Return(scratch, clearArray: true) convention.
+            ArrayPool<byte>.Shared.Return(frame, clearArray: true);
         }
     }
 
@@ -86,7 +102,10 @@ public abstract class PipeTransportBase : IAsyncDisposable
                     if (!await ReadExactAsync(_pipe, messageBuffer, messageLength, ct))
                         break;
 
-                    var result = MessageDeserializer.Deserialize(messageBuffer.AsSpan(0, messageLength));
+                    // Deserialize directly over the already-rented pool buffer (no defensive
+                    // copy): the memory overload wraps this array in place, and Deserialize is
+                    // synchronous so it finishes reading before the finally returns the buffer.
+                    var result = MessageDeserializer.Deserialize(messageBuffer.AsMemory(0, messageLength));
                     if (result.IsSuccess)
                         await _messageHandler(result.Value);
                     else

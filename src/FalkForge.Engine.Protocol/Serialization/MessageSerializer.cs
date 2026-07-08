@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -36,6 +37,34 @@ public static class MessageSerializer
     public const ushort CurrentWireVersion = 1;
 
     /// <summary>
+    /// Above this capacity, the per-thread scratch <see cref="MemoryStream"/> is released
+    /// after use instead of retained. Keeps a one-off large payload (e.g. an embedded
+    /// custom-action blob) from permanently inflating the buffer reused by the frequent
+    /// small messages (progress ticks, log lines) that dominate the hot path.
+    /// </summary>
+    private const int MaxRetainedBufferCapacity = 64 * 1024;
+
+    // Per-thread reusable stream + writer for the hot serialize path. A single call to
+    // Serialize() is synchronous and never re-entrant (codecs do not call back into
+    // Serialize), so a [ThreadStatic] pair is safe: each thread keeps reusing its own
+    // buffer across calls instead of allocating a fresh MemoryStream + BinaryWriter (and
+    // letting the stream's internal array grow via repeated reallocation) on every single
+    // pipe message.
+    [ThreadStatic]
+    private static MemoryStream? t_stream;
+    [ThreadStatic]
+    private static BinaryWriter? t_writer;
+
+    /// <summary>
+    /// Test-only seam: the current thread's reused serialization backing buffer, including
+    /// unused capacity (or empty if none has been allocated on this thread yet). Security
+    /// tests use it to assert that no plaintext secret survives in the reused buffer after
+    /// <see cref="Serialize"/> returns.
+    /// </summary>
+    internal static ReadOnlySpan<byte> DebugThreadBufferOrEmpty
+        => t_stream is { } s ? s.GetBuffer() : ReadOnlySpan<byte>.Empty;
+
+    /// <summary>
     /// Serializes <paramref name="message"/> by dispatching to the registered codec.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
@@ -47,28 +76,52 @@ public static class MessageSerializer
 
         var codec = MessageCodecRegistry.ForWrite(message);
 
-        using var ms = new MemoryStream();
-        using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+        var ms = t_stream ??= new MemoryStream();
+        var bw = t_writer ??= new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+        ms.SetLength(0);
+        ms.Position = 0;
+
+        // Header: [WireVersion: u16][MessageType: u16][PayloadLength: i32 placeholder]
+        bw.Write(codec.WireVersion);
+        bw.Write((ushort)codec.Type);
+        var lengthPosition = ms.Position;
+        bw.Write(0); // placeholder for payload length
+
+        // Body: codec writes [SequenceId: u32][fields...].
+        codec.WriteErased(bw, message);
+        bw.Flush();
+
+        // Patch the payload length to the bytes written after the placeholder.
+        var endPosition = ms.Position;
+        var payloadLength = (int)(endPosition - lengthPosition - sizeof(int));
+        ms.Position = lengthPosition;
+        bw.Write(payloadLength);
+        bw.Flush();
+        ms.Position = endPosition;
+
+        var writtenLength = (int)endPosition;
+        var result = ms.ToArray();
+
+        // SECURITY: the reused thread-static backing buffer still holds the bytes just written,
+        // which for SetSecurePropertyMessage include plaintext secret material. Unlike the
+        // pre-reuse per-call array (which went straight to GC), this buffer survives and is
+        // handed back to the next Serialize on this thread, so the secret would linger until a
+        // later, larger message happened to overwrite it. Zero the region we wrote to restore
+        // the pre-change "no secret survives in a reused buffer" guarantee. Cost is O(message
+        // size), paid once per message — the buffer itself is still reused.
+        CryptographicOperations.ZeroMemory(ms.GetBuffer().AsSpan(0, writtenLength));
+
+        if (ms.Capacity > MaxRetainedBufferCapacity)
         {
-            // Header: [WireVersion: u16][MessageType: u16][PayloadLength: i32 placeholder]
-            bw.Write(codec.WireVersion);
-            bw.Write((ushort)codec.Type);
-            var lengthPosition = ms.Position;
-            bw.Write(0); // placeholder for payload length
-
-            // Body: codec writes [SequenceId: u32][fields...].
-            codec.WriteErased(bw, message);
-            bw.Flush();
-
-            // Patch the payload length to the bytes written after the placeholder.
-            var endPosition = ms.Position;
-            var payloadLength = (int)(endPosition - lengthPosition - sizeof(int));
-            ms.Position = lengthPosition;
-            bw.Write(payloadLength);
-            bw.Flush();
-            ms.Position = endPosition;
+            // Dispose before dropping the references so the oversized buffers are released
+            // deterministically rather than lingering until GC (IDISP003). Writer first
+            // (leaveOpen: true keeps the stream usable for its own Dispose), then the stream.
+            bw.Dispose();
+            ms.Dispose();
+            t_stream = null;
+            t_writer = null;
         }
 
-        return ms.ToArray();
+        return result;
     }
 }

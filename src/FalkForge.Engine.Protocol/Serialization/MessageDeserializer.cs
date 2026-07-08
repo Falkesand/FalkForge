@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -31,18 +32,47 @@ public static class MessageDeserializer
     /// malformed wire input.
     /// </summary>
     public static Result<EngineMessage> Deserialize(ReadOnlySpan<byte> bytes)
+        => Deserialize((ReadOnlyMemory<byte>)bytes.ToArray());
+
+    /// <summary>
+    /// Deserializes a framed message from a memory region without copying it. The transport
+    /// receive loop already rents the backing array from <see cref="System.Buffers.ArrayPool{T}"/>,
+    /// so this overload wraps that array in a read-only <see cref="MemoryStream"/> directly
+    /// instead of taking a second defensive copy. Same failure contract as the span overload:
+    /// short buffers, unsupported wire versions, unknown message types, unregistered codecs,
+    /// truncated payloads, or codec read errors surface as typed <see cref="Result{T}"/>
+    /// failures; the facade never throws for malformed wire input.
+    /// </summary>
+    public static Result<EngineMessage> Deserialize(ReadOnlyMemory<byte> bytes)
     {
         if (bytes.Length < HeaderSize)
         {
             return Result<EngineMessage>.Failure(ErrorKind.ProtocolError, "Message too short");
         }
 
-        // Span cannot cross into BinaryReader directly; copy once into a local buffer.
-        var buffer = bytes.ToArray();
+        // Wrap the caller's buffer directly. MemoryStream over ArraySegment is read-only and
+        // does not copy; MemoryMarshal recovers the backing array + offset from the memory so
+        // the rented pool array is used in place. If the memory is not array-backed (never the
+        // case for the pooled receive path) we fall back to a single copy.
+        MemoryStream ms;
+        if (MemoryMarshal.TryGetArray(bytes, out var segment))
+        {
+            ms = new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false);
+        }
+        else
+        {
+            ms = new MemoryStream(bytes.ToArray(), writable: false);
+        }
 
-        using var ms = new MemoryStream(buffer, writable: false);
-        using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+        using (ms)
+        using (var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true))
+        {
+            return DeserializeCore(br, ms);
+        }
+    }
 
+    private static Result<EngineMessage> DeserializeCore(BinaryReader br, MemoryStream ms)
+    {
         var wireVersion = br.ReadUInt16();
         var typeValue = br.ReadUInt16();
         var payloadLength = br.ReadInt32();

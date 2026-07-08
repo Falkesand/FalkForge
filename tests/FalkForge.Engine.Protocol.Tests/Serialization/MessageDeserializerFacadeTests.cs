@@ -68,4 +68,43 @@ public class MessageDeserializerFacadeTests
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
     }
+
+    /// <summary>
+    /// The zero-copy <see cref="ReadOnlyMemory{T}"/> overload (used by the transport
+    /// receive loop over its rented ArrayPool buffer) must parse a message identically to
+    /// the span overload — including when the framed message occupies only a prefix of a
+    /// larger backing array, exactly as a pooled receive buffer does (Rent returns an array
+    /// that is at least, and usually larger than, the requested size).
+    /// </summary>
+    [Fact]
+    public void Deserialize_ReadOnlyMemoryOverPrefixOfLargerBuffer_ParsesIdenticallyToSpan()
+    {
+        var message = new LogMessage
+        {
+            SequenceId = 314,
+            Text = "hot-path message",
+            Level = LogLevel.Warning
+        };
+        var frame = MessageSerializer.Serialize(message);
+
+        // Simulate an ArrayPool rented buffer: the frame occupies a prefix of an
+        // oversized array, and only the first frame.Length bytes are the real message.
+        var oversized = new byte[frame.Length + 64];
+        frame.CopyTo(oversized, 0);
+
+        var spanResult = MessageDeserializer.Deserialize(new ReadOnlySpan<byte>(frame));
+        var memoryResult = MessageDeserializer.Deserialize(new ReadOnlyMemory<byte>(oversized, 0, frame.Length));
+
+        Assert.True(spanResult.IsSuccess);
+        Assert.True(memoryResult.IsSuccess);
+
+        var fromSpan = Assert.IsType<LogMessage>(spanResult.Value);
+        var fromMemory = Assert.IsType<LogMessage>(memoryResult.Value);
+        Assert.Equal(fromSpan.SequenceId, fromMemory.SequenceId);
+        Assert.Equal(fromSpan.Text, fromMemory.Text);
+        Assert.Equal(fromSpan.Level, fromMemory.Level);
+        Assert.Equal(314u, fromMemory.SequenceId);
+        Assert.Equal("hot-path message", fromMemory.Text);
+        Assert.Equal(LogLevel.Warning, fromMemory.Level);
+    }
 }
