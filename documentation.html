@@ -6053,7 +6053,7 @@ public readonly record struct EngineOutcome(
 
 public sealed record EngineSessionOptions
 {
-    public IEngineLogger? Logger { get; init; }
+    public IFalkLogger? Logger { get; init; }
     public string? LogDirectory { get; init; }
     public string? LogPath { get; init; }
     public LogLevel? MinimumLogLevel { get; init; }
@@ -6144,7 +6144,7 @@ public sealed record EngineSessionOptions
     public InstallerPipelineBuilder WithPackageExecutor(PackageExecutor executor);
     public InstallerPipelineBuilder WithVariableStore(VariableStore variables);
     public InstallerPipelineBuilder WithUndoOperations(IReadOnlyList&lt;IUndoOperation&gt; ops);
-    public InstallerPipelineBuilder WithLogger(IEngineLogger logger);
+    public InstallerPipelineBuilder WithLogger(IFalkLogger logger);
     public IInstallerPipeline Build();
 }</code></pre>
 
@@ -6168,7 +6168,7 @@ public sealed record EngineSessionOptions
     public PipelineRunner(
         IInstallerPipeline pipeline,
         IUiChannel uiChannel,
-        IEngineLogger? logger = null,
+        IFalkLogger? logger = null,
         bool isPlanOnly = false,
         string? planOnlyOutputPath = null);
 
@@ -6713,7 +6713,7 @@ op       -> '=' | '&lt;&gt;' | '&lt;' | '&gt;' | '&lt;=' | '&gt;=' | '~='</code>
     <code>SessionCorrelationId</code> so engine, UI, and elevated logs can be correlated after the fact.
 </p>
 
-<pre><code class="language-csharp">public sealed class EngineLogger : IEngineLogger, IDisposable
+<pre><code class="language-csharp">public sealed class EngineLogger : IFalkLogger, IDisposable
 {
     public EngineLogger(
         string path,
@@ -6808,7 +6808,7 @@ public sealed record EngineLoggerOptions
 <p>
     <code>EngineMeter.Snapshot()</code> returns a point-in-time <code>IReadOnlyDictionary&lt;string, long&gt;</code>
     of all in-process counters accumulated since process start (keys are the <code>EngineMeter.SnapshotKey</code>
-    string constants). <code>EngineMeter.FlushToLogger(IEngineLogger)</code> calls <code>Snapshot()</code> and
+    string constants). <code>EngineMeter.FlushToLogger(IFalkLogger)</code> calls <code>Snapshot()</code> and
     writes the result as a single structured log entry at <code>LogLevel.Info</code> with category
     <code>"Metrics"</code>. <code>EngineSession.DisposeAsync</code> calls <code>FlushToLogger</code>
     automatically, so every session ends with a metrics summary in the log file regardless of whether an

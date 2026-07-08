@@ -53,7 +53,7 @@ flowchart TD
 | `IMsiApi` | `Platform.Windows` | `WindowsMsiApi` | `FakeMsiApi` (Testing) |
 | `IProcessRunner` | `Engine.Execution` | `ProcessRunner` | `FakeProcessRunner` (Testing) |
 | `IRestartManager` | `Engine.RestartManager` | `RestartManagerSession` | `NullRestartManager` (Testing) |
-| `IEngineLogger` | `Engine.Logging` | `EngineLogger` | `ListLogger` (Testing) |
+| `IFalkLogger` | `Diagnostics` (Core) | `EngineLogger` | `ListLogger` (Testing) |
 
 ---
 

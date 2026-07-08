@@ -59,7 +59,7 @@ All step interfaces are `internal` and consumed only by `InstallerPipeline`. The
 
 ### `IRollbackStep` — `RollbackStep`
 - **Role:** Replay undo operations in reverse order, then clear the journal.
-- **Inputs:** `IRollbackJournalStore`, `IReadOnlyList<IUndoOperation>`, optional `IEngineLogger`.
+- **Inputs:** `IRollbackJournalStore`, `IReadOnlyList<IUndoOperation>`, optional `IFalkLogger`.
 - **Outputs:** Empty journal on success.
 - **Ports used:** `IRollbackJournalStore.LoadAll` / `Clear`, `IUiChannel` (PhaseChanged + RollbackStep + Log).
 
@@ -303,7 +303,7 @@ The pipeline orchestrator and `PipelineRunner` do not own port lifetimes. The co
 | `WithUndoOperations(IReadOnlyList<IUndoOperation>)` | `RollbackStep` (no-op when omitted) |
 | `WithElevationGateway(IElevatedCommandGateway)` | `ElevateStep` (skipped when omitted) |
 | `WithUiChannel(IUiChannel)` | All steps (defaults to `NullUiChannel.Instance`) |
-| `WithLogger(IEngineLogger)` | `RollbackStep` diagnostics |
+| `WithLogger(IFalkLogger)` | `RollbackStep` diagnostics |
 | `WithClock(ISystemClock)` | Reserved — wired into download/cache/elevation steps in a follow-up |
 | `WithRandom(IRandomSource)` | Reserved — wired into download/cache/elevation steps in a follow-up |
 | `WithPayloadCache(IPayloadCache)` | Reserved |

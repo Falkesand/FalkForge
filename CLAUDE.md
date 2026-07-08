@@ -132,7 +132,7 @@ Phases: Initializing → Detecting → Planning → Elevating → Applying → C
 - Layout/: LayoutManager, LayoutJsonContext | Cache/: PackageCache, CacheLayout (three-layer path traversal defense: allowlist regex, Path.GetFileName sanitization, Path.GetFullPath containment check)
 - Journal/: RollbackJournal, JournalEntry, RollbackExecutor | UndoOperations/: IUndoOperation, MsiUninstallOperation, ExeRollbackOperation, CacheCleanupOperation
 - RestartManager/: IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
-- Logging/: IEngineLogger, EngineLogger (per-session GUID subdirectory for unpredictable log paths), LogEntry, NullLogger
+- Logging/: EngineLogger (per-session GUID subdirectory for unpredictable log paths). The logging contract — `IFalkLogger`, `LogLevel`, `LogEntry`, `NullLogger`, `LogProperties` — lives in `FalkForge.Core` namespace `FalkForge.Diagnostics` (shared by Engine, Compiler.Msi, Decompiler, Plugins); EngineLogger implements it. `EngineMeter` bridges metrics via `FlushToLogger(IFalkLogger)`.
 - Bootstrap/: PreUIBootstrapOrchestrator, PreUIPrerequisiteDetector/Installer (+ interfaces IPreUIPrerequisiteDetector/Installer), PreUIBootstrapOutcome, PreUIResult, IProgressSink, IProgressSinkFactory, DefaultBootstrapAdapters, WindowsFileSystemProvider, ElevatedSelfRelauncher/IElevatedSelfRelauncher, ElevationProbe/IElevationProbe, Native/ — native pre-UI prerequisite bootstrap (RunAsBootstrapper)
 
 **Engine.Protocol** (`src/FalkForge.Engine.Protocol/`):
