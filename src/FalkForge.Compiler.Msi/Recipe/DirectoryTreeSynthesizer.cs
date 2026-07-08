@@ -113,6 +113,22 @@ internal static class DirectoryTreeSynthesizer
 
     private static string SanitizeId(string name)
     {
+        // Avoid allocation for the common case where no replacement is needed.
+        bool needsReplacement = false;
+        foreach (char c in name)
+        {
+            if (!(char.IsLetterOrDigit(c) || c == '_' || c == '.'))
+            {
+                needsReplacement = true;
+                break;
+            }
+        }
+
+        if (!needsReplacement)
+        {
+            return name;
+        }
+
         char[] sanitized = new char[name.Length];
         for (int i = 0; i < name.Length; i++)
         {
