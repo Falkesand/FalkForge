@@ -128,7 +128,7 @@ Phases: Initializing → Detecting → Planning → Elevating → Applying → C
 - Planning/: Planner, InstallPlan, PlanAction
 - Execution/: PackageExecutor, MsiExecutor (uses IMsiApi P/Invoke InstallProduct/ConfigureProduct instead of msiexec.exe; 3-arg ctor with Func<IMsiApi?> lazy accessor; property value injection defense via ProhibitedValueChars), MsuExecutor, MspExecutor, BundleExecutor, ExitCodeMapping, ExecutionOutcome, IProcessRunner, ProcessRunner
 - Variables/: VariableStore (30+ built-ins), BuiltInVariables, SecureVariable (IDisposable, zeroed on dispose), ConditionEvaluator (recursive-descent), ConditionLexer, ConditionToken, TokenType
-- Download/: PayloadDownloader (HTTP+retry+SHA256), UpdateFeed, UpdateFeedEntry, UpdateInfo, UpdateCheckResult, UpdateFeedJsonContext (AOT), UpdateFeedParser (UPD002-003), DeltaApplicator (Octodiff delta application with SHA-256 verification), UpdateDownloader (delta-first with full-bundle fallback)
+- Download/: PayloadDownloader (HTTP+retry+SHA256), UpdateFeed, UpdateFeedEntry, UpdateInfo, UpdateCheckResult, UpdateFeedJsonContext (AOT), UpdateFeedParser (UPD002-003), UpdateDownloader (delta-first with full-bundle fallback)
 - Layout/: LayoutManager, LayoutJsonContext | Cache/: PackageCache, CacheLayout (three-layer path traversal defense: allowlist regex, Path.GetFileName sanitization, Path.GetFullPath containment check)
 - Journal/: RollbackJournal, JournalEntry, RollbackExecutor | UndoOperations/: IUndoOperation, MsiUninstallOperation, ExeRollbackOperation, CacheCleanupOperation
 - RestartManager/: IRestartManager, RestartManagerSession, RestartManagerProcess, NativeRestartManagerMethods
