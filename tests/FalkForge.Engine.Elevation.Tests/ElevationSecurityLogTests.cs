@@ -32,6 +32,12 @@ public sealed class ElevationSecurityLogTests : IDisposable
             BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("_initialized field not found on ElevationSecurityLog");
 
+    private static readonly FieldInfo TimeProviderField =
+        typeof(ElevationSecurityLog).GetField(
+            "_timeProvider",
+            BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("_timeProvider field not found on ElevationSecurityLog");
+
     private readonly string _tempDir;
     private StreamWriter? _activeWriter;
     private string? _logFilePath;
@@ -102,6 +108,10 @@ public sealed class ElevationSecurityLogTests : IDisposable
             "_correlationId",
             BindingFlags.Static | BindingFlags.NonPublic);
         correlationField?.SetValue(null, string.Empty);
+
+        // Reset the injectable clock back to the real system clock so tests that
+        // don't touch it are unaffected by a prior test's fixed-time injection.
+        TimeProviderField.SetValue(null, TimeProvider.System);
     }
 
     /// <summary>
@@ -226,6 +236,31 @@ public sealed class ElevationSecurityLogTests : IDisposable
 
         Assert.True(timestamp.UtcDateTime >= before, "Timestamp before test start");
         Assert.True(timestamp.UtcDateTime <= after, "Timestamp after test end");
+    }
+
+    [Fact]
+    public void Info_UsesInjectedTimeProvider_ForDeterministicTimestamp()
+    {
+        // Proves the clock source is a swappable seam, not a hard-coded DateTime.UtcNow
+        // call: with a fixed-time TimeProvider injected, the log entry's timestamp must
+        // exactly equal the injected instant rather than the real wall clock at write time.
+        InjectFreshWriter();
+        var fixedInstant = new DateTimeOffset(2020, 3, 4, 5, 6, 7, TimeSpan.Zero);
+        TimeProviderField.SetValue(null, new FixedTimeProvider(fixedInstant));
+
+        ElevationSecurityLog.Info("Clock", "fixed-time check");
+
+        var lines = ReadLogLines();
+        var timestamp = DateTimeOffset.Parse(lines[0].Split('\t')[0],
+            System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.Equal(fixedInstant, timestamp);
+    }
+
+    /// <summary>Test double: always returns the same instant, regardless of the real clock.</summary>
+    private sealed class FixedTimeProvider(DateTimeOffset fixedUtcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => fixedUtcNow;
     }
 
     // -------------------------------------------------------------------------

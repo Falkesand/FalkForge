@@ -15,6 +15,10 @@ internal static class ElevationSecurityLog
     // WHY: volatile so that reads in WriteEntryUnsafe always see the latest value set
     // by SetCorrelationId without acquiring a lock on every log call.
     private static volatile string _correlationId = string.Empty;
+    // Clock source for log timestamps. Defaults to the real system clock; tests
+    // substitute a fixed-time TimeProvider via reflection (see ElevationSecurityLogTests)
+    // to make timestamp assertions deterministic instead of racing the wall clock.
+    private static TimeProvider _timeProvider = TimeProvider.System;
 
     /// <summary>
     /// Initializes the log file. Safe to call multiple times; only the first call takes effect.
@@ -33,7 +37,7 @@ internal static class ElevationSecurityLog
                 var directory = Path.Combine(Path.GetTempPath(), "FalkForge");
                 Directory.CreateDirectory(directory);
 
-                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+                var timestamp = _timeProvider.GetUtcNow().UtcDateTime.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
                 var pid = Environment.ProcessId;
                 var filePath = Path.Combine(directory, $"elevation_{timestamp}_{pid}.log");
 
@@ -119,7 +123,7 @@ internal static class ElevationSecurityLog
         // SetCorrelationId is called concurrently (the snapshot is reference-atomic).
         var correlationId = _correlationId;
 
-        var timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+        var timestamp = _timeProvider.GetUtcNow().UtcDateTime.ToString("o", CultureInfo.InvariantCulture);
         _writer!.Write(timestamp);
         _writer.Write('\t');
         _writer.Write(level);
