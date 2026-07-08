@@ -64,14 +64,7 @@ public sealed class ListLogger : IFalkLogger
             return;
         }
 
-        var merged = properties is null
-            ? new Dictionary<string, string>(3)
-            : new Dictionary<string, string>(properties);
-        merged["exception.type"] = exception.GetType().FullName ?? exception.GetType().Name;
-        merged["exception.message"] = exception.Message;
-        merged["exception.stackTrace"] = exception.StackTrace ?? string.Empty;
-
-        Log(level, category, message, merged);
+        Log(level, category, message, LogProperties.MergeException(exception, properties));
     }
 
     /// <inheritdoc/>
