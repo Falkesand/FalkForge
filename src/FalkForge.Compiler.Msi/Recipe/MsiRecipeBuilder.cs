@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Compiler.Msi.Tables;
+using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 
 namespace FalkForge.Compiler.Msi.Recipe;
@@ -38,7 +39,8 @@ public static class MsiRecipeBuilder
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options,
-        IReadOnlyList<IMultiTableProducer> multiProducers)
+        IReadOnlyList<IMultiTableProducer> multiProducers,
+        IFalkLogger? logger = null)
     {
         if (multiProducers is null)
         {
@@ -47,7 +49,7 @@ public static class MsiRecipeBuilder
                 "Multi-table producers list cannot be null.");
         }
 
-        return BuildCore(resolved, contributors, options, multiProducers);
+        return BuildCore(resolved, contributors, options, multiProducers, logger);
     }
 
     /// <summary>
@@ -60,13 +62,14 @@ public static class MsiRecipeBuilder
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options)
-        => BuildCore(resolved, contributors, options, []);
+        => BuildCore(resolved, contributors, options, [], null);
 
     private static Result<MsiDatabaseRecipe> BuildCore(
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options,
-        IReadOnlyList<IMultiTableProducer> multiProducers)
+        IReadOnlyList<IMultiTableProducer> multiProducers,
+        IFalkLogger? logger)
     {
         if (resolved is null)
         {
@@ -149,17 +152,27 @@ public static class MsiRecipeBuilder
             new MsiLockPermissionsExTableProducer(),
         };
 
+        // Level-guarded: with 36 producers running on every compile, skip the interpolated
+        // message allocation entirely unless Debug logging is actually enabled (D2/D6).
+        bool logProducerDebug = logger is not null && logger.MinimumLevel <= LogLevel.Debug;
+
         ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);
         foreach (ITableProducer producer in producers)
         {
             Result<ImmutableArray<RecipeRow>> producerResult = producer.Produce(context);
             if (producerResult.IsFailure)
             {
+                logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
+                    $"Producer '{producer.Schema.Name}' failed: {producerResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = producerResult.Error.Kind.ToString() });
                 return Result<MsiDatabaseRecipe>.Failure(producerResult.Error);
             }
 
             ImmutableArray<RecipeRow> rows = producerResult.Value;
             context.AddBuiltTable(producer.Schema.Name, rows);
+
+            if (logProducerDebug)
+                logger!.Debug("MsiRecipeBuilder", $"Producer '{producer.Schema.Name}' produced {rows.Length} row(s).");
 
             // Honour the producer's EmitWhenEmpty flag: when false and the
             // producer returned zero rows, suppress both the RecipeTable entry
@@ -194,12 +207,16 @@ public static class MsiRecipeBuilder
         Result<Unit> pkResult = PrimaryKeyValidator.Validate(validatedTables);
         if (pkResult.IsFailure)
         {
+            logger?.Log(LogLevel.Error, "MsiRecipeBuilder", $"Primary-key validation failed: {pkResult.Error.Message}",
+                new Dictionary<string, string> { ["code"] = pkResult.Error.Kind.ToString() });
             return Result<MsiDatabaseRecipe>.Failure(pkResult.Error);
         }
 
         Result<Unit> fkResult = ForeignKeyValidator.Validate(validatedTables);
         if (fkResult.IsFailure)
         {
+            logger?.Log(LogLevel.Error, "MsiRecipeBuilder", $"Foreign-key validation failed: {fkResult.Error.Message}",
+                new Dictionary<string, string> { ["code"] = fkResult.Error.Kind.ToString() });
             return Result<MsiDatabaseRecipe>.Failure(fkResult.Error);
         }
 
@@ -231,8 +248,15 @@ public static class MsiRecipeBuilder
                 Result<ImmutableArray<RecipeTable>> multiResult = multiProducer.Produce(context);
                 if (multiResult.IsFailure)
                 {
+                    logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
+                        $"Multi-table producer '{multiProducer.GetType().Name}' failed: {multiResult.Error.Message}",
+                        new Dictionary<string, string> { ["code"] = multiResult.Error.Kind.ToString() });
                     return Result<MsiDatabaseRecipe>.Failure(multiResult.Error);
                 }
+
+                if (logProducerDebug)
+                    logger!.Debug("MsiRecipeBuilder",
+                        $"Multi-table producer '{multiProducer.GetType().Name}' produced {multiResult.Value.Length} table(s).");
 
                 multiBuilder.AddRange(multiResult.Value);
             }

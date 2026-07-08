@@ -5,6 +5,7 @@ using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.Validation;
+using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 using FalkForge.Models;
 using FalkForge.Platform;
@@ -27,6 +28,7 @@ public sealed class MsiCompiler : ICompiler
 #pragma warning restore S4487, IDE0052
 
     private readonly IReadOnlyList<IFalkForgeExtension> _extensions;
+    private readonly IFalkLogger? _logger;
 
     public MsiCompiler() : this(new WindowsFileSystem())
     {
@@ -37,15 +39,18 @@ public sealed class MsiCompiler : ICompiler
     }
 
     /// <summary>
-    /// Initialises the compiler with a custom file system and a set of extensions whose
-    /// validation rules are merged into the validation engine before table emission.
+    /// Initialises the compiler with a custom file system, a set of extensions whose
+    /// validation rules are merged into the validation engine before table emission, and
+    /// an optional structured logger. <paramref name="logger"/> defaults to <see langword="null"/>
+    /// (no-op) so every existing caller compiles and behaves unchanged.
     /// </summary>
-    public MsiCompiler(IFileSystem fileSystem, IReadOnlyList<IFalkForgeExtension> extensions)
+    public MsiCompiler(IFileSystem fileSystem, IReadOnlyList<IFalkForgeExtension> extensions, IFalkLogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(fileSystem);
         ArgumentNullException.ThrowIfNull(extensions);
         _fileSystem = fileSystem;
         _extensions = extensions;
+        _logger = logger;
     }
 
     /// <summary>
@@ -55,5 +60,5 @@ public sealed class MsiCompiler : ICompiler
     /// implementations under <c>Recipe/Producers/</c>) that replaced the legacy emitter path in Phase 9.
     /// </summary>
     public Result<string> Compile(PackageModel package, string outputPath)
-        => MsiAuthoring.Compile(package, outputPath, _extensions);
+        => MsiAuthoring.Compile(package, outputPath, _extensions, _logger);
 }
