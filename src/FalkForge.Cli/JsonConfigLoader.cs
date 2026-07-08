@@ -8,13 +8,6 @@ namespace FalkForge.Cli;
 
 public static class JsonConfigLoader
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     public static Result<PackageModel> LoadFromFile(string jsonPath)
     {
         if (!File.Exists(jsonPath))
@@ -30,7 +23,7 @@ public static class JsonConfigLoader
         InstallerConfig config;
         try
         {
-            config = JsonSerializer.Deserialize<InstallerConfig>(json, JsonOptions)
+            config = JsonSerializer.Deserialize(json, InstallerConfigJsonContext.Default.InstallerConfig)
                 ?? new InstallerConfig();
         }
         catch (JsonException ex)
@@ -174,6 +167,9 @@ public static class JsonConfigLoader
 
     private static Result<Unit> ConfigureFeature(PackageBuilder builder, FeatureConfig featureConfig, string baseDirectory)
     {
+        // featureConfig.Id is guaranteed non-null/whitespace here: the only caller (the
+        // Features loop in BuildPackageModel) already returns JSN009 before invoking this
+        // method when Id is null or whitespace.
         builder.Feature(featureConfig.Id!, fb =>
         {
             if (!string.IsNullOrWhiteSpace(featureConfig.Title))
