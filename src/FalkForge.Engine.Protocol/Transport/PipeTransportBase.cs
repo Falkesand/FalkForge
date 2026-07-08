@@ -72,7 +72,12 @@ public abstract class PipeTransportBase : IAsyncDisposable
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(frame);
+            // SECURITY: this pooled frame carried the full wire bytes, which for a
+            // SetSecurePropertyMessage include plaintext secret material. Clear on return so
+            // the secret is not left in a process-wide pooled buffer for the next Rent() —
+            // anywhere in the process — to read. Mirrors SetSecurePropertyCodec's own
+            // Return(scratch, clearArray: true) convention.
+            ArrayPool<byte>.Shared.Return(frame, clearArray: true);
         }
     }
 

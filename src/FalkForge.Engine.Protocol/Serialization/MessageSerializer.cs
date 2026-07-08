@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -55,6 +56,15 @@ public static class MessageSerializer
     private static BinaryWriter? t_writer;
 
     /// <summary>
+    /// Test-only seam: the current thread's reused serialization backing buffer, including
+    /// unused capacity (or empty if none has been allocated on this thread yet). Security
+    /// tests use it to assert that no plaintext secret survives in the reused buffer after
+    /// <see cref="Serialize"/> returns.
+    /// </summary>
+    internal static ReadOnlySpan<byte> DebugThreadBufferOrEmpty
+        => t_stream is { } s ? s.GetBuffer() : ReadOnlySpan<byte>.Empty;
+
+    /// <summary>
     /// Serializes <paramref name="message"/> by dispatching to the registered codec.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
@@ -89,10 +99,25 @@ public static class MessageSerializer
         bw.Flush();
         ms.Position = endPosition;
 
+        var writtenLength = (int)endPosition;
         var result = ms.ToArray();
+
+        // SECURITY: the reused thread-static backing buffer still holds the bytes just written,
+        // which for SetSecurePropertyMessage include plaintext secret material. Unlike the
+        // pre-reuse per-call array (which went straight to GC), this buffer survives and is
+        // handed back to the next Serialize on this thread, so the secret would linger until a
+        // later, larger message happened to overwrite it. Zero the region we wrote to restore
+        // the pre-change "no secret survives in a reused buffer" guarantee. Cost is O(message
+        // size), paid once per message — the buffer itself is still reused.
+        CryptographicOperations.ZeroMemory(ms.GetBuffer().AsSpan(0, writtenLength));
 
         if (ms.Capacity > MaxRetainedBufferCapacity)
         {
+            // Dispose before dropping the references so the oversized buffers are released
+            // deterministically rather than lingering until GC (IDISP003). Writer first
+            // (leaveOpen: true keeps the stream usable for its own Dispose), then the stream.
+            bw.Dispose();
+            ms.Dispose();
             t_stream = null;
             t_writer = null;
         }

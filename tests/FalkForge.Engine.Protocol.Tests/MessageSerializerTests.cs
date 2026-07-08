@@ -346,6 +346,61 @@ public class MessageSerializerTests
     }
 
     /// <summary>
+    /// SECURITY: SetSecurePropertyMessage embeds plaintext secret bytes in its wire body.
+    /// The perf change made Serialize reuse a per-thread backing buffer across calls, so
+    /// after copying the wire bytes out (ToArray) the plaintext secret would linger in that
+    /// reused buffer until a later, larger message overwrote it — a strictly longer residency
+    /// than the pre-change per-call array that went straight to GC. Serialize MUST zero the
+    /// region it wrote before returning, so no secret survives in the thread-static buffer.
+    /// This test proves the used region carries no trace of a known secret pattern once
+    /// Serialize returns (and still none after a subsequent smaller message).
+    /// </summary>
+    [Fact]
+    public void Serialize_SecurePropertyMessage_LeavesNoSecretPlaintextInReusedBuffer()
+    {
+        // Distinctive 16-byte marker, repeated, so an accidental collision in framing/length
+        // bytes is astronomically unlikely.
+        var secret = new byte[4096];
+        for (var i = 0; i < secret.Length; i++)
+            secret[i] = (byte)(0xA5 ^ (i & 0x0F));
+
+        using (var message = new SetSecurePropertyMessage
+        {
+            SequenceId = 77,
+            PropertyName = "DB_PASSWORD",
+            SecureValue = SensitiveBytes.FromPlaintext(secret)
+        })
+        {
+            _ = MessageSerializer.Serialize(message);
+        }
+
+        Assert.False(
+            ContainsSequence(MessageSerializer.DebugThreadBufferOrEmpty, secret.AsSpan(0, 32)),
+            "Plaintext secret lingered in the reused serialization buffer after Serialize returned.");
+
+        // A subsequent smaller message must not re-expose the earlier secret either.
+        _ = MessageSerializer.Serialize(new CancelMessage { SequenceId = 1 });
+
+        Assert.False(
+            ContainsSequence(MessageSerializer.DebugThreadBufferOrEmpty, secret.AsSpan(0, 32)),
+            "Secret plaintext reappeared in the reused buffer after a later smaller message.");
+    }
+
+    private static bool ContainsSequence(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
+    {
+        if (needle.IsEmpty || haystack.Length < needle.Length)
+            return false;
+
+        for (var i = 0; i <= haystack.Length - needle.Length; i++)
+        {
+            if (haystack.Slice(i, needle.Length).SequenceEqual(needle))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Serialize reuses a per-thread scratch buffer across calls for allocation efficiency.
     /// A large message serialized between two identical small messages must not leave any
     /// residue (stale length-prefix bytes, leftover payload tail) in the reused buffer —
