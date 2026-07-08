@@ -39,7 +39,8 @@ public sealed class ComponentResolver
                         ? file.TargetDirectory
                         : file.TargetDirectory / subDir.Replace('\\', '/');
 
-                    var componentId = GenerateComponentId(targetDir, fileName);
+                    var sanitizedFileName = SanitizeId(fileName);
+                    var componentId = GenerateComponentId(targetDir, sanitizedFileName);
                     var componentGuid = GuidUtility.CreateDeterministicGuid(
                         GuidUtility.FalkForgeNamespace,
                         $"component::{targetDir}::{fileName}");
@@ -51,7 +52,7 @@ public sealed class ComponentResolver
                         FileName = fileName,
                         FileSize = _fileSystem.GetFileSize(filePath),
                         ComponentId = componentId,
-                        FileId = GenerateFileId(fileName, componentId)
+                        FileId = GenerateFileId(sanitizedFileName, componentId)
                     };
 
                     fileEntries.Add(resolvedFile);
@@ -73,7 +74,8 @@ public sealed class ComponentResolver
             else if (file.FileName != "*")
             {
                 var fullPath = _fileSystem.GetFullPath(file.SourcePath);
-                var componentId = GenerateComponentId(file.TargetDirectory, file.FileName);
+                var sanitizedFileName = SanitizeId(file.FileName);
+                var componentId = GenerateComponentId(file.TargetDirectory, sanitizedFileName);
                 var componentGuid = file.ComponentGuid ?? GuidUtility.CreateDeterministicGuid(
                     GuidUtility.FalkForgeNamespace,
                     $"component::{file.TargetDirectory}::{file.FileName}");
@@ -85,7 +87,7 @@ public sealed class ComponentResolver
                     FileName = file.FileName,
                     FileSize = _fileSystem.FileExists(fullPath) ? _fileSystem.GetFileSize(fullPath) : 0,
                     ComponentId = componentId,
-                    FileId = GenerateFileId(file.FileName, componentId)
+                    FileId = GenerateFileId(sanitizedFileName, componentId)
                 };
 
                 fileEntries.Add(resolvedFile);
@@ -112,15 +114,15 @@ public sealed class ComponentResolver
         };
     }
 
-    private static string GenerateComponentId(InstallPath directory, string fileName)
+    private static string GenerateComponentId(InstallPath directory, string sanitizedFileName)
     {
-        var raw = $"C_{SanitizeId(fileName)}_{StableHash(directory.ToString())}";
+        var raw = $"C_{sanitizedFileName}_{StableHash(directory.ToString())}";
         return raw.Length > 72 ? raw[..72] : raw;
     }
 
-    private static string GenerateFileId(string fileName, string componentId)
+    private static string GenerateFileId(string sanitizedFileName, string componentId)
     {
-        var raw = $"F_{SanitizeId(fileName)}_{StableHash(componentId)}";
+        var raw = $"F_{sanitizedFileName}_{StableHash(componentId)}";
         return raw.Length > 72 ? raw[..72] : raw;
     }
 
@@ -135,6 +137,22 @@ public sealed class ComponentResolver
 
     private static string SanitizeId(string name)
     {
+        // Avoid allocation for the common case where no replacement is needed.
+        var needsReplacement = false;
+        foreach (var c in name)
+        {
+            if (!(char.IsLetterOrDigit(c) || c == '_' || c == '.'))
+            {
+                needsReplacement = true;
+                break;
+            }
+        }
+
+        if (!needsReplacement)
+        {
+            return name;
+        }
+
         var sanitized = new char[name.Length];
         for (var i = 0; i < name.Length; i++)
         {
