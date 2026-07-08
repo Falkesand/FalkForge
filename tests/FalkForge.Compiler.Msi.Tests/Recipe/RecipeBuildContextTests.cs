@@ -102,6 +102,61 @@ public sealed class RecipeBuildContextTests
             MakeResolvedPackage(), new MsiRecipeBuildOptions(), new NoOpFileSequencer(), null!));
     }
 
+    [Fact]
+    public void GetOrComputeDirectoryId_MatchesDirectSynthesizerCall()
+    {
+        RecipeBuildContext context = MakeContext();
+        InstallPath path = KnownFolder.ProgramFiles / "Contoso" / "App";
+        InstallPath installDir = KnownFolder.ProgramFiles / "Contoso" / "App";
+
+        string expected = DirectoryTreeSynthesizer.ComputeDirectoryId(path, installDir);
+        string actual = context.GetOrComputeDirectoryId(path, installDir);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_SharedDirectory_ReturnsCachedInstance()
+    {
+        RecipeBuildContext context = MakeContext();
+        InstallPath installDir = KnownFolder.ProgramFiles / "Contoso" / "App";
+        // Two distinct InstallPath instances with the same root token and relative
+        // path — this is exactly what happens when multiple files/components in the
+        // same shared directory each build their own InstallPath value.
+        InstallPath first = KnownFolder.ProgramFiles / "Contoso" / "App";
+        InstallPath second = KnownFolder.ProgramFiles / "Contoso" / "App";
+
+        string firstId = context.GetOrComputeDirectoryId(first, installDir);
+        string secondId = context.GetOrComputeDirectoryId(second, installDir);
+
+        Assert.Equal(firstId, secondId);
+        // Reference-equal proves the second call hit the cache instead of
+        // re-walking the ancestor chain and re-hashing every segment.
+        Assert.Same(firstId, secondId);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_DifferentPaths_ReturnDifferentIds()
+    {
+        RecipeBuildContext context = MakeContext();
+        InstallPath installDir = KnownFolder.ProgramFiles / "Contoso" / "App";
+        InstallPath pathA = KnownFolder.ProgramFiles / "Contoso" / "App" / "bin";
+        InstallPath pathB = KnownFolder.ProgramFiles / "Contoso" / "App" / "lib";
+
+        string idA = context.GetOrComputeDirectoryId(pathA, installDir);
+        string idB = context.GetOrComputeDirectoryId(pathB, installDir);
+
+        Assert.NotEqual(idA, idB);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_ThrowsOnNullPath()
+    {
+        RecipeBuildContext context = MakeContext();
+
+        Assert.Throws<ArgumentNullException>(() => context.GetOrComputeDirectoryId(null!, installDir: null));
+    }
+
     private static RecipeBuildContext MakeContext()
     {
         return new RecipeBuildContext(
