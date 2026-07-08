@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -16,6 +17,12 @@ public sealed class DeltaBundleCompiler
 {
     private readonly ManifestGenerator _manifestGenerator = new();
     private readonly BundleValidator _validator = new();
+
+    /// <summary>
+    /// Copy-buffer size for streaming compressed payloads from their per-payload temp file into
+    /// the output bundle. Matches <c>BundleReader</c>'s streaming copy buffer size.
+    /// </summary>
+    private const int CopyBufferSize = 64 * 1024;
 
     public string? EngineStubPath { get; set; }
 
@@ -36,28 +43,15 @@ public sealed class DeltaBundleCompiler
 
         var manifest = manifestResult.Value;
 
-        // Step 3: Extract old bundle payloads
+        // Step 3: Read old bundle TOC (metadata only — no payload bytes are decompressed here).
         var oldContentResult = BundleReader.Extract(oldBundlePath);
         if (oldContentResult.IsFailure)
             return Result<string>.Failure(oldContentResult.Error);
 
         var oldContent = oldContentResult.Value;
-        var oldPayloads = new Dictionary<string, (TocEntry Entry, byte[] Data)>(StringComparer.OrdinalIgnoreCase);
-
+        var oldEntries = new Dictionary<string, TocEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in oldContent.TocEntries)
-        {
-            // If extraction fails for an old payload (e.g. a corrupted/tampered old bundle on
-            // disk), the entry is deliberately left out of oldPayloads rather than aborting the
-            // whole delta compile. Step 5 below does a TryGetValue lookup against this
-            // dictionary and silently falls back to a full embed for that package only — every
-            // other unaffected package still gets its delta. This compiler layer has no logging
-            // infrastructure to raise a warning through, so this comment is the signal; behaviour
-            // is covered by
-            // DeltaBundleCompilerTests.Compile_OldPayloadCorrupted_FallsBackToFullEmbedForAffectedPackageOnly.
-            var payloadResult = BundleReader.ExtractPayload(oldBundlePath, entry);
-            if (payloadResult.IsSuccess)
-                oldPayloads[entry.PackageId] = (entry, payloadResult.Value);
-        }
+            oldEntries[entry.PackageId] = entry;
 
         // Compute old bundle SHA-256 for manifest
         string oldBundleSha256;
@@ -112,96 +106,143 @@ public sealed class DeltaBundleCompiler
             });
         }
 
-        // Step 5: Create deltas in parallel for packages that exist in old bundle
         var orderedPayloads = payloads
             .OrderBy(p => p.ContainerId ?? string.Empty)
             .ToList();
 
-        var deltaEntries = new ConcurrentDictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        var firstError = new ConcurrentBag<Error>();
+        // Scratch directory for lazily-extracted old payloads, per-payload delta files, and
+        // per-payload compressed staging files. Nothing here is held resident in memory across
+        // payloads — every stage streams through a bounded buffer. Cleaned up in `finally`
+        // regardless of outcome.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"falkdelta_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
 
-        Parallel.ForEach(orderedPayloads,
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
-            payload =>
-            {
-                if (!firstError.IsEmpty) return;
+        try
+        {
+            // Step 5: Create deltas in parallel for packages that exist in the old bundle. The old
+            // payload is only decompressed (to a temp file, streamed — never a byte[]) when a
+            // matching new payload actually attempts a delta against it; packages that need no
+            // delta never touch their old payload bytes at all.
+            var deltaEntries = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var firstError = new ConcurrentBag<Error>();
 
-                if (oldPayloads.TryGetValue(payload.PackageId, out var old))
+            Parallel.ForEach(orderedPayloads,
+                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+                payload =>
                 {
-                    var newData = File.ReadAllBytes(payload.SourcePath);
-                    var deltaResult = DeltaCompressor.CreateDelta(old.Data, newData);
-                    if (deltaResult.IsFailure)
+                    if (!firstError.IsEmpty) return;
+                    if (!oldEntries.TryGetValue(payload.PackageId, out var oldEntry)) return;
+
+                    var oldTempName = $"old_{Guid.NewGuid():N}.tmp";
+                    var extractResult = BundleReader.ExtractPayloadToFile(oldBundlePath, oldEntry, tempDir, oldTempName);
+                    if (extractResult.IsFailure)
                     {
-                        firstError.Add(deltaResult.Error);
+                        // If extraction fails for an old payload (e.g. a corrupted/tampered old
+                        // bundle on disk), this package is deliberately left out of deltaEntries
+                        // rather than aborting the whole delta compile. Step 9 below falls back to
+                        // a full embed for that package only — every other unaffected package
+                        // still gets its delta. This compiler layer has no logging infrastructure
+                        // to raise a warning through, so this comment is the signal; behaviour is
+                        // covered by
+                        // DeltaBundleCompilerTests.Compile_OldPayloadCorrupted_FallsBackToFullEmbedForAffectedPackageOnly.
                         return;
                     }
 
-                    // Only use delta if it's actually smaller than the new file
-                    if (deltaResult.Value.Length < newData.Length)
+                    var oldPayloadPath = extractResult.Value;
+                    try
                     {
-                        deltaEntries[payload.PackageId] = deltaResult.Value;
+                        var deltaTempPath = Path.Combine(tempDir, $"delta_{Guid.NewGuid():N}.tmp");
+                        long deltaLength;
+                        using (var basisStream = File.OpenRead(oldPayloadPath))
+                        using (var newStream = File.OpenRead(payload.SourcePath))
+                        using (var deltaOutputStream = new FileStream(deltaTempPath, FileMode.Create, FileAccess.Write))
+                        {
+                            var deltaResult = DeltaCompressor.CreateDelta(basisStream, newStream, deltaOutputStream);
+                            if (deltaResult.IsFailure)
+                            {
+                                firstError.Add(deltaResult.Error);
+                                return;
+                            }
+
+                            deltaLength = deltaOutputStream.Length;
+                        }
+
+                        // Only use the delta if it's actually smaller than the new file.
+                        if (deltaLength < payload.OriginalSize)
+                            deltaEntries[payload.PackageId] = deltaTempPath;
+                        else
+                            TryDeleteFile(deltaTempPath);
                     }
-                }
-            });
+                    finally
+                    {
+                        TryDeleteFile(oldPayloadPath);
+                    }
+                });
 
-        if (!firstError.IsEmpty)
-            return Result<string>.Failure(firstError.First());
+            if (!firstError.IsEmpty)
+                return Result<string>.Failure(firstError.First());
 
-        // Step 6: Enrich manifest with delta metadata
-        manifest = new InstallerManifest
+            // Step 6: Enrich manifest with delta metadata
+            manifest = new InstallerManifest
+            {
+                Name = manifest.Name,
+                Manufacturer = manifest.Manufacturer,
+                Version = manifest.Version,
+                BundleId = manifest.BundleId,
+                UpgradeCode = manifest.UpgradeCode,
+                Packages = manifest.Packages,
+                RelatedBundles = manifest.RelatedBundles,
+                Chain = manifest.Chain,
+                Variables = manifest.Variables,
+                Features = manifest.Features,
+                DependencyProviders = manifest.DependencyProviders,
+                DependencyConsumers = manifest.DependencyConsumers,
+                DependencyRequirements = manifest.DependencyRequirements,
+                UiType = manifest.UiType,
+                CustomUiProjectPath = manifest.CustomUiProjectPath,
+                LicenseFile = manifest.LicenseFile,
+                UpdateFeed = manifest.UpdateFeed,
+                Scope = manifest.Scope,
+                MaxBytesPerSecond = manifest.MaxBytesPerSecond,
+                IsDryRun = manifest.IsDryRun,
+                DryRunActions = manifest.DryRunActions,
+                UnsupportedExtensions = manifest.UnsupportedExtensions,
+                ManifestSignature = manifest.ManifestSignature,
+                SbomAttestation = manifest.SbomAttestation,
+                IsDeltaUpdate = true,
+                BaseVersion = oldVersion,
+                BaseBundleSha256 = oldBundleSha256
+            };
+
+            // Step 7: Integrity signing (opportunistic)
+            var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, orderedPayloads);
+            if (integrityResult.IsFailure)
+                return Result<string>.Failure(integrityResult.Error);
+
+            manifest = integrityResult.Value;
+
+            // Step 8: Create stub
+            var stubPath = CreateStub(outputPath);
+
+            // Step 9: Embed payloads (delta or full)
+            var outputFilePath = Path.Combine(outputPath, $"{model.Name}.exe");
+            var embedResult = EmbedWithDeltas(
+                stubPath, outputFilePath, manifest, orderedPayloads, deltaEntries, oldEntries, tempDir);
+
+            // Clean up stub
+            try { File.Delete(stubPath); }
+            catch (IOException) { /* best effort cleanup */ }
+
+            if (embedResult.IsFailure)
+                return Result<string>.Failure(embedResult.Error);
+
+            return outputFilePath;
+        }
+        finally
         {
-            Name = manifest.Name,
-            Manufacturer = manifest.Manufacturer,
-            Version = manifest.Version,
-            BundleId = manifest.BundleId,
-            UpgradeCode = manifest.UpgradeCode,
-            Packages = manifest.Packages,
-            RelatedBundles = manifest.RelatedBundles,
-            Chain = manifest.Chain,
-            Variables = manifest.Variables,
-            Features = manifest.Features,
-            DependencyProviders = manifest.DependencyProviders,
-            DependencyConsumers = manifest.DependencyConsumers,
-            DependencyRequirements = manifest.DependencyRequirements,
-            UiType = manifest.UiType,
-            CustomUiProjectPath = manifest.CustomUiProjectPath,
-            LicenseFile = manifest.LicenseFile,
-            UpdateFeed = manifest.UpdateFeed,
-            Scope = manifest.Scope,
-            MaxBytesPerSecond = manifest.MaxBytesPerSecond,
-            IsDryRun = manifest.IsDryRun,
-            DryRunActions = manifest.DryRunActions,
-            UnsupportedExtensions = manifest.UnsupportedExtensions,
-            ManifestSignature = manifest.ManifestSignature,
-            SbomAttestation = manifest.SbomAttestation,
-            IsDeltaUpdate = true,
-            BaseVersion = oldVersion,
-            BaseBundleSha256 = oldBundleSha256
-        };
-
-        // Step 7: Integrity signing (opportunistic)
-        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, orderedPayloads);
-        if (integrityResult.IsFailure)
-            return Result<string>.Failure(integrityResult.Error);
-
-        manifest = integrityResult.Value;
-
-        // Step 8: Create stub
-        var stubPath = CreateStub(outputPath);
-
-        // Step 9: Embed payloads (delta or full)
-        var outputFilePath = Path.Combine(outputPath, $"{model.Name}.exe");
-        var embedResult = EmbedWithDeltas(
-            stubPath, outputFilePath, manifest, orderedPayloads, deltaEntries, oldPayloads);
-
-        // Clean up stub
-        try { File.Delete(stubPath); }
-        catch (IOException) { /* best effort cleanup */ }
-
-        if (embedResult.IsFailure)
-            return Result<string>.Failure(embedResult.Error);
-
-        return outputFilePath;
+            try { Directory.Delete(tempDir, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort cleanup */ }
+        }
     }
 
     private static Result<Unit> EmbedWithDeltas(
@@ -209,9 +250,11 @@ public sealed class DeltaBundleCompiler
         string outputPath,
         InstallerManifest manifest,
         IReadOnlyList<PayloadEntry> payloads,
-        ConcurrentDictionary<string, byte[]> deltaEntries,
-        Dictionary<string, (TocEntry Entry, byte[] Data)> oldPayloads)
+        IReadOnlyDictionary<string, string> deltaEntries,
+        IReadOnlyDictionary<string, TocEntry> oldEntries,
+        string tempDir)
     {
+        var compressedTempPaths = new string?[payloads.Count];
         try
         {
             File.Copy(stubPath, outputPath, true);
@@ -228,13 +271,17 @@ public sealed class DeltaBundleCompiler
             writer.Write(manifestJson.Length);
             writer.Write(manifestJson);
 
-            // Pre-compress payloads in parallel
+            // Compress payloads in parallel, each straight to its own temp file as soon as its
+            // compression completes. Peak memory here is bounded by the degree of parallelism (one
+            // in-flight compressed buffer per worker), never the sum of every payload's compressed
+            // size — the sequential write pass below streams each temp file into the output and
+            // discards it immediately.
             var compressor = new GzipCompressor();
-            var compressedData = new byte[payloads.Count][];
             var isDelta = new bool[payloads.Count];
             var baseSha256Hashes = new string?[payloads.Count];
             var reconstructedSha256Hashes = new string?[payloads.Count];
             var deltaSha256Hashes = new string?[payloads.Count];
+            var compressedSizes = new int[payloads.Count];
             var firstError = new ConcurrentBag<Error>();
 
             Parallel.For(0, payloads.Count,
@@ -244,59 +291,83 @@ public sealed class DeltaBundleCompiler
                     if (!firstError.IsEmpty) return;
                     var payload = payloads[i];
 
-                    if (deltaEntries.TryGetValue(payload.PackageId, out var deltaBytes))
+                    Result<byte[]> result;
+                    if (deltaEntries.TryGetValue(payload.PackageId, out var deltaTempPath))
                     {
-                        // Compress the delta data
-                        var result = compressor.Compress(deltaBytes);
+                        // Compress the delta data (already a temp file — never a byte[] held for
+                        // the delta's lifetime)
+                        result = compressor.CompressFile(deltaTempPath);
                         if (result.IsFailure)
                         {
                             firstError.Add(result.Error);
                             return;
                         }
 
-                        compressedData[i] = result.Value;
                         isDelta[i] = true;
-                        baseSha256Hashes[i] = oldPayloads[payload.PackageId].Entry.Sha256Hash;
+                        baseSha256Hashes[i] = oldEntries[payload.PackageId].Sha256Hash;
                         reconstructedSha256Hashes[i] = payload.Sha256Hash;
-                        // Sha256Hash for delta entries is the hash of the delta data itself
-                        deltaSha256Hashes[i] = Convert.ToHexString(SHA256.HashData(deltaBytes));
+                        // Sha256Hash for delta entries is the hash of the delta data itself.
+                        using var deltaFileStream = File.OpenRead(deltaTempPath);
+                        deltaSha256Hashes[i] = Convert.ToHexString(SHA256.HashData(deltaFileStream));
                     }
                     else
                     {
                         // Full payload — compress from source file
-                        var result = compressor.CompressFile(payload.SourcePath);
+                        result = compressor.CompressFile(payload.SourcePath);
                         if (result.IsFailure)
+                        {
                             firstError.Add(result.Error);
-                        else
-                            compressedData[i] = result.Value;
+                            return;
+                        }
                     }
+
+                    var compressedTempPath = Path.Combine(tempDir, $"compressed_{i}_{Guid.NewGuid():N}.tmp");
+                    File.WriteAllBytes(compressedTempPath, result.Value);
+                    compressedTempPaths[i] = compressedTempPath;
+                    compressedSizes[i] = result.Value.Length;
                 });
 
             if (!firstError.IsEmpty)
                 return Result<Unit>.Failure(firstError.First());
 
-            // Write compressed payloads sequentially and track offsets
+            // Write compressed payloads sequentially and track offsets. Each per-payload
+            // compressed temp file is streamed through a pooled buffer and deleted immediately
+            // after — only one payload's compressed bytes pass through memory at a time.
             var tocEntries = new List<TocEntry>();
-            for (var i = 0; i < payloads.Count; i++)
+            var copyBuffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+            try
             {
-                var payload = payloads[i];
-                var compressed = compressedData[i];
-                var offset = stream.Position;
-                writer.Write(compressed);
-
-                tocEntries.Add(new TocEntry
+                for (var i = 0; i < payloads.Count; i++)
                 {
-                    PackageId = payload.PackageId,
-                    Offset = offset,
-                    CompressedSize = compressed.Length,
-                    OriginalSize = (int)payload.OriginalSize,
-                    // For delta entries, Sha256Hash is the hash of the delta data (what BundleReader verifies),
-                    // ReconstructedSha256Hash is the hash of the final file after applying the delta.
-                    Sha256Hash = isDelta[i] ? deltaSha256Hashes[i]! : payload.Sha256Hash,
-                    IsDelta = isDelta[i],
-                    BaseSha256Hash = baseSha256Hashes[i],
-                    ReconstructedSha256Hash = reconstructedSha256Hashes[i]
-                });
+                    var payload = payloads[i];
+                    var compressedTempPath = compressedTempPaths[i]!;
+                    var offset = stream.Position;
+
+                    using (var compressedStream = File.OpenRead(compressedTempPath))
+                    {
+                        int read;
+                        while ((read = compressedStream.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
+                            stream.Write(copyBuffer, 0, read);
+                    }
+
+                    tocEntries.Add(new TocEntry
+                    {
+                        PackageId = payload.PackageId,
+                        Offset = offset,
+                        CompressedSize = compressedSizes[i],
+                        OriginalSize = (int)payload.OriginalSize,
+                        // For delta entries, Sha256Hash is the hash of the delta data (what BundleReader verifies),
+                        // ReconstructedSha256Hash is the hash of the final file after applying the delta.
+                        Sha256Hash = isDelta[i] ? deltaSha256Hashes[i]! : payload.Sha256Hash,
+                        IsDelta = isDelta[i],
+                        BaseSha256Hash = baseSha256Hashes[i],
+                        ReconstructedSha256Hash = reconstructedSha256Hashes[i]
+                    });
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(copyBuffer);
             }
 
             // Write TOC
@@ -329,6 +400,20 @@ public sealed class DeltaBundleCompiler
         {
             return Result<Unit>.Failure(ErrorKind.PayloadError, $"Failed to embed delta payloads: {ex.Message}");
         }
+        finally
+        {
+            foreach (var path in compressedTempPaths)
+            {
+                if (path is not null)
+                    TryDeleteFile(path);
+            }
+        }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try { File.Delete(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort cleanup */ }
     }
 
     private string CreateStub(string outputDir)

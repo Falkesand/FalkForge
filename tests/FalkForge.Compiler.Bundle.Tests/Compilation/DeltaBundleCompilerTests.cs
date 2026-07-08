@@ -2,6 +2,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Compiler.Bundle.Compilation;
+using FalkForge.Compiler.Bundle.Compression;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
@@ -122,6 +123,91 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         Assert.Single(entries);
         // New package not in old bundle should be full (not delta)
         Assert.False(entries[0].IsDelta, "New package not in old bundle should not be delta");
+    }
+
+    /// <summary>
+    /// Regression test for the A3 streaming refactor: with more than one delta-eligible payload,
+    /// the parallel per-payload old-payload extraction, delta creation, and compression staging
+    /// (each now via per-payload temp files rather than in-memory arrays held for the whole
+    /// batch) must still produce a correct, independent delta per package — and each delta must
+    /// still reconstruct its own new payload byte-exact via BundleReader + DeltaCompressor.
+    /// </summary>
+    [Fact]
+    public void Compile_MultiplePayloads_EachReconstructsByteExactIndependently()
+    {
+        var rng = new Random(7);
+        var oldDataA = new byte[50_000];
+        rng.NextBytes(oldDataA);
+        var oldDataB = new byte[60_000];
+        rng.NextBytes(oldDataB);
+
+        var oldPathA = CreatePayloadFile(oldDataA, "old_a.bin");
+        var oldPathB = CreatePayloadFile(oldDataB, "old_b.bin");
+        var oldModel = CreateModel("old_multi", [("PkgA", oldPathA), ("PkgB", oldPathB)]);
+        var oldBundlePath = CreateFullBundleFromModel(oldModel, "old_multi_bundle");
+
+        // PkgA: small delta-eligible change. PkgB: also a small change. Both should delta.
+        var newDataA = (byte[])oldDataA.Clone();
+        for (var i = 0; i < 50; i++)
+            newDataA[rng.Next(newDataA.Length)] ^= 0xFF;
+        var newDataB = (byte[])oldDataB.Clone();
+        for (var i = 0; i < 50; i++)
+            newDataB[rng.Next(newDataB.Length)] ^= 0xFF;
+
+        var newPathA = CreatePayloadFile(newDataA, "new_a.bin");
+        var newPathB = CreatePayloadFile(newDataB, "new_b.bin");
+        var model = CreateModel("MultiDelta", [("PkgA", newPathA), ("PkgB", newPathB)]);
+        var outputDir = Path.Combine(_tempDir, "multi_delta_output");
+
+        var deltaCompiler = new DeltaBundleCompiler();
+        var result = deltaCompiler.Compile(model, outputDir, oldBundlePath);
+        Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var extractResult = BundleReader.Extract(result.Value);
+        Assert.True(extractResult.IsSuccess, extractResult.IsFailure ? extractResult.Error.Message : "");
+        var entries = extractResult.Value.TocEntries.ToDictionary(e => e.PackageId);
+
+        Assert.Equal(2, entries.Count);
+        Assert.True(entries["PkgA"].IsDelta);
+        Assert.True(entries["PkgB"].IsDelta);
+
+        // Reconstruct each delta against its own old-bundle basis and prove it matches its OWN new
+        // data byte-exact — proves the per-payload temp-file staging never cross-wires payloads
+        // (e.g. writes PkgA's delta/compressed bytes into PkgB's slot) under parallelism.
+        AssertDeltaReconstructsTo(oldBundlePath, result.Value, entries["PkgA"], oldDataA, newDataA);
+        AssertDeltaReconstructsTo(oldBundlePath, result.Value, entries["PkgB"], oldDataB, newDataB);
+    }
+
+    /// <summary>
+    /// Extracts a delta TOC entry's raw delta bytes from <paramref name="deltaBundlePath"/> and the
+    /// matching old payload from <paramref name="oldBundlePath"/>, applies the delta, and asserts
+    /// the reconstructed bytes equal <paramref name="expectedNewData"/> and its hash matches
+    /// <see cref="TocEntry.ReconstructedSha256Hash"/>.
+    /// </summary>
+    private static void AssertDeltaReconstructsTo(
+        string oldBundlePath, string deltaBundlePath, TocEntry entry, byte[] oldData, byte[] expectedNewData)
+    {
+        var oldExtract = BundleReader.Extract(oldBundlePath);
+        Assert.True(oldExtract.IsSuccess, oldExtract.IsFailure ? oldExtract.Error.Message : "");
+        var oldEntry = oldExtract.Value.TocEntries.Single(e => e.PackageId == entry.PackageId);
+
+        var oldPayload = BundleReader.ExtractPayload(oldBundlePath, oldEntry);
+        Assert.True(oldPayload.IsSuccess, oldPayload.IsFailure ? oldPayload.Error.Message : "");
+        Assert.Equal(oldData, oldPayload.Value);
+
+        var deltaPayload = BundleReader.ExtractPayload(deltaBundlePath, entry);
+        Assert.True(deltaPayload.IsSuccess, deltaPayload.IsFailure ? deltaPayload.Error.Message : "");
+
+        using var basisStream = new MemoryStream(oldPayload.Value);
+        using var deltaStream = new MemoryStream(deltaPayload.Value);
+        using var outputStream = new MemoryStream();
+        var applyResult = DeltaCompressor.ApplyDelta(basisStream, deltaStream, outputStream);
+        Assert.True(applyResult.IsSuccess, applyResult.IsFailure ? applyResult.Error.Message : "");
+
+        var reconstructed = outputStream.ToArray();
+        Assert.Equal(expectedNewData, reconstructed);
+        Assert.Equal(entry.ReconstructedSha256Hash, Convert.ToHexString(SHA256.HashData(reconstructed)),
+            ignoreCase: true);
     }
 
     [Fact]
