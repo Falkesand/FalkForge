@@ -348,7 +348,8 @@ public static class MsiAuthoring
         // Step 11: WinGet manifest (opt-in via PackageBuilder.WinGet()).
         if (package.WinGet is not null)
         {
-            string sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath)));
+            using FileStream msiStream = File.OpenRead(msiPath);
+            string sha256 = Convert.ToHexString(SHA256.HashData(msiStream));
             Result<string> wingetResult = WinGetManifestWriter.Write(
                 package,
                 package.WinGet,

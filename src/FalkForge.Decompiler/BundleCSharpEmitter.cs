@@ -31,7 +31,7 @@ internal static class BundleCSharpEmitter
                 return;
             }
 
-            sb.Append(new string(' ', indent * 4));
+            sb.Append(' ', indent * 4);
             sb.AppendLine(line);
         }
 

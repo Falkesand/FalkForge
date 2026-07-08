@@ -53,19 +53,19 @@ public sealed class ParallelCabinetBuilder
         Error? firstError = null;
         var errorLock = new object();
 
-        // Build a mapping from work item to index to preserve order
-        var indexedItems = workItems.Select((item, index) => (item, index)).ToList();
-
         try
         {
-            await Parallel.ForEachAsync(
-                indexedItems,
+            // Iterate indices directly to preserve order without allocating an
+            // indexed projection list; the loop index maps 1:1 to workItems.
+            await Parallel.ForAsync(
+                0,
+                workItems.Count,
                 new ParallelOptions
                 {
                     MaxDegreeOfParallelism = maxDegreeOfParallelism,
                     CancellationToken = cancellationToken
                 },
-                (entry, ct) =>
+                (index, ct) =>
                 {
                     // Short-circuit if a previous item already failed
                     lock (errorLock)
@@ -74,7 +74,7 @@ public sealed class ParallelCabinetBuilder
                             return ValueTask.CompletedTask;
                     }
 
-                    var buildResult = _buildFunc(entry.item, ct);
+                    var buildResult = _buildFunc(workItems[index], ct);
                     if (buildResult.IsFailure)
                     {
                         lock (errorLock)
@@ -85,7 +85,7 @@ public sealed class ParallelCabinetBuilder
                         return ValueTask.CompletedTask;
                     }
 
-                    results[entry.index] = buildResult.Value;
+                    results[index] = buildResult.Value;
                     return ValueTask.CompletedTask;
                 }).ConfigureAwait(false);
         }

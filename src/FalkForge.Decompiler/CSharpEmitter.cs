@@ -385,7 +385,7 @@ public sealed class CSharpEmitter
             return;
         }
 
-        _sb.Append(new string(' ', _indent * 4));
+        _sb.Append(' ', _indent * 4);
         _sb.AppendLine(line);
     }
 
