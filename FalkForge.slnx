@@ -47,6 +47,7 @@
     <Project Path="tests/FalkForge.Extensions.Http.Tests/FalkForge.Extensions.Http.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Iis.Tests/FalkForge.Extensions.Iis.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Sql.Tests/FalkForge.Extensions.Sql.Tests.csproj" />
+    <Project Path="tests/FalkForge.Plugins.FileSystem.Tests/FalkForge.Plugins.FileSystem.Tests.csproj" />
     <Project Path="tests/FalkForge.Plugins.Odbc.Tests/FalkForge.Plugins.Odbc.Tests.csproj" />
     <Project Path="tests/FalkForge.Plugins.Sql.Tests/FalkForge.Plugins.Sql.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensions.Util.Tests/FalkForge.Extensions.Util.Tests.csproj" />

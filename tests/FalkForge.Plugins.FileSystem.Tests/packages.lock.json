@@ -205,7 +205,7 @@
           "FalkForge.Platform": "[1.0.0, )"
         }
       },
-      "falkforge.plugins.odbc": {
+      "falkforge.plugins.filesystem": {
         "type": "Project",
         "dependencies": {
           "FalkForge.Core": "[1.0.0, )"

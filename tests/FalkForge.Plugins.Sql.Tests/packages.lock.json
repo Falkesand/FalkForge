@@ -308,14 +308,71 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "falkforge.compiler.msi": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Extensibility": "[1.0.0, )",
+          "FalkForge.Localization": "[1.0.0, )",
+          "FalkForge.Platform": "[1.0.0, )",
+          "FalkForge.Platform.Windows": "[1.0.0, )"
+        }
+      },
       "falkforge.core": {
         "type": "Project"
+      },
+      "falkforge.engine": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Compiler.Msi": "[1.0.0, )",
+          "FalkForge.Engine.Protocol": "[1.0.0, )",
+          "FalkForge.Platform.Windows": "[1.0.0, )",
+          "Octopus.Octodiff": "[2.0.549, )"
+        }
+      },
+      "falkforge.engine.protocol": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.extensibility": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.localization": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.platform": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
+      "falkforge.platform.windows": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Platform": "[1.0.0, )"
+        }
       },
       "falkforge.plugins.sql": {
         "type": "Project",
         "dependencies": {
           "FalkForge.Core": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[7.0.2, )"
+        }
+      },
+      "falkforge.testing": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )",
+          "FalkForge.Engine": "[1.0.0, )",
+          "FalkForge.Platform": "[1.0.0, )"
         }
       },
       "Microsoft.Data.SqlClient": {
@@ -335,6 +392,12 @@
           "System.Configuration.ConfigurationManager": "9.0.13",
           "System.Security.Cryptography.Pkcs": "9.0.13"
         }
+      },
+      "Octopus.Octodiff": {
+        "type": "CentralTransitive",
+        "requested": "[2.0.549, )",
+        "resolved": "2.0.549",
+        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
       }
     }
   }

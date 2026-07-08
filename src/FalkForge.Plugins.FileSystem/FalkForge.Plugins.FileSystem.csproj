@@ -10,4 +10,7 @@
     <ItemGroup>
         <ProjectReference Include="../FalkForge.Core/FalkForge.Core.csproj"/>
     </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="FalkForge.Plugins.FileSystem.Tests"/>
+    </ItemGroup>
 </Project>
