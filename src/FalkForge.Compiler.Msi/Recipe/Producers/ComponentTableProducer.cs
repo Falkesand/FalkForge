@@ -74,7 +74,7 @@ internal sealed class ComponentTableProducer : ITableProducer
             // because DirectoryTableProducer emits intermediate D_* and the
             // canonical INSTALLDIR rows; the FK must point at the leaf row,
             // not at the root.
-            string directoryId = DirectoryTreeSynthesizer.ComputeDirectoryId(
+            string directoryId = context.GetOrComputeDirectoryId(
                 component.Directory,
                 installDir);
             // Component.Condition is nullable in MSI but the legacy TableEmitter (deleted in Phase 9)

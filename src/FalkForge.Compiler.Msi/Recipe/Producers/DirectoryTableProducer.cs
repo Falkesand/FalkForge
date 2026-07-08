@@ -47,7 +47,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         // the emitted-set rather than re-emitting under generated D_* ids.
         if (installDir is not null)
         {
-            EnsureInstallPathRows(rows, emitted, directoryTable, installDir, installDir);
+            EnsureInstallPathRows(context, rows, emitted, directoryTable, installDir, installDir);
         }
 
         // Step 3: every component's directory; covers paths outside the install
@@ -55,7 +55,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         // beneath the install dir leaf.
         foreach (ResolvedComponent component in context.Resolved.Components)
         {
-            EnsureInstallPathRows(rows, emitted, directoryTable, component.Directory, installDir);
+            EnsureInstallPathRows(context, rows, emitted, directoryTable, component.Directory, installDir);
         }
 
         // Step 4: files may target directories that no resolved component
@@ -64,7 +64,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         // validator never sees an unresolved Directory_ reference.
         foreach (ResolvedFile file in context.Resolved.Files)
         {
-            EnsureInstallPathRows(rows, emitted, directoryTable, file.TargetDirectory, installDir);
+            EnsureInstallPathRows(context, rows, emitted, directoryTable, file.TargetDirectory, installDir);
         }
 
         // Step 5: shortcut system directories. Shortcuts may reference special
@@ -144,6 +144,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
     }
 
     private static void EnsureInstallPathRows(
+        RecipeBuildContext context,
         ImmutableArray<RecipeRow>.Builder rows,
         HashSet<string> emitted,
         TableId directoryTable,
@@ -171,7 +172,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         for (int i = 0; i < segments.Count; i++)
         {
             InstallPath prefix = DirectoryTreeSynthesizer.BuildPrefixPath(path, i + 1);
-            string segDirId = DirectoryTreeSynthesizer.ComputeDirectoryId(prefix, installDir);
+            string segDirId = context.GetOrComputeDirectoryId(prefix, installDir);
 
             if (emitted.Add(segDirId))
             {

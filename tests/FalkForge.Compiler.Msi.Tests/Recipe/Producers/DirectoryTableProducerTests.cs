@@ -126,6 +126,38 @@ public sealed class DirectoryTableProducerTests
         }
     }
 
+    [Fact]
+    public void Emitted_directory_ids_match_direct_synthesizer_for_every_prefix()
+    {
+        // The producer now resolves each segment id through the RecipeBuildContext
+        // memo cache instead of calling DirectoryTreeSynthesizer.ComputeDirectoryId
+        // directly. The cache must return byte-identical ids to the direct call --
+        // a divergence here would change Directory table primary keys in the emitted
+        // MSI and break every golden/round-trip test. This asserts the emitted row
+        // for each path prefix equals the direct (uncached) synthesizer id.
+        InstallPath installDir = KnownFolder.ProgramFiles / "Contoso" / "App";
+        InstallPath deepDir = installDir / "bin" / "tools";
+        ResolvedComponent component = MakeComponent("C1", deepDir);
+        ResolvedPackage resolved = MakeResolved(installDir, components: new[] { component });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        HashSet<string> emittedIds = new();
+        foreach (RecipeRow row in rows)
+        {
+            emittedIds.Add(((CellValue.StringValue)row.Cells[0]).Value);
+        }
+
+        // Walk every prefix of the deepest path and confirm the direct synthesizer id
+        // is present in the emitted set (install-dir leaf resolves to INSTALLDIR).
+        for (int depth = 1; depth <= deepDir.Segments.Count; depth++)
+        {
+            InstallPath prefix = DirectoryTreeSynthesizer.BuildPrefixPath(deepDir, depth);
+            string directId = DirectoryTreeSynthesizer.ComputeDirectoryId(prefix, installDir);
+            Assert.Contains(directId, emittedIds);
+        }
+    }
+
     private static int CountUnique(ImmutableArray<RecipeRow> rows)
     {
         HashSet<string> ids = new();
