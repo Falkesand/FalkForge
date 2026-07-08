@@ -1,9 +1,69 @@
+using System.Security.Cryptography;
+using System.Text;
 using Xunit;
 
 namespace FalkForge.Core.Tests;
 
 public sealed class GuidUtilityTests
 {
+    [Theory]
+    [InlineData("")]
+    [InlineData("a")]
+    [InlineData("component::[ProgramFilesFolder]Corp/App::app.exe")]
+    public void CreateDeterministicGuid_MatchesIndependentReferenceImplementation(string name)
+    {
+        // Independent re-implementation of the original array-allocating algorithm.
+        // GuidUtility's stackalloc/ArrayPool rewrite must remain byte-identical --
+        // deterministic GUIDs feed Component GUIDs and PackageCode derivation, so a
+        // single changed byte here would change MSI identity.
+        Guid expected = ReferenceCreateDeterministicGuid(GuidUtility.FalkForgeNamespace, name);
+
+        Guid actual = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, name);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void CreateDeterministicGuid_LongName_AboveStackallocThreshold_MatchesReferenceImplementation()
+    {
+        var longName = new string('x', 10_000);
+
+        Guid expected = ReferenceCreateDeterministicGuid(GuidUtility.FalkForgeNamespace, longName);
+        Guid actual = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, longName);
+
+        Assert.Equal(expected, actual);
+    }
+
+    private static Guid ReferenceCreateDeterministicGuid(Guid namespaceId, string name)
+    {
+        var namespaceBytes = namespaceId.ToByteArray();
+        ReferenceSwapGuidByteOrder(namespaceBytes);
+
+        var nameBytes = Encoding.UTF8.GetBytes(name);
+        var combined = new byte[namespaceBytes.Length + nameBytes.Length];
+        Buffer.BlockCopy(namespaceBytes, 0, combined, 0, namespaceBytes.Length);
+        Buffer.BlockCopy(nameBytes, 0, combined, namespaceBytes.Length, nameBytes.Length);
+
+        var hash = SHA256.HashData(combined);
+
+        var guidBytes = new byte[16];
+        Array.Copy(hash, guidBytes, 16);
+
+        guidBytes[6] = (byte)((guidBytes[6] & 0x0F) | 0x50);
+        guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
+
+        ReferenceSwapGuidByteOrder(guidBytes);
+        return new Guid(guidBytes);
+    }
+
+    private static void ReferenceSwapGuidByteOrder(byte[] guid)
+    {
+        (guid[0], guid[3]) = (guid[3], guid[0]);
+        (guid[1], guid[2]) = (guid[2], guid[1]);
+        (guid[4], guid[5]) = (guid[5], guid[4]);
+        (guid[6], guid[7]) = (guid[7], guid[6]);
+    }
+
     [Fact]
     public void CreateDeterministicGuid_SameInput_ReturnsSameGuid()
     {
