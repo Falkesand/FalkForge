@@ -1,7 +1,7 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.RestartManager;
 using FalkForge.Testing;
 using Xunit;

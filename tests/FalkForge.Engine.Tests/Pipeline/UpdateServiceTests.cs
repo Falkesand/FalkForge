@@ -1,10 +1,10 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Logging;
 using Xunit;

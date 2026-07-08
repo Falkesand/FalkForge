@@ -1,4 +1,5 @@
 using System.Text;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Serialization;
 using FalkForge.Engine.Protocol.Serialization.Codecs;

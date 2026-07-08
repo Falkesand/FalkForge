@@ -1,8 +1,8 @@
 namespace FalkForge.Engine.Pipeline;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal.UndoOperations;
-using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
@@ -40,7 +40,7 @@ public sealed class InstallerPipelineBuilder
     private PackageExecutor? _packageExecutor;
     private VariableStore? _variableStore;
     private IReadOnlyList<IUndoOperation>? _undoOperations;
-    private IEngineLogger? _logger;
+    private IFalkLogger? _logger;
     private FalkForge.Engine.Download.UpdateChecker? _updateChecker;
     private UpdateService? _updateService;
 
@@ -162,7 +162,7 @@ public sealed class InstallerPipelineBuilder
     }
 
     /// <summary>Registers an optional engine logger for rollback diagnostics.</summary>
-    public InstallerPipelineBuilder WithLogger(IEngineLogger logger)
+    public InstallerPipelineBuilder WithLogger(IFalkLogger logger)
     {
         _logger = logger;
         return this;

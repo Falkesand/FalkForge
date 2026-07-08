@@ -146,7 +146,7 @@ public sealed class PipelinePhaseStepTests
                 Task.FromResult(Result<string>.Success(dest)),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
-            logger: new FalkForge.Engine.Logging.NullLogger());
+            logger: new FalkForge.Diagnostics.NullLogger());
 
         var step = new DetectStep(manifest, registry, channel, checker, service);
         var result = await step.ExecuteAsync(ctx, CancellationToken.None);
@@ -184,7 +184,7 @@ public sealed class PipelinePhaseStepTests
                 throw new InvalidOperationException("simulated download blow-up"),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
-            logger: new FalkForge.Engine.Logging.NullLogger());
+            logger: new FalkForge.Diagnostics.NullLogger());
 
         var step = new DetectStep(manifest, registry, channel, checker, service);
 
@@ -220,7 +220,7 @@ public sealed class PipelinePhaseStepTests
             },
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
-            logger: new FalkForge.Engine.Logging.NullLogger());
+            logger: new FalkForge.Diagnostics.NullLogger());
 
         var step = new DetectStep(manifest, registry, channel, checker, service);
 
@@ -246,7 +246,7 @@ public sealed class PipelinePhaseStepTests
                 Task.FromResult(Result<string>.Success(dest)),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
-            logger: new FalkForge.Engine.Logging.NullLogger());
+            logger: new FalkForge.Diagnostics.NullLogger());
 
         await using var pipeline = new InstallerPipelineBuilder()
             .WithManifest(manifest)
@@ -1110,7 +1110,7 @@ public sealed class PipelinePhaseStepTests
         var httpClient = new HttpClient(handler);
         return new FalkForge.Engine.Download.UpdateChecker(
             httpClient,
-            new FalkForge.Engine.Logging.NullLogger());
+            new FalkForge.Diagnostics.NullLogger());
     }
 
     private static byte[] BuildFeedJson(

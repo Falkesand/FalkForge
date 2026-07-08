@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
 using System.Threading.Channels;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Messages;

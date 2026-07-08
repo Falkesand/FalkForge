@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Messages;
 
 namespace FalkForge.Engine.Protocol.Serialization.Codecs;

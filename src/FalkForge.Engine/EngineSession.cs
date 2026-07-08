@@ -1,6 +1,7 @@
 namespace FalkForge.Engine;
 
 using System.Diagnostics;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Elevation;
@@ -37,7 +38,7 @@ using FalkForge.Platform.Windows;
 public sealed class EngineSession : IAsyncDisposable
 {
     private readonly IUiChannel _channel;
-    private readonly IEngineLogger? _logger;
+    private readonly IFalkLogger? _logger;
     private readonly string? _logFilePath;
     private readonly IInstallerPipeline _pipeline;
     private readonly FileSystemJournalStore? _journalStore;
@@ -55,7 +56,7 @@ public sealed class EngineSession : IAsyncDisposable
     /// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so that
     /// runtime-override tests can observe the configured minimum level / log path.
     /// </summary>
-    internal IEngineLogger? Logger => _logger;
+    internal IFalkLogger? Logger => _logger;
 
     /// <summary>
     /// The session correlation id stamped on every log entry emitted by this session.
@@ -72,7 +73,7 @@ public sealed class EngineSession : IAsyncDisposable
     private EngineSession(
         IUiChannel channel,
         IInstallerPipeline pipeline,
-        IEngineLogger? logger,
+        IFalkLogger? logger,
         string? logFilePath,
         FileSystemJournalStore? journalStore,
         IElevatedCommandGateway? elevationGateway,
@@ -157,7 +158,7 @@ public sealed class EngineSession : IAsyncDisposable
     /// Called once during factory construction so every log entry in this session
     /// carries the same id.
     /// </summary>
-    private static void StampCorrelationId(IEngineLogger? logger)
+    private static void StampCorrelationId(IFalkLogger? logger)
     {
         if (logger is null) return;
         logger.SessionCorrelationId = Guid.NewGuid();
@@ -187,7 +188,7 @@ public sealed class EngineSession : IAsyncDisposable
         // wired at construction so EngineLogger.Log() can invoke it directly.
         // Channel is bound after construction (see "Channel binding" below).
         var channelHolder = new ChannelHolder();
-        IEngineLogger logger;
+        IFalkLogger logger;
         string? logFilePath;
         if (options.Logger is not null)
         {
@@ -416,7 +417,7 @@ public sealed class EngineSession : IAsyncDisposable
         // LogDirectory / MinimumLogLevel if any was supplied. Tests pass a per-test LogPath
         // or LogDirectory under TEMP so the session writes a real file and we can verify
         // path / level handling.
-        IEngineLogger? logger = options.Logger;
+        IFalkLogger? logger = options.Logger;
         string? logFilePath = null;
         var channelHolder = new ChannelHolder { Channel = channel };
 

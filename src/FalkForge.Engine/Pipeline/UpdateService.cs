@@ -1,8 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Download;
-using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -35,7 +34,7 @@ internal sealed class UpdateService
     private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> _download;
     private readonly IUpdateLauncher _launcher;
     private readonly IUiChannel _channel;
-    private readonly IEngineLogger _logger;
+    private readonly IFalkLogger _logger;
 
     // Written once by the download callback (SendAdaptedMessageAsync, on the download task) and
     // read later by HasReadyUpdate / LaunchReadyUpdate (on the UI-request path). volatile is
@@ -49,7 +48,7 @@ internal sealed class UpdateService
         Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
         IUpdateLauncher launcher,
         IUiChannel channel,
-        IEngineLogger logger)
+        IFalkLogger logger)
     {
         _feed = feed;
         _cacheDir = cacheDir;

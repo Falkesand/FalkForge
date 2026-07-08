@@ -1,10 +1,9 @@
 namespace FalkForge.Engine.Tests.Journal;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Journal.UndoOperations;
-using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Tests.Mocks;
 using Xunit;
 
@@ -465,9 +464,9 @@ public sealed class RollbackExecutorTests : IDisposable
     }
 
     /// <summary>
-    /// A simple IEngineLogger implementation that captures log messages for test assertions.
+    /// A simple IFalkLogger implementation that captures log messages for test assertions.
     /// </summary>
-    private sealed class CapturingLogger : IEngineLogger
+    private sealed class CapturingLogger : IFalkLogger
     {
         public List<string> Messages { get; } = [];
 
@@ -476,6 +475,9 @@ public sealed class RollbackExecutorTests : IDisposable
         public Guid SessionCorrelationId { get; set; }
 
         public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
+            => Messages.Add(message);
+
+        public void Log(LogLevel level, string category, string message, Exception? exception, IReadOnlyDictionary<string, string>? properties = null)
             => Messages.Add(message);
 
         public void Verbose(string category, string message) => Messages.Add(message);

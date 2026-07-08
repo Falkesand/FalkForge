@@ -2,8 +2,8 @@ namespace FalkForge.Engine.Tests.Logging;
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
 using Xunit;
 
 public sealed class EngineLoggerTests : IDisposable
@@ -413,9 +413,9 @@ public sealed class EngineLoggerTests : IDisposable
     }
 
     [Fact]
-    public void NullLogger_ImplementsIEngineLogger()
+    public void NullLogger_ImplementsIFalkLogger()
     {
-        IEngineLogger logger = new NullLogger();
+        IFalkLogger logger = new NullLogger();
         Assert.NotNull(logger);
         logger.Dispose();
     }
@@ -697,5 +697,100 @@ public sealed class EngineLoggerTests : IDisposable
         var content = File.ReadAllText(path);
         Assert.DoesNotContain("should be dropped", content);
         Assert.Contains("should be kept", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Exception? overload (design D2, docs/plans/2026-07-08-logging-instrumentation-design.md)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Log_WithException_CapturesExceptionDetailInProperties()
+    {
+        // WHY: today every call site interpolates ex.Message and loses the stack trace.
+        // The Exception? overload must fold type/message/stack into structured properties
+        // so the diagnostic trail survives past a single string.
+        var path = GetLogPath();
+        Exception thrown;
+        try
+        {
+            throw new InvalidOperationException("boom");
+        }
+        catch (InvalidOperationException ex)
+        {
+            thrown = ex;
+        }
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Error, "Cat", "Something failed", thrown);
+        }
+
+        var lines = File.ReadAllLines(path);
+        Assert.Single(lines);
+        var json = lines[0].Split('\t')[4];
+        Assert.Contains("\"exception.type\":\"System.InvalidOperationException\"", json);
+        Assert.Contains("\"exception.message\":\"boom\"", json);
+        Assert.Contains("\"exception.stackTrace\"", json);
+    }
+
+    [Fact]
+    public void Log_WithException_MergesWithCallerSuppliedProperties()
+    {
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { ["PackageId"] = "MyApp" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Error, "Cat", "Failed", new InvalidOperationException("boom"), props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Contains("\"PackageId\":\"MyApp\"", json);
+        Assert.Contains("\"exception.type\":\"System.InvalidOperationException\"", json);
+    }
+
+    [Fact]
+    public void Log_WithNullException_ByteIdenticalToNoExceptionOverload()
+    {
+        // WHY: Phase 0 is behavior-preserving — the Exception? overload must produce the
+        // exact same on-disk line as the pre-existing 4-arg overload when no exception is
+        // supplied, so existing consumers see zero output drift.
+        var pathA = GetLogPath("no-exception-overload.log");
+        var pathB = GetLogPath("exception-overload-null.log");
+
+        using (var loggerA = new EngineLogger(pathA))
+        {
+            loggerA.MinimumLevel = LogLevel.Info;
+            loggerA.Log(LogLevel.Info, "Cat", "Msg");
+        }
+
+        using (var loggerB = new EngineLogger(pathB))
+        {
+            loggerB.MinimumLevel = LogLevel.Info;
+            loggerB.Log(LogLevel.Info, "Cat", "Msg", exception: null);
+        }
+
+        var lineA = File.ReadAllLines(pathA)[0];
+        var lineB = File.ReadAllLines(pathB)[0];
+
+        // Strip the leading timestamp column (each write stamps its own UtcNow) before comparing.
+        var restA = lineA[(lineA.IndexOf('\t') + 1)..];
+        var restB = lineB[(lineB.IndexOf('\t') + 1)..];
+        Assert.Equal(restA, restB);
+    }
+
+    [Fact]
+    public void Log_WithException_BelowMinimumLevel_Discarded()
+    {
+        var path = GetLogPath();
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Error;
+            logger.Log(LogLevel.Info, "Cat", "msg", new InvalidOperationException("x"));
+        }
+
+        Assert.Equal(string.Empty, File.ReadAllText(path));
     }
 }

@@ -1,13 +1,12 @@
 namespace FalkForge.Testing;
 
-using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
+using FalkForge.Diagnostics;
 
 /// <summary>
-/// In-memory <see cref="IEngineLogger"/> for tests. All log entries are accumulated
+/// In-memory <see cref="IFalkLogger"/> for tests. All log entries are accumulated
 /// in <see cref="Entries"/> for assertion. Thread-safe via a lock.
 /// </summary>
-public sealed class ListLogger : IEngineLogger
+public sealed class ListLogger : IFalkLogger
 {
     private readonly List<LogEntry> _entries = [];
     private readonly Lock _lock = new();
@@ -48,6 +47,24 @@ public sealed class ListLogger : IEngineLogger
                 Properties: properties,
                 SessionCorrelationId: SessionCorrelationId));
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Folds the exception's type, message, and stack trace into structured properties
+    /// (keys <c>exception.type</c>, <c>exception.message</c>, <c>exception.stackTrace</c>)
+    /// before delegating to the no-exception overload, matching <c>EngineLogger</c>'s convention.
+    /// </remarks>
+    public void Log(LogLevel level, string category, string message, Exception? exception,
+        IReadOnlyDictionary<string, string>? properties = null)
+    {
+        if (exception is null)
+        {
+            Log(level, category, message, properties);
+            return;
+        }
+
+        Log(level, category, message, LogProperties.MergeException(exception, properties));
     }
 
     /// <inheritdoc/>

@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
 using System.Diagnostics;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Journal.UndoOperations;
 using FalkForge.Engine.Logging;
@@ -17,13 +18,13 @@ internal sealed class RollbackStep : IRollbackStep
     private readonly IRollbackJournalStore _journalStore;
     private readonly IReadOnlyList<IUndoOperation> _undoOperations;
     private readonly IUiChannel _uiChannel;
-    private readonly IEngineLogger? _logger;
+    private readonly IFalkLogger? _logger;
 
     public RollbackStep(
         IRollbackJournalStore journalStore,
         IReadOnlyList<IUndoOperation> undoOperations,
         IUiChannel uiChannel,
-        IEngineLogger? logger = null)
+        IFalkLogger? logger = null)
     {
         _journalStore = journalStore;
         _undoOperations = undoOperations;

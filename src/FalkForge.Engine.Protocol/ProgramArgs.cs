@@ -1,5 +1,7 @@
 namespace FalkForge.Engine.Protocol;
 
+using FalkForge.Diagnostics;
+
 /// <summary>
 /// Parsed command-line flags relevant to engine and UI startup. Currently models only the
 /// runtime-logging flags (<c>--log</c>, <c>--log-level</c>) since other flags continue

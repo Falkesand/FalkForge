@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Execution;
-using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
@@ -40,7 +40,7 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
 
     private readonly IProcessRunner _runner;
     private readonly string _extractionDir;
-    private readonly IEngineLogger? _logger;
+    private readonly IFalkLogger? _logger;
 
     /// <summary>
     /// Creates a new <see cref="PreUIPrerequisiteInstaller"/>.
@@ -54,7 +54,7 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
     public PreUIPrerequisiteInstaller(
         IProcessRunner runner,
         string extractionDir,
-        IEngineLogger? logger = null)
+        IFalkLogger? logger = null)
     {
         _runner = runner;
         _extractionDir = extractionDir;

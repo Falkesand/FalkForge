@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Logging;
 
 using System.Diagnostics.Metrics;
 using System.Globalization;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol;
 
 /// <summary>
@@ -269,7 +270,7 @@ public static class EngineMeter
     /// </para>
     /// </summary>
     /// <param name="logger">Logger to write to. Must not be null.</param>
-    public static void FlushToLogger(IEngineLogger logger)
+    public static void FlushToLogger(IFalkLogger logger)
     {
         var snap = Snapshot();
 

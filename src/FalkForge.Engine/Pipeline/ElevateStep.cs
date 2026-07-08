@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
 using System.Diagnostics;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 

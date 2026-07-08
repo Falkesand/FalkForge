@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Pipeline;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 
@@ -25,14 +26,14 @@ public sealed class PipelineRunner
 {
     private readonly IInstallerPipeline _pipeline;
     private readonly IUiChannel _uiChannel;
-    private readonly IEngineLogger? _logger;
+    private readonly IFalkLogger? _logger;
     private readonly bool _isPlanOnly;
     private readonly string? _planOnlyOutputPath;
 
     public PipelineRunner(
         IInstallerPipeline pipeline,
         IUiChannel uiChannel,
-        IEngineLogger? logger = null,
+        IFalkLogger? logger = null,
         bool isPlanOnly = false,
         string? planOnlyOutputPath = null)
     {

@@ -1,14 +1,14 @@
 namespace FalkForge.Engine.Journal;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Journal.UndoOperations;
-using FalkForge.Engine.Logging;
 
 public sealed class RollbackExecutor
 {
     private readonly IReadOnlyList<IUndoOperation> _undoOperations;
-    private readonly IEngineLogger? _logger;
+    private readonly IFalkLogger? _logger;
 
-    public RollbackExecutor(IReadOnlyList<IUndoOperation> undoOperations, IEngineLogger? logger = null)
+    public RollbackExecutor(IReadOnlyList<IUndoOperation> undoOperations, IFalkLogger? logger = null)
     {
         _undoOperations = undoOperations;
         _logger = logger;

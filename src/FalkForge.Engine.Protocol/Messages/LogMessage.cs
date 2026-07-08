@@ -1,5 +1,7 @@
 namespace FalkForge.Engine.Protocol.Messages;
 
+using FalkForge.Diagnostics;
+
 public sealed class LogMessage : EngineMessage
 {
     public override MessageType Type => MessageType.Log;

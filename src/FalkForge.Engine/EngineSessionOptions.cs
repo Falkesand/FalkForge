@@ -1,8 +1,8 @@
 namespace FalkForge.Engine;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Transport;
 
 /// <summary>
@@ -15,7 +15,7 @@ public sealed record EngineSessionOptions
     /// Logger to use for the session. When <c>null</c> a default file-based
     /// <see cref="EngineLogger"/> is created at <see cref="EngineLogger.GetDefaultLogPath"/>.
     /// </summary>
-    public IEngineLogger? Logger { get; init; }
+    public IFalkLogger? Logger { get; init; }
 
     /// <summary>
     /// Directory to write log files to. Overrides the default temp-path strategy
@@ -33,7 +33,7 @@ public sealed record EngineSessionOptions
 
     /// <summary>
     /// Minimum log level for the session-owned logger. When non-null and <see cref="Logger"/>
-    /// is null, the freshly constructed logger has its <see cref="IEngineLogger.MinimumLevel"/>
+    /// is null, the freshly constructed logger has its <see cref="IFalkLogger.MinimumLevel"/>
     /// set to this value before any log call. When <see cref="Logger"/> is supplied, this
     /// value is applied to it as well so that the runtime override on the command-line
     /// overrides any default the host pre-configured.

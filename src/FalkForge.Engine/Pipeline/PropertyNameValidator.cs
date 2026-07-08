@@ -1,7 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
 using System.Text.RegularExpressions;
-using FalkForge.Engine.Logging;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Variables;
 
 /// <summary>
@@ -28,7 +28,7 @@ internal static partial class PropertyNameValidator
     /// error reason string when invalid (for logging purposes only — never surfaced to
     /// untrusted callers).
     /// </summary>
-    internal static string? Validate(string propertyName, IEngineLogger? logger)
+    internal static string? Validate(string propertyName, IFalkLogger? logger)
     {
         if (string.IsNullOrEmpty(propertyName))
         {
