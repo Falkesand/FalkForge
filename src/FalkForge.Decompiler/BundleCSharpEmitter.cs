@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using FalkForge.Compiler.Bundle;
+using FalkForge.Diagnostics;
 using static FalkForge.Decompiler.CSharpStringLiteral;
 
 namespace FalkForge.Decompiler;
@@ -14,12 +15,22 @@ internal static class BundleCSharpEmitter
     public static string Emit(BundleModel bundle) =>
         Emit(bundle, preamble: null, unmappedFeatures: null);
 
+    /// <param name="logger">
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every
+    /// existing caller behaves unchanged. When supplied, a <c>Debug</c> entry is logged
+    /// at the start and completion of this emitter stage. This emitter never fails, so
+    /// no <c>Error</c>/<c>Warning</c> entries are ever logged here.
+    /// </param>
     public static string Emit(
         BundleModel bundle,
         string? preamble = null,
         IReadOnlyList<WixUnmappedFeature>? unmappedFeatures = null,
-        Func<BundlePackageModel, string>? packagePathResolver = null)
+        Func<BundlePackageModel, string>? packagePathResolver = null,
+        IFalkLogger? logger = null)
     {
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("BundleCSharpEmitter", $"Emitting bundle C# source for '{bundle.Name}'.");
+
         var sb = new StringBuilder();
         var indent = 0;
 
@@ -78,7 +89,11 @@ internal static class BundleCSharpEmitter
 
         AppendLine("var bundle = b.Build();");
 
-        return sb.ToString();
+        var source = sb.ToString();
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("BundleCSharpEmitter", $"Emitted {source.Length:N0} character(s) for bundle '{bundle.Name}'.");
+
+        return source;
     }
 
     private static void EmitRelatedBundles(

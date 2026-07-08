@@ -34,12 +34,13 @@ public sealed class DecompileCommand : Command<DecompileSettings>
         }
 
         var extension = Path.GetExtension(filePath);
+        var logger = new ConsoleOutputLogger(_console, settings.Verbose);
 
         if (extension.Equals(".msi", StringComparison.OrdinalIgnoreCase))
-            return DecompileMsi(filePath, settings.OutputPath);
+            return DecompileMsi(filePath, settings.OutputPath, logger);
 
         if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
-            return DecompileBundle(filePath, settings.OutputPath);
+            return DecompileBundle(filePath, settings.OutputPath, logger);
 
         if (extension.Equals(".msix", StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(".msixbundle", StringComparison.OrdinalIgnoreCase))
@@ -58,7 +59,7 @@ public sealed class DecompileCommand : Command<DecompileSettings>
         return ExitCodes.RuntimeError;
     }
 
-    private int DecompileMsi(string msiPath, string? outputPath)
+    private int DecompileMsi(string msiPath, string? outputPath, ConsoleOutputLogger logger)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -68,18 +69,18 @@ public sealed class DecompileCommand : Command<DecompileSettings>
 
         _console.MarkupLine($"[grey]Decompiling MSI: {Markup.Escape(msiPath)}[/]");
 
-        var decompiler = new MsiDecompiler();
+        var decompiler = new MsiDecompiler(logger);
         var result = decompiler.DecompileToCSharp(msiPath);
 
         return WriteResult(result, outputPath);
     }
 
-    private int DecompileBundle(string exePath, string? outputPath)
+    private int DecompileBundle(string exePath, string? outputPath, ConsoleOutputLogger logger)
     {
         _console.MarkupLine($"[grey]Decompiling bundle: {Markup.Escape(exePath)}[/]");
 
         // Try FALKBUNDLE first (cross-platform)
-        var falkResult = new BundleDecompiler().DecompileToCSharp(exePath);
+        var falkResult = new BundleDecompiler(logger).DecompileToCSharp(exePath);
         if (falkResult.IsSuccess)
             return WriteResult(falkResult, outputPath);
 
@@ -90,7 +91,7 @@ public sealed class DecompileCommand : Command<DecompileSettings>
             return ExitCodes.RuntimeError;
         }
 
-        var wixResult = new WixBundleDecompiler().DecompileToCSharp(exePath);
+        var wixResult = new WixBundleDecompiler(logger).DecompileToCSharp(exePath);
         return WriteResult(wixResult, outputPath);
     }
 

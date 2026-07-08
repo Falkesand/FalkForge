@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
+using FalkForge.Diagnostics;
 using FalkForge.Models;
 using static FalkForge.Decompiler.CSharpStringLiteral;
 
@@ -48,9 +49,13 @@ public sealed class CSharpEmitter
     /// Prefer <see cref="TryEmit"/> on paths that must not let the exception escape
     /// (e.g. the migration generator, which returns the failure via <c>Result</c>).
     /// </summary>
-    public string Emit(PackageModel package)
+    /// <param name="logger">
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every
+    /// existing caller behaves unchanged. See <see cref="TryEmit"/> for what is logged.
+    /// </param>
+    public string Emit(PackageModel package, IFalkLogger? logger = null)
     {
-        var result = TryEmit(package);
+        var result = TryEmit(package, logger);
         if (result.IsFailure)
             throw new InvalidOperationException(result.Error.Message);
         return result.Value;
@@ -61,9 +66,18 @@ public sealed class CSharpEmitter
     /// a <see cref="ErrorKind.CompilationError"/> failure (naming the unsupported token) when a
     /// known-folder root token has no <see cref="KnownFolder"/> member, instead of throwing.
     /// </summary>
-    public Result<string> TryEmit(PackageModel package)
+    /// <param name="logger">
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every existing
+    /// caller behaves unchanged. When supplied, a <c>Debug</c> entry is logged at the start and
+    /// completion of this emitter stage, and an <c>Error</c> entry is logged before the unsupported-
+    /// token failure is returned.
+    /// </param>
+    public Result<string> TryEmit(PackageModel package, IFalkLogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(package);
+
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("CSharpEmitter", $"Emitting C# source for package '{package.Name}'.");
 
         // Fail before writing any output if any file targets an unmapped root token —
         // emitting it would produce non-compiling C# (no matching KnownFolder member).
@@ -73,14 +87,22 @@ public sealed class CSharpEmitter
                 continue;
             var token = file.TargetDirectory.Root.Token;
             if (!TokenToMemberName.ContainsKey(token))
-                return Result<string>.Failure(
-                    ErrorKind.CompilationError,
-                    $"Cannot render unsupported KnownFolder root token '{token}'. " +
+            {
+                var message = $"Cannot render unsupported KnownFolder root token '{token}'. " +
                     "The decompiled installer references a folder FalkForge cannot map to a " +
-                    "KnownFolder member; re-author this file's install location manually.");
+                    "KnownFolder member; re-author this file's install location manually.";
+                logger?.Log(LogLevel.Error, "CSharpEmitter", message,
+                    new Dictionary<string, string> { ["code"] = ErrorKind.CompilationError.ToString() });
+                return Result<string>.Failure(ErrorKind.CompilationError, message);
+            }
         }
 
-        return Result<string>.Success(EmitCore(package));
+        var source = EmitCore(package);
+
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("CSharpEmitter", $"Emitted {source.Length:N0} character(s) for package '{package.Name}'.");
+
+        return Result<string>.Success(source);
     }
 
     private string EmitCore(PackageModel package)
