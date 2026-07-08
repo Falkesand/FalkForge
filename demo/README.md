@@ -6,7 +6,7 @@ Practical examples showing how to build Windows Installer packages with FalkForg
 
 FalkForge supports two ways to define installers:
 
-1. **C# Fluent API** (demos 01-53 + MAS) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
+1. **C# Fluent API** (demos 01-58 + MAS) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
 2. **JSON Configuration** (demos 01-07 in `demo/json/`) -- Declarative JSON files validated and built by the `forge` CLI. Use this for straightforward packages that do not need custom code.
 
 Both approaches produce standard `.msi` Windows Installer packages (or `.exe` bundles). The C# demos cover the full API surface; the JSON demos show the subset available through declarative configuration.
@@ -113,6 +113,16 @@ Key properties:
 | 51 | ICE Validation      | ~32   | MSI ICE validation with suppression, warnings-as-errors, reports |
 | 52 | MSIX Advanced *(exp.)* | ~78 | Multi-app MSIX with file associations, updates, dependencies (experimental) |
 | 53 | Delta Updates       | ~79   | Delta bundle workflow using Octodiff: build v1, then v2 delta    |
+
+### Provability & Supply Chain Demos (54-58)
+
+| #  | Name                | Lines | Description                                                      |
+|----|---------------------|-------|-------------------------------------------------------------------|
+| 54 | forge migrate       | ~33   | Decompiles an existing MSI (or WiX Burn EXE) into a buildable FalkForge C# project |
+| 55 | WinGet Manifest Gen | ~63   | Generates the 3-file WinGet manifest set at compile time with automatic SHA-256 |
+| 56 | Verify and Plan     | ~47   | Provability CLI: `forge verify --rebuild`, `forge plan-diff`, and `forge plan` |
+| 57 | Reproducible + SBOM | ~68   | Reproducible build under `SOURCE_DATE_EPOCH` + CycloneDX SBOM + ECDSA integrity notes |
+| 58 | Project References  | ~50   | References another project's build output via the generated `ProjectOutputs` class |
 
 ## JSON Demo Index
 
@@ -426,6 +436,38 @@ Demo 53 (Delta Updates):
 dotnet run --project demo/53-delta-updates/ -- -o ./output
 ```
 
+### Provability & supply chain demos (54-58)
+
+Demo 54 (forge migrate):
+
+```bash
+dotnet build demo/54-forge-migrate
+```
+
+Demo 55 (WinGet Manifest Generation):
+
+```bash
+dotnet run --project demo/55-winget -- -o output/MyApp.msi
+```
+
+Demo 56 (Verify and Plan):
+
+```bash
+dotnet run --project demo/56-verify-and-plan/ -- -o out/v1
+```
+
+Demo 57 (Reproducible Builds + SBOM):
+
+```bash
+dotnet run --project demo/57-reproducible-sbom -- -o ./out-a
+```
+
+Demo 58 (Project References):
+
+```bash
+dotnet run --project demo/58-project-references/installer/installer.csproj -- -o ./out/
+```
+
 ## Validating JSON Demos
 
 JSON demos are validated and built by the `forge` CLI tool. Use the `validate` command to check a JSON definition without producing an MSI:
@@ -696,6 +738,30 @@ Configures MSI Internal Consistency Evaluators (ICE) using `package.Ice()`. Show
 ### 52 -- MSIX Advanced
 
 Advanced MSIX packaging with multiple applications (editor, CLI tool, background service) in a single package, file type association and protocol handler extensions, capabilities (`internetClient`, `runFullTrust`), framework package dependencies (VCLibs), and auto-update settings with `HoursBetweenUpdateChecks`, `ShowPrompt`, `AutomaticBackgroundTask`, and `ForceUpdateFromAnyVersion`. Includes visual elements with multiple logo sizes.
+
+### 53 -- Delta Updates
+
+Delta bundle updates via Octodiff binary diffing. Builds a v1 base bundle, then a v2 bundle with `BundleBuilder.DeltaFrom(v1Path)` and `DeltaBundleCompiler`, producing a delta payload containing only the bytes that changed instead of a full re-download. Covers publishing both URLs in an update feed and the engine's delta-first download with automatic full-bundle fallback and SHA-256 verification of reconstructed payloads.
+
+### 54 -- forge migrate
+
+Converts an existing MSI (or WiX Burn EXE) into an editable, buildable FalkForge C# project with a single `forge migrate <file>` command. Demonstrates the full round-trip workflow -- existing MSI -> `forge migrate` -> generated project -> `dotnet build` -> new MSI -- and the `--falkforge-src` flag for pointing the generated project at the FalkForge source tree. The generated output includes `Program.cs`, a `.csproj`, extracted payload files, and a `MIGRATION-REPORT.md` listing anything that could not be automatically mapped.
+
+### 55 -- WinGet Manifest Generation
+
+Generates a WinGet (Windows Package Manager) manifest set automatically at compile time alongside the MSI, using `PackageBuilder.WinGet(...)`. Produces all three YAML files required by the `winget-pkgs` repository, computes the compiled MSI's SHA-256 hash automatically, and covers required fields (`PackageIdentifier`, `InstallerUrl`, `License`, `ShortDescription`) plus optional fields (`Moniker`, `Tags`, `ReleaseNotesUrl`).
+
+### 56 -- Verify and Plan (Provability Commands)
+
+Shows the three FalkForge "provability" CLI commands: `forge verify --rebuild` (rebuilds from source and compares the output byte-for-byte to prove an artifact matches its source), `forge plan-diff` (diffs what changed between two versions of an installer before shipping an update), and `forge plan` (shows what a bundle will do -- which packages install, in what order, with what actions -- before you run it). Requires `.Reproducible()` so identical source always produces byte-identical output.
+
+### 57 -- Reproducible Builds + SBOM
+
+Pins MSI timestamps to `SOURCE_DATE_EPOCH` via `Reproducible()` so two builds of the same source are byte-identical, emits a CycloneDX SBOM sidecar (`.cdx.json`) via `Sbom()` listing every installed file with its SHA-256 hash, and makes the SBOM itself reproducible (serial number and timestamp derived from build content, not the wall clock). Also demonstrates `AddComponent()` for declaring bundled runtimes in the SBOM and using `forge verify --rebuild` to independently prove the shipped artifact matches its source.
+
+### 58 -- Project References
+
+Packages one project's build output from another project without hardcoding a `bin/` path. The FalkForge MSBuild SDK's source generator emits `obj/ProjectOutputs.g.cs` for any `ProjectReference` to a project declaring a `FalkOutputType`, giving the installer a strongly-typed `ProjectOutputs.<Name>` constant that MSBuild keeps in sync with the actual build output -- instead of a literal path that silently goes stale across configuration or target-framework changes.
 
 ### JSON 01-05 -- Core MSI Features
 
