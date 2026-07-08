@@ -1,9 +1,9 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
 using System.Collections.Concurrent;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
-using FalkForge.Engine.Protocol;
 using FalkForge.Testing;
 using Xunit;
 

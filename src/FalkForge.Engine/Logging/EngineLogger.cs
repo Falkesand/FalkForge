@@ -3,8 +3,8 @@ namespace FalkForge.Engine.Logging;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Pipeline;
-using FalkForge.Engine.Protocol;
 
 /// <summary>
 /// Production structured logger that writes tab-separated entries to a log file.
@@ -26,7 +26,7 @@ using FalkForge.Engine.Protocol;
 /// <c>_flushLock</c>, so no rotation can race an active write.
 /// </para>
 /// </summary>
-public sealed class EngineLogger : IEngineLogger
+public sealed class EngineLogger : IFalkLogger
 {
     private const int FlushThreshold = 32;
     private static readonly string[] LevelNames = ["VERBOSE", "DEBUG", "INFO", "WARNING", "ERROR"];
@@ -129,6 +129,36 @@ public sealed class EngineLogger : IEngineLogger
         // Flush immediately on Error, or when queue exceeds threshold
         if (level >= LogLevel.Error || _queue.Count >= FlushThreshold)
             Flush();
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Folds <paramref name="exception"/>'s type, message, and stack trace into the entry's
+    /// structured properties (keys <c>exception.type</c>, <c>exception.message</c>,
+    /// <c>exception.stackTrace</c>) before delegating to the no-exception overload, so the
+    /// on-disk format and rotation/flush behaviour are unchanged from the existing path.
+    /// </remarks>
+    public void Log(LogLevel level, string category, string message, Exception? exception, IReadOnlyDictionary<string, string>? properties = null)
+    {
+        if (exception is null)
+        {
+            Log(level, category, message, properties);
+            return;
+        }
+
+        // Mirror the fast-path level check so a below-level entry doesn't pay for the
+        // merged-dictionary allocation before being discarded.
+        if ((int)level < _minimumLevel)
+            return;
+
+        var merged = properties is null
+            ? new Dictionary<string, string>(3)
+            : new Dictionary<string, string>(properties);
+        merged["exception.type"] = exception.GetType().FullName ?? exception.GetType().Name;
+        merged["exception.message"] = exception.Message;
+        merged["exception.stackTrace"] = exception.StackTrace ?? string.Empty;
+
+        Log(level, category, message, merged);
     }
 
     public void Verbose(string category, string message) =>

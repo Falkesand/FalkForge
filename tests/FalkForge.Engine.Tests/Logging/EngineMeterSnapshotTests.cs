@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Tests.Logging;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 using FalkForge.Testing;
@@ -8,7 +9,7 @@ using Xunit;
 /// <summary>
 /// Verifies that <see cref="EngineMeter.Snapshot"/> returns in-process counter values
 /// and that <see cref="EngineMeter.FlushToLogger"/> writes a structured "Metrics" entry
-/// through <see cref="IEngineLogger"/>.
+/// through <see cref="IFalkLogger"/>.
 ///
 /// WHY: Without an export path the counters are invisible outside the process. The
 /// snapshot + logger bridge lets operators read session-level metrics from the log file

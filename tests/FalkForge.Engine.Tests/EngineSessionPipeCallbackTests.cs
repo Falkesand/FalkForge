@@ -3,9 +3,9 @@ namespace FalkForge.Engine.Tests;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using FalkForge.Diagnostics;
 using FalkForge.Engine;
 using FalkForge.Engine.Pipeline;
-using FalkForge.Engine.Protocol;
 using FalkForge.Testing;
 using Xunit;
 

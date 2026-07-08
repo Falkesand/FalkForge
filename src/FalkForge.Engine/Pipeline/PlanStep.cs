@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Pipeline;
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;

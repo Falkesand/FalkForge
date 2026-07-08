@@ -2,8 +2,8 @@ namespace FalkForge.Engine.Tests.Download;
 
 using System.Net;
 using System.Text;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Download;
-using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
 

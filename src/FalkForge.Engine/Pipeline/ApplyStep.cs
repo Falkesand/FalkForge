@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
 using System.Diagnostics;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Journal;

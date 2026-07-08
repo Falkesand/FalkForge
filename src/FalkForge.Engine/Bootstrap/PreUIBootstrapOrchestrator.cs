@@ -1,6 +1,6 @@
 namespace FalkForge.Engine.Bootstrap;
 
-using FalkForge.Engine.Logging;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
@@ -58,7 +58,7 @@ public sealed class PreUIBootstrapOrchestrator
     private readonly IElevationProbe _elevationProbe;
     private readonly IElevatedSelfRelauncher _relauncher;
     private readonly IProgressSinkFactory _progressFactory;
-    private readonly IEngineLogger? _logger;
+    private readonly IFalkLogger? _logger;
 
     private const string Category = nameof(PreUIBootstrapOrchestrator);
 
@@ -71,7 +71,7 @@ public sealed class PreUIBootstrapOrchestrator
         IElevationProbe elevationProbe,
         IElevatedSelfRelauncher relauncher,
         IProgressSinkFactory progressFactory,
-        IEngineLogger? logger = null)
+        IFalkLogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(detector);
         ArgumentNullException.ThrowIfNull(installer);

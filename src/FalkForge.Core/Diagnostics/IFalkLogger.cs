@@ -1,12 +1,11 @@
-namespace FalkForge.Engine.Logging;
-
-using FalkForge.Engine.Protocol;
+namespace FalkForge.Diagnostics;
 
 /// <summary>
-/// Structured logging interface for the engine process.
+/// Structured logging contract shared across FalkForge processes and libraries
+/// (install-time Engine, build-time compilers/decompiler, plugins).
 /// All methods are synchronous to avoid async overhead in hot paths.
 /// </summary>
-public interface IEngineLogger : IDisposable
+public interface IFalkLogger : IDisposable
 {
     /// <summary>
     /// Minimum level that will be written. Entries below this level are discarded.
@@ -27,7 +26,7 @@ public interface IEngineLogger : IDisposable
 
     /// <summary>
     /// Session correlation id stamped on every <see cref="LogEntry"/> and forwarded
-    /// in <see cref="FalkForge.Engine.Protocol.Messages.LogMessage"/> frames so that
+    /// in <c>FalkForge.Engine.Protocol.Messages.LogMessage</c> frames so that
     /// log streams from the UI, Engine, and Elevation processes can be correlated.
     /// Set once at session start before any log calls.
     /// </summary>
@@ -37,6 +36,14 @@ public interface IEngineLogger : IDisposable
     /// Logs an entry at the specified level with optional structured properties.
     /// </summary>
     void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null);
+
+    /// <summary>
+    /// Logs an entry at the specified level together with the exception that triggered it.
+    /// Implementations should fold the exception's type, message, and stack trace into the
+    /// entry (as structured properties or an equivalent log-line detail) so the diagnostic
+    /// trail is not lost to <c>ex.Message</c>-only interpolation.
+    /// </summary>
+    void Log(LogLevel level, string category, string message, Exception? exception, IReadOnlyDictionary<string, string>? properties = null);
 
     /// <summary>Logs at Verbose level.</summary>
     void Verbose(string category, string message);

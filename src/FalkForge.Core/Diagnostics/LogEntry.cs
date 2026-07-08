@@ -1,6 +1,4 @@
-namespace FalkForge.Engine.Logging;
-
-using FalkForge.Engine.Protocol;
+namespace FalkForge.Diagnostics;
 
 /// <summary>
 /// Immutable structured log entry.

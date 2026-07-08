@@ -1,7 +1,7 @@
 namespace FalkForge.Engine.Tests.Logging;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
 using Xunit;
 
 /// <summary>

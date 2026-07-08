@@ -1,14 +1,14 @@
 namespace FalkForge.Engine.Download;
 
-using FalkForge.Engine.Logging;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Manifest;
 
 internal sealed class UpdateChecker
 {
     private readonly HttpClient _httpClient;
-    private readonly IEngineLogger _logger;
+    private readonly IFalkLogger _logger;
 
-    public UpdateChecker(HttpClient httpClient, IEngineLogger logger)
+    public UpdateChecker(HttpClient httpClient, IFalkLogger logger)
     {
         _httpClient = httpClient;
         _logger = logger;

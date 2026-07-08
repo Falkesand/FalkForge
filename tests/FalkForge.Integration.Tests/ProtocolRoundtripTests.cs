@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;

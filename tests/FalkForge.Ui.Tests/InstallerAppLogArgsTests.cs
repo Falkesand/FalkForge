@@ -1,5 +1,6 @@
 namespace FalkForge.Ui.Tests;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui;
 using Xunit;

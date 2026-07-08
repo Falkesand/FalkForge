@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Pipeline;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Messages;

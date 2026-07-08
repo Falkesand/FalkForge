@@ -1,3 +1,4 @@
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Serialization;
 using Xunit;

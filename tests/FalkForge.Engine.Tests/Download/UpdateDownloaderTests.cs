@@ -1,8 +1,8 @@
 namespace FalkForge.Engine.Tests.Download;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Logging;
-using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Tests.Logging;
@@ -70,7 +70,7 @@ public sealed class UpdateDownloaderTests
         }
     }
 
-    private sealed class CapturingLogger : IEngineLogger
+    private sealed class CapturingLogger : IFalkLogger
     {
         public List<string> Warnings { get; } = new();
 
@@ -79,6 +79,12 @@ public sealed class UpdateDownloaderTests
         public Guid SessionCorrelationId { get; set; }
 
         public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
+        {
+            if (level == LogLevel.Warning)
+                Warnings.Add(message);
+        }
+
+        public void Log(LogLevel level, string category, string message, Exception? exception, IReadOnlyDictionary<string, string>? properties = null)
         {
             if (level == LogLevel.Warning)
                 Warnings.Add(message);

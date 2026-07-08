@@ -1,6 +1,6 @@
 namespace FalkForge.Engine.Download;
 
-using FalkForge.Engine.Logging;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -8,7 +8,7 @@ internal sealed class UpdateDownloader
 {
     private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> _download;
     private readonly Func<EngineMessage, CancellationToken, Task> _sendMessage;
-    private readonly IEngineLogger _logger;
+    private readonly IFalkLogger _logger;
     private readonly UpdatePolicy _policy;
     private readonly bool _allowResume;
     private readonly IUpdateLauncher _launcher;
@@ -18,7 +18,7 @@ internal sealed class UpdateDownloader
     internal UpdateDownloader(
         Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
         Func<EngineMessage, CancellationToken, Task> sendMessage,
-        IEngineLogger logger,
+        IFalkLogger logger,
         UpdatePolicy policy,
         bool allowResume,
         IUpdateLauncher? launcher = null,

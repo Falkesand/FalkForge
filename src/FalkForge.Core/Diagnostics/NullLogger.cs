@@ -1,11 +1,9 @@
-namespace FalkForge.Engine.Logging;
-
-using FalkForge.Engine.Protocol;
+namespace FalkForge.Diagnostics;
 
 /// <summary>
 /// No-op logger implementation for testing and default initialization.
 /// </summary>
-public sealed class NullLogger : IEngineLogger
+public sealed class NullLogger : IFalkLogger
 {
     public LogLevel MinimumLevel { get; set; } = LogLevel.Info;
     public Guid SessionCorrelationId { get; set; }
@@ -13,6 +11,11 @@ public sealed class NullLogger : IEngineLogger
     public void SetMinimumLevel(LogLevel level) => MinimumLevel = level;
 
     public void Log(LogLevel level, string category, string message, IReadOnlyDictionary<string, string>? properties = null)
+    {
+        // Intentionally empty
+    }
+
+    public void Log(LogLevel level, string category, string message, Exception? exception, IReadOnlyDictionary<string, string>? properties = null)
     {
         // Intentionally empty
     }
