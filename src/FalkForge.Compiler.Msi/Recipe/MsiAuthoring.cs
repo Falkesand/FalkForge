@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Validation;
+using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 using FalkForge.Models;
 using FalkForge.Platform;
@@ -43,14 +45,27 @@ public static class MsiAuthoring
     /// error causes an immediate <see cref="ErrorKind.Validation"/> failure before
     /// table emission begins. Returns the absolute path to the produced MSI on success.
     /// </summary>
+    /// <param name="logger">
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every
+    /// existing caller compiles and behaves unchanged. When supplied, one <c>Info</c>
+    /// entry is logged at start and completion, <c>Debug</c> entries at each pipeline
+    /// step boundary, <c>Error</c> entries (with a <c>code</c> property where a discrete
+    /// error/rule code is available) before every failing return, and <c>Warning</c>
+    /// entries for the two non-fatal steps (ICE infrastructure, SBOM sidecar) that used
+    /// to fail silently.
+    /// </param>
     public static Result<string> Compile(
         PackageModel package,
         string outputPath,
-        IReadOnlyList<IFalkForgeExtension> extensions)
+        IReadOnlyList<IFalkForgeExtension> extensions,
+        IFalkLogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(outputPath);
         ArgumentNullException.ThrowIfNull(extensions);
+
+        var stopwatch = Stopwatch.StartNew();
+        logger?.Info("MsiAuthoring", $"Compiling package '{package.Name}' (ProductCode {package.ProductCode:B}).");
 
         // Step 1: Collect extension rules before validation so that extension-contributed
         // ValidationRule instances (which close over extension-owned data) fire in the same
@@ -81,8 +96,14 @@ public static class MsiAuthoring
         if (!validation.IsValid)
         {
             var errors = string.Join("; ", validation.Errors.Select(e => $"{e.RuleId}: {e.Message}"));
+            var codes = string.Join(",", validation.Errors.Select(e => e.RuleId.ToString()));
+            logger?.Log(LogLevel.Error, "MsiAuthoring", $"Package validation failed: {errors}",
+                new Dictionary<string, string> { ["code"] = codes });
             return Result<string>.Failure(ErrorKind.Validation, $"Package validation failed: {errors}");
         }
+
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("MsiAuthoring", "Step 1.5: package validation passed.");
 
         // Step 1.6: Validate dialog customization (DLG001 / DLG002). Build the step
         // registry from extension-contributed builders so that InsertStep calls that
@@ -103,9 +124,15 @@ public static class MsiAuthoring
             if (dialogErrors.Count > 0)
             {
                 var msgs = string.Join("; ", dialogErrors.Select(e => $"{e.Code}: {e.Message}"));
+                var dialogCodes = string.Join(",", dialogErrors.Select(e => e.Code));
+                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Dialog customization validation failed: {msgs}",
+                    new Dictionary<string, string> { ["code"] = dialogCodes });
                 return Result<string>.Failure(ErrorKind.Validation,
                     $"Dialog customization validation failed: {msgs}");
             }
+
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 1.6: dialog customization validation passed.");
         }
 
         // Step 2: Resolve components. ComponentResolver materializes
@@ -116,10 +143,14 @@ public static class MsiAuthoring
         Result<ResolvedPackage> resolveResult = resolver.Resolve(package);
         if (resolveResult.IsFailure)
         {
+            logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 2: component resolution failed: {resolveResult.Error.Message}",
+                new Dictionary<string, string> { ["code"] = resolveResult.Error.Kind.ToString() });
             return Result<string>.Failure(resolveResult.Error);
         }
 
         ResolvedPackage resolved = resolveResult.Value;
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("MsiAuthoring", $"Step 2: resolved {resolved.Files.Count} file(s), {resolved.Components.Count} component(s).");
 
         // Step 3: Determine the output MSI path and prepare the output dir.
         string msiFileName = $"{FileNameSanitizer.Sanitize(package.Name)}-{package.Version.ToString(3)}.msi";
@@ -146,13 +177,18 @@ public static class MsiAuthoring
             resolved,
             contributors: Array.Empty<IMsiTableContributor>(),
             options: new MsiRecipeBuildOptions(),
-            multiProducers: [new CustomTablesProducer(), new DialogSetProducer()]);
+            multiProducers: [new CustomTablesProducer(), new DialogSetProducer()],
+            logger: logger);
         if (recipeResult.IsFailure)
         {
+            logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 4: recipe build failed: {recipeResult.Error.Message}",
+                new Dictionary<string, string> { ["code"] = recipeResult.Error.Kind.ToString() });
             return Result<string>.Failure(recipeResult.Error);
         }
 
         MsiDatabaseRecipe recipe = recipeResult.Value;
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("MsiAuthoring", $"Step 4: recipe built with {recipe.Tables.Length} table(s).");
 
         // Step 5: Build cabinets on disk according to the CabinetPlanner layout,
         // then attach embedded cabs to the recipe via CabinetEmbeddings. External
@@ -167,6 +203,9 @@ public static class MsiAuthoring
                 IReadOnlyList<CabinetPlan> plans = CabinetPlanner.Plan(
                     resolved.Files,
                     package.MediaTemplate);
+
+                if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                    logger.Debug("MsiAuthoring", $"Step 5: building {plans.Count} cabinet(s).");
 
                 cabTempDir = Path.Combine(Path.GetTempPath(), $"FalkForge_recipe_{Guid.NewGuid():N}");
                 Directory.CreateDirectory(cabTempDir);
@@ -186,14 +225,19 @@ public static class MsiAuthoring
                     string diskTempDir = Path.Combine(cabTempDir, $"disk{plan.DiskId}");
                     Directory.CreateDirectory(diskTempDir);
 
-                    using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp);
+                    using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp, logger);
                     Result<string> cabResult = cabBuilder.BuildCabinet(
                         slice,
                         diskTempDir,
                         package.Compression,
                         plan.CabinetFileName);
                     if (cabResult.IsFailure)
+                    {
+                        logger?.Log(LogLevel.Error, "MsiAuthoring",
+                            $"Step 5: cabinet '{plan.CabinetFileName}' (disk {plan.DiskId}) failed: {cabResult.Error.Message}",
+                            new Dictionary<string, string> { ["code"] = cabResult.Error.Kind.ToString() });
                         return Result<string>.Failure(cabResult.Error);
+                    }
 
                     string cabPath = cabResult.Value;
 
@@ -218,7 +262,12 @@ public static class MsiAuthoring
                     {
                         Result<Unit> placeResult = externalSink.Place(cabPath, plan.CabinetFileName);
                         if (placeResult.IsFailure)
+                        {
+                            logger?.Log(LogLevel.Error, "MsiAuthoring",
+                                $"Step 5: placing cabinet '{plan.CabinetFileName}' failed: {placeResult.Error.Message}",
+                                new Dictionary<string, string> { ["code"] = placeResult.Error.Kind.ToString() });
                             return Result<string>.Failure(placeResult.Error);
+                        }
                     }
                 }
 
@@ -234,9 +283,14 @@ public static class MsiAuthoring
             // Step 6: Open the MSI database, apply the recipe, commit. The
             // executor commits inside Apply, so the using-block here is just
             // about releasing the file handle before post-processing.
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 6: creating MSI database, applying recipe, committing.");
+
             Result<MsiDatabase> dbResult = MsiDatabase.Create(msiPath);
             if (dbResult.IsFailure)
             {
+                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 6: MSI database creation failed: {dbResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = dbResult.Error.Kind.ToString() });
                 return Result<string>.Failure(dbResult.Error);
             }
 
@@ -246,6 +300,8 @@ public static class MsiAuthoring
                 Result<Unit> applyResult = executor.Apply(recipe);
                 if (applyResult.IsFailure)
                 {
+                    logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 6: recipe apply failed: {applyResult.Error.Message}",
+                        new Dictionary<string, string> { ["code"] = applyResult.Error.Kind.ToString() });
                     return Result<string>.Failure(applyResult.Error);
                 }
 
@@ -254,6 +310,8 @@ public static class MsiAuthoring
                 Result<Unit> commitResult = database.Commit();
                 if (commitResult.IsFailure)
                 {
+                    logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 6: database commit failed: {commitResult.Error.Message}",
+                        new Dictionary<string, string> { ["code"] = commitResult.Error.Kind.ToString() });
                     return Result<string>.Failure(commitResult.Error);
                 }
             }
@@ -280,9 +338,14 @@ public static class MsiAuthoring
         // FILETIME values in place.
         if (package.ReproducibleOptions is { } reproducibleOpts)
         {
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 7: patching reproducible timestamps.");
+
             Result<Unit> patchResult = SummaryInfoPatcher.PatchTimestamps(msiPath, reproducibleOpts.Timestamp);
             if (patchResult.IsFailure)
             {
+                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 7: timestamp patching failed: {patchResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = patchResult.Error.Kind.ToString() });
                 return Result<string>.Failure(patchResult.Error);
             }
         }
@@ -290,10 +353,15 @@ public static class MsiAuthoring
         // Step 8: Code signing.
         if (package.Signing is not null)
         {
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 8: code signing.");
+
             CodeSigner signer = new();
             Result<Unit> signResult = signer.Sign(msiPath, package.Signing);
             if (signResult.IsFailure)
             {
+                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 8: code signing failed: {signResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = signResult.Error.Kind.ToString() });
                 return Result<string>.Failure(signResult.Error);
             }
         }
@@ -303,9 +371,14 @@ public static class MsiAuthoring
             FalkForge.Signing.SigilDetector.IsAvailable() &&
             package.Integrity is not null)
         {
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 8.5: integrity signing.");
+
             Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
             if (integrityResult.IsFailure)
             {
+                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 8.5: integrity signing failed: {integrityResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = integrityResult.Error.Kind.ToString() });
                 return Result<string>.Failure(integrityResult.Error);
             }
         }
@@ -321,6 +394,9 @@ public static class MsiAuthoring
             ?? new IceConfiguration { SkipWhenCubUnavailable = true };
         if (iceConfig.Enabled && package.ReproducibleOptions is null)
         {
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 9: ICE validation.");
+
             IceValidator iceValidator = new();
             Result<IceValidationResult> iceResult = iceValidator.Validate(msiPath, iceConfig);
             if (iceResult.IsSuccess)
@@ -335,19 +411,46 @@ public static class MsiAuthoring
                     string iceErrors = string.Join("; ", iceResult.Value.Messages
                         .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
                         .Select(m => $"{m.IceName}: {m.Description}"));
+                    string iceCodes = string.Join(",", iceResult.Value.Messages
+                        .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
+                        .Select(m => m.IceName));
+                    logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 9: ICE validation failed: {iceErrors}",
+                        new Dictionary<string, string> { ["code"] = iceCodes });
                     return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
                 }
             }
-            // ICE infrastructure failure is non-fatal — mirror MsiCompiler.
+            else
+            {
+                // ICE infrastructure failure (e.g. darice.cub missing/unreadable, native MSI API
+                // failure) is non-fatal — mirror MsiCompiler. Previously silently dropped; now
+                // surfaced as a Warning so a `forge build --verbose` user can see ICE never ran.
+                logger?.Log(LogLevel.Warning, "MsiAuthoring",
+                    $"Step 9: ICE validation could not run: {iceResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = iceResult.Error.Kind.ToString() });
+            }
         }
 
         // Step 10: SBOM sidecar (opt-in). SBOM failure is non-fatal.
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+            logger.Debug("MsiAuthoring", "Step 10: SBOM sidecar.");
+
         Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
-        _ = sbomResult;
+        if (sbomResult.IsFailure)
+        {
+            // Previously silently dropped (`_ = sbomResult;`) — now surfaced as a Warning so a
+            // `forge build --verbose` user can see the sidecar was not written. Compile still
+            // succeeds; SBOM generation remains opt-in and non-fatal.
+            logger?.Log(LogLevel.Warning, "MsiAuthoring",
+                $"Step 10: SBOM sidecar generation failed: {sbomResult.Error.Message}",
+                new Dictionary<string, string> { ["code"] = sbomResult.Error.Kind.ToString() });
+        }
 
         // Step 11: WinGet manifest (opt-in via PackageBuilder.WinGet()).
         if (package.WinGet is not null)
         {
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 11: WinGet manifest.");
+
             using FileStream msiStream = File.OpenRead(msiPath);
             string sha256 = Convert.ToHexString(SHA256.HashData(msiStream));
             Result<string> wingetResult = WinGetManifestWriter.Write(
@@ -358,9 +461,16 @@ public static class MsiAuthoring
                 Path.GetFileName(msiPath));
             if (wingetResult.IsFailure)
             {
+                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 11: WinGet manifest generation failed: {wingetResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = wingetResult.Error.Kind.ToString() });
                 return Result<string>.Failure(wingetResult.Error);
             }
         }
+
+        stopwatch.Stop();
+        long msiSize = new FileInfo(msiPath).Length;
+        logger?.Info("MsiAuthoring",
+            $"Compile complete: '{msiPath}' ({msiSize:N0} bytes) in {stopwatch.ElapsedMilliseconds}ms.");
 
         return Result<string>.Success(msiPath);
     }

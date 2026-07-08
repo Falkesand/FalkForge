@@ -4,6 +4,7 @@ using System.Runtime.Versioning;
 using System.Text;
 using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Interop;
+using FalkForge.Diagnostics;
 
 namespace FalkForge.Compiler.Msi;
 
@@ -15,6 +16,7 @@ public sealed class CabinetBuilder : IDisposable
     public const string DefaultCabinetFileName = CabinetPlanner.DefaultCabinetFileName;
 
     private readonly DateTime? _normalizedTimestamp;
+    private readonly IFalkLogger? _logger;
 
     // File handle tracking: maps pseudo-handles to FileStream instances.
     // FCI callbacks use these to perform file I/O through managed streams.
@@ -36,9 +38,17 @@ public sealed class CabinetBuilder : IDisposable
     private NativeMethods.FnFciStatus? _statusCallback;
     private NativeMethods.FnFciWrite? _writeCallback;
 
-    public CabinetBuilder(DateTime? normalizedTimestamp = null)
+    /// <param name="normalizedTimestamp">
+    /// Optional fixed timestamp applied to every cabinet entry for reproducible builds.
+    /// </param>
+    /// <param name="logger">
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every
+    /// existing caller compiles and behaves unchanged.
+    /// </param>
+    public CabinetBuilder(DateTime? normalizedTimestamp = null, IFalkLogger? logger = null)
     {
         _normalizedTimestamp = normalizedTimestamp;
+        _logger = logger;
     }
 
     public void Dispose()
@@ -52,8 +62,16 @@ public sealed class CabinetBuilder : IDisposable
         CompressionLevel compression,
         string cabinetFileName = DefaultCabinetFileName)
     {
+        // Level-guarded: this runs once per cabinet, potentially many per compile, so avoid
+        // the interpolated message allocation unless Debug logging is actually enabled (D2/D6).
+        if (_logger is not null && _logger.MinimumLevel <= LogLevel.Debug)
+            _logger.Debug("CabinetBuilder", $"Building cabinet '{cabinetFileName}' with {files.Count} file(s).");
+
         if (files.Count == 0)
+        {
+            _logger?.Error("CabinetBuilder", $"Cannot build cabinet '{cabinetFileName}' with no files.");
             return Result<string>.Failure(ErrorKind.InvalidOperation, "Cannot build a cabinet with no files.");
+        }
 
         var tcomp = MapCompressionLevel(compression);
         var cabPath = EnsureTrailingBackslash(outputPath);
@@ -96,9 +114,12 @@ public sealed class CabinetBuilder : IDisposable
             nint.Zero);
 
         if (hfci == nint.Zero)
+        {
+            _logger?.Error("CabinetBuilder", $"FCICreate failed for '{cabinetFileName}'. ERF: oper={erf.erfOper}, type={erf.erfType}");
             return Result<string>.Failure(
                 ErrorKind.CompilationError,
                 $"FCICreate failed. ERF: oper={erf.erfOper}, type={erf.erfType}");
+        }
 
         try
         {
@@ -119,9 +140,12 @@ public sealed class CabinetBuilder : IDisposable
                     tcomp);
 
                 if (!success)
+                {
+                    _logger?.Error("CabinetBuilder", $"FCIAddFile failed for '{file.SourcePath}'. ERF: oper={erf.erfOper}, type={erf.erfType}");
                     return Result<string>.Failure(
                         ErrorKind.CompilationError,
                         $"FCIAddFile failed for '{file.SourcePath}'. ERF: oper={erf.erfOper}, type={erf.erfType}");
+                }
             }
 
             var flushed = NativeMethods.FCIFlushCabinet(
@@ -131,9 +155,12 @@ public sealed class CabinetBuilder : IDisposable
                 _statusCallback!);
 
             if (!flushed)
+            {
+                _logger?.Error("CabinetBuilder", $"FCIFlushCabinet failed for '{cabinetFileName}'. ERF: oper={erf.erfOper}, type={erf.erfType}");
                 return Result<string>.Failure(
                     ErrorKind.CompilationError,
                     $"FCIFlushCabinet failed. ERF: oper={erf.erfOper}, type={erf.erfType}");
+            }
         }
         finally
         {
@@ -152,9 +179,12 @@ public sealed class CabinetBuilder : IDisposable
 
         var resultPath = Path.Combine(outputPath, cabinetFileName);
         if (!File.Exists(resultPath))
+        {
+            _logger?.Error("CabinetBuilder", $"Cabinet file was not created at expected path: {resultPath}");
             return Result<string>.Failure(
                 ErrorKind.CompilationError,
                 $"Cabinet file was not created at expected path: {resultPath}");
+        }
 
         return resultPath;
     }
@@ -225,8 +255,11 @@ public sealed class CabinetBuilder : IDisposable
             _openStreams[handle] = stream;
             return handle;
         }
-        catch
+        catch (Exception ex)
         {
+            // Previously the exception was dropped entirely (FCI only sees err=1). Capture it
+            // so the diagnostic trail is not lost to the generic "FCIAddFile failed" message.
+            _logger?.Log(LogLevel.Error, "CabinetBuilder", $"Failed to open '{pszFile}' for cabinet I/O.", ex);
             err = 1;
             return -1;
         }
@@ -423,8 +456,11 @@ public sealed class CabinetBuilder : IDisposable
             _openStreams[handle] = stream;
             return handle;
         }
-        catch
+        catch (Exception ex)
         {
+            // Previously the exception was dropped entirely (FCI only sees err=1). Capture it
+            // so the diagnostic trail is not lost to the generic "FCIAddFile failed" message.
+            _logger?.Log(LogLevel.Error, "CabinetBuilder", $"Failed to get open-info for '{pszName}'.", ex);
             err = 1;
             return -1;
         }
