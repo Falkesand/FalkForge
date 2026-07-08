@@ -1,4 +1,5 @@
 using FalkForge.Decompiler.Recipe.Schemas;
+using FalkForge.Diagnostics;
 using FalkForge.Models;
 
 namespace FalkForge.Decompiler.Recipe;
@@ -50,8 +51,13 @@ public static class MsiPackageReconstructor
     /// <summary>
     /// Rebuilds a <see cref="PackageModel"/> from the row collections produced
     /// by reading each table schema via <see cref="TableReadEngine.ReadOne{TRow}"/>.
-    /// All parameters come from the read pipeline; this method performs no IO.
+    /// All parameters come from the read pipeline; this method performs no IO and never fails.
     /// </summary>
+    /// <param name="logger">
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every existing
+    /// caller behaves unchanged. When supplied, a <c>Debug</c> entry summarising the reconstructed
+    /// model (feature/file/registry/service/shortcut counts) is logged before returning.
+    /// </param>
     public static PackageModel Rebuild(
         IReadOnlyList<PropertyRow>          propertyRows,
         IReadOnlyList<DirectoryRow>         directoryRows,
@@ -62,7 +68,8 @@ public static class MsiPackageReconstructor
         IReadOnlyList<RegistryRow>          registryRows,
         IReadOnlyList<ServiceRow>           serviceRows,
         IReadOnlyList<ShortcutRow>          shortcutRows,
-        IReadOnlyList<UpgradeRow>           upgradeRows)
+        IReadOnlyList<UpgradeRow>           upgradeRows,
+        IFalkLogger?                        logger = null)
     {
         var props = PropertySet.From(propertyRows);
         var meta = ExtractMetadata(props);
@@ -266,6 +273,13 @@ public static class MsiPackageReconstructor
                     break;
                 }
             }
+        }
+
+        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+        {
+            logger.Debug("MsiDecompiler",
+                $"Reconstructed package model: {features.Count} feature(s), {fileEntries.Count} file(s), " +
+                $"{registryEntries.Count} registry entrie(s), {services.Count} service(s), {shortcuts.Count} shortcut(s).");
         }
 
         return new PackageModel

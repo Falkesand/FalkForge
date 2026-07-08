@@ -15,6 +15,11 @@ public sealed class DecompileSettings : CommandSettings
     [CommandOption("-o|--output")]
     public string? OutputPath { get; init; }
 
+    [Description("Enable verbose output")]
+    [CommandOption("--verbose")]
+    [DefaultValue(false)]
+    public bool Verbose { get; init; }
+
     public override CliValidationResult Validate()
     {
         if (string.IsNullOrWhiteSpace(FilePath))
