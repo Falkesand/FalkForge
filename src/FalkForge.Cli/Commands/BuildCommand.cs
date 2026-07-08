@@ -6,6 +6,7 @@ using FalkForge.Cli.Settings;
 using FalkForge.Cli.WinGet;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
+using FalkForge.Platform.Windows;
 using FalkForge.Validation;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -131,7 +132,7 @@ public sealed class BuildCommand : Command<BuildSettings>
             return ExitCodes.RuntimeError;
         }
 
-        var compileResult = CompilePackage(package, outputPath);
+        var compileResult = CompilePackage(package, outputPath, settings);
         if (compileResult.IsFailure)
         {
             _console.WriteError(compileResult.Error.Message);
@@ -243,12 +244,13 @@ public sealed class BuildCommand : Command<BuildSettings>
     }
 
     [SupportedOSPlatform("windows")]
-    private static Result<string> CompilePackage(PackageModel package, string outputPath)
+    private Result<string> CompilePackage(PackageModel package, string outputPath, BuildSettings settings)
     {
         if (!Directory.Exists(outputPath))
             Directory.CreateDirectory(outputPath);
 
-        var compiler = new MsiCompiler();
+        var logger = new ConsoleOutputLogger(_console, settings.Verbose);
+        var compiler = new MsiCompiler(new WindowsFileSystem(), [], logger);
         return compiler.Compile(package, outputPath);
     }
 
