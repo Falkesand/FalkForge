@@ -344,4 +344,31 @@ public class MessageSerializerTests
         var deserialized = Assert.IsType<LaunchUpdateMessage>(result.Value);
         Assert.Equal(99u, deserialized.SequenceId);
     }
+
+    /// <summary>
+    /// Serialize reuses a per-thread scratch buffer across calls for allocation efficiency.
+    /// A large message serialized between two identical small messages must not leave any
+    /// residue (stale length-prefix bytes, leftover payload tail) in the reused buffer —
+    /// each call's output must depend only on that call's message, never on what was
+    /// serialized immediately before it on the same thread.
+    /// </summary>
+    [Fact]
+    public void Serialize_SequentialCallsOfDifferentSizes_AreByteIdenticalPerMessage()
+    {
+        var small = new CancelMessage { SequenceId = 7 };
+        var large = new ElevateExecuteMessage
+        {
+            SequenceId = 123,
+            CommandName = "install-msi",
+            CommandPayload = new byte[8192]
+        };
+
+        var firstSmallBytes = MessageSerializer.Serialize(small);
+        var largeBytes = MessageSerializer.Serialize(large);
+        var secondSmallBytes = MessageSerializer.Serialize(small);
+        var secondLargeBytes = MessageSerializer.Serialize(large);
+
+        Assert.Equal(firstSmallBytes, secondSmallBytes);
+        Assert.Equal(largeBytes, secondLargeBytes);
+    }
 }

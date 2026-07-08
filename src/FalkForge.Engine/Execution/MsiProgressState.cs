@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace FalkForge.Engine.Execution;
 
 /// <summary>
@@ -22,7 +24,7 @@ internal sealed class MsiProgressState
             return -1;
 
         var fields = ParseFields(message);
-        if (fields.Count == 0 || !fields.TryGetValue(1, out var field1))
+        if (fields.Field1 is not int field1)
             return -1;
 
         return field1 switch
@@ -33,24 +35,24 @@ internal sealed class MsiProgressState
         };
     }
 
-    private int HandleMasterReset(Dictionary<int, int> fields)
+    private int HandleMasterReset(ParsedFields fields)
     {
-        if (!fields.TryGetValue(2, out var total) || total <= 0)
+        if (fields.Field2 is not int total || total <= 0)
             return -1;
 
         _total = total;
         _completed = 0;
-        _forward = !fields.TryGetValue(3, out var direction) || direction == 0;
+        _forward = fields.Field3 is not int direction || direction == 0;
 
         return 0;
     }
 
-    private int HandleProgressTick(Dictionary<int, int> fields)
+    private int HandleProgressTick(ParsedFields fields)
     {
         if (_total <= 0)
             return -1;
 
-        if (fields.TryGetValue(2, out var increment))
+        if (fields.Field2 is int increment)
         {
             if (_forward)
                 _completed += increment;
@@ -62,9 +64,23 @@ internal sealed class MsiProgressState
         return Math.Clamp(percent, 0, 100);
     }
 
-    private static Dictionary<int, int> ParseFields(string message)
+    /// <summary>
+    /// Fixed-slot holder for MSI progress message fields 1-3 (message type, argument,
+    /// direction). Replaces a per-call <c>Dictionary&lt;int,int&gt;</c> allocation on the
+    /// hot msi.dll progress callback path — every field this parser ever consults is one
+    /// of these three, so a heap dictionary bought nothing but allocation churn.
+    /// </summary>
+    [StructLayout(LayoutKind.Auto)]
+    private struct ParsedFields
     {
-        var result = new Dictionary<int, int>();
+        public int? Field1;
+        public int? Field2;
+        public int? Field3;
+    }
+
+    private static ParsedFields ParseFields(string message)
+    {
+        var result = new ParsedFields();
         var span = message.AsSpan();
 
         while (span.Length > 0)
@@ -84,7 +100,17 @@ internal sealed class MsiProgressState
             var valueSpan = spaceIndex >= 0 ? span[..spaceIndex] : span;
 
             if (int.TryParse(valueSpan.Trim(), out var value))
-                result[fieldNum] = value;
+            {
+                switch (fieldNum)
+                {
+                    case 1: result.Field1 = value; break;
+                    case 2: result.Field2 = value; break;
+                    case 3: result.Field3 = value; break;
+                    // Fields beyond index 3 (e.g. MSI's reserved 4th progress field) are
+                    // parsed only to keep the cursor advancing; no handler above ever
+                    // consulted them even when they lived in the old dictionary.
+                }
+            }
 
             span = spaceIndex >= 0 ? span[(spaceIndex + 1)..] : [];
         }
