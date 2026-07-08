@@ -32,7 +32,6 @@ internal sealed class ComponentTableProducer : ITableProducer
         TableId directoryTable = WellKnownTableIds.Directory;
         bool sixtyFourBit =
             resolved.Package.Architecture is ProcessorArchitecture.X64 or ProcessorArchitecture.Arm64;
-        InstallPath? installDir = resolved.Package.DefaultInstallDirectory;
 
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
 
@@ -74,9 +73,7 @@ internal sealed class ComponentTableProducer : ITableProducer
             // because DirectoryTableProducer emits intermediate D_* and the
             // canonical INSTALLDIR rows; the FK must point at the leaf row,
             // not at the root.
-            string directoryId = context.GetOrComputeDirectoryId(
-                component.Directory,
-                installDir);
+            string directoryId = context.GetOrComputeDirectoryId(component.Directory);
             // Component.Condition is nullable in MSI but the legacy TableEmitter (deleted in Phase 9)
             // writes empty string when no condition is set; mirror that to keep recipe row
             // shape identical.

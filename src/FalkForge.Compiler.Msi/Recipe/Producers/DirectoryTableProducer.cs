@@ -47,7 +47,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         // the emitted-set rather than re-emitting under generated D_* ids.
         if (installDir is not null)
         {
-            EnsureInstallPathRows(context, rows, emitted, directoryTable, installDir, installDir);
+            EnsureInstallPathRows(context, rows, emitted, directoryTable, installDir);
         }
 
         // Step 3: every component's directory; covers paths outside the install
@@ -55,7 +55,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         // beneath the install dir leaf.
         foreach (ResolvedComponent component in context.Resolved.Components)
         {
-            EnsureInstallPathRows(context, rows, emitted, directoryTable, component.Directory, installDir);
+            EnsureInstallPathRows(context, rows, emitted, directoryTable, component.Directory);
         }
 
         // Step 4: files may target directories that no resolved component
@@ -64,7 +64,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         // validator never sees an unresolved Directory_ reference.
         foreach (ResolvedFile file in context.Resolved.Files)
         {
-            EnsureInstallPathRows(context, rows, emitted, directoryTable, file.TargetDirectory, installDir);
+            EnsureInstallPathRows(context, rows, emitted, directoryTable, file.TargetDirectory);
         }
 
         // Step 5: shortcut system directories. Shortcuts may reference special
@@ -148,8 +148,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         ImmutableArray<RecipeRow>.Builder rows,
         HashSet<string> emitted,
         TableId directoryTable,
-        InstallPath path,
-        InstallPath? installDir)
+        InstallPath path)
     {
         // The known-folder root (e.g. ProgramFilesFolder) is always parented to
         // TARGETDIR with the dot DefaultDir convention. Standard MSI directory
@@ -172,7 +171,7 @@ internal sealed class DirectoryTableProducer : ITableProducer
         for (int i = 0; i < segments.Count; i++)
         {
             InstallPath prefix = DirectoryTreeSynthesizer.BuildPrefixPath(path, i + 1);
-            string segDirId = context.GetOrComputeDirectoryId(prefix, installDir);
+            string segDirId = context.GetOrComputeDirectoryId(prefix);
 
             if (emitted.Add(segDirId))
             {

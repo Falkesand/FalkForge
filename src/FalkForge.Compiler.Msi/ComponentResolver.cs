@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
+using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Models;
 using FalkForge.Platform;
 
@@ -39,7 +40,7 @@ public sealed class ComponentResolver
                         ? file.TargetDirectory
                         : file.TargetDirectory / subDir.Replace('\\', '/');
 
-                    var sanitizedFileName = SanitizeId(fileName);
+                    var sanitizedFileName = ProducerHelpers.SanitizeDirectoryId(fileName);
                     var componentId = GenerateComponentId(targetDir, sanitizedFileName);
                     var componentGuid = GuidUtility.CreateDeterministicGuid(
                         GuidUtility.FalkForgeNamespace,
@@ -74,7 +75,7 @@ public sealed class ComponentResolver
             else if (file.FileName != "*")
             {
                 var fullPath = _fileSystem.GetFullPath(file.SourcePath);
-                var sanitizedFileName = SanitizeId(file.FileName);
+                var sanitizedFileName = ProducerHelpers.SanitizeDirectoryId(file.FileName);
                 var componentId = GenerateComponentId(file.TargetDirectory, sanitizedFileName);
                 var componentGuid = file.ComponentGuid ?? GuidUtility.CreateDeterministicGuid(
                     GuidUtility.FalkForgeNamespace,
@@ -133,33 +134,5 @@ public sealed class ComponentResolver
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
             return Convert.ToHexString(bytes, 0, 4); // 8 hex chars, deterministic across runtimes
         });
-    }
-
-    private static string SanitizeId(string name)
-    {
-        // Avoid allocation for the common case where no replacement is needed.
-        var needsReplacement = false;
-        foreach (var c in name)
-        {
-            if (!(char.IsLetterOrDigit(c) || c == '_' || c == '.'))
-            {
-                needsReplacement = true;
-                break;
-            }
-        }
-
-        if (!needsReplacement)
-        {
-            return name;
-        }
-
-        var sanitized = new char[name.Length];
-        for (var i = 0; i < name.Length; i++)
-        {
-            var c = name[i];
-            sanitized[i] = char.IsLetterOrDigit(c) || c == '_' || c == '.' ? c : '_';
-        }
-
-        return new string(sanitized);
     }
 }
