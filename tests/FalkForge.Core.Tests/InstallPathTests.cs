@@ -102,4 +102,30 @@ public sealed class InstallPathTests
 
         Assert.Equal("Contoso/sub/dir", extended.RelativePath);
     }
+
+    [Fact]
+    public void Segments_CalledTwice_ReturnsSameCachedInstance()
+    {
+        var path = KnownFolder.ProgramFiles / "Contoso" / "MyApp";
+
+        var first = path.Segments;
+        var second = path.Segments;
+
+        Assert.Equal(new[] { "Contoso", "MyApp" }, first);
+        // Reference-equal proves the second call reused the cached split
+        // instead of re-splitting RelativePath.
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void ToString_CalledTwice_ReturnsSameCachedInstance()
+    {
+        var path = KnownFolder.ProgramFiles / "Contoso" / "MyApp";
+
+        var first = path.ToString();
+        var second = path.ToString();
+
+        Assert.Equal("[ProgramFilesFolder]Contoso/MyApp", first);
+        Assert.Same(first, second);
+    }
 }
