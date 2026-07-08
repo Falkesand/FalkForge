@@ -102,20 +102,107 @@ public sealed class RecipeBuildContextTests
             MakeResolvedPackage(), new MsiRecipeBuildOptions(), new NoOpFileSequencer(), null!));
     }
 
+    [Fact]
+    public void GetOrComputeDirectoryId_MatchesDirectSynthesizerCall()
+    {
+        // The context reads its install directory from the package, so build a
+        // context whose DefaultInstallDirectory is set and confirm the cache
+        // returns exactly what the direct synthesizer produces for that same
+        // install directory (the install-dir leaf resolves to INSTALLDIR).
+        InstallPath installDir = KnownFolder.ProgramFiles / "Contoso" / "App";
+        RecipeBuildContext context = MakeContext(installDir);
+        InstallPath path = KnownFolder.ProgramFiles / "Contoso" / "App";
+
+        string expected = DirectoryTreeSynthesizer.ComputeDirectoryId(path, installDir);
+        string actual = context.GetOrComputeDirectoryId(path);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_ReadsInstallDirFromContext_NotBareRootId()
+    {
+        // Regression guard for the cache-key hardening: the id for the install
+        // directory itself must be INSTALLDIR (install-dir-aware), which is only
+        // possible if the method reads DefaultInstallDirectory from the context.
+        // A context with no install dir would instead yield a generated D_* id.
+        InstallPath installDir = KnownFolder.ProgramFiles / "Contoso" / "App";
+        RecipeBuildContext withInstallDir = MakeContext(installDir);
+        RecipeBuildContext withoutInstallDir = MakeContext(installDir: null);
+
+        string idAware = withInstallDir.GetOrComputeDirectoryId(installDir);
+        string idUnaware = withoutInstallDir.GetOrComputeDirectoryId(installDir);
+
+        Assert.Equal("INSTALLDIR", idAware);
+        Assert.StartsWith("D_", idUnaware);
+        Assert.NotEqual(idAware, idUnaware);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_SharedDirectory_ReturnsCachedInstance()
+    {
+        RecipeBuildContext context = MakeContext(installDir: null);
+        // Two distinct InstallPath instances with the same root token and relative
+        // path — this is exactly what happens when multiple files/components in the
+        // same shared directory each build their own InstallPath value.
+        InstallPath first = KnownFolder.ProgramFiles / "Contoso" / "App";
+        InstallPath second = KnownFolder.ProgramFiles / "Contoso" / "App";
+
+        string firstId = context.GetOrComputeDirectoryId(first);
+        string secondId = context.GetOrComputeDirectoryId(second);
+
+        Assert.Equal(firstId, secondId);
+        // Reference-equal proves the second call hit the cache instead of
+        // re-walking the ancestor chain and re-hashing every segment.
+        Assert.Same(firstId, secondId);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_DifferentPaths_ReturnDifferentIds()
+    {
+        RecipeBuildContext context = MakeContext(installDir: null);
+        InstallPath pathA = KnownFolder.ProgramFiles / "Contoso" / "App" / "bin";
+        InstallPath pathB = KnownFolder.ProgramFiles / "Contoso" / "App" / "lib";
+
+        string idA = context.GetOrComputeDirectoryId(pathA);
+        string idB = context.GetOrComputeDirectoryId(pathB);
+
+        Assert.NotEqual(idA, idB);
+    }
+
+    [Fact]
+    public void GetOrComputeDirectoryId_ThrowsOnNullPath()
+    {
+        RecipeBuildContext context = MakeContext();
+
+        Assert.Throws<ArgumentNullException>(() => context.GetOrComputeDirectoryId(null!));
+    }
+
     private static RecipeBuildContext MakeContext()
     {
+        return MakeContext(installDir: null);
+    }
+
+    private static RecipeBuildContext MakeContext(InstallPath? installDir)
+    {
         return new RecipeBuildContext(
-            MakeResolvedPackage(),
+            MakeResolvedPackage(installDir),
             new MsiRecipeBuildOptions(),
             new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
     }
 
-    private static ResolvedPackage MakeResolvedPackage()
+    private static ResolvedPackage MakeResolvedPackage(InstallPath? installDir = null)
     {
         return new ResolvedPackage
         {
-            Package = new PackageModel { Name = "Test", Manufacturer = "M", Version = new Version(1, 0, 0) },
+            Package = new PackageModel
+            {
+                Name = "Test",
+                Manufacturer = "M",
+                Version = new Version(1, 0, 0),
+                DefaultInstallDirectory = installDir,
+            },
             Components = new List<ResolvedComponent>(),
             Files = new List<ResolvedFile>(),
         };

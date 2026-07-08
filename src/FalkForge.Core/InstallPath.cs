@@ -2,6 +2,13 @@ namespace FalkForge;
 
 public sealed class InstallPath
 {
+    // InstallPath is immutable, so both are safe to compute once and reuse:
+    // Segments is re-split and ToString() is re-formatted on every access
+    // otherwise, and both are read repeatedly (per-segment, per-producer) while
+    // walking the synthesized directory tree.
+    private string[]? _segments;
+    private string? _toString;
+
     internal InstallPath(KnownFolder root, string relativePath)
     {
         Root = root;
@@ -14,7 +21,7 @@ public sealed class InstallPath
     /// <summary>
     ///     Gets all directory segments from root to this path.
     /// </summary>
-    public IReadOnlyList<string> Segments => RelativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+    public IReadOnlyList<string> Segments => _segments ??= RelativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
     public static InstallPath operator /(InstallPath path, string subPath)
     {
@@ -23,7 +30,7 @@ public sealed class InstallPath
 
     public override string ToString()
     {
-        return $"[{Root.Token}]{RelativePath}";
+        return _toString ??= $"[{Root.Token}]{RelativePath}";
     }
 
     public override bool Equals(object? obj)

@@ -365,6 +365,33 @@ public sealed class ComponentResolverTests
     }
 
     [Fact]
+    public void Resolve_FileNameWithSpecialCharacters_SanitizesConsistentlyInBothIds()
+    {
+        var fs = new MockFileSystem();
+        fs.AddFile("C:/build/my app (v2).exe", size: 100);
+
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f.Add("C:/build/my app (v2).exe").To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        var resolver = new ComponentResolver(fs);
+
+        var result = resolver.Resolve(package);
+
+        Assert.True(result.IsSuccess);
+        var component = result.Value.Components[0];
+        var file = result.Value.Files[0];
+        // Spaces and parentheses are not letters/digits/'_'/'.', so the sanitizer
+        // replaces each with '_'. Both the component id and file id derive their
+        // sanitized-filename segment from the same input, so they must agree.
+        Assert.StartsWith("C_my_app__v2_.exe_", component.Id);
+        Assert.StartsWith("F_my_app__v2_.exe_", file.FileId);
+    }
+
+    [Fact]
     public void Resolve_DeterministicGuids_SameFileInSameDir_ProduceSameGuid()
     {
         var fs1 = new MockFileSystem();

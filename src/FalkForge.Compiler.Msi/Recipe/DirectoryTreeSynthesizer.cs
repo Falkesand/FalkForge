@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Compiler.Msi.Tables;
 
 namespace FalkForge.Compiler.Msi.Recipe;
@@ -53,7 +54,7 @@ internal static class DirectoryTreeSynthesizer
             }
             else
             {
-                parentId = $"D_{SanitizeId(segments[i])}_{StableHash(parentId)}";
+                parentId = $"D_{ProducerHelpers.SanitizeDirectoryId(segments[i])}_{StableHash(parentId)}";
                 if (parentId.Length > 72)
                 {
                     parentId = parentId[..72];
@@ -109,18 +110,6 @@ internal static class DirectoryTreeSynthesizer
         }
 
         return true;
-    }
-
-    private static string SanitizeId(string name)
-    {
-        char[] sanitized = new char[name.Length];
-        for (int i = 0; i < name.Length; i++)
-        {
-            char c = name[i];
-            sanitized[i] = char.IsLetterOrDigit(c) || c == '_' || c == '.' ? c : '_';
-        }
-
-        return new string(sanitized);
     }
 
     private static string StableHash(string input)
