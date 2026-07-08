@@ -258,6 +258,74 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         Assert.Equal(corruptNewData, corruptPkgPayload.Value);
     }
 
+    [Fact]
+    public void Compile_DeletesItsScratchTempDirectory_OnSuccess()
+    {
+        var tempRoot = Path.Combine(_tempDir, "scratch_root_success");
+        Directory.CreateDirectory(tempRoot);
+
+        var oldPayloadData = new byte[10_000];
+        Array.Fill(oldPayloadData, (byte)'X');
+        var oldBundlePath = CreateFullBundle("cleanup_ok_old", oldPayloadData, "Pkg1");
+
+        var newPayloadData = (byte[])oldPayloadData.Clone();
+        newPayloadData[500] = (byte)'Y';
+        var newPayloadPath = CreatePayloadFile(newPayloadData, "cleanup_ok_new.bin");
+
+        var model = CreateModel("CleanupOk", [("Pkg1", newPayloadPath)]);
+        var outputDir = Path.Combine(_tempDir, "cleanup_ok_output");
+
+        var compiler = new DeltaBundleCompiler { TempRootOverride = tempRoot };
+        var result = compiler.Compile(model, outputDir, oldBundlePath);
+
+        Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+        AssertNoScratchDirLeaked(tempRoot);
+    }
+
+    [Fact]
+    public void Compile_DeletesItsScratchTempDirectory_OnFailure()
+    {
+        var tempRoot = Path.Combine(_tempDir, "scratch_root_failure");
+        Directory.CreateDirectory(tempRoot);
+
+        var oldPayloadData = new byte[10_000];
+        Array.Fill(oldPayloadData, (byte)'X');
+        var oldBundlePath = CreateFullBundle("cleanup_fail_old", oldPayloadData, "Pkg1");
+
+        var newPayloadData = (byte[])oldPayloadData.Clone();
+        newPayloadData[500] = (byte)'Y';
+        var newPayloadPath = CreatePayloadFile(newPayloadData, "cleanup_fail_new.bin");
+
+        var model = CreateModel("CleanupFail", [("Pkg1", newPayloadPath)]);
+        var outputDir = Path.Combine(_tempDir, "cleanup_fail_output");
+
+        // Force the embed step to fail deterministically: pre-create a *directory* at the exact
+        // output .exe path, so EmbedWithDeltas' File.Copy(stub, outputPath) throws (caught and
+        // turned into a failure Result). The scratch temp dir is created before this point, so its
+        // deletion is what the finally block must still guarantee on the failure path.
+        Directory.CreateDirectory(outputDir);
+        Directory.CreateDirectory(Path.Combine(outputDir, "CleanupFail.exe"));
+
+        var compiler = new DeltaBundleCompiler { TempRootOverride = tempRoot };
+        var result = compiler.Compile(model, outputDir, oldBundlePath);
+
+        Assert.True(result.IsFailure, "Expected embed to fail because output .exe path is a directory");
+        AssertNoScratchDirLeaked(tempRoot);
+    }
+
+    /// <summary>
+    /// Asserts that no <c>falkdelta_*</c> scratch directory (nor any leftover per-payload
+    /// <c>old_</c>/<c>delta_</c>/<c>compressed_</c> temp file) survives under
+    /// <paramref name="tempRoot"/> after a Compile call.
+    /// </summary>
+    private static void AssertNoScratchDirLeaked(string tempRoot)
+    {
+        var leaked = Directory.GetDirectories(tempRoot, "falkdelta_*", SearchOption.TopDirectoryOnly);
+        Assert.True(leaked.Length == 0,
+            $"Scratch temp directory leaked: {string.Join(", ", leaked)}");
+        Assert.Empty(Directory.GetFiles(tempRoot, "*", SearchOption.AllDirectories));
+    }
+
     /// <summary>
     /// Flips a few bytes in <paramref name="packageId"/>'s compressed payload region directly on
     /// disk, without touching the TOC or footer, so BundleReader.Extract still lists it correctly

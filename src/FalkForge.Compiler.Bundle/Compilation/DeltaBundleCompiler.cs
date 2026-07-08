@@ -26,6 +26,14 @@ public sealed class DeltaBundleCompiler
 
     public string? EngineStubPath { get; set; }
 
+    /// <summary>
+    /// Test seam: overrides the parent directory under which the per-compile <c>falkdelta_*</c>
+    /// scratch directory is created. Null (default) uses <see cref="Path.GetTempPath"/>. Exists so
+    /// cleanup-guarantee tests can assert the scratch directory is deleted without scanning the
+    /// shared OS temp directory (which flakes under parallel test runs).
+    /// </summary>
+    internal string? TempRootOverride { get; set; }
+
     public Result<string> Compile(
         BundleModel model,
         string outputPath,
@@ -114,7 +122,7 @@ public sealed class DeltaBundleCompiler
         // per-payload compressed staging files. Nothing here is held resident in memory across
         // payloads — every stage streams through a bounded buffer. Cleaned up in `finally`
         // regardless of outcome.
-        var tempDir = Path.Combine(Path.GetTempPath(), $"falkdelta_{Guid.NewGuid():N}");
+        var tempDir = Path.Combine(TempRootOverride ?? Path.GetTempPath(), $"falkdelta_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
 
         try
