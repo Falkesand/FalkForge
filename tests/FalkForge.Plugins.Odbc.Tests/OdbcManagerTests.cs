@@ -1,6 +1,8 @@
 namespace FalkForge.Plugins.Odbc.Tests;
 
+using FalkForge.Diagnostics;
 using FalkForge.Plugins;
+using FalkForge.Testing;
 using Xunit;
 
 public sealed class OdbcManagerTests
@@ -62,5 +64,28 @@ public sealed class OdbcManagerTests
 
         IPluginServices services = registry;
         Assert.NotNull(services.GetService<IOdbcManager>());
+    }
+
+    [Fact]
+    public void DsnExists_logs_warning_on_invalid_name()
+    {
+        var logger = new ListLogger();
+        var manager = new OdbcManager(logger);
+
+        manager.DsnExists("bad;name");
+
+        Assert.Contains(logger.Entries, e => e.Level == LogLevel.Warning);
+    }
+
+    [Fact]
+    public void DsnExists_logs_info_on_lookup()
+    {
+        var logger = new ListLogger();
+        var manager = new OdbcManager(logger);
+
+        manager.DsnExists("NONEXISTENT_DSN_TEST_12345");
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Info && e.Message.Contains("exists: False"));
     }
 }

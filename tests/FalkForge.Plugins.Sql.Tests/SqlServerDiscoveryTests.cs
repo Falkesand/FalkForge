@@ -1,3 +1,5 @@
+using FalkForge.Diagnostics;
+using FalkForge.Testing;
 using Xunit;
 
 namespace FalkForge.Plugins.Sql.Tests;
@@ -127,5 +129,39 @@ public sealed class SqlServerDiscoveryTests
         Assert.True(result.IsSuccess);
         Assert.Contains(@"SERVER1\SQLEXPRESS", result.Value);
         Assert.Contains("SERVER2", result.Value);
+    }
+
+    [Fact]
+    public async Task DiscoverServersAsync_logs_start_and_completion()
+    {
+        var logger = new ListLogger();
+        var discovery = new SqlServerDiscovery(
+            registrySource: _ => ["SERVER1"],
+            networkSource: _ => [],
+            logger: logger);
+
+        await discovery.DiscoverServersAsync();
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Info && e.Message.Contains("Starting SQL Server discovery"));
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Info && e.Message.Contains("discovery complete"));
+    }
+
+    [Fact]
+    public async Task DiscoverServersAsync_network_exception_logs_warning_with_exception()
+    {
+        var logger = new ListLogger();
+        var discovery = new SqlServerDiscovery(
+            registrySource: _ => ["FromRegistry"],
+            networkSource: _ => throw new InvalidOperationException("network down"),
+            logger: logger);
+
+        await discovery.DiscoverServersAsync();
+
+        var warning = Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.NotNull(warning.Properties);
+        Assert.Contains("InvalidOperationException", warning.Properties!["exception.type"]);
+        Assert.Contains("network down", warning.Properties["exception.message"]);
     }
 }

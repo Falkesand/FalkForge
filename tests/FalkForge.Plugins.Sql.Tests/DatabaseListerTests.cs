@@ -1,4 +1,6 @@
 using System.Data.Common;
+using FalkForge.Diagnostics;
+using FalkForge.Testing;
 using Xunit;
 
 namespace FalkForge.Plugins.Sql.Tests;
@@ -86,5 +88,36 @@ public sealed class DatabaseListerTests
         Assert.NotNull(capturedConnStr);
         Assert.Contains("myserver", capturedConnStr);
         Assert.Contains("sa", capturedConnStr);
+    }
+
+    [Fact]
+    public async Task ListDatabasesAsync_logs_info_on_success()
+    {
+        var logger = new ListLogger();
+        var lister = new DatabaseLister(
+            (_, _) => Task.FromResult<IReadOnlyList<string>>(["master"]),
+            logger);
+
+        await lister.ListDatabasesAsync("server", integratedSecurity: true);
+
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Info && e.Message.Contains("Listing databases"));
+        Assert.Contains(logger.Entries, e =>
+            e.Level == LogLevel.Info && e.Message.Contains("Found 1 database"));
+    }
+
+    [Fact]
+    public async Task ListDatabasesAsync_logs_error_with_exception_on_failure()
+    {
+        var logger = new ListLogger();
+        var lister = new DatabaseLister(
+            (_, _) => throw new TestDbException("Network error"),
+            logger);
+
+        await lister.ListDatabasesAsync("server", integratedSecurity: true);
+
+        var error = Assert.Single(logger.Entries, e => e.Level == LogLevel.Error);
+        Assert.Equal("PluginError", error.Properties!["code"]);
+        Assert.Contains("Network error", error.Properties["exception.message"]);
     }
 }

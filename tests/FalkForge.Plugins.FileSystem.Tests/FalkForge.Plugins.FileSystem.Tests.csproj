@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OutputType>Exe</OutputType>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
+    <ProjectReference Include="../../src/FalkForge.Plugins.FileSystem/FalkForge.Plugins.FileSystem.csproj" />
     <ProjectReference Include="../../src/FalkForge.Testing/FalkForge.Testing.csproj" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
