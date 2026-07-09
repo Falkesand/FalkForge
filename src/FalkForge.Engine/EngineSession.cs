@@ -95,61 +95,6 @@ public sealed class EngineSession : IAsyncDisposable
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Pipe-callback fanout helpers
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Mutable holder used to bind the <see cref="IUiChannel"/> into the
-    /// <see cref="EngineLogger.pipeCallback"/> closure after the logger has
-    /// been constructed. Avoids a chicken-and-egg between logger construction
-    /// (must happen first so manifest-load failures still surface to a logger)
-    /// and channel construction.
-    /// </summary>
-    private sealed class ChannelHolder
-    {
-        public IUiChannel? Channel { get; set; }
-    }
-
-    /// <summary>
-    /// Forwards a single <see cref="LogEntry"/> to the bound UI channel as a
-    /// <see cref="PipelineEvent.Log"/>.  Fire-and-forget — dispatch hops onto the
-    /// ThreadPool so the logger's call site never blocks on channel I/O.  All
-    /// exceptions are swallowed: a failing channel must not crash the logger,
-    /// nor recursively log via the same logger (would loop).
-    /// </summary>
-    /// <remarks>
-    /// Trade-off: the entry record (<see cref="PipelineEvent.Log"/>) is one
-    /// allocation per accepted log call. Acceptable: log emission is bounded by
-    /// pipeline phase activity, not by hot-path tight loops, and the level
-    /// filter inside <see cref="EngineLogger.Log"/> already short-circuits
-    /// below-threshold entries before we reach this method.
-    /// </remarks>
-    private static void DispatchLogEntryToChannel(ChannelHolder holder, LogEntry entry)
-    {
-        var channel = holder.Channel;
-        if (channel is null)
-            return;
-
-        // Map LogEntry → PipelineEvent.Log. NamedPipeUiChannel.TranslateEvent
-        // already converts this into the wire-level LogMessage frame.
-        var pipelineEvent = new PipelineEvent.Log(entry.Level, entry.Message);
-
-        // Fire-and-forget on the ThreadPool. We do not await — blocking the
-        // logger's call site on pipe I/O could stall pipeline progress.
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await channel.SendAsync(pipelineEvent, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch
-            {
-                // Swallow. Re-logging here would recurse through the same callback.
-            }
-        });
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
     // Session correlation id helpers
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -187,7 +132,7 @@ public sealed class EngineSession : IAsyncDisposable
         // The callback fans every accepted log entry out to the UI channel. It is
         // wired at construction so EngineLogger.Log() can invoke it directly.
         // Channel is bound after construction (see "Channel binding" below).
-        var channelHolder = new ChannelHolder();
+        var logForwarder = new UiChannelLogForwarder();
         IFalkLogger logger;
         string? logFilePath;
         if (options.Logger is not null)
@@ -211,7 +156,7 @@ public sealed class EngineSession : IAsyncDisposable
             var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
             var fileLogger = new EngineLogger(
                 resolvedPath,
-                pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
+                pipeCallback: logForwarder.Dispatch,
                 options: new EngineLoggerOptions { RotationSizeThresholdBytes = 10L * 1024 * 1024, RetentionCount = 5 },
                 minimumLevel: startingLevel);
             logger = fileLogger;
@@ -284,7 +229,7 @@ public sealed class EngineSession : IAsyncDisposable
         // can fan log entries out to the UI. Done after the channel exists; the
         // callback null-checks the holder so any pre-bind log writes are safe no-ops
         // on the channel side.
-        channelHolder.Channel = uiChannel;
+        logForwarder.Channel = uiChannel;
 
         // ── Platform services ───────────────────────────────────────────────
         var platform = new WindowsPlatformServices();
@@ -421,7 +366,7 @@ public sealed class EngineSession : IAsyncDisposable
         // path / level handling.
         IFalkLogger? logger = options.Logger;
         string? logFilePath = null;
-        var channelHolder = new ChannelHolder { Channel = channel };
+        var logForwarder = new UiChannelLogForwarder { Channel = channel };
 
         if (logger is null && (options.LogPath is not null || options.LogDirectory is not null))
         {
@@ -432,7 +377,7 @@ public sealed class EngineSession : IAsyncDisposable
             var startingLevel = options.MinimumLogLevel ?? LogLevel.Debug;
             logger = new EngineLogger(
                 resolvedPath,
-                pipeCallback: entry => DispatchLogEntryToChannel(channelHolder, entry),
+                pipeCallback: logForwarder.Dispatch,
                 options: new EngineLoggerOptions { RotationSizeThresholdBytes = 10L * 1024 * 1024, RetentionCount = 5 },
                 minimumLevel: startingLevel);
             logFilePath = resolvedPath;
@@ -583,38 +528,5 @@ public sealed class EngineSession : IAsyncDisposable
         _instanceLock?.Dispose();
         // Release the auto-update HttpClient (only created when the manifest has an update feed).
         _updateHttpClient?.Dispose();
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Private helper: observes outbound events to detect Completing phase
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Thin <see cref="IUiChannel"/> decorator that records whether a
-    /// <see cref="PipelineEvent.PhaseChanged"/> for <see cref="EnginePhase.Completing"/>
-    /// was emitted. Used by <see cref="RunUntilShutdown"/> to distinguish a successful
-    /// Apply (Completing emitted) from a user Cancel (only Shutdown emitted).
-    /// </summary>
-    private sealed class ObservingUiChannel : IUiChannel
-    {
-        private readonly IUiChannel _inner;
-
-        public bool CompletingEmitted { get; private set; }
-
-        public ObservingUiChannel(IUiChannel inner) => _inner = inner;
-
-        public void SetSessionCorrelationId(Guid id) => _inner.SetSessionCorrelationId(id);
-
-        public Task SendAsync(PipelineEvent evt, CancellationToken ct)
-        {
-            if (evt is PipelineEvent.PhaseChanged { Phase: EnginePhase.Completing })
-                CompletingEmitted = true;
-            return _inner.SendAsync(evt, ct);
-        }
-
-        public IAsyncEnumerable<UiRequest> ReadRequestsAsync(CancellationToken ct) =>
-            _inner.ReadRequestsAsync(ct);
-
-        public ValueTask DisposeAsync() => default; // lifetime owned by EngineSession
     }
 }
