@@ -121,7 +121,7 @@ public class VersionNegotiationTests
     // --- Global registry has all current-wire codecs ---
 
     [Fact]
-    public void GlobalRegistry_resolves_all_29_message_types_at_their_minimum_wire_version()
+    public void GlobalRegistry_resolves_all_real_message_types_at_their_minimum_wire_version()
     {
         // Log and PhaseChanged were promoted to WireVersion 2 to carry SessionCorrelationId.
         // All other types remain at WireVersion 1. Verify each type resolves at its own

@@ -23,6 +23,8 @@ internal sealed class UpdateChecker
         byte[] feedBytes;
         try
         {
+            // FeedUrl is guaranteed to be an absolute URI by BundleValidator rule BDL024 at compile time;
+            // do not remove that validator without accounting for this call site.
             using var response = await _httpClient.GetAsync(new Uri(config.FeedUrl), cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
