@@ -51,10 +51,36 @@ public sealed class EcdsaManifestSignerTests : IDisposable
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var envelope = IntegrityEnvelopeCodec.Parse(result.Value);
         Assert.NotNull(envelope);
-        Assert.Equal(1, envelope!.Version);
-        Assert.False(string.IsNullOrEmpty(envelope.PublicKey));
-        Assert.False(string.IsNullOrEmpty(envelope.Signature));
+        Assert.Equal(2, envelope!.Version);
+        var signature = Assert.Single(envelope.Signatures);
+        Assert.False(string.IsNullOrEmpty(signature.PublicKey));
+        Assert.False(string.IsNullOrEmpty(signature.Signature));
+        Assert.False(string.IsNullOrEmpty(signature.Fingerprint));
         Assert.Equal(2, envelope.Files.Count);
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+    }
+
+    [Fact]
+    public void Sign_WithMultiplePemKeys_ProducesOneSignatureEntryPerKey()
+    {
+        // Rotation-safe dual-sign: two PEM keys each contribute a signature entry over the same files.
+        using var k1 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var k2 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var pem1 = Path.Combine(_tempDir, "k1.pem");
+        var pem2 = Path.Combine(_tempDir, "k2.pem");
+        File.WriteAllText(pem1, k1.ExportPkcs8PrivateKeyPem());
+        File.WriteAllText(pem2, k2.ExportPkcs8PrivateKeyPem());
+        var config = new IntegrityConfiguration { SigningKeyPaths = new[] { pem1, pem2 } };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var envelope = IntegrityEnvelopeCodec.Parse(result.Value)!;
+        Assert.Equal(2, envelope.Signatures.Count);
+        var fp1 = Convert.ToHexString(SHA256.HashData(k1.ExportSubjectPublicKeyInfo()));
+        var fp2 = Convert.ToHexString(SHA256.HashData(k2.ExportSubjectPublicKeyInfo()));
+        Assert.Equal(fp1, envelope.Signatures[0].Fingerprint);
+        Assert.Equal(fp2, envelope.Signatures[1].Fingerprint);
         Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
     }
 
@@ -81,8 +107,8 @@ public sealed class EcdsaManifestSignerTests : IDisposable
         var first = EcdsaManifestSigner.Sign(entries, config: null);
         var second = EcdsaManifestSigner.Sign(entries, config: null);
 
-        var pub1 = IntegrityEnvelopeCodec.Parse(first.Value)!.PublicKey;
-        var pub2 = IntegrityEnvelopeCodec.Parse(second.Value)!.PublicKey;
+        var pub1 = IntegrityEnvelopeCodec.Parse(first.Value)!.Signatures[0].PublicKey;
+        var pub2 = IntegrityEnvelopeCodec.Parse(second.Value)!.Signatures[0].PublicKey;
         Assert.NotEqual(pub1, pub2);
     }
 
@@ -101,10 +127,10 @@ public sealed class EcdsaManifestSignerTests : IDisposable
 
         Assert.True(first.IsSuccess);
         var expectedPub = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
-        Assert.Equal(expectedPub, IntegrityEnvelopeCodec.Parse(first.Value)!.PublicKey);
+        Assert.Equal(expectedPub, IntegrityEnvelopeCodec.Parse(first.Value)!.Signatures[0].PublicKey);
         Assert.Equal(
-            IntegrityEnvelopeCodec.Parse(first.Value)!.PublicKey,
-            IntegrityEnvelopeCodec.Parse(second.Value)!.PublicKey);
+            IntegrityEnvelopeCodec.Parse(first.Value)!.Signatures[0].PublicKey,
+            IntegrityEnvelopeCodec.Parse(second.Value)!.Signatures[0].PublicKey);
         Assert.True(IntegrityEnvelopeCodec.VerifySignature(IntegrityEnvelopeCodec.Parse(first.Value)!));
     }
 

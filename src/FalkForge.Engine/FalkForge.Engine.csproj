@@ -19,4 +19,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Engine.Tests" />
   </ItemGroup>
+
+  <!-- Build-time injection of the trusted publisher-key set into a generated BakedTrustedKeys constant. -->
+  <Import Project="TrustedKeys.targets" />
 </Project>

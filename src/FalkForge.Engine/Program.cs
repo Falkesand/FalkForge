@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Execution;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Integrity;
@@ -338,7 +339,11 @@ internal static class Program
                 $"Failed to deserialize embedded manifest for integrity verification: {ex.Message}");
         }
 
-        return SignedPayloadTocVerifier.Verify(manifest, content.TocEntries);
+        // Fresh-install self-extract path: pin the engine's baked trusted set (an attacker's re-signed
+        // bundle is rejected), but do not require a signature (a legacy/unsigned bundle the user chose to
+        // run still extracts — Stage 1). The require-signed update path is Stage 2.
+        return SignedPayloadTocVerifier.Verify(
+            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned: false);
     }
 
     /// <summary>
@@ -439,7 +444,8 @@ internal static class Program
         // hashes, so without this a validly-signed bundle whose payload bytes + TOC hash were
         // rewritten after signing would extract and run the tampered payload. Unsigned manifests
         // pass through (backward compatible).
-        var bootstrapTrust = SignedPayloadTocVerifier.Verify(manifest, content.TocEntries);
+        var bootstrapTrust = SignedPayloadTocVerifier.Verify(
+            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned: false);
         if (bootstrapTrust.IsFailure)
         {
             await Console.Error.WriteLineAsync(

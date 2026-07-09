@@ -46,27 +46,53 @@ public static class SignedPayloadTocVerifier
     /// <summary>
     /// Verifies that every TOC payload which is covered by the manifest's ECDSA signature carries a
     /// hash that matches the signed hash, so tampered bytes with a rewritten (unsigned) TOC hash are
-    /// rejected before extraction. Returns success for an unsigned manifest (backward compatible).
+    /// rejected before extraction.
     /// </summary>
-    public static Result<Unit> Verify(InstallerManifest manifest, IReadOnlyList<TocEntry> tocEntries)
+    /// <param name="manifest">The manifest whose signature envelope (if any) binds the payload hashes.</param>
+    /// <param name="tocEntries">The overlay table-of-contents entries the extractor will trust.</param>
+    /// <param name="trustedFingerprints">
+    /// The engine's pinned trusted-key fingerprints (uppercase hex). A signature is accepted only when
+    /// its key's fingerprint is in this set (verify-any across a dual-signed envelope). An empty set
+    /// means consistency-only mode (no baked publisher — accept any self-verifying signature), used by
+    /// an unconfigured engine.
+    /// </param>
+    /// <param name="requireSigned">
+    /// When true, an unsigned manifest is rejected (INT007) instead of passed through. Stage 1 fresh
+    /// installs pass false (backward compatible); the require-signed update path is Stage 2.
+    /// </param>
+    public static Result<Unit> Verify(
+        InstallerManifest manifest,
+        IReadOnlyList<TocEntry> tocEntries,
+        IReadOnlySet<string> trustedFingerprints,
+        bool requireSigned = false)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(tocEntries);
+        ArgumentNullException.ThrowIfNull(trustedFingerprints);
 
-        // Unsigned manifest: no signed hash exists to bind to. Backward-compatible pass-through.
+        // Unsigned manifest: no signed hash exists to bind to. A present-but-untrusted signature is an
+        // attack signal (rejected below); a wholly absent one is a legacy/unsigned bundle. Fresh
+        // installs pass through for backward compatibility; the update path (Stage 2) sets requireSigned.
         if (manifest.ManifestSignature is null)
+        {
+            if (requireSigned)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    "INT007: A signature is required on this path but the manifest carries none. " +
+                    "Refusing to extract or execute an unsigned payload.");
             return Unit.Value;
+        }
 
         var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         if (envelope is null)
-            return Result<Unit>.Failure(ErrorKind.SecurityError,
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
                 "INT003: Failed to parse manifest integrity envelope.");
 
-        // The signed hashes are only trustworthy if the envelope's own signature verifies. A
-        // tampered/forged envelope is rejected here, before any hash from it is trusted.
-        if (!IntegrityEnvelopeCodec.VerifySignature(envelope))
-            return Result<Unit>.Failure(ErrorKind.SecurityError,
-                "INT001: Manifest integrity signature verification failed. The installer may have been tampered with.");
+        // The signed hashes are only trustworthy if a TRUSTED signature verifies. A tampered, forged,
+        // or attacker-re-signed envelope (key not in the pinned set) is rejected here, before any hash
+        // from it is trusted.
+        var trust = IntegrityEnvelopeCodec.VerifyTrusted(envelope, trustedFingerprints);
+        if (trust.IsFailure)
+            return trust;
 
         // Signed hash per package id — the ECDSA-covered source of truth for payload integrity.
         var signedHashes = new Dictionary<string, string>(envelope.Files.Count, StringComparer.Ordinal);
@@ -91,7 +117,7 @@ public static class SignedPayloadTocVerifier
                 || !string.Equals(boundHash, signedHash, StringComparison.OrdinalIgnoreCase))
             {
                 var which = entry.IsDelta ? "reconstructed payload " : "payload ";
-                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
                     $"INT006: {which}hash for '{entry.PackageId}' in the bundle table of contents " +
                     $"({boundHash ?? "<none>"}) does not match the ECDSA-signed manifest hash " +
                     $"({signedHash}). The bundle's payload table was tampered with after signing — " +

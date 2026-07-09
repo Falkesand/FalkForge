@@ -19,20 +19,29 @@ namespace FalkForge.Engine.Protocol.Tests.Integrity;
 /// hash: for a full payload that is <see cref="TocEntry.Sha256Hash"/>; for a delta payload it is
 /// <see cref="TocEntry.ReconstructedSha256Hash"/> (the finished-file hash the reconstruction is
 /// checked against). A TOC that disagrees with the signed manifest is rejected before any byte is
-/// extracted.</para>
+/// extracted. Stage 1 (C14) additionally requires the manifest signature to come from a trusted key.</para>
 /// </summary>
 public sealed class SignedPayloadTocVerifierTests
 {
     private const string HashA = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     private const string HashB = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
 
-    private static InstallerManifest SignedManifest(params (string id, string signedHash)[] payloads)
+    // Consistency-only: an engine with no baked publisher key. Preserves the pre-pin TOC-binding intent
+    // for the byte-binding tests below.
+    private static readonly IReadOnlySet<string> NoTrust = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    private static string Fingerprint(ECDsa key)
+        => Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
+
+    private static IReadOnlySet<string> TrustSet(params string[] fps)
+        => new HashSet<string>(fps, StringComparer.OrdinalIgnoreCase);
+
+    private static InstallerManifest SignedManifest(ECDsa key, params (string id, string signedHash)[] payloads)
     {
         var files = payloads
             .Select(p => new ManifestFileEntry { Name = p.id, Sha256 = p.signedHash })
             .ToList();
 
-        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var envelope = IntegrityEnvelopeCodec.Sign(files, key);
 
         var packages = payloads
@@ -83,9 +92,10 @@ public sealed class SignedPayloadTocVerifierTests
     [Fact]
     public void CleanFullPayload_TocHashMatchesSignedHash_Accepts()
     {
-        var manifest = SignedManifest(("AppMsi", HashA));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
 
-        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { FullEntry("AppMsi", HashA) });
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
     }
@@ -96,21 +106,23 @@ public sealed class SignedPayloadTocVerifierTests
         // Attacker flipped the payload bytes and rewrote the (unsigned) TOC hash to match the
         // tampered bytes. The signed manifest still carries the original hash. Extraction would
         // verify bytes==TOC (HashB) and accept the tampered payload — the verifier must refuse.
-        var manifest = SignedManifest(("AppMsi", HashA));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
 
-        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { FullEntry("AppMsi", HashB) });
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { FullEntry("AppMsi", HashB) }, TrustSet(Fingerprint(key)));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
         Assert.Contains("INT006", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CleanDeltaPayload_ReconstructedHashMatchesSignedHash_Accepts()
     {
-        var manifest = SignedManifest(("AppMsi", HashA));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
 
-        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { DeltaEntry("AppMsi", HashA) });
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { DeltaEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
     }
@@ -121,12 +133,13 @@ public sealed class SignedPayloadTocVerifierTests
         // For a delta payload the finished bytes are checked against ReconstructedSha256Hash.
         // If that (unsigned TOC) value is rewritten to match a tampered reconstruction, the
         // reconstruction would pass its own gate — the binding to the signed hash must reject it.
-        var manifest = SignedManifest(("AppMsi", HashA));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
 
-        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { DeltaEntry("AppMsi", HashB) });
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { DeltaEntry("AppMsi", HashB) }, TrustSet(Fingerprint(key)));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
         Assert.Contains("INT006", result.Error.Message, StringComparison.Ordinal);
     }
 
@@ -145,9 +158,49 @@ public sealed class SignedPayloadTocVerifierTests
             ManifestSignature = null
         };
 
-        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { FullEntry("AppMsi", HashB) });
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[] { FullEntry("AppMsi", HashB) }, NoTrust);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void UnsignedManifest_WithRequireSigned_Rejected_Int007()
+    {
+        // The require-signed seam (Stage 2 update path): an absent signature is refused.
+        var manifest = new InstallerManifest
+        {
+            Name = "T",
+            Manufacturer = "M",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = [],
+            ManifestSignature = null
+        };
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashB) }, NoTrust, requireSigned: true);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT007", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SignedByUntrustedKey_Rejected_Int001()
+    {
+        // A validly self-signed bundle whose key is NOT in the baked set is rejected (re-sign attack).
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(other)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -155,13 +208,14 @@ public sealed class SignedPayloadTocVerifierTests
     {
         // The UI/engine infrastructure payloads are not part of the signed package set. They are
         // outside this binding's scope (verified against the TOC only) and must not fail the gate.
-        var manifest = SignedManifest(("AppMsi", HashA));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
 
         var result = SignedPayloadTocVerifier.Verify(manifest, new[]
         {
             FullEntry("AppMsi", HashA),
             FullEntry("FalkForge.Ui.exe", HashB)
-        });
+        }, TrustSet(Fingerprint(key)));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
     }
@@ -169,7 +223,8 @@ public sealed class SignedPayloadTocVerifierTests
     [Fact]
     public void InvalidSignature_Rejected()
     {
-        var manifest = SignedManifest(("AppMsi", HashA));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
 
         // Corrupt the signed envelope: flip a signed file hash so the ECDSA signature no longer
         // verifies over the file list.
@@ -178,9 +233,9 @@ public sealed class SignedPayloadTocVerifierTests
             ManifestSignature = manifest.ManifestSignature!.Replace(HashA, HashB, StringComparison.Ordinal)
         };
 
-        var result = SignedPayloadTocVerifier.Verify(tampered, new[] { FullEntry("AppMsi", HashB) });
+        var result = SignedPayloadTocVerifier.Verify(tampered, new[] { FullEntry("AppMsi", HashB) }, TrustSet(Fingerprint(key)));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
     }
 }

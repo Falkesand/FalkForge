@@ -32,36 +32,75 @@ internal static class EcdsaManifestSigner
         IReadOnlyList<PayloadHashEntry> entries,
         IntegrityConfiguration? config)
     {
-        var keyResult = CreateKey(config);
-        if (keyResult.IsFailure)
-            return Result<string>.Failure(keyResult.Error);
+        var keysResult = CreateKeys(config);
+        if (keysResult.IsFailure)
+            return Result<string>.Failure(keysResult.Error);
 
-        using var key = keyResult.Value;
+        var keys = keysResult.Value;
+        try
+        {
+            var files = new List<ManifestFileEntry>(entries.Count);
+            foreach (var entry in entries)
+                files.Add(new ManifestFileEntry { Name = entry.PackageId, Sha256 = entry.Sha256 });
 
-        var files = new List<ManifestFileEntry>(entries.Count);
-        foreach (var entry in entries)
-            files.Add(new ManifestFileEntry { Name = entry.PackageId, Sha256 = entry.Sha256 });
-
-        var envelope = IntegrityEnvelopeCodec.Sign(files, key);
-        return IntegrityEnvelopeCodec.Serialize(envelope);
+            var envelope = IntegrityEnvelopeCodec.Sign(files, keys);
+            return IntegrityEnvelopeCodec.Serialize(envelope);
+        }
+        finally
+        {
+            foreach (var key in keys)
+                key.Dispose();
+        }
     }
 
     /// <summary>
-    /// Creates the ECDSA key for signing. Transfers ownership of the returned
-    /// <see cref="ECDsa"/> instance to the caller: <see cref="Sign"/> immediately
-    /// disposes it via <c>using var key = keyResult.Value</c>. On failure the
-    /// result carries no disposable value.
+    /// Resolves the signing keys. Prefers <see cref="IntegrityConfiguration.SigningKeyPaths"/> (one or
+    /// more PEM keys, rotation-safe dual-sign); falls back to the single
+    /// <see cref="IntegrityConfiguration.SigningKeyPath"/>; and finally to a throwaway ephemeral key for
+    /// zero-config tamper detection. Ownership of every returned <see cref="ECDsa"/> transfers to the
+    /// caller (<see cref="Sign"/>), which disposes them in a finally block. Returns SGN002 when a
+    /// configured key file is missing or unreadable — any keys already created are disposed first.
     /// </summary>
-    private static Result<ECDsa> CreateKey(IntegrityConfiguration? config)
+    private static Result<IReadOnlyList<ECDsa>> CreateKeys(IntegrityConfiguration? config)
     {
-        var keyPath = config?.SigningKeyPath;
-        if (string.IsNullOrEmpty(keyPath))
+        var paths = ResolveKeyPaths(config);
+
+        if (paths.Count == 0)
         {
-#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes via `using var key`.
-            return ECDsa.Create(ECCurve.NamedCurves.nistP256);
+#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes in a finally block.
+            return Result<IReadOnlyList<ECDsa>>.Success([ECDsa.Create(ECCurve.NamedCurves.nistP256)]);
 #pragma warning restore IDISP005
         }
 
+        var keys = new List<ECDsa>(paths.Count);
+        foreach (var keyPath in paths)
+        {
+            var keyResult = LoadPemKey(keyPath);
+            if (keyResult.IsFailure)
+            {
+                foreach (var created in keys)
+                    created.Dispose();
+                return Result<IReadOnlyList<ECDsa>>.Failure(keyResult.Error);
+            }
+
+            keys.Add(keyResult.Value);
+        }
+
+        // Result<T>'s implicit conversion cannot originate from an interface type, so use the factory.
+        return Result<IReadOnlyList<ECDsa>>.Success(keys);
+    }
+
+    private static IReadOnlyList<string> ResolveKeyPaths(IntegrityConfiguration? config)
+    {
+        if (config?.SigningKeyPaths is { Count: > 0 } multi)
+            return multi;
+        if (!string.IsNullOrEmpty(config?.SigningKeyPath))
+            return [config.SigningKeyPath];
+        return [];
+    }
+
+    private static Result<ECDsa> LoadPemKey(string keyPath)
+    {
         if (!File.Exists(keyPath))
             return Result<ECDsa>.Failure(ErrorKind.SecurityError,
                 $"SGN002: Signing key file not found at '{keyPath}'.");
@@ -71,7 +110,7 @@ internal static class EcdsaManifestSigner
             var pem = File.ReadAllText(keyPath);
             var ecdsa = ECDsa.Create();
             ecdsa.ImportFromPem(pem);
-#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes via `using var key`.
+#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes in a finally block.
             return ecdsa;
 #pragma warning restore IDISP005
         }

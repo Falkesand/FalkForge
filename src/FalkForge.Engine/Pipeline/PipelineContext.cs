@@ -95,15 +95,15 @@ internal sealed class PipelineContext
     public IRestartManager? RestartManager { get; set; }
 
     /// <summary>
-    /// Optional out-of-band publisher key pin consumed by the integrity gate in
-    /// <see cref="ApplyStep"/>. When set, it is the SHA-256 fingerprint (uppercase hex)
-    /// of the expected signer's SubjectPublicKeyInfo public key. A host embedding the
-    /// engine supplies this from a channel the attacker cannot rewrite (its own binary or
-    /// config) to prove <i>authorship</i>: the bundle's embedded signing key must match the
-    /// pin, rejecting a bundle re-signed by an untrusted publisher. Null (default) means
-    /// the gate proves internal consistency only, not authorship.
+    /// The trust policy consumed by the integrity gate in <see cref="ApplyStep"/>: the pinned
+    /// publisher-key fingerprints (authorship) and whether a signature is required. Defaults to a
+    /// fresh-install policy pinned to the engine's baked trusted set
+    /// (<see cref="FalkForge.Engine.Integrity.BakedTrustedKeys"/>) — an attacker's re-signed bundle is
+    /// rejected because its key is not pinned, while an engine built with no baked keys falls back to
+    /// consistency-only verification. Overridable for tests.
     /// </summary>
-    public string? ExpectedPublisherKeyFingerprint { get; set; }
+    public FalkForge.Engine.Integrity.TrustPolicy IntegrityTrustPolicy { get; set; } =
+        FalkForge.Engine.Integrity.TrustPolicy.FreshInstall(FalkForge.Engine.Integrity.BakedTrustedKeys.Fingerprints);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ElevateStep

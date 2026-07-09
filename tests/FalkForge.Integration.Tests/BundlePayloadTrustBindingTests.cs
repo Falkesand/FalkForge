@@ -25,6 +25,11 @@ namespace FalkForge.Integration.Tests;
 /// </summary>
 public sealed class BundlePayloadTrustBindingTests
 {
+    // Consistency-only: the e2e bundle is signed with an ephemeral key of unknown fingerprint, so the
+    // TOC-binding tests use an empty trusted set. The trust-set rejection path is covered by the
+    // codec/gate unit tests.
+    private static readonly IReadOnlySet<string> NoTrust = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
     private static (string msiPath, string dir) FakePayload(string name, byte[] bytes)
     {
         var dir = Path.Combine(Path.GetTempPath(), $"falk-trust-e2e-{Guid.NewGuid():N}");
@@ -111,15 +116,17 @@ public sealed class BundlePayloadTrustBindingTests
                 "Raw extractor should accept the tampered payload against the tampered TOC hash");
             Assert.Equal(tamperedHash, HashFile(rawExtract.Value)); // tampered bytes landed on disk
 
-            // 3b. The binding REJECTS it: the TOC hash disagrees with the signed manifest hash.
+            // 3b. The binding REJECTS it: the TOC hash disagrees with the signed manifest hash. The
+            //     bundle is signed with an ephemeral key of unknown fingerprint, so we verify in
+            //     consistency-only mode (empty trusted set) — the TOC-tamper (INT006) still fires.
             var attackerManifest = ExtractManifest(attackerContent.Value);
-            var trust = SignedPayloadTocVerifier.Verify(attackerManifest, attackerToc);
+            var trust = SignedPayloadTocVerifier.Verify(attackerManifest, attackerToc, NoTrust);
             Assert.True(trust.IsFailure, "SignedPayloadTocVerifier must reject the post-signing TOC tamper");
-            Assert.Equal(ErrorKind.SecurityError, trust.Error.Kind);
+            Assert.Equal(ErrorKind.IntegrityError, trust.Error.Kind);
             Assert.Contains("INT006", trust.Error.Message, StringComparison.Ordinal);
 
             // 4. Sanity: the untampered, genuinely-signed bundle passes the same binding.
-            var cleanTrust = SignedPayloadTocVerifier.Verify(signedManifest, signedContent.Value.TocEntries);
+            var cleanTrust = SignedPayloadTocVerifier.Verify(signedManifest, signedContent.Value.TocEntries, NoTrust);
             Assert.True(cleanTrust.IsSuccess, cleanTrust.IsFailure ? cleanTrust.Error.Message : null);
         }
         finally

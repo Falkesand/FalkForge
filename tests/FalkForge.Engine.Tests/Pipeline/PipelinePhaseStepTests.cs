@@ -648,7 +648,7 @@ public sealed class PipelinePhaseStepTests
         var result = await step.ExecuteAsync(ctx, CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
         // Critical: nothing executed — the gate ran before any payload.
         Assert.Null(runner.LastFileName);
         Assert.Empty(journalStore.Entries);
