@@ -45,6 +45,9 @@ Generated\ Files/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# dotnet-coverage / reportgenerator output (regenerable via scripts/coverage.ps1)
+CoverageReport/
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
