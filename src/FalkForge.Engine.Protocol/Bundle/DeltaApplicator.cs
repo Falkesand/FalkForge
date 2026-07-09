@@ -57,6 +57,8 @@ public static class DeltaApplicator
         string destinationDirectory,
         string relativeDestination)
     {
+        ArgumentNullException.ThrowIfNull(deltaEntry);
+
         if (!ContainedPathResolver.TryResolveContained(destinationDirectory, relativeDestination, out var destinationPath))
         {
             return Result<string>.Failure(ErrorKind.SecurityError,
