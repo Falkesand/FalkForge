@@ -3,7 +3,6 @@ using System.Runtime.Versioning;
 using FalkForge.Cli;
 using FalkForge.Cli.Commands;
 using FalkForge.Cli.Settings;
-using FalkForge.Integration.Tests;
 using Spectre.Console.Cli;
 using Xunit;
 
