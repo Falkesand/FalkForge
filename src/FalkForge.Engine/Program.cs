@@ -340,8 +340,21 @@ internal static class Program
         // (requireSigned=false) a legacy/unsigned bundle the user chose to run still extracts, while on the
         // update path (requireSigned=true, asserted by the launcher) a stripped/unsigned update is rejected
         // (INT007) before any payload is extracted (C14 Stage 2 / B2).
+        //
+        // On the require-signed path, consult the persisted per-machine trust store so this
+        // `--extract --require-signed` gate enforces the SAME anti-downgrade epoch (INT008) + local
+        // revocations (INT001) as the bootstrapper path (§6.3), C14 Stage 3 fold-in. Fresh / inspection
+        // extracts (requireSigned=false) do not consult the store — it is advanced only during a verified
+        // update apply.
+        var trustState = requireSigned ? TrustStateStore.Load(TrustStateStore.DefaultPath) : new TrustState();
+        IReadOnlySet<string>? revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
+            ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
+            : null;
+
         return BundleTrustVerifier.VerifyBundleContent(
-            content, BakedTrustedKeys.Fingerprints, requireSigned);
+            content, BakedTrustedKeys.Fingerprints, requireSigned,
+            storedEpoch: requireSigned ? trustState.Epoch : 0,
+            revokedFingerprints: revokedSet);
     }
 
     /// <summary>

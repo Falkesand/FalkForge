@@ -343,6 +343,33 @@ public sealed class IntegrityEnvelopeCodecTrustTests
     }
 
     [Fact]
+    public void MixedEnvelope_MalformedAndUntrustedEntries_PlusOneValidTrusted_Accepted()
+    {
+        // Exercises the continue-on-bad-entry paths in MatchTrustedSignature: an envelope carrying a
+        // malformed entry (non-base64 key) AND an untrusted-but-valid entry AND one valid trusted entry
+        // must still be accepted — the verify-any rule skips the first two and accepts the trusted one.
+        using var trusted = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var untrusted = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var files = Files(("App", "AAAA"));
+
+        var trustedEntry = IntegrityEnvelopeCodec.Sign(files, trusted).Signatures[0];
+        var untrustedEntry = IntegrityEnvelopeCodec.Sign(files, untrusted).Signatures[0]; // valid sig, key not pinned
+        var malformed = new SignatureEntry
+        {
+            KeyId = "bad",
+            Fingerprint = "ZZZZ",
+            PublicKey = "!!!not-base64!!!",
+            Signature = "!!!not-base64!!!"
+        };
+
+        var envelope = IntegrityEnvelopeCodec.Sign(files, trusted);
+        envelope.Signatures = new[] { malformed, untrustedEntry, trustedEntry };
+
+        var result = IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(trusted)));
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
     public void SignedBytes_RevokedList_IsInjective_C14Stage3Fix3()
     {
         // The revoked list must be serialized injectively. A plain comma-join makes
