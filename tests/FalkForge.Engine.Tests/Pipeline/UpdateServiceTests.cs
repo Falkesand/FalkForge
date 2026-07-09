@@ -55,12 +55,17 @@ public sealed class UpdateServiceTests
         }
     }
 
+    // Behavior tests use synthetic staged paths, so they inject a pass-through verifier by default —
+    // the trust-gate wiring is asserted by the dedicated re-verification test below.
+    private static readonly Func<string, Result<Unit>> AlwaysVerify = _ => Unit.Value;
+
     private static UpdateService CreateService(
         UpdatePolicy policy,
         IUiChannel channel,
         IUpdateLauncher launcher,
         bool promptBeforeAutoUpdate = false,
-        Result<string>? downloadResult = null)
+        Result<string>? downloadResult = null,
+        Func<string, Result<Unit>>? verifyStagedBundle = null)
     {
         var feed = new ManifestUpdateFeed(
             "https://cdn.example.com/feed.json",
@@ -78,7 +83,8 @@ public sealed class UpdateServiceTests
             download: (url, sha, dest, progress, resume, ct) => Task.FromResult(result),
             launcher: launcher,
             channel: channel,
-            logger: new NullLogger());
+            logger: new NullLogger(),
+            verifyStagedBundle: verifyStagedBundle ?? AlwaysVerify);
     }
 
     [Fact]
@@ -146,6 +152,38 @@ public sealed class UpdateServiceTests
         Assert.True(launchResult.IsSuccess);
         Assert.Single(launcher.Launched);
         Assert.Equal("/cache/2.0.0_abc123.exe", launcher.Launched[0]);
+    }
+
+    /// <summary>
+    /// C14 Stage 3 FIX 1 — the UI-requested launch re-verifies the staged bundle IN-PROCESS at launch
+    /// time (belt-and-suspenders vs. an on-disk swap between download and launch). If it no longer
+    /// verifies, LaunchReadyUpdate refuses and the launcher is never invoked.
+    /// </summary>
+    [Fact]
+    public async Task LaunchReadyUpdate_ReverificationFails_DoesNotLaunch_ReturnsFailure()
+    {
+        var channel = new RecordingUiChannel();
+        var launcher = new FakeLauncher();
+
+        // Verify succeeds at download time (so the update becomes "ready"), then fails at launch time
+        // (simulating a swapped staged file). Only the launch-time call must gate the launcher.
+        var calls = 0;
+        Func<string, Result<Unit>> verifier = _ =>
+            Interlocked.Increment(ref calls) == 1
+                ? Unit.Value
+                : Result<Unit>.Failure(new Error(ErrorKind.IntegrityError, "INT006: staged file tampered after download"));
+
+        var service = CreateService(
+            UpdatePolicy.DownloadAndPrompt, channel, launcher, verifyStagedBundle: verifier);
+
+        await service.HandleUpdateAsync(TestUpdate, CancellationToken.None);
+        Assert.Contains(channel.Events, e => e is PipelineEvent.UpdateReady); // download-time verify passed
+
+        var launchResult = service.LaunchReadyUpdate();
+
+        Assert.True(launchResult.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, launchResult.Error.Kind);
+        Assert.Empty(launcher.Launched); // never launched the tampered bundle
     }
 
     [Fact]

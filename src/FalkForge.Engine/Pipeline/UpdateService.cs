@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Pipeline;
 
 using FalkForge.Diagnostics;
 using FalkForge.Engine.Download;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Messages;
 
@@ -35,6 +36,7 @@ internal sealed class UpdateService
     private readonly IUpdateLauncher _launcher;
     private readonly IUiChannel _channel;
     private readonly IFalkLogger _logger;
+    private readonly Func<string, Result<Unit>> _verifyStagedBundle;
 
     // Written once by the download callback (SendAdaptedMessageAsync, on the download task) and
     // read later by HasReadyUpdate / LaunchReadyUpdate (on the UI-request path). volatile is
@@ -48,7 +50,8 @@ internal sealed class UpdateService
         Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
         IUpdateLauncher launcher,
         IUiChannel channel,
-        IFalkLogger logger)
+        IFalkLogger logger,
+        Func<string, Result<Unit>>? verifyStagedBundle = null)
     {
         _feed = feed;
         _cacheDir = cacheDir;
@@ -56,6 +59,8 @@ internal sealed class UpdateService
         _launcher = launcher;
         _channel = channel;
         _logger = logger;
+        // Secure by default: the real in-process trust gate over the baked trusted set.
+        _verifyStagedBundle = verifyStagedBundle ?? StagedUpdateVerifier.VerifyWithBakedTrust;
     }
 
     /// <summary>
@@ -88,7 +93,8 @@ internal sealed class UpdateService
             _feed.AllowResumeDownload,
             _launcher,
             _feed.PromptBeforeAutoUpdate,
-            _feed.ShowDownloadErrors);
+            _feed.ShowDownloadErrors,
+            _verifyStagedBundle);
 
         await downloader.StartAsync(update, _cacheDir, ct).ConfigureAwait(false);
     }
@@ -104,6 +110,19 @@ internal sealed class UpdateService
         if (_readyUpdatePath is null)
             return Result<Unit>.Failure(new Error(ErrorKind.EngineError,
                 "UPD005: No update has been downloaded and verified; nothing to launch."));
+
+        // Belt-and-suspenders re-verification (C14 Stage 3 FIX 1): the download-time gate already ran
+        // before this path was marked ready, but a UI-requested launch happens later and the staged file
+        // could have been swapped on disk in the interim. Re-run the in-process trust gate so a launch is
+        // never issued for a bundle that does not verify NOW.
+        var trust = _verifyStagedBundle(_readyUpdatePath);
+        if (!trust.IsSuccess)
+        {
+            _logger.Warning("UpdateService",
+                $"Staged update failed trust verification at launch; refusing to launch: {trust.Error.Message}");
+            return Result<Unit>.Failure(new Error(ErrorKind.IntegrityError,
+                $"UPD007: The staged update failed trust verification at launch and will not be run: {trust.Error.Message}"));
+        }
 
         return _launcher.Launch(_readyUpdatePath);
     }

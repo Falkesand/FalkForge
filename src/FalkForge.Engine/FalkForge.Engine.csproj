@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Engine.Tests" />
+    <InternalsVisibleTo Include="FalkForge.Integration.Tests" />
   </ItemGroup>
 
   <!-- Build-time injection of the trusted publisher-key set into a generated BakedTrustedKeys constant. -->

@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Tests.Download;
 
+using System.Security.Cryptography;
 using FalkForge.Diagnostics;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Logging;
@@ -104,6 +105,11 @@ public sealed class UpdateDownloaderTests
     // Helpers
     // ---------------------------------------------------------------------------
 
+    // Existing behavior tests use synthetic (non-existent) staged paths, so they inject a
+    // pass-through verifier by default — they exercise the launch-decision logic, not trust.
+    // The trust-gate wiring is covered by the dedicated verification tests below.
+    private static readonly Func<string, Result<Unit>> AlwaysVerify = _ => Unit.Value;
+
     private static UpdateDownloader CreateDownloader(
         FakePayloadDownloader fakeDownloader,
         List<EngineMessage> sentMessages,
@@ -111,7 +117,8 @@ public sealed class UpdateDownloaderTests
         bool allowResume = false,
         IUpdateLauncher? launcher = null,
         bool promptBeforeAutoUpdate = false,
-        bool showDownloadErrors = false)
+        bool showDownloadErrors = false,
+        Func<string, Result<Unit>>? verifyStagedBundle = null)
     {
         var fakePipe = new FakePipeServer(sentMessages);
         var logger = new NullLogger();
@@ -124,7 +131,8 @@ public sealed class UpdateDownloaderTests
             allowResume,
             launcher,
             promptBeforeAutoUpdate,
-            showDownloadErrors);
+            showDownloadErrors,
+            verifyStagedBundle ?? AlwaysVerify);
     }
 
     private static UpdateDownloader CreateDownloaderWithLogger(
@@ -135,7 +143,8 @@ public sealed class UpdateDownloaderTests
         bool allowResume = false,
         IUpdateLauncher? launcher = null,
         bool promptBeforeAutoUpdate = false,
-        bool showDownloadErrors = false)
+        bool showDownloadErrors = false,
+        Func<string, Result<Unit>>? verifyStagedBundle = null)
     {
         var fakePipe = new FakePipeServer(sentMessages);
 
@@ -147,7 +156,8 @@ public sealed class UpdateDownloaderTests
             allowResume,
             launcher,
             promptBeforeAutoUpdate,
-            showDownloadErrors);
+            showDownloadErrors,
+            verifyStagedBundle ?? AlwaysVerify);
     }
 
     // ---------------------------------------------------------------------------
@@ -249,6 +259,75 @@ public sealed class UpdateDownloaderTests
 
         Assert.Single(launched);
         Assert.Equal("/cache/v2.exe", launched[0]);
+    }
+
+    // -----------------------------------------------------------------------
+    // C14 Stage 3 FIX 1 — in-process trust gate BEFORE launch/ready.
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task StartAsync_AutoUpdate_VerificationFails_DoesNotLaunch_DiscardsStaged_NoUpdateReady()
+    {
+        // A real staged file stands in for the downloaded update bundle so we can assert it is
+        // discarded on a failed trust verification.
+        var stagedPath = Path.Combine(Path.GetTempPath(), $"falk-staged-{Guid.NewGuid():N}.exe");
+        File.WriteAllBytes(stagedPath, RandomNumberGenerator.GetBytes(64));
+        try
+        {
+            var launched = new List<string>();
+            var sentMessages = new List<EngineMessage>();
+            var fakeDownloader = new FakePayloadDownloader(Result<string>.Success(stagedPath));
+            var fakeLauncher = new FakeUpdateLauncher(launched);
+
+            // The trusted, already-installed engine rejects the staged bundle (e.g. unsigned /
+            // untrusted-key / tampered). The downloaded artifact must NEVER run.
+            var downloader = CreateDownloader(
+                fakeDownloader, sentMessages, UpdatePolicy.AutoUpdate,
+                launcher: fakeLauncher,
+                verifyStagedBundle: _ => Result<Unit>.Failure(new Error(ErrorKind.IntegrityError, "INT001: untrusted")));
+
+            var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+            await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+            Assert.Empty(launched); // never launched the attacker's bundle
+            Assert.False(File.Exists(stagedPath), "the rejected staged bundle must be discarded");
+            Assert.Empty(sentMessages.OfType<UpdateReadyMessage>()); // never advertised as ready
+        }
+        finally
+        {
+            if (File.Exists(stagedPath)) File.Delete(stagedPath);
+        }
+    }
+
+    [Fact]
+    public async Task StartAsync_AutoUpdate_VerificationPasses_Launches()
+    {
+        var stagedPath = Path.Combine(Path.GetTempPath(), $"falk-staged-{Guid.NewGuid():N}.exe");
+        File.WriteAllBytes(stagedPath, RandomNumberGenerator.GetBytes(64));
+        try
+        {
+            var launched = new List<string>();
+            var sentMessages = new List<EngineMessage>();
+            var fakeDownloader = new FakePayloadDownloader(Result<string>.Success(stagedPath));
+            var fakeLauncher = new FakeUpdateLauncher(launched);
+
+            var downloader = CreateDownloader(
+                fakeDownloader, sentMessages, UpdatePolicy.AutoUpdate,
+                launcher: fakeLauncher,
+                verifyStagedBundle: _ => Unit.Value);
+
+            var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+            await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+            Assert.Single(launched);
+            Assert.Equal(stagedPath, launched[0]);
+            Assert.True(File.Exists(stagedPath), "a verified staged bundle must be kept");
+            Assert.Single(sentMessages.OfType<UpdateReadyMessage>());
+        }
+        finally
+        {
+            if (File.Exists(stagedPath)) File.Delete(stagedPath);
+        }
     }
 
     [Fact]

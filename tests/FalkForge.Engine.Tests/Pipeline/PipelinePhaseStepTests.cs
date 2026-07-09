@@ -146,7 +146,11 @@ public sealed class PipelinePhaseStepTests
                 Task.FromResult(Result<string>.Success(dest)),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
-            logger: new FalkForge.Diagnostics.NullLogger());
+            logger: new FalkForge.Diagnostics.NullLogger(),
+            // The synthetic download is not a real bundle; this test exercises the detect→download→ready
+            // wiring, not the trust gate, so it injects a pass-through in-process verifier (the gate itself
+            // is covered by UpdateDownloaderTrustTests / UpdateServiceTests).
+            verifyStagedBundle: _ => Unit.Value);
 
         var step = new DetectStep(manifest, registry, channel, checker, service);
         var result = await step.ExecuteAsync(ctx, CancellationToken.None);
@@ -246,7 +250,9 @@ public sealed class PipelinePhaseStepTests
                 Task.FromResult(Result<string>.Success(dest)),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
-            logger: new FalkForge.Diagnostics.NullLogger());
+            logger: new FalkForge.Diagnostics.NullLogger(),
+            // Synthetic download → pass-through verifier (trust gate covered elsewhere).
+            verifyStagedBundle: _ => Unit.Value);
 
         await using var pipeline = new InstallerPipelineBuilder()
             .WithManifest(manifest)
