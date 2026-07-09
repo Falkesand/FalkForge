@@ -15,6 +15,14 @@ using System.Text.Json;
 /// forged high epoch — a forged epoch fails signature verification (the epoch is in the signed bytes)
 /// before apply ever succeeds.</para>
 ///
+/// <para><b>Status: dormant in this release.</b> The advance is issued by the non-elevated
+/// (<c>asInvoker</c>) engine bootstrapper, which the restrictive store ACL (see
+/// <see cref="CreateStoreDirectory"/>) <i>denies</i>. So in a normal standard-user run the store never
+/// advances and the anti-downgrade epoch / revocation checks it feeds have nothing to enforce. The
+/// tamper-resistant ACL ships now; the elevated write path that makes the store actually advance is the
+/// C16 follow-up (move the write into <c>FalkForge.Engine.Elevation</c>). Until then, do not treat the
+/// engine as blocking downgrade/replay.</para>
+///
 /// <para>OTA delivery of trust-set changes is deferred (§10); this store records only what a locally
 /// applied, verified update declared.</para>
 /// </summary>

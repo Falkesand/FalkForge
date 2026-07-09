@@ -4,20 +4,24 @@ using System.Text.Json.Serialization;
 
 /// <summary>
 /// The persisted per-machine trust state (C14 Stage 2, §6.2): the highest key-epoch this machine has
-/// accepted and the publisher-key fingerprints it has recorded as revoked. It advances monotonically —
-/// only ever forward — so a replayed older release cannot roll the client's trust back.
+/// accepted and the publisher-key fingerprints it has recorded as revoked. When it advances it does so
+/// monotonically — only ever forward — the design intent being that a replayed older release cannot roll
+/// the client's trust back.
+///
+/// <para><b>Status: dormant in this release.</b> The anti-downgrade/replay protection this state exists to
+/// provide is <b>not yet active</b>. The store only ever advances after a verified update apply, and that
+/// advance is issued by the engine bootstrapper — which runs <c>asInvoker</c> (non-elevated). Under the
+/// restrictive store ACL (below) a non-elevated write is <i>denied</i>, so in the normal standard-user run
+/// the epoch never advances past 0 and no revocation is ever recorded. The <c>INT008</c> epoch check and
+/// the local revocation check therefore currently have nothing to enforce against. Do not rely on the
+/// engine blocking a downgrade or replay today. Activation lands in the C16 follow-up, which moves the
+/// store write into the elevated companion so every advance is written elevated (with ACL validation).</para>
 ///
 /// <para>Stored as a small AOT-safe JSON file under <c>%ProgramData%\FalkForge\Trust\trust-state.json</c>
 /// (see <see cref="TrustStateStore"/>). The store directory is created with a restrictive DACL (SYSTEM +
 /// Administrators FullControl, Users read-only, inheritance severed) so an unprivileged process cannot roll
-/// the epoch back or clear revocations (C14 Stage 3 FIX 4).</para>
-///
-/// <para><b>Elevation note.</b> The engine bootstrapper runs <c>asInvoker</c> (non-elevated), so under the
-/// restrictive ACL an advance only succeeds when the engine runs elevated; a non-elevated write is denied
-/// and surfaced as a failure (never silently dropped). Moving the advance to the elevated companion so it
-/// is always written elevated is a tracked follow-up — the ACL (tamper-resistance) is the security-critical
-/// half and ships now. The old claim that the store "is only advanced during an elevated update apply" was
-/// aspirational; it is now enforced by the ACL rather than assumed.</para>
+/// the epoch back or clear revocations (C14 Stage 3 FIX 4). The ACL (the tamper-resistance half) ships now;
+/// the elevated <i>write path</i> that would let the store actually advance is the C16 follow-up.</para>
 /// </summary>
 internal sealed class TrustState
 {
