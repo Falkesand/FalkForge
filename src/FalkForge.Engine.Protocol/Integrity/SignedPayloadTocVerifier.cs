@@ -59,8 +59,10 @@ public static class SignedPayloadTocVerifier
     /// an unconfigured engine.
     /// </param>
     /// <param name="requireSigned">
-    /// When true, an unsigned manifest is rejected (INT007) instead of passed through. Stage 1 fresh
-    /// installs pass false (backward compatible); the require-signed update path is Stage 2.
+    /// When true, an unsigned manifest is rejected (INT007) instead of passed through, AND a present
+    /// signature with no trust anchor (an empty <paramref name="trustedFingerprints"/> set) is rejected
+    /// (INT009, fail closed) rather than accepted consistency-only. Stage 1 fresh installs pass false
+    /// (backward compatible); the require-signed update path is Stage 2/3.
     /// </param>
     /// <param name="storedEpoch">
     /// The highest key-epoch this machine has already accepted (from the persisted trust store, §6.2).
@@ -100,6 +102,19 @@ public static class SignedPayloadTocVerifier
         if (envelope is null)
             return Result<Unit>.Failure(ErrorKind.IntegrityError,
                 "INT003: Failed to parse manifest integrity envelope.");
+
+        // Fail closed on the require-signed path when there is no trust anchor (C14 Stage 3 FIX 2 / B1).
+        // An empty trusted set means "no baked publisher key", which makes MatchTrustedSignature fall back
+        // to consistency-only (accept ANY self-verifying signature). On the update path that is fail-open:
+        // an attacker re-signs a rewritten update with their own fresh key and it would be accepted.
+        // Require-signed cannot establish authorship without a pinned key, so refuse rather than accept-any.
+        // The empty-set consistency-only acceptance stays legal only on the NON-require-signed
+        // (fresh-install / inspection-grade) path handled below.
+        if (requireSigned && trustedFingerprints.Count == 0)
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                "INT009: A signature is required on this path but this engine carries no trusted publisher " +
+                "keys, so authorship cannot be established. Refusing to accept a signed update on trust the " +
+                "engine cannot anchor (fail closed).");
 
         // The signed hashes are only trustworthy if a TRUSTED signature verifies. A tampered, forged,
         // or attacker-re-signed envelope (key not in the pinned set) is rejected here, before any hash

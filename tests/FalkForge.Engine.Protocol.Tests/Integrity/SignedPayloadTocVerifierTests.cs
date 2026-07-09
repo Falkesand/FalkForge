@@ -306,6 +306,54 @@ public sealed class SignedPayloadTocVerifierTests
     }
 
     [Fact]
+    public void EmptyTrustedSet_WithRequireSigned_ValidSelfSigned_Rejected_FailClosed_Int009()
+    {
+        // B1 fail-open (C14 Stage 3 FIX 2): an engine built with NO baked trusted keys has an empty
+        // trusted set. With require-signed on (the update path), consistency-only "accept ANY
+        // self-verifying signature" would let an attacker re-sign a rewritten update with their own fresh
+        // key and have it accepted. Require-signed with no trust anchor cannot establish authorship, so it
+        // must FAIL CLOSED — not fall back to accept-any.
+        using var attackerKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(attackerKey, ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, NoTrust, requireSigned: true);
+
+        Assert.True(result.IsFailure, "require-signed with an empty trusted set must fail closed");
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT009", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EmptyTrustedSet_WithoutRequireSigned_ValidSelfSigned_StillPasses_ConsistencyOnly()
+    {
+        // The empty-set consistency-only acceptance is permissible ONLY off the require-signed path
+        // (fresh install / inspection-grade CLI): a validly self-signed bundle whose TOC binds still
+        // passes. FIX 2 must NOT change this direction.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, NoTrust, requireSigned: false);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void NonEmptyTrustedSet_TrustedSig_WithRequireSigned_Passes()
+    {
+        // A properly-provisioned engine (baked trusted key present) still accepts a trusted-signed update
+        // on the require-signed path — FIX 2 only closes the empty-set case.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(key, ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)), requireSigned: true);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
     public void InvalidSignature_Rejected()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
