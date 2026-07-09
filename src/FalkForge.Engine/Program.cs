@@ -334,35 +334,14 @@ internal static class Program
     /// </summary>
     private static Result<Unit> VerifySignedPayloadTrust(BundleContent content, bool requireSigned = false)
     {
-        if (content.ManifestJsonBytes is null || content.ManifestJsonBytes.Length == 0)
-        {
-            // No embedded manifest — nothing signed to bind (unsigned/old bundle). On the update path
-            // (require-signed) that absence is itself a rejection: an update must carry a trusted signature.
-            if (requireSigned)
-                return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                    "INT007: A signature is required on the update path but the bundle carries no embedded " +
-                    "manifest. Refusing to extract or execute an unsigned update.");
-            return Unit.Value;
-        }
-
-        InstallerManifest manifest;
-        try
-        {
-            manifest = JsonSerializer.Deserialize(content.ManifestJsonBytes, LayoutJsonContext.Default.InstallerManifest)
-                       ?? throw new InvalidOperationException("Manifest deserialized to null.");
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
-        {
-            return Result<Unit>.Failure(ErrorKind.SecurityError,
-                $"Failed to deserialize embedded manifest for integrity verification: {ex.Message}");
-        }
-
-        // Pin the engine's baked trusted set (an attacker's re-signed bundle is rejected). On a fresh
-        // install (requireSigned=false) a legacy/unsigned bundle the user chose to run still extracts;
-        // on the update path (requireSigned=true, asserted by the launcher) a stripped/unsigned update
-        // is rejected (INT007) before any payload is extracted (C14 Stage 2 / B2).
-        return SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned);
+        // Delegate to the shared verifier (Engine.Protocol.Integrity) so the engine self-extract path,
+        // `forge extract`, and `forge migrate` all bind byte→TOC→signed identically. The engine pins its
+        // baked trusted set (an attacker's re-signed bundle is rejected); on a fresh install
+        // (requireSigned=false) a legacy/unsigned bundle the user chose to run still extracts, while on the
+        // update path (requireSigned=true, asserted by the launcher) a stripped/unsigned update is rejected
+        // (INT007) before any payload is extracted (C14 Stage 2 / B2).
+        return BundleTrustVerifier.VerifyBundleContent(
+            content, BakedTrustedKeys.Fingerprints, requireSigned);
     }
 
     /// <summary>
