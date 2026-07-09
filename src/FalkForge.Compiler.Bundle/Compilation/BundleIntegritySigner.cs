@@ -42,8 +42,51 @@ internal static class BundleIntegritySigner
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
-        var manifestSignature = signResult.Value;
+        return Enrich(manifest, model, payloads, config, signResult.Value);
+    }
 
+    /// <summary>
+    /// Async counterpart to <see cref="SignAndEnrich"/>: drives a genuinely asynchronous
+    /// <see cref="FalkForge.Signing.ISignatureProvider"/> (e.g. a remote SignServer backend performing
+    /// network I/O) through <see cref="EcdsaManifestSigner.SignAsync"/> instead of the sync bridge, so no
+    /// SGN010 fail-loud fires. Byte-for-byte identical to the sync path apart from awaiting the signer.
+    /// </summary>
+    internal static async ValueTask<Result<InstallerManifest>> SignAndEnrichAsync(
+        InstallerManifest manifest,
+        BundleModel model,
+        IReadOnlyList<PayloadEntry> payloads,
+        CancellationToken cancellationToken = default)
+    {
+        if (model.Integrity is null)
+            return manifest;
+
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN")))
+            return manifest;
+
+        var config = model.Integrity;
+
+        var entries = new List<PayloadHashEntry>(payloads.Count);
+        foreach (var payload in payloads)
+            entries.Add(new PayloadHashEntry(payload.PackageId, payload.Sha256Hash));
+
+        var signResult = await EcdsaManifestSigner.SignAsync(entries, config, cancellationToken).ConfigureAwait(false);
+        if (signResult.IsFailure)
+            return Result<InstallerManifest>.Failure(signResult.Error);
+
+        return Enrich(manifest, model, payloads, config, signResult.Value);
+    }
+
+    /// <summary>
+    /// Shared enrichment step: attaches the produced signature envelope and the opportunistic SBOM
+    /// attestation to the manifest. Factored out so the sync and async signing paths embed identically.
+    /// </summary>
+    private static InstallerManifest Enrich(
+        InstallerManifest manifest,
+        BundleModel model,
+        IReadOnlyList<PayloadEntry> payloads,
+        IntegrityConfiguration config,
+        string manifestSignature)
+    {
         // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
         var sbomAttestation = TryGenerateSbomAttestation(model, payloads, config);
 

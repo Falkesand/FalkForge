@@ -85,6 +85,35 @@ public static class Installer
     }
 
     /// <summary>
+    ///     Asynchronous counterpart to <see cref="BuildBundle" /> for bundles signed by a genuinely
+    ///     asynchronous <c>ISignatureProvider</c> (e.g. a remote signing service). The synchronous
+    ///     <see cref="BuildBundle" /> fails loud (SGN010) on such a provider because it must not block a
+    ///     thread on network I/O; this entry awaits the compile function instead. Local/ephemeral providers
+    ///     keep using the synchronous path unchanged.
+    /// </summary>
+    /// <param name="args">Command-line arguments (supports -o/--output for output path).</param>
+    /// <param name="compile">
+    ///     A function that receives the output path and asynchronously returns a <see cref="Result{T}" />
+    ///     containing the created bundle file path on success.
+    /// </param>
+    /// <returns>Exit code: 0 for success, 1 for failure.</returns>
+    public static async Task<int> BuildBundleAsync(string[] args, Func<string, ValueTask<Result<string>>> compile)
+    {
+        ArgumentNullException.ThrowIfNull(compile);
+
+        var outputPath = GetOutputPath(args);
+        var result = await compile(outputPath).ConfigureAwait(false);
+        if (result.IsFailure)
+        {
+            await Console.Error.WriteLineAsync($"Bundle compilation failed: {result.Error}").ConfigureAwait(false);
+            return 1;
+        }
+
+        await Console.Out.WriteLineAsync($"Bundle created: {result.Value}").ConfigureAwait(false);
+        return 0;
+    }
+
+    /// <summary>
     ///     Builds a merge module (.msm) package.
     ///     Configures the merge module model via a fluent builder, validates it,
     ///     and passes the model and output path to the compile function.
