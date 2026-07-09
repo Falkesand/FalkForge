@@ -68,7 +68,7 @@ public sealed class PlanCommandEngineLauncherTests
         var command = new PlanCommand(output, launcher: launcher);
         var settings = new PlanSettings { ProjectPath = "nonexistent_bundle_xyz.exe" };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
     }
@@ -81,7 +81,7 @@ public sealed class PlanCommandEngineLauncherTests
         var command = new PlanCommand(output, launcher: launcher);
         var settings = new PlanSettings { ProjectPath = "nonexistent_bundle_xyz.exe" };
 
-        command.Execute(CreateContext(), settings, CancellationToken.None);
+        command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.True(output.Errors.Count > 0, "Expected at least one error message");
     }

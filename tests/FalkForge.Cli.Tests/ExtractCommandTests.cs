@@ -89,7 +89,7 @@ public sealed class ExtractCommandTests
             OutputPath = "out"
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
     }
@@ -105,7 +105,7 @@ public sealed class ExtractCommandTests
             OutputPath = "out"
         };
 
-        command.Execute(CreateContext(), settings, CancellationToken.None);
+        command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Contains(console.Errors, e => e.Contains("File not found"));
     }

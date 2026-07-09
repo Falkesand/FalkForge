@@ -22,7 +22,7 @@ public sealed class InspectCommand : Command<InspectSettings>
         _jsonSink = jsonSink ?? Console.Out;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] InspectSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] InspectSettings settings, CancellationToken cancellationToken)
     {
         var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
         var output = (IConsoleOutput?)jsonOutput ?? _console;

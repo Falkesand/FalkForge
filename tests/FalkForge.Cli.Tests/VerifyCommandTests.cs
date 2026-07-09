@@ -65,7 +65,7 @@ public sealed class VerifyCommandTests : IDisposable
             SourceDateEpoch = 1577836800,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, code);
         Assert.Contains(output.AllOutput, m => m.Contains("VERIFIED", StringComparison.OrdinalIgnoreCase));
@@ -90,7 +90,7 @@ public sealed class VerifyCommandTests : IDisposable
             SourceDateEpoch = 1577836800,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.ValidationFailure, code);
         Assert.Contains(output.AllOutput, m => m.Contains("MISMATCH", StringComparison.OrdinalIgnoreCase));
@@ -114,7 +114,7 @@ public sealed class VerifyCommandTests : IDisposable
             SourceDateEpoch = 1577836800,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.CompilationError, code);
         Assert.Contains(output.AllOutput, m => m.Contains("REBUILD-FAILED", StringComparison.OrdinalIgnoreCase));
@@ -143,7 +143,7 @@ public sealed class VerifyCommandTests : IDisposable
             SourceDateEpoch = 1577836800,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, code);
         // Distinct verdict — must NOT be REBUILD-FAILED (that is the exit-2 build-failure verdict).
@@ -168,7 +168,7 @@ public sealed class VerifyCommandTests : IDisposable
             SourceDateEpoch = 1577836800,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, code);
     }
@@ -193,7 +193,7 @@ public sealed class VerifyCommandTests : IDisposable
             Json = true,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, code);
         var json = sink.ToString();

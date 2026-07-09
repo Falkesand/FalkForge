@@ -21,7 +21,7 @@ public sealed class BundleReattachCommand : Command<BundleReattachSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] BundleReattachSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] BundleReattachSettings settings, CancellationToken cancellationToken)
     {
         var stubPath = Path.GetFullPath(settings.StubPath);
         var dataPath = Path.GetFullPath(settings.DataPath);

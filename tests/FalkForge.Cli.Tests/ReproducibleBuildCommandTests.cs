@@ -27,7 +27,7 @@ public sealed class ReproducibleBuildCommandTests
                 Reproducible = true
             };
 
-            command.Execute(CreateContext(), settings, CancellationToken.None);
+            command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Contains(console.Errors, e => e.Contains("RPR001"));
         }
@@ -51,7 +51,7 @@ public sealed class ReproducibleBuildCommandTests
                 Reproducible = true
             };
 
-            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.RuntimeError, result);
         }
@@ -78,7 +78,7 @@ public sealed class ReproducibleBuildCommandTests
                 Reproducible = true
             };
 
-            command.Execute(CreateContext(), settings, CancellationToken.None);
+            command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.DoesNotContain(console.Errors, e => e.Contains("RPR001") || e.Contains("RPR002"));
         }
@@ -107,7 +107,7 @@ public sealed class ReproducibleBuildCommandTests
                     ProjectPath = "installer.cs",
                     Reproducible = true
                 };
-                var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+                var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
                 Assert.Contains(console.Errors, e => e.Contains("RPR002"));
                 Assert.Equal(ExitCodes.RuntimeError, result);

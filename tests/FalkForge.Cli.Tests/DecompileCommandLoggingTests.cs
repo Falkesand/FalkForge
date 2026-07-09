@@ -64,7 +64,7 @@ public sealed class DecompileCommandLoggingTests
         var buildConsole = new TestConsoleOutput();
         var buildCommand = new BuildCommand(buildConsole);
         var buildSettings = new BuildSettings { ProjectPath = csxPath, OutputPath = outputDir };
-        var buildResult = buildCommand.Execute(CreateContext("build"), buildSettings, CancellationToken.None);
+        var buildResult = buildCommand.ExecuteSync(CreateContext("build"), buildSettings, CancellationToken.None);
         Assert.Equal(ExitCodes.Success, buildResult);
 
         var msiPath = Directory.GetFiles(outputDir, "*.msi").Single();
@@ -81,7 +81,7 @@ public sealed class DecompileCommandLoggingTests
             var command = new DecompileCommand(console);
             var settings = new DecompileSettings { FilePath = msiPath, Verbose = true };
 
-            var result = command.Execute(CreateContext("decompile"), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext("decompile"), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, result);
 
@@ -111,7 +111,7 @@ public sealed class DecompileCommandLoggingTests
             var command = new DecompileCommand(console);
             var settings = new DecompileSettings { FilePath = msiPath, Verbose = false };
 
-            var result = command.Execute(CreateContext("decompile"), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext("decompile"), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, result);
 

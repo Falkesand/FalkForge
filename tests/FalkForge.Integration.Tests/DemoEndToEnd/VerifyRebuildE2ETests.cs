@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using FalkForge.Cli;
 using FalkForge.Cli.Commands;
 using FalkForge.Cli.Settings;
+using FalkForge.Integration.Tests;
 using Spectre.Console.Cli;
 using Xunit;
 
@@ -61,7 +62,7 @@ public sealed class VerifyRebuildE2ETests : IDisposable
             SourceDateEpoch = Epoch,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.True(code == ExitCodes.Success,
             $"Expected VERIFIED (0) but got {code}.\nOutput:\n{string.Join("\n", output.All)}");
@@ -88,7 +89,7 @@ public sealed class VerifyRebuildE2ETests : IDisposable
             SourceDateEpoch = Epoch,
         };
 
-        var code = command.Execute(Ctx(), settings, CancellationToken.None);
+        var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
 
         Assert.True(code == ExitCodes.ValidationFailure,
             $"Expected MISMATCH (1) but got {code}.\nOutput:\n{string.Join("\n", output.All)}");

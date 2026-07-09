@@ -27,7 +27,7 @@ public sealed class ValidateCommandJsonTests
         var console = spectreCapture ?? new TestConsoleOutput();
         var command = new ValidateCommand(console, jsonSink: sink);
         var settings = new ValidateSettings { ProjectPath = projectPath, Json = true };
-        var exitCode = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
         return (exitCode, JsonDocument.Parse(sink.ToString().Trim()));
     }
 

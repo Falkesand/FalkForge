@@ -102,7 +102,7 @@ public sealed class BuildCommandDryRunTests
                 DryRun = true
             };
 
-            var exitCode = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, exitCode);
             var msiFiles = Directory.GetFiles(outputDir, "*.msi");
@@ -134,7 +134,7 @@ public sealed class BuildCommandDryRunTests
                 DryRun = true
             };
 
-            command.Execute(CreateContext(), settings, CancellationToken.None);
+            command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             var allOutput = string.Join("\n", console.AllOutput);
             Assert.Contains("dry run", allOutput, StringComparison.OrdinalIgnoreCase);
@@ -168,7 +168,7 @@ public sealed class BuildCommandDryRunTests
                 Json = true
             };
 
-            var exitCode = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, exitCode);
 
@@ -203,7 +203,7 @@ public sealed class BuildCommandDryRunTests
                 DryRun = true
             };
 
-            var exitCode = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.ValidationFailure, exitCode);
             var msiFiles = Directory.GetFiles(outputDir, "*.msi");

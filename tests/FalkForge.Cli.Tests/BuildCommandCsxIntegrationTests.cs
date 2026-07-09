@@ -75,7 +75,7 @@ public sealed class BuildCommandCsxIntegrationTests
                 OutputPath = outputDir,
             };
 
-            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, result);
             var msiFiles = Directory.GetFiles(outputDir, "*.msi");

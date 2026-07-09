@@ -50,7 +50,7 @@ internal sealed class VerifyCommand : Command<VerifySettings>
         _gitWorkingDirectory = gitWorkingDirectory;
     }
 
-    public override int Execute(
+    protected override int Execute(
         [NotNull] CommandContext context,
         [NotNull] VerifySettings settings,
         CancellationToken cancellationToken)
