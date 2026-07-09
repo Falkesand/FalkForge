@@ -1,5 +1,4 @@
 using System.Runtime.Versioning;
-using System.Text;
 using FalkForge.Compiler.Bundle;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Models;
@@ -115,9 +114,9 @@ public sealed class MigrationProjectGenerator
             return Result<MigrationResult>.Failure(emitResult.Error);
         var emittedFragment = emitResult.Value;
 
-        var programCs   = BuildProgramCs(emittedFragment);
-        var csproj      = BuildCsproj(options);
-        var report      = BuildReport(inputPath, options, model);
+        var programCs   = MigrationMsiEmitter.BuildProgramCs(emittedFragment);
+        var csproj      = MigrationMsiEmitter.BuildCsproj(options);
+        var report      = MigrationMsiEmitter.BuildReport(inputPath, options, model);
 
         var files = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -176,9 +175,9 @@ public sealed class MigrationProjectGenerator
             unmappedFeatures: null,
             packagePathResolver: pkg => Resolve(payloadKeys, pkg));
 
-        var programCs = BuildBundleProgramCs(emitted);
-        var csproj = BuildBundleCsproj(options);
-        var report = BuildBundleReport(inputPath, options, detectedType: "FalkForge bundle", unmapped: []);
+        var programCs = MigrationBundleEmitter.BuildBundleProgramCs(emitted);
+        var csproj = MigrationBundleEmitter.BuildBundleCsproj(options);
+        var report = MigrationBundleEmitter.BuildBundleReport(inputPath, options, detectedType: "FalkForge bundle", unmapped: []);
 
         var files = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -214,9 +213,9 @@ public sealed class MigrationProjectGenerator
         // leave Payloads empty (the report's unmapped section flags what needs manual work).
         var emitted = BundleCSharpEmitter.Emit(model, preamble: null, unmappedFeatures: unmapped);
 
-        var programCs = BuildBundleProgramCs(emitted);
-        var csproj = BuildBundleCsproj(options);
-        var report = BuildBundleReport(inputPath, options, detectedType: "WiX Burn bundle", unmapped: unmapped);
+        var programCs = MigrationBundleEmitter.BuildBundleProgramCs(emitted);
+        var csproj = MigrationBundleEmitter.BuildBundleCsproj(options);
+        var report = MigrationBundleEmitter.BuildBundleReport(inputPath, options, detectedType: "WiX Burn bundle", unmapped: unmapped);
 
         var files = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -288,269 +287,11 @@ public sealed class MigrationProjectGenerator
     }
 
     /// <summary>
-    /// Converts the emitter's real-builder fragment into the runnable entry point by injecting
-    /// the <c>using FalkForge.Compiler.Bundle.Compilation;</c> namespace right after the
-    /// Builders using line and appending the compile call after the fragment's final
-    /// <c>var bundle = b.Build();</c> line:
-    /// <code>
-    /// var b = new BundleBuilder();
-    /// ... b.X(...) ...
-    /// var bundle = b.Build();
-    /// return Installer.BuildBundle(args, outputPath =&gt; new BundleCompiler().Compile(bundle, outputPath));
-    /// </code>
-    /// The emitter already emits the fragment in this shape, so no text-transform is needed —
-    /// only the Compilation using injection and the entry-point append.
+    /// Test-visible forwarder (InternalsVisibleTo FalkForge.Decompiler.Tests) to
+    /// <see cref="MigrationMsiEmitter.BuildNotMigratedSection"/>, which owns the logic.
+    /// Kept on the generator so existing tests that reference
+    /// <c>MigrationProjectGenerator.BuildNotMigratedSection</c> resolve unchanged.
     /// </summary>
-    private static string BuildBundleProgramCs(string emittedFragment)
-    {
-        const string compilationUsing = "using FalkForge.Compiler.Bundle.Compilation;";
-        const string buildersUsing = "using FalkForge.Compiler.Bundle.Builders;";
-        const string entryPoint =
-            "return Installer.BuildBundle(args, outputPath => new BundleCompiler().Compile(bundle, outputPath));";
-
-        var lines = emittedFragment.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-        var sb = new StringBuilder(emittedFragment.Length + 256);
-
-        var compilationUsingInjected = false;
-
-        foreach (var line in lines)
-        {
-            // Inject the Compilation using right after the Builders using line.
-            if (!compilationUsingInjected &&
-                line.Contains(buildersUsing, StringComparison.Ordinal))
-            {
-                sb.AppendLine(line);
-                sb.AppendLine(compilationUsing);
-                compilationUsingInjected = true;
-                continue;
-            }
-
-            sb.AppendLine(line);
-        }
-
-        sb.AppendLine(entryPoint);
-
-        return sb.ToString();
-    }
-
-    private static string BuildBundleCsproj(MigrationOptions options)
-    {
-        // XML-escape the operator-supplied source path before it lands in an XML attribute;
-        // a '&', '<', or '"' would otherwise produce a malformed csproj that will not load.
-        var src = System.Security.SecurityElement.Escape(
-            options.FalkForgeSourcePath.Replace('\\', '/'));
-
-        return $"""
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <OutputType>Exe</OutputType>
-                    <TargetFramework>net10.0-windows</TargetFramework>
-                    <Nullable>enable</Nullable>
-                    <ImplicitUsings>enable</ImplicitUsings>
-                  </PropertyGroup>
-                  <ItemGroup>
-                    <ProjectReference Include="{src}/FalkForge.Core/FalkForge.Core.csproj" />
-                    <ProjectReference Include="{src}/FalkForge.Compiler.Bundle/FalkForge.Compiler.Bundle.csproj" />
-                  </ItemGroup>
-                  <ItemGroup>
-                    <None Include="payload/**" CopyToOutputDirectory="PreserveNewest" />
-                  </ItemGroup>
-                </Project>
-                """;
-    }
-
-    private static string BuildBundleReport(
-        string inputPath,
-        MigrationOptions options,
-        string detectedType,
-        IReadOnlyList<WixUnmappedFeature> unmapped)
-    {
-        var fileName = Path.GetFileName(inputPath);
-
-        var sb = new StringBuilder();
-        sb.AppendLine("# Migration Report");
-        sb.AppendLine();
-        sb.AppendLine("| Field | Value |");
-        sb.AppendLine("|-------|-------|");
-        sb.AppendLine($"| Source file | `{fileName}` |");
-        sb.AppendLine($"| Detected type | {detectedType} |");
-        sb.AppendLine($"| Project name | {options.ProjectName} |");
-        sb.AppendLine();
-        sb.AppendLine("## Notes");
-        sb.AppendLine();
-        sb.AppendLine(
-            "Bundle decompilation maps the chain (packages and rollback boundaries), bundle "
-            + "identity, variables, features, related bundles, containers, and UI configuration. "
-            + "Native FalkForge bundles also have their embedded chain payloads extracted into the "
-            + "`payload/` directory; each chained package references its payload-relative path.");
-        sb.AppendLine();
-        sb.AppendLine("## Not yet migrated");
-        sb.AppendLine();
-        sb.AppendLine(
-            "UI assets (logo, theme, watermark, banner), container download URLs, and custom UI "
-            + "project paths are not preserved. Re-add them manually in `Program.cs` if required.");
-
-        if (unmapped.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("## Unmapped WiX Burn features");
-            sb.AppendLine();
-            sb.AppendLine(
-                "The following WiX Burn features have no FalkForge equivalent and were NOT migrated. "
-                + "Re-implement them manually:");
-            sb.AppendLine();
-            foreach (var feature in unmapped)
-            {
-                sb.Append("- **").Append(feature.Category).Append("**: ").AppendLine(feature.Description);
-                if (!string.IsNullOrEmpty(feature.OriginalXml) && feature.OriginalXml.Length <= 200)
-                    sb.Append("  - `").Append(feature.OriginalXml).AppendLine("`");
-            }
-        }
-
-        return sb.ToString().TrimEnd();
-    }
-
-    // ── MSI program.cs builder ─────────────────────────────────────────────────
-
-    private static string BuildProgramCs(string emittedFragment)
-    {
-        // The emitter already emits:
-        //   using FalkForge;
-        //   using FalkForge.Builders;
-        //   using FalkForge.Models;
-        //   ...
-        //   var model = builder.Build();
-        //
-        // We need to inject "using FalkForge.Compiler.Msi;" (for MsiCompiler)
-        // and append the Installer.Build call that drives the actual MSI compilation.
-        //
-        // Strategy: inject the missing using right after the existing using block
-        // (before the first blank line that separates usings from statements).
-
-        const string msiUsing = "using FalkForge.Compiler.Msi;";
-        const string entryPoint = "return Installer.Build(args, model, new MsiCompiler());";
-
-        var sb = new StringBuilder(emittedFragment.Length + 128);
-
-        if (!emittedFragment.Contains(msiUsing, StringComparison.Ordinal))
-        {
-            // Inject the using before the first blank line that follows the using block.
-            // Track whether a using line has been seen with a flag (no per-line buffer scan).
-            var lines = emittedFragment.Split('\n');
-            var sawUsing = false;
-            var usingBlockDone = false;
-            foreach (var rawLine in lines)
-            {
-                var line = rawLine.TrimEnd('\r');
-                if (!usingBlockDone && sawUsing && string.IsNullOrWhiteSpace(line))
-                {
-                    // End of using block — inject our using before the blank separator.
-                    sb.AppendLine(msiUsing);
-                    usingBlockDone = true;
-                }
-
-                if (line.StartsWith("using ", StringComparison.Ordinal))
-                    sawUsing = true;
-
-                sb.AppendLine(line);
-            }
-        }
-        else
-        {
-            sb.Append(emittedFragment);
-        }
-
-        // Append entry point (Installer.Build) after builder.Build().
-        sb.AppendLine(entryPoint);
-
-        return sb.ToString();
-    }
-
-    private static string BuildCsproj(MigrationOptions options)
-    {
-        // Forward slashes in XML paths — consistent cross-platform and readable.
-        // XML-escape the operator-supplied source path before it lands in an XML attribute;
-        // a '&', '<', or '"' would otherwise produce a malformed csproj that will not load.
-        var src = System.Security.SecurityElement.Escape(
-            options.FalkForgeSourcePath.Replace('\\', '/'));
-
-        return $"""
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <OutputType>Exe</OutputType>
-                    <TargetFramework>net10.0-windows</TargetFramework>
-                    <Nullable>enable</Nullable>
-                    <ImplicitUsings>enable</ImplicitUsings>
-                  </PropertyGroup>
-                  <ItemGroup>
-                    <ProjectReference Include="{src}/FalkForge.Core/FalkForge.Core.csproj" />
-                    <ProjectReference Include="{src}/FalkForge.Compiler.Msi/FalkForge.Compiler.Msi.csproj" />
-                  </ItemGroup>
-                  <ItemGroup>
-                    <None Include="payload/**" CopyToOutputDirectory="PreserveNewest" />
-                  </ItemGroup>
-                </Project>
-                """;
-    }
-
-    private static string BuildReport(string inputPath, MigrationOptions options, PackageModel model)
-    {
-        var fileName = Path.GetFileName(inputPath);
-        var ext      = Path.GetExtension(inputPath).ToUpperInvariant().TrimStart('.');
-
-        return $"""
-                # Migration Report
-
-                | Field | Value |
-                |-------|-------|
-                | Source file | `{fileName}` |
-                | Detected type | {ext} |
-                | Project name | {options.ProjectName} |
-                | Mapping coverage | MSI decompilation maps the supported tables (see below). |
-
-                ## Notes
-
-                MSI decompilation covers: package metadata, features, files (payload entries are
-                emitted as `files.Add("payload/...")` calls and the payload bytes are written to the
-                `payload/` directory), registry entries, services, shortcuts, and properties.
-
-                No unmapped WiX features (this is an MSI source, not a WiX bundle).
-
-                {BuildNotMigratedSection(model)}
-                """;
-    }
-
-    /// <summary>
-    /// Honestly lists model feature categories that are present in the decompiled
-    /// <paramref name="model"/> but are NOT yet emitted by <see cref="CSharpEmitter"/>,
-    /// so the migrator knows exactly what to re-add by hand. Returns a positive
-    /// "all mapped" note when nothing is dropped.
-    /// </summary>
-    internal static string BuildNotMigratedSection(PackageModel model)
-    {
-        var dropped = new List<string>();
-
-        if (model.EnvironmentVariables.Count > 0) dropped.Add("environment variables");
-        if (model.CustomActions.Count > 0)        dropped.Add("custom actions");
-        if (model.CustomTables.Count > 0)          dropped.Add("custom tables");
-        if (model.ExecuteSequenceActions.Count > 0 || model.UISequenceActions.Count > 0)
-            dropped.Add("sequence scheduling");
-        if (model.IniFiles.Count > 0)              dropped.Add("INI files");
-        if (model.FileAssociations.Count > 0)      dropped.Add("file associations");
-        if (model.Fonts.Count > 0)                 dropped.Add("fonts");
-        if (model.Permissions.Count > 0)           dropped.Add("permissions");
-
-        if (dropped.Count == 0)
-            return "## Not yet migrated\n\nAll present features were mapped.";
-
-        var sb = new StringBuilder("## Not yet migrated\n\n");
-        sb.AppendLine(
-            "The following features are present in the source installer but are NOT yet emitted "
-            + "by the migrator. Re-add them manually in `Program.cs`:");
-        sb.AppendLine();
-        foreach (var item in dropped)
-            sb.Append("- ").AppendLine(item);
-
-        return sb.ToString().TrimEnd();
-    }
+    internal static string BuildNotMigratedSection(PackageModel model) =>
+        MigrationMsiEmitter.BuildNotMigratedSection(model);
 }
