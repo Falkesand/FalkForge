@@ -57,9 +57,13 @@ var model = new BundleBuilder()
 - **Reproducible builds:** the signed content (payload hashes) is identical across
   reproducible builds; only the ECDSA signature bytes — a deliberately non-deterministic,
   post-content addition — differ. The signature lives outside the reproducible content digest.
-- **Runtime:** the engine verifies the signature and binds each signed hash to its payload
-  before the Apply phase. A mismatch aborts the install with a `SecurityError`; an unsigned
-  bundle installs normally (backward compatible).
+- **Runtime:** before any payload is extracted or executed, the engine verifies the signature and
+  binds the value each payload's *bytes* are checked against — the hash in the bundle's unsigned
+  table of contents (TOC) — to the ECDSA-signed manifest hash. Authenticode covers only the PE
+  stub; the payloads and TOC are appended after it, so payload integrity comes from this ECDSA
+  signature plus the byte binding, not from Authenticode. A tampered payload whose TOC hash was
+  rewritten after signing is rejected with `INT006`; any signature mismatch aborts with a
+  `SecurityError`. An unsigned bundle installs normally (backward compatible).
 
 ## Notes
 

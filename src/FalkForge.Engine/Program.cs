@@ -8,6 +8,7 @@ using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.Layout;
@@ -131,6 +132,18 @@ internal static class Program
                     Console.WriteLine($"  {entry.PackageId,-25} {size,10}");
                 }
                 return 0;
+            }
+
+            // Trust binding: before extracting any payload, bind the value the extractor will
+            // verify bytes against (the unsigned overlay TOC hash) to the ECDSA-signed manifest
+            // hash. Without this, a validly-signed bundle whose payload bytes + TOC hash were
+            // rewritten after signing would extract the tampered bytes. An unsigned bundle passes
+            // through (backward compatible).
+            var extractTrust = VerifySignedPayloadTrust(content);
+            if (extractTrust.IsFailure)
+            {
+                await Console.Error.WriteLineAsync($"Error: {extractTrust.Error.Message}");
+                return 2;
             }
 
             Directory.CreateDirectory(extractDir!);
@@ -303,6 +316,32 @@ internal static class Program
     }
 
     /// <summary>
+    /// Binds the payloads about to be extracted to the ECDSA-signed manifest hash (see
+    /// <see cref="SignedPayloadTocVerifier"/>). Deserializes the embedded manifest from the bundle
+    /// content; a bundle with no embedded manifest (unsigned/old) or an unsigned manifest passes
+    /// through. A signed manifest whose overlay TOC hash disagrees with the signed hash is rejected.
+    /// </summary>
+    private static Result<Unit> VerifySignedPayloadTrust(BundleContent content)
+    {
+        if (content.ManifestJsonBytes is null || content.ManifestJsonBytes.Length == 0)
+            return Unit.Value; // no embedded manifest — nothing signed to bind (unsigned/old bundle)
+
+        InstallerManifest manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize(content.ManifestJsonBytes, LayoutJsonContext.Default.InstallerManifest)
+                       ?? throw new InvalidOperationException("Manifest deserialized to null.");
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                $"Failed to deserialize embedded manifest for integrity verification: {ex.Message}");
+        }
+
+        return SignedPayloadTocVerifier.Verify(manifest, content.TocEntries);
+    }
+
+    /// <summary>
     /// Extracts a payload to a file, reconstructing delta payloads against the base bundle.
     /// For a full payload this streams + verifies straight to disk (BundleReader). For a delta
     /// payload it reconstructs the finished payload from the base bundle via DeltaApplicator,
@@ -393,6 +432,20 @@ internal static class Program
         // Write manifest to disk so the UI can load it
         var manifestPath = Path.Combine(cacheDir, "manifest.json");
         await File.WriteAllBytesAsync(manifestPath, content.ManifestJsonBytes);
+
+        // Trust binding: bind the payload bytes each extraction will trust (the unsigned overlay
+        // TOC hash) to the ECDSA-signed manifest hash BEFORE extracting or launching anything.
+        // Extraction verifies bytes against the TOC hash; the signature covers only the manifest
+        // hashes, so without this a validly-signed bundle whose payload bytes + TOC hash were
+        // rewritten after signing would extract and run the tampered payload. Unsigned manifests
+        // pass through (backward compatible).
+        var bootstrapTrust = SignedPayloadTocVerifier.Verify(manifest, content.TocEntries);
+        if (bootstrapTrust.IsFailure)
+        {
+            await Console.Error.WriteLineAsync(
+                $"Bundle integrity verification failed: {bootstrapTrust.Error.Message}");
+            return 1;
+        }
 
         // Extract all payload files to the cache directory
         string? uiExePath = null;

@@ -274,6 +274,41 @@ Before the Apply phase, `ApplyStep` reads `ctx.Manifest.ManifestSignature`. When
 hash bindings, and set coverage. Any failure produces `ErrorKind.SecurityError` and aborts the
 installation before a single package runs.
 
+### Payload byte binding (extraction-time)
+
+The gate above proves the manifest's package hashes are the ones the signature covers, but it
+never touches a payload byte. The bytes live in the bundle's **appended overlay**: the manifest
+JSON, the compressed payloads, and the **table of contents (TOC)** are all appended after the PE
+stub. Authenticode (when used) signs only the stub, so the overlay — including the TOC — is
+outside its coverage by construction. The ECDSA manifest signature covers the manifest's payload
+hashes, **not** the TOC.
+
+Runtime extraction (`BundleReader` for full payloads, `DeltaApplicator` for delta payloads)
+verifies each payload's decompressed bytes against the **TOC** hash (`TocEntry.Sha256Hash`, or
+`TocEntry.ReconstructedSha256Hash` for a reconstructed delta). That hash is in the unsigned
+overlay. Left unbound, this is a hole: an attacker can take a validly-signed bundle, flip payload
+bytes, rewrite the matching TOC hash, and leave the signed manifest and its signature untouched —
+extraction verifies the tampered bytes against the tampered TOC hash, accepts them, and the
+payload runs while the signature still verifies.
+
+`SignedPayloadTocVerifier.Verify(manifest, tocEntries)` closes this. Before any payload is
+extracted (in both the self-extract `--extract` path and the bootstrapper's UI-launch path in
+`Program.cs`), it re-verifies the envelope signature and then requires, for every TOC payload that
+is in the signed set, that the value the extractor will trust equals the signed hash:
+
+- **full payload** — `TocEntry.Sha256Hash` must equal the signed hash (bytes == TOC == signed), and
+- **delta payload** — `TocEntry.ReconstructedSha256Hash` must equal the signed hash
+  (reconstructed == ReconstructedSha256Hash == signed); the delta-blob hash is unsigned and
+  irrelevant to trust.
+
+A TOC hash that disagrees with the signed hash is a post-signing overlay tamper and is rejected
+with `INT006` before a byte is extracted. So payload integrity comes from **the ECDSA manifest
+signature plus this byte binding** — Authenticode alone proves nothing about the payloads.
+Payloads with no matching signed package (the bundle's own UI/engine binaries) are outside this
+binding's scope and remain TOC-only; binding them requires extending the signature's coverage to
+those payloads (a separate change). Unsigned bundles have no signed hash to bind to and keep only
+TOC-level tamper detection.
+
 ### Artifact location
 
 The signature is embedded in the bundle manifest (inside the EXE). No external file. The

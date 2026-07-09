@@ -10,11 +10,13 @@ using FalkForge.Engine.Protocol.Manifest;
 ///
 /// <para><b>What the signature actually proves.</b> The bundle manifest carries an ECDSA
 /// signature envelope over the per-package SHA-256 hashes, and the envelope embeds the
-/// public half of the signing key. The cache layer verifies each payload's bytes against
-/// its <see cref="PackageInfo.Sha256Hash"/>; this gate proves those hashes are the ones
+/// public half of the signing key. This gate proves those manifest hashes are the ones
 /// covered by the signature, and that the signed set covers every package that will run.
-/// Together they guarantee <b>internal consistency</b>: the payloads, their manifest
-/// hashes, and the signature all agree.</para>
+/// The binding of the actual payload <i>bytes</i> to the signed hash happens at extraction
+/// time in <see cref="FalkForge.Engine.Protocol.Integrity.SignedPayloadTocVerifier"/>, which
+/// requires each payload's table-of-contents hash (the value the extractor verifies bytes
+/// against) to equal the signed manifest hash. Together they guarantee <b>internal
+/// consistency</b>: the payload bytes, their manifest hashes, and the signature all agree.</para>
 ///
 /// <para><b>What it does NOT prove by default.</b> Because the verifying key is carried
 /// <i>inside</i> the envelope (ephemeral / self-describing mode), an attacker who rewrites
