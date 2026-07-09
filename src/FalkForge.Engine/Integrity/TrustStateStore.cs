@@ -1,5 +1,8 @@
 namespace FalkForge.Engine.Integrity;
 
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text.Json;
 
 /// <summary>
@@ -86,7 +89,7 @@ internal static class TrustStateStore
         {
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
-                Directory.CreateDirectory(dir);
+                CreateStoreDirectory(dir);
 
             var json = JsonSerializer.SerializeToUtf8Bytes(state, TrustStateJsonContext.Default.TrustState);
             File.WriteAllBytes(path, json);
@@ -97,5 +100,65 @@ internal static class TrustStateStore
             return Result<Unit>.Failure(ErrorKind.IntegrityError,
                 $"Failed to persist trust state to '{path}': {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Creates the store directory. On Windows a fresh directory is created with a restrictive DACL —
+    /// SYSTEM + Administrators FullControl, Users read-only — so an unprivileged process cannot tamper the
+    /// anti-downgrade/revocation store (roll back the epoch, clear revocations). Inheritance is severed so
+    /// the broad default <c>%ProgramData%</c> ACL cannot leak a Users-write grant back in. An existing
+    /// directory's ACL is left untouched (it may have been admin-provisioned).
+    ///
+    /// <para><b>Elevation follow-up (C14 Stage 3 FIX 4).</b> The engine bootstrapper runs
+    /// <c>asInvoker</c> (non-elevated), and <see cref="Advance"/> is called from it after a verified update
+    /// apply. Under this restrictive ACL a non-elevated write is denied, so the store advances only when the
+    /// engine runs elevated; a standard-user write failure is surfaced as a <see cref="Result{T}"/> failure
+    /// (fail-loud), never silently dropped. Moving the store write to the elevated companion
+    /// (<c>FalkForge.Engine.Elevation</c>) so every advance is elevated is a tracked follow-up; the ACL
+    /// hardening ships now because it is the security-critical half (tamper-resistance).</para>
+    /// </summary>
+    private static void CreateStoreDirectory(string dir)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(dir);
+            return;
+        }
+
+        CreateSecuredDirectoryWindows(dir);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void CreateSecuredDirectoryWindows(string dir)
+    {
+        // Do not weaken an already-existing (possibly admin-provisioned) directory's ACL.
+        if (Directory.Exists(dir))
+            return;
+
+        // Ensure the parent exists with its default ACL; only the Trust leaf is locked down.
+        var parent = Path.GetDirectoryName(dir);
+        if (!string.IsNullOrEmpty(parent))
+            Directory.CreateDirectory(parent);
+
+        var security = new DirectorySecurity();
+        // Sever inheritance so %ProgramData%'s broad default ACL (which grants Users create/modify) does
+        // not apply — otherwise a standard user could tamper the store.
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+
+        const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+
+        security.AddAccessRule(new FileSystemAccessRule(
+            system, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(
+            admins, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
+        // Read-only for standard users: they may read the store but never roll it back.
+        security.AddAccessRule(new FileSystemAccessRule(
+            users, FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
+
+        FileSystemAclExtensions.CreateDirectory(security, dir);
     }
 }
