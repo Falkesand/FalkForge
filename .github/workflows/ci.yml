@@ -77,8 +77,20 @@ jobs:
               "To enable ICE coverage, ensure the Windows SDK or WiX Toolset 3.x is installed."
           }
 
-      - name: Test
-        run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults
+      # xunit.v3 test projects run on Microsoft.Testing.Platform (MTP), not
+      # classic VSTest — `dotnet test --collect:"XPlat Code Coverage"` is a
+      # silent no-op here because coverlet.collector never attaches. The
+      # dotnet-coverage global tool wraps the whole test invocation via CLR
+      # profiler attach instead, which works regardless of test host.
+      - name: Install coverage tools
+        run: |
+          dotnet tool install -g dotnet-coverage
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Test with coverage
+        run: dotnet-coverage collect -f cobertura -o TestResults\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults'
 
       - name: Upload test results
         uses: actions/upload-artifact@v5
@@ -88,6 +100,19 @@ jobs:
           path: |
             TestResults/**
             tests/**/bin/**/TestResults/**
+          if-no-files-found: warn
+
+      - name: Generate coverage report
+        run: reportgenerator "-reports:TestResults\coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:JsonSummary;TextSummary"
+
+      - name: Print coverage summary
+        run: Get-Content CoverageReport\Summary.txt
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-report
+          path: CoverageReport/
           if-no-files-found: warn
 
   code-quality:
