@@ -45,7 +45,8 @@ public sealed class WinGetSettings : CommandSettings
         if (string.IsNullOrWhiteSpace(PackageIdentifier))
             return CliValidationResult.Error("--id is required (WinGet package identifier, e.g., Contoso.MyApp).");
 
-        if (PackageIdentifier is not null && !PackageIdentifier.Contains('.'))
+        // CA1508: PackageIdentifier is guaranteed non-null here — the IsNullOrWhiteSpace check above already returned.
+        if (!PackageIdentifier.Contains('.'))
             return CliValidationResult.Error("--id must be in Publisher.PackageName format.");
 
         if (string.IsNullOrWhiteSpace(License))

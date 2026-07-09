@@ -29,6 +29,57 @@ dotnet_diagnostic.IDE0051.severity = warning     # Remove unused private member
 dotnet_diagnostic.IDE0052.severity = warning     # Remove unread private member
 
 # ─────────────────────────────────────────────────────────────
+# AnalysisLevel latest-all (C10) — curated severity tiering.
+# `latest-all` turns on the full .NET CA rule set (not just the
+# "recommended" default subset). The rules below fired in bulk
+# across src on first enable; each is demoted with a rationale
+# rather than suppressed wholesale. Rules explicitly flagged by
+# the C10 plan item as worth independently mining for real bugs
+# later (CA1307, CA2007, CA1062, CA1031, CA1305) are tiered to
+# `suggestion` so the signal stays visible without failing the
+# build. Structural/API-shape rules whose "fix" would be a public
+# API break or a deliberate design choice are tiered the same way
+# so they remain visible without blocking. Test-naming (CA1707) is
+# handled separately in tests/.editorconfig.
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.CA1707.severity = none         # Rule-ID naming convention (Pkg001_NameRequired, Fea001_IdRequired, ...) is intentional — documented in CLAUDE.md's Validation rule-ID scheme, not renameable
+dotnet_diagnostic.CA1062.severity = suggestion   # Null-check public params — C10 plan: mine independently (326 occurrences), too broad to fix in a config PR
+dotnet_diagnostic.CA1305.severity = suggestion   # IFormatProvider on locale-sensitive calls — C10 plan: mine independently (163 occurrences)
+dotnet_diagnostic.CA1307.severity = suggestion   # StringComparison overloads — C10 plan: mine independently
+dotnet_diagnostic.CA1031.severity = suggestion   # Catch specific exception types — C10 plan: mine independently (98 occurrences)
+dotnet_diagnostic.CA2007.severity = suggestion   # ConfigureAwait(false) — C10 plan: mine independently
+dotnet_diagnostic.CA1056.severity = suggestion   # string -> Uri property type — would break public builder API (e.g. SigningOptionsBuilder.TimestampUrl)
+dotnet_diagnostic.CA1054.severity = suggestion   # string -> Uri parameter type — same public API concern as CA1056
+dotnet_diagnostic.CA2225.severity = suggestion   # Friendly alternate method names for operators — deliberate operator-based fluent DSL (Condition, MsiProperty, InstallPath, KnownFolder)
+dotnet_diagnostic.CA1720.severity = suggestion   # Identifier contains type name — enum members (RegistryValueType.String, CustomTableColumnType.Int32, ...) intentionally match the primitive/registry type they represent
+dotnet_diagnostic.CA1034.severity = suggestion   # Nested public type — deliberate scoped pattern (e.g. SensitiveBytes.RevealScope)
+dotnet_diagnostic.CA1815.severity = suggestion   # Struct should override Equals/== — SensitiveBytes/RevealScope wrap secret data; naive byte equality risks a timing side-channel, needs a dedicated security-reviewed design, not a config-PR fix
+dotnet_diagnostic.CA1308.severity = suggestion   # Prefer ToUpperInvariant — lowercase output is required by external format conventions (file-association verbs, WinGet YAML keys); switching case would change behavior
+dotnet_diagnostic.CA1000.severity = suggestion   # Static members on generic types — Result<T>.Success/Failure is the documented canonical factory pattern (CLAUDE.md)
+dotnet_diagnostic.CA1819.severity = suggestion   # Properties should not return arrays — would change public model property types (WinGetConfig), breaking API
+dotnet_diagnostic.CA1716.severity = suggestion   # Reserved keyword identifier — Core.Error is the documented canonical type name used throughout the codebase; renaming is a sweeping breaking change
+dotnet_diagnostic.CA1810.severity = suggestion   # Prefer inline static field init over static ctor — MiscRules' static ctor is required for cross-partial init ordering (see adjacent S3963 suppression)
+dotnet_diagnostic.CA1028.severity = suggestion   # Enum underlying type should be Int32 — cosmetic; PathSegment.Kind is an internal formatting detail, not on a wire format
+dotnet_diagnostic.CA1002.severity = suggestion   # List<T> in public API — would change ServiceBuilder.Dependencies' public type, breaking API
+dotnet_diagnostic.CA1032.severity = suggestion   # Standard exception constructors — FieldMismatchException is always thrown with a diagnostic message by design; adding a message-less ctor would invite misuse
+dotnet_diagnostic.CA1822.severity = suggestion   # Member could be static — MsixBundleCompiler/MsixCompiler.Compile are public instance API; making them static breaks existing `instance.Compile(...)` call sites
+dotnet_diagnostic.CA1051.severity = suggestion   # Visible instance fields — PipeTransportBase's protected fields are used directly by PipeServer/PipeClient; converting to properties is a wider refactor, out of scope for C10
+dotnet_diagnostic.CA1003.severity = suggestion   # Action event vs EventHandler<T> — PipeTransportBase.PipeClosed's signature change would break existing subscribers, out of scope for C10
+dotnet_diagnostic.CA1711.severity = suggestion   # Reserved type-name suffix — DriverInstallFlags/FileSharePermission are established public enum names; renaming is a breaking API change
+dotnet_diagnostic.CA1030.severity = suggestion   # "Should be an event" false positive — UserBuilder.RemoveOnUninstall() is a fluent-builder configuration method, matching the rest of that DSL
+dotnet_diagnostic.CA1515.severity = suggestion   # "Type could be internal" — fires broadly on FalkForge.Ui's intentionally-public extension surface (InstallerPage, InstallerApp, ViewModels, ...) consumed by demos/downstream custom-UI projects, plus Engine.Elevation's command types; too broad and API-risky to blanket-fix in a config PR
+dotnet_diagnostic.CA1069.severity = suggestion   # Duplicate enum value — MsiControlAttributes intentionally reuses bit positions across MSI control types per the Win32 Control table spec (see file header remarks)
+dotnet_diagnostic.CA2000.severity = suggestion   # Dispose before scope exit — mixed verdict: CabinetExtractor's FdiHandle is created here but disposed by RunFdiCopy after ownership transfer (cross-method dataflow the analyzer can't see; already correct, see inline comment on the GC.KeepAlive ordering); DefaultShellViewModel's page ViewModels are a genuine gap (InstallerShellViewModel never disposes registered pages) flagged here for a dedicated follow-up, not a config-PR fix
+dotnet_diagnostic.CA2025.severity = suggestion   # Task using IDisposable before dispose — InstallerApp's fire-and-forget DeliverSecretAsync owns and disposes its NamedPipeServerStream itself in its own finally block; cross-method dataflow false positive
+dotnet_diagnostic.CA1859.severity = suggestion   # Concrete-type perf suggestion — most straightforward occurrences already narrowed in code (SqlServerDiscovery, VfsMapper, DeltaBundleCompiler); remaining ones are false positives: CabinetExtractor._chainResolver is deliberately an interface for test injection (see inline comment), and InstallerApp.ResolveEngine's return type participates in `?? new NullInstallerEngine()`, which would stop compiling if narrowed
+dotnet_diagnostic.CA1806.severity = suggestion   # Unchecked TryParse result — the decompiler intentionally relies on TryParse's documented "out param = default on failure" contract as its fallback (Version.TryParse -> DefaultVersion via ??=, Guid.TryParse -> Guid.Empty); an explicit if-check would add no value
+dotnet_diagnostic.CA1862.severity = suggestion   # Prefer case-insensitive string.Equals — MsiPackageReconstructor's `p.Property == p.Property.ToUpperInvariant()` tests whether a string IS already all-uppercase (MSI secure-property convention); it is not an equality comparison, and a case-insensitive Equals here would always return true, which is a real behavior change, not a fix
+dotnet_diagnostic.CA1068.severity = suggestion   # CancellationToken should be last parameter — IElevationClient.SendCommandAsync's (token, progress) order is an established public interface implemented/called across 5+ files; reordering is a breaking ripple, out of scope for C10
+dotnet_diagnostic.CA2227.severity = suggestion   # Read-only collection property — fires broadly on System.Text.Json [JsonPropertyName] DTOs (Cli/Models/*Config.cs, Studio/Project/*.cs); those setters are required for JSON deserialization, removing them would break config/project loading
+dotnet_diagnostic.CA1724.severity = suggestion   # Type/namespace name collision — Studio.Graph.DependencyGraph vs. the Studio.Editors.DependencyGraph namespace; renaming ripples across 5+ files including XAML bindings, out of scope for C10
+dotnet_diagnostic.CA1303.severity = suggestion   # Literal string passed to a localizable-string parameter — only observed in demo/ Console.WriteLine sample output; FalkForge's actual UI text goes through the dedicated Localization/UiStringResolver system (see CLAUDE.md), not per-string resource tables for CLI/demo messaging; InvariantGlobalization=true on the shipping exes (Engine, Elevation) already signals globalization is intentionally out of scope there
+
+# ─────────────────────────────────────────────────────────────
 # Meziantou.Analyzer — code quality, fix incrementally
 # ─────────────────────────────────────────────────────────────
 dotnet_diagnostic.MA0002.severity = suggestion   # IEqualityComparer/IComparer parameter

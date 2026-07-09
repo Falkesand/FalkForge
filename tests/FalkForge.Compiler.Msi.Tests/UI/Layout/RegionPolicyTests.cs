@@ -8,25 +8,25 @@ public sealed class RegionPolicyTests
     [Fact]
     public void Absolute_value_is_declared()
     {
-        Assert.True(System.Enum.IsDefined(typeof(RegionPolicy), RegionPolicy.Absolute));
+        Assert.True(System.Enum.IsDefined(RegionPolicy.Absolute));
     }
 
     [Fact]
     public void RightPacked_value_is_declared()
     {
-        Assert.True(System.Enum.IsDefined(typeof(RegionPolicy), RegionPolicy.RightPacked));
+        Assert.True(System.Enum.IsDefined(RegionPolicy.RightPacked));
     }
 
     [Fact]
     public void TopStacked_value_is_declared()
     {
-        Assert.True(System.Enum.IsDefined(typeof(RegionPolicy), RegionPolicy.TopStacked));
+        Assert.True(System.Enum.IsDefined(RegionPolicy.TopStacked));
     }
 
     [Fact]
     public void SingleControl_value_is_declared()
     {
-        Assert.True(System.Enum.IsDefined(typeof(RegionPolicy), RegionPolicy.SingleControl));
+        Assert.True(System.Enum.IsDefined(RegionPolicy.SingleControl));
     }
 
     [Fact]

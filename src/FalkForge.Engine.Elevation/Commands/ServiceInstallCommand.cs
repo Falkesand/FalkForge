@@ -1,12 +1,15 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 public sealed partial class ServiceInstallCommand : IElevatedCommand
 {
     private const int ProcessTimeoutMs = 600_000;
-    private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}', '"'];
+    // CA1870: SearchValues is the optimized, cached form of a fixed char set for IndexOfAny.
+    private static readonly SearchValues<char> ShellMetacharacters =
+        SearchValues.Create("&|;><`$(){}\"");
 
     public string Name => "ServiceInstall";
 

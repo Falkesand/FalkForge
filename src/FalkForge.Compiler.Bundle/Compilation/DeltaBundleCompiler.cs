@@ -230,13 +230,14 @@ public sealed class DeltaBundleCompiler
         }
     }
 
+    // CA1859: parameter types narrowed to the concrete types the single caller always passes.
     private static Result<Unit> EmbedWithDeltas(
         string stubPath,
         string outputPath,
         InstallerManifest manifest,
-        IReadOnlyList<PayloadEntry> payloads,
-        IReadOnlyDictionary<string, string> deltaEntries,
-        IReadOnlyDictionary<string, TocEntry> oldEntries,
+        List<PayloadEntry> payloads,
+        ConcurrentDictionary<string, string> deltaEntries,
+        Dictionary<string, TocEntry> oldEntries,
         string tempDir)
     {
         var compressedTempPaths = new string?[payloads.Count];

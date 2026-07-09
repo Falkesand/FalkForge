@@ -96,8 +96,8 @@ public sealed class NamedPipeUiChannel : IUiChannel
     /// <see cref="LogMessage"/> and <see cref="PhaseChangedMessage"/> frames.
     /// Called once by <see cref="FalkForge.Engine.EngineSession"/> at session start.
     /// </summary>
-    public void SetSessionCorrelationId(Guid correlationId) =>
-        _sessionCorrelationId = correlationId;
+    public void SetSessionCorrelationId(Guid id) =>
+        _sessionCorrelationId = id;
 
     /// <inheritdoc/>
     public async Task SendAsync(PipelineEvent evt, CancellationToken ct)

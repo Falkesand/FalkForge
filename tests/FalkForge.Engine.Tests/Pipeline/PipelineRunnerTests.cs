@@ -70,7 +70,7 @@ public sealed class PipelineRunnerTests
         }
 
         public bool ElevateCalled { get; private set; }
-        public Result<Unit>? ElevateResult { get; set; } = null;
+        public Result<Unit>? ElevateResult { get; set; }
 
         public async Task<Result<Unit>> ApplyAsync(CancellationToken ct)
         {
@@ -91,11 +91,12 @@ public sealed class PipelineRunnerTests
         public Task<Result<Unit>> RollbackAsync(CancellationToken ct)
         {
             RollbackCalled = true;
-            return Task.FromResult(RollbackResult ?? Result<Unit>.Success(Unit.Value));
+            // S3459: no test currently configures a custom rollback outcome, so there is
+            // nothing to fall back from — this mock always reports rollback success.
+            return Task.FromResult(Result<Unit>.Success(Unit.Value));
         }
 
         public bool RollbackCalled { get; private set; }
-        public Result<Unit>? RollbackResult { get; set; } = null;
 
         public Result<Unit> LaunchUpdate()
         {
@@ -104,7 +105,7 @@ public sealed class PipelineRunnerTests
         }
 
         public bool LaunchUpdateCalled { get; private set; }
-        public Result<Unit>? LaunchUpdateResult { get; set; } = null;
+        public Result<Unit>? LaunchUpdateResult { get; set; }
 
         public ValueTask DisposeAsync() => default;
     }

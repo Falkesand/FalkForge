@@ -25,7 +25,7 @@ internal static class Program
         var argsResult = ProgramArgs.Parse(args);
         if (!argsResult.IsSuccess)
         {
-            Console.Error.WriteLine($"Error: {argsResult.ErrorMessage}");
+            await Console.Error.WriteLineAsync($"Error: {argsResult.ErrorMessage}");
             return argsResult.SuggestedExitCode;
         }
 
@@ -100,14 +100,14 @@ internal static class Program
 
             if (selfPath is null)
             {
-                Console.Error.WriteLine("Error: Could not determine bundle path.");
+                await Console.Error.WriteLineAsync("Error: Could not determine bundle path.");
                 return 3;
             }
 
             var contentResult = BundleReader.Extract(selfPath);
             if (contentResult.IsFailure)
             {
-                Console.Error.WriteLine($"Error: {contentResult.Error.Message}");
+                await Console.Error.WriteLineAsync($"Error: {contentResult.Error.Message}");
                 return 2;
             }
 
@@ -137,10 +137,10 @@ internal static class Program
                 var missing = requested.Except(available).ToList();
                 if (missing.Count > 0)
                 {
-                    Console.Error.WriteLine($"Package(s) not found: {string.Join(", ", missing)}");
-                    Console.Error.WriteLine("Available:");
+                    await Console.Error.WriteLineAsync($"Package(s) not found: {string.Join(", ", missing)}");
+                    await Console.Error.WriteLineAsync("Available:");
                     foreach (var e in content.TocEntries)
-                        Console.Error.WriteLine($"  {e.PackageId}");
+                        await Console.Error.WriteLineAsync($"  {e.PackageId}");
                     return 1;
                 }
                 toExtract = content.TocEntries.Where(e => requested.Contains(e.PackageId));
@@ -157,7 +157,7 @@ internal static class Program
                     selfPath, entry, extractDir!, Path.Combine(entry.PackageId, $"{entry.PackageId}.dat"));
                 if (payloadResult.IsFailure)
                 {
-                    Console.Error.WriteLine($"  Failed: {entry.PackageId} — {payloadResult.Error.Message}");
+                    await Console.Error.WriteLineAsync($"  Failed: {entry.PackageId} — {payloadResult.Error.Message}");
                     return 2;
                 }
 
@@ -180,7 +180,7 @@ internal static class Program
 
         if (manifestPath is null)
         {
-            Console.Error.WriteLine("Usage: FalkForge.Engine --manifest <path> [--pipe <name> --secret-pipe <name>] [--plan-only [--plan-output <path>]]");
+            await Console.Error.WriteLineAsync("Usage: FalkForge.Engine --manifest <path> [--pipe <name> --secret-pipe <name>] [--plan-only [--plan-output <path>]]");
             return 1;
         }
 
@@ -197,7 +197,7 @@ internal static class Program
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to load manifest: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Failed to load manifest: {ex.Message}");
                 return 1;
             }
         }
@@ -219,7 +219,7 @@ internal static class Program
                     var read = await initPipe.ReadAsync(secret.AsMemory(totalRead));
                     if (read == 0)
                     {
-                        Console.Error.WriteLine("Parent closed init pipe before sending full secret.");
+                        await Console.Error.WriteLineAsync("Parent closed init pipe before sending full secret.");
                         return 1;
                     }
 
@@ -228,7 +228,7 @@ internal static class Program
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to receive secret: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Failed to receive secret: {ex.Message}");
                 return 1;
             }
 
@@ -241,7 +241,7 @@ internal static class Program
 
         if (!OperatingSystem.IsWindows())
         {
-            Console.Error.WriteLine("FalkForge.Engine requires Windows.");
+            await Console.Error.WriteLineAsync("FalkForge.Engine requires Windows.");
             return 1;
         }
 
@@ -264,7 +264,7 @@ internal static class Program
         // Print the session correlation id so operators can grep all three log files
         // (UI, Engine, Elevation) for the same id. Safe: Guid "D" format is fixed-length
         // and contains only hex digits and hyphens — no injection risk.
-        Console.Out.WriteLine($"Session: {session.CorrelationId:D}");
+        await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(cts.Token);
         return outcome.State switch
@@ -311,7 +311,7 @@ internal static class Program
     {
         if (!OperatingSystem.IsWindows())
         {
-            Console.Error.WriteLine("FalkForge.Engine requires Windows.");
+            await Console.Error.WriteLineAsync("FalkForge.Engine requires Windows.");
             return 1;
         }
 
@@ -323,7 +323,7 @@ internal static class Program
         var extractResult = BundleReader.Extract(exePath);
         if (extractResult.IsFailure)
         {
-            Console.Error.WriteLine($"Bundle extraction failed: {extractResult.Error.Message}");
+            await Console.Error.WriteLineAsync($"Bundle extraction failed: {extractResult.Error.Message}");
             return 1;
         }
 
@@ -332,7 +332,7 @@ internal static class Program
         // Deserialize embedded manifest
         if (content.ManifestJsonBytes is null || content.ManifestJsonBytes.Length == 0)
         {
-            Console.Error.WriteLine("Bundle does not contain an embedded manifest.");
+            await Console.Error.WriteLineAsync("Bundle does not contain an embedded manifest.");
             return 1;
         }
 
@@ -344,7 +344,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to deserialize embedded manifest: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Failed to deserialize embedded manifest: {ex.Message}");
             return 1;
         }
 
@@ -370,7 +370,7 @@ internal static class Program
             var payloadResult = BundleReader.ExtractPayloadToFile(content.BundlePath, entry, cacheDir, payloadFileName);
             if (payloadResult.IsFailure)
             {
-                Console.Error.WriteLine($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
+                await Console.Error.WriteLineAsync($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
                 return 1;
             }
 
@@ -396,7 +396,7 @@ internal static class Program
 
         if (uiExePath is null)
         {
-            Console.Error.WriteLine("No UI executable found in bundle payloads.");
+            await Console.Error.WriteLineAsync("No UI executable found in bundle payloads.");
             return 1;
         }
 
@@ -482,7 +482,7 @@ internal static class Program
         if (process is null)
         {
             await initPipe.DisposeAsync();
-            Console.Error.WriteLine("Failed to launch UI process.");
+            await Console.Error.WriteLineAsync("Failed to launch UI process.");
             return 1;
         }
 
@@ -506,7 +506,7 @@ internal static class Program
                 MinimumLogLevel = programArgs?.MinimumLogLevel
             });
 
-        Console.Out.WriteLine($"Session: {session.CorrelationId:D}");
+        await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
         return outcome.State switch

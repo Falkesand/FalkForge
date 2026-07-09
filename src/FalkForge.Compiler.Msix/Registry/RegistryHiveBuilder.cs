@@ -42,7 +42,8 @@ internal static class RegistryHiveBuilder
                     }
                     finally
                     {
-                        NativeMethods.ORCloseKey(keyHandle);
+                        // CA1806: best-effort cleanup close — nothing actionable if it fails.
+                        _ = NativeMethods.ORCloseKey(keyHandle);
                     }
                 }
 
@@ -53,7 +54,8 @@ internal static class RegistryHiveBuilder
             }
             finally
             {
-                NativeMethods.ORCloseHive(hiveHandle);
+                // CA1806: best-effort cleanup close — nothing actionable if it fails.
+                _ = NativeMethods.ORCloseHive(hiveHandle);
             }
 
             return Result<byte[]>.Success(File.ReadAllBytes(tempPath));
@@ -88,8 +90,9 @@ internal static class RegistryHiveBuilder
                 return Result<nint>.Failure(ErrorKind.CompilationError, $"Failed to create registry key '{path}': error {result}");
 
             // Close intermediate keys, keep only the leaf
+            // CA1806: best-effort cleanup close — nothing actionable if it fails.
             if (i < segments.Length - 1)
-                NativeMethods.ORCloseKey(keyHandle);
+                _ = NativeMethods.ORCloseKey(keyHandle);
             else
                 leafHandle = keyHandle;
         }

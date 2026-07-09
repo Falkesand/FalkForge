@@ -83,9 +83,9 @@ public sealed partial class StudioViewModel
         TreeNodes.Clear();
         BuildDefaultTree();
 
-        if (currentKey is not null && _editors.ContainsKey(currentKey) && TreeNodeExists(currentKey))
+        if (currentKey is not null && _editors.TryGetValue(currentKey, out var editor) && TreeNodeExists(currentKey))
         {
-            CurrentEditor = _editors[currentKey];
+            CurrentEditor = editor;
         }
         else if (currentKey != "product")
         {

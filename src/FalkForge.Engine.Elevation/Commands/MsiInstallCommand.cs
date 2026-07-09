@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
+using System.Buffers;
 using System.Runtime.InteropServices;
 using FalkForge.Platform.Windows;
 
@@ -8,7 +9,9 @@ public sealed class MsiInstallCommand : IElevatedCommand
     private const int InstallUILevelNone = 2;
     private const uint ErrorSuccess = 0;
     private const uint ErrorSuccessRebootRequired = 3010;
-    private static readonly char[] ShellMetacharacters = ['&', '|', ';', '>', '<', '`', '$', '(', ')', '{', '}'];
+    // CA1870: SearchValues is the optimized, cached form of a fixed char set for IndexOfAny.
+    private static readonly SearchValues<char> ShellMetacharacters =
+        SearchValues.Create("&|;><`$(){}");
 
     private readonly IMsiApi _msiApi;
 
