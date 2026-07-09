@@ -36,10 +36,12 @@ using FalkForge.Engine.Protocol.Manifest;
 /// <c>PayloadIntegrityGate</c>). Such bundles retain only TOC-level tamper detection; producing an
 /// integrity-signed bundle (<c>BundleBuilder.Integrity(...)</c>) is what activates this binding.</para>
 ///
-/// <para><b>Payloads outside the signed set.</b> TOC payloads with no matching signed package (the
-/// bundle's own UI/engine infrastructure binaries) are outside this binding's scope and are left to
-/// TOC-level verification. Binding them would require the signature to cover those payloads, which
-/// is a separate change to signature scope.</para>
+/// <para><b>Coverage (§5.4).</b> Once a bundle is signed, every payload in its table of contents must
+/// be inside the signed set — the bundle's own UI/engine binaries included, because those execute. A
+/// TOC entry with no matching signed package is treated as an attacker-appended payload (e.g. a
+/// malicious UI executable the bootstrapper would launch) and rejected with INT004. The build-time
+/// signer already signs every embedded payload, so a legitimately signed bundle has full coverage;
+/// only a post-signing append fails here.</para>
 /// </summary>
 public static class SignedPayloadTocVerifier
 {
@@ -104,10 +106,16 @@ public static class SignedPayloadTocVerifier
 
         foreach (var entry in tocEntries)
         {
-            // Payloads with no matching signed package (UI/engine infrastructure) are outside this
-            // binding's scope — left to TOC-level verification. See the type remarks.
+            // Coverage extension (§5.4): once a bundle is signed, EVERY payload it will extract and
+            // (potentially) execute must be inside the signed set. A TOC entry with no matching signed
+            // package is an attacker-appended payload — e.g. a malicious UI executable that the
+            // bootstrapper would launch, or an extra chained package — that the signature never covered.
+            // The former "skip unmatched" behavior left exactly that hole; reject it instead.
             if (!signedHashes.TryGetValue(entry.PackageId, out var signedHash))
-                continue;
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT004: Bundle payload '{entry.PackageId}' is present in the table of contents but is " +
+                    "not covered by the integrity signature. Every payload a signed bundle extracts or " +
+                    "executes must be signed — refusing to extract or execute an uncovered payload.");
 
             // The value the runtime extractor verifies payload bytes against MUST equal the signed
             // hash. For a delta payload that is the reconstructed-file hash, not the delta-blob hash.

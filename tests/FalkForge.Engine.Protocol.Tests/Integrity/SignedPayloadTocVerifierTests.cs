@@ -204,20 +204,25 @@ public sealed class SignedPayloadTocVerifierTests
     }
 
     [Fact]
-    public void PayloadNotInSignedSet_IsNotBoundHere_Accepts()
+    public void UnmatchedTocEntry_InSignedBundle_Rejected_CoverageExtension()
     {
-        // The UI/engine infrastructure payloads are not part of the signed package set. They are
-        // outside this binding's scope (verified against the TOC only) and must not fail the gate.
+        // §5.4 coverage extension (C14 Stage 2): every payload a signed bundle extracts/executes must
+        // be inside the signed set. An attacker who appends an extra executable TOC entry — e.g. a
+        // malicious "Setup.exe" that RunAsBootstrapper would pick up and launch as the UI exe — leaves
+        // it OUTSIDE the signed set. The old "skip unmatched" behavior extracted and ran it; the gate
+        // must now reject any TOC payload a signed bundle does not cover.
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var manifest = SignedManifest(key, ("AppMsi", HashA));
 
         var result = SignedPayloadTocVerifier.Verify(manifest, new[]
         {
             FullEntry("AppMsi", HashA),
-            FullEntry("FalkForge.Ui.exe", HashB)
+            FullEntry("Setup.exe", HashB) // appended, unsigned; would be launched as the UI exe
         }, TrustSet(Fingerprint(key)));
 
-        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.True(result.IsFailure, "an unsigned TOC payload in a signed bundle must be rejected");
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT004", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
