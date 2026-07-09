@@ -1,0 +1,29 @@
+# EditorConfig — FalkForge tests subtree
+# Root .editorconfig already applies; this file adds test-only overrides.
+
+[*.cs]
+
+# ─────────────────────────────────────────────────────────────
+# AnalysisLevel latest-all (C10) — test-only tiering.
+# The root .editorconfig already tiers CA1707 to `none` for the
+# src rule-ID naming convention; restated here explicitly for the
+# tests subtree, where the underscore convention is xUnit-style
+# test naming (Should_X_When_Y / MethodName_Scenario_Expected).
+# Neither convention will ever be "fixed", so both are `none`
+# rather than `suggestion`.
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.CA1707.severity = none         # Underscore test-method naming (Should_X_When_Y) is the project's xUnit convention
+
+# ─────────────────────────────────────────────────────────────
+# AnalysisLevel latest-all (C10) — additional test-bulk noise.
+# These rules exist to guard production hot/security paths; in test
+# code the equivalent concerns (perf, locale, thread-blocking) either
+# do not apply or actively hurt test readability if "fixed" mechanically.
+# ─────────────────────────────────────────────────────────────
+dotnet_diagnostic.CA5394.severity = none         # Insecure Random — test data generation (fuzzers, sample data) is not security-sensitive; deterministic seeding is often the point
+dotnet_diagnostic.CA1861.severity = suggestion   # Constant array argument — inline arrays in Assert calls are the readable way to show an expected value in the test body; extracting every one to a static field would hurt, not help, readability
+dotnet_diagnostic.CA1849.severity = suggestion   # Sync-blocking TextWriter/CancellationTokenSource calls — test setup/teardown code (e.g. cts.Cancel()), not a hot or production path
+dotnet_diagnostic.CA1310.severity = suggestion   # Locale-sensitive string calls — test assertions comparing known ASCII fixtures; not a correctness risk in this context, but left visible in case a real locale bug is ever introduced
+dotnet_diagnostic.CA1844.severity = suggestion   # Memory-based ReadAsync override — PayloadDownloaderTests' ChunkedStream/StallingStream are test doubles exercising the array-based path deliberately; adding the memory overload is test-infra polish, not a bug
+dotnet_diagnostic.CA2213.severity = suggestion   # Disposable field never disposed — ElevationSecurityLog{,Correlation}Tests' `_activeWriter` IS disposed, via reflection through the static field it's injected into (ResetStaticState); cross-method dataflow the analyzer can't see
+dotnet_diagnostic.CA1508.severity = suggestion   # Statically-provable condition — CellValueTests asserts pattern-match behavior (`cell is CellValue.IntValue { Value: 7 }`) as the test's actual subject; the compiler can prove it locally, but that provability is what's being tested

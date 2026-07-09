@@ -6,6 +6,8 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <!-- Makes IDE-prefixed code-style rules (e.g. IDE0051/IDE0052 dead-code detection) fire at build time -->
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <!-- Full .NET analyzer rule set (all CA rules, not just the "recommended" default subset); bulk noise is tiered via .editorconfig, see C10 plan item -->
+        <AnalysisLevel>latest-all</AnalysisLevel>
         <Deterministic>true</Deterministic>
         <LangVersion>latest</LangVersion>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
