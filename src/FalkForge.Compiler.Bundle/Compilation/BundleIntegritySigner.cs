@@ -47,7 +47,13 @@ internal static class BundleIntegritySigner
         // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
         var sbomAttestation = TryGenerateSbomAttestation(model, payloads, config);
 
-        return WithIntegrity(manifest, manifestSignature, sbomAttestation);
+        // A `with` expression copies every other manifest field verbatim, so a newly added field
+        // can never silently drop out of the signed manifest — only the two integrity fields change.
+        return manifest with
+        {
+            ManifestSignature = manifestSignature,
+            SbomAttestation = sbomAttestation
+        };
     }
 
     /// <summary>
@@ -143,16 +149,4 @@ internal static class BundleIntegritySigner
 
         return SbomWriter.WriteToFile(doc, outputPath);
     }
-
-    // A `with` expression copies every other manifest field verbatim, so a newly added field can
-    // never silently drop out of the signed manifest — only the two integrity fields are overridden.
-    private static InstallerManifest WithIntegrity(
-        InstallerManifest manifest,
-        string manifestSignature,
-        string? sbomAttestation) =>
-        manifest with
-        {
-            ManifestSignature = manifestSignature,
-            SbomAttestation = sbomAttestation
-        };
 }
