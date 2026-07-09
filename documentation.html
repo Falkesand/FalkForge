@@ -10422,6 +10422,32 @@ dotnet publish src/FalkForge.Engine -c Release -p:FalkForgeTrustedKey=A1B2C3...<
     still running a user-chosen unsigned fresh install.
 </div>
 
+<p>
+    <strong>4b. Or register the key from code.</strong> Trusted keys can also be added from your own compiled
+    bootstrap code, in addition to (not instead of) the MSBuild property. Since you already rebuild the engine
+    per publisher, edit <code>Program.TrustConfig.cs</code> &mdash; its <code>ConfigureTrust</code> hook runs at
+    the very top of the engine's <code>Main</code>, before any bundle is extracted or verified, and unions its
+    keys with the baked set:
+</p>
+
+<pre><code class="language-csharp">// src/FalkForge.Engine/Program.TrustConfig.cs
+static partial void ConfigureTrust()
+{
+    // Any of these; each derives the same SHA-256 SubjectPublicKeyInfo fingerprint the verifier matches.
+    EngineTrustAnchor.TrustPublicKey(Convert.FromBase64String("&lt;base64 SPKI&gt;"));
+    EngineTrustAnchor.TrustPublicKeyPem("-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----");
+    EngineTrustAnchor.TrustFingerprint("A1B2C3...");   // 64-hex SHA-256 of the key's SPKI
+}</code></pre>
+
+<div class="note">
+    <strong>Trust comes only from compiled code.</strong> Registration is reachable solely from the bootstrap
+    hook &mdash; never from a bundle, manifest, downloaded update, or any file/network input the installer
+    processes. The effective trusted set (baked &cup; code-registered) is frozen on first use, so a
+    registration attempt after verification has begun throws. This keeps the trust anchor outside anything an
+    attacker controls; a key embedded in a bundle is only ever used to <em>check</em> a signature, never to
+    decide whether that signature is trusted.
+</div>
+
 <h3 id="signing-verification">How Verification Works</h3>
 
 <p>
