@@ -2,7 +2,7 @@ namespace FalkForge.Engine.Tests.Integrity;
 
 using System.Security.AccessControl;
 using System.Security.Principal;
-using FalkForge.Engine.Integrity;
+using FalkForge.Engine.Protocol.Integrity;
 using Xunit;
 
 /// <summary>
@@ -168,6 +168,124 @@ public sealed class TrustStateStoreTests
             r.IdentityReference.Equals(users)
             && r.AccessControlType == AccessControlType.Allow
             && r.FileSystemRights.HasFlag(FileSystemRights.WriteData));
+    }
+
+    // ── C16: ACL validation / anti-squat ──────────────────────────────────────
+
+    [Fact]
+    public void LoadValidated_AbsentStore_ReturnsFirstRunState()
+    {
+        // An absent store directory is a first run, not a squat — LoadValidated must succeed
+        // with epoch 0 / no revocations (the safe pre-rotation baseline), never fail closed.
+        var result = TrustStateStore.LoadValidated(TempStorePath());
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(0, result.Value.Epoch);
+        Assert.Empty(result.Value.RevokedFingerprints);
+    }
+
+    [Fact]
+    public void EnsureSecuredDirectory_ResetsLooseAcl_ToConforming_WindowsOnly()
+    {
+        // Anti-squat: an attacker pre-creates %ProgramData%\FalkForge\Trust with a loose ACL (Users
+        // writable, inheritance intact) BEFORE first run to keep the store writable and roll back the
+        // epoch / clear revocations at will. On use the elevated write-path must RESET the DACL to the
+        // restrictive shape rather than trust the attacker-provisioned directory.
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var path = TempStorePath();
+        var dir = Path.GetDirectoryName(path)!;
+        try
+        {
+            CreateLooseDirectory(dir);
+            Assert.False(TrustStateStore.IsDirectoryAclConforming(dir),
+                "a loose pre-created directory must be detected as non-conforming");
+
+            var result = TrustStateStore.EnsureSecuredDirectory(dir);
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+            Assert.True(TrustStateStore.IsDirectoryAclConforming(dir),
+                "EnsureSecuredDirectory must reset a loose directory to the conforming DACL");
+            AssertRestrictiveDacl(dir);
+        }
+        finally
+        {
+            TryCleanup(path);
+        }
+    }
+
+    [Fact]
+    public void LoadValidated_LooseDirectory_RefusesToTrust_WindowsOnly()
+    {
+        // A store directory whose ACL an unprivileged process could have tampered must NOT be trusted for
+        // anti-downgrade decisions: LoadValidated fails closed (SecurityError) so the caller refuses the
+        // update rather than silently trusting an attacker-writable epoch/revocation set.
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var path = TempStorePath();
+        var dir = Path.GetDirectoryName(path)!;
+        try
+        {
+            CreateLooseDirectory(dir);
+            File.WriteAllText(path, "{\"schemaVersion\":1,\"epoch\":5,\"revokedFingerprints\":[]}");
+
+            var result = TrustStateStore.LoadValidated(path);
+
+            Assert.True(result.IsFailure, "a loose store directory must not be trusted");
+            Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        }
+        finally
+        {
+            TryCleanup(path);
+        }
+    }
+
+    [Fact]
+    public void LoadValidated_ConformingDirectory_LoadsPersistedState_WindowsOnly()
+    {
+        // A conforming (hardened) store directory is trusted: LoadValidated returns the persisted epoch.
+        // The file is written BEFORE the DACL is hardened so the non-elevated test host can seed it; after
+        // hardening, Users retain read (ReadAndExecute) so the load still succeeds.
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var path = TempStorePath();
+        var dir = Path.GetDirectoryName(path)!;
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(path, "{\"schemaVersion\":1,\"epoch\":7,\"revokedFingerprints\":[\"AABB\"]}");
+
+            var secured = TrustStateStore.EnsureSecuredDirectory(dir);
+            Assert.True(secured.IsSuccess, secured.IsFailure ? secured.Error.Message : null);
+
+            var result = TrustStateStore.LoadValidated(path);
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+            Assert.Equal(7, result.Value.Epoch);
+            Assert.Contains("AABB", result.Value.RevokedFingerprints);
+        }
+        finally
+        {
+            TryCleanup(path);
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void CreateLooseDirectory(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        var security = new DirectoryInfo(dir).GetAccessControl();
+        // Inheritance intact (NOT protected) + an explicit Users FullControl grant = the loose shape an
+        // unprivileged squatter would leave to keep the store writable.
+        security.SetAccessRuleProtection(isProtected: false, preserveInheritance: true);
+        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        security.AddAccessRule(new FileSystemAccessRule(
+            users, FileSystemRights.FullControl,
+            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+            PropagationFlags.None, AccessControlType.Allow));
+        new DirectoryInfo(dir).SetAccessControl(security);
     }
 
     private static void TryCleanup(string path)
