@@ -787,6 +787,7 @@
           <a href="#signing-verification">How Verification Works</a>
           <a href="#signing-rotation">Key Rotation</a>
           <a href="#signing-cert-faq">Do I Need a Certificate?</a>
+          <a href="#signing-remote-signserver">Remote Signing (SignServer)</a>
         </div>
       </div>
 
@@ -10533,6 +10534,150 @@ static partial void ConfigureTrust()
     Windows publisher-trust UX &mdash; a recognized publisher name in the UAC prompt and better SmartScreen
     reputation. It is a nice-to-have for the install experience, but it does not protect the payload bytes
     and is not a substitute for the FalkForge payload signature.
+</p>
+
+<h3 id="signing-remote-signserver">Remote Signing with a Signing Server (Keyfactor SignServer)</h3>
+
+<p>
+    Everything above assumes the ECDSA private key lives in a PEM file on the machine that builds the bundle.
+    <code>FalkForge.Signing.SignServer</code> offers a second way to produce that same signature: instead of
+    loading a private key locally, FalkForge sends the canonical bytes to be signed to a
+    <a href="https://www.signserver.org/" target="_blank" rel="noopener">Keyfactor SignServer</a> instance over
+    its REST API and gets the signature back. The private key never leaves the signing server.
+</p>
+
+<p>This is not a different trust model &mdash; it is a different place for the signing operation to happen:</p>
+
+<table class="api-table">
+    <thead><tr><th>Aspect</th><th>Local PEM key</th><th>SignServer</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>Where the private key lives</td>
+            <td>A file the build agent can read</td>
+            <td>The signing server only (optionally an attached HSM)</td>
+        </tr>
+        <tr>
+            <td>Signing operation</td>
+            <td>In-process, synchronous</td>
+            <td>A network call to the server's REST API, asynchronous</td>
+        </tr>
+        <tr>
+            <td>Signature format on disk</td>
+            <td>P-256 / P1363, embedded in the manifest envelope</td>
+            <td>Same &mdash; normalized to P1363 before embedding</td>
+        </tr>
+        <tr>
+            <td>Engine-side verification</td>
+            <td>Unchanged</td>
+            <td>Unchanged &mdash; fully offline, no server contact at install time</td>
+        </tr>
+    </tbody>
+</table>
+
+<p><strong>Why route signing through a server instead of a file:</strong></p>
+
+<ul>
+    <li>
+        <strong>The private key never touches a build agent or developer machine</strong> &mdash; removing the
+        single biggest key-leak vector in a CI pipeline (a compromised runner cannot exfiltrate a key it never
+        held).
+    </li>
+    <li>
+        <strong>HSM-backed keys.</strong> SignServer can hold the key in a PKCS#11 hardware security module, so
+        the key is non-exportable even from the signing server's own operators.
+    </li>
+    <li>
+        <strong>Central custody, audit, and access control.</strong> One controlled service logs every signing
+        request &mdash; who signed what, and when &mdash; which is valuable evidence for compliance regimes
+        such as the EU Cyber Resilience Act.
+    </li>
+    <li>
+        <strong>Clean key rotation and role separation.</strong> Rotating a key means reconfiguring the
+        signing server, not redistributing a PEM file to every build agent, and pairs naturally with a future
+        roles/quorum model for who is allowed to trigger a signed release.
+    </li>
+    <li>
+        <strong>Offline verification is preserved.</strong> The signer's public key travels inside the signed
+        manifest exactly as it does for a local key, so the installed engine verifies a signature entirely
+        offline &mdash; the signing server is never contacted at install or update time.
+    </li>
+    <li>
+        <strong>CI-native.</strong> The build pipeline authenticates to the server over the network; there is
+        no signing secret sitting in the repository or the CI configuration.
+    </li>
+    <li>
+        <strong>No certificate purchase required.</strong> Like the local-key path, this is the free ECDSA
+        payload signature, not an Authenticode certificate &mdash; SignServer is an alternative place to keep
+        the key, not a paid trust upgrade.
+    </li>
+</ul>
+
+<div class="note">
+    This path is proven end to end: an integration test signs a real bundle against a live
+    <code>keyfactor/signserver-ce</code> container (a PlainSigner worker, ECDSA P-256, SHA256withECDSA) and
+    verifies the resulting manifest through the same <code>IntegrityEnvelopeCodec</code> the engine uses. The
+    test is Docker/Podman-gated and skips &mdash; never fails &mdash; when no container runtime is available,
+    so it does not affect a normal <code>dotnet test</code> run.
+</div>
+
+<p><strong>Configuring the provider.</strong> <code>SignServerConfig</code> holds the endpoint, worker name,
+    and authentication settings; <code>SignServerAuthMode</code> supports <code>None</code>,
+    <code>Bearer</code>, <code>Basic</code>, and <code>ClientCert</code> (mTLS). A convenience
+    <code>FromEnvironment()</code> reads <code>SIGNSERVER_URL</code>, <code>SIGNSERVER_WORKER</code>,
+    <code>SIGNSERVER_AUTH</code>, and the matching credential variables, so a CI pipeline can configure remote
+    signing without any secret in source:</p>
+
+<pre><code class="language-csharp">using FalkForge.Signing.SignServer;
+
+// From explicit values:
+var config = new SignServerConfig
+{
+    BaseUrl = "https://signserver.example.com:8443",
+    Worker = "PlainECDSA",              // the PlainSigner worker name or numeric id
+    AuthMode = SignServerAuthMode.Bearer,
+    BearerToken = bearerToken,          // pulled from your secret store, never hard-coded
+    KeyId = "release-signer"            // optional, informational only
+};
+
+// Or, for a CI pipeline, from SIGNSERVER_URL / SIGNSERVER_WORKER / SIGNSERVER_AUTH / ...:
+var configResult = SignServerConfig.FromEnvironment();</code></pre>
+
+<p><strong>Wiring it into a bundle build.</strong> Add the provider via
+    <code>IntegrityBuilder.SigningProvider(...)</code> &mdash; the same fluent call used for any custom
+    <code>ISignatureProvider</code> (a remote service, an HSM, or a mock in tests). Because
+    <code>SignServerSignatureProvider</code> performs real network I/O, it is a
+    <strong>genuinely asynchronous</strong> provider, and the build must go through
+    <code>Installer.BuildBundleAsync</code> and <code>BundleCompiler.CompileAsync</code> &mdash; the
+    synchronous <code>Installer.BuildBundle</code> / <code>BundleCompiler.Compile</code> path fails loud
+    (SGN010) rather than block a thread on a network call:</p>
+
+<pre><code class="language-csharp">using var provider = new SignServerSignatureProvider(config);
+
+return await Installer.BuildBundleAsync(args, async outputPath =>
+{
+    var model = new BundleBuilder()
+        .Name("My App")
+        .Manufacturer("My Company")
+        .Version("1.0.0")
+        // ... chain packages, UI, etc. ...
+        .Integrity(i => i.SigningProvider(provider))
+        .Build();
+
+    return await new BundleCompiler().CompileAsync(model, outputPath);
+});</code></pre>
+
+<div class="warning">
+    <strong>Not yet wired into the JSON/CLI config path.</strong> <code>forge build</code>'s JSON config
+    (<code>InstallerConfig</code>) has no <code>signServer</code> section today &mdash; SignServer signing is
+    only reachable from C# code as shown above. A config-driven <code>forge build</code> flag for SignServer is
+    a planned follow-up; do not expect a CLI switch for it yet.
+</div>
+
+<p>
+    <strong>Verification is unchanged.</strong> The engine does not know or care whether a signature came from
+    a local PEM key or a signing server &mdash; it only checks the signature against the same baked trusted-key
+    set described above. SignServer changes <em>where</em> the signing operation runs; it does not change what
+    the engine trusts or how it verifies.
 </p>
 </section>
 

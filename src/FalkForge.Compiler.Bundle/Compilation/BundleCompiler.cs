@@ -11,17 +11,66 @@ public sealed class BundleCompiler
 
     public string? EngineStubPath { get; set; }
 
+    /// <summary>
+    /// Compiles the bundle synchronously. Signing runs through the sync bridge, which fails loud (SGN010)
+    /// if a genuinely asynchronous <c>ISignatureProvider</c> (e.g. a remote signing service) is configured —
+    /// use <see cref="CompileAsync"/> for those. Local PEM/ephemeral providers complete synchronously here.
+    /// </summary>
     public Result<string> Compile(BundleModel model, string outputPath)
+    {
+        var prep = Prepare(model);
+        if (prep.IsFailure)
+            return Result<string>.Failure(prep.Error);
+
+        var (manifest, payloads) = prep.Value;
+
+        // Step 3.5: Integrity signing (sync bridge; fails loud on an async provider).
+        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, payloads);
+        if (integrityResult.IsFailure)
+            return Result<string>.Failure(integrityResult.Error);
+
+        return Finish(model, outputPath, integrityResult.Value, payloads);
+    }
+
+    /// <summary>
+    /// Compiles the bundle on an asynchronous path so a genuinely asynchronous <c>ISignatureProvider</c>
+    /// (e.g. a Keyfactor SignServer backend performing network I/O) can sign without the sync bridge's
+    /// SGN010 fail-loud. Byte-for-byte identical to <see cref="Compile"/> apart from awaiting the signer.
+    /// </summary>
+    public async ValueTask<Result<string>> CompileAsync(
+        BundleModel model, string outputPath, CancellationToken cancellationToken = default)
+    {
+        var prep = Prepare(model);
+        if (prep.IsFailure)
+            return Result<string>.Failure(prep.Error);
+
+        var (manifest, payloads) = prep.Value;
+
+        // Step 3.5: Integrity signing (async seam; drives remote/async providers without blocking).
+        var integrityResult = await BundleIntegritySigner
+            .SignAndEnrichAsync(manifest, model, payloads, cancellationToken)
+            .ConfigureAwait(false);
+        if (integrityResult.IsFailure)
+            return Result<string>.Failure(integrityResult.Error);
+
+        return Finish(model, outputPath, integrityResult.Value, payloads);
+    }
+
+    /// <summary>
+    /// Validate → generate manifest → hash + collect embeddable payloads. Shared, signing-agnostic prefix of
+    /// both the sync and async compile paths.
+    /// </summary>
+    private Result<(InstallerManifest Manifest, List<PayloadEntry> Payloads)> Prepare(BundleModel model)
     {
         // Step 1: Validate
         var validation = _validator.Validate(model);
         if (validation.IsFailure)
-            return Result<string>.Failure(validation.Error);
+            return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(validation.Error);
 
         // Step 2: Generate manifest
         var manifestResult = _manifestGenerator.Generate(model);
         if (manifestResult.IsFailure)
-            return Result<string>.Failure(manifestResult.Error);
+            return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(manifestResult.Error);
 
         var manifest = manifestResult.Value;
 
@@ -34,7 +83,7 @@ public sealed class BundleCompiler
                 continue;
 
             if (!File.Exists(package.SourcePath))
-                return Result<string>.Failure(ErrorKind.PayloadError,
+                return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
                     $"Package source not found: {package.SourcePath}");
 
             long originalSize;
@@ -62,7 +111,7 @@ public sealed class BundleCompiler
                 continue; // remote payload — not embedded in the bundle
 
             if (!File.Exists(prereq.SourcePath))
-                return Result<string>.Failure(ErrorKind.PayloadError,
+                return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
                     $"Pre-UI prerequisite source not found: {prereq.SourcePath}");
 
             long originalSize;
@@ -83,13 +132,17 @@ public sealed class BundleCompiler
             });
         }
 
-        // Step 3.5: Integrity signing (opportunistic -- only if Sigil is on PATH and configured)
-        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, payloads);
-        if (integrityResult.IsFailure)
-            return Result<string>.Failure(integrityResult.Error);
+        return (manifest, payloads);
+    }
 
-        manifest = integrityResult.Value;
-
+    /// <summary>
+    /// Stub → embed → SBOM: the shared, signing-agnostic suffix of both compile paths. Receives the
+    /// signature-enriched <paramref name="manifest"/> so the sync and async paths differ only in how the
+    /// signature was produced, never in what is embedded.
+    /// </summary>
+    private Result<string> Finish(
+        BundleModel model, string outputPath, InstallerManifest manifest, List<PayloadEntry> payloads)
+    {
         // Step 4: Create stub (minimal placeholder -- in production, this is the pre-compiled NativeAOT engine binary)
         var stubPath = CreateStub(outputPath);
 

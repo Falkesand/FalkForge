@@ -1,6 +1,6 @@
-using System.Security.Cryptography;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Models;
+using FalkForge.Signing;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
@@ -9,12 +9,13 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 /// <see cref="ManifestSignatureEnvelope"/> the engine verifies before executing any
 /// payload, independent of Authenticode and of the external <c>sigil</c> CLI.
 ///
-/// <para>Key handling follows the integrity design: when
-/// <see cref="IntegrityConfiguration.SigningKeyPath"/> is set, the PEM private key at
-/// that path is used (stable public key = authorship proof across builds); otherwise a
-/// throwaway ephemeral key is generated per build for zero-config tamper detection.
-/// Cert-store and vault key sources remain the sigil CLI's responsibility and are not
-/// handled here.</para>
+/// <para>Signing is delegated to one or more <see cref="ISignatureProvider"/> backends (C17). The default
+/// set is derived from the integrity config: a <see cref="PemSignatureProvider"/> per configured PEM key
+/// (stable public key = authorship proof across builds), plus any custom
+/// <see cref="IntegrityConfiguration.SignatureProviders"/>; with no key and no provider configured a single
+/// <see cref="EphemeralSignatureProvider"/> gives zero-config tamper detection. Every provider signs the
+/// identical canonical message and contributes one signature entry, so the historical single-key,
+/// multi-key, and ephemeral behaviors are all preserved byte-for-byte in shape.</para>
 ///
 /// <para>The signature is a post-content addition: it is computed over the payload
 /// hashes and embedded in the manifest envelope, never folded into any reproducible
@@ -25,75 +26,108 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 internal static class EcdsaManifestSigner
 {
     /// <summary>
-    /// Signs the supplied payload hashes and returns the canonical envelope JSON to embed
-    /// in the manifest. Returns SGN002 when a configured key file is missing or unreadable.
+    /// Signs the supplied payload hashes and returns the canonical envelope JSON to embed in the manifest.
+    /// Synchronous bridge over <see cref="SignAsync"/> for the sync build pipeline
+    /// (<c>BundleCompiler.Compile</c>): the built-in providers complete synchronously, so this never blocks
+    /// a thread. A genuinely asynchronous provider (e.g. a future remote signing service) must be driven
+    /// through <see cref="SignAsync"/> on an async build path — here it fails loud rather than block.
     /// </summary>
     internal static Result<string> Sign(
         IReadOnlyList<PayloadHashEntry> entries,
         IntegrityConfiguration? config)
     {
-        var keysResult = CreateKeys(config);
-        if (keysResult.IsFailure)
-            return Result<string>.Failure(keysResult.Error);
+        var task = SignAsync(entries, config, CancellationToken.None);
 
-        var keys = keysResult.Value;
-        try
-        {
-            var files = new List<ManifestFileEntry>(entries.Count);
-            foreach (var entry in entries)
-                files.Add(new ManifestFileEntry { Name = entry.PackageId, Sha256 = entry.Sha256 });
+        // Built-in providers (PEM/ephemeral) always complete synchronously and successfully — the common,
+        // no-block path.
+        if (task.IsCompletedSuccessfully)
+            return task.Result;
 
-            // Fold the publisher's epoch + declared revocations into the signed message (C14 Stage 2).
-            // Neutral values (epoch 0, no revocations) reproduce the legacy files-only signed bytes, so
-            // an unchanged config keeps producing byte-identical signatures across v1/v2.
-            var epoch = config?.Epoch ?? 0;
-            IReadOnlyList<string> revoked = config?.RevokedFingerprints ?? [];
+        // A completed-but-faulted local sign: observe the exception synchronously (already completed, so no
+        // thread blocks) via AsTask so it surfaces rather than being swallowed.
+        if (task.IsCompleted)
+            return task.AsTask().GetAwaiter().GetResult();
 
-            var envelope = IntegrityEnvelopeCodec.Sign(files, keys, epoch, revoked);
-            return IntegrityEnvelopeCodec.Serialize(envelope);
-        }
-        finally
-        {
-            foreach (var key in keys)
-                key.Dispose();
-        }
+        // Still pending → a genuinely asynchronous provider was configured. Fail loud instead of blocking a
+        // thread; such a backend must be driven through SignAsync on an async build pipeline.
+        return Result<string>.Failure(ErrorKind.SecurityError,
+            "SGN010: An asynchronous signature provider was configured; use the async signing pipeline.");
     }
 
     /// <summary>
-    /// Resolves the signing keys. Prefers <see cref="IntegrityConfiguration.SigningKeyPaths"/> (one or
-    /// more PEM keys, rotation-safe dual-sign); falls back to the single
-    /// <see cref="IntegrityConfiguration.SigningKeyPath"/>; and finally to a throwaway ephemeral key for
-    /// zero-config tamper detection. Ownership of every returned <see cref="ECDsa"/> transfers to the
-    /// caller (<see cref="Sign"/>), which disposes them in a finally block. Returns SGN002 when a
-    /// configured key file is missing or unreadable — any keys already created are disposed first.
+    /// Signs the supplied payload hashes with every configured <see cref="ISignatureProvider"/> and returns
+    /// the canonical envelope JSON. Returns the provider's error (e.g. SGN002 for a missing key file) on the
+    /// first failure. This is the async seam a remote signing backend plugs into.
     /// </summary>
-    private static Result<IReadOnlyList<ECDsa>> CreateKeys(IntegrityConfiguration? config)
+    internal static async ValueTask<Result<string>> SignAsync(
+        IReadOnlyList<PayloadHashEntry> entries,
+        IntegrityConfiguration? config,
+        CancellationToken cancellationToken = default)
     {
-        var paths = ResolveKeyPaths(config);
+        var files = new List<ManifestFileEntry>(entries.Count);
+        foreach (var entry in entries)
+            files.Add(new ManifestFileEntry { Name = entry.PackageId, Sha256 = entry.Sha256 });
 
-        if (paths.Count == 0)
-        {
-#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes in a finally block.
-            return Result<IReadOnlyList<ECDsa>>.Success([ECDsa.Create(ECCurve.NamedCurves.nistP256)]);
-#pragma warning restore IDISP005
-        }
+        // Fold the publisher's epoch + declared revocations into the signed message (C14 Stage 2).
+        // Neutral values (epoch 0, no revocations) reproduce the legacy files-only signed bytes, so an
+        // unchanged config keeps producing byte-identical signed bytes across v1/v2.
+        var epoch = config?.Epoch ?? 0;
+        IReadOnlyList<string> revoked = config?.RevokedFingerprints ?? [];
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch, revoked);
 
-        var keys = new List<ECDsa>(paths.Count);
-        foreach (var keyPath in paths)
+        var providers = BuildProviders(config);
+        var signatures = new List<SignatureEntry>(providers.Count);
+        foreach (var provider in providers)
         {
-            var keyResult = LoadPemKey(keyPath);
-            if (keyResult.IsFailure)
+            var result = await provider.SignAsync(message, cancellationToken).ConfigureAwait(false);
+            if (result.IsFailure)
+                return Result<string>.Failure(result.Error);
+
+            var signature = result.Value;
+            signatures.Add(new SignatureEntry
             {
-                foreach (var created in keys)
-                    created.Dispose();
-                return Result<IReadOnlyList<ECDsa>>.Failure(keyResult.Error);
-            }
-
-            keys.Add(keyResult.Value);
+                KeyId = signature.KeyId,
+                Fingerprint = IntegrityEnvelopeCodec.ComputeFingerprint(signature.SubjectPublicKeyInfo),
+                PublicKey = Convert.ToBase64String(signature.SubjectPublicKeyInfo),
+                Signature = Convert.ToBase64String(signature.Signature)
+            });
         }
 
-        // Result<T>'s implicit conversion cannot originate from an interface type, so use the factory.
-        return Result<IReadOnlyList<ECDsa>>.Success(keys);
+        var envelope = new ManifestSignatureEnvelope
+        {
+            Version = IntegrityEnvelopeCodec.CurrentVersion,
+            Algorithm = IntegrityEnvelopeCodec.AlgorithmId,
+            Files = files,
+            Signatures = signatures,
+            Epoch = epoch,
+            Revoked = revoked
+        };
+
+        return IntegrityEnvelopeCodec.Serialize(envelope);
+    }
+
+    /// <summary>
+    /// Resolves the signature providers for this build. A <see cref="PemSignatureProvider"/> is created for
+    /// each configured PEM key — <see cref="IntegrityConfiguration.SigningKeyPaths"/> (rotation-safe
+    /// dual-sign) preferred, else the single <see cref="IntegrityConfiguration.SigningKeyPath"/> — in
+    /// declaration order, then every custom <see cref="IntegrityConfiguration.SignatureProviders"/> entry is
+    /// appended. When nothing is configured a single <see cref="EphemeralSignatureProvider"/> is used for
+    /// zero-config tamper detection. The ordering preserves the historical signature-entry order.
+    /// </summary>
+    private static IReadOnlyList<ISignatureProvider> BuildProviders(IntegrityConfiguration? config)
+    {
+        var providers = new List<ISignatureProvider>();
+
+        foreach (var keyPath in ResolveKeyPaths(config))
+            providers.Add(new PemSignatureProvider(keyPath));
+
+        if (config?.SignatureProviders is { Count: > 0 } custom)
+            providers.AddRange(custom);
+
+        if (providers.Count == 0)
+            providers.Add(new EphemeralSignatureProvider());
+
+        return providers;
     }
 
     private static IReadOnlyList<string> ResolveKeyPaths(IntegrityConfiguration? config)
@@ -103,27 +137,5 @@ internal static class EcdsaManifestSigner
         if (!string.IsNullOrEmpty(config?.SigningKeyPath))
             return [config.SigningKeyPath];
         return [];
-    }
-
-    private static Result<ECDsa> LoadPemKey(string keyPath)
-    {
-        if (!File.Exists(keyPath))
-            return Result<ECDsa>.Failure(ErrorKind.SecurityError,
-                $"SGN002: Signing key file not found at '{keyPath}'.");
-
-        try
-        {
-            var pem = File.ReadAllText(keyPath);
-            var ecdsa = ECDsa.Create();
-            ecdsa.ImportFromPem(pem);
-#pragma warning disable IDISP005 // Ownership transferred to caller (Sign) which disposes in a finally block.
-            return ecdsa;
-#pragma warning restore IDISP005
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or CryptographicException)
-        {
-            return Result<ECDsa>.Failure(ErrorKind.SecurityError,
-                $"SGN002: Failed to load signing key from '{keyPath}': {ex.Message}");
-        }
     }
 }

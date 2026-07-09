@@ -25,6 +25,7 @@
     <Project Path="src/FalkForge.Plugins.Sql/FalkForge.Plugins.Sql.csproj" />
     <Project Path="src/FalkForge.Platform.Windows/FalkForge.Platform.Windows.csproj" />
     <Project Path="src/FalkForge.Sdk/FalkForge.Sdk.csproj" />
+    <Project Path="src/FalkForge.Signing.SignServer/FalkForge.Signing.SignServer.csproj" />
     <Project Path="src/FalkForge.Studio/FalkForge.Studio.csproj" />
     <Project Path="src/FalkForge.Testing/FalkForge.Testing.csproj" />
     <Project Path="src/FalkForge.Ui/FalkForge.Ui.csproj" />
@@ -58,5 +59,6 @@
     <Project Path="tests/FalkForge.Ui.Tests/FalkForge.Ui.Tests.csproj" />
     <Project Path="tests/FalkForge.Extensibility.Tests/FalkForge.Extensibility.Tests.csproj" />
     <Project Path="tests/FalkForge.Platform.Windows.Tests/FalkForge.Platform.Windows.Tests.csproj" />
+    <Project Path="tests/FalkForge.Signing.SignServer.Tests/FalkForge.Signing.SignServer.Tests.csproj" />
   </Folder>
 </Solution>

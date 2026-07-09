@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Models;
+using FalkForge.Signing;
 using Xunit;
 
 namespace FalkForge.Compiler.Bundle.Tests.Compilation;
@@ -181,5 +182,73 @@ public sealed class EcdsaManifestSignerTests : IDisposable
         var envelope = IntegrityEnvelopeCodec.Parse(result.Value)!;
         Assert.Empty(envelope.Files);
         Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+    }
+
+    [Fact]
+    public void Sign_WithCustomProvider_ProducesAnEntryThatVerifies()
+    {
+        // C17: a custom ISignatureProvider (stand-in for a remote signing service) contributes its own
+        // signature entry over the canonical message. It must self-verify through the real codec, proving
+        // the provider seam produces a wire-compatible envelope — not a re-implementation that only agrees
+        // with itself.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var config = new IntegrityConfiguration
+        {
+            SignatureProviders = new ISignatureProvider[] { new FixedKeySignatureProvider(key, "remote-hsm") }
+        };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var envelope = IntegrityEnvelopeCodec.Parse(result.Value)!;
+        var entry = Assert.Single(envelope.Signatures);
+        Assert.Equal("remote-hsm", entry.KeyId);
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo())), entry.Fingerprint);
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+    }
+
+    [Fact]
+    public void Sign_WithPemKeyAndCustomProvider_SignsWithBoth()
+    {
+        // Mixed backends / dual-sign: a file PEM key AND a custom provider each add one verifiable entry,
+        // in that order (file keys first, then custom providers).
+        using var pemKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var providerKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var pemPath = Path.Combine(_tempDir, "file.pem");
+        File.WriteAllText(pemPath, pemKey.ExportPkcs8PrivateKeyPem());
+        var config = new IntegrityConfiguration
+        {
+            SigningKeyPath = pemPath,
+            SignatureProviders = new ISignatureProvider[] { new FixedKeySignatureProvider(providerKey, "custom") }
+        };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var envelope = IntegrityEnvelopeCodec.Parse(result.Value)!;
+        Assert.Equal(2, envelope.Signatures.Count);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(pemKey.ExportSubjectPublicKeyInfo())),
+            envelope.Signatures[0].Fingerprint);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(providerKey.ExportSubjectPublicKeyInfo())),
+            envelope.Signatures[1].Fingerprint);
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+    }
+
+    /// <summary>Test double: signs the canonical message with a fixed key in the same P1363 form as the built-ins.</summary>
+    private sealed class FixedKeySignatureProvider(ECDsa key, string keyId) : ISignatureProvider
+    {
+        public ValueTask<Result<ProviderSignature>> SignAsync(
+            ReadOnlyMemory<byte> message, CancellationToken cancellationToken = default)
+        {
+            var hash = SHA256.HashData(message.Span);
+            return new ValueTask<Result<ProviderSignature>>(Result<ProviderSignature>.Success(new ProviderSignature
+            {
+                SubjectPublicKeyInfo = key.ExportSubjectPublicKeyInfo(),
+                Signature = key.SignHash(hash),
+                KeyId = keyId
+            }));
+        }
     }
 }

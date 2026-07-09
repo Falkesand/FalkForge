@@ -1,5 +1,7 @@
 namespace FalkForge.Models;
 
+using FalkForge.Signing;
+
 public sealed class IntegrityConfiguration
 {
     public string? SigningKeyPath { get; init; }
@@ -30,4 +32,13 @@ public sealed class IntegrityConfiguration
     /// revoked key. Null/empty leaves no revocation in the envelope.
     /// </summary>
     public IReadOnlyList<string>? RevokedFingerprints { get; init; }
+
+    /// <summary>
+    /// Custom signature backends (C17). Each provider contributes one signature entry to the envelope over
+    /// the identical signed message, exactly like an extra key. They <b>augment</b> the file-based PEM keys:
+    /// when both are present the bundle is signed by every key and every provider (dual-sign / mixed
+    /// backends); when only providers are present they replace the ephemeral fallback. Null/empty leaves the
+    /// built-in PEM/ephemeral behavior unchanged.
+    /// </summary>
+    public IReadOnlyList<ISignatureProvider>? SignatureProviders { get; init; }
 }
