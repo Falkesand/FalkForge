@@ -343,6 +343,54 @@ public sealed class IntegrityEnvelopeCodecTrustTests
     }
 
     [Fact]
+    public void SignedBytes_RevokedList_IsInjective_C14Stage3Fix3()
+    {
+        // The revoked list must be serialized injectively. A plain comma-join makes
+        // ["FP1","FP2"] and ["FP1,FP2"] produce IDENTICAL signed bytes, so an attacker could restructure
+        // a legit-signed revocation update's list without breaking the signature. The two list shapes must
+        // therefore produce DIFFERENT signed bytes.
+        var files = Files(("App", "AAAA"));
+
+        var twoEntries = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 1, revoked: new[] { "FP1", "FP2" });
+        var oneMergedEntry = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 1, revoked: new[] { "FP1,FP2" });
+
+        Assert.NotEqual(twoEntries, oneMergedEntry);
+    }
+
+    [Fact]
+    public void RevocationList_Restructured_FailsVerify_C14Stage3Fix3()
+    {
+        // The concrete attack: take a legit update signed with revoked=["FP1","FP2"] and restructure the
+        // list to ["FP1,FP2"]. With a non-injective comma-join the signature would still verify, and
+        // TrustStateStore.Advance would then record a single bogus merged fingerprint while the two real
+        // keys are silently un-revoked. Injective encoding makes the restructured list break the signature.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(
+            Files(("App", "AAAA")), new[] { key }, epoch: 1, revoked: new[] { "FP1", "FP2" });
+
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key))).IsSuccess);
+
+        envelope.Revoked = new[] { "FP1,FP2" }; // restructure: same comma-join, different list
+
+        var result = IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key)));
+        Assert.True(result.IsFailure, "a restructured revocation list must break verification");
+        Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SignedBytes_NonEmptyRevoked_GenuinelyRoundTrips()
+    {
+        // A genuine 2-element revocation verifies and, when applied, both fingerprints are recorded (the
+        // store-side round-trip is asserted in TrustStateStoreTests).
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(
+            Files(("App", "AAAA")), new[] { key }, epoch: 2, revoked: new[] { "AABB", "CCDD" });
+
+        Assert.Equal(new[] { "AABB", "CCDD" }, envelope.Revoked);
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key))).IsSuccess);
+    }
+
+    [Fact]
     public void MatchTrustedSignature_ReturnsAcceptedFingerprint()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);

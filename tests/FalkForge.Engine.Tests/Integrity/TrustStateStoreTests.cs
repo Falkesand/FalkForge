@@ -77,6 +77,29 @@ public sealed class TrustStateStoreTests
         }
     }
 
+    [Fact]
+    public void Advance_TwoElementRevocation_RecordsBothFingerprints()
+    {
+        // C14 Stage 3 FIX 3: a genuine 2-element revocation from one verified update must land BOTH
+        // fingerprints in the store (the injective signed-bytes encoding guarantees the list arriving here
+        // is the exact list the publisher signed, not a restructured single merged entry).
+        var path = TempStorePath();
+        try
+        {
+            var advance = TrustStateStore.Advance(path, epoch: 4, revoked: new[] { "FP1", "FP2" });
+            Assert.True(advance.IsSuccess, advance.IsFailure ? advance.Error.Message : null);
+
+            var state = TrustStateStore.Load(path);
+            Assert.Equal(4, state.Epoch);
+            Assert.Contains("FP1", state.RevokedFingerprints);
+            Assert.Contains("FP2", state.RevokedFingerprints);
+        }
+        finally
+        {
+            TryCleanup(path);
+        }
+    }
+
     private static void TryCleanup(string path)
     {
         try

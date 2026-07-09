@@ -69,19 +69,17 @@ public static class IntegrityEnvelopeCodec
             return Encoding.UTF8.GetBytes(filesJson);
 
         // Present → bind epoch + revocations into the signed message under a separator that cannot occur
-        // in the JSON, so they are cryptographically covered.
+        // in the JSON, so they are cryptographically covered. The revocation list is serialized with the
+        // same source-generated JSON as `files` (NOT a plain comma-join): a comma-join is non-injective —
+        // ["FP1","FP2"] and ["FP1,FP2"] would produce identical signed bytes, letting an attacker
+        // restructure a legit-signed revocation list without breaking the signature. JSON quotes each
+        // element, so distinct lists always produce distinct signed bytes.
+        var revokedJson = JsonSerializer.Serialize(
+            revoked ?? (IReadOnlyList<string>)[], IntegrityEnvelopeJsonContext.Default.IReadOnlyListString);
+
         var sb = new StringBuilder(filesJson);
         sb.Append('').Append("epoch=").Append(epoch.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        sb.Append('').Append("revoked=");
-        if (revoked is not null)
-        {
-            for (var i = 0; i < revoked.Count; i++)
-            {
-                if (i > 0)
-                    sb.Append(',');
-                sb.Append(revoked[i]);
-            }
-        }
+        sb.Append('').Append("revoked=").Append(revokedJson);
 
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
