@@ -43,6 +43,11 @@ internal static class Program
         var extractList = false;
         var extractPackages = new List<string>();
         string? baseBundlePath = null;
+        // Set by the update launcher (DefaultUpdateLauncher) when it relaunches a downloaded update
+        // bundle. On this path a signature is mandatory (C14 Stage 2 / B2): a stripped/unsigned or
+        // untrusted-signed update is rejected before any payload is extracted or executed. A fresh
+        // install never receives this flag, so an unsigned bundle the user chose to run still installs.
+        var requireSigned = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -87,6 +92,11 @@ internal static class Program
                 // base bundle's payloads; without it a delta payload cannot be applied.
                 case "--base-bundle":
                     if (i + 1 < args.Length) baseBundlePath = args[++i];
+                    break;
+                // Asserted by the update launcher for a downloaded update bundle: require a valid,
+                // trusted signature before extracting or executing any payload (C14 Stage 2 / B2).
+                case "--require-signed":
+                    requireSigned = true;
                     break;
                 // Logging flags are parsed by ProgramArgs.Parse above. Consume their
                 // values here so the inline parser does not mistake the value for a
@@ -140,7 +150,7 @@ internal static class Program
             // hash. Without this, a validly-signed bundle whose payload bytes + TOC hash were
             // rewritten after signing would extract the tampered bytes. An unsigned bundle passes
             // through (backward compatible).
-            var extractTrust = VerifySignedPayloadTrust(content);
+            var extractTrust = VerifySignedPayloadTrust(content, requireSigned);
             if (extractTrust.IsFailure)
             {
                 await Console.Error.WriteLineAsync($"Error: {extractTrust.Error.Message}");
@@ -197,7 +207,7 @@ internal static class Program
         if (manifestPath is null && HasEmbeddedBundle())
         {
             var bootstrapperArgs = BootstrapperArgs.Parse(args);
-            return await RunAsBootstrapper(programArgs, bootstrapperArgs, baseBundlePath);
+            return await RunAsBootstrapper(programArgs, bootstrapperArgs, baseBundlePath, requireSigned);
         }
 
         if (manifestPath is null)
@@ -322,10 +332,18 @@ internal static class Program
     /// content; a bundle with no embedded manifest (unsigned/old) or an unsigned manifest passes
     /// through. A signed manifest whose overlay TOC hash disagrees with the signed hash is rejected.
     /// </summary>
-    private static Result<Unit> VerifySignedPayloadTrust(BundleContent content)
+    private static Result<Unit> VerifySignedPayloadTrust(BundleContent content, bool requireSigned = false)
     {
         if (content.ManifestJsonBytes is null || content.ManifestJsonBytes.Length == 0)
-            return Unit.Value; // no embedded manifest — nothing signed to bind (unsigned/old bundle)
+        {
+            // No embedded manifest — nothing signed to bind (unsigned/old bundle). On the update path
+            // (require-signed) that absence is itself a rejection: an update must carry a trusted signature.
+            if (requireSigned)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    "INT007: A signature is required on the update path but the bundle carries no embedded " +
+                    "manifest. Refusing to extract or execute an unsigned update.");
+            return Unit.Value;
+        }
 
         InstallerManifest manifest;
         try
@@ -339,11 +357,12 @@ internal static class Program
                 $"Failed to deserialize embedded manifest for integrity verification: {ex.Message}");
         }
 
-        // Fresh-install self-extract path: pin the engine's baked trusted set (an attacker's re-signed
-        // bundle is rejected), but do not require a signature (a legacy/unsigned bundle the user chose to
-        // run still extracts — Stage 1). The require-signed update path is Stage 2.
+        // Pin the engine's baked trusted set (an attacker's re-signed bundle is rejected). On a fresh
+        // install (requireSigned=false) a legacy/unsigned bundle the user chose to run still extracts;
+        // on the update path (requireSigned=true, asserted by the launcher) a stripped/unsigned update
+        // is rejected (INT007) before any payload is extracted (C14 Stage 2 / B2).
         return SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned: false);
+            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned);
     }
 
     /// <summary>
@@ -389,7 +408,8 @@ internal static class Program
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
     private static async Task<int> RunAsBootstrapper(
-        ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null)
+        ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null,
+        bool requireSigned = false)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -445,7 +465,7 @@ internal static class Program
         // rewritten after signing would extract and run the tampered payload. Unsigned manifests
         // pass through (backward compatible).
         var bootstrapTrust = SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned: false);
+            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned);
         if (bootstrapTrust.IsFailure)
         {
             await Console.Error.WriteLineAsync(

@@ -134,4 +134,62 @@ public sealed class BundlePayloadTrustBindingTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    /// <summary>
+    /// B2 — the strip-downgrade attack (C14 Stage 2). An attacker takes a validly signed bundle, sets
+    /// <see cref="InstallerManifest.ManifestSignature"/> to null (drops the envelope), tampers the
+    /// payloads, and rewrites the TOC hashes to match. Both gates then see an "unsigned" bundle. On a
+    /// fresh install that is allowed for backward compatibility; on the <b>update path</b> — where the
+    /// engine downloads and executes an automatic replacement of already-trusted software — it is a
+    /// straight RCE and must be refused.
+    ///
+    /// <para>This proves the asymmetry the launcher wires on: the same stripped bundle is REJECTED
+    /// (INT007, before any extraction) when the update launcher asserts require-signed, and still
+    /// ALLOWED on a fresh install (require-signed off).</para>
+    /// </summary>
+    [Fact]
+    public void StrippedSignatureUpdate_RejectedWhenRequireSigned_ButFreshInstallAllowed_B2()
+    {
+        var originalBytes = RandomNumberGenerator.GetBytes(256);
+        var (msiPath, dir) = FakePayload("App.msi", originalBytes);
+        try
+        {
+            // Build a validly integrity-signed bundle, then strip its signature (the attacker's move).
+            var model = new BundleBuilder()
+                .Name("StripB2")
+                .Manufacturer("Integration Tests")
+                .Version("1.0.0")
+                .UseSilentUI()
+                .Integrity(i => { })
+                .Chain(chain => chain.MsiPackage(msiPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
+                .Build();
+
+            var buildResult = new BundleCompiler().Compile(model, Path.Combine(dir, "out"));
+            Assert.True(buildResult.IsSuccess, buildResult.IsFailure ? buildResult.Error.Message : null);
+
+            var content = PayloadEmbedder.Extract(buildResult.Value);
+            Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
+            var signedManifest = ExtractManifest(content.Value);
+            Assert.NotNull(signedManifest.ManifestSignature); // really signed before the strip
+
+            var strippedManifest = signedManifest with { ManifestSignature = null };
+            var toc = content.Value.TocEntries;
+
+            // Update path (launcher asserts --require-signed): the stripped update is refused before
+            // any payload is extracted or executed.
+            var updatePath = SignedPayloadTocVerifier.Verify(strippedManifest, toc, NoTrust, requireSigned: true);
+            Assert.True(updatePath.IsFailure, "a stripped/unsigned update must be rejected on the update path");
+            Assert.Equal(ErrorKind.IntegrityError, updatePath.Error.Kind);
+            Assert.Contains("INT007", updatePath.Error.Message, StringComparison.Ordinal);
+
+            // Fresh install (require-signed off): the same unsigned bundle the user chose to run still
+            // extracts — backward compatible with pre-Integrity() bundles.
+            var freshInstall = SignedPayloadTocVerifier.Verify(strippedManifest, toc, NoTrust, requireSigned: false);
+            Assert.True(freshInstall.IsSuccess, freshInstall.IsFailure ? freshInstall.Error.Message : null);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }
