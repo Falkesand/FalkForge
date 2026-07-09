@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Testcontainers" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Engine\FalkForge.Engine.csproj" />
@@ -18,5 +19,6 @@
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Decompiler\FalkForge.Decompiler.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Cli\FalkForge.Cli.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Signing.SignServer\FalkForge.Signing.SignServer.csproj" />
   </ItemGroup>
 </Project>
