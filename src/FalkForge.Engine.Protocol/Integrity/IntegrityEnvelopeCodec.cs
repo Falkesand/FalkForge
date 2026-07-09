@@ -37,15 +37,53 @@ public static class IntegrityEnvelopeCodec
     public const string LegacyKeyId = "legacy";
 
     /// <summary>
-    /// Computes the canonical bytes that are hashed and signed: the UTF-8 encoding of
-    /// the source-generated JSON for the file entries array. Unchanged from v1, so the
-    /// signed message is identical across envelope versions.
+    /// Computes the canonical files-only signed bytes (epoch 0, no revocations). Byte-identical across
+    /// v1 and v2 envelopes. Retained so existing callers and already-signed bundles keep the exact
+    /// legacy message; delegates to the epoch/revocation-aware overload with the neutral values.
     /// </summary>
-    public static byte[] ComputeSignedBytes(IReadOnlyList<ManifestFileEntry> files)
+    public static byte[] ComputeSignedBytes(IReadOnlyList<ManifestFileEntry> files) =>
+        ComputeSignedBytes(files, epoch: 0, revoked: []);
+
+    /// <summary>
+    /// Computes the canonical bytes that are hashed and signed. The base message is the UTF-8 encoding
+    /// of the source-generated JSON for the file entries array (unchanged from v1).
+    ///
+    /// <para><b>Backward-compatibility rule (§6.3, the epoch compat trap).</b> The key epoch and the
+    /// revocation list are folded into the signed message <b>only when present</b> — a non-zero
+    /// <paramref name="epoch"/> or a non-empty <paramref name="revoked"/> list. When both are neutral
+    /// (epoch 0, no revocations) the message is exactly <c>UTF-8(JSON(files))</c>, byte-identical to what
+    /// v1 and Stage-1 v2 envelopes signed, so every already-shipped bundle still verifies. When either is
+    /// present it is appended under a unit-separator (U+001F, which never appears in the JSON), so an
+    /// attacker cannot lower the epoch or strip/forge a revocation without invalidating the signature. A
+    /// v1 bundle is always treated as epoch 0 with no revocations.</para>
+    /// </summary>
+    public static byte[] ComputeSignedBytes(
+        IReadOnlyList<ManifestFileEntry> files, int epoch, IReadOnlyList<string> revoked)
     {
         var filesJson = JsonSerializer.Serialize(
             files, IntegrityEnvelopeJsonContext.Default.IReadOnlyListManifestFileEntry);
-        return Encoding.UTF8.GetBytes(filesJson);
+
+        // Neutral (epoch 0, no revocations) → the exact legacy files-only bytes. This is the property
+        // that keeps v1 and Stage-1 v2 (epoch-0) envelopes verifiable after Stage 2.
+        if (epoch == 0 && (revoked is null || revoked.Count == 0))
+            return Encoding.UTF8.GetBytes(filesJson);
+
+        // Present → bind epoch + revocations into the signed message under a separator that cannot occur
+        // in the JSON, so they are cryptographically covered.
+        var sb = new StringBuilder(filesJson);
+        sb.Append('').Append("epoch=").Append(epoch.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        sb.Append('').Append("revoked=");
+        if (revoked is not null)
+        {
+            for (var i = 0; i < revoked.Count; i++)
+            {
+                if (i > 0)
+                    sb.Append(',');
+                sb.Append(revoked[i]);
+            }
+        }
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
     /// <summary>
@@ -71,16 +109,28 @@ public static class IntegrityEnvelopeCodec
 
     /// <summary>
     /// Builds and signs a v2 envelope for the supplied file entries using one or more keys
-    /// (rotation-safe dual-sign). Every key signs the identical <paramref name="files"/> message and
-    /// contributes one <see cref="SignatureEntry"/>. The caller owns each key's lifetime.
+    /// (rotation-safe dual-sign), with no epoch and no revocations. The caller owns each key's lifetime.
     /// </summary>
-    public static ManifestSignatureEnvelope Sign(IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys)
+    public static ManifestSignatureEnvelope Sign(IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys) =>
+        Sign(files, keys, epoch: 0, revoked: []);
+
+    /// <summary>
+    /// Builds and signs a v2 envelope for the supplied file entries using one or more keys
+    /// (rotation-safe dual-sign). Every key signs the identical message — <c>SHA-256</c> of
+    /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string})"/> —
+    /// and contributes one <see cref="SignatureEntry"/>. A non-zero <paramref name="epoch"/> or a
+    /// non-empty <paramref name="revoked"/> list is cryptographically covered by the signature (§6.3).
+    /// The caller owns each key's lifetime.
+    /// </summary>
+    public static ManifestSignatureEnvelope Sign(
+        IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys, int epoch, IReadOnlyList<string> revoked)
     {
         ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(revoked);
         if (keys.Count == 0)
             throw new ArgumentException("At least one signing key is required.", nameof(keys));
 
-        var hash = SHA256.HashData(ComputeSignedBytes(files));
+        var hash = SHA256.HashData(ComputeSignedBytes(files, epoch, revoked));
 
         var signatures = new List<SignatureEntry>(keys.Count);
         foreach (var key in keys)
@@ -101,7 +151,9 @@ public static class IntegrityEnvelopeCodec
             Version = CurrentVersion,
             Algorithm = AlgorithmId,
             Files = files,
-            Signatures = signatures
+            Signatures = signatures,
+            Epoch = epoch,
+            Revoked = revoked
         };
     }
 
@@ -199,16 +251,35 @@ public static class IntegrityEnvelopeCodec
         ManifestSignatureEnvelope envelope,
         IReadOnlySet<string> trustedFingerprints)
     {
+        var match = MatchTrustedSignature(envelope, trustedFingerprints);
+        return match.IsSuccess ? Result<Unit>.Success(default) : Result<Unit>.Failure(match.Error);
+    }
+
+    /// <summary>
+    /// Same verify-any rule as <see cref="VerifyTrusted"/>, but returns the <b>matched fingerprint</b> of
+    /// the accepted signature on success. Callers that enforce revocation (§6.3 step 3) need to know which
+    /// key was trusted so they can reject it when it appears in the persisted revocation list.
+    /// </summary>
+    /// <returns>
+    /// Success carrying the accepted signature's fingerprint (uppercase hex). INT003 when the envelope
+    /// carries no usable signatures. INT001 when no signature both matches a trusted fingerprint and verifies.
+    /// </returns>
+    public static Result<string> MatchTrustedSignature(
+        ManifestSignatureEnvelope envelope,
+        IReadOnlySet<string> trustedFingerprints)
+    {
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
 
         var signatures = envelope.Signatures;
         if (signatures.Count == 0)
-            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+            return Result<string>.Failure(ErrorKind.IntegrityError,
                 "INT003: Manifest integrity envelope carries no signatures.");
 
-        // The signed message is version-independent, so compute the hash once for all entries.
-        var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files));
+        // The signed message covers the files and, when present, the epoch + revocation list (§6.3), so
+        // compute the hash once for all entries. Epoch 0 + no revocations reproduces the legacy files-only
+        // bytes, keeping v1 and Stage-1 v2 envelopes verifiable.
+        var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked));
         var haveTrustSet = trustedFingerprints.Count > 0;
 
         foreach (var entry in signatures)
@@ -245,7 +316,7 @@ public static class IntegrityEnvelopeCodec
                 using var ecdsa = ECDsa.Create();
                 ecdsa.ImportSubjectPublicKeyInfo(spki, out _);
                 if (ecdsa.VerifyHash(hash, signatureBytes))
-                    return Result<Unit>.Success(default);
+                    return Result<string>.Success(actualFingerprint);
             }
             catch (CryptographicException)
             {
@@ -253,7 +324,7 @@ public static class IntegrityEnvelopeCodec
             }
         }
 
-        return Result<Unit>.Failure(ErrorKind.IntegrityError,
+        return Result<string>.Failure(ErrorKind.IntegrityError,
             "INT001: No trusted signature validates the manifest. The bundle may have been tampered " +
             "with or signed by an untrusted publisher.");
     }

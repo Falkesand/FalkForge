@@ -11,6 +11,8 @@ public sealed class IntegrityBuilder
     private string? _vaultProvider;
     private string? _vaultKeyRef;
     private SbomFormat _sbomFormat = SbomFormat.Spdx;
+    private int _epoch;
+    private readonly List<string> _revokedFingerprints = [];
 
     public IntegrityBuilder SigningKey(string path) { _signingKeyPath = path; return this; }
 
@@ -35,6 +37,20 @@ public sealed class IntegrityBuilder
 
     public IntegrityBuilder Sbom(SbomFormat format) { _sbomFormat = format; return this; }
 
+    /// <summary>
+    /// Sets the key-epoch (C14 Stage 2, §6): bumped only when a key is retired/revoked. The epoch is
+    /// cryptographically covered by the signature; a client refuses any bundle whose epoch is below the
+    /// highest it has accepted (anti-downgrade/replay).
+    /// </summary>
+    public IntegrityBuilder Epoch(int epoch) { _epoch = epoch; return this; }
+
+    /// <summary>
+    /// Declares one or more publisher-key fingerprints (uppercase hex) revoked by this release (§6.5).
+    /// Once a client applies this verified update it records them and refuses any bundle signed only by a
+    /// revoked key. Repeatable.
+    /// </summary>
+    public IntegrityBuilder Revoke(params string[] fingerprints) { _revokedFingerprints.AddRange(fingerprints); return this; }
+
     internal IntegrityConfiguration Build() => new()
     {
         SigningKeyPath = _signingKeyPath,
@@ -43,6 +59,8 @@ public sealed class IntegrityBuilder
         StoreLocation = _storeLocation,
         VaultProvider = _vaultProvider,
         VaultKeyRef = _vaultKeyRef,
-        SbomFormat = _sbomFormat
+        SbomFormat = _sbomFormat,
+        Epoch = _epoch,
+        RevokedFingerprints = _revokedFingerprints.Count > 0 ? _revokedFingerprints.AsReadOnly() : null
     };
 }

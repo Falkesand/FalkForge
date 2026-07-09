@@ -53,4 +53,28 @@ public sealed class ManifestSignatureEnvelope
     /// </summary>
     [JsonPropertyName("signatures")]
     public IReadOnlyList<SignatureEntry> Signatures { get; set; } = [];
+
+    /// <summary>
+    /// v2 key-epoch counter (C14 Stage 2, §6). The publisher bumps it only when a key is retired or
+    /// revoked (not per release). A client refuses any bundle whose epoch is below the highest it has
+    /// accepted (anti-downgrade / replay defense). 0 (the default, and the value for v1 bundles) means
+    /// "unset". The epoch is part of the signed message <b>only when non-zero</b> so that legacy v1 and
+    /// Stage-1 v2 (epoch-0) envelopes keep the byte-identical files-only signed bytes and still verify —
+    /// see <see cref="IntegrityEnvelopeCodec.ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string})"/>.
+    /// </summary>
+    [JsonPropertyName("epoch")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Epoch { get; set; }
+
+    /// <summary>
+    /// v2 key-revocation list (C14 Stage 2, §6.5): fingerprints (uppercase hex) the publisher declares
+    /// revoked. Once a client applies a verified update carrying revocations, it records them and
+    /// thereafter refuses any bundle signed only by a revoked key — even one still in an older engine's
+    /// baked set. The list is part of the signed message <b>only when non-empty</b> (same compat rule as
+    /// <see cref="Epoch"/>), so it is cryptographically covered and cannot be stripped or forged without
+    /// breaking the signature. Empty (the default) on v1 and Stage-1 v2 envelopes.
+    /// </summary>
+    [JsonPropertyName("revoked")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public IReadOnlyList<string> Revoked { get; set; } = [];
 }

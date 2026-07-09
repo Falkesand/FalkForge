@@ -464,8 +464,19 @@ internal static class Program
         // hashes, so without this a validly-signed bundle whose payload bytes + TOC hash were
         // rewritten after signing would extract and run the tampered payload. Unsigned manifests
         // pass through (backward compatible).
+        // Update-path anti-downgrade / revocation (§6.3): on the require-signed update path, consult the
+        // persisted per-machine trust store so the gate rejects a downgraded/replayed release (epoch below
+        // the highest accepted) or one signed only by a locally-revoked key. Fresh installs
+        // (requireSigned=false) do not consult the store — it is advanced only during a verified update.
+        var trustState = requireSigned ? TrustStateStore.Load(TrustStateStore.DefaultPath) : new TrustState();
+        var revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
+            ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
+            : null;
+
         var bootstrapTrust = SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned);
+            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned,
+            storedEpoch: requireSigned ? trustState.Epoch : 0,
+            revokedFingerprints: revokedSet);
         if (bootstrapTrust.IsFailure)
         {
             await Console.Error.WriteLineAsync(
@@ -629,6 +640,26 @@ internal static class Program
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
+
+        // Advance the trust store ONLY after a verified update apply (§6.3 step 4). Advancing after
+        // success (not before) prevents an attacker priming the epoch with a forged high value — a forged
+        // epoch would have failed the require-signed gate above (the epoch is part of the signed bytes).
+        // Fresh installs never advance the store.
+        if (requireSigned
+            && outcome.State == EngineTerminalState.Completed
+            && manifest.ManifestSignature is not null)
+        {
+            var applied = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
+            if (applied is not null && (applied.Epoch > 0 || applied.Revoked.Count > 0))
+            {
+                var advance = TrustStateStore.Advance(
+                    TrustStateStore.DefaultPath, applied.Epoch, applied.Revoked);
+                if (advance.IsFailure)
+                    await Console.Error.WriteLineAsync(
+                        $"Warning: failed to record trust state after update: {advance.Error.Message}");
+            }
+        }
+
         return outcome.State switch
         {
             EngineTerminalState.Completed  => 0,

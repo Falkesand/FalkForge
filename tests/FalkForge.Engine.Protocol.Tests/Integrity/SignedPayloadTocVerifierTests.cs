@@ -225,6 +225,86 @@ public sealed class SignedPayloadTocVerifierTests
         Assert.Contains("INT004", result.Error.Message, StringComparison.Ordinal);
     }
 
+    private static InstallerManifest SignedManifestWithEpoch(
+        ECDsa key, int epoch, IReadOnlyList<string> revoked, params (string id, string signedHash)[] payloads)
+    {
+        var files = payloads
+            .Select(p => new ManifestFileEntry { Name = p.id, Sha256 = p.signedHash })
+            .ToList();
+
+        var envelope = IntegrityEnvelopeCodec.Sign(files, new[] { key }, epoch, revoked);
+
+        var packages = payloads
+            .Select(p => new PackageInfo
+            {
+                Id = p.id,
+                Type = PackageType.MsiPackage,
+                DisplayName = p.id,
+                SourcePath = p.id + ".msi",
+                Sha256Hash = p.signedHash
+            })
+            .ToArray();
+
+        return new InstallerManifest
+        {
+            Name = "T",
+            Manufacturer = "M",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = packages,
+            ManifestSignature = IntegrityEnvelopeCodec.Serialize(envelope)
+        };
+    }
+
+    [Fact]
+    public void EpochBelowStored_Rejected_Int008()
+    {
+        // Anti-downgrade (§6.3): the client has already accepted epoch 5. A replay of an older-epoch
+        // (epoch 2) signed release — e.g. one signed by a since-revoked key — is refused.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithEpoch(key, epoch: 2, revoked: [], ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)),
+            requireSigned: true, storedEpoch: 5, revokedFingerprints: null);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT008", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EpochAtOrAboveStored_Accepted()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithEpoch(key, epoch: 5, revoked: [], ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)),
+            requireSigned: true, storedEpoch: 5, revokedFingerprints: null);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void RevokedFingerprint_Rejected_Int001_EvenWhenTrusted()
+    {
+        // A key still present in the baked trusted set but recorded as revoked in the persisted store is
+        // refused (§6.3 step 3) — the revocation overrides the stale baked trust.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithEpoch(key, epoch: 0, revoked: [], ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)),
+            requireSigned: true, storedEpoch: 0, revokedFingerprints: TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void InvalidSignature_Rejected()
     {

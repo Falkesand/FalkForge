@@ -62,11 +62,23 @@ public static class SignedPayloadTocVerifier
     /// When true, an unsigned manifest is rejected (INT007) instead of passed through. Stage 1 fresh
     /// installs pass false (backward compatible); the require-signed update path is Stage 2.
     /// </param>
+    /// <param name="storedEpoch">
+    /// The highest key-epoch this machine has already accepted (from the persisted trust store, §6.2).
+    /// A bundle whose signed epoch is below this is a downgrade/replay and is rejected (INT008). Defaults
+    /// to 0 (no anti-downgrade — fresh install and inspection-grade CLI paths pass 0).
+    /// </param>
+    /// <param name="revokedFingerprints">
+    /// Fingerprints recorded as revoked in the persisted store (§6.3 step 3). A bundle whose accepted
+    /// signature is one of these is rejected (INT001) even if the key is still in the baked trusted set.
+    /// Null/empty means no local revocations are enforced.
+    /// </param>
     public static Result<Unit> Verify(
         InstallerManifest manifest,
         IReadOnlyList<TocEntry> tocEntries,
         IReadOnlySet<string> trustedFingerprints,
-        bool requireSigned = false)
+        bool requireSigned = false,
+        int storedEpoch = 0,
+        IReadOnlySet<string>? revokedFingerprints = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(tocEntries);
@@ -91,10 +103,27 @@ public static class SignedPayloadTocVerifier
 
         // The signed hashes are only trustworthy if a TRUSTED signature verifies. A tampered, forged,
         // or attacker-re-signed envelope (key not in the pinned set) is rejected here, before any hash
-        // from it is trusted.
-        var trust = IntegrityEnvelopeCodec.VerifyTrusted(envelope, trustedFingerprints);
+        // from it is trusted. MatchTrustedSignature returns the accepted fingerprint so we can enforce
+        // the persisted revocation list against it.
+        var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(envelope, trustedFingerprints);
         if (trust.IsFailure)
-            return trust;
+            return Result<Unit>.Failure(trust.Error);
+
+        // Anti-downgrade (§6.3 step 2): a signed release older than the highest epoch this machine has
+        // accepted is a replay/downgrade (e.g. a bundle signed by a since-revoked key). The epoch is part
+        // of the signed bytes, so it cannot have been lowered without failing the verify above.
+        if (envelope.Epoch < storedEpoch)
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                $"INT008: Bundle key-epoch {envelope.Epoch} is below the highest accepted epoch " +
+                $"{storedEpoch} on this machine. Refusing a downgrade/replay of a superseded release.");
+
+        // Revocation (§6.3 step 3): the accepted key is still in the baked trusted set but has been
+        // recorded as revoked locally (via a previously-applied update). The revocation overrides the
+        // stale baked trust.
+        if (revokedFingerprints is not null && revokedFingerprints.Contains(trust.Value))
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                "INT001: The bundle's signature is from a key that has been revoked on this machine. " +
+                "Refusing to extract or execute a payload signed by a revoked publisher key.");
 
         // Signed hash per package id — the ECDSA-covered source of truth for payload integrity.
         var signedHashes = new Dictionary<string, string>(envelope.Files.Count, StringComparer.Ordinal);

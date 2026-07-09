@@ -257,4 +257,100 @@ public sealed class IntegrityEnvelopeCodecTrustTests
         var v2Bytes = IntegrityEnvelopeCodec.ComputeSignedBytes(v2.Files);
         Assert.Equal(v1Bytes, v2Bytes);
     }
+
+    // ── C14 Stage 2: epoch / revocation signed-bytes compat trap (§6.3) ──────────────────────────────
+
+    [Fact]
+    public void SignedBytes_EpochZeroNoRevoked_AreByteIdenticalToLegacyFilesOnly()
+    {
+        // The compat trap resolution: the epoch-aware signed bytes with the NEUTRAL values (epoch 0, no
+        // revocations) MUST be byte-identical to the legacy files-only bytes, so every already-shipped v1
+        // and Stage-1 v2 (epoch-0) envelope still verifies after Stage 2.
+        var files = Files(("A", "AABB"), ("B", "CCDD"));
+
+        var legacy = IntegrityEnvelopeCodec.ComputeSignedBytes(files);
+        var neutral = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 0, revoked: []);
+
+        Assert.Equal(legacy, neutral);
+    }
+
+    [Fact]
+    public void Stage1V2Envelope_EpochUnset_StillVerifiesUnderStage2Codec()
+    {
+        // (i) A Stage-1 v2 envelope carries no epoch/revoked. It must keep verifying under the Stage 2
+        // codec (which now folds epoch/revoked into the signed bytes only when present).
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(Files(("App", "AAAA")), key); // epoch 0, no revoked
+
+        Assert.Equal(0, envelope.Epoch);
+        Assert.Empty(envelope.Revoked);
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key))).IsSuccess);
+    }
+
+    [Fact]
+    public void V1Envelope_TreatedAsEpochZero_StillVerifies()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var v1 = IntegrityEnvelopeCodec.Parse(BuildV1Json(key, Files(("A", "AABB"))))!;
+
+        Assert.Equal(0, v1.Epoch);
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(v1, TrustSet(Fingerprint(key))).IsSuccess);
+    }
+
+    [Fact]
+    public void EpochBearingEnvelope_Untampered_Verifies()
+    {
+        // (ii) A signed epoch is covered: an untampered epoch-bearing bundle verifies.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(Files(("App", "AAAA")), new[] { key }, epoch: 7, revoked: []);
+
+        Assert.Equal(7, envelope.Epoch);
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key))).IsSuccess);
+    }
+
+    [Fact]
+    public void EpochBearingEnvelope_LoweredEpoch_FailsVerify()
+    {
+        // The attacker lowers the epoch to slip past anti-downgrade. Because the epoch is in the signed
+        // bytes, the signature no longer verifies — INT001. (An attacker cannot edit the epoch without
+        // breaking the signature.)
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(Files(("App", "AAAA")), new[] { key }, epoch: 7, revoked: []);
+
+        envelope.Epoch = 1; // tamper: pretend it is an older-epoch release
+
+        var result = IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key)));
+        Assert.True(result.IsFailure);
+        Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RevocationBearingEnvelope_StrippedRevocation_FailsVerify()
+    {
+        // The revocation list is signed too, so an attacker cannot strip a declared revocation (which
+        // would let a revoked key be resurrected) without invalidating the signature.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(
+            Files(("App", "AAAA")), new[] { key }, epoch: 3, revoked: new[] { "DEADBEEF" });
+
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key))).IsSuccess);
+
+        envelope.Revoked = []; // tamper: drop the revocation
+
+        var result = IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key)));
+        Assert.True(result.IsFailure);
+        Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MatchTrustedSignature_ReturnsAcceptedFingerprint()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(Files(("App", "AAAA")), key);
+
+        var match = IntegrityEnvelopeCodec.MatchTrustedSignature(envelope, TrustSet(Fingerprint(key)));
+
+        Assert.True(match.IsSuccess, match.IsFailure ? match.Error.Message : null);
+        Assert.Equal(Fingerprint(key), match.Value);
+    }
 }

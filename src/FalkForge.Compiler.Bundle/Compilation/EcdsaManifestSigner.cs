@@ -43,7 +43,13 @@ internal static class EcdsaManifestSigner
             foreach (var entry in entries)
                 files.Add(new ManifestFileEntry { Name = entry.PackageId, Sha256 = entry.Sha256 });
 
-            var envelope = IntegrityEnvelopeCodec.Sign(files, keys);
+            // Fold the publisher's epoch + declared revocations into the signed message (C14 Stage 2).
+            // Neutral values (epoch 0, no revocations) reproduce the legacy files-only signed bytes, so
+            // an unchanged config keeps producing byte-identical signatures across v1/v2.
+            var epoch = config?.Epoch ?? 0;
+            IReadOnlyList<string> revoked = config?.RevokedFingerprints ?? [];
+
+            var envelope = IntegrityEnvelopeCodec.Sign(files, keys, epoch, revoked);
             return IntegrityEnvelopeCodec.Serialize(envelope);
         }
         finally

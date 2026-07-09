@@ -148,6 +148,31 @@ public sealed class EcdsaManifestSignerTests : IDisposable
     }
 
     [Fact]
+    public void Sign_WithEpochAndRevocations_FoldsThemIntoSignedEnvelope()
+    {
+        // C14 Stage 2: a publisher can author an epoch-bearing, revocation-declaring bundle. The epoch and
+        // revocation list must appear on the envelope AND be cryptographically covered (the envelope still
+        // self-verifies, and — proven in the codec tests — tampering either breaks the signature).
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var pemPath = Path.Combine(_tempDir, "rotate.pem");
+        File.WriteAllText(pemPath, key.ExportPkcs8PrivateKeyPem());
+        var config = new IntegrityConfiguration
+        {
+            SigningKeyPath = pemPath,
+            Epoch = 4,
+            RevokedFingerprints = new[] { "OLDKEYFINGERPRINT" }
+        };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var envelope = IntegrityEnvelopeCodec.Parse(result.Value)!;
+        Assert.Equal(4, envelope.Epoch);
+        Assert.Contains("OLDKEYFINGERPRINT", envelope.Revoked);
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+    }
+
+    [Fact]
     public void Sign_EmptyEntries_StillProducesVerifiableEnvelope()
     {
         var result = EcdsaManifestSigner.Sign(Entries(), config: null);
