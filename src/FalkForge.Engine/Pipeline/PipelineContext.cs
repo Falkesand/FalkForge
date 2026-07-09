@@ -97,13 +97,14 @@ internal sealed class PipelineContext
     /// <summary>
     /// The trust policy consumed by the integrity gate in <see cref="ApplyStep"/>: the pinned
     /// publisher-key fingerprints (authorship) and whether a signature is required. Defaults to a
-    /// fresh-install policy pinned to the engine's baked trusted set
-    /// (<see cref="FalkForge.Engine.Integrity.BakedTrustedKeys"/>) — an attacker's re-signed bundle is
-    /// rejected because its key is not pinned, while an engine built with no baked keys falls back to
+    /// fresh-install policy pinned to the engine's effective trusted set
+    /// (<see cref="FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints"/>: the MSBuild-baked
+    /// set unioned with any keys registered from bootstrap code) — an attacker's re-signed bundle is
+    /// rejected because its key is not pinned, while an engine with no trusted keys falls back to
     /// consistency-only verification. Overridable for tests.
     /// </summary>
     public FalkForge.Engine.Integrity.TrustPolicy IntegrityTrustPolicy { get; set; } =
-        FalkForge.Engine.Integrity.TrustPolicy.FreshInstall(FalkForge.Engine.Integrity.BakedTrustedKeys.Fingerprints);
+        FalkForge.Engine.Integrity.TrustPolicy.FreshInstall(FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ElevateStep

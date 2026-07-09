@@ -45,7 +45,8 @@ internal static class StagedUpdateVerifier
     }
 
     /// <summary>
-    /// Production default: verify against the engine's baked trusted set, consulting the persisted
+    /// Production default: verify against the engine's effective trusted set (the baked set unioned with any
+    /// keys registered from bootstrap code, <see cref="EngineTrustAnchor"/>), consulting the persisted
     /// per-machine trust store for the anti-downgrade epoch and locally-revoked fingerprints (§6.3).
     /// </summary>
     internal static Result<Unit> VerifyWithBakedTrust(string stagedBundlePath)
@@ -55,6 +56,6 @@ internal static class StagedUpdateVerifier
             ? new HashSet<string>(state.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
             : null;
 
-        return Verify(stagedBundlePath, BakedTrustedKeys.Fingerprints, state.Epoch, revoked);
+        return Verify(stagedBundlePath, EngineTrustAnchor.EffectiveFingerprints, state.Epoch, revoked);
     }
 }

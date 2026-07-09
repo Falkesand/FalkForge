@@ -15,13 +15,29 @@ using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.Layout;
 using FalkForge.Platform.Windows;
 
-internal static class Program
+internal static partial class Program
 {
     private const int SecretLength = 32;
     private static readonly TimeSpan InitPipeTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Trust-configuration seam (C18). A publisher who rebuilds FalkForge.Engine can supply a partial
+    /// implementation (e.g. <c>Program.TrustConfig.cs</c>) that registers additional trusted publisher
+    /// keys via <see cref="Integrity.EngineTrustAnchor"/> — the code-path counterpart to the
+    /// <c>-p:FalkForgeTrustedKey</c> build parameter. It runs at the very top of <see cref="Main"/>,
+    /// before any bundle is extracted or verified, so the effective trusted set (baked ∪ code-registered)
+    /// is fully established before it is frozen on first use. With no implementation this compiles to a
+    /// no-op (the default build behaves exactly as before). Registration reads only compiled code — never
+    /// bundle/manifest/network input — so it does not reopen the C14 trust-anchor hole.
+    /// </summary>
+    static partial void ConfigureTrust();
+
     private static async Task<int> Main(string[] args)
     {
+        // Establish any code-registered trusted keys BEFORE any verification path runs (C18). This unions
+        // with the MSBuild-baked set; the effective set freezes on its first read below.
+        ConfigureTrust();
+
         // Parse the logging-related flags up front. Other flags continue to be parsed
         // inline below for backward compatibility with the rest of the engine pipeline.
         var argsResult = ProgramArgs.Parse(args);
@@ -352,7 +368,7 @@ internal static class Program
             : null;
 
         return BundleTrustVerifier.VerifyBundleContent(
-            content, BakedTrustedKeys.Fingerprints, requireSigned,
+            content, EngineTrustAnchor.EffectiveFingerprints, requireSigned,
             storedEpoch: requireSigned ? trustState.Epoch : 0,
             revokedFingerprints: revokedSet);
     }
@@ -466,7 +482,7 @@ internal static class Program
             : null;
 
         var bootstrapTrust = SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned,
+            manifest, content.TocEntries, EngineTrustAnchor.EffectiveFingerprints, requireSigned,
             storedEpoch: requireSigned ? trustState.Epoch : 0,
             revokedFingerprints: revokedSet);
         if (bootstrapTrust.IsFailure)
