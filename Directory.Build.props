@@ -16,30 +16,30 @@
     <ItemGroup>
         <PackageReference Include="SonarAnalyzer.CSharp">
             <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+            <IncludeAssets>analyzers; build</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
             <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+            <IncludeAssets>analyzers; build</IncludeAssets>
         </PackageReference>
         <PackageReference Include="IDisposableAnalyzers">
             <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+            <IncludeAssets>analyzers; build</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Meziantou.Analyzer">
             <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+            <IncludeAssets>analyzers; build</IncludeAssets>
         </PackageReference>
         <PackageReference Include="SecurityCodeScan.VS2019">
             <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+            <IncludeAssets>analyzers; build</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseWPF)' == 'true'">
         <PackageReference Include="WpfAnalyzers">
             <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+            <IncludeAssets>analyzers; build</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 </Project>
