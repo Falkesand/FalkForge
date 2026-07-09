@@ -1,6 +1,6 @@
 namespace FalkForge.Engine.Protocol.Manifest;
 
-public sealed class InstallerManifest
+public sealed record InstallerManifest
 {
     public required string Name { get; init; }
     public required string Manufacturer { get; init; }
