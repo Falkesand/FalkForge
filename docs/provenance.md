@@ -161,118 +161,144 @@ sha256sum MyApp.exe   # compare against components[].hashes[].content
 ### What it is
 
 `BundleBuilder.Integrity()` enables pure-.NET ECDSA-P256 signing of the bundle's payload
-hash list. The signature is embedded in the bundle manifest. The engine verifies the
-signature before the Apply phase via `PayloadIntegrityGate`.
+hash list. One or more signatures are embedded in the bundle manifest. The engine verifies
+them at two points: before the Apply phase (`PayloadIntegrityGate`) and before any payload is
+extracted (`SignedPayloadTocVerifier`) — both self-extract and the update path.
 
 ### What is signed
 
 The signed envelope covers the ordered list of `(packageId, sha256Hash)` pairs for every
-embedded payload. The envelope also embeds the **public half** of the signing key so the
-verifier needs nothing external.
+embedded payload, plus an optional `epoch` counter used for anti-downgrade (see below). The
+envelope carries a **list** of signatures — `AddSigningKey`/`SigningKeys` on `IntegrityBuilder`
+produce one signature entry per key, all over the identical file list, so a bundle can be
+"dual-signed" during a key rotation window. Each signature entry self-describes its own public
+key so the verifier needs nothing external to check the signature *math*; whether that key is
+**trusted** is a separate question, answered by the trust anchor below.
 
 ### Threat model — read this before relying on it
 
-The security property you get depends entirely on **how the verifying key reaches the
-engine**. There are two distinct modes, and the difference is not cosmetic.
+The security property you get depends entirely on **which keys the engine trusts**, not on
+whether the signature verifies. A signature always self-describes its key; anyone can produce
+a *valid* signature with a key they just generated. Authorship requires the verifying engine to
+compare that key's fingerprint against a set it did not get from the bundle.
 
-#### Ephemeral / self-describing-key mode (default) — *integrity, not authorship*
+#### Unpinned engines (empty trusted set) — *integrity, not authorship*
 
-In the default mode the verifying key is carried **inside the envelope** (`.WithEphemeralKey()`
-generates a fresh key per build; even `.WithPemKey(...)` only changes *which* key signs — the
-public half is still embedded in the bundle the engine reads). This proves **internal
-consistency**:
+An engine built with no `-p:FalkForgeTrustedKey` and no code-registered key (see below) has an
+empty trusted set. `PayloadIntegrityGate`/`SignedPayloadTocVerifier` then fall back to
+**consistency-only** verification: any signature that verifies is accepted, regardless of whose
+key it is. This proves:
 
 - the payload bytes match their manifest hashes (cache layer), and
-- those hashes are the ones covered by the signature, and
+- those hashes are the ones covered by *a* signature, and
 - every package that will run is in the signed set (set-coverage, see below).
 
 It therefore **detects casual tampering in transit** — an attacker who flips bytes in a
-payload, swaps a hash, or appends an unsigned package without re-signing is caught.
+payload, swaps a hash, or appends an unsigned package without re-signing is caught, because
+the attacker's re-signed copy still has to pass the hash-binding and coverage checks — but an
+attacker who fully rewrites the bundle can recompute every hash and re-sign with a fresh key
+of their own, and consistency-only mode accepts it. Authorship is only established when the
+engine carries a trusted set to check the key against — the two modes below.
 
-It does **NOT prove authorship.** An attacker who fully rewrites the bundle can recompute
-the hashes, re-sign the file list with **their own** ECDSA key, and embed **their own** public
-key. The engine has no out-of-band reference to compare that key against, so verification
-**passes**. In-band pinning (a fingerprint stored inside the same bundle) adds nothing here,
-because the attacker rewrites the pin in the same pass. This is an honest limitation of any
-self-describing-key scheme, not a bug.
+> **Do not claim "an attacker cannot forge the signature" for an unpinned engine.** They can —
+> by signing with their own key. Consistency-only mode is tamper-*evidence*, equivalent to a
+> checksum the builder vouches for, not a publisher identity proof.
 
-> **Do not claim "an attacker cannot forge the signature" for default mode.** They can — by
-> signing with their own key. Default mode is tamper-*evidence*, equivalent to a checksum the
-> builder vouches for, not a publisher identity proof.
+#### Baked trusted-key mode — *authorship, build-time*
 
-#### Pinned-publisher mode — *authorship*
+A publisher builds their own `FalkForge.Engine.exe` passing the fingerprint(s) of their signing
+key(s) as an MSBuild property, repeatable for a set:
 
-To get authorship, a **host embedding the engine** supplies an expected publisher-key
-fingerprint **out-of-band** — through a channel the attacker cannot rewrite, namely the host's
-own binary or configuration, *never* the bundle. The fingerprint is the SHA-256 of the signer's
-SubjectPublicKeyInfo (uppercase hex; colon-separated and lowercase forms are accepted). When
-supplied, `PayloadIntegrityGate` requires the envelope's embedded key to match the pin, so a
-bundle re-signed by an untrusted publisher is rejected with `INT005`.
-
-```csharp
-// Host wiring (the host that embeds FalkForge.Engine), e.g. via PipelineContext:
-ctx.ExpectedPublisherKeyFingerprint = "9F86D081884C7D659A2FEAA0C55AD015...";
+```bash
+dotnet publish src/FalkForge.Engine -c Release -p:FalkForgeTrustedKey=A1B2C3...
 ```
 
-This is the practical seam available today. End-to-end publisher-key distribution (so a plain
-bundle download is authorship-verifiable without host wiring) is deferred to the signed-feed
-(TUF-lite) phase — see the ADR note below.
+`TrustedKeys.targets` generates `BakedTrustedKeys.Fingerprints` — a `FrozenSet<string>` of
+uppercase-hex SHA-256 SubjectPublicKeyInfo fingerprints — compiled directly into the engine
+binary. It is never read from the bundle, the manifest, or a config file next to the EXE, so an
+attacker who fully rewrites the bundle cannot also rewrite the trust anchor: the engine that
+runs *is* the one the publisher shipped. A signature is trusted only when its key's fingerprint
+is in this set; a bundle re-signed by an untrusted key is rejected (`INT001`).
 
-##### ADR note — why in-band pinning waits for the signed feed
+#### Code-registered trust — `EngineTrustAnchor`
 
-A pin only adds security if it arrives over a channel the attacker does not also control. The
-bundle is fully attacker-controlled in the rewrite threat model, so any fingerprint embedded
-*in* the bundle is rewritten alongside the key it is meant to pin — it is self-defeating. The
-two channels that are *not* the bundle are (a) the host binary embedding the engine — handled
-today by `ExpectedPublisherKeyFingerprint`, and (b) a separately-signed update feed whose root
-key is trusted on first use / shipped with the host — deferred to Phase 4. Until (b) exists,
-authorship verification for a standalone bundle download is only available to hosts that pin
-via (a). Shipping a fake in-band pin would imply a guarantee we cannot keep, so we deliberately
-do not.
+Trusted keys can also be registered from the engine's own compiled bootstrap code, additive to
+the baked MSBuild set — useful when a publisher wants trust configuration alongside other
+bootstrap logic instead of (or in addition to) the build-time property. `EngineTrustAnchor`
+exposes `TrustPublicKey(ReadOnlySpan<byte> spki)`, `TrustPublicKeyPem(string pem)`, and
+`TrustFingerprint(string fingerprint)` (normalizes separators/case, validates a 64-hex SHA-256
+fingerprint, fail-loud on anything else). Registrations are only reachable from compiled code —
+never from a bundle, manifest, downloaded update, or any file/network input the installer
+processes, which is the same trust boundary the baked set relies on. The **effective** trusted
+set is the union of the baked set and every code-registered key, computed once on first read and
+frozen thereafter; a registration attempt after that first read throws, so trust can never widen
+once verification has begun. Register early, before any bundle is touched.
 
 ### Set coverage (signed manifests are exhaustive)
 
 Once a manifest is signed, the gate enforces verification in **both** directions:
 
 - **signed → manifest:** every signed entry binds to a manifest package with a matching hash
-  (`INT002` on mismatch / `INT003`/`INT002` on a signed entry with no package), and
+  (`INT002` on mismatch or on a signed entry with no matching package; `INT003` if the entry
+  itself is malformed, e.g. an empty name), and
 - **manifest → signed:** every package in the manifest is in the signed set (`INT004`
   otherwise).
 
 The second direction closes the gap where an attacker appends an unsigned package to a validly
-signed bundle and has it execute alongside the signed ones.
+signed bundle and has it execute alongside the signed ones. At extraction time
+`SignedPayloadTocVerifier` enforces the same coverage rule over **every** table-of-contents
+entry — not just chained install packages, but the bundle's own UI and engine binaries too —
+so an attacker cannot tamper with the executables the bootstrapper itself launches by leaving
+them out of the signed set (`INT004`).
 
-### Unsigned manifests pass (deliberate, backward-compatible)
+### Fresh install vs. update — the policy seam
 
-If `manifest.ManifestSignature` is `null` the gate returns success and the install proceeds.
-This is **intentional**: bundles built without `.Integrity()` predate the feature and must keep
-working, and the gate is an *additive* defense, not a mandatory signing requirement. The
-trade-off is explicit — an attacker can strip the signature entirely (set it to `null`) and the
-gate will not object, exactly as it would not object to a bundle that was never signed. Making
-signatures mandatory would be a host-policy decision (e.g. a future "require-signed" mode),
-not a property of the gate today.
+Two policies apply the same trust anchor differently:
+
+- **Fresh install:** an unsigned bundle still runs — bundles built without `.Integrity()`
+  predate the feature and must keep working, so the gate is an *additive* defense here, not a
+  mandatory-signing requirement. A signature that fails to verify against the effective trusted
+  set is still rejected (a present-but-untrusted signature is an attack signal, not a legacy
+  bundle).
+- **Update path (require-signed):** before the already-installed engine relaunches a downloaded
+  update, `StagedUpdateVerifier` verifies the staged bundle **in-process**, with `RequireSigned`
+  set. A missing or stripped signature is rejected (`INT007`) rather than passed through, and —
+  because a require-signed check against an empty trusted set would silently fall back to
+  accept-any — an empty effective set on this path is *also* rejected (`INT009`, fail closed)
+  rather than treated as consistency-only. This is deliberately asymmetric: a fresh install is a
+  user's deliberate choice to run a specific artifact; an automatic, unattended update replacing
+  already-trusted software gets the stricter rule.
 
 ### Fluent API
 
 ```csharp
 Installer.BuildBundle(b => b
-    .Name("MyBundle").Version("1.0.0")
-    .Integrity(i => i
-        .WithEphemeralKey()        // dev / test — integrity only
-        // or .WithPemKey(privateKeyPem)  // production: load from vault.
-        //    NOTE: PemKey changes WHICH key signs but the public half is still
-        //    embedded in the bundle. Authorship still requires a host-side pin
-        //    (ExpectedPublisherKeyFingerprint) verified out-of-band.
-    )
+    .Product("MyBundle", "1.0.0")
+    // No SigningKey configured: a throwaway key is generated per build.
+    // Proves tamper-evidence only — see "Unpinned engines" above.
+    .Integrity(i => i)
+    .Chain(c => c.MsiPackage("output/MyApp-1.0.0.msi", p => p.Id("MyApp"))));
+
+Installer.BuildBundle(b => b
+    .Product("MyBundle", "1.0.0")
+    // A stable PEM key from the secret store: this key's fingerprint is what
+    // publishers bake into the engine (-p:FalkForgeTrustedKey) for authorship.
+    .Integrity(i => i.SigningKey("falkforge-signing.pem"))
     .Chain(c => c.MsiPackage("output/MyApp-1.0.0.msi", p => p.Id("MyApp"))));
 ```
 
+`AddSigningKey`/`SigningKeys` add further keys for a dual-signed rotation window; `Epoch(int)`
+and `Revoke(params string[])` feed the anti-downgrade/revocation data model described below.
+See §22 for the full key-generation, baking, and rotation runbook.
+
 ### Engine gate
 
-Before the Apply phase, `ApplyStep` reads `ctx.Manifest.ManifestSignature`. When present,
-`PayloadIntegrityGate.Verify` checks the ECDSA signature, the optional publisher pin, the
-hash bindings, and set coverage. Any failure produces `ErrorKind.SecurityError` and aborts the
-installation before a single package runs.
+Before the Apply phase, `ApplyStep` reads `ctx.Manifest.ManifestSignature` and the pipeline's
+`TrustPolicy` (defaulted to a fresh-install policy pinned to
+`EngineTrustAnchor.EffectiveFingerprints`, overridable for tests). When a signature is present,
+`PayloadIntegrityGate.Verify` checks it against the trust policy, the hash bindings, and set
+coverage. Any failure produces `ErrorKind.IntegrityError` and aborts the installation before a
+single package runs.
 
 ### Payload byte binding (extraction-time)
 
@@ -291,10 +317,12 @@ bytes, rewrite the matching TOC hash, and leave the signed manifest and its sign
 extraction verifies the tampered bytes against the tampered TOC hash, accepts them, and the
 payload runs while the signature still verifies.
 
-`SignedPayloadTocVerifier.Verify(manifest, tocEntries)` closes this. Before any payload is
-extracted (in both the self-extract `--extract` path and the bootstrapper's UI-launch path in
-`Program.cs`), it re-verifies the envelope signature and then requires, for every TOC payload that
-is in the signed set, that the value the extractor will trust equals the signed hash:
+`SignedPayloadTocVerifier.Verify(manifest, tocEntries, trustedFingerprints, requireSigned, ...)`
+closes this. Before any payload is extracted — the self-extract `--extract` path, the
+bootstrapper's UI-launch path, and (with `requireSigned: true`) the staged-update verification
+path in `Program.cs` — it re-verifies the envelope against the trust policy and then requires,
+for **every** TOC payload (including the bundle's own UI/engine binaries — see "Set coverage"
+above), that the value the extractor will trust equals the signed hash:
 
 - **full payload** — `TocEntry.Sha256Hash` must equal the signed hash (bytes == TOC == signed), and
 - **delta payload** — `TocEntry.ReconstructedSha256Hash` must equal the signed hash
@@ -304,15 +332,35 @@ is in the signed set, that the value the extractor will trust equals the signed 
 A TOC hash that disagrees with the signed hash is a post-signing overlay tamper and is rejected
 with `INT006` before a byte is extracted. So payload integrity comes from **the ECDSA manifest
 signature plus this byte binding** — Authenticode alone proves nothing about the payloads.
-Payloads with no matching signed package (the bundle's own UI/engine binaries) are outside this
-binding's scope and remain TOC-only; binding them requires extending the signature's coverage to
-those payloads (a separate change). Unsigned bundles have no signed hash to bind to and keep only
-TOC-level tamper detection.
+Unsigned bundles have no signed hash to bind to and keep only TOC-level tamper detection.
+
+### Anti-downgrade / revocation store — dormant this release
+
+The trust anchor says *which keys* are trusted; it cannot by itself stop a **downgrade or
+replay** of an older bundle signed by a key that was later revoked from newer engines but is
+still in an already-installed engine's baked set. The data model for this exists today: a
+signed envelope may declare an `epoch` and a `revoked[]` list, and a per-machine store
+(`TrustState` / `TrustStateStore`, `%ProgramData%\FalkForge\Trust\trust-state.json`, ACL-hardened
+to SYSTEM/Administrators-write) persists the highest epoch accepted and any revoked fingerprints,
+enforced by both gates as `INT008` (epoch below stored epoch) and `INT001` (accepted key locally
+revoked).
+
+**This protection is not active in this release.** The store only advances after a verified
+update apply, and that advance is issued by the engine bootstrapper, which runs `asInvoker`
+(non-elevated). The restrictive store ACL denies that non-elevated write, so in a normal
+standard-user run the epoch never advances past 0 and no revocation is ever recorded — the
+`INT008`/revocation checks have nothing to enforce against yet. Do not rely on the engine
+blocking a version downgrade or replay today. Activation is tracked as follow-up **C16**: move
+the store write into the elevated companion (`FalkForge.Engine.Elevation`) so every advance is
+written elevated, with ACL validation on load.
 
 ### Artifact location
 
-The signature is embedded in the bundle manifest (inside the EXE). No external file. The
-publisher pin, when used, lives in the host — not the artifact.
+The signature(s) are embedded in the bundle manifest (inside the EXE) — no external file. The
+trust anchor that decides whether those signatures are *authoritative* lives in the engine
+binary itself: the MSBuild-baked `BakedTrustedKeys` set, unioned with anything registered via
+`EngineTrustAnchor` at bootstrap. Neither is read from the bundle, the artifact being verified,
+or any file the installer processes at runtime.
 
 ---
 
@@ -514,11 +562,14 @@ once plan support is confirmed or the repository is made public.
 
 | Code | Description |
 |------|-------------|
-| INT001 | Manifest integrity signature verification failed (tampering or wrong key) |
-| INT002 | Signed hash does not match the manifest package hash, or a signed entry has no package |
-| INT003 | Malformed integrity envelope (parse failure, missing key/signature, bad base64) |
-| INT004 | Manifest package is not covered by the integrity signature (set-coverage violation) |
-| INT005 | Publisher key pin mismatch — bundle signed by a key other than the pinned publisher |
+| INT001 | No trusted signature validates the manifest (tampering, untrusted publisher key, or locally-revoked key) |
+| INT002 | Signed hash does not match the manifest package hash, or a signed entry has no matching package |
+| INT003 | Malformed integrity envelope (parse failure, no signatures, or embedded manifest deserialization failure) |
+| INT004 | A manifest package, or a bundle TOC payload, is not covered by the integrity signature (set-coverage violation) |
+| INT006 | Bundle TOC payload hash does not match the ECDSA-signed manifest hash (post-signing overlay tamper) |
+| INT007 | A signature is required on this path (e.g. update) but the manifest carries none |
+| INT008 | Bundle key-epoch is below the highest epoch this machine has accepted (downgrade/replay) — dormant, see §3 |
+| INT009 | A signature is required but the engine's effective trusted set is empty (fail closed) |
 | SBM001 | Failed to compute SHA-256 hash for SBOM component |
 | SBM002 | Failed to write SBOM output file |
 | PLN001 | Detection phase failed during plan-only mode |

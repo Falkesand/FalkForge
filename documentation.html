@@ -2446,6 +2446,8 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>Signing(Action&lt;SigningOptionsBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures Authenticode code signing for the output MSI.</td></tr>
       <tr><td><code>UseDialogSet(MsiDialogSet dialogSet)</code></td><td><code>PackageBuilder</code></td><td>Selects the built-in MSI dialog template set.</td></tr>
       <tr><td><code>SetLocalizationData(IReadOnlyList&lt;LocalizationData&gt;)</code></td><td><code>PackageBuilder</code></td><td>Applies localization string tables for multi-language support.</td></tr>
+      <tr><td><code>Integrity(Action&lt;IntegrityBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Enables ECDSA-P256 payload signing. See &sect;22 for key generation, baking, and rotation.</td></tr>
+      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>PackageBuilder</code></td><td>Emits an SBOM (SPDX or CycloneDX) alongside the compiled MSI. Equivalent to the CLI <code>--sbom</code> flag.</td></tr>
       <tr><td><code>Build()</code></td><td><code>PackageModel</code></td><td>Finalizes configuration and produces the immutable <code>PackageModel</code>.</td></tr>
     </tbody>
   </table>
@@ -4152,6 +4154,9 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Feature(string id, Action&lt;BundleFeatureBuilder&gt; configure)</code></td><td><code>BundleBuilder</code></td><td>Declares a bundle feature that groups packages for optional selection.</td></tr>
       <tr><td><code>DependencyProvider(string key, string version, string? displayName)</code></td><td><code>BundleBuilder</code></td><td>Registers this bundle as a dependency provider with the given key and version.</td></tr>
       <tr><td><code>DependencyConsumer(string providerKey, string consumerKey)</code></td><td><code>BundleBuilder</code></td><td>Declares a dependency on another provider identified by key.</td></tr>
+      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>BundleBuilder</code></td><td>Emits an SBOM (SPDX or CycloneDX) alongside the compiled bundle. Equivalent to the CLI <code>--sbom</code> flag.</td></tr>
+      <tr><td><code>Integrity(Action&lt;IntegrityBuilder&gt;)</code></td><td><code>BundleBuilder</code></td><td>Enables ECDSA-P256 payload signing of the bundle's payload hash list. With no key configured a throwaway key is generated per build (tamper-evidence only); <code>SigningKey(path)</code> / <code>AddSigningKey(path)</code> / <code>SigningKeys(params)</code> load a stable PEM key (publishers bake its fingerprint into the engine for authorship). See &sect;22 for the full signing, trust, and key-rotation narrative.</td></tr>
+      <tr><td><code>DryRun()</code></td><td><code>BundleBuilder</code></td><td>Bakes dry-run mode into the manifest: the engine Apply phase simulates package execution instead of running real installers. Equivalent at runtime to launching the compiled bundle with <code>--dry-run</code> (<code>MyInstaller.exe --dry-run</code>), which takes precedence over the baked flag.</td></tr>
       <tr><td><code>Build()</code></td><td><code>BundleModel</code></td><td>Builds and returns the final <code>BundleModel</code> for compilation.</td></tr>
     </tbody>
   </table>
@@ -7328,10 +7333,11 @@ public interface IDialogStepBuilder
 </p>
 
 <p>
-    Ten leaf commands are registered (some grouped under a <code>rules</code> or <code>bundle</code> branch):
+    Fourteen leaf commands are registered (some grouped under a <code>rules</code> or <code>bundle</code> branch):
     <code>build</code>, <code>validate</code>, <code>inspect</code>, <code>decompile</code>,
     <code>extract</code>, <code>winget</code>, <code>rules&nbsp;list</code>, <code>rules&nbsp;explain</code>,
-    <code>bundle&nbsp;detach</code>, <code>bundle&nbsp;reattach</code>. All commands that emit results accept
+    <code>bundle&nbsp;detach</code>, <code>bundle&nbsp;reattach</code>, <code>migrate</code>, <code>plan</code>,
+    <code>plan-diff</code>, <code>verify</code>. All commands that emit results accept
     a <code>--json</code> flag which switches output to a CI-friendly JSON envelope.
 </p>
 
@@ -8189,6 +8195,41 @@ public sealed record WixUnmappedFeature(
         <tr><td>BDL024</td><td>Update feed URL is not a valid absolute URI</td></tr>
         <tr><td>BDL025</td><td>Update feed URL must use HTTPS</td></tr>
         <tr><td>BDL027</td><td>EnableFeatureSelection is only valid for MsiPackage type</td></tr>
+    </tbody>
+</table>
+
+<h3>Bundle Payload Integrity (INT)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>INT001</td><td>No trusted signature validates the manifest (tampering, untrusted publisher key, or locally-revoked key)</td></tr>
+        <tr><td>INT002</td><td>Signed hash does not match the manifest package hash, or a signed entry has no matching package</td></tr>
+        <tr><td>INT003</td><td>Malformed integrity envelope (parse failure, no signatures, or embedded manifest deserialization failure)</td></tr>
+        <tr><td>INT004</td><td>A manifest package, or a bundle TOC payload, is not covered by the integrity signature (set-coverage violation)</td></tr>
+        <tr><td>INT006</td><td>Bundle TOC payload hash does not match the ECDSA-signed manifest hash (post-signing overlay tamper)</td></tr>
+        <tr><td>INT007</td><td>A signature is required on this path (e.g. update) but the manifest carries none</td></tr>
+        <tr><td>INT008</td><td>Bundle key-epoch is below the highest epoch this machine has accepted (downgrade/replay) &mdash; anti-downgrade store is dormant this release, see &sect;22</td></tr>
+        <tr><td>INT009</td><td>A signature is required but the engine's effective trusted set is empty (fail closed)</td></tr>
+    </tbody>
+</table>
+
+<h3>SBOM Generation (SBM)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>SBM001</td><td>Failed to compute SHA-256 hash for SBOM component</td></tr>
+        <tr><td>SBM002</td><td>Failed to write SBOM output file</td></tr>
+    </tbody>
+</table>
+
+<h3>Plan Export / Dry-Run (PLN)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>PLN001</td><td>Detection phase failed during plan-only mode</td></tr>
+        <tr><td>PLN002</td><td>Planning phase failed during plan-only mode</td></tr>
+        <tr><td>PLN003</td><td>Failed to serialize plan to JSON</td></tr>
+        <tr><td>PLN004</td><td>Dry-run mode blocked: one or more extensions do not support it</td></tr>
     </tbody>
 </table>
 
@@ -9183,7 +9224,7 @@ package.CustomAction(ca => ca
      Section 19: FalkForge Studio
      ============================================================ -->
 <section id="studio">
-  <h2>FalkForge Studio</h2>
+  <h2>19. FalkForge Studio</h2>
 
   <p>
     FalkForge Studio is a visual IDE for designing Windows installers without writing code.
