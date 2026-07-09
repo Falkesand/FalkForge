@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Execution;
 
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -10,7 +11,8 @@ using FalkForge.Platform.Windows;
 
 public sealed partial class MsiExecutor
 {
-    private static readonly char[] ProhibitedValueChars = ['"', '&', '|', ';', '>', '<'];
+    // CA1870: SearchValues is the optimized, cached form of a fixed char set for IndexOfAny.
+    private static readonly SearchValues<char> ProhibitedValueChars = SearchValues.Create("\"&|;><");
 
     private readonly Func<IElevationClient?> _elevationClientAccessor;
     private readonly Func<VariableStore?> _variableStoreAccessor;

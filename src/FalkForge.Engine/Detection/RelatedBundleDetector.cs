@@ -47,7 +47,7 @@ public sealed class RelatedBundleDetector
             var subKeyNames = registry.GetSubKeyNames(rootKey, subKeyPath);
             foreach (var subKeyName in subKeyNames)
             {
-                if (string.IsNullOrWhiteSpace(subKeyName) || subKeyName.Contains("..") || subKeyName.Contains("/"))
+                if (string.IsNullOrWhiteSpace(subKeyName) || subKeyName.Contains("..") || subKeyName.Contains('/'))
                     continue;
 
                 var entryPath = $@"{subKeyPath}\{subKeyName}";

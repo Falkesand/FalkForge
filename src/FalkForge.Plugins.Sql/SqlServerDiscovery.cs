@@ -82,7 +82,7 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
     }
 
     [SupportedOSPlatform("windows")]
-    private static IEnumerable<string> DiscoverFromRegistry(CancellationToken ct)
+    private static List<string> DiscoverFromRegistry(CancellationToken ct)
     {
         var results = new List<string>();
         try
@@ -109,7 +109,7 @@ internal sealed class SqlServerDiscovery : ISqlServerDiscovery
         return results;
     }
 
-    private static IEnumerable<string> DiscoverFromNetwork(CancellationToken ct)
+    private static List<string> DiscoverFromNetwork(CancellationToken ct)
     {
         var results = new List<string>();
         var factory = SqlClientFactory.Instance;

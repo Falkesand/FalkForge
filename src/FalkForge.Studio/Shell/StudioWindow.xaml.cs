@@ -119,7 +119,7 @@ public partial class StudioWindow : Window
 
     private void ExportCiCd_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new CiCdExportDialog(ViewModel.GetProject()) { Owner = this };
+        var dialog = new CiCdExportDialog(ViewModel.Project) { Owner = this };
         if (dialog.ShowDialog() == true)
             ViewModel.OutputText = "CI/CD pipeline exported.";
     }

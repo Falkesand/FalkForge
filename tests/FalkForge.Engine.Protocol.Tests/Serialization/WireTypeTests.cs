@@ -36,7 +36,7 @@ public sealed class WireTypeTests
     [InlineData(nameof(WireType.RecordArray))]
     public void WireType_DeclaresMember(string name)
     {
-        Assert.True(Enum.IsDefined(typeof(WireType), Enum.Parse<WireType>(name)));
+        Assert.True(Enum.IsDefined(Enum.Parse<WireType>(name)));
     }
 
     [Fact]

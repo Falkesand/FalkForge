@@ -234,7 +234,8 @@ public sealed class EngineSession : IAsyncDisposable
         catch (Exception ex)
         {
             // Dispose the logger before surfacing the exception so no file handle leaks.
-            (logger as IDisposable)?.Dispose();
+            // CA1508: IFalkLogger extends IDisposable, so this cast can never be null.
+            logger.Dispose();
             throw new InvalidOperationException($"Failed to load manifest from '{manifestPath}': {ex.Message}", ex);
         }
 
@@ -246,7 +247,8 @@ public sealed class EngineSession : IAsyncDisposable
         var bundleId = manifest.BundleId.ToString("N");
         if (!InstanceLock.TryAcquire(bundleId, out instanceLock))
         {
-            (logger as IDisposable)?.Dispose();
+            // CA1508: IFalkLogger extends IDisposable, so this cast can never be null.
+            logger.Dispose();
             throw new InvalidOperationException(
                 $"Another instance of this installer is already running (bundle {manifest.BundleId}). " +
                 "Only one concurrent installation is permitted per bundle.");

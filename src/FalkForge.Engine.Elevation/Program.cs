@@ -28,7 +28,7 @@ for (var i = 0; i < args.Length - 1; i++)
 if (pipeName is null || secretPipeName is null || parentPid == 0)
 {
     ElevationSecurityLog.Error("Startup", "Invalid arguments: missing --pipe, --secret-pipe, or --parent-pid");
-    Console.Error.WriteLine("Usage: FalkForge.Engine.Elevation --pipe <name> --secret-pipe <name> --parent-pid <pid>");
+    await Console.Error.WriteLineAsync("Usage: FalkForge.Engine.Elevation --pipe <name> --secret-pipe <name> --parent-pid <pid>");
     ElevationSecurityLog.Shutdown();
     return 1;
 }
@@ -50,7 +50,7 @@ try
         if (read == 0)
         {
             ElevationSecurityLog.SecurityEvent("InitPipe", "Parent closed init pipe before sending full secret");
-            Console.Error.WriteLine("Parent closed init pipe before sending full secret");
+            await Console.Error.WriteLineAsync("Parent closed init pipe before sending full secret");
             ElevationSecurityLog.Shutdown();
             return 1;
         }
@@ -60,7 +60,7 @@ try
 catch (Exception ex)
 {
     ElevationSecurityLog.SecurityEvent("InitPipe", $"Failed to read secret from init pipe: {ex.Message}");
-    Console.Error.WriteLine($"Failed to read secret from init pipe: {ex.Message}");
+    await Console.Error.WriteLineAsync($"Failed to read secret from init pipe: {ex.Message}");
     ElevationSecurityLog.Shutdown();
     return 1;
 }

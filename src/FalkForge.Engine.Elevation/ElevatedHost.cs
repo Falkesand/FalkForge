@@ -48,7 +48,7 @@ public sealed class ElevatedHost : IAsyncDisposable
         if (!IsParentAlive())
         {
             ElevationSecurityLog.SecurityEvent("ParentWatch", $"Parent process not found: pid={_parentPid}");
-            Console.Error.WriteLine("Parent process not found");
+            await Console.Error.WriteLineAsync("Parent process not found");
             return 1;
         }
 
@@ -59,7 +59,7 @@ public sealed class ElevatedHost : IAsyncDisposable
         if (connectResult.IsFailure)
         {
             ElevationSecurityLog.SecurityEvent("Connection", $"Failed to connect to engine pipe: {connectResult.Error}");
-            Console.Error.WriteLine($"Failed to connect to engine: {connectResult.Error}");
+            await Console.Error.WriteLineAsync($"Failed to connect to engine: {connectResult.Error}");
             return 1;
         }
 

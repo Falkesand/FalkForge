@@ -132,7 +132,9 @@ public class VersionNegotiationTests
             MessageType.PhaseChanged,
         };
 
-        var types = Enum.GetValues<MessageType>();
+        // MessageType.None (C10) is a zero-value sentinel, not a real wire message — it has
+        // no codec and is excluded from this "every real wire type resolves" check.
+        var types = Enum.GetValues<MessageType>().Where(t => t != MessageType.None);
         var failures = new List<string>();
 
         foreach (var type in types)

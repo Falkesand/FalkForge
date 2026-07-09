@@ -36,7 +36,7 @@ public static class VfsMapper
         };
     }
 
-    private static IReadOnlyList<VfsFileEntry> ResolveAuto(MsixModel model)
+    private static List<VfsFileEntry> ResolveAuto(MsixModel model)
     {
         var results = new List<VfsFileEntry>(model.Files.Count);
 
@@ -82,7 +82,7 @@ public static class VfsMapper
         return results;
     }
 
-    private static IReadOnlyList<VfsFileEntry> ResolveManual(MsixModel model)
+    private static List<VfsFileEntry> ResolveManual(MsixModel model)
     {
         var results = new List<VfsFileEntry>(model.Files.Count);
 

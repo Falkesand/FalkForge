@@ -23,7 +23,7 @@ internal sealed class UpdateChecker
         byte[] feedBytes;
         try
         {
-            using var response = await _httpClient.GetAsync(config.FeedUrl, cancellationToken).ConfigureAwait(false);
+            using var response = await _httpClient.GetAsync(new Uri(config.FeedUrl), cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.Warning("UpdateCheck", $"Feed request failed with status {(int)response.StatusCode}.");

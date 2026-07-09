@@ -222,7 +222,8 @@ public sealed class RestartManagerSession : IRestartManager
             if (!_sessionActive)
                 return;
 
-            NativeRestartManagerMethods.RmEndSession(_sessionHandle);
+            // CA1806: best-effort cleanup close — nothing actionable if it fails.
+            _ = NativeRestartManagerMethods.RmEndSession(_sessionHandle);
             _sessionActive = false;
         }
     }
@@ -236,7 +237,8 @@ public sealed class RestartManagerSession : IRestartManager
 
             if (_sessionActive)
             {
-                NativeRestartManagerMethods.RmEndSession(_sessionHandle);
+                // CA1806: best-effort cleanup close — nothing actionable if it fails.
+                _ = NativeRestartManagerMethods.RmEndSession(_sessionHandle);
                 _sessionActive = false;
             }
 

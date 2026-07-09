@@ -2,6 +2,10 @@ namespace FalkForge.Engine.Protocol;
 
 public enum MessageType : ushort
 {
+    // CA1008: explicit zero-value sentinel so default(MessageType) is a named, detectable
+    // state instead of silently aliasing the first declared member.
+    None = 0x0000,
+
     // Engine -> UI (0x01xx)
     DetectBegin = 0x0101,
     DetectComplete = 0x0102,

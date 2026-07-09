@@ -5,7 +5,9 @@ using FalkForge.Platform;
 
 internal static class FeaturePersistence
 {
-    private const string FeaturesSubKeyTemplate = @"SOFTWARE\FalkForge\Burn\{0}\Features";
+    // CA1863: string interpolation avoids re-parsing a format string on every call
+    // (string.Format(FeaturesSubKeyTemplate, ...) previously reparsed the "{0}" template each time).
+    private static string BuildFeaturesKeyPath(Guid bundleId) => $@"SOFTWARE\FalkForge\Burn\{bundleId:B}\Features";
 
     public static void SaveFeatureSelections(
         IRegistry registry,
@@ -13,7 +15,7 @@ internal static class FeaturePersistence
         InstallScope scope,
         IReadOnlyDictionary<string, bool> selections)
     {
-        var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
+        var keyPath = BuildFeaturesKeyPath(bundleId);
         var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
 
         foreach (var (featureId, selected) in selections)
@@ -28,7 +30,7 @@ internal static class FeaturePersistence
         InstallScope scope,
         IReadOnlyList<ManifestFeature> features)
     {
-        var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
+        var keyPath = BuildFeaturesKeyPath(bundleId);
         var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
         var result = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
@@ -56,7 +58,7 @@ internal static class FeaturePersistence
         Guid bundleId,
         InstallScope scope)
     {
-        var keyPath = string.Format(FeaturesSubKeyTemplate, bundleId.ToString("B"));
+        var keyPath = BuildFeaturesKeyPath(bundleId);
         var rootKey = scope == InstallScope.PerMachine ? RegistryRoot.LocalMachine : RegistryRoot.CurrentUser;
         registry.DeleteKey(rootKey, keyPath);
     }

@@ -7,6 +7,10 @@ namespace FalkForge.Extensibility;
 /// </summary>
 public sealed class PluginCompatibilityException : Exception
 {
+    public PluginCompatibilityException()
+    {
+    }
+
     public PluginCompatibilityException(string message)
         : base(message)
     {

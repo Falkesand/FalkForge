@@ -128,6 +128,6 @@ public sealed partial class StudioViewModel
     public Result<string> ExportCSharpScript()
         => Export.CSharpExporter.Export(_project);
 
-    /// <summary>Returns the underlying project model (for testing and export).</summary>
-    public StudioProject GetProject() => _project;
+    /// <summary>The underlying project model (for testing and export).</summary>
+    public StudioProject Project => _project;
 }

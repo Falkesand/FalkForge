@@ -3,9 +3,11 @@ namespace FalkForge.Engine.Tests.Variables;
 using FalkForge.Engine.Variables;
 using Xunit;
 
-public sealed class ConditionEvaluatorTests
+public sealed class ConditionEvaluatorTests : IDisposable
 {
     private readonly VariableStore _store = new();
+
+    public void Dispose() => _store.Dispose();
 
     // --- Empty / null condition ---
 

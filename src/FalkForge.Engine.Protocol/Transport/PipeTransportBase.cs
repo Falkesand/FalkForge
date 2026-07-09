@@ -172,5 +172,8 @@ public abstract class PipeTransportBase : IAsyncDisposable
             await _pipe.DisposeAsync();
 
         _cts?.Dispose();
+
+        // CA1816: suppress finalization in case a derived type introduces one.
+        GC.SuppressFinalize(this);
     }
 }

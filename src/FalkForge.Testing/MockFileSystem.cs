@@ -124,7 +124,7 @@ public sealed class MockFileSystem : IFileSystem
     private static bool MatchesPattern(string fileName, string pattern)
     {
         if (pattern == "*" || pattern == "*.*") return true;
-        if (pattern.StartsWith("*."))
+        if (pattern.StartsWith("*.", StringComparison.Ordinal))
         {
             var ext = pattern[1..];
             return fileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase);

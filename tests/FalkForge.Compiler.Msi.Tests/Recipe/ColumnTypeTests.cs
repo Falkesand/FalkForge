@@ -8,7 +8,7 @@ public sealed class ColumnTypeTests
     [Fact]
     public void Has_four_distinct_values()
     {
-        Array values = Enum.GetValues(typeof(ColumnType));
+        var values = Enum.GetValues<ColumnType>();
 
         Assert.Equal(4, values.Length);
     }
@@ -20,6 +20,6 @@ public sealed class ColumnTypeTests
     [InlineData(ColumnType.Binary)]
     public void Defined_member_round_trips(ColumnType value)
     {
-        Assert.True(Enum.IsDefined(typeof(ColumnType), value));
+        Assert.True(Enum.IsDefined(value));
     }
 }
