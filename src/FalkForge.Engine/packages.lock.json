@@ -32,12 +32,6 @@
         "resolved": "18.7.23",
         "contentHash": "dyj6z8m+LFjpeH69hdnciCcRCmD0YgMlvuQEywiEshjqj/blgQ+PuWX8Vd5gkWQFoBN4e+TFxx6DvGNSv/gIKg=="
       },
-      "Octopus.Octodiff": {
-        "type": "Direct",
-        "requested": "[2.0.549, )",
-        "resolved": "2.0.549",
-        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
-      },
       "SecurityCodeScan.VS2019": {
         "type": "Direct",
         "requested": "[5.6.7, )",
@@ -66,7 +60,8 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[1.0.0, )"
+          "FalkForge.Core": "[1.0.0, )",
+          "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.extensibility": {
@@ -92,6 +87,12 @@
         "dependencies": {
           "FalkForge.Platform": "[1.0.0, )"
         }
+      },
+      "Octopus.Octodiff": {
+        "type": "CentralTransitive",
+        "requested": "[2.0.549, )",
+        "resolved": "2.0.549",
+        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
       }
     },
     "net10.0/win-x64": {

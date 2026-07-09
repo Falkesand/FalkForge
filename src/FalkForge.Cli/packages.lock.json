@@ -132,7 +132,8 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[1.0.0, )"
+          "FalkForge.Core": "[1.0.0, )",
+          "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.extensibility": {

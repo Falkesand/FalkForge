@@ -52,24 +52,26 @@ new DeltaBundleCompiler().Compile(v2Bundle, outputPath, v1Path);
 
 ### 4. Engine handles the rest
 
-The bundle engine:
-1. Checks the update feed
-2. Downloads the delta bundle (small)
-3. Extracts cached v1 payloads from the local package cache
-4. Applies Octodiff binary diffs to reconstruct v2 payloads
-5. Verifies SHA-256 of each reconstructed payload
-6. Falls back to full bundle download if any delta fails
+Delta handling is split across download time and install (relaunch) time:
+
+1. `UpdateDownloader` checks the update feed and downloads the delta bundle (small), verifying its SHA-256.
+2. It relaunches the downloaded delta bundle, passing the currently-installed (base) bundle as `--base-bundle` -- this is exactly the base the delta was built against.
+3. The relaunched bundle reconstructs each delta payload with `DeltaApplicator`: it locates the matching payload in the base bundle, checks the base payload's hash equals the delta's `BaseSha256Hash`, applies the Octodiff delta, and verifies the finished payload against `ReconstructedSha256Hash` before writing it.
+4. Any failure (wrong/missing base, hash mismatch, apply error) writes no output and fails loudly.
+
+A failed delta *download* falls back to the full bundle URL. A delta that downloads but cannot be *applied* (base bundle unavailable at relaunch) fails loudly and instructs recovery via the full installer.
 
 ## Key API
 
 - `BundleBuilder.DeltaFrom(string oldBundlePath)` -- enables delta mode
-- `DeltaBundleCompiler.Compile(model, outputPath, oldBundlePath)` -- generates delta bundles
-- `DeltaCompressor.CreateDelta(byte[] basis, byte[] newData)` -- low-level Octodiff wrapper
-- `DeltaApplicator.Apply(byte[] basis, byte[] delta, string expectedSha256)` -- engine-side reconstruction
+- `DeltaBundleCompiler.Compile(BundleModel model, string outputPath, string oldBundlePath)` -- generates delta bundles
+- `DeltaCompressor.CreateDelta(Stream basisStream, Stream newStream, Stream outputStream)` -- low-level Octodiff delta creation (build side, `FalkForge.Compiler.Bundle`)
+- `DeltaApplicator.ReconstructPayloadToFile(string deltaBundlePath, TocEntry deltaEntry, string basisBundlePath, string destinationDirectory, string relativeDestination)` -- install-time reconstruction of a delta payload against the base bundle (`FalkForge.Engine.Protocol.Bundle`), returning the resolved output path
 
 ## Notes
 
-- Delta bundles use the same format as full bundles; the TOC marks entries as delta
+- Delta bundles use the same format as full bundles; the TOC marks entries as delta, and delta entries carry `BaseSha256Hash` (base payload) and `ReconstructedSha256Hash` (finished payload)
 - Only payloads that actually changed get delta-compressed
 - If a delta is larger than the full payload, the full payload is embedded instead
+- The base bundle must remain available at update time; a delta cannot be applied without its exact base version
 - Backward compatible: old engines ignore delta entries and download the full bundle

@@ -4567,12 +4567,19 @@ public sealed class BundleCompiler
 // Produces: AcmeSuite-1.2.0-delta.exe (much smaller than a full bundle)</code></pre>
 
   <p>
-    The engine's <code>UpdateDownloader</code> is delta-aware: it inspects the manifest update feed
-    (<code>UpdateFeedEntry.DeltaUrl</code> + <code>DeltaSha256</code>) and tries the delta artifact
-    first, applies it via <code>DeltaApplicator</code>, and verifies the reconstructed bundle's
-    SHA-256 against <code>ReconstructedSha256Hash</code>. If anything fails (wrong base, hash mismatch,
-    download error) the engine falls back to the full bundle URL. Older engines that don't understand
-    delta flags simply skip the delta entry and download the full URL.
+    Delta handling is split across download and install time. The engine's
+    <code>UpdateDownloader</code> inspects the manifest update feed
+    (<code>UpdateFeedEntry.DeltaUrl</code> + <code>DeltaSha256</code>), fetches and SHA-256-verifies
+    the delta bundle first, then relaunches it &mdash; passing the currently-installed (base) bundle
+    as <code>--base-bundle</code>. The relaunched bundle reconstructs each delta payload with
+    <code>DeltaApplicator</code> against the matching payload in that base bundle: it checks the base
+    payload's hash equals the delta's <code>BaseSha256Hash</code>, applies the Octodiff delta, and
+    verifies the finished payload against <code>ReconstructedSha256Hash</code> before writing it &mdash;
+    per payload, not per whole bundle. A failed delta <em>download</em> falls back to the full bundle
+    URL. A delta that downloads but cannot be <em>applied</em> (wrong or missing base version, hash
+    mismatch) fails loudly and instructs recovery via the full installer, rather than writing an
+    unverifiable reconstruction. Older engines that don't understand delta flags simply skip the delta
+    entry and download the full URL.
   </p>
 </section>
 

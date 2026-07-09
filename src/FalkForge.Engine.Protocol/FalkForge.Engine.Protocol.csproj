@@ -8,6 +8,12 @@
     <InternalsVisibleTo Include="FalkForge.Engine.Protocol.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Octopus.Octodiff powers DeltaApplicator (install-time delta reconstruction). It lives here,
+         not in FalkForge.Engine, because DeltaApplicator sits beside BundleReader in this AOT-safe
+         assembly and reuses BundleReader's payload extraction. Stream-based, no reflection. -->
+    <PackageReference Include="Octopus.Octodiff" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
   </ItemGroup>
 </Project>

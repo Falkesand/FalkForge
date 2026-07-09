@@ -250,8 +250,7 @@
         "dependencies": {
           "FalkForge.Compiler.Msi": "[1.0.0, )",
           "FalkForge.Engine.Protocol": "[1.0.0, )",
-          "FalkForge.Platform.Windows": "[1.0.0, )",
-          "Octopus.Octodiff": "[2.0.549, )"
+          "FalkForge.Platform.Windows": "[1.0.0, )"
         }
       },
       "falkforge.engine.elevation": {
@@ -264,7 +263,8 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[1.0.0, )"
+          "FalkForge.Core": "[1.0.0, )",
+          "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.extensibility": {

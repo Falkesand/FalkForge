@@ -71,7 +71,23 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
 
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(updatePath) { UseShellExecute = true });
+            // Pass the currently-running (old) bundle as the delta base. A delta update bundle
+            // reconstructs its delta payloads against this base bundle's payloads; a full update
+            // bundle simply ignores the argument. Environment.ProcessPath is the self-extracting
+            // bundle exe that is performing this launch, i.e. exactly the base the delta was built
+            // against. If it is unavailable the launched bundle fails loudly for delta payloads
+            // rather than applying an unverifiable reconstruction.
+            var startInfo = new ProcessStartInfo(updatePath) { UseShellExecute = true };
+            var basePath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(basePath))
+            {
+                // Two tokens (flag then value) to match the engine's argument parser; ArgumentList
+                // quotes each token so a base path containing spaces is passed intact.
+                startInfo.ArgumentList.Add("--base-bundle");
+                startInfo.ArgumentList.Add(basePath);
+            }
+
+            using var process = Process.Start(startInfo);
             return Result<Unit>.Success(Unit.Value);
         }
         catch (Exception ex)

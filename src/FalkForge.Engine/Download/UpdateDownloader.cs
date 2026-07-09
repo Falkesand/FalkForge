@@ -68,7 +68,14 @@ internal sealed class UpdateDownloader
             if (deltaResult.IsSuccess)
             {
                 _logger.Info("UpdateDownloader", $"Delta update downloaded ({update.DeltaSize ?? 0} bytes).");
-                // The delta bundle is a complete runnable bundle; rename to final path
+                // The downloaded delta bundle is a complete, runnable self-extracting bundle EXE,
+                // but its delta payloads are stored as Octodiff delta blobs — they are reconstructed
+                // at install time by DeltaApplicator against the previously-installed (base) bundle,
+                // which the update launcher passes via --base-bundle. This move only stages the
+                // verified bundle EXE at its final cache path; payload reconstruction happens later
+                // when the launched bundle runs. If the base bundle is unavailable at that point the
+                // launched bundle fails loudly (recover via full download), so this download-time
+                // delta→full fallback covers a failed delta *download*, not a failed delta *apply*.
                 try
                 {
                     File.Move(deltaResult.Value, destPath, overwrite: true);

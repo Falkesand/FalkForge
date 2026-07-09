@@ -40,6 +40,7 @@ internal static class Program
         string? extractDir = null;
         var extractList = false;
         var extractPackages = new List<string>();
+        string? baseBundlePath = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -78,6 +79,12 @@ internal static class Program
                     break;
                 case "--package":
                     extractPackages.Add(args[++i]);
+                    break;
+                // Path to the previously-installed (base) bundle, supplied by the update launcher
+                // when relaunching a delta update. Delta payloads are reconstructed against this
+                // base bundle's payloads; without it a delta payload cannot be applied.
+                case "--base-bundle":
+                    if (i + 1 < args.Length) baseBundlePath = args[++i];
                     break;
                 // Logging flags are parsed by ProgramArgs.Parse above. Consume their
                 // values here so the inline parser does not mistake the value for a
@@ -153,8 +160,9 @@ internal static class Program
                 // deletes the partial file and fails on mismatch. The contained overload rejects
                 // a crafted PackageId (e.g. "..\..\evil") that would escape extractDir — the TOC
                 // is attacker-controlled, so the destination is never composed from it unguarded.
-                var payloadResult = BundleReader.ExtractPayloadToFile(
-                    selfPath, entry, extractDir!, Path.Combine(entry.PackageId, $"{entry.PackageId}.dat"));
+                // Delta entries are reconstructed against --base-bundle instead of written raw.
+                var payloadResult = ExtractOrReconstructPayload(
+                    selfPath, entry, extractDir!, Path.Combine(entry.PackageId, $"{entry.PackageId}.dat"), baseBundlePath);
                 if (payloadResult.IsFailure)
                 {
                     await Console.Error.WriteLineAsync($"  Failed: {entry.PackageId} — {payloadResult.Error.Message}");
@@ -175,7 +183,7 @@ internal static class Program
         if (manifestPath is null && HasEmbeddedBundle())
         {
             var bootstrapperArgs = BootstrapperArgs.Parse(args);
-            return await RunAsBootstrapper(programArgs, bootstrapperArgs);
+            return await RunAsBootstrapper(programArgs, bootstrapperArgs, baseBundlePath);
         }
 
         if (manifestPath is null)
@@ -295,6 +303,35 @@ internal static class Program
     }
 
     /// <summary>
+    /// Extracts a payload to a file, reconstructing delta payloads against the base bundle.
+    /// For a full payload this streams + verifies straight to disk (BundleReader). For a delta
+    /// payload it reconstructs the finished payload from the base bundle via DeltaApplicator,
+    /// verifying the reconstructed SHA-256 before anything is published. A delta payload with no
+    /// base bundle available fails loudly — the raw delta blob is never written as if it were the
+    /// finished payload, and the honest recovery is to download the full (non-delta) installer.
+    /// </summary>
+    private static Result<string> ExtractOrReconstructPayload(
+        string bundlePath, TocEntry entry, string destinationDirectory, string relativeDestination, string? baseBundlePath)
+    {
+        if (!entry.IsDelta)
+            return BundleReader.ExtractPayloadToFile(bundlePath, entry, destinationDirectory, relativeDestination);
+
+        if (string.IsNullOrEmpty(baseBundlePath))
+            return Result<string>.Failure(ErrorKind.BundleError,
+                $"Payload '{entry.PackageId}' is a delta payload but no base bundle is available to reconstruct it. " +
+                "A delta update requires the exact previously-installed bundle as its base; pass " +
+                "--base-bundle <path> or download the full installer instead.");
+
+        if (!File.Exists(baseBundlePath))
+            return Result<string>.Failure(ErrorKind.BundleError,
+                $"Payload '{entry.PackageId}' is a delta payload but the base bundle " +
+                $"'{Path.GetFileName(baseBundlePath)}' was not found. Download the full installer instead.");
+
+        return DeltaApplicator.ReconstructPayloadToFile(
+            bundlePath, entry, baseBundlePath, destinationDirectory, relativeDestination);
+    }
+
+    /// <summary>
     /// Checks whether the current process executable has an embedded FALKBUNDLE footer.
     /// </summary>
     private static bool HasEmbeddedBundle()
@@ -307,7 +344,8 @@ internal static class Program
     /// Self-extraction bootstrapper mode. Extracts payloads and manifest from the embedded bundle,
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
-    private static async Task<int> RunAsBootstrapper(ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null)
+    private static async Task<int> RunAsBootstrapper(
+        ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -367,7 +405,10 @@ internal static class Program
             // contained overload rejects a crafted PackageId (e.g. "..\..\evil") that would
             // escape cacheDir — the TOC is attacker-controlled, so the destination is never
             // composed from it unguarded, and the resolved path comes from the overload itself.
-            var payloadResult = BundleReader.ExtractPayloadToFile(content.BundlePath, entry, cacheDir, payloadFileName);
+            // Delta payloads (relaunched delta update) are reconstructed against baseBundlePath;
+            // a delta payload with no base bundle available fails loudly rather than writing the
+            // raw delta blob.
+            var payloadResult = ExtractOrReconstructPayload(content.BundlePath, entry, cacheDir, payloadFileName, baseBundlePath);
             if (payloadResult.IsFailure)
             {
                 await Console.Error.WriteLineAsync($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
