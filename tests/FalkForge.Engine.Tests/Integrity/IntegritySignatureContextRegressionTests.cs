@@ -77,6 +77,35 @@ public sealed class IntegritySignatureContextRegressionTests
         Assert.Equal("MARKER_FILE_B.exe", parsed.Files[1].Name);
     }
 
+    [Fact]
+    public void V2Envelope_WithSignatureList_RoundTripsUnderSourceGen()
+    {
+        var envelope = BuildV2Envelope();
+
+        var json = JsonSerializer.Serialize(envelope, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
+        var parsed = JsonSerializer.Deserialize(json, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
+
+        Assert.NotNull(parsed);
+        Assert.Equal(2, parsed!.Version);
+        Assert.Null(parsed.PublicKey);   // v1 top-level fields omitted on v2
+        Assert.Null(parsed.Signature);
+        Assert.Equal(2, parsed.Signatures.Count);
+        Assert.Equal("falkforge-a", parsed.Signatures[0].KeyId);
+        Assert.Equal("MARKER_FP_A", parsed.Signatures[0].Fingerprint);
+        Assert.Equal("MARKER_PUB_A", parsed.Signatures[0].PublicKey);
+        Assert.Equal("MARKER_SIG_A", parsed.Signatures[0].Signature);
+        Assert.Equal("MARKER_FP_B", parsed.Signatures[1].Fingerprint);
+    }
+
+    [Fact]
+    public void V2Envelope_Json_ContainsNoUnwhitelistedSensitiveKeys()
+    {
+        var json = JsonSerializer.Serialize(BuildV2Envelope(), IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
+
+        using var doc = JsonDocument.Parse(json);
+        AssertNoSensitiveKeys(doc.RootElement, "$");
+    }
+
     private static ManifestSignatureEnvelope BuildFullEnvelope() => new()
     {
         Version = 1,
@@ -87,6 +116,21 @@ public sealed class IntegritySignatureContextRegressionTests
         [
             new ManifestFileEntry { Name = "MARKER_FILE_A.msi", Sha256 = "AABBCC001122DDEEFF" },
             new ManifestFileEntry { Name = "MARKER_FILE_B.exe", Sha256 = "334455667788AABBCC" }
+        ]
+    };
+
+    private static ManifestSignatureEnvelope BuildV2Envelope() => new()
+    {
+        Version = 2,
+        Algorithm = "ECDSA-P256",
+        Files =
+        [
+            new ManifestFileEntry { Name = "MARKER_FILE_A.msi", Sha256 = "AABBCC001122DDEEFF" }
+        ],
+        Signatures =
+        [
+            new SignatureEntry { KeyId = "falkforge-a", Fingerprint = "MARKER_FP_A", PublicKey = "MARKER_PUB_A", Signature = "MARKER_SIG_A" },
+            new SignatureEntry { KeyId = "falkforge-b", Fingerprint = "MARKER_FP_B", PublicKey = "MARKER_PUB_B", Signature = "MARKER_SIG_B" }
         ]
     };
 

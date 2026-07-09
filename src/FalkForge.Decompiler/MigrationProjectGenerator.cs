@@ -258,6 +258,17 @@ public sealed class MigrationProjectGenerator
         if (contentResult.IsFailure)
             return Result<IReadOnlyDictionary<string, byte[]>>.Failure(contentResult.Error);
 
+        // Trust binding (C14 Stage 2, §1.4): bind the payloads about to be reconstructed to the
+        // ECDSA-signed manifest hash before extracting a byte. Like `forge extract`, the decompiler has no
+        // baked publisher pin, so this is inspection-grade (an empty trusted set still rejects a
+        // post-signing overlay tamper (INT006) or an uncovered appended payload (INT004)); an unsigned
+        // bundle passes through. Without it, a signed bundle's tampered payload would be reconstructed into
+        // the generated project as if trusted.
+        var trust = FalkForge.Engine.Protocol.Integrity.BundleTrustVerifier.VerifyBundleContent(
+            contentResult.Value, System.Collections.Frozen.FrozenSet<string>.Empty);
+        if (trust.IsFailure)
+            return Result<IReadOnlyDictionary<string, byte[]>>.Failure(trust.Error);
+
         // Decompression-bomb / unbounded-memory guard: cap the cumulative payload bytes a
         // single bundle may expand to (mirrors the MSI cabinet cap). 4 GiB is generous for
         // real bundles yet bounds the memory a hostile bundle can force us to allocate.

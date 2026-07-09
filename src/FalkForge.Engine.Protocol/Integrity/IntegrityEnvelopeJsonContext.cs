@@ -9,6 +9,9 @@ using System.Text.Json.Serialization;
 /// </summary>
 [JsonSerializable(typeof(ManifestSignatureEnvelope))]
 [JsonSerializable(typeof(IReadOnlyList<ManifestFileEntry>))]
+[JsonSerializable(typeof(SignatureEntry))]
+[JsonSerializable(typeof(IReadOnlyList<SignatureEntry>))]
+[JsonSerializable(typeof(IReadOnlyList<string>))]
 public sealed partial class IntegrityEnvelopeJsonContext : JsonSerializerContext
 {
 }

@@ -64,7 +64,7 @@ internal sealed class ApplyStep : IApplyStep
         if (ctx.Manifest is not null)
         {
             var integrity = PayloadIntegrityGate.Verify(
-                ctx.Manifest, ctx.ExpectedPublisherKeyFingerprint);
+                ctx.Manifest, ctx.IntegrityTrustPolicy);
             if (integrity.IsFailure)
             {
                 await _uiChannel.SendAsync(

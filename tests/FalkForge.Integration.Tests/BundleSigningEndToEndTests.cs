@@ -165,7 +165,7 @@ public sealed class BundleSigningEndToEndTests
             var second = IntegrityEnvelopeCodec.Parse(BuildOnce("o2").ManifestSignature!)!;
 
             // Same key, same content -> same embedded public key and same signed file hashes.
-            Assert.Equal(first.PublicKey, second.PublicKey);
+            Assert.Equal(first.Signatures[0].PublicKey, second.Signatures[0].PublicKey);
             Assert.Equal(first.Files.Count, second.Files.Count);
             for (var i = 0; i < first.Files.Count; i++)
             {

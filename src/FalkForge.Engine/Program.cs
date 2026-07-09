@@ -6,8 +6,10 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Execution;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Bundle;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Protocol.Transport;
 using FalkForge.Engine.Layout;
@@ -41,6 +43,11 @@ internal static class Program
         var extractList = false;
         var extractPackages = new List<string>();
         string? baseBundlePath = null;
+        // Set by the update launcher (DefaultUpdateLauncher) when it relaunches a downloaded update
+        // bundle. On this path a signature is mandatory (C14 Stage 2 / B2): a stripped/unsigned or
+        // untrusted-signed update is rejected before any payload is extracted or executed. A fresh
+        // install never receives this flag, so an unsigned bundle the user chose to run still installs.
+        var requireSigned = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -85,6 +92,11 @@ internal static class Program
                 // base bundle's payloads; without it a delta payload cannot be applied.
                 case "--base-bundle":
                     if (i + 1 < args.Length) baseBundlePath = args[++i];
+                    break;
+                // Asserted by the update launcher for a downloaded update bundle: require a valid,
+                // trusted signature before extracting or executing any payload (C14 Stage 2 / B2).
+                case "--require-signed":
+                    requireSigned = true;
                     break;
                 // Logging flags are parsed by ProgramArgs.Parse above. Consume their
                 // values here so the inline parser does not mistake the value for a
@@ -131,6 +143,18 @@ internal static class Program
                     Console.WriteLine($"  {entry.PackageId,-25} {size,10}");
                 }
                 return 0;
+            }
+
+            // Trust binding: before extracting any payload, bind the value the extractor will
+            // verify bytes against (the unsigned overlay TOC hash) to the ECDSA-signed manifest
+            // hash. Without this, a validly-signed bundle whose payload bytes + TOC hash were
+            // rewritten after signing would extract the tampered bytes. An unsigned bundle passes
+            // through (backward compatible).
+            var extractTrust = VerifySignedPayloadTrust(content, requireSigned);
+            if (extractTrust.IsFailure)
+            {
+                await Console.Error.WriteLineAsync($"Error: {extractTrust.Error.Message}");
+                return 2;
             }
 
             Directory.CreateDirectory(extractDir!);
@@ -183,7 +207,7 @@ internal static class Program
         if (manifestPath is null && HasEmbeddedBundle())
         {
             var bootstrapperArgs = BootstrapperArgs.Parse(args);
-            return await RunAsBootstrapper(programArgs, bootstrapperArgs, baseBundlePath);
+            return await RunAsBootstrapper(programArgs, bootstrapperArgs, baseBundlePath, requireSigned);
         }
 
         if (manifestPath is null)
@@ -303,6 +327,37 @@ internal static class Program
     }
 
     /// <summary>
+    /// Binds the payloads about to be extracted to the ECDSA-signed manifest hash (see
+    /// <see cref="SignedPayloadTocVerifier"/>). Deserializes the embedded manifest from the bundle
+    /// content; a bundle with no embedded manifest (unsigned/old) or an unsigned manifest passes
+    /// through. A signed manifest whose overlay TOC hash disagrees with the signed hash is rejected.
+    /// </summary>
+    private static Result<Unit> VerifySignedPayloadTrust(BundleContent content, bool requireSigned = false)
+    {
+        // Delegate to the shared verifier (Engine.Protocol.Integrity) so the engine self-extract path,
+        // `forge extract`, and `forge migrate` all bind byte→TOC→signed identically. The engine pins its
+        // baked trusted set (an attacker's re-signed bundle is rejected); on a fresh install
+        // (requireSigned=false) a legacy/unsigned bundle the user chose to run still extracts, while on the
+        // update path (requireSigned=true, asserted by the launcher) a stripped/unsigned update is rejected
+        // (INT007) before any payload is extracted (C14 Stage 2 / B2).
+        //
+        // On the require-signed path, consult the persisted per-machine trust store so this
+        // `--extract --require-signed` gate enforces the SAME anti-downgrade epoch (INT008) + local
+        // revocations (INT001) as the bootstrapper path (§6.3), C14 Stage 3 fold-in. Fresh / inspection
+        // extracts (requireSigned=false) do not consult the store — it is advanced only during a verified
+        // update apply.
+        var trustState = requireSigned ? TrustStateStore.Load(TrustStateStore.DefaultPath) : new TrustState();
+        IReadOnlySet<string>? revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
+            ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        return BundleTrustVerifier.VerifyBundleContent(
+            content, BakedTrustedKeys.Fingerprints, requireSigned,
+            storedEpoch: requireSigned ? trustState.Epoch : 0,
+            revokedFingerprints: revokedSet);
+    }
+
+    /// <summary>
     /// Extracts a payload to a file, reconstructing delta payloads against the base bundle.
     /// For a full payload this streams + verifies straight to disk (BundleReader). For a delta
     /// payload it reconstructs the finished payload from the base bundle via DeltaApplicator,
@@ -345,7 +400,8 @@ internal static class Program
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
     private static async Task<int> RunAsBootstrapper(
-        ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null)
+        ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null,
+        bool requireSigned = false)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -393,6 +449,32 @@ internal static class Program
         // Write manifest to disk so the UI can load it
         var manifestPath = Path.Combine(cacheDir, "manifest.json");
         await File.WriteAllBytesAsync(manifestPath, content.ManifestJsonBytes);
+
+        // Trust binding: bind the payload bytes each extraction will trust (the unsigned overlay
+        // TOC hash) to the ECDSA-signed manifest hash BEFORE extracting or launching anything.
+        // Extraction verifies bytes against the TOC hash; the signature covers only the manifest
+        // hashes, so without this a validly-signed bundle whose payload bytes + TOC hash were
+        // rewritten after signing would extract and run the tampered payload. Unsigned manifests
+        // pass through (backward compatible).
+        // Update-path anti-downgrade / revocation (§6.3): on the require-signed update path, consult the
+        // persisted per-machine trust store so the gate rejects a downgraded/replayed release (epoch below
+        // the highest accepted) or one signed only by a locally-revoked key. Fresh installs
+        // (requireSigned=false) do not consult the store — it is advanced only during a verified update.
+        var trustState = requireSigned ? TrustStateStore.Load(TrustStateStore.DefaultPath) : new TrustState();
+        var revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
+            ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var bootstrapTrust = SignedPayloadTocVerifier.Verify(
+            manifest, content.TocEntries, BakedTrustedKeys.Fingerprints, requireSigned,
+            storedEpoch: requireSigned ? trustState.Epoch : 0,
+            revokedFingerprints: revokedSet);
+        if (bootstrapTrust.IsFailure)
+        {
+            await Console.Error.WriteLineAsync(
+                $"Bundle integrity verification failed: {bootstrapTrust.Error.Message}");
+            return 1;
+        }
 
         // Extract all payload files to the cache directory
         string? uiExePath = null;
@@ -550,6 +632,26 @@ internal static class Program
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
+
+        // Advance the trust store ONLY after a verified update apply (§6.3 step 4). Advancing after
+        // success (not before) prevents an attacker priming the epoch with a forged high value — a forged
+        // epoch would have failed the require-signed gate above (the epoch is part of the signed bytes).
+        // Fresh installs never advance the store.
+        if (requireSigned
+            && outcome.State == EngineTerminalState.Completed
+            && manifest.ManifestSignature is not null)
+        {
+            var applied = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
+            if (applied is not null && (applied.Epoch > 0 || applied.Revoked.Count > 0))
+            {
+                var advance = TrustStateStore.Advance(
+                    TrustStateStore.DefaultPath, applied.Epoch, applied.Revoked);
+                if (advance.IsFailure)
+                    await Console.Error.WriteLineAsync(
+                        $"Warning: failed to record trust state after update: {advance.Error.Message}");
+            }
+        }
+
         return outcome.State switch
         {
             EngineTerminalState.Completed  => 0,

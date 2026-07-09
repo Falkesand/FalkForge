@@ -94,6 +94,34 @@ public sealed class IntegrityBuilderTests
     }
 
     [Fact]
+    public void Epoch_SetsKeyEpoch()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(i => i.Epoch(4));
+        });
+
+        Assert.Equal(4, package.Integrity!.Epoch);
+    }
+
+    [Fact]
+    public void Revoke_SetsRevokedFingerprints()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(i => i.Revoke("AABB", "CCDD"));
+        });
+
+        Assert.NotNull(package.Integrity!.RevokedFingerprints);
+        Assert.Contains("AABB", package.Integrity.RevokedFingerprints!);
+        Assert.Contains("CCDD", package.Integrity.RevokedFingerprints!);
+    }
+
+    [Fact]
     public void FluentChaining_Works()
     {
         var package = InstallerTestHost.BuildPackage(p =>

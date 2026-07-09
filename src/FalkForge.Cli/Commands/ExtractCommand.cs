@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using FalkForge.Cli.Settings;
 using FalkForge.Engine.Protocol.Bundle;
+using FalkForge.Engine.Protocol.Integrity;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -85,6 +86,19 @@ public sealed class ExtractCommand : Command<ExtractSettings>
 
         if (settings.ListOnly)
             return ListPackages(entries);
+
+        // Trust binding (C14 Stage 2, §1.4): before extracting any payload, bind the value the extractor
+        // trusts (the unsigned overlay TOC hash) to the ECDSA-signed manifest hash. Without this, a validly
+        // signed bundle whose payload bytes + TOC hash were rewritten after signing would extract the
+        // tampered bytes. The CLI has no baked publisher pin, so this is inspection-grade (consistency +
+        // coverage): an empty trusted set still catches a post-signing overlay tamper (INT006) and an
+        // uncovered appended payload (INT004). An unsigned bundle passes through.
+        var trust = BundleTrustVerifier.VerifyBundleContent(content, System.Collections.Frozen.FrozenSet<string>.Empty);
+        if (trust.IsFailure)
+        {
+            _console.WriteError(trust.Error.Message);
+            return ExitCodes.FromErrorKind(trust.Error.Kind);
+        }
 
         var outputDir = Path.GetFullPath(settings.OutputPath!);
         Directory.CreateDirectory(outputDir);

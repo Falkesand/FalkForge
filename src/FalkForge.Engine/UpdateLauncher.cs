@@ -71,21 +71,9 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
 
         try
         {
-            // Pass the currently-running (old) bundle as the delta base. A delta update bundle
-            // reconstructs its delta payloads against this base bundle's payloads; a full update
-            // bundle simply ignores the argument. Environment.ProcessPath is the self-extracting
-            // bundle exe that is performing this launch, i.e. exactly the base the delta was built
-            // against. If it is unavailable the launched bundle fails loudly for delta payloads
-            // rather than applying an unverifiable reconstruction.
             var startInfo = new ProcessStartInfo(updatePath) { UseShellExecute = true };
-            var basePath = Environment.ProcessPath;
-            if (!string.IsNullOrEmpty(basePath))
-            {
-                // Two tokens (flag then value) to match the engine's argument parser; ArgumentList
-                // quotes each token so a base path containing spaces is passed intact.
-                startInfo.ArgumentList.Add("--base-bundle");
-                startInfo.ArgumentList.Add(basePath);
-            }
+            foreach (var arg in BuildRelaunchArguments(Environment.ProcessPath))
+                startInfo.ArgumentList.Add(arg);
 
             using var process = Process.Start(startInfo);
             return Result<Unit>.Success(Unit.Value);
@@ -95,5 +83,34 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
             return Result<Unit>.Failure(new Error(ErrorKind.EngineError,
                 $"UPD005: Failed to launch update: {ex.Message}"));
         }
+    }
+
+    /// <summary>
+    /// Builds the command-line arguments the already-installed, already-trusted engine passes when it
+    /// relaunches a downloaded update bundle (C14 Stage 2, closes B2 on the update path).
+    ///
+    /// <para><c>--require-signed</c> is always asserted: the trust decision is made by the currently
+    /// running engine (which the user already trusts), not by the downloaded artifact. The relaunched
+    /// bundle's integrity gate then rejects a stripped/unsigned or untrusted-signed update (INT007 /
+    /// INT001) before extracting or executing a single payload. A fresh install of an unsigned bundle
+    /// stays allowed-but-warned because it never goes through this launcher.</para>
+    ///
+    /// <para>When <paramref name="basePath"/> is a real path it is forwarded as <c>--base-bundle</c> so a
+    /// delta update can reconstruct its payloads against the currently-installed bundle; a full update
+    /// bundle simply ignores it. Each token is emitted separately so <see cref="ProcessStartInfo.ArgumentList"/>
+    /// quotes a base path containing spaces intact.</para>
+    /// </summary>
+    internal static List<string> BuildRelaunchArguments(string? basePath)
+    {
+        // The update path is always require-signed, independent of whether a delta base is available.
+        var args = new List<string> { "--require-signed" };
+
+        if (!string.IsNullOrEmpty(basePath))
+        {
+            args.Add("--base-bundle");
+            args.Add(basePath);
+        }
+
+        return args;
     }
 }
