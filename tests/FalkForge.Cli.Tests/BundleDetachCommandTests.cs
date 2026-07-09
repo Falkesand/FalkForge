@@ -51,7 +51,7 @@ public sealed class BundleDetachCommandTests : IDisposable
             DataPath = Path.Combine(_tempDir, "bundle.dat")
         };
 
-        var result = command.Execute(CreateDetachContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateDetachContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, result);
         Assert.Contains(console.MarkupLines, l => l.Contains("Bundle detached successfully."));
@@ -69,7 +69,7 @@ public sealed class BundleDetachCommandTests : IDisposable
             DataPath = Path.Combine(_tempDir, "bundle.dat")
         };
 
-        var result = command.Execute(CreateDetachContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateDetachContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.CompilationError, result);
         Assert.Contains(console.Errors, e => e.Contains("BDS001"));
@@ -101,7 +101,7 @@ public sealed class BundleDetachCommandTests : IDisposable
             OutputPath = outputPath
         };
 
-        var result = command.Execute(CreateReattachContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateReattachContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, result);
         Assert.Contains(console.MarkupLines, l => l.Contains("Bundle reattached successfully."));
@@ -119,7 +119,7 @@ public sealed class BundleDetachCommandTests : IDisposable
             OutputPath = Path.Combine(_tempDir, "output.exe")
         };
 
-        var result = command.Execute(CreateReattachContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateReattachContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.CompilationError, result);
         Assert.Contains(console.Errors, e => e.Contains("BDS002"));

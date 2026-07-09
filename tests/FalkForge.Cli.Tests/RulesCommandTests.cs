@@ -27,7 +27,7 @@ public sealed class RulesCommandTests
     {
         var console = new TestConsoleOutput();
         var command = new RulesListCommand(console);
-        var exitCode = command.Execute(ListContext(), settings, CancellationToken.None);
+        var exitCode = command.ExecuteSync(ListContext(), settings, CancellationToken.None);
         return (exitCode, console);
     }
 
@@ -36,7 +36,7 @@ public sealed class RulesCommandTests
         using var sink = new System.IO.StringWriter();
         var console = new TestConsoleOutput();
         var command = new RulesListCommand(console, jsonSink: sink);
-        var exitCode = command.Execute(ListContext(), settings, CancellationToken.None);
+        var exitCode = command.ExecuteSync(ListContext(), settings, CancellationToken.None);
         return (exitCode, JsonDocument.Parse(sink.ToString().Trim()));
     }
 
@@ -44,7 +44,7 @@ public sealed class RulesCommandTests
     {
         var console = new TestConsoleOutput();
         var command = new RulesExplainCommand(console);
-        var exitCode = command.Execute(ExplainContext(), settings, CancellationToken.None);
+        var exitCode = command.ExecuteSync(ExplainContext(), settings, CancellationToken.None);
         return (exitCode, console);
     }
 

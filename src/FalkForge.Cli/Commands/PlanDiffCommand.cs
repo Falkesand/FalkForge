@@ -34,7 +34,7 @@ internal sealed class PlanDiffCommand : Command<PlanDiffSettings>
         _textSink = textSink ?? Console.Out;
     }
 
-    public override int Execute(
+    protected override int Execute(
         [NotNull] CommandContext context,
         [NotNull] PlanDiffSettings settings,
         CancellationToken cancellationToken)

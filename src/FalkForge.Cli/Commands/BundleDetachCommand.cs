@@ -20,7 +20,7 @@ public sealed class BundleDetachCommand : Command<BundleDetachSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] BundleDetachSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] BundleDetachSettings settings, CancellationToken cancellationToken)
     {
         var bundlePath = Path.GetFullPath(settings.BundlePath);
         var stubPath = Path.GetFullPath(settings.StubPath);

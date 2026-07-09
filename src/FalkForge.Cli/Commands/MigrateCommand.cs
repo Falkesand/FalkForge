@@ -36,7 +36,7 @@ public sealed class MigrateCommand : Command<MigrateSettings>
         _injectedResult = injectedResult;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] MigrateSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] MigrateSettings settings, CancellationToken cancellationToken)
     {
         var filePath = Path.GetFullPath(settings.FilePath);
 

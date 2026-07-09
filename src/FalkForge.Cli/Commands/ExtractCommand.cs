@@ -22,7 +22,7 @@ public sealed class ExtractCommand : Command<ExtractSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] ExtractSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] ExtractSettings settings, CancellationToken cancellationToken)
     {
         var filePath = Path.GetFullPath(settings.FilePath);
 

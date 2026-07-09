@@ -21,7 +21,7 @@ public sealed class ValidateCommandIceTests
         try
         {
             var settings = new ValidateSettings { ProjectPath = tempMsi, Ice = false };
-            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, result);
             Assert.Contains(console.MarkupLines, l => l.Contains("--ice"));
@@ -41,7 +41,7 @@ public sealed class ValidateCommandIceTests
         // .csx file that doesn't exist — should hit "File not found", proving
         // the command took the normal script-loading path, not the ICE path.
         var settings = new ValidateSettings { ProjectPath = "nonexistent.csx", Ice = true };
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
         Assert.Contains(console.Errors, e => e.Contains("File not found"));

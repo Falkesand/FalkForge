@@ -35,7 +35,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         _jsonSink = jsonSink ?? Console.Out;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
     {
         var originalConsole = _console;
         var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;

@@ -81,7 +81,7 @@ public sealed class BuildCommandLoggingTests
                 Verbose = true,
             };
 
-            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, result);
 
@@ -118,7 +118,7 @@ public sealed class BuildCommandLoggingTests
                 Verbose = false,
             };
 
-            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.Success, result);
 

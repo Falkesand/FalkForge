@@ -69,7 +69,7 @@ public sealed class PlanDiffCommandTests
             NewPath = @"C:\nonexistent\does_not_exist_new.msi",
         };
 
-        var code = cmd.Execute(default!, settings, CancellationToken.None);
+        var code = cmd.ExecuteSync(default!, settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, code);
         Assert.Contains(output.Errors, e => e.Contains("not found"));
@@ -95,7 +95,7 @@ public sealed class PlanDiffCommandTests
             var cmd = new PlanDiffCommand(output);
             var settings = new PlanDiffSettings { OldPath = msiFile, NewPath = exeFile };
 
-            var code = cmd.Execute(default!, settings, CancellationToken.None);
+            var code = cmd.ExecuteSync(default!, settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.RuntimeError, code);
             Assert.Contains(output.Errors, e => e.Contains("differ"));
@@ -125,7 +125,7 @@ public sealed class PlanDiffCommandTests
             var cmd = new PlanDiffCommand(output);
             var settings = new PlanDiffSettings { OldPath = file1, NewPath = file2 };
 
-            var code = cmd.Execute(default!, settings, CancellationToken.None);
+            var code = cmd.ExecuteSync(default!, settings, CancellationToken.None);
 
             Assert.Equal(ExitCodes.RuntimeError, code);
             Assert.Contains(output.Errors, e => e.Contains("Unsupported"));
@@ -156,7 +156,7 @@ public sealed class PlanDiffCommandTests
             var cmd = new PlanDiffCommand(output);
             var settings = new PlanDiffSettings { OldPath = file1, NewPath = file2 };
 
-            var code = cmd.Execute(default!, settings, CancellationToken.None);
+            var code = cmd.ExecuteSync(default!, settings, CancellationToken.None);
 
             // Content is not a valid bundle — expect RuntimeError, not Success.
             Assert.Equal(ExitCodes.RuntimeError, code);

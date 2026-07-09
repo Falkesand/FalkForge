@@ -32,7 +32,7 @@ internal sealed class PlanCommand : Command<PlanSettings>
         _launcher = launcher ?? new DefaultEngineLauncher();
     }
 
-    public override int Execute(
+    protected override int Execute(
         [NotNull] CommandContext context,
         [NotNull] PlanSettings settings,
         CancellationToken cancellationToken)

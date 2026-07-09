@@ -30,7 +30,7 @@ public sealed class DecompileCommandMsixTests : IDisposable
         var command = new DecompileCommand(console);
         var settings = new Settings.DecompileSettings { FilePath = _tempFile };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.NotEqual(ExitCodes.Success, result);
         Assert.Contains(
@@ -49,7 +49,7 @@ public sealed class DecompileCommandMsixTests : IDisposable
             var command = new DecompileCommand(console);
             var settings = new Settings.DecompileSettings { FilePath = bundlePath };
 
-            var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             Assert.NotEqual(ExitCodes.Success, result);
             Assert.Contains(

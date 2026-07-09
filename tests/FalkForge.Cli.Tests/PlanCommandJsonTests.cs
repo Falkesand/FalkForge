@@ -27,7 +27,7 @@ public sealed class PlanCommandJsonTests
         var console = spectreCapture ?? new TestConsoleOutput();
         var command = new PlanCommand(console, jsonSink: sink);
         var settings = new PlanSettings { ProjectPath = projectPath, Json = true };
-        var exitCode = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
         return (exitCode, JsonDocument.Parse(sink.ToString().Trim()));
     }
 

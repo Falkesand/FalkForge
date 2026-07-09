@@ -26,7 +26,7 @@ public sealed class ValidateCommand : Command<ValidateSettings>
         _jsonSink = jsonSink ?? Console.Out;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] ValidateSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] ValidateSettings settings, CancellationToken cancellationToken)
     {
         var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
         var output = (IConsoleOutput?)jsonOutput ?? _console;

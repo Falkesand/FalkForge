@@ -45,7 +45,7 @@ public sealed class PlanCommandTempCleanupTests
             var command = new PlanCommand(output, launcher: launcher);
             var settings = new PlanSettings { ProjectPath = bundlePath };
 
-            command.Execute(CreateContext(), settings, CancellationToken.None);
+            command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
             var after = CountPlanTempDirs();
             Assert.Equal(before, after);

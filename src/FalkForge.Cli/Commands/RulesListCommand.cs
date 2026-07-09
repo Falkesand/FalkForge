@@ -26,7 +26,7 @@ public sealed class RulesListCommand : Command<RulesListSettings>
         _jsonSink = jsonSink ?? Console.Out;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] RulesListSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] RulesListSettings settings, CancellationToken cancellationToken)
     {
         var target = ParseTarget(settings.Target);
         var rules = ModelValidator.ListRules(target);

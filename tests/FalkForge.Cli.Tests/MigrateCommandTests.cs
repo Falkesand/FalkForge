@@ -75,7 +75,7 @@ public sealed class MigrateCommandTests : IDisposable
         var command = new MigrateCommand(console);
         var settings = new Settings.MigrateSettings { FilePath = "nonexistent_xyz.exe" };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
     }
@@ -87,7 +87,7 @@ public sealed class MigrateCommandTests : IDisposable
         var command = new MigrateCommand(console);
         var settings = new Settings.MigrateSettings { FilePath = "nonexistent_xyz.exe" };
 
-        command.Execute(CreateContext(), settings, CancellationToken.None);
+        command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Contains(console.Errors, e => e.Contains("File not found"));
     }
@@ -105,7 +105,7 @@ public sealed class MigrateCommandTests : IDisposable
         var command = new MigrateCommand(console);
         var settings = new Settings.MigrateSettings { FilePath = fakeMsi, FalkForgeSourcePath = "../../src" };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
         Assert.Contains(console.Errors, e => e.Contains("Windows"));
@@ -127,7 +127,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = fakeSrc
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, result);
         var csprojFiles = Directory.GetFiles(outDir, "*.csproj", SearchOption.TopDirectoryOnly);
@@ -151,7 +151,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = "../../src"
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, result);
         Assert.True(File.Exists(Path.Combine(outDir, "Program.cs")));
@@ -177,7 +177,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = "../../src"
         };
 
-        command.Execute(CreateContext(), settings, CancellationToken.None);
+        command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Contains(console.AllOutput, line => line.Contains("Migration complete") || line.Contains(outDir));
     }
@@ -214,7 +214,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = "../../src"
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         // FIX B: traversal detected → non-zero exit.
         Assert.Equal(ExitCodes.ValidationFailure, result);
@@ -260,7 +260,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = "../../src"
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.ValidationFailure, result);
 
@@ -300,7 +300,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = "../../src"
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.Success, result);
         Assert.True(File.Exists(Path.Combine(outDir, "payload", "sub", "file.bin")));
@@ -338,7 +338,7 @@ public sealed class MigrateCommandTests : IDisposable
             FalkForgeSourcePath = "../../src"
         };
 
-        var result = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
         Assert.Equal(ExitCodes.RuntimeError, result);
 

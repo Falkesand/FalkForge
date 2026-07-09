@@ -28,7 +28,7 @@ public sealed class BuildCommandJsonTests
         var console = spectreCapture ?? new TestConsoleOutput();
         var command = new BuildCommand(console, jsonSink: sink);
         var settings = new BuildSettings { ProjectPath = projectPath, Json = true };
-        var exitCode = command.Execute(CreateContext(), settings, CancellationToken.None);
+        var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
         return (exitCode, JsonDocument.Parse(sink.ToString().Trim()));
     }
 

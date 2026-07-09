@@ -22,7 +22,7 @@ public sealed class RulesExplainCommand : Command<RulesExplainSettings>
         _console = console;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] RulesExplainSettings settings, CancellationToken cancellationToken)
+    protected override int Execute([NotNull] CommandContext context, [NotNull] RulesExplainSettings settings, CancellationToken cancellationToken)
     {
         // Search all targets for the rule ID — rules can come from any catalog.
         var id = new RuleId(settings.RuleId.Trim().ToUpperInvariant());
