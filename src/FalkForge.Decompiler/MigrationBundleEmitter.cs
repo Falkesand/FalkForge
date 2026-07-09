@@ -24,7 +24,7 @@ internal static class MigrationBundleEmitter
     /// The emitter already emits the fragment in this shape, so no text-transform is needed —
     /// only the Compilation using injection and the entry-point append.
     /// </summary>
-    public static string BuildBundleProgramCs(string emittedFragment)
+    internal static string BuildBundleProgramCs(string emittedFragment)
     {
         const string compilationUsing = "using FalkForge.Compiler.Bundle.Compilation;";
         const string buildersUsing = "using FalkForge.Compiler.Bundle.Builders;";
@@ -56,7 +56,7 @@ internal static class MigrationBundleEmitter
         return sb.ToString();
     }
 
-    public static string BuildBundleCsproj(MigrationOptions options)
+    internal static string BuildBundleCsproj(MigrationOptions options)
     {
         // XML-escape the operator-supplied source path before it lands in an XML attribute;
         // a '&', '<', or '"' would otherwise produce a malformed csproj that will not load.
@@ -82,7 +82,7 @@ internal static class MigrationBundleEmitter
                 """;
     }
 
-    public static string BuildBundleReport(
+    internal static string BuildBundleReport(
         string inputPath,
         MigrationOptions options,
         string detectedType,

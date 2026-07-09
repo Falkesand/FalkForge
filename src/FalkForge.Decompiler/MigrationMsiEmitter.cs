@@ -10,7 +10,7 @@ namespace FalkForge.Decompiler;
 /// </summary>
 internal static class MigrationMsiEmitter
 {
-    public static string BuildProgramCs(string emittedFragment)
+    internal static string BuildProgramCs(string emittedFragment)
     {
         // The emitter already emits:
         //   using FalkForge;
@@ -64,7 +64,7 @@ internal static class MigrationMsiEmitter
         return sb.ToString();
     }
 
-    public static string BuildCsproj(MigrationOptions options)
+    internal static string BuildCsproj(MigrationOptions options)
     {
         // Forward slashes in XML paths — consistent cross-platform and readable.
         // XML-escape the operator-supplied source path before it lands in an XML attribute;
@@ -91,7 +91,7 @@ internal static class MigrationMsiEmitter
                 """;
     }
 
-    public static string BuildReport(string inputPath, MigrationOptions options, PackageModel model)
+    internal static string BuildReport(string inputPath, MigrationOptions options, PackageModel model)
     {
         var fileName = Path.GetFileName(inputPath);
         var ext      = Path.GetExtension(inputPath).ToUpperInvariant().TrimStart('.');
