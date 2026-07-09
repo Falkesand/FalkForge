@@ -47,7 +47,13 @@ internal static class BundleIntegritySigner
         // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
         var sbomAttestation = TryGenerateSbomAttestation(model, payloads, config);
 
-        return WithIntegrity(manifest, manifestSignature, sbomAttestation);
+        // A `with` expression copies every other manifest field verbatim, so a newly added field
+        // can never silently drop out of the signed manifest — only the two integrity fields change.
+        return manifest with
+        {
+            ManifestSignature = manifestSignature,
+            SbomAttestation = sbomAttestation
+        };
     }
 
     /// <summary>
@@ -143,39 +149,4 @@ internal static class BundleIntegritySigner
 
         return SbomWriter.WriteToFile(doc, outputPath);
     }
-
-    private static InstallerManifest WithIntegrity(
-        InstallerManifest manifest,
-        string manifestSignature,
-        string? sbomAttestation) =>
-        new()
-        {
-            Name = manifest.Name,
-            Manufacturer = manifest.Manufacturer,
-            Version = manifest.Version,
-            BundleId = manifest.BundleId,
-            UpgradeCode = manifest.UpgradeCode,
-            Packages = manifest.Packages,
-            RelatedBundles = manifest.RelatedBundles,
-            Chain = manifest.Chain,
-            Variables = manifest.Variables,
-            Features = manifest.Features,
-            DependencyProviders = manifest.DependencyProviders,
-            DependencyConsumers = manifest.DependencyConsumers,
-            DependencyRequirements = manifest.DependencyRequirements,
-            UiType = manifest.UiType,
-            CustomUiProjectPath = manifest.CustomUiProjectPath,
-            LicenseFile = manifest.LicenseFile,
-            UpdateFeed = manifest.UpdateFeed,
-            Scope = manifest.Scope,
-            MaxBytesPerSecond = manifest.MaxBytesPerSecond,
-            IsDryRun = manifest.IsDryRun,
-            DryRunActions = manifest.DryRunActions,
-            UnsupportedExtensions = manifest.UnsupportedExtensions,
-            IsDeltaUpdate = manifest.IsDeltaUpdate,
-            BaseVersion = manifest.BaseVersion,
-            BaseBundleSha256 = manifest.BaseBundleSha256,
-            ManifestSignature = manifestSignature,
-            SbomAttestation = sbomAttestation
-        };
 }

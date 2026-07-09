@@ -190,33 +190,10 @@ public sealed class DeltaBundleCompiler
             if (!firstError.IsEmpty)
                 return Result<string>.Failure(firstError.First());
 
-            // Step 6: Enrich manifest with delta metadata
-            manifest = new InstallerManifest
+            // Step 6: Enrich manifest with delta metadata. A `with` expression copies every other
+            // field verbatim, so newly added manifest fields can never silently drop out here.
+            manifest = manifest with
             {
-                Name = manifest.Name,
-                Manufacturer = manifest.Manufacturer,
-                Version = manifest.Version,
-                BundleId = manifest.BundleId,
-                UpgradeCode = manifest.UpgradeCode,
-                Packages = manifest.Packages,
-                RelatedBundles = manifest.RelatedBundles,
-                Chain = manifest.Chain,
-                Variables = manifest.Variables,
-                Features = manifest.Features,
-                DependencyProviders = manifest.DependencyProviders,
-                DependencyConsumers = manifest.DependencyConsumers,
-                DependencyRequirements = manifest.DependencyRequirements,
-                UiType = manifest.UiType,
-                CustomUiProjectPath = manifest.CustomUiProjectPath,
-                LicenseFile = manifest.LicenseFile,
-                UpdateFeed = manifest.UpdateFeed,
-                Scope = manifest.Scope,
-                MaxBytesPerSecond = manifest.MaxBytesPerSecond,
-                IsDryRun = manifest.IsDryRun,
-                DryRunActions = manifest.DryRunActions,
-                UnsupportedExtensions = manifest.UnsupportedExtensions,
-                ManifestSignature = manifest.ManifestSignature,
-                SbomAttestation = manifest.SbomAttestation,
                 IsDeltaUpdate = true,
                 BaseVersion = oldVersion,
                 BaseBundleSha256 = oldBundleSha256
