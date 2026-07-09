@@ -1,11 +1,13 @@
 namespace FalkForge.Builders;
 
 using FalkForge.Models;
+using FalkForge.Signing;
 
 public sealed class IntegrityBuilder
 {
     private string? _signingKeyPath;
     private readonly List<string> _signingKeyPaths = [];
+    private readonly List<ISignatureProvider> _signatureProviders = [];
     private string? _certStoreThumbprint;
     private string? _storeLocation;
     private string? _vaultProvider;
@@ -51,6 +53,18 @@ public sealed class IntegrityBuilder
     /// </summary>
     public IntegrityBuilder Revoke(params string[] fingerprints) { _revokedFingerprints.AddRange(fingerprints); return this; }
 
+    /// <summary>
+    /// Adds a custom signature backend (C17): a remote signing service, an HSM, or any
+    /// <see cref="ISignatureProvider"/>. Each added provider contributes one signature entry over the same
+    /// signed message, augmenting the file-based PEM keys (dual-sign / mixed backends). Repeatable.
+    /// </summary>
+    public IntegrityBuilder SigningProvider(ISignatureProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _signatureProviders.Add(provider);
+        return this;
+    }
+
     internal IntegrityConfiguration Build() => new()
     {
         SigningKeyPath = _signingKeyPath,
@@ -61,6 +75,7 @@ public sealed class IntegrityBuilder
         VaultKeyRef = _vaultKeyRef,
         SbomFormat = _sbomFormat,
         Epoch = _epoch,
-        RevokedFingerprints = _revokedFingerprints.Count > 0 ? _revokedFingerprints.AsReadOnly() : null
+        RevokedFingerprints = _revokedFingerprints.Count > 0 ? _revokedFingerprints.AsReadOnly() : null,
+        SignatureProviders = _signatureProviders.Count > 0 ? _signatureProviders.AsReadOnly() : null
     };
 }

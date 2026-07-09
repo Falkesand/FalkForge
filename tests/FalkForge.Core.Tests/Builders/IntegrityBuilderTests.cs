@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using FalkForge.Builders;
 using FalkForge.Models;
+using FalkForge.Signing;
 using FalkForge.Testing;
 using Xunit;
 
@@ -7,6 +9,38 @@ namespace FalkForge.Core.Tests.Builders;
 
 public sealed class IntegrityBuilderTests
 {
+    [Fact]
+    public void SigningProvider_AddsProvidersInOrder()
+    {
+        var p1 = new EphemeralSignatureProvider();
+        var p2 = new EphemeralSignatureProvider();
+
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(i => i.SigningProvider(p1).SigningProvider(p2));
+        });
+
+        Assert.NotNull(package.Integrity!.SignatureProviders);
+        Assert.Equal(2, package.Integrity.SignatureProviders!.Count);
+        Assert.Same(p1, package.Integrity.SignatureProviders[0]);
+        Assert.Same(p2, package.Integrity.SignatureProviders[1]);
+    }
+
+    [Fact]
+    public void SignatureProviders_DefaultsToNull()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(_ => { });
+        });
+
+        Assert.Null(package.Integrity!.SignatureProviders);
+    }
+
     [Fact]
     public void Default_ReturnsSpdxAndNoKey()
     {
