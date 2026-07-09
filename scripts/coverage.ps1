@@ -13,7 +13,7 @@
 #   dotnet-reportgenerator-globaltool — dotnet tool install -g dotnet-reportgenerator-globaltool
 #
 # Usage:
-#   ./scripts/coverage.ps1                  # from repo root
+#   ./scripts/coverage.ps1                  # CWD-independent — paths resolve via $PSScriptRoot
 #   ./scripts/coverage.ps1 -Configuration Debug
 
 param(
@@ -56,7 +56,7 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 Write-Host "[2/3] Test with coverage..." -ForegroundColor Yellow
 
-dotnet-coverage collect -f cobertura -o "$coverageFile" "dotnet test $slnx --no-build -c $Configuration -v minimal --logger `"trx;LogFileName=test-results.trx`" --results-directory $resultsDir"
+dotnet-coverage collect -f cobertura -o "$coverageFile" "dotnet test `"$slnx`" --no-build -c $Configuration -v minimal --logger `"trx;LogFileName=test-results.trx`" --results-directory `"$resultsDir`""
 $testExit = $LASTEXITCODE
 
 if ($testExit -ne 0) {

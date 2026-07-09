@@ -85,7 +85,9 @@ jobs:
       - name: Install coverage tools
         run: |
           dotnet tool install -g dotnet-coverage
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet tool install -g dotnet-reportgenerator-globaltool
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test with coverage
         run: dotnet-coverage collect -f cobertura -o TestResults\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults'
