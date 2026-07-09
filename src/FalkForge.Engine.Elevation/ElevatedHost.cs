@@ -29,7 +29,10 @@ public sealed class ElevatedHost : IAsyncDisposable
             new MsiUninstallCommand(msiApi),
             new ServiceInstallCommand(),
             new RegistryWriteCommand(),
-            new FileWriteCommand()
+            new FileWriteCommand(),
+            // C16: advance the ACL-protected anti-downgrade/revocation store elevated (the non-elevated
+            // engine cannot write under the restrictive store ACL).
+            new TrustStateAdvanceCommand()
         });
     }
 

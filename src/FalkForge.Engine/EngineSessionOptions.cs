@@ -88,6 +88,14 @@ public sealed record EngineSessionOptions
     /// </summary>
     public string? PlanOnlyOutputPath { get; init; }
 
+    /// <summary>
+    /// When <c>true</c> (set by the engine on the require-signed update path), the pipeline advances the
+    /// anti-downgrade/revocation trust store after a successful apply (C16), forwarding the manifest
+    /// signature's epoch + revocations to the elevated companion. A fresh install leaves this <c>false</c>,
+    /// so the store is never advanced by a first-time install.
+    /// </summary>
+    public bool AdvanceTrustStoreOnVerifiedApply { get; init; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Test-only injection point (exposed via EngineSession.BindToChannel)
     // ──────────────────────────────────────────────────────────────────────────

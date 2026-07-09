@@ -38,7 +38,8 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         IApplyStep? applyStep,
         IRollbackStep? rollbackStep,
         UpdateService? updateService = null,
-        FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null)
+        FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null,
+        bool advanceTrustStoreOnVerifiedApply = false)
     {
         _detectStep = detectStep;
         _planStep = planStep;
@@ -46,6 +47,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         _applyStep = applyStep;
         _rollbackStep = rollbackStep;
         _updateService = updateService;
+        _ctx.AdvanceTrustStoreOnVerifiedApply = advanceTrustStoreOnVerifiedApply;
 
         // Pre-seed the context manifest so PlanStep can operate even when
         // DetectStep is absent (e.g. headless / ordering-only tests).

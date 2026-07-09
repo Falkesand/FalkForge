@@ -116,6 +116,14 @@ internal sealed class PipelineContext
     /// </summary>
     public IElevatedCommandGateway? ElevationGateway { get; set; }
 
+    /// <summary>
+    /// When <c>true</c>, <see cref="ApplyStep"/> advances the anti-downgrade/revocation trust store after a
+    /// successful apply (C16), forwarding the manifest signature's epoch + revocations to the elevated
+    /// companion. Set only on the require-signed update path (the update launcher's <c>--require-signed</c>);
+    /// a fresh install never advances the store. Off by default.
+    /// </summary>
+    public bool AdvanceTrustStoreOnVerifiedApply { get; set; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ApplyStep
     // ──────────────────────────────────────────────────────────────────────────

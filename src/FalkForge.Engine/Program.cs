@@ -677,31 +677,18 @@ internal static partial class Program
             {
                 PipeOptions = pipeOptions,
                 LogPath = programArgs?.LogPath,
-                MinimumLogLevel = programArgs?.MinimumLogLevel
+                MinimumLogLevel = programArgs?.MinimumLogLevel,
+                // C16: on the require-signed update path, advance the anti-downgrade/revocation store after a
+                // verified+completed apply. The advance is issued to the elevated companion from inside the
+                // pipeline (ApplyStep) — the store's ACL denies a non-elevated write, so the engine no longer
+                // writes it directly here. Advancing after success (not before) prevents an attacker priming
+                // a forged epoch (which would have failed the require-signed gate — the epoch is signed).
+                AdvanceTrustStoreOnVerifiedApply = requireSigned
             });
 
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
-
-        // Advance the trust store ONLY after a verified update apply (§6.3 step 4). Advancing after
-        // success (not before) prevents an attacker priming the epoch with a forged high value — a forged
-        // epoch would have failed the require-signed gate above (the epoch is part of the signed bytes).
-        // Fresh installs never advance the store.
-        if (requireSigned
-            && outcome.State == EngineTerminalState.Completed
-            && manifest.ManifestSignature is not null)
-        {
-            var applied = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
-            if (applied is not null && (applied.Epoch > 0 || applied.Revoked.Count > 0))
-            {
-                var advance = TrustStateStore.Advance(
-                    TrustStateStore.DefaultPath, applied.Epoch, applied.Revoked);
-                if (advance.IsFailure)
-                    await Console.Error.WriteLineAsync(
-                        $"Warning: failed to record trust state after update: {advance.Error.Message}");
-            }
-        }
 
         return outcome.State switch
         {
