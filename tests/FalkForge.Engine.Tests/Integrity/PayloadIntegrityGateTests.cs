@@ -214,6 +214,28 @@ public sealed class PayloadIntegrityGateTests
     }
 
     [Fact]
+    public void Verify_SignedManifest_RequireSigned_EmptyTrustedSet_ReturnsInt009_FailClosed()
+    {
+        // Defense-in-depth mirror of SignedPayloadTocVerifier's INT009 guard: on a require-signed path
+        // with no baked publisher key, a present signature cannot establish authorship (an empty set
+        // means consistency-only accept-any). Fail closed rather than fall open, so a future caller that
+        // flips RequireSigned on a pinless engine can never silently accept an attacker's re-signed
+        // bundle. ApplyStep never sets RequireSigned today, so this changes no live behavior — it removes
+        // a latent fail-open.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"));
+        var manifest = ManifestWith(sig, Package("A", "AABB"));
+
+        var policy = new TrustPolicy(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), requireSigned: true);
+        var result = PayloadIntegrityGate.Verify(manifest, policy);
+
+        Assert.True(result.IsFailure, "require-signed with an empty trusted set must fail closed");
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT009", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Verify_HashComparisonIsCaseInsensitive()
     {
         // PackageCache emits uppercase hex; tolerate case so a lowercase-signed entry still binds.

@@ -19,7 +19,9 @@ using FalkForge.Engine.Protocol.Manifest;
 /// <para><b>Unpinned engines.</b> When the trusted set is empty (an engine built with no publisher
 /// key), verification falls back to consistency-only: any self-verifying signature is accepted
 /// (tamper-evidence, not authorship). An unsigned manifest passes through unless
-/// <see cref="TrustPolicy.RequireSigned"/> is set (Stage 2 update path).</para>
+/// <see cref="TrustPolicy.RequireSigned"/> is set (Stage 2 update path). On the require-signed path an
+/// empty set is instead rejected (INT009, fail closed) — a required signature with no trust anchor
+/// cannot establish authorship, so it is refused rather than accepted consistency-only.</para>
 ///
 /// <para>Verification is independent of Authenticode and uses only built-in .NET cryptography, so the
 /// NativeAOT engine needs no external tool.</para>
@@ -60,6 +62,20 @@ internal static class PayloadIntegrityGate
         if (envelope is null)
             return Result<Unit>.Failure(ErrorKind.IntegrityError,
                 "INT003: Failed to parse manifest integrity envelope.");
+
+        // Fail closed on the require-signed path when there is no trust anchor (mirrors
+        // SignedPayloadTocVerifier's INT009 guard; C14 Stage 3 FIX 2 / B1). An empty trusted set makes
+        // VerifyTrusted fall back to consistency-only (accept ANY self-verifying signature). On a
+        // require-signed path that is fail-open: an attacker re-signs a rewritten update with their own
+        // fresh key and it would be accepted. Require-signed cannot establish authorship without a pinned
+        // key, so refuse rather than accept-any. ApplyStep never sets RequireSigned today (so this is no
+        // live behavior change), but the guard prevents a future silent fail-open. The empty-set
+        // consistency-only acceptance stays legal only off the require-signed (fresh-install) path above.
+        if (policy.RequireSigned && trustedFingerprints.Count == 0)
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                "INT009: A signature is required on this path but this engine carries no trusted publisher " +
+                "keys, so authorship cannot be established. Refusing to accept a signed bundle on trust the " +
+                "engine cannot anchor (fail closed).");
 
         // Authorship + tamper check: a trusted signature must validate. An attacker's re-signed bundle
         // (key not in the pinned set) is rejected here with INT001.

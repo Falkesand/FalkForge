@@ -158,6 +158,19 @@ internal sealed class UpdateDownloader
 
         if (_policy == UpdatePolicy.AutoUpdate && !_promptBeforeAutoUpdate)
         {
+            // Re-verify the staged bundle IMMEDIATELY before launching to shrink the TOCTOU window between
+            // the post-download gate above (which advertised the update as ready) and this auto-launch. The
+            // staged file could have been swapped on disk in the interim, so a launch is never issued for a
+            // bundle that does not verify NOW — matching UpdateService.LaunchReadyUpdate on the UI-request
+            // path. The post-download gate remains the primary check; this is belt-and-suspenders.
+            var relaunchTrust = _verifyStagedBundle(result.Value);
+            if (!relaunchTrust.IsSuccess)
+            {
+                _logger.Warning("UpdateDownloader",
+                    $"Staged update failed trust verification at launch; refusing to launch: {relaunchTrust.Error.Message}");
+                return;
+            }
+
             var launchResult = _launcher.Launch(result.Value);
             if (!launchResult.IsSuccess)
                 _logger.Warning("UpdateDownloader", $"Update launch failed: {launchResult.Error.Message}");

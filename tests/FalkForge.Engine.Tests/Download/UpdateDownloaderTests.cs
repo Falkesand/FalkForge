@@ -331,6 +331,51 @@ public sealed class UpdateDownloaderTests
     }
 
     [Fact]
+    public async Task StartAsync_AutoUpdate_ReVerifiesImmediatelyBeforeLaunch_SwapAfterReadyIsCaught()
+    {
+        // TOCTOU: the staged bundle passes the post-download gate (so it is advertised ready), but is
+        // swapped on disk before the AutoUpdate auto-launch. The launch path must re-verify immediately
+        // before launching, so a bundle that no longer verifies is never run — matching what
+        // UpdateService.LaunchReadyUpdate already does on the UI-request path. Without the re-verify, the
+        // single post-download check would let the swapped bundle launch through the TOCTOU window.
+        var stagedPath = Path.Combine(Path.GetTempPath(), $"falk-staged-{Guid.NewGuid():N}.exe");
+        File.WriteAllBytes(stagedPath, RandomNumberGenerator.GetBytes(64));
+        try
+        {
+            var launched = new List<string>();
+            var sentMessages = new List<EngineMessage>();
+            var fakeDownloader = new FakePayloadDownloader(Result<string>.Success(stagedPath));
+            var fakeLauncher = new FakeUpdateLauncher(launched);
+
+            // First verify (post-download, pre-ready) passes; the second (immediately pre-launch) fails,
+            // standing in for an on-disk swap of the staged bundle between ready and launch.
+            var verifyCalls = 0;
+            Func<string, Result<Unit>> flipping = _ =>
+            {
+                verifyCalls++;
+                return verifyCalls == 1
+                    ? Unit.Value
+                    : Result<Unit>.Failure(new Error(ErrorKind.IntegrityError, "INT006: swapped after ready"));
+            };
+
+            var downloader = CreateDownloader(
+                fakeDownloader, sentMessages, UpdatePolicy.AutoUpdate,
+                launcher: fakeLauncher, verifyStagedBundle: flipping);
+
+            var update = new UpdateInfo("2.0.0", "https://example.com/v2.exe", "abc123", null, null);
+            await downloader.StartAsync(update, "/cache", CancellationToken.None);
+
+            Assert.Equal(2, verifyCalls); // re-verified immediately before launch
+            Assert.Empty(launched); // a bundle that no longer verifies must not launch
+            Assert.Single(sentMessages.OfType<UpdateReadyMessage>()); // ready was advertised after the first pass
+        }
+        finally
+        {
+            if (File.Exists(stagedPath)) File.Delete(stagedPath);
+        }
+    }
+
+    [Fact]
     public async Task StartAsync_DownloadFails_ShowErrors_SendsErrorMessage()
     {
         var sentMessages = new List<EngineMessage>();
