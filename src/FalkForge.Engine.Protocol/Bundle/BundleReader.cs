@@ -157,37 +157,51 @@ public static class BundleReader
                 const int searchChunkSize = 4096;
                 var magicPos = -1L;
                 var windowEnd = dataRegionEnd;
-                while (magicPos < 0)
+                // One rented chunk buffer for the whole scan (a near-64 MiB manifest walks ~16k
+                // windows; a fresh ReadBytes array per window would churn ~16k allocations).
+                // Rented arrays can be larger than requested, so every use below slices to the
+                // actual chunk length. Same pool/finally pattern as the extract paths in this file.
+                var searchBuffer = ArrayPool<byte>.Shared.Rent(searchChunkSize);
+                try
                 {
-                    // Loop totality: continuation is driven by "have we scanned down to offset 0
-                    // yet?" (the windowStart == 0 break below), NOT by a numeric lower bound on
-                    // windowEnd. A numeric guard (windowEnd >= Magic.Length + 4) could exit one
-                    // window early when a windowStart landed in 1..4 — the re-anchored windowEnd
-                    // dropped below the bound and the final [0, small) window was never scanned,
-                    // so a magic starting at offset 0..3 was silently missed. Every possible magic
-                    // start offset, including 0, is now scanned exactly once.
-                    var windowStart = Math.Max(0, windowEnd - searchChunkSize);
-                    stream.Seek(windowStart, SeekOrigin.Begin);
-                    var searchBuffer = reader.ReadBytes((int)(windowEnd - windowStart));
-
-                    for (var i = FindMagicIndex(searchBuffer, 0); i >= 0; i = FindMagicIndex(searchBuffer, i + 1))
+                    while (magicPos < 0)
                     {
-                        var candidate = windowStart + i;
-                        var expectedLen = dataRegionEnd - candidate - Magic.Length - sizeof(int);
-                        if (expectedLen <= 0 || expectedLen > MaxManifestBytes)
-                            continue;
+                        // Loop totality: continuation is driven by "have we scanned down to offset 0
+                        // yet?" (the windowStart == 0 break below), NOT by a numeric lower bound on
+                        // windowEnd. A numeric guard (windowEnd >= Magic.Length + 4) could exit one
+                        // window early when a windowStart landed in 1..4 — the re-anchored windowEnd
+                        // dropped below the bound and the final [0, small) window was never scanned,
+                        // so a magic starting at offset 0..3 was silently missed. Every possible magic
+                        // start offset, including 0, is now scanned exactly once.
+                        var windowStart = Math.Max(0, windowEnd - searchChunkSize);
+                        var chunkLen = (int)(windowEnd - windowStart);
+                        stream.Seek(windowStart, SeekOrigin.Begin);
+                        stream.ReadExactly(searchBuffer, 0, chunkLen);
+                        var chunk = searchBuffer.AsSpan(0, chunkLen);
 
-                        stream.Seek(candidate + Magic.Length, SeekOrigin.Begin);
-                        if (reader.ReadInt32() == expectedLen)
+                        for (var i = FindMagicIndex(chunk, 0); i >= 0; i = FindMagicIndex(chunk, i + 1))
                         {
-                            magicPos = candidate;
-                            break;
-                        }
-                    }
+                            var candidate = windowStart + i;
+                            var expectedLen = dataRegionEnd - candidate - Magic.Length - sizeof(int);
+                            if (expectedLen <= 0 || expectedLen > MaxManifestBytes)
+                                continue;
 
-                    if (windowStart == 0)
-                        break;
-                    windowEnd = windowStart + Magic.Length - 1; // overlap across the chunk boundary
+                            stream.Seek(candidate + Magic.Length, SeekOrigin.Begin);
+                            if (reader.ReadInt32() == expectedLen)
+                            {
+                                magicPos = candidate;
+                                break;
+                            }
+                        }
+
+                        if (windowStart == 0)
+                            break;
+                        windowEnd = windowStart + Magic.Length - 1; // overlap across the chunk boundary
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(searchBuffer);
                 }
 
                 if (magicPos >= 0)
@@ -560,12 +574,12 @@ public static class BundleReader
     /// Finds the index of the FALKBUNDLE magic bytes within a buffer, at or after
     /// <paramref name="startIndex"/>. Returns -1 if not found.
     /// </summary>
-    private static int FindMagicIndex(byte[] buffer, int startIndex)
+    private static int FindMagicIndex(ReadOnlySpan<byte> buffer, int startIndex)
     {
         var magicSpan = Magic.AsSpan();
         for (var i = Math.Max(0, startIndex); i <= buffer.Length - Magic.Length; i++)
         {
-            if (buffer.AsSpan(i, Magic.Length).SequenceEqual(magicSpan))
+            if (buffer.Slice(i, Magic.Length).SequenceEqual(magicSpan))
                 return i;
         }
 
