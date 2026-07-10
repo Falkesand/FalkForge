@@ -10386,8 +10386,9 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
                                    AFTER the PE stub was built</code></pre>
 
 <p>
-    Authenticode only signs the <strong>PE stub</strong> &mdash; the little launcher program at the front. But
-    your real files (the payloads) are glued onto the end <em>after</em> that stub was signed. So an
+    Authenticode covers the installer file <strong>as it existed when it was signed</strong> &mdash; but it does
+    not cover anything added to the file <em>afterward</em>. FalkForge glues your real files (the payloads) onto
+    the end after the launcher is signed, past the point the signature protects. So an
     Authenticode signature can still look perfectly valid even if someone replaced every payload behind it.
     The seal is on the envelope; the letter inside was swapped. That is why FalkForge adds its <em>own</em>
     signature that covers the payloads.
@@ -10406,7 +10407,7 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
         <tr>
             <td><strong>Authenticode</strong></td>
             <td>A <em>paid</em> Windows code-signing certificate</td>
-            <td>Only the PE stub (the launcher)</td>
+            <td>The file as it was signed &mdash; but NOT payloads attached afterward</td>
             <td>The &ldquo;verified publisher&rdquo; name in the UAC prompt and better SmartScreen reputation</td>
         </tr>
         <tr>
@@ -10426,8 +10427,8 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
    ^                     ^                  ^
    |                     |                  |
  Authenticode      FalkForge's        added AFTER the stub was
- signs only        signature covers   signed, so Authenticode
- this launcher     these file hashes  is blind to any change here</code></pre>
+ covers file up    signature covers   signed, so Authenticode
+ to its signature  these file hashes  is blind to any change here</code></pre>
 
 <div class="warning">
     <strong>A valid Authenticode signature does NOT mean the payloads are untampered.</strong> The payloads

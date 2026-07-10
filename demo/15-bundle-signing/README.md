@@ -46,6 +46,6 @@ revocation) this signature feeds into, see demo 62.
 ## Notes
 
 - The signing step is a placeholder in this demo. In a real CI/CD pipeline, insert your `signtool` or signing service call between the detach and reattach steps.
-- The detach/reattach process is necessary because Authenticode signs the PE headers and sections. Bundle payloads are appended after the PE image, so the stub must be signed before the payload is attached.
+- The detach/reattach process is necessary because Authenticode does not cover data appended to the file after it is signed. The stub is signed bare and the payloads are reattached afterward — the signature stays valid, but the reattached payloads sit past the point it protects.
 - Intermediate files (`.stub.exe` and `.data`) are cleaned up after reattach. In a build pipeline, you may want to keep them for debugging.
 - The final signed output is written to a separate file (`.signed.exe`) to preserve the original unsigned bundle for comparison.

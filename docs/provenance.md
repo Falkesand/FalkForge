@@ -305,7 +305,8 @@ single package runs.
 The gate above proves the manifest's package hashes are the ones the signature covers, but it
 never touches a payload byte. The bytes live in the bundle's **appended overlay**: the manifest
 JSON, the compressed payloads, and the **table of contents (TOC)** are all appended after the PE
-stub. Authenticode (when used) signs only the stub, so the overlay — including the TOC — is
+stub. Authenticode (when used) is applied to the bare stub before the overlay is attached, and it
+does not cover bytes appended after the signature, so the overlay — including the TOC — is
 outside its coverage by construction. The ECDSA manifest signature covers the manifest's payload
 hashes, **not** the TOC.
 
