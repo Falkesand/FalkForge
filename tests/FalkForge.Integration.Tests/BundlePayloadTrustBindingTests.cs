@@ -69,7 +69,7 @@ public sealed class BundlePayloadTrustBindingTests
                 .Chain(chain => chain.MsiPackage(msiPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
                 .Build();
 
-            var buildResult = new BundleCompiler().Compile(model, Path.Combine(dir, "out"));
+            var buildResult = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(dir, "out"));
             Assert.True(buildResult.IsSuccess, buildResult.IsFailure ? buildResult.Error.Message : null);
 
             var signedContent = PayloadEmbedder.Extract(buildResult.Value);
@@ -164,7 +164,7 @@ public sealed class BundlePayloadTrustBindingTests
                 .Chain(chain => chain.MsiPackage(msiPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
                 .Build();
 
-            var buildResult = new BundleCompiler().Compile(model, Path.Combine(dir, "out"));
+            var buildResult = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(dir, "out"));
             Assert.True(buildResult.IsSuccess, buildResult.IsFailure ? buildResult.Error.Message : null);
 
             var content = PayloadEmbedder.Extract(buildResult.Value);

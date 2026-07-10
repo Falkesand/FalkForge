@@ -51,7 +51,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         var model = CreateModel("TestBundle", [("OldPkg", newPayloadPath)]);
         var outputDir = Path.Combine(_tempDir, "delta_output");
 
-        var deltaCompiler = new DeltaBundleCompiler();
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
         var result = deltaCompiler.Compile(model, outputDir, oldBundlePath);
 
         Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -81,7 +81,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         var model = CreateModel("FlagTestBundle", [("Pkg1", newPayloadPath)]);
         var outputDir = Path.Combine(_tempDir, "flag_output");
 
-        var deltaCompiler = new DeltaBundleCompiler();
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
         var result = deltaCompiler.Compile(model, outputDir, oldBundlePath);
 
         Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -111,7 +111,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         var model = CreateModel("PartialDelta", [("BrandNewPkg", newPayloadPath)]);
         var outputDir = Path.Combine(_tempDir, "partial_output");
 
-        var deltaCompiler = new DeltaBundleCompiler();
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
         var result = deltaCompiler.Compile(model, outputDir, oldBundlePath);
 
         Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -159,7 +159,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         var model = CreateModel("MultiDelta", [("PkgA", newPathA), ("PkgB", newPathB)]);
         var outputDir = Path.Combine(_tempDir, "multi_delta_output");
 
-        var deltaCompiler = new DeltaBundleCompiler();
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
         var result = deltaCompiler.Compile(model, outputDir, oldBundlePath);
         Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
 
@@ -239,7 +239,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         var newModel = CreateModel("MixedDelta", [("GoodPkg", goodNewPath), ("CorruptPkg", corruptNewPath)]);
         var outputDir = Path.Combine(_tempDir, "mixed_delta_output");
 
-        var deltaCompiler = new DeltaBundleCompiler();
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
         var result = deltaCompiler.Compile(newModel, outputDir, oldBundlePath);
 
         Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -275,7 +275,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         var model = CreateModel("CleanupOk", [("Pkg1", newPayloadPath)]);
         var outputDir = Path.Combine(_tempDir, "cleanup_ok_output");
 
-        var compiler = new DeltaBundleCompiler { TempRootOverride = tempRoot };
+        var compiler = new DeltaBundleCompiler { TempRootOverride = tempRoot, AllowPlaceholderStub = true };
         var result = compiler.Compile(model, outputDir, oldBundlePath);
 
         Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
@@ -306,7 +306,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
         Directory.CreateDirectory(outputDir);
         Directory.CreateDirectory(Path.Combine(outputDir, "CleanupFail.exe"));
 
-        var compiler = new DeltaBundleCompiler { TempRootOverride = tempRoot };
+        var compiler = new DeltaBundleCompiler { TempRootOverride = tempRoot, AllowPlaceholderStub = true };
         var result = compiler.Compile(model, outputDir, oldBundlePath);
 
         Assert.True(result.IsFailure, "Expected embed to fail because output .exe path is a directory");
@@ -354,7 +354,7 @@ public sealed class DeltaBundleCompilerTests : IDisposable
     private string CreateFullBundleFromModel(BundleModel model, string outputDirName)
     {
         var outputDir = Path.Combine(_tempDir, outputDirName);
-        var compiler = new BundleCompiler();
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
         var result = compiler.Compile(model, outputDir);
         Assert.True(result.IsSuccess, $"Full bundle compile failed: {(result.IsFailure ? result.Error.Message : "")}");
         return result.Value;

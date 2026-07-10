@@ -10721,9 +10721,11 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
     <code>forge build</code> JSON config produces a signed bundle without any C# &mdash; provider
     <code>"pem"</code> for a local key or <code>"signserver"</code> for remote signing, with all secrets
     referenced by environment-variable <em>name</em> or file path, never inline (violations fail the build
-    with JSN015&ndash;JSN019). One caveat: the bundle <code>forge build</code> produces this way uses a
-    design-time placeholder engine stub, so it is for signing/verification tooling, <strong>not a runnable
-    installer</strong>. See the JSON configuration tutorial
+    with JSN015&ndash;JSN019). The bundle embeds the published NativeAOT engine (resolved via
+    <code>FALKFORGE_ENGINE_STUB</code>, an <code>engine</code> directory beside <code>forge</code>, or the
+    repository&rsquo;s <code>artifacts/publish/engine</code> output) and is a runnable installer; the build
+    fails loud when no engine resolves, and <code>--no-engine</code> opts into a non-runnable design-time
+    placeholder stub instead. See the JSON configuration tutorial
     (<code>docs/tutorials/json-config.html</code>, &ldquo;Signed Bundle Output&rdquo;) for the full field
     reference.
 </div>

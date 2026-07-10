@@ -6,10 +6,11 @@
 #   FalkForge.Engine         (NativeAOT, win-x64)                   -> <Output>/engine
 #   FalkForge.Engine.Elevation (NativeAOT, win-x64)                 -> <Output>/engine
 #
-# The engine/elevation binaries are the NativeAOT bundle runtime. Note: the bundle
-# compiler currently only embeds a real engine when BundleCompiler.EngineStubPath is
-# set explicitly — wiring the published engine into consumer bundles is a separate
-# follow-up (see scripts/README.md).
+# The engine/elevation binaries are the NativeAOT bundle runtime. The bundle compiler
+# embeds the published engine automatically: it resolves <repo>/artifacts/publish/engine
+# (this script's output) via EngineStubLocator, or any path set in the
+# FALKFORGE_ENGINE_STUB environment variable. Run this script once and every bundle
+# built in the repo becomes a runnable self-extracting installer.
 #
 # Usage:
 #   ./scripts/publish.ps1                          # -> ./artifacts/publish

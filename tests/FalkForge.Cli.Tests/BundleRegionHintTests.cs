@@ -118,7 +118,7 @@ public sealed class BundleRegionHintTests
             if (signed)
                 builder.Integrity(i => { }); // ephemeral ECDSA key
 
-            var result = new BundleCompiler().Compile(builder.Build(), Path.Combine(dir, "out"));
+            var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(builder.Build(), Path.Combine(dir, "out"));
             Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
 
             var content = BundleReader.Extract(result.Value);

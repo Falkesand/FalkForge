@@ -83,7 +83,7 @@ public sealed class BundleSigningEndToEndTests
                 .Chain(chain => chain.MsiPackage(msiPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
                 .Build();
 
-            var result = new BundleCompiler().Compile(model, Path.Combine(dir, "out"));
+            var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(dir, "out"));
             Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
 
             var manifest = ExtractManifest(result.Value);
@@ -111,7 +111,7 @@ public sealed class BundleSigningEndToEndTests
                 .Chain(chain => chain.MsiPackage(msiPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
                 .Build();
 
-            var result = new BundleCompiler().Compile(model, Path.Combine(dir, "out"));
+            var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(dir, "out"));
             Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
 
             var manifest = ExtractManifest(result.Value);
@@ -156,7 +156,7 @@ public sealed class BundleSigningEndToEndTests
                     .Integrity(i => i.SigningKey(pemPath))
                     .Chain(chain => chain.MsiPackage(msiPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
                     .Build();
-                var result = new BundleCompiler().Compile(model, Path.Combine(dir, outName));
+                var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(dir, outName));
                 Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
                 return ExtractManifest(result.Value);
             }

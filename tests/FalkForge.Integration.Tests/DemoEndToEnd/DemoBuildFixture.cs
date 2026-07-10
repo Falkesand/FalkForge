@@ -15,9 +15,25 @@ public sealed class DemoBuildFixture : IDisposable
         Path.GetTempPath(), $"falk-demo-e2e-{Guid.NewGuid():N}");
     private readonly PayloadProvisioner _provisioner = new();
 
+    private readonly string _engineStubPath;
+
     public DemoBuildFixture()
     {
         Directory.CreateDirectory(_tempRoot);
+
+        // Bundle demos run with the production default: the compiler resolves a REAL engine and
+        // fails loud when none is found. The harness plays the operator's role by provisioning
+        // an engine stub and pointing FALKFORGE_ENGINE_STUB at it, keeping the demo sources on
+        // the honest default path without requiring a multi-minute NativeAOT publish per test
+        // run. A minimal MZ file suffices here — these tests assert the demo BUILD produces its
+        // artifact; RunnableBundleEndToEndTests proves self-extraction against the real engine.
+        var engineStubDir = Path.Combine(_tempRoot, "engine-stub");
+        Directory.CreateDirectory(engineStubDir);
+        _engineStubPath = Path.Combine(engineStubDir, "FalkForge.Engine.exe");
+        var stubBytes = new byte[512];
+        stubBytes[0] = (byte)'M';
+        stubBytes[1] = (byte)'Z';
+        File.WriteAllBytes(_engineStubPath, stubBytes);
 
         // Force-killed test runs skip Dispose, leaving falk-demo-e2e-* roots in %TEMP%.
         // Self-heal on next run: delete sibling roots older than 24 hours (best-effort, never throw).
@@ -68,7 +84,7 @@ public sealed class DemoBuildFixture : IDisposable
         return RunProcess(demo, outputDir);
     }
 
-    private static DemoBuildResult RunProcess(DemoExpectation demo, string outputDir)
+    private DemoBuildResult RunProcess(DemoExpectation demo, string outputDir)
     {
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
@@ -89,6 +105,9 @@ public sealed class DemoBuildFixture : IDisposable
         // With nodeReuse:true (the default), cross-SDK orphan nodes accumulate on machines
         // with many SDK installations and degrade subsequent builds. CI impact is minimal.
         process.StartInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+
+        // Deterministic engine resolution for bundle demos (see constructor comment).
+        process.StartInfo.Environment["FALKFORGE_ENGINE_STUB"] = _engineStubPath;
 
         process.Start();
 

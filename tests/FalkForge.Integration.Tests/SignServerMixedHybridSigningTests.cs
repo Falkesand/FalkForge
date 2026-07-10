@@ -141,7 +141,7 @@ public sealed class SignServerMixedHybridSigningTests : IDisposable
         };
 
         // SignServer is a genuinely asynchronous backend — the async compile pipeline is required.
-        var compileResult = await new BundleCompiler().CompileAsync(model, Path.Combine(_tempDir, "out"));
+        var compileResult = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(model, Path.Combine(_tempDir, "out"));
         Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
 
         var contentResult = PayloadEmbedder.Extract(compileResult.Value);

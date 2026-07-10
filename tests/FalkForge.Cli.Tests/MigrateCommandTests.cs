@@ -62,7 +62,7 @@ public sealed class MigrateCommandTests : IDisposable
 
         var outDir = Path.Combine(_tempDir, "bundle-out");
         Directory.CreateDirectory(outDir);
-        var result = new BundleCompiler().Compile(model, outDir);
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, outDir);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
         return result.Value;
     }

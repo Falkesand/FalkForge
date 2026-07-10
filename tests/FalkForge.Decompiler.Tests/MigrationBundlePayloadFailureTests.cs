@@ -67,7 +67,7 @@ public sealed class MigrationBundlePayloadFailureTests : IDisposable
 
         var outDir = Path.Combine(_tempDir, "out");
         Directory.CreateDirectory(outDir);
-        var compileResult = new BundleCompiler().Compile(model, outDir);
+        var compileResult = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, outDir);
         Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : "");
         var bundlePath = compileResult.Value;
 

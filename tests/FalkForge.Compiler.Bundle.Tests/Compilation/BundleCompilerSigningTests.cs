@@ -78,7 +78,7 @@ public sealed class BundleCompilerSigningTests : IDisposable
         var p = CreatePayload("a.msi", "payload-a");
         var model = ModelWithIntegrity(integrity: null, ("PkgA", p));
 
-        var result = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "out1"));
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, "out1"));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.Null(ExtractManifest(result.Value).ManifestSignature);
@@ -90,7 +90,7 @@ public sealed class BundleCompilerSigningTests : IDisposable
         var p = CreatePayload("a.msi", "payload-a");
         var model = ModelWithIntegrity(new IntegrityConfiguration(), ("PkgA", p));
 
-        var result = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "out2"));
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, "out2"));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var manifest = ExtractManifest(result.Value);
@@ -113,7 +113,7 @@ public sealed class BundleCompilerSigningTests : IDisposable
         var b = CreatePayload("b.msi", "payload-b-different");
         var model = ModelWithIntegrity(new IntegrityConfiguration(), ("PkgA", a), ("PkgB", b));
 
-        var result = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "out3"));
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, "out3"));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var manifest = ExtractManifest(result.Value);

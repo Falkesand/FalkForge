@@ -33,7 +33,7 @@ public sealed class BundleCompilationTests
                         .Version("1.0.0")))
                 .Build();
 
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var outputDir = Path.Combine(tempDir, "output");
             var result = compiler.Compile(model, outputDir);
 
@@ -99,7 +99,7 @@ public sealed class BundleCompilationTests
                         .DisplayName("Prerequisites Package")))
                 .Build();
 
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var outputDir = Path.Combine(tempDir, "output");
             var result = compiler.Compile(model, outputDir);
 
@@ -147,7 +147,7 @@ public sealed class BundleCompilationTests
                 .Version("1.0.0")
                 .Build();
 
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var result = compiler.Compile(model, tempDir);
 
             Assert.True(result.IsFailure);
@@ -177,7 +177,7 @@ public sealed class BundleCompilationTests
                         .DisplayName("Missing Package")))
                 .Build();
 
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var outputDir = Path.Combine(tempDir, "output");
             var result = compiler.Compile(model, outputDir);
 
@@ -216,7 +216,7 @@ public sealed class BundleCompilationTests
                         .DisplayName("Compressible Package")))
                 .Build();
 
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var outputDir = Path.Combine(tempDir, "output");
             var result = compiler.Compile(model, outputDir);
             Assert.True(result.IsSuccess);

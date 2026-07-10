@@ -64,6 +64,14 @@ public sealed class BuildSettings : CommandSettings
     [DefaultValue(false)]
     public bool NoSign { get; init; }
 
+    [CommandOption("--no-engine")]
+    [Description("Embed the design-time placeholder engine stub instead of the published " +
+                 "NativeAOT engine. The resulting bundle verifies but is NOT a runnable " +
+                 "installer; intended for signing/verification tooling and CI without an " +
+                 "engine publish.")]
+    [DefaultValue(false)]
+    public bool NoEngine { get; init; }
+
     [CommandOption("--ice")]
     [Description("Enable ICE validation (default: enabled)")]
     public bool? Ice { get; init; }

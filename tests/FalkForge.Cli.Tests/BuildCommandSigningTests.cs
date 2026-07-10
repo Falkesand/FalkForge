@@ -74,14 +74,18 @@ public sealed class BuildCommandSigningTests : IDisposable
         return jsonPath;
     }
 
-    private (int ExitCode, TestConsoleOutput Console, string OutputDir) RunBuild(string jsonPath)
+    // noEngine defaults to true so these signing-focused tests stay hermetic: they must not
+    // depend on a published NativeAOT engine being present on the machine. The engine-resolution
+    // tests below pass noEngine: false to exercise the real default path deterministically via
+    // the FALKFORGE_ENGINE_STUB environment variable.
+    private (int ExitCode, TestConsoleOutput Console, string OutputDir) RunBuild(string jsonPath, bool noEngine = true)
     {
         var outputDir = Path.Combine(_tempDir, "output");
         Directory.CreateDirectory(outputDir);
 
         var console = new TestConsoleOutput();
         var command = new BuildCommand(console);
-        var settings = new BuildSettings { ProjectPath = jsonPath, OutputPath = outputDir };
+        var settings = new BuildSettings { ProjectPath = jsonPath, OutputPath = outputDir, NoEngine = noEngine };
         var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
         return (exitCode, console, outputDir);
     }
@@ -246,14 +250,14 @@ public sealed class BuildCommandSigningTests : IDisposable
         Assert.Contains(console.Errors, e => e.Contains("pqKeyEnv", StringComparison.Ordinal));
     }
 
-    // ── placeholder-stub warning: a signed bundle is NOT a runnable installer ─
+    // ── engine stub policy: real engine by default, placeholder only on opt-in
 
     [Fact]
-    public void PemSigning_PrintsPlaceholderStubNotRunnableWarning()
+    public void NoEngineOptIn_PrintsPlaceholderStubNotRunnableWarning()
     {
-        // The signed bundle wraps a design-time placeholder engine stub (no NativeAOT engine),
-        // so it verifies but cannot install anything. The build must say so LOUDLY at build
-        // time, not just in tutorial prose.
+        // With --no-engine the signed bundle wraps a design-time placeholder engine stub, so it
+        // verifies but cannot install anything. The build must say so LOUDLY at build time —
+        // but ONLY when the placeholder was explicitly chosen.
         if (!OperatingSystem.IsWindows())
             Assert.Skip("Windows only");
 
@@ -261,11 +265,75 @@ public sealed class BuildCommandSigningTests : IDisposable
         File.WriteAllText(Path.Combine(_tempDir, "release.pem"), key.ExportPkcs8PrivateKeyPem());
 
         var (exitCode, console, _) = RunBuild(
-            WriteConfig("""{ "provider": "pem", "keyPath": "release.pem" }"""));
+            WriteConfig("""{ "provider": "pem", "keyPath": "release.pem" }"""), noEngine: true);
 
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.Contains(console.AllOutput, line =>
             line.Contains("NOT a runnable installer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DefaultEngineResolution_EmbedsRealStub_AndDoesNotPrintPlaceholderWarning()
+    {
+        // The DEFAULT signed-bundle path must embed the resolved engine binary as the bundle's
+        // PE front (a runnable self-extracting installer) and must NOT print the "NOT a runnable
+        // installer" warning — that warning is reserved for the explicit --no-engine opt-in.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var engineDir = Path.Combine(_tempDir, "engine-drop");
+        Directory.CreateDirectory(engineDir);
+        var enginePath = Path.Combine(engineDir, "FalkForge.Engine.exe");
+        var engineBytes = new byte[512];
+        engineBytes[0] = (byte)'M';
+        engineBytes[1] = (byte)'Z';
+        File.WriteAllBytes(enginePath, engineBytes);
+        Environment.SetEnvironmentVariable(EngineStubLocator.EnvironmentVariableName, enginePath);
+        _envVarsToClear.Add(EngineStubLocator.EnvironmentVariableName);
+
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        File.WriteAllText(Path.Combine(_tempDir, "release.pem"), key.ExportPkcs8PrivateKeyPem());
+
+        var (exitCode, console, outputDir) = RunBuild(
+            WriteConfig("""{ "provider": "pem", "keyPath": "release.pem" }"""), noEngine: false);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        var bundlePath = Assert.Single(Directory.GetFiles(outputDir, "*.exe"));
+        using (var stream = File.OpenRead(bundlePath))
+        {
+            var prefix = new byte[2];
+            stream.ReadExactly(prefix);
+            Assert.Equal((byte)'M', prefix[0]);
+            Assert.Equal((byte)'Z', prefix[1]);
+        }
+
+        Assert.DoesNotContain(console.AllOutput, line =>
+            line.Contains("NOT a runnable installer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DefaultEngineResolution_Unresolvable_FailsBuildClosed()
+    {
+        // Without --no-engine an unresolvable engine must FAIL the build — never silently ship
+        // a bundle that verifies but cannot install.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        Environment.SetEnvironmentVariable(
+            EngineStubLocator.EnvironmentVariableName,
+            Path.Combine(_tempDir, "no-such-engine.exe"));
+        _envVarsToClear.Add(EngineStubLocator.EnvironmentVariableName);
+
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        File.WriteAllText(Path.Combine(_tempDir, "release.pem"), key.ExportPkcs8PrivateKeyPem());
+
+        var (exitCode, console, outputDir) = RunBuild(
+            WriteConfig("""{ "provider": "pem", "keyPath": "release.pem" }"""), noEngine: false);
+
+        Assert.NotEqual(ExitCodes.Success, exitCode);
+        Assert.Empty(Directory.GetFiles(outputDir, "*.exe"));
+        Assert.Contains(console.Errors, e =>
+            e.Contains(EngineStubLocator.EnvironmentVariableName, StringComparison.Ordinal));
     }
 
     // ── fail-closed: unresolvable signing config must fail the build ─────────
