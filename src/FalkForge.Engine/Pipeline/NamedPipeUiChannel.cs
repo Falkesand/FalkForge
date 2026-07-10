@@ -266,21 +266,26 @@ public sealed class NamedPipeUiChannel : IUiChannel
             return Task.CompletedTask;
         }
 
-        // SetProperty: validate name and accumulate for bundling into UiRequest.Plan.
+        // SetProperty: validate name + value length and accumulate for bundling into UiRequest.Plan.
         if (message is SetPropertyMessage propMsg)
         {
-            var rejection = PropertyNameValidator.Validate(propMsg.PropertyName, logger: null);
+            var rejection = PropertyNameValidator.Validate(propMsg.PropertyName, logger: null)
+                ?? PropertyNameValidator.ValidateValueLength(propMsg.Value.Length, logger: null);
             if (rejection is null)
                 _pendingProperties[propMsg.PropertyName] = propMsg.Value;
             return Task.CompletedTask;
         }
 
-        // SetSecureProperty: validate name and accumulate (value copied to pending dict).
+        // SetSecureProperty: validate name + value length and accumulate (value copied to
+        // pending dict). A rejected secure value is disposed so its plaintext is zeroed.
         if (message is SetSecurePropertyMessage secureMsg)
         {
-            var rejection = PropertyNameValidator.Validate(secureMsg.PropertyName, logger: null);
+            var rejection = PropertyNameValidator.Validate(secureMsg.PropertyName, logger: null)
+                ?? PropertyNameValidator.ValidateValueLength(secureMsg.SecureValue.Length, logger: null);
             if (rejection is null)
                 _pendingSecureProperties[secureMsg.PropertyName] = secureMsg.SecureValue;
+            else
+                secureMsg.SecureValue.Dispose();
             return Task.CompletedTask;
         }
 
