@@ -2,11 +2,15 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 using FalkForge;
+using FalkForge.Cli.Models;
 using FalkForge.Cli.Settings;
 using FalkForge.Cli.WinGet;
+using FalkForge.Compiler.Bundle.Builders;
+using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Compiler.Msi;
 using FalkForge.Models;
 using FalkForge.Platform.Windows;
+using FalkForge.Signing;
 using FalkForge.Validation;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -17,8 +21,11 @@ namespace FalkForge.Cli.Commands;
 /// Compiles an installer definition (.cs, .csx, or .json) into an MSI.
 /// Uses Roslyn scripting for .cs/.csx files and JsonConfigLoader for .json files.
 /// Dispatch lives in <see cref="BuildInputResolver"/>.
+/// The command is asynchronous because a JSON config with a <c>signing</c> section drives the
+/// async bundle build path (a remote <see cref="ISignatureProvider"/> performs network I/O);
+/// without signing the flow completes synchronously exactly as before.
 /// </summary>
-public sealed class BuildCommand : Command<BuildSettings>
+public sealed class BuildCommand : AsyncCommand<BuildSettings>
 {
     // _console is swapped to a JsonConsoleOutput buffer when settings.Json is set so the
     // entire build run accumulates messages into a single envelope rendered at the end.
@@ -35,7 +42,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         _jsonSink = jsonSink ?? Console.Out;
     }
 
-    protected override int Execute([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
     {
         var originalConsole = _console;
         var jsonOutput = settings.Json ? new JsonConsoleOutput() : null;
@@ -44,13 +51,13 @@ public sealed class BuildCommand : Command<BuildSettings>
 
         try
         {
-            var exitCode = ExecuteInternal(settings);
+            var exitCode = await ExecuteInternalAsync(settings, cancellationToken).ConfigureAwait(false);
             if (jsonOutput is not null)
             {
                 IReadOnlyDictionary<string, string?>? envelopeResult = settings.DryRun
                     ? new Dictionary<string, string?> { ["dryRun"] = "true" }
                     : null;
-                _jsonSink.WriteLine(jsonOutput.WriteEnvelope("build", exitCode, envelopeResult));
+                await _jsonSink.WriteLineAsync(jsonOutput.WriteEnvelope("build", exitCode, envelopeResult)).ConfigureAwait(false);
             }
             return exitCode;
         }
@@ -60,7 +67,7 @@ public sealed class BuildCommand : Command<BuildSettings>
         }
     }
 
-    private int ExecuteInternal(BuildSettings settings)
+    private async Task<int> ExecuteInternalAsync(BuildSettings settings, CancellationToken cancellationToken)
     {
         if (settings.Reproducible)
         {
@@ -123,6 +130,21 @@ public sealed class BuildCommand : Command<BuildSettings>
         if (isJson)
             _console.MarkupLine($"[green]Loaded JSON config:[/] {Markup.Escape(package.Name)} v{package.Version}");
 
+        // The optional signing section (JSON configs only) selects a bundle-integrity
+        // signature backend. Structural validation happens here so a broken section fails
+        // before any artifact is produced.
+        SigningConfig? signingConfig = null;
+        if (isJson)
+        {
+            var signingLoad = JsonConfigLoader.LoadSigningFromFile(projectPath);
+            if (signingLoad.IsFailure)
+            {
+                _console.WriteError(signingLoad.Error.Message);
+                return ExitCodes.FromErrorKind(signingLoad.Error.Kind);
+            }
+            signingConfig = signingLoad.Value;
+        }
+
         if (settings.DryRun)
             return RunDryRun(package, outputPath);
 
@@ -132,25 +154,84 @@ public sealed class BuildCommand : Command<BuildSettings>
             return ExitCodes.RuntimeError;
         }
 
-        var compileResult = CompilePackage(package, outputPath, settings);
-        if (compileResult.IsFailure)
+        // Resolve the signing provider BEFORE compiling: an unresolvable signing config
+        // (e.g. an unset env var) must fail closed without leaving artifacts behind.
+        var resolveResult = SigningProviderFactory.Create(signingConfig, Path.GetDirectoryName(projectPath) ?? Environment.CurrentDirectory);
+        if (resolveResult.IsFailure)
         {
-            _console.WriteError(compileResult.Error.Message);
-            return ExitCodes.FromErrorKind(compileResult.Error.Kind);
+            _console.WriteError(resolveResult.Error.Message);
+            return ExitCodes.FromErrorKind(resolveResult.Error.Kind);
         }
 
-        _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(compileResult.Value)}");
-
-        if (settings.GenerateWinGet)
+        var resolvedSigning = resolveResult.Value;
+        try
         {
-            var wingetResult = GenerateWinGetManifest(compileResult.Value, package, settings);
-            if (wingetResult.IsFailure)
-                _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
-            else
-                _console.MarkupLine("[green]WinGet manifest written alongside installer[/]");
-        }
+            foreach (var warning in resolvedSigning.Warnings)
+                _console.MarkupLine($"[yellow]Warning:[/] {Markup.Escape(warning)}");
 
-        return ExitCodes.Success;
+            var compileResult = CompilePackage(package, outputPath, settings);
+            if (compileResult.IsFailure)
+            {
+                _console.WriteError(compileResult.Error.Message);
+                return ExitCodes.FromErrorKind(compileResult.Error.Kind);
+            }
+
+            _console.MarkupLine($"[green]Build succeeded:[/] {Markup.Escape(compileResult.Value)}");
+
+            if (resolvedSigning.IsEnabled)
+            {
+                var bundleResult = await CompileSignedBundleAsync(
+                    compileResult.Value, package, outputPath, resolvedSigning.Provider, cancellationToken).ConfigureAwait(false);
+                if (bundleResult.IsFailure)
+                {
+                    _console.WriteError(bundleResult.Error.Message);
+                    return ExitCodes.FromErrorKind(bundleResult.Error.Kind);
+                }
+
+                _console.MarkupLine($"[green]Signed bundle created:[/] {Markup.Escape(bundleResult.Value)}");
+            }
+
+            if (settings.GenerateWinGet)
+            {
+                var wingetResult = GenerateWinGetManifest(compileResult.Value, package, settings);
+                if (wingetResult.IsFailure)
+                    _console.MarkupLine($"[yellow]Warning:[/] WinGet manifest generation failed: {Markup.Escape(wingetResult.Error.Message)}");
+                else
+                    _console.MarkupLine("[green]WinGet manifest written alongside installer[/]");
+            }
+
+            return ExitCodes.Success;
+        }
+        finally
+        {
+            (resolvedSigning.Provider as IDisposable)?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Wraps the freshly compiled MSI in a single-package EXE bundle whose integrity manifest is
+    /// signed by <paramref name="provider"/> (the C17 seam), using the ASYNC bundle build path so
+    /// a genuinely asynchronous provider (e.g. SignServer) signs without blocking a thread.
+    /// </summary>
+    private static async Task<Result<string>> CompileSignedBundleAsync(
+        string msiPath,
+        PackageModel package,
+        string outputPath,
+        ISignatureProvider provider,
+        CancellationToken cancellationToken)
+    {
+        var bundle = new BundleBuilder()
+            .Name(package.Name)
+            .Manufacturer(package.Manufacturer)
+            .Version(package.Version.ToString())
+            .Chain(chain => chain.MsiPackage(msiPath, p => p
+                .Id("MainMsi")
+                .DisplayName(package.Name)
+                .Vital(true)))
+            .Integrity(i => i.SigningProvider(provider))
+            .Build();
+
+        return await new BundleCompiler().CompileAsync(bundle, outputPath, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

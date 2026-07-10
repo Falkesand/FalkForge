@@ -279,6 +279,7 @@
           "FalkForge.Extensions.Sql": "[1.0.0, )",
           "FalkForge.Extensions.Util": "[1.0.0, )",
           "FalkForge.Localization": "[1.0.0, )",
+          "FalkForge.Signing.SignServer": "[1.0.0, )",
           "Microsoft.CodeAnalysis.CSharp.Scripting": "[5.6.0, )",
           "Spectre.Console": "[0.57.2, )",
           "Spectre.Console.Cli": "[0.55.0, )"
