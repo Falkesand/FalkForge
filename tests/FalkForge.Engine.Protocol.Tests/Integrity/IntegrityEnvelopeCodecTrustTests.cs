@@ -26,6 +26,9 @@ public sealed class IntegrityEnvelopeCodecTrustTests
         => Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
 
     // Builds a legacy v1-shaped envelope JSON: top-level publicKey + signature, no signatures[].
+    // The signature is canonicalized to low-S like every signature FalkForge emits: since the
+    // anti-malleability hardening the verifier rejects high-S signatures regardless of envelope
+    // version, and a raw SignHash here would be high-S about half the time (flaky tests).
     private static string BuildV1Json(ECDsa key, IReadOnlyList<ManifestFileEntry> files)
     {
         var hash = SHA256.HashData(IntegrityEnvelopeCodec.ComputeSignedBytes(files));
@@ -35,7 +38,7 @@ public sealed class IntegrityEnvelopeCodecTrustTests
             Algorithm = IntegrityEnvelopeCodec.AlgorithmId,
             PublicKey = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo()),
             Files = files,
-            Signature = Convert.ToBase64String(key.SignHash(hash))
+            Signature = Convert.ToBase64String(FalkForge.Signing.EcdsaLowS.Canonicalize(key.SignHash(hash)))
             // Signatures intentionally left empty -> v1 wire shape.
         };
         return IntegrityEnvelopeCodec.Serialize(envelope);

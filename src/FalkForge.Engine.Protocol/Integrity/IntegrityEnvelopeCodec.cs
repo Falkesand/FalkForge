@@ -4,6 +4,7 @@ using System.Collections.Frozen;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using FalkForge.Signing;
 
 /// <summary>
 /// Canonical encode/sign/verify helpers for the integrity envelope. Centralizing
@@ -140,7 +141,9 @@ public static class IntegrityEnvelopeCodec
                 KeyId = string.Empty,
                 Fingerprint = ComputeFingerprint(spki),
                 PublicKey = Convert.ToBase64String(spki),
-                Signature = Convert.ToBase64String(key.SignHash(hash))
+                // Low-S canonicalization: CNG emits the malleable high-S twin about half the time,
+                // and the verifier rejects it — FalkForge never emits a non-canonical signature.
+                Signature = Convert.ToBase64String(EcdsaLowS.Canonicalize(key.SignHash(hash)))
             });
         }
 
@@ -293,6 +296,7 @@ public static class IntegrityEnvelopeCodec
         var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked));
         var haveTrustSet = trustedFingerprints.Count > 0;
         var sawRevoked = false;
+        var sawNonCanonical = false;
 
         foreach (var entry in signatures)
         {
@@ -330,6 +334,18 @@ public static class IntegrityEnvelopeCodec
             if (haveTrustSet && !trustedFingerprints.Contains(actualFingerprint))
                 continue;
 
+            // (b'') Anti-malleability (low-S enforcement): for a valid ECDSA signature (r, s) the twin
+            // (r, n − s) is ALSO cryptographically valid over the same message, and VerifyHash accepts
+            // both. FalkForge only ever emits low-S signatures, so a high-S entry is a malleated or
+            // foreign artifact and must never count as valid — even though the crypto check below would
+            // pass it. Ordered after (a)/(b')/(b) so the fingerprint, revocation, and trust behaviors
+            // are unchanged. Any non-64-byte signature is non-canonical too (P-256 only, fail closed).
+            if (!EcdsaLowS.IsCanonical(signatureBytes))
+            {
+                sawNonCanonical = true;
+                continue;
+            }
+
             // (c) The signature must cryptographically verify over the signed message.
             try
             {
@@ -348,6 +364,12 @@ public static class IntegrityEnvelopeCodec
             return Result<string>.Failure(ErrorKind.IntegrityError,
                 "INT001: The bundle's signature is from a key that has been revoked on this machine. " +
                 "Refusing to extract or execute a payload signed by a revoked publisher key.");
+
+        if (sawNonCanonical)
+            return Result<string>.Failure(ErrorKind.IntegrityError,
+                "INT001: A signature on the manifest is not in canonical low-S form. FalkForge only " +
+                "emits low-S ECDSA signatures, so this is a malleated or foreign signature — refusing " +
+                "to treat it as valid.");
 
         return Result<string>.Failure(ErrorKind.IntegrityError,
             "INT001: No trusted signature validates the manifest. The bundle may have been tampered " +
@@ -420,6 +442,11 @@ public static class IntegrityEnvelopeCodec
 
             // (b) The key must be pinned. Quorum requires a named role, which requires a pinned set.
             if (!trustedFingerprints.Contains(actualFingerprint))
+                continue;
+
+            // (b'') Anti-malleability (low-S enforcement), mirroring MatchTrustedSignature: a high-S
+            // signature is a malleated or foreign artifact and never counts toward a quorum.
+            if (!EcdsaLowS.IsCanonical(signatureBytes))
                 continue;
 
             // (c) The signature must cryptographically verify; first distinct occurrence only.

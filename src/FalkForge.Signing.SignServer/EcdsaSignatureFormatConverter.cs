@@ -3,11 +3,13 @@ using System.Formats.Asn1;
 namespace FalkForge.Signing.SignServer;
 
 /// <summary>
-/// Normalizes an ECDSA-P256 signature to IEEE P1363 (fixed 64-byte r‖s) — the encoding the FalkForge
-/// integrity verifier expects. SignServer's PlainSigner with SHA256withECDSA returns an ASN.1 DER
-/// <c>SEQUENCE { INTEGER r, INTEGER s }</c>; this converts it. A byte-sniff guard keeps the boundary
-/// honest against a SignServer version whose encoding drifts: an already-64-byte value is accepted as
-/// P1363, a <c>0x30</c>-prefixed DER SEQUENCE is parsed and converted, and anything else fails loud.
+/// Normalizes an ECDSA-P256 signature to canonical low-S IEEE P1363 (fixed 64-byte r‖s) — the encoding
+/// the FalkForge integrity verifier expects. SignServer's PlainSigner with SHA256withECDSA returns an
+/// ASN.1 DER <c>SEQUENCE { INTEGER r, INTEGER s }</c>; this converts it. A byte-sniff guard keeps the
+/// boundary honest against a SignServer version whose encoding drifts: an already-64-byte value is
+/// accepted as P1363, a <c>0x30</c>-prefixed DER SEQUENCE is parsed and converted, and anything else
+/// fails loud. Either way the result is canonicalized to low-S (<see cref="EcdsaLowS"/>): the remote
+/// backend's s-half is outside FalkForge's control, and the verifier rejects high-S signatures.
 /// </summary>
 internal static class EcdsaSignatureFormatConverter
 {
@@ -22,9 +24,9 @@ internal static class EcdsaSignatureFormatConverter
     {
         ArgumentNullException.ThrowIfNull(signature);
 
-        // Sniff #1: already the fixed-width P1363 the verifier consumes — accept verbatim.
+        // Sniff #1: already the fixed-width P1363 the verifier consumes — accept, canonicalized to low-S.
         if (signature.Length == P1363Length)
-            return signature;
+            return EcdsaLowS.Canonicalize(signature);
 
         // Sniff #2: an ASN.1 DER SEQUENCE (the SignServer/BouncyCastle default) begins with tag 0x30.
         if (signature.Length >= 2 && signature[0] == 0x30)
@@ -42,7 +44,7 @@ internal static class EcdsaSignatureFormatConverter
                 if (TryCopyCoordinate(r, p1363.AsSpan(0, CoordinateLength))
                     && TryCopyCoordinate(s, p1363.AsSpan(CoordinateLength, CoordinateLength)))
                 {
-                    return p1363;
+                    return EcdsaLowS.Canonicalize(p1363);
                 }
             }
             catch (AsnContentException)

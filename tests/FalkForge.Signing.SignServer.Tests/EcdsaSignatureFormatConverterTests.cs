@@ -36,17 +36,60 @@ public sealed class EcdsaSignatureFormatConverterTests
     }
 
     [Fact]
-    public void AlreadyP1363_IsPassedThroughUnchanged()
+    public void AlreadyP1363_IsCanonicalizedToLowS_AndStillVerifies()
     {
+        // Was "passed through unchanged" before the anti-malleability hardening: the converter now also
+        // canonicalizes to low-S (s ≤ n/2), because the verifier rejects high-S signatures. r must stay
+        // byte-identical and the result must still verify with the same key.
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var hash = SHA256.HashData(Message);
-        var p1363 = key.SignHash(hash); // default overload emits P1363
+        var p1363 = key.SignHash(hash); // default overload emits P1363; high-S about half the time
         Assert.Equal(64, p1363.Length);
+        var expectedR = p1363.AsSpan(0, 32).ToArray();
 
         var result = EcdsaSignatureFormatConverter.NormalizeToP1363(p1363);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(p1363, result.Value);
+        Assert.Equal(64, result.Value.Length);
+        Assert.Equal(expectedR, result.Value.AsSpan(0, 32).ToArray());
+        Assert.True(FalkForge.Signing.EcdsaLowS.IsCanonical(result.Value));
+        Assert.True(key.VerifyHash(hash, result.Value));
+    }
+
+    [Fact]
+    public void HighSDerInput_YieldsCanonicalLowSP1363()
+    {
+        // Deterministic anti-malleability vector: a DER SEQUENCE carrying s = n − 5 (high-S) must come
+        // out as P1363 with s = 5 (the canonical twin), r untouched. SignServer's response encoding is
+        // outside FalkForge's control, so the boundary itself must guarantee the canonical form.
+        var order = System.Numerics.BigInteger.Parse(
+            "0FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551",
+            System.Globalization.NumberStyles.HexNumber,
+            System.Globalization.CultureInfo.InvariantCulture);
+        var rMagnitude = new byte[32];
+        rMagnitude[0] = 0x11;
+        rMagnitude[31] = 0x2A;
+        var highS = (order - 5).ToByteArray(isUnsigned: true, isBigEndian: true);
+
+        var writer = new AsnWriter(AsnEncodingRules.DER);
+        using (writer.PushSequence())
+        {
+            writer.WriteIntegerUnsigned(rMagnitude);
+            writer.WriteIntegerUnsigned(highS);
+        }
+        var der = writer.Encode();
+
+        var result = EcdsaSignatureFormatConverter.NormalizeToP1363(der);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var p1363 = result.Value;
+        Assert.Equal(64, p1363.Length);
+        Assert.Equal(rMagnitude, p1363.AsSpan(0, 32).ToArray());
+
+        var expectedS = new byte[32];
+        expectedS[31] = 0x05; // n − (n − 5) = 5, left-padded into the 32-byte slot
+        Assert.Equal(expectedS, p1363.AsSpan(32).ToArray());
+        Assert.True(FalkForge.Signing.EcdsaLowS.IsCanonical(p1363));
     }
 
     [Fact]
