@@ -51,7 +51,14 @@ internal static class StagedUpdateVerifier
     /// </summary>
     internal static Result<Unit> VerifyWithBakedTrust(string stagedBundlePath)
     {
-        var state = TrustStateStore.Load(TrustStateStore.DefaultPath);
+        // Anti-squat: validate the store directory's ACL before trusting its epoch/revocations. A
+        // non-conforming directory (one an unprivileged process could have pre-created/tampered) fails
+        // closed here rather than letting an attacker-writable store silently weaken the anti-downgrade gate.
+        var loaded = TrustStateStore.LoadValidated(TrustStateStore.DefaultPath);
+        if (loaded.IsFailure)
+            return Result<Unit>.Failure(loaded.Error);
+
+        var state = loaded.Value;
         IReadOnlySet<string>? revoked = state.RevokedFingerprints.Length > 0
             ? new HashSet<string>(state.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
             : null;

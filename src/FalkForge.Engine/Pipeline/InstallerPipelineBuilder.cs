@@ -43,6 +43,7 @@ public sealed class InstallerPipelineBuilder
     private IFalkLogger? _logger;
     private FalkForge.Engine.Download.UpdateChecker? _updateChecker;
     private UpdateService? _updateService;
+    private bool _advanceTrustStoreOnVerifiedApply;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -185,6 +186,18 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Enables the C16 post-apply trust-store advance: after a successful apply, <see cref="ApplyStep"/>
+    /// forwards the manifest signature's epoch + revocations to the elevated companion to persist the
+    /// anti-downgrade/revocation store. Set only on the require-signed update path; a fresh install never
+    /// advances the store.
+    /// </summary>
+    public InstallerPipelineBuilder WithTrustStoreAdvanceOnVerifiedApply(bool enabled = true)
+    {
+        _advanceTrustStoreOnVerifiedApply = enabled;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -227,6 +240,7 @@ public sealed class InstallerPipelineBuilder
             : null;
 
         return new InstallerPipeline(
-            detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest);
+            detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest,
+            _advanceTrustStoreOnVerifiedApply);
     }
 }

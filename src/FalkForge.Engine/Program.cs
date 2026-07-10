@@ -362,7 +362,22 @@ internal static partial class Program
         // revocations (INT001) as the bootstrapper path (§6.3), C14 Stage 3 fold-in. Fresh / inspection
         // extracts (requireSigned=false) do not consult the store — it is advanced only during a verified
         // update apply.
-        var trustState = requireSigned ? TrustStateStore.Load(TrustStateStore.DefaultPath) : new TrustState();
+        // Anti-squat (C16): on the require-signed path, validate the store directory's ACL before trusting
+        // its epoch/revocations; a non-conforming (attacker-writable) store fails closed rather than
+        // silently weakening the anti-downgrade/revocation gate.
+        TrustState trustState;
+        if (requireSigned)
+        {
+            var loaded = TrustStateStore.LoadValidated(TrustStateStore.DefaultPath);
+            if (loaded.IsFailure)
+                return Result<Unit>.Failure(loaded.Error);
+            trustState = loaded.Value;
+        }
+        else
+        {
+            trustState = new TrustState();
+        }
+
         IReadOnlySet<string>? revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
             ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
             : null;
@@ -476,7 +491,27 @@ internal static partial class Program
         // persisted per-machine trust store so the gate rejects a downgraded/replayed release (epoch below
         // the highest accepted) or one signed only by a locally-revoked key. Fresh installs
         // (requireSigned=false) do not consult the store — it is advanced only during a verified update.
-        var trustState = requireSigned ? TrustStateStore.Load(TrustStateStore.DefaultPath) : new TrustState();
+        // Anti-squat (C16): on the require-signed update path, validate the store directory's ACL before
+        // trusting its epoch/revocations. A non-conforming (attacker-writable) store fails closed — the
+        // update is refused rather than applied against a store an unprivileged process could have tampered.
+        TrustState trustState;
+        if (requireSigned)
+        {
+            var loaded = TrustStateStore.LoadValidated(TrustStateStore.DefaultPath);
+            if (loaded.IsFailure)
+            {
+                await Console.Error.WriteLineAsync(
+                    $"Bundle integrity verification failed: {loaded.Error.Message}");
+                return 1;
+            }
+
+            trustState = loaded.Value;
+        }
+        else
+        {
+            trustState = new TrustState();
+        }
+
         var revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
             ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
             : null;
@@ -642,31 +677,18 @@ internal static partial class Program
             {
                 PipeOptions = pipeOptions,
                 LogPath = programArgs?.LogPath,
-                MinimumLogLevel = programArgs?.MinimumLogLevel
+                MinimumLogLevel = programArgs?.MinimumLogLevel,
+                // C16: on the require-signed update path, advance the anti-downgrade/revocation store after a
+                // verified+completed apply. The advance is issued to the elevated companion from inside the
+                // pipeline (ApplyStep) — the store's ACL denies a non-elevated write, so the engine no longer
+                // writes it directly here. Advancing after success (not before) prevents an attacker priming
+                // a forged epoch (which would have failed the require-signed gate — the epoch is signed).
+                AdvanceTrustStoreOnVerifiedApply = requireSigned
             });
 
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
-
-        // Advance the trust store ONLY after a verified update apply (§6.3 step 4). Advancing after
-        // success (not before) prevents an attacker priming the epoch with a forged high value — a forged
-        // epoch would have failed the require-signed gate above (the epoch is part of the signed bytes).
-        // Fresh installs never advance the store.
-        if (requireSigned
-            && outcome.State == EngineTerminalState.Completed
-            && manifest.ManifestSignature is not null)
-        {
-            var applied = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
-            if (applied is not null && (applied.Epoch > 0 || applied.Revoked.Count > 0))
-            {
-                var advance = TrustStateStore.Advance(
-                    TrustStateStore.DefaultPath, applied.Epoch, applied.Revoked);
-                if (advance.IsFailure)
-                    await Console.Error.WriteLineAsync(
-                        $"Warning: failed to record trust state after update: {advance.Error.Message}");
-            }
-        }
 
         return outcome.State switch
         {

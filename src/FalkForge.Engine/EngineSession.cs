@@ -336,6 +336,11 @@ public sealed class EngineSession : IAsyncDisposable
         if (updateService is not null && updateCheckerForBuilder is not null)
             pipelineBuilder = pipelineBuilder.WithUpdateServices(updateCheckerForBuilder, updateService);
 
+        // C16: on the require-signed update path, advance the anti-downgrade/revocation store after a
+        // verified apply (forwarded to the elevated companion). Off for fresh installs.
+        if (options.AdvanceTrustStoreOnVerifiedApply)
+            pipelineBuilder = pipelineBuilder.WithTrustStoreAdvanceOnVerifiedApply();
+
         var pipeline = pipelineBuilder.Build();
 
         return new EngineSession(

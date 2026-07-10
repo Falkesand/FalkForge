@@ -8,6 +8,7 @@ using FalkForge.Engine.Journal;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.RestartManager;
 
 /// <summary>
@@ -160,6 +161,20 @@ internal sealed class ApplyStep : IApplyStep
         }
 
         await _uiChannel.SendAsync(new PipelineEvent.Progress(100, null), ct);
+
+        // C16: on the require-signed update path, advance the anti-downgrade/revocation store now that the
+        // apply is verified AND completed (advancing after success, never before, prevents an attacker
+        // priming the epoch — a forged epoch fails signature verification before apply). The write is
+        // forwarded to the elevated companion (the store ACL denies a non-elevated write); if elevation was
+        // unavailable this run, the coordinator says so loudly and does not claim protection it did not record.
+        if (ctx.AdvanceTrustStoreOnVerifiedApply && !ctx.IsDryRun)
+        {
+            var envelope = ctx.Manifest?.ManifestSignature is { } signature
+                ? IntegrityEnvelopeCodec.Parse(signature)
+                : null;
+            await TrustStoreAdvanceCoordinator.AdvanceAsync(
+                envelope, ctx.ElevationGateway, _uiChannel, ct);
+        }
 
         return Unit.Value;
     }
