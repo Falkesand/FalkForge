@@ -155,11 +155,15 @@ public static class SignedPayloadTocVerifier
 
         if (policyTable is null)
         {
-            // C14 verify-any path (unchanged). The signed hashes are only trustworthy if a TRUSTED
-            // signature verifies. A tampered, forged, or attacker-re-signed envelope (key not in the pinned
-            // set) is rejected here. MatchTrustedSignature returns the accepted fingerprint so we can
-            // enforce the persisted revocation list against it.
-            var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(envelope, trustedFingerprints);
+            // C14 verify-any path. The signed hashes are only trustworthy if a TRUSTED signature
+            // verifies. A tampered, forged, or attacker-re-signed envelope (key not in the pinned
+            // set) is rejected here. Revocation (§6.3 step 3) is enforced INSIDE the match: a
+            // locally-revoked key is skipped rather than fatal, so a dual-signed rotation bundle
+            // [revoked-old, good-new] is still accepted via its non-revoked signature (matching
+            // the quorum path's DropRevoked), while a bundle with ONLY revoked trusted signatures
+            // fails INT001.
+            var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(
+                envelope, trustedFingerprints, revokedFingerprints);
             if (trust.IsFailure)
                 return Result<Unit>.Failure(trust.Error);
 
@@ -170,13 +174,6 @@ public static class SignedPayloadTocVerifier
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
                     $"INT008: Bundle key-epoch {envelope.Epoch} is below the highest accepted epoch " +
                     $"{storedEpoch} on this machine. Refusing a downgrade/replay of a superseded release.");
-
-            // Revocation (§6.3 step 3): the accepted key is still in the baked trusted set but has been
-            // recorded as revoked locally. The revocation overrides the stale baked trust.
-            if (revokedFingerprints is not null && revokedFingerprints.Contains(trust.Value))
-                return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                    "INT001: The bundle's signature is from a key that has been revoked on this machine. " +
-                    "Refusing to extract or execute a payload signed by a revoked publisher key.");
         }
         else
         {

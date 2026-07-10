@@ -305,6 +305,81 @@ public sealed class SignedPayloadTocVerifierTests
         Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
     }
 
+    private static InstallerManifest MultiSignedManifest(
+        IReadOnlyList<ECDsa> keys, params (string id, string signedHash)[] payloads)
+    {
+        var files = payloads
+            .Select(p => new ManifestFileEntry { Name = p.id, Sha256 = p.signedHash })
+            .ToList();
+
+        var envelope = IntegrityEnvelopeCodec.Sign(files, keys, epoch: 0, revoked: []);
+
+        var packages = payloads
+            .Select(p => new PackageInfo
+            {
+                Id = p.id,
+                Type = PackageType.MsiPackage,
+                DisplayName = p.id,
+                SourcePath = p.id + ".msi",
+                Sha256Hash = p.signedHash
+            })
+            .ToArray();
+
+        return new InstallerManifest
+        {
+            Name = "T",
+            Manufacturer = "M",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = packages,
+            ManifestSignature = IntegrityEnvelopeCodec.Serialize(envelope)
+        };
+    }
+
+    [Fact]
+    public void DualSigned_RevokedOldKeyListedFirst_GoodNewKey_Accepted()
+    {
+        // Availability: a legit rotation bundle is dual-signed [old, new]. When the old key
+        // has since been revoked locally, the verify-any path must keep iterating to the
+        // still-good new signature instead of rejecting on the first (revoked) match — the
+        // quorum path's DropRevoked already behaves this way.
+        using var oldKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var newKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = MultiSignedManifest([oldKey, newKey], ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) },
+            TrustSet(Fingerprint(oldKey), Fingerprint(newKey)),
+            requireSigned: true, storedEpoch: 0,
+            revokedFingerprints: TrustSet(Fingerprint(oldKey)));
+
+        Assert.True(result.IsSuccess,
+            result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void DualSigned_AllTrustedKeysRevoked_Rejected_Int001()
+    {
+        // Revocation must not be weakened: a bundle carrying ONLY revoked trusted
+        // signatures is still rejected.
+        using var oldKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var newKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = MultiSignedManifest([oldKey, newKey], ("AppMsi", HashA));
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) },
+            TrustSet(Fingerprint(oldKey), Fingerprint(newKey)),
+            requireSigned: true, storedEpoch: 0,
+            revokedFingerprints: TrustSet(Fingerprint(oldKey), Fingerprint(newKey)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("revoked", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void EmptyTrustedSet_WithRequireSigned_ValidSelfSigned_Rejected_FailClosed_Int009()
     {
