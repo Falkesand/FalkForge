@@ -8,6 +8,11 @@ app.Configure(config =>
 {
     config.SetApplicationName("forge");
 
+    // forge --version reports the single-source version from the root Directory.Build.props.
+    // Set explicitly so the reported version is the FalkForge.Cli assembly's informational
+    // version rather than whatever entry assembly happens to host the CommandApp.
+    config.SetApplicationVersion(VersionInfo.CliVersion);
+
     config.Settings.Registrar.Register<IConsoleOutput, SpectreConsoleOutput>();
 
     config.AddCommand<BuildCommand>("build")
