@@ -89,13 +89,16 @@ forge build demo\57-reproducible-sbom\Program.cs --reproducible --sbom -o ./out-
 `--sbom` sets `FALKFORGE_GENERATE_SBOM=1`, triggering SBOM generation even without a `Sbom()` call
 in the script.
 
-## ECDSA Payload Integrity (bundles)
+## Bundle Payload Integrity (a separate feature, not used by this demo)
 
-When building EXE bundles, FalkForge signs each embedded payload with an ECDSA P-256 key and stores
-the signature in the bundle table of contents. The installer engine verifies every payload's
-signature before executing it. This means that even if an attacker replaces bytes inside the bundle
-after signing, the engine will detect the tampering and refuse to proceed. For MSI-only packages,
-the equivalent protection is `forge verify --rebuild`.
+This demo builds an MSI, not an EXE bundle, and its `Program.cs` never calls `Integrity(...)`.
+The reproducibility + SBOM story above is this demo's actual subject. For EXE bundles,
+FalkForge has an independent supply-chain feature: `BundleBuilder.Integrity(...)` signs the
+bundle manifest's payload hashes with an ECDSA P-256 key, and the engine verifies that
+signature before extracting or executing any payload — detecting tampering even if an
+attacker rewrites the bundle's own (unsigned) table of contents. See **demo 59: Bundle
+Integrity Signing** for a runnable example. For MSI-only packages like this one, the
+equivalent supply-chain protection is `forge verify --rebuild` (demonstrated above).
 
 ## Notes
 

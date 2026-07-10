@@ -18,7 +18,7 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 | Core | Domain model, fluent API, validation |
 | Compiler.Msi | MSI/MSM/MSP/MST generation via msi.dll P/Invoke |
 | Compiler.Bundle | Self-extracting EXE bundle compiler |
-| Compiler.Msix | **[Experimental]** MSIX/.msixbundle compiler. Studio wired; CLI dispatch not implemented; no demos. Entry point: `InstallerMsix.BuildMsix()` / `BuildMsixBundle()`. |
+| Compiler.Msix | **[Experimental]** MSIX/.msixbundle compiler. Studio wired; CLI dispatch not implemented. Entry point: `InstallerMsix.BuildMsix()` / `BuildMsixBundle()`. |
 | Engine | NativeAOT installer runtime (exe) |
 | Engine.Elevation | NativeAOT elevated companion (exe) |
 | Engine.Protocol | IPC messages + serialization (AOT-safe) |
@@ -267,8 +267,12 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 54 | forge-migrate | `forge migrate` MSI/WiX-Burn → buildable C# project (CLI-workflow demo + script) |
 | 55 | winget | WinGet manifest generation via `PackageBuilder.WinGet()` (3-file YAML beside MSI) |
 | 56 | verify-and-plan | Provability CLI: `forge plan` / `plan-diff` / `verify --rebuild` (CLI-workflow demo + script) |
-| 57 | reproducible-sbom | Reproducible build under SOURCE_DATE_EPOCH + SBOM (CycloneDX) + ECDSA integrity notes |
+| 57 | reproducible-sbom | Reproducible build under SOURCE_DATE_EPOCH + SBOM (CycloneDX) |
 | 58 | project-references | ProjectOutputs source-gen: reference another project's build output without hardcoded bin paths |
+| 59 | bundle-integrity-signing | Bundle ECDSA payload signing via `BundleBuilder.Integrity()`: ephemeral key + stable PEM key, manifest signature verified back |
+| 60 | trusted-key-rotation | Rotation-safe dual-sign (`AddSigningKey`/`SigningKeys`); trusted-key pinning (`-p:FalkForgeTrustedKey`), `EngineTrustAnchor`, and C19 key roles/quorum notes |
+| 61 | signserver-remote-signing | Remote signing via `SignServerSignatureProvider`/`SignServerConfig`, async build pipeline; falls back to a local key with no SignServer configured |
+| 62 | require-signed-updates | Update-trust authoring: `Integrity().Epoch()/.Revoke()` + `UpdateFeed()`; runtime enforcement (`StagedUpdateVerifier`, INT007/INT001/INT008) notes |
 JSON demos (`demo/json/`, 7 files): 01-minimal, 02-installdir, 03-featuretree, 04-mondo, 05-advanced, 06-web-server, 07-database-app + payload/
 
 ## Documentation
