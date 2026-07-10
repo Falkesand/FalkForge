@@ -26,6 +26,22 @@ public sealed class SigningConfig
     [JsonPropertyName("keyEnv")]
     public string? KeyEnv { get; set; }
 
+    /// <summary>
+    /// PEM provider, hybrid post-quantum signing: path to the ML-DSA (FIPS 204) companion
+    /// private-key PEM. Present ⇒ the bundle is HYBRID-signed — the classical key and the ML-DSA
+    /// key both sign the same manifest message (PQ-hybrid design §2.2). Same secret rules as
+    /// <see cref="KeyPath"/>: a file path, never inline key material.
+    /// </summary>
+    [JsonPropertyName("pqKeyPath")]
+    public string? PqKeyPath { get; set; }
+
+    /// <summary>
+    /// PEM provider, hybrid post-quantum signing: NAME of an environment variable whose VALUE is
+    /// the ML-DSA companion private-key PEM (see <see cref="PqKeyPath"/>).
+    /// </summary>
+    [JsonPropertyName("pqKeyEnv")]
+    public string? PqKeyEnv { get; set; }
+
     /// <summary>SignServer: base URL of the instance, e.g. <c>https://signserver.example.com:8443</c>.</summary>
     [JsonPropertyName("baseUrl")]
     public string? BaseUrl { get; set; }
