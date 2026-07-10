@@ -227,7 +227,11 @@ public sealed class SignServerPodSigningE2ETests
     /// switched to "Windows containers" mode: the <c>docker_engine</c> pipe still exists, but a Linux image
     /// pull against it would fail).
     /// </summary>
-    private static class ContainerRuntime
+    /// <summary>
+    /// <c>internal</c> (not <c>private</c>) so <see cref="SignServerRotationRevocationE2ETests"/> reuses the
+    /// exact same Docker/Podman resolution + Linux-daemon guard instead of re-implementing it.
+    /// </summary>
+    internal static class ContainerRuntime
     {
         private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
 
@@ -249,6 +253,16 @@ public sealed class SignServerPodSigningE2ETests
                 }
                 else
                 {
+                    // A daemon endpoint exists — verify it can actually run Linux containers BEFORE the
+                    // caller wires DOCKER_HOST / attempts any image pull. Any probe failure (unreachable
+                    // daemon, API error, timeout) is treated as "not available" and never throws.
+                    //
+                    // A `docker_engine` named pipe can exist and be completely dead (e.g. a Docker Desktop
+                    // install that was removed but left the pipe registered, or a stopped service) while a
+                    // perfectly good `podman-machine-*` pipe sits right next to it. Probing only the first
+                    // candidate found and giving up on failure would report "no runtime" on a machine that
+                    // genuinely has one — so every named-pipe candidate is tried, in preference order
+                    // (Docker before Podman), and the first one that actually answers as a Linux daemon wins.
                     string[] pipes;
                     try
                     {
@@ -259,32 +273,43 @@ public sealed class SignServerPodSigningE2ETests
                         return (false, $"cannot enumerate named pipes: {ex.Message}");
                     }
 
-                    var docker = pipes.FirstOrDefault(p => p.EndsWith("docker_engine", StringComparison.OrdinalIgnoreCase));
-                    if (docker is not null)
-                    {
-                        dockerHost = "npipe://./pipe/docker_engine";
-                    }
-                    else
-                    {
-                        var podman = pipes.FirstOrDefault(p =>
-                            p.Contains("podman", StringComparison.OrdinalIgnoreCase) && p.Contains("machine", StringComparison.OrdinalIgnoreCase));
-                        if (podman is null)
-                            return (false, "no docker_engine or podman-machine named pipe found");
+                    var candidates = new List<(string Host, bool RyukDisabled)>();
+                    if (pipes.Any(p => p.EndsWith("docker_engine", StringComparison.OrdinalIgnoreCase)))
+                        candidates.Add(("npipe://./pipe/docker_engine", false));
 
-                        dockerHost = $"npipe://./pipe/{Path.GetFileName(podman)}";
-                        ryukDisabled = true;
+                    var podman = pipes.FirstOrDefault(p =>
+                        p.Contains("podman", StringComparison.OrdinalIgnoreCase) && p.Contains("machine", StringComparison.OrdinalIgnoreCase));
+                    if (podman is not null)
+                        candidates.Add(($"npipe://./pipe/{Path.GetFileName(podman)}", true));
+
+                    if (candidates.Count == 0)
+                        return (false, "no docker_engine or podman-machine named pipe found");
+
+                    var lastReason = "no candidate pipe answered";
+                    foreach (var (host, candidateRyukDisabled) in candidates)
+                    {
+                        var (isLinux, probeReason) = await TryProbeLinuxDaemonAsync(host).ConfigureAwait(false);
+                        if (!isLinux)
+                        {
+                            lastReason = probeReason;
+                            continue;
+                        }
+
+                        return CommitDaemon(host, candidateRyukDisabled, probeReason);
                     }
+
+                    return (false, lastReason);
                 }
             }
 
-            // A daemon endpoint exists — verify it can actually run Linux containers BEFORE the caller wires
-            // DOCKER_HOST / attempts any image pull. Any probe failure (unreachable daemon, API error,
-            // timeout) is treated as "not available" and never throws, so this guard always resolves to a
-            // skip rather than a failure.
-            var (isLinux, probeReason) = await TryProbeLinuxDaemonAsync(dockerHost).ConfigureAwait(false);
-            if (!isLinux)
-                return (false, probeReason);
+            // Explicit DOCKER_HOST (or the non-Windows /var/run/docker.sock path) — only one candidate, so
+            // probe it directly.
+            var (explicitIsLinux, explicitReason) = await TryProbeLinuxDaemonAsync(dockerHost).ConfigureAwait(false);
+            return explicitIsLinux ? CommitDaemon(dockerHost, ryukDisabled, explicitReason) : (false, explicitReason);
+        }
 
+        private static (bool Available, string Reason) CommitDaemon(string dockerHost, bool ryukDisabled, string reason)
+        {
             Environment.SetEnvironmentVariable("DOCKER_HOST", dockerHost);
             if (ryukDisabled)
             {
@@ -293,7 +318,7 @@ public sealed class SignServerPodSigningE2ETests
                 Environment.SetEnvironmentVariable("TESTCONTAINERS_RYUK_DISABLED", "true");
             }
 
-            return (true, probeReason);
+            return (true, reason);
         }
 
         private static async Task<(bool IsLinux, string Reason)> TryProbeLinuxDaemonAsync(string dockerHost)
