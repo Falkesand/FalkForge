@@ -273,6 +273,7 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 60 | trusted-key-rotation | Rotation-safe dual-sign (`AddSigningKey`/`SigningKeys`); trusted-key pinning (`-p:FalkForgeTrustedKey`), `EngineTrustAnchor`, and C19 key roles/quorum notes |
 | 61 | signserver-remote-signing | Remote signing via `SignServerSignatureProvider`/`SignServerConfig`, async build pipeline; falls back to a local key with no SignServer configured |
 | 62 | require-signed-updates | Update-trust authoring: `Integrity().Epoch()/.Revoke()` + `UpdateFeed()`; runtime enforcement (`StagedUpdateVerifier`, INT007/INT001/INT008) notes |
+| 63 | hybrid-pq-signing | Hybrid post-quantum signing: `Integrity().HybridKey(classicalPem, pqPem)` (ECDSA-P256 + ML-DSA-65), companion pin (`TrustHybridKey`/`PqFingerprint=`), strip-attack → INT011 proof; CLI: `signing.pqKeyPath`/`pqKeyEnv` |
 JSON demos (`demo/json/`, 7 files): 01-minimal, 02-installdir, 03-featuretree, 04-mondo, 05-advanced, 06-web-server, 07-database-app + payload/
 
 ## Documentation

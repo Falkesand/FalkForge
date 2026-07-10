@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- Deliberate opt-in to the .NET 10 ML-DSA (FIPS 204) API for PQ-hybrid manifest signing —
+             see the rationale comment in src/FalkForge.Core/FalkForge.Core.csproj. -->
+        <NoWarn>$(NoWarn);SYSLIB5006</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\src\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj"/>
+        <!-- Compiler.Msi: this demo builds its payload MSI inline (see Program.cs) so it is a
+             single, self-contained "dotnet run"; it does not depend on the sibling
+             msi-package/ project having been run first. -->
+        <ProjectReference Include="..\..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj"/>
+    </ItemGroup>
+</Project>
