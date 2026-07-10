@@ -31,6 +31,13 @@ public static class IntegrityEnvelopeCodec
     /// <summary>The algorithm identifier embedded in produced envelopes.</summary>
     public const string AlgorithmId = "ECDSA-P256";
 
+    /// <summary>
+    /// The per-entry algorithm identifier of an ML-DSA-65 (FIPS 204) post-quantum signature
+    /// (PQ-hybrid Stage 1). Wire value, frozen. An entry with no algorithm field is
+    /// <see cref="AlgorithmId"/> (ECDSA-P256).
+    /// </summary>
+    public const string MlDsa65AlgorithmId = FalkForge.Signing.SignatureAlgorithms.MlDsa65;
+
     /// <summary>The current envelope format version (v2 = signature list).</summary>
     public const int CurrentVersion = 2;
 

@@ -13,7 +13,7 @@ Probe: `scratchpad\mldsa-probe\` (console app, outside the repo, not in the solu
 | Fact | Result |
 |---|---|
 | `System.Security.Cryptography.MLDsa.IsSupported` | **True** (Windows CNG-backed) |
-| Experimental gate | **None.** Compiles with zero warnings and **no** `SYSLIB5006` opt-in — the ML-DSA API graduated to stable in .NET 10 GA (verified by compiling a pragma-free reference under default settings; `TreatWarningsAsErrors` needs nothing) |
+| Experimental gate | **CORRECTED during Stage 1 implementation (2026-07-10):** the design pass claimed no gate, but building the repo (SDK 10.0.301, `TreatWarningsAsErrors`) fails with `SYSLIB5006` on every `MLDsa` member — the API is still `[Experimental]` in the .NET 10 ref assemblies. Stage 1 opts in deliberately via `<NoWarn>SYSLIB5006</NoWarn>` in the projects that touch ML-DSA, each with a rationale comment. Risk is API-shape churn on .NET upgrades, not crypto correctness; the hybrid model fails closed regardless. |
 | Generate ML-DSA-65 keypair | Works (`MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65)`) |
 | Sign + verify | Works (`SignData` / `VerifyData`); tampered signature correctly rejected |
 | SPKI export/import round-trip | Works (`ExportSubjectPublicKeyInfo` 1974 B → `MLDsa.ImportSubjectPublicKeyInfo` → verifies) |

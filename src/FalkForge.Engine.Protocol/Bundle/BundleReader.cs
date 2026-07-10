@@ -140,36 +140,56 @@ public static class BundleReader
 
             if (dataRegionEnd > 20) // magic(16) + at least length(4)
             {
-                // Scan backward from dataRegionEnd to find the leading magic.
-                // The manifest length (int32) is at magic_pos + 16, manifest bytes follow.
-                // So magic_pos + 16 + 4 + manifestLen == dataRegionEnd.
-                // We need to find magic_pos. Try reading 16 bytes at candidate positions.
-                // The magic must be within dataRegionEnd - 20 bytes of the start.
-                // Strategy: read the int32 at dataRegionEnd - N - 4, where N is the manifest length,
-                // and magic is at dataRegionEnd - N - 4 - 16. Since we don't know N, scan backward.
-                // Optimization: the manifest length int32 tells us where magic is.
-                // Try: seek to candidate position and check for magic.
-
-                // The leading magic is somewhere before dataRegionEnd.
-                // Search backward in chunks for the magic bytes.
+                // Scan backward from dataRegionEnd to find the leading magic. The layout is
+                // [magic 16][manifestLen int32][manifest bytes] ending exactly at dataRegionEnd, so
+                // magic_pos + 16 + 4 + manifestLen == dataRegionEnd. Since manifestLen is unknown,
+                // scan backward chunk by chunk with a Magic.Length-1 overlap (a marker straddling a
+                // chunk boundary must still be found). The original single-4096-byte window silently
+                // dropped any manifest above ~4 KB — a size every hybrid-signed (ECDSA + ML-DSA)
+                // envelope exceeds, which would make a SIGNED bundle read as unsigned.
+                //
+                // A hit counts only when it is COHERENT: the int32 after the candidate magic must
+                // state exactly the byte count up to dataRegionEnd. The engine stub is a real PE that
+                // embeds the magic constant as static data, so an incoherent decoy inside the stub is
+                // skipped and the scan continues. Within the manifest region itself no decoy can
+                // occur (JSON never contains the NUL bytes the marker ends with), so the coherent
+                // hit closest to dataRegionEnd is the real leading magic.
                 const int searchChunkSize = 4096;
-                var searchStart = Math.Max(0, dataRegionEnd - searchChunkSize);
-                stream.Seek(searchStart, SeekOrigin.Begin);
-                var searchBuffer = reader.ReadBytes((int)(dataRegionEnd - searchStart));
-
-                var magicIndex = FindMagicIndex(searchBuffer);
-                if (magicIndex >= 0)
+                var magicPos = -1L;
+                var windowEnd = dataRegionEnd;
+                while (magicPos < 0 && windowEnd >= Magic.Length + 4)
                 {
-                    var manifestLenPos = searchStart + magicIndex + 16;
-                    stream.Seek(manifestLenPos, SeekOrigin.Begin);
-                    var manifestLen = reader.ReadInt32();
+                    var windowStart = Math.Max(0, windowEnd - searchChunkSize);
+                    stream.Seek(windowStart, SeekOrigin.Begin);
+                    var searchBuffer = reader.ReadBytes((int)(windowEnd - windowStart));
 
-                    if (manifestLen > 0 && manifestLen <= MaxManifestBytes) // shared cap with BundleAccess
+                    for (var i = FindMagicIndex(searchBuffer, 0); i >= 0; i = FindMagicIndex(searchBuffer, i + 1))
                     {
-                        manifestJsonBytes = reader.ReadBytes(manifestLen);
-                        if (manifestJsonBytes.Length != manifestLen)
-                            manifestJsonBytes = null; // truncated — ignore
+                        var candidate = windowStart + i;
+                        var expectedLen = dataRegionEnd - candidate - Magic.Length - sizeof(int);
+                        if (expectedLen <= 0 || expectedLen > MaxManifestBytes)
+                            continue;
+
+                        stream.Seek(candidate + Magic.Length, SeekOrigin.Begin);
+                        if (reader.ReadInt32() == expectedLen)
+                        {
+                            magicPos = candidate;
+                            break;
+                        }
                     }
+
+                    if (windowStart == 0)
+                        break;
+                    windowEnd = windowStart + Magic.Length - 1; // overlap across the chunk boundary
+                }
+
+                if (magicPos >= 0)
+                {
+                    stream.Seek(magicPos + Magic.Length, SeekOrigin.Begin);
+                    var manifestLen = reader.ReadInt32(); // == coherent expectedLen, within the shared cap
+                    manifestJsonBytes = reader.ReadBytes(manifestLen);
+                    if (manifestJsonBytes.Length != manifestLen)
+                        manifestJsonBytes = null; // truncated — ignore
                 }
             }
 
@@ -530,13 +550,13 @@ public static class BundleReader
     }
 
     /// <summary>
-    /// Finds the index of the FALKBUNDLE magic bytes within a buffer.
-    /// Returns -1 if not found.
+    /// Finds the index of the FALKBUNDLE magic bytes within a buffer, at or after
+    /// <paramref name="startIndex"/>. Returns -1 if not found.
     /// </summary>
-    private static int FindMagicIndex(byte[] buffer)
+    private static int FindMagicIndex(byte[] buffer, int startIndex)
     {
         var magicSpan = Magic.AsSpan();
-        for (var i = 0; i <= buffer.Length - Magic.Length; i++)
+        for (var i = Math.Max(0, startIndex); i <= buffer.Length - Magic.Length; i++)
         {
             if (buffer.AsSpan(i, Magic.Length).SequenceEqual(magicSpan))
                 return i;

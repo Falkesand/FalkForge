@@ -2,6 +2,12 @@
     <PropertyGroup>
         <RootNamespace>FalkForge</RootNamespace>
         <Description>Domain model and fluent API for FalkForge</Description>
+        <!-- Deliberate opt-in to the .NET 10 ML-DSA (FIPS 204) API for PQ-hybrid manifest signing
+             (docs/plans/2026-07-10-pq-hybrid-signature-design.md). SYSLIB5006 marks the API surface
+             [Experimental]; the shipped CNG-backed implementation works (probe-verified, incl.
+             NativeAOT). Risk is API-shape churn on .NET upgrades, not crypto correctness — and the
+             hybrid model fails closed: a PQ bug can only reject, never accept alone. -->
+        <NoWarn>$(NoWarn);SYSLIB5006</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="FalkForge.Core.Tests"/>
