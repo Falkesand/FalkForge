@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Docker.DotNet;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using FalkForge.Compiler.Bundle;
@@ -62,7 +63,7 @@ public sealed class SignServerPodSigningE2ETests
     [Fact]
     public async Task Bundle_SignedByLiveSignServerPod_VerifiesWithTheEngineCodec()
     {
-        var runtimeAvailable = ContainerRuntime.TryEnsureConfigured(out var reason);
+        var (runtimeAvailable, reason) = await ContainerRuntime.TryEnsureConfiguredAsync();
         Assert.SkipUnless(runtimeAvailable, $"No Docker/Podman container runtime available: {reason}");
 
         var container = new ContainerBuilder()
@@ -218,67 +219,100 @@ public sealed class SignServerPodSigningE2ETests
 
     /// <summary>
     /// Resolves a container runtime for Testcontainers. Honors an explicit <c>DOCKER_HOST</c>; otherwise
-    /// probes Windows named pipes for a Docker or Podman endpoint and wires <c>DOCKER_HOST</c> +
-    /// disables Ryuk (rootless Podman cannot run the privileged reaper). Returns false — so the test skips
-    /// rather than fails — when nothing is resolvable.
+    /// probes Windows named pipes for a Docker or Podman endpoint. Either way, before wiring
+    /// <c>DOCKER_HOST</c> for the test it also confirms the daemon can actually run <b>Linux</b> containers
+    /// (queries <c>/info</c> for <c>OSType</c>) and disables Ryuk for Podman (rootless Podman cannot run the
+    /// privileged reaper). Returns "not available" — so the test skips rather than fails — when nothing is
+    /// resolvable, or when a daemon is reachable but only runs Windows containers (e.g. Docker Desktop
+    /// switched to "Windows containers" mode: the <c>docker_engine</c> pipe still exists, but a Linux image
+    /// pull against it would fail).
     /// </summary>
     private static class ContainerRuntime
     {
-        public static bool TryEnsureConfigured(out string reason)
+        private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
+
+        public static async Task<(bool Available, string Reason)> TryEnsureConfiguredAsync()
         {
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOCKER_HOST")))
-            {
-                reason = "DOCKER_HOST already set";
-                return true;
-            }
+            var dockerHost = Environment.GetEnvironmentVariable("DOCKER_HOST");
+            var ryukDisabled = false;
 
-            if (!OperatingSystem.IsWindows())
+            if (string.IsNullOrEmpty(dockerHost))
             {
-                // On Linux/macOS Testcontainers finds the default socket itself; assume present if the
-                // unix socket exists.
-                if (File.Exists("/var/run/docker.sock"))
+                if (!OperatingSystem.IsWindows())
                 {
-                    reason = "unix docker socket";
-                    return true;
+                    // On Linux/macOS Testcontainers finds the default socket itself; assume present if the
+                    // unix socket exists.
+                    if (!File.Exists("/var/run/docker.sock"))
+                        return (false, "no /var/run/docker.sock");
+
+                    dockerHost = "unix:///var/run/docker.sock";
                 }
-                reason = "no /var/run/docker.sock";
-                return false;
+                else
+                {
+                    string[] pipes;
+                    try
+                    {
+                        pipes = Directory.GetFiles(@"\\.\pipe\");
+                    }
+                    catch (IOException ex)
+                    {
+                        return (false, $"cannot enumerate named pipes: {ex.Message}");
+                    }
+
+                    var docker = pipes.FirstOrDefault(p => p.EndsWith("docker_engine", StringComparison.OrdinalIgnoreCase));
+                    if (docker is not null)
+                    {
+                        dockerHost = "npipe://./pipe/docker_engine";
+                    }
+                    else
+                    {
+                        var podman = pipes.FirstOrDefault(p =>
+                            p.Contains("podman", StringComparison.OrdinalIgnoreCase) && p.Contains("machine", StringComparison.OrdinalIgnoreCase));
+                        if (podman is null)
+                            return (false, "no docker_engine or podman-machine named pipe found");
+
+                        dockerHost = $"npipe://./pipe/{Path.GetFileName(podman)}";
+                        ryukDisabled = true;
+                    }
+                }
             }
 
-            string[] pipes;
-            try
-            {
-                pipes = Directory.GetFiles(@"\\.\pipe\");
-            }
-            catch (IOException ex)
-            {
-                reason = $"cannot enumerate named pipes: {ex.Message}";
-                return false;
-            }
+            // A daemon endpoint exists — verify it can actually run Linux containers BEFORE the caller wires
+            // DOCKER_HOST / attempts any image pull. Any probe failure (unreachable daemon, API error,
+            // timeout) is treated as "not available" and never throws, so this guard always resolves to a
+            // skip rather than a failure.
+            var (isLinux, probeReason) = await TryProbeLinuxDaemonAsync(dockerHost).ConfigureAwait(false);
+            if (!isLinux)
+                return (false, probeReason);
 
-            var docker = pipes.FirstOrDefault(p => p.EndsWith("docker_engine", StringComparison.OrdinalIgnoreCase));
-            if (docker is not null)
+            Environment.SetEnvironmentVariable("DOCKER_HOST", dockerHost);
+            if (ryukDisabled)
             {
-                Environment.SetEnvironmentVariable("DOCKER_HOST", "npipe://./pipe/docker_engine");
-                reason = "docker_engine pipe";
-                return true;
-            }
-
-            var podman = pipes.FirstOrDefault(p =>
-                p.Contains("podman", StringComparison.OrdinalIgnoreCase) && p.Contains("machine", StringComparison.OrdinalIgnoreCase));
-            if (podman is not null)
-            {
-                var pipeName = Path.GetFileName(podman);
-                Environment.SetEnvironmentVariable("DOCKER_HOST", $"npipe://./pipe/{pipeName}");
                 // Rootless Podman cannot run the privileged Ryuk reaper container — disable it and rely on
                 // the test's own DisposeAsync teardown.
                 Environment.SetEnvironmentVariable("TESTCONTAINERS_RYUK_DISABLED", "true");
-                reason = $"podman pipe {pipeName}";
-                return true;
             }
 
-            reason = "no docker_engine or podman-machine named pipe found";
-            return false;
+            return (true, probeReason);
+        }
+
+        private static async Task<(bool IsLinux, string Reason)> TryProbeLinuxDaemonAsync(string dockerHost)
+        {
+            try
+            {
+                using var config = new DockerClientConfiguration(new Uri(dockerHost), defaultTimeout: ProbeTimeout);
+                using var client = config.CreateClient();
+                using var cts = new CancellationTokenSource(ProbeTimeout);
+                var info = await client.System.GetSystemInfoAsync(cts.Token).ConfigureAwait(false);
+
+                return string.Equals(info.OSType, "linux", StringComparison.OrdinalIgnoreCase)
+                    ? (true, $"linux daemon at {dockerHost}")
+                    : (false, $"Docker daemon is in Windows-container mode (OSType={info.OSType}); Linux containers required");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"container runtime probe failed: {ex.Message}");
+            }
         }
     }
 }
