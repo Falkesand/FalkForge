@@ -7,7 +7,7 @@ using FalkForge.Engine.Protocol.Messages;
 
 internal sealed class UpdateDownloader
 {
-    private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> _download;
+    private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, long?, CancellationToken, Task<Result<string>>> _download;
     private readonly Func<EngineMessage, CancellationToken, Task> _sendMessage;
     private readonly IFalkLogger _logger;
     private readonly UpdatePolicy _policy;
@@ -18,7 +18,7 @@ internal sealed class UpdateDownloader
     private readonly Func<string, Result<Unit>> _verifyStagedBundle;
 
     internal UpdateDownloader(
-        Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
+        Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, long?, CancellationToken, Task<Result<string>>> download,
         Func<EngineMessage, CancellationToken, Task> sendMessage,
         IFalkLogger logger,
         UpdatePolicy policy,
@@ -69,7 +69,7 @@ internal sealed class UpdateDownloader
         {
             var deltaPath = Path.Combine(cacheDir, $"{update.Version}_{update.DeltaSha256}.delta");
             var deltaResult = await _download(
-                update.DeltaUrl, update.DeltaSha256, deltaPath, progress, _allowResume, ct);
+                update.DeltaUrl, update.DeltaSha256, deltaPath, progress, _allowResume, update.DeltaSize, ct);
 
             if (deltaResult.IsSuccess)
             {
@@ -91,20 +91,20 @@ internal sealed class UpdateDownloader
                 {
                     _logger.Warning("UpdateDownloader", $"Failed to move delta bundle: {ex.Message}. Falling back to full download.");
                     result = await _download(
-                        update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+                        update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, update.Size, ct);
                 }
             }
             else
             {
                 _logger.Warning("UpdateDownloader", $"Delta download failed: {deltaResult.Error.Message}. Falling back to full download.");
                 result = await _download(
-                    update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+                    update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, update.Size, ct);
             }
         }
         else
         {
             result = await _download(
-                update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, ct);
+                update.DownloadUrl, update.Sha256, destPath, progress, _allowResume, update.Size, ct);
         }
 
         // Send all accumulated progress messages before the ready notification.

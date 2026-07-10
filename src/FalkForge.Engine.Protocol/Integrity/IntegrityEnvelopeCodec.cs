@@ -255,16 +255,29 @@ public static class IntegrityEnvelopeCodec
 
     /// <summary>
     /// Same verify-any rule as <see cref="VerifyTrusted"/>, but returns the <b>matched fingerprint</b> of
-    /// the accepted signature on success. Callers that enforce revocation (§6.3 step 3) need to know which
-    /// key was trusted so they can reject it when it appears in the persisted revocation list.
+    /// the accepted signature on success, and optionally enforces a local revocation list (§6.3 step 3).
+    ///
+    /// <para><b>Revocation ordering.</b> A revoked key is <i>skipped</i>, not fatal: a legitimate
+    /// rotation bundle is dual-signed <c>[old, new]</c>, and when the old key has since been revoked the
+    /// iteration must continue to the still-good new signature (matching the quorum path's
+    /// <c>DropRevoked</c> semantics). Only when <b>no</b> non-revoked trusted signature validates is the
+    /// envelope rejected — a bundle carrying solely revoked trusted signatures still fails INT001.</para>
     /// </summary>
+    /// <param name="envelope">The parsed integrity envelope.</param>
+    /// <param name="trustedFingerprints">The pinned trusted-key set (empty = consistency-only).</param>
+    /// <param name="revokedFingerprints">
+    /// Fingerprints recorded as locally revoked; signatures from these keys never match. Null/empty
+    /// means no revocations are enforced.
+    /// </param>
     /// <returns>
     /// Success carrying the accepted signature's fingerprint (uppercase hex). INT003 when the envelope
-    /// carries no usable signatures. INT001 when no signature both matches a trusted fingerprint and verifies.
+    /// carries no usable signatures. INT001 when no non-revoked signature both matches a trusted
+    /// fingerprint and verifies.
     /// </returns>
     public static Result<string> MatchTrustedSignature(
         ManifestSignatureEnvelope envelope,
-        IReadOnlySet<string> trustedFingerprints)
+        IReadOnlySet<string> trustedFingerprints,
+        IReadOnlySet<string>? revokedFingerprints = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -279,6 +292,7 @@ public static class IntegrityEnvelopeCodec
         // bytes, keeping v1 and Stage-1 v2 envelopes verifiable.
         var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked));
         var haveTrustSet = trustedFingerprints.Count > 0;
+        var sawRevoked = false;
 
         foreach (var entry in signatures)
         {
@@ -304,6 +318,14 @@ public static class IntegrityEnvelopeCodec
             if (!string.Equals(actualFingerprint, entry.Fingerprint, StringComparison.OrdinalIgnoreCase))
                 continue;
 
+            // (b') A locally-revoked key never matches — but keep iterating: a dual-signed
+            // rotation bundle may carry a still-good signature after the revoked one.
+            if (revokedFingerprints is not null && revokedFingerprints.Contains(actualFingerprint))
+            {
+                sawRevoked = true;
+                continue;
+            }
+
             // (b) The key must be pinned. With no baked set, this check is bypassed (consistency-only).
             if (haveTrustSet && !trustedFingerprints.Contains(actualFingerprint))
                 continue;
@@ -321,6 +343,11 @@ public static class IntegrityEnvelopeCodec
                 // Import/verify failed for this entry — fall through to try the next signature.
             }
         }
+
+        if (sawRevoked)
+            return Result<string>.Failure(ErrorKind.IntegrityError,
+                "INT001: The bundle's signature is from a key that has been revoked on this machine. " +
+                "Refusing to extract or execute a payload signed by a revoked publisher key.");
 
         return Result<string>.Failure(ErrorKind.IntegrityError,
             "INT001: No trusted signature validates the manifest. The bundle may have been tampered " +

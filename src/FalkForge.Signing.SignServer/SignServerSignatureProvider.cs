@@ -41,6 +41,12 @@ public sealed class SignServerSignatureProvider : ISignatureProvider, IDisposabl
         if (string.IsNullOrWhiteSpace(config.Worker))
             throw new ArgumentException("SignServer worker must be set.", nameof(config));
 
+        // Deliberately NOT rejected here: an http:// BaseUrl and/or AuthMode.None. Local
+        // SignServer CE test containers legitimately run http + NOAUTH (the e2e tests rely on
+        // it), so hard-failing would break real flows. Production guidance (https + mTLS or
+        // Bearer) lives on SignServerConfig.BaseUrl / SignServerConfig.AuthMode; the install-time
+        // blast radius of a spoofed endpoint is bounded because only keys in the engine's baked
+        // trusted set are ever accepted.
         _config = config;
         _processUri = BuildProcessUri(config);
 

@@ -300,6 +300,99 @@ public sealed class PayloadDownloaderTests : IDisposable
         Assert.All(progressReports, r => Assert.Equal(-1, r.total));
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Total-size cap: a stream that exceeds the expected size (+slack) must be
+    // aborted and the partial file removed (disk-fill DoS defense). The SHA-256
+    // check would reject the content anyway, but only AFTER the full body hit disk.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DownloadAsync_DeclaredLengthExceedsExpectedSize_FailsBeforeWrite()
+    {
+        // Server declares (via Content-Length) far more than the feed's expected size.
+        var content = new byte[2 * 1024 * 1024];
+        var hash = ComputeSha256(content);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK, contentLength: content.Length);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "declared-oversize.bin");
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/file.bin", hash, targetPath, expectedSize: 10);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+        Assert.Contains("maximum allowed size", result.Error.Message);
+        Assert.False(File.Exists(targetPath));
+        Assert.False(File.Exists(targetPath + ".partial"));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_UnknownLengthStreamExceedsExpectedSize_AbortsAndDeletesPartial()
+    {
+        // No Content-Length header (chunked shape): the cap must be enforced while
+        // streaming, not derived from the (absent, attacker-controlled) header.
+        var content = new byte[2 * 1024 * 1024];
+        var hash = ComputeSha256(content);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK); // no Content-Length
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "streamed-oversize.bin");
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/file.bin", hash, targetPath, expectedSize: 10);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+        Assert.Contains("maximum allowed size", result.Error.Message);
+        Assert.False(File.Exists(targetPath));
+        Assert.False(File.Exists(targetPath + ".partial"));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_BodyWithinExpectedSize_Succeeds()
+    {
+        var content = "expected-size ok"u8.ToArray();
+        var hash = ComputeSha256(content);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "within-size.bin");
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/file.bin", hash, targetPath, expectedSize: content.Length);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(content, File.ReadAllBytes(targetPath));
+    }
+
+    [Fact]
+    public void ComputeByteCap_NoExpectedSize_UsesGenerousAbsoluteCeiling()
+    {
+        // Without a feed-provided size the cap must be far above any real-world
+        // installer payload so legitimate multi-GB bundles are never rejected.
+        Assert.Equal(PayloadDownloader.MaxPayloadSizeWithoutExpectedSizeBytes,
+            PayloadDownloader.ComputeByteCap(null));
+        Assert.True(PayloadDownloader.MaxPayloadSizeWithoutExpectedSizeBytes >= 8L * 1024 * 1024 * 1024);
+    }
+
+    [Fact]
+    public void ComputeByteCap_ExpectedSize_AddsSlack()
+    {
+        Assert.Equal(1000 + PayloadDownloader.ExpectedSizeSlackBytes,
+            PayloadDownloader.ComputeByteCap(1000));
+    }
+
+    [Fact]
+    public void ComputeByteCap_NonPositiveExpectedSize_FallsBackToAbsoluteCeiling()
+    {
+        // A missing/zero size in a feed entry must not turn into a zero-byte cap.
+        Assert.Equal(PayloadDownloader.MaxPayloadSizeWithoutExpectedSizeBytes,
+            PayloadDownloader.ComputeByteCap(0));
+        Assert.Equal(PayloadDownloader.MaxPayloadSizeWithoutExpectedSizeBytes,
+            PayloadDownloader.ComputeByteCap(-5));
+    }
+
     // Synchronous IProgress<T>: System.Progress<T> dispatches asynchronously
     // (ThreadPool when no SynchronizationContext), which races against assertions.
     private sealed class SyncProgress<T> : IProgress<T>
@@ -536,7 +629,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         {
             var result = await downloader.DownloadAsync(
                 "https://example.com/update.exe", sha256, destPath,
-                progress: null, allowResume: true, CancellationToken.None);
+                progress: null, allowResume: true, ct: CancellationToken.None);
 
             Assert.True(result.IsSuccess);
             Assert.False(File.Exists(partialPath));
@@ -568,7 +661,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         {
             var result = await downloader.DownloadAsync(
                 "https://example.com/update.exe", sha256, destPath,
-                progress: null, allowResume: true, CancellationToken.None);
+                progress: null, allowResume: true, ct: CancellationToken.None);
 
             Assert.True(result.IsSuccess);
             Assert.False(File.Exists(partialPath));
@@ -597,7 +690,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         {
             await downloader.DownloadAsync(
                 "https://example.com/update.exe", sha256, destPath,
-                progress: null, allowResume: true, cts.Token);
+                progress: null, allowResume: true, ct: cts.Token);
         }
         catch { /* cancellation expected */ }
 
@@ -629,7 +722,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         {
             await downloader.DownloadAsync(
                 "https://example.com/update.exe", sha256, destPath,
-                progress: null, allowResume: false, cts.Token);
+                progress: null, allowResume: false, ct: cts.Token);
         }
         catch { /* cancellation expected */ }
 
@@ -705,7 +798,7 @@ public sealed class PayloadDownloaderTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             downloader.DownloadAsync(
                 "https://example.com/file.bin", sha256, targetPath,
-                progress: null, allowResume: false, cts.Token));
+                progress: null, allowResume: false, ct: cts.Token));
 
         // No orphan partial file must remain when allowResume is false.
         Assert.False(File.Exists(partialPath));
@@ -744,7 +837,7 @@ public sealed class PayloadDownloaderTests : IDisposable
             targetPath,
             progress: null,
             allowResume: false,
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         // Must return failure — never hang indefinitely
         Assert.True(result.IsFailure);
@@ -811,7 +904,7 @@ public sealed class PayloadDownloaderTests : IDisposable
             targetPath,
             progress: null,
             allowResume: false,
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         Assert.True(result.IsSuccess,
             $"Download must complete when data flows steadily. Error: {(result.IsFailure ? result.Error.Message : "none")}");
@@ -839,7 +932,7 @@ public sealed class PayloadDownloaderTests : IDisposable
             targetPath,
             progress: null,
             allowResume: false,
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         // Must fail (timeout/cancel) rather than hanging for 30s
         Assert.True(result.IsFailure);

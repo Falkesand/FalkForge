@@ -46,6 +46,7 @@ public sealed class UpdateDownloaderTests
             string targetPath,
             IProgress<(long BytesReceived, long TotalBytes)>? progress,
             bool allowResume,
+            long? expectedSize,
             CancellationToken ct)
         {
             if (_reportProgress && progress is not null)
@@ -496,8 +497,8 @@ public sealed class UpdateDownloaderTests
         string? capturedPath = null;
         var fakePipe = new FakePipeServer(new List<EngineMessage>());
 
-        Func<string, string, string, IProgress<(long, long)>?, bool, CancellationToken, Task<Result<string>>> download =
-            (url, sha, path, progress, resume, ct) =>
+        Func<string, string, string, IProgress<(long, long)>?, bool, long?, CancellationToken, Task<Result<string>>> download =
+            (url, sha, path, progress, resume, expectedSize, ct) =>
             {
                 capturedPath = path;
                 return Task.FromResult(Result<string>.Success(path));
@@ -551,7 +552,7 @@ public sealed class UpdateDownloaderTests
         // Inline download delegate that honours the cancellation token.
         Task<Result<string>> CancellingDownload(
             string url, string sha256, string path,
-            IProgress<(long, long)>? progress, bool resume, CancellationToken ct)
+            IProgress<(long, long)>? progress, bool resume, long? expectedSize, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             return Task.FromResult(Result<string>.Success(path));
@@ -586,7 +587,7 @@ public sealed class UpdateDownloaderTests
 
         Task<Result<string>> CancellingMidDownload(
             string url, string sha256, string path,
-            IProgress<(long, long)>? progress, bool resume, CancellationToken ct)
+            IProgress<(long, long)>? progress, bool resume, long? expectedSize, CancellationToken ct)
         {
             cts.Cancel(); // simulate cancellation mid-download
             ct.ThrowIfCancellationRequested();

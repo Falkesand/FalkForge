@@ -9,13 +9,28 @@ namespace FalkForge.Signing.SignServer;
 /// </summary>
 public sealed record SignServerConfig
 {
-    /// <summary>Base URL of the SignServer instance, e.g. <c>https://signserver.example.com:8443</c>.</summary>
+    /// <summary>
+    /// Base URL of the SignServer instance, e.g. <c>https://signserver.example.com:8443</c>.
+    /// <para><b>Production MUST use https.</b> An <c>http://</c> URL sends the canonical manifest
+    /// message — and any Basic/Bearer credential — in cleartext. It is accepted deliberately (not
+    /// validated away) because local SignServer CE test containers legitimately run plain http, but
+    /// it belongs only in that scenario. The trust impact of a spoofed signing endpoint is bounded:
+    /// a signature from a key outside the engine's baked trusted set is never accepted at install
+    /// time — yet a signing failure or wrong-key signature still breaks the release, so treat the
+    /// channel as production infrastructure.</para>
+    /// </summary>
     public required string BaseUrl { get; init; }
 
     /// <summary>The PlainSigner worker name or numeric id that produces the signature.</summary>
     public required string Worker { get; init; }
 
-    /// <summary>How to authenticate to the endpoint. Default <see cref="SignServerAuthMode.None"/>.</summary>
+    /// <summary>
+    /// How to authenticate to the endpoint. Default <see cref="SignServerAuthMode.None"/>.
+    /// <para><b>Production SHOULD use <see cref="SignServerAuthMode.ClientCert"/> (mTLS) or
+    /// <see cref="SignServerAuthMode.Bearer"/>.</b> <see cref="SignServerAuthMode.None"/> matches
+    /// SignServer's NOAUTH worker mode and exists for local CE test containers; an unauthenticated
+    /// production signer would let anyone on the network request signatures from the release key.</para>
+    /// </summary>
     public SignServerAuthMode AuthMode { get; init; } = SignServerAuthMode.None;
 
     /// <summary>Bearer token used when <see cref="AuthMode"/> is <see cref="SignServerAuthMode.Bearer"/>.</summary>

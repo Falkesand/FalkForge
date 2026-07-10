@@ -39,6 +39,13 @@ public sealed partial class MspExecutor
 
     internal static Result<string> BuildArguments(PlanAction action)
     {
+        // The install arguments are built as a raw string; an embedded quote in the
+        // build-time-authored SourcePath would break out of the quoting and inject extra
+        // msiexec switches. Mirrors the MsuExecutor guard (defense-in-depth consistency).
+        if (action.Package.SourcePath.Contains('"'))
+            return Result<string>.Failure(
+                ErrorKind.Validation, "MSP SourcePath contains embedded quotes, which is not allowed.");
+
         return action.ActionType switch
         {
             PlanActionType.Install => Result<string>.Success(

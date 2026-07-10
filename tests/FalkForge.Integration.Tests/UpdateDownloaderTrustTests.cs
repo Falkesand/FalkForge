@@ -51,7 +51,7 @@ public sealed class UpdateDownloaderTrustTests
         // The "download" copies the source bundle to the path StartAsync chose (the real staging move).
         Task<Result<string>> Download(
             string url, string sha, string dest,
-            IProgress<(long, long)>? progress, bool resume, CancellationToken ct)
+            IProgress<(long, long)>? progress, bool resume, long? expectedSize, CancellationToken ct)
         {
             File.Copy(sourceBundle, dest, overwrite: true);
             stagedPath = dest;

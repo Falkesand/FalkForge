@@ -32,7 +32,7 @@ internal sealed class UpdateService
 {
     private readonly ManifestUpdateFeed _feed;
     private readonly string _cacheDir;
-    private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> _download;
+    private readonly Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, long?, CancellationToken, Task<Result<string>>> _download;
     private readonly IUpdateLauncher _launcher;
     private readonly IUiChannel _channel;
     private readonly IFalkLogger _logger;
@@ -47,7 +47,7 @@ internal sealed class UpdateService
     internal UpdateService(
         ManifestUpdateFeed feed,
         string cacheDir,
-        Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, CancellationToken, Task<Result<string>>> download,
+        Func<string, string, string, IProgress<(long BytesReceived, long TotalBytes)>?, bool, long?, CancellationToken, Task<Result<string>>> download,
         IUpdateLauncher launcher,
         IUiChannel channel,
         IFalkLogger logger,

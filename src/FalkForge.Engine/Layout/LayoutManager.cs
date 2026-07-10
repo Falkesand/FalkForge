@@ -35,8 +35,26 @@ public sealed class LayoutManager
         {
             ct.ThrowIfCancellationRequested();
 
+            // The write target derives from the manifest-controlled SourcePath. GetFileName
+            // neutralizes directory segments, but edge shapes (a bare "..", an NTFS
+            // alternate-data-stream "name:stream", a trailing separator yielding an empty
+            // name) must fail loud here — routed through the same ContainedPathResolver as
+            // every other untrusted write sink (fail-the-whole-layout convention).
             var targetFileName = Path.GetFileName(package.SourcePath);
-            var targetPath = Path.Combine(layoutPath, targetFileName);
+            if (string.IsNullOrEmpty(targetFileName) ||
+                targetFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return Result<Unit>.Failure(
+                    ErrorKind.LayoutError,
+                    $"Invalid payload file name for package {package.Id}.");
+            }
+
+            if (!ContainedPathResolver.TryResolveContained(layoutPath, targetFileName, out var targetPath))
+            {
+                return Result<Unit>.Failure(
+                    ErrorKind.LayoutError,
+                    $"Payload file name for package {package.Id} escapes the layout directory.");
+            }
 
             if (!string.IsNullOrEmpty(package.DownloadUrl))
             {

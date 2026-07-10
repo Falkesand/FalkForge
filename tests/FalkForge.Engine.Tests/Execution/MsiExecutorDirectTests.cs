@@ -37,6 +37,64 @@ public sealed class MsiExecutorDirectTests
     }
 
     [Fact]
+    public async Task DirectExecution_SlipstreamPatchPathWithEmbeddedQuote_ReturnsSecurityError()
+    {
+        // Slipstream patch paths are joined into a PATCH="..." argument string; an embedded
+        // quote would break out of the quoting. Property VALUES are already validated —
+        // this is the same defense for the patch-path channel (the elevated MsiInstall
+        // parser blocks shell metacharacters in PATCH values; this is the engine-side gate).
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = new PlanAction
+        {
+            PackageId = "TestMsi",
+            ActionType = PlanActionType.Install,
+            Package = new PackageInfo
+            {
+                Id = "TestMsi",
+                Type = PackageType.MsiPackage,
+                DisplayName = "Test MSI Package",
+                SourcePath = @"C:\packages\TestApp.msi",
+                Sha256Hash = "AABBCCDD"
+            },
+            SlipstreamPatchPaths = ["C:\\patches\\evil\" TRANSFORMS=evil.mst .msp"]
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public async Task DirectExecution_SlipstreamPatchPathWithNewline_ReturnsSecurityError()
+    {
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = new PlanAction
+        {
+            PackageId = "TestMsi",
+            ActionType = PlanActionType.Install,
+            Package = new PackageInfo
+            {
+                Id = "TestMsi",
+                Type = PackageType.MsiPackage,
+                DisplayName = "Test MSI Package",
+                SourcePath = @"C:\packages\TestApp.msi",
+                Sha256Hash = "AABBCCDD"
+            },
+            SlipstreamPatchPaths = ["C:\\patches\\a\r\nb.msp"]
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, mockApi.InstallProductCallCount);
+    }
+
+    [Fact]
     public async Task DirectExecution_Install_CallsInstallProduct()
     {
         // Arrange

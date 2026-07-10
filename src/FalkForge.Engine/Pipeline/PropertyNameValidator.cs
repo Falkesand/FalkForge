@@ -64,4 +64,24 @@ internal static partial class PropertyNameValidator
 
         return null;
     }
+
+    /// <summary>
+    /// Validates a property value's length against <see cref="MaxPropertyValueLength"/>
+    /// (the MSI property value limit). Takes the length rather than the value so secure
+    /// values never have to be materialized for validation. Returns <c>null</c> when
+    /// valid; a short error reason when not (logging only — never surfaced to untrusted
+    /// callers).
+    /// </summary>
+    internal static string? ValidateValueLength(int valueLength, IFalkLogger? logger)
+    {
+        if (valueLength > MaxPropertyValueLength)
+        {
+            logger?.Warning("PropertyNameValidator",
+                string.Concat("SetProperty rejected: value exceeds max length (",
+                    MaxPropertyValueLength.ToString(), ")"));
+            return "value too long";
+        }
+
+        return null;
+    }
 }

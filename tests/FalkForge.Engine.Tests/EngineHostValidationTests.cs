@@ -80,4 +80,36 @@ public sealed class PropertyNameValidatorTests
         var result = PropertyNameValidator.Validate("MY.PROPERTY", null);
         Assert.Null(result);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Value-length validation — MaxPropertyValueLength (32767, the MSI property
+    // value limit) must actually be enforced on SetProperty/SetSecureProperty
+    // values, not just declared. Without it a value is bounded only by the 1 MB
+    // wire frame.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ValidateValueLength_AtMax_ReturnsNull()
+    {
+        var result = PropertyNameValidator.ValidateValueLength(
+            PropertyNameValidator.MaxPropertyValueLength, null);
+        Assert.Null(result); // null = valid
+    }
+
+    [Fact]
+    public void ValidateValueLength_OneOverMax_Fails()
+    {
+        var result = PropertyNameValidator.ValidateValueLength(
+            PropertyNameValidator.MaxPropertyValueLength + 1, null);
+        Assert.NotNull(result);
+        Assert.Contains("too long", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ValidateValueLength_Zero_ReturnsNull()
+    {
+        // An empty value is a legal way to clear a property.
+        var result = PropertyNameValidator.ValidateValueLength(0, null);
+        Assert.Null(result);
+    }
 }

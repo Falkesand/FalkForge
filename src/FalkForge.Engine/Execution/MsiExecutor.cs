@@ -50,6 +50,20 @@ public sealed partial class MsiExecutor
         if (propsResult.IsFailure)
             return Result<int>.Failure(propsResult.Error);
 
+        // Slipstream patch paths are joined into a PATCH="..." argument string; an embedded
+        // quote or newline would break out of the quoting (the elevated MsiInstall parser
+        // additionally blocks shell metacharacters in PATCH values — this is the engine-side
+        // defense-in-depth gate, applied to both the elevated and direct paths). The full
+        // property-value character set is NOT applied here because '&' is legal in real
+        // directory names and ';' is the PATCH list separator.
+        foreach (var patchPath in action.SlipstreamPatchPaths)
+        {
+            if (patchPath.AsSpan().IndexOfAny('"', '\r', '\n') >= 0)
+                return Result<int>.Failure(
+                    ErrorKind.SecurityError,
+                    "Slipstream patch path contains prohibited characters");
+        }
+
         var elevationClient = _elevationClientAccessor();
         if (elevationClient is not null)
         {
