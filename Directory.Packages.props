@@ -26,6 +26,9 @@
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="Xunit.StaFact" Version="3.0.13" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <!-- MTP-native TRX reporter: enables the report-trx switch so CI can NAME a failing test
+         (the classic VSTest trx logger is a silent no-op under Microsoft.Testing.Platform). -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1" />
     <!-- Container-backed end-to-end tests (Keyfactor SignServer pod); test-only, Docker/Podman-gated -->
     <PackageVersion Include="Testcontainers" Version="4.6.0" />
   </ItemGroup>

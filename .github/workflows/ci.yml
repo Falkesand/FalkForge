@@ -89,8 +89,13 @@ jobs:
           dotnet tool install -g dotnet-reportgenerator-globaltool
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # The trx is produced by the Microsoft.Testing.Platform native TRX reporter (arguments after the
+      # `--` are passed to the test host), NOT the classic VSTest `--logger trx`, which is a silent no-op
+      # under MTP and left CI unable to NAME a failing test. Each test project writes its own
+      # test-results.trx under its bin/<cfg>/<tfm>/TestResults folder, captured by the artifact upload
+      # glob below. The dotnet-coverage wrapper is unchanged (CLR profiler attach around the whole run).
       - name: Test with coverage
-        run: dotnet-coverage collect -f cobertura -o TestResults\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults'
+        run: dotnet-coverage collect -f cobertura -o TestResults\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx'
 
       - name: Upload test results
         uses: actions/upload-artifact@v5
