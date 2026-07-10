@@ -389,7 +389,7 @@
 
     <!-- Signing -->
     <h2>7. Signed Bundle Output (signing section)</h2>
-    <p>An optional top-level <code>"signing"</code> section makes <code>forge build</code> wrap the compiled MSI in a single-package EXE bundle whose integrity manifest is ECDSA-signed through the <code>ISignatureProvider</code> seam. Without a signing section the build keeps its normal MSI-only output.</p>
+    <p>An optional top-level <code>"signing"</code> section makes <code>forge build</code> wrap the compiled MSI in a single-package EXE bundle whose integrity manifest is ECDSA-signed through the <code>ISignatureProvider</code> seam (optionally hybrid post-quantum &mdash; see below). Without a signing section the build keeps its normal MSI-only output.</p>
     <p><strong>No secrets ever go in the JSON file.</strong> Keys and credentials are referenced by file path or by environment variable <em>name</em> (the <code>*Env</code> fields); the values are read from the environment at build time. The loader rejects inline secret material (JSN016), and any referenced environment variable that is unset at build time fails the build (JSN019) &mdash; it never falls back to unsigned output or an unauthenticated signing request.</p>
 
     <h3>Local PEM key</h3>
@@ -398,6 +398,15 @@
   <span class="str">"keyPath"</span><span class="punc">:</span> <span class="str">"keys/release.pem"</span>
 <span class="punc">}</span></code></pre>
     <p>Exactly one key source is required: <code>keyPath</code> (an ECDSA private-key PEM file, relative paths resolve against the config file) or <code>keyEnv</code> (the name of an environment variable whose value is the PEM, so the key never touches the config or the repo).</p>
+
+    <h3>Hybrid post-quantum signing (pem provider only)</h3>
+    <pre><code><span class="str">"signing"</span><span class="punc">:</span> <span class="punc">{</span>
+  <span class="str">"provider"</span><span class="punc">:</span> <span class="str">"pem"</span><span class="punc">,</span>
+  <span class="str">"keyPath"</span><span class="punc">:</span> <span class="str">"keys/release.pem"</span><span class="punc">,</span>
+  <span class="str">"pqKeyPath"</span><span class="punc">:</span> <span class="str">"keys/release-mldsa.pem"</span>
+<span class="punc">}</span></code></pre>
+    <p>Adding <code>pqKeyPath</code> or <code>pqKeyEnv</code> to the <code>pem</code> provider turns the build <em>hybrid</em>: the manifest is signed by both the classical ECDSA key and an ML-DSA (FIPS 204, post-quantum) companion key &mdash; the field's presence is the switch, there is no separate flag. The PQ key follows the exact same secret rules as the classical key: <code>pqKeyPath</code> is a PEM <em>file path</em> and <code>pqKeyEnv</code> is an environment variable <em>name</em> holding the PEM &mdash; never paste key material into the config (JSN016), use at most one of the two (JSN017), and an unset environment variable fails the build (JSN019); the build never silently falls back to a classical-only bundle.</p>
+    <p><code>pqKeyPath</code>/<code>pqKeyEnv</code> are rejected on the <code>signserver</code> provider (JSN018): SignServer cannot yet produce the context-bound ML-DSA signature FalkForge requires, and failing loud beats emitting a bundle the author believes is hybrid-signed but is not. See the manual's &ldquo;Post-Quantum Hybrid Signing&rdquo; section and <strong>Demo 63 (hybrid-pq-signing)</strong> for the trust-pinning half (the engine-side companion pin that makes stripping the PQ signature a hard failure).</p>
 
     <h3>Keyfactor SignServer (remote signing)</h3>
     <pre><code><span class="str">"signing"</span><span class="punc">:</span> <span class="punc">{</span>
