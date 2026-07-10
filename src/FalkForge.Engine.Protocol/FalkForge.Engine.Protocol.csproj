@@ -3,6 +3,8 @@
     <RootNamespace>FalkForge.Engine.Protocol</RootNamespace>
     <Description>IPC protocol types and serialization for FalkForge engine</Description>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- Required by LibraryImport source-generation (GetNamedPipeServerProcessId in NativePipeMethods). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Engine.Protocol.Tests" />

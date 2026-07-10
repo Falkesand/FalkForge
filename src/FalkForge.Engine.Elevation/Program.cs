@@ -33,7 +33,9 @@ if (pipeName is null || secretPipeName is null || parentPid == 0)
     return 1;
 }
 
-ElevationSecurityLog.Info("Startup", $"Elevated process started: pipe={pipeName}, parentPid={parentPid}");
+// SECURITY: never log the main pipe name to a same-user-readable location — it would let a
+// same-user attacker learn the name and race to squat it. Log only the non-sensitive parent PID.
+ElevationSecurityLog.Info("Startup", $"Elevated process started: parentPid={parentPid}");
 
 // Read the 32-byte HMAC secret from the one-shot init pipe (never passed via CLI args)
 var secret = new byte[32];
@@ -69,6 +71,9 @@ var options = new PipeConnectionOptions
 {
     PipeName = pipeName,
     SharedSecret = secret,
+    // Server-PID binding: the pipe server MUST be our expected parent engine (known out-of-band
+    // via --parent-pid, never trusted from the wire). Defeats a same-user rogue server squat.
+    ExpectedServerProcessId = parentPid,
     OnSecurityEvent = msg => ElevationSecurityLog.SecurityEvent("Handshake", msg)
 };
 
