@@ -175,13 +175,13 @@
       "falkforge.platform": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[1.0.0, )"
+          "FalkForge.Core": "[0.1.0-alpha.1, )"
         }
       },
       "falkforge.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Platform": "[1.0.0, )"
+          "FalkForge.Platform": "[0.1.0-alpha.1, )"
         }
       }
     }

@@ -172,7 +172,7 @@
       "falkforge.compiler.msix": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[1.0.0, )"
+          "FalkForge.Core": "[0.1.0-alpha.1, )"
         }
       },
       "falkforge.core": {
