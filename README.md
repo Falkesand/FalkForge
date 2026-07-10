@@ -32,6 +32,19 @@ live here.
 - **Migration path** -- `forge migrate` converts an existing MSI, MSM, or WiX Burn EXE into a buildable FalkForge C# project.
 - **60+ demo projects** -- From hello-world to complex multi-package bundles.
 
+## Security
+
+Installer integrity is where FalkForge goes further than the mainstream installer tools:
+
+- **Real payload integrity, not just a signed launcher** -- every payload is hashed into a signed manifest and verified before anything installs, so a swapped payload is caught even when the Authenticode signature on the outer `.exe` still looks valid.
+- **Post-quantum ready** -- optional hybrid signing adds an ML-DSA-65 (FIPS 204) signature alongside classical ECDSA-P256.
+- **A real trusted-key model** -- pin trusted keys in the engine, assign key roles with M-of-N quorum for sensitive operations, rotate and revoke keys safely.
+- **Secure updates** -- require-signed update feeds with key revocation and version epochs, so an update can't be rolled back to a revoked build.
+- **Supply-chain transparency** -- reproducible builds, CycloneDX SBOM, and a provable pipeline (`forge plan` / `forge verify --rebuild`) to show what a bundle does and that it matches its source.
+- **Hardened install engine** -- the elevated helper is mutually authenticated (HMAC handshake, parent PID verification) and executes only a whitelisted command set.
+
+Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](documentation.html) (section 22, includes the plain-language security manual).
+
 ## Quick Start
 
 ```csharp
