@@ -78,6 +78,32 @@ public sealed class BundleReaderLargeManifestTests : IDisposable
         Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes!));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Extract_MagicNearOffsetZero_TinyStub_IsStillFound(int stubLength)
+    {
+        // Final-window coverage guard: the backward scan must always reach offset 0. The manifest
+        // is sized so that dataRegionEnd (= stub + magic 16 + length 4 + manifest) is 4097 for an
+        // empty stub and 4100 for a 3-byte stub — under the original numeric loop guard
+        // (windowEnd >= 20) the scan's window start then lands in 1..4, the re-anchored windowEnd
+        // (windowStart + 15) drops below 20, and the loop exits WITHOUT ever scanning the final
+        // [0, small) window. A magic starting at offset 0..3 was therefore never found and a
+        // SIGNED bundle read as unsigned. Unreachable with a real multi-kilobyte PE stub, but this
+        // is the "is the bundle trust-checked at all" path, so it must be provably total.
+        var manifest = "{\"padding\":\"" + new string('A', 4063) + "\"}"; // exactly 4077 bytes
+        Assert.Equal(4077, Encoding.UTF8.GetByteCount(manifest));
+
+        var bundlePath = Path.Combine(_tempDir, $"tiny-stub-{stubLength}.exe");
+        WriteBundle(bundlePath, Encoding.ASCII.GetBytes(new string('S', stubLength)), manifest);
+
+        var result = BundleReader.Extract(bundlePath);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.NotNull(result.Value.ManifestJsonBytes);
+        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes!));
+    }
+
     [Fact]
     public void Extract_SmallManifest_StillFound_NoRegression()
     {

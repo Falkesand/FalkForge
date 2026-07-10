@@ -157,8 +157,15 @@ public static class BundleReader
                 const int searchChunkSize = 4096;
                 var magicPos = -1L;
                 var windowEnd = dataRegionEnd;
-                while (magicPos < 0 && windowEnd >= Magic.Length + 4)
+                while (magicPos < 0)
                 {
+                    // Loop totality: continuation is driven by "have we scanned down to offset 0
+                    // yet?" (the windowStart == 0 break below), NOT by a numeric lower bound on
+                    // windowEnd. A numeric guard (windowEnd >= Magic.Length + 4) could exit one
+                    // window early when a windowStart landed in 1..4 — the re-anchored windowEnd
+                    // dropped below the bound and the final [0, small) window was never scanned,
+                    // so a magic starting at offset 0..3 was silently missed. Every possible magic
+                    // start offset, including 0, is now scanned exactly once.
                     var windowStart = Math.Max(0, windowEnd - searchChunkSize);
                     stream.Seek(windowStart, SeekOrigin.Begin);
                     var searchBuffer = reader.ReadBytes((int)(windowEnd - windowStart));
