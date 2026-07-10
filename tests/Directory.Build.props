@@ -6,4 +6,11 @@
         <!-- xUnit v3 uses Microsoft Testing Platform; enable dotnet test integration -->
         <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     </PropertyGroup>
+    <ItemGroup>
+        <!-- MTP-native TRX reporter for every test project, so a CI run invoked with the
+             report-trx switch emits a real TRX that names the failing test. Under
+             Microsoft.Testing.Platform the classic VSTest trx logger never attaches, leaving
+             CI unable to identify a failure. -->
+        <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    </ItemGroup>
 </Project>

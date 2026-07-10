@@ -358,11 +358,22 @@ public sealed class TrustStateStoreTests
         if (!OperatingSystem.IsWindows())
             return;
 
+        // This test builds a directory owned by a genuinely non-admin principal (the current account's
+        // individual SID). If the host process itself runs AS SYSTEM or under the Administrators group SID,
+        // no non-admin identity exists to own the directory, so the precondition cannot be constructed —
+        // skip cleanly (the pure-logic TrustStoreAclLogicTests.NonAdminOwner_OtherwiseHardened_IsNotConforming
+        // covers the rule with fabricated descriptors regardless of host identity).
+        var currentUser = WindowsIdentity.GetCurrent().User!;
+        var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var adminsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        if (currentUser.Equals(systemSid) || currentUser.Equals(adminsSid))
+            return;
+
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
         try
         {
-            CreateProtectedHardenedButUserOwnedDirectory(dir);
+            CreateProtectedHardenedButUserOwnedDirectory(dir, currentUser);
 
             Assert.False(TrustStateStore.IsDirectoryAclConforming(dir),
                 "a directory owned by a non-admin principal must be non-conforming (owner has implicit WRITE_DAC)");
@@ -398,12 +409,16 @@ public sealed class TrustStateStoreTests
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static void CreateProtectedHardenedButUserOwnedDirectory(string dir)
+    private static void CreateProtectedHardenedButUserOwnedDirectory(string dir, SecurityIdentifier owner)
     {
         Directory.CreateDirectory(dir);
         var security = new DirectoryInfo(dir).GetAccessControl();
         // A hardened DACL (protected, SYSTEM/Admins FullControl, Users read-only, no foreign writer) but the
-        // directory is owned by the current (non-admin) test user — the only defect is the owner.
+        // directory is owned by a non-admin principal — the only defect is the owner. The owner is set
+        // EXPLICITLY rather than relying on the creation default: under an elevated administrator token
+        // (e.g. a GitHub-hosted Windows runner) a freshly created directory is owned by BUILTIN\Administrators,
+        // which would make it legitimately conforming and defeat the intent of this negative test.
+        security.SetOwner(owner);
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
         security.AddAccessRule(new FileSystemAccessRule(
