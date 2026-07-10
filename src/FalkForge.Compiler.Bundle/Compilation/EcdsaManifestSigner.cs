@@ -89,7 +89,11 @@ internal static class EcdsaManifestSigner
                 KeyId = signature.KeyId,
                 Fingerprint = IntegrityEnvelopeCodec.ComputeFingerprint(signature.SubjectPublicKeyInfo),
                 PublicKey = Convert.ToBase64String(signature.SubjectPublicKeyInfo),
-                Signature = Convert.ToBase64String(signature.Signature)
+                // Defense-in-depth low-S canonicalization: the built-in providers already canonicalize,
+                // but a CUSTOM ISignatureProvider may hand back a malleable high-S signature the verifier
+                // would reject. Canonicalizing at the envelope-assembly chokepoint guarantees FalkForge
+                // never emits a non-canonical signature regardless of backend.
+                Signature = Convert.ToBase64String(EcdsaLowS.Canonicalize(signature.Signature))
             });
         }
 
