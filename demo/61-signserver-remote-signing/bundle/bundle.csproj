@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\src\FalkForge.Core\FalkForge.Core.csproj"/>
+        <ProjectReference Include="..\..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj"/>
+        <ProjectReference Include="..\..\..\src\FalkForge.Signing.SignServer\FalkForge.Signing.SignServer.csproj"/>
+        <!-- Compiler.Msi: this demo builds its payload MSI inline (see Program.cs) so it is a
+             single, self-contained "dotnet run"; it does not depend on the sibling
+             msi-package/ project having been run first. -->
+        <ProjectReference Include="..\..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj"/>
+    </ItemGroup>
+</Project>

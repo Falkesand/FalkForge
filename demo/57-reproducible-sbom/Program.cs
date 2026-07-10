@@ -18,12 +18,10 @@ using FalkForge.Sbom;
 // It is the supply-chain manifest that lets auditors, security scanners, and end users
 // know exactly what they are installing. FalkForge emits CycloneDX JSON format.
 //
-// ECDSA PAYLOAD INTEGRITY (bundles)
-// ───────────────────────────────────
-// When building EXE bundles, FalkForge (via Sigil) signs each payload entry with an
-// ECDSA P-256 key and stores the signature in the bundle TOC. The engine verifies every
-// payload before execution. This prevents tampered payloads from running even if an
-// attacker replaces bytes inside the bundle after it was signed.
+// This demo builds an MSI, not a bundle, and does not call Integrity(). For EXE bundles,
+// FalkForge has a separate, independent supply-chain feature — an ECDSA P-256 signature
+// over the payload hashes, embedded in the bundle manifest and verified by the engine
+// before any payload runs — via `BundleBuilder.Integrity(...)`. See demo 59.
 
 return Installer.Build(args, package =>
 {

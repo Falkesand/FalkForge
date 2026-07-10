@@ -35,35 +35,13 @@ This detects tampering with the payloads even when the attacker also rewrites th
 manifest hashes — they cannot forge the signature without the private key. It works
 regardless of Authenticode and needs no external tool at install time.
 
-Enable it with the fluent `Integrity(...)` API on the bundle:
-
-```csharp
-var model = new BundleBuilder()
-    .Name("MyApp")
-    // ...
-    .Integrity(i => { })                       // ephemeral P-256 key: zero-config tamper detection
-    // or: .Integrity(i => i.SigningKey("signing.pem"))  // stable key for authorship proof
-    .Chain(chain => chain.MsiPackage(msiPath, p => p.Id("App")))
-    .Build();
-```
-
-- **Ephemeral key (default):** a throwaway P-256 key is generated per build. Every build
-  has a unique key, so detection is zero-config and a compromised key affects only one build.
-- **Configured PEM key (`SigningKey(path)`):** the same public key is embedded across builds,
-  giving authorship proof. A missing key file fails the build with `SGN002`.
-- **Pure .NET:** signing uses `System.Security.Cryptography.ECDsa` — no `sigil` CLI required.
-  (When `sigil` is on PATH, a supplementary DSSE SBOM attestation is also produced; it is
-  optional provenance and never blocks the signature.)
-- **Reproducible builds:** the signed content (payload hashes) is identical across
-  reproducible builds; only the ECDSA signature bytes — a deliberately non-deterministic,
-  post-content addition — differ. The signature lives outside the reproducible content digest.
-- **Runtime:** before any payload is extracted or executed, the engine verifies the signature and
-  binds the value each payload's *bytes* are checked against — the hash in the bundle's unsigned
-  table of contents (TOC) — to the ECDSA-signed manifest hash. Authenticode covers only the PE
-  stub; the payloads and TOC are appended after it, so payload integrity comes from this ECDSA
-  signature plus the byte binding, not from Authenticode. A tampered payload whose TOC hash was
-  rewritten after signing is rejected with `INT006`; any signature mismatch aborts with a
-  `SecurityError`. An unsigned bundle installs normally (backward compatible).
+This demo's code only exercises the Authenticode detach/sign/reattach workflow above; it
+does not call `Integrity(...)`. For a runnable demo of the ECDSA layer — `BundleBuilder
+.Integrity(...)` with an ephemeral key and a stable PEM key, plus reading the signature
+back from the compiled manifest and verifying it — see **demo 59: Bundle Integrity
+Signing**. For dual-sign key rotation and the trusted-key/roles model, see demo 60. For
+wiring a remote signing backend, see demo 61. For the update-trust config (epoch +
+revocation) this signature feeds into, see demo 62.
 
 ## Notes
 

@@ -83,6 +83,22 @@
         <Project Path="15-bundle-signing/bundle/bundle.csproj" />
         <Project Path="15-bundle-signing/msi-package/msi-package.csproj" />
     </Folder>
+    <Folder Name="/signing-trust/59-bundle-integrity-signing/">
+        <Project Path="59-bundle-integrity-signing/bundle/bundle.csproj" />
+        <Project Path="59-bundle-integrity-signing/msi-package/msi-package.csproj" />
+    </Folder>
+    <Folder Name="/signing-trust/60-trusted-key-rotation/">
+        <Project Path="60-trusted-key-rotation/bundle/bundle.csproj" />
+        <Project Path="60-trusted-key-rotation/msi-package/msi-package.csproj" />
+    </Folder>
+    <Folder Name="/signing-trust/61-signserver-remote-signing/">
+        <Project Path="61-signserver-remote-signing/bundle/bundle.csproj" />
+        <Project Path="61-signserver-remote-signing/msi-package/msi-package.csproj" />
+    </Folder>
+    <Folder Name="/signing-trust/62-require-signed-updates/">
+        <Project Path="62-require-signed-updates/bundle/bundle.csproj" />
+        <Project Path="62-require-signed-updates/msi-package/msi-package.csproj" />
+    </Folder>
     <Folder Name="/tooling/">
         <Project Path="54-forge-migrate/54-forge-migrate.csproj" />
         <Project Path="55-winget/55-winget.csproj" />
