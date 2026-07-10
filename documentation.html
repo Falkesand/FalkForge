@@ -723,6 +723,7 @@
           <a href="#demo-gallery-output-types">Output Types (44&ndash;46)</a>
           <a href="#demo-gallery-advanced-features">Advanced Features (47&ndash;53)</a>
           <a href="#demo-gallery-provability">Provability &amp; Supply Chain (54&ndash;58)</a>
+          <a href="#demo-gallery-signing-trust">Signing &amp; Trust (59&ndash;63)</a>
           <a href="#demo-gallery-json">JSON Mode (01&ndash;07)</a>
           <a href="#ice-validation">ICE Validation</a>
           <a href="#powershell-ca">PowerShell Custom Actions</a>
@@ -790,6 +791,7 @@
           <a href="#signing-updates">Safe Updates</a>
           <a href="#signing-rotation">Key Rotation</a>
           <a href="#signing-roles-quorum">Roles &amp; Quorum</a>
+          <a href="#signing-post-quantum">Post-Quantum Hybrid Signing</a>
           <a href="#signing-cert-faq">Do I Need a Certificate?</a>
           <a href="#signing-future">What's Coming</a>
         </div>
@@ -4160,7 +4162,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>DependencyProvider(string key, string version, string? displayName)</code></td><td><code>BundleBuilder</code></td><td>Registers this bundle as a dependency provider with the given key and version.</td></tr>
       <tr><td><code>DependencyConsumer(string providerKey, string consumerKey)</code></td><td><code>BundleBuilder</code></td><td>Declares a dependency on another provider identified by key.</td></tr>
       <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>BundleBuilder</code></td><td>Emits an SBOM (SPDX or CycloneDX) alongside the compiled bundle. Equivalent to the CLI <code>--sbom</code> flag.</td></tr>
-      <tr><td><code>Integrity(Action&lt;IntegrityBuilder&gt;)</code></td><td><code>BundleBuilder</code></td><td>Enables ECDSA-P256 payload signing of the bundle's payload hash list. With no key configured a throwaway key is generated per build (tamper-evidence only); <code>SigningKey(path)</code> / <code>AddSigningKey(path)</code> / <code>SigningKeys(params)</code> load a stable PEM key (publishers bake its fingerprint into the engine for authorship). See &sect;22 for the full signing, trust, and key-rotation narrative.</td></tr>
+      <tr><td><code>Integrity(Action&lt;IntegrityBuilder&gt;)</code></td><td><code>BundleBuilder</code></td><td>Enables ECDSA-P256 payload signing of the bundle's payload hash list. With no key configured a throwaway key is generated per build (tamper-evidence only); <code>SigningKey(path)</code> / <code>AddSigningKey(path)</code> / <code>SigningKeys(params)</code> load a stable PEM key (publishers bake its fingerprint into the engine for authorship). <code>HybridKey(classicalKeyPath, pqKeyPath)</code> (repeatable) adds a hybrid post-quantum signing identity: the classical ECDSA key plus an ML-DSA-65 companion, both signing the same manifest. See &sect;22 for the full signing, trust, and key-rotation narrative.</td></tr>
       <tr><td><code>DryRun()</code></td><td><code>BundleBuilder</code></td><td>Bakes dry-run mode into the manifest: the engine Apply phase simulates package execution instead of running real installers. Equivalent at runtime to launching the compiled bundle with <code>--dry-run</code> (<code>MyInstaller.exe --dry-run</code>), which takes precedence over the baked flag.</td></tr>
       <tr><td><code>Build()</code></td><td><code>BundleModel</code></td><td>Builds and returns the final <code>BundleModel</code> for compilation.</td></tr>
     </tbody>
@@ -8218,8 +8220,25 @@ public sealed record WixUnmappedFeature(
         <tr><td>INT004</td><td>A manifest package, or a bundle TOC payload, is not covered by the integrity signature (set-coverage violation)</td></tr>
         <tr><td>INT006</td><td>Bundle TOC payload hash does not match the ECDSA-signed manifest hash (post-signing overlay tamper)</td></tr>
         <tr><td>INT007</td><td>A signature is required on this path (e.g. update) but the manifest carries none</td></tr>
-        <tr><td>INT008</td><td>Bundle key-epoch is below the highest epoch this machine has accepted (downgrade/replay) &mdash; anti-downgrade store is dormant this release, see &sect;22</td></tr>
+        <tr><td>INT008</td><td>Bundle key-epoch is below the highest epoch this machine has accepted (downgrade/replay) &mdash; see &sect;22 (Safe Updates)</td></tr>
         <tr><td>INT009</td><td>A signature is required but the engine's effective trusted set is empty (fail closed)</td></tr>
+        <tr><td>INT010</td><td>The signing quorum for this operation is not satisfied (roles/quorum policy, see &sect;22)</td></tr>
+        <tr><td>INT011</td><td>A trusted key is pinned as hybrid (post-quantum companion required), but the ML-DSA companion signature is missing, from the wrong key, or invalid &mdash; treated as a strip/downgrade attack, see &sect;22</td></tr>
+    </tbody>
+</table>
+
+<h3>Bundle Signing (SGN) &amp; Hybrid Trusted-Key Build Checks (FALKPQ)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>SGN001</td><td>PFX certificate file embeds a private key (Authenticode signing options; warning)</td></tr>
+        <tr><td>SGN002</td><td>Signing key/certificate material missing: Authenticode signing configured without CertificatePath or CertificateThumbprint, or a payload-signing PEM key file was not found or failed to load</td></tr>
+        <tr><td>SGN003</td><td>Authenticode DigestAlgorithm must be sha256, sha384, or sha512</td></tr>
+        <tr><td>SGN010</td><td>An asynchronous signature provider (e.g. SignServer) was configured on the synchronous build path &mdash; use <code>BuildBundleAsync</code>/<code>CompileAsync</code></td></tr>
+        <tr><td>SGN011</td><td>ML-DSA signing is not supported by the build machine's OS/crypto stack &mdash; signing a hybrid bundle requires an ML-DSA-capable build machine (no fallback)</td></tr>
+        <tr><td>FALKPQ001</td><td>Build-time warning: the baked trusted-key set mixes hybrid keys (with <code>PqFingerprint=</code>) and non-hybrid keys &mdash; a non-hybrid key is the quantum weakest link</td></tr>
+        <tr><td>FALKPQ002</td><td>Build-time error: a <code>FalkForgeTrustedKey</code> item has a malformed <code>PqFingerprint</code> (must be the 64-hex SHA-256 of the ML-DSA public key)</td></tr>
+        <tr><td>FALKPQ003</td><td>Build-time error: duplicate trusted-key fingerprint in the baked <code>FalkForgeTrustedKey</code> set</td></tr>
     </tbody>
 </table>
 
@@ -8452,6 +8471,11 @@ public sealed record WixUnmappedFeature(
         <tr><td>JSN012</td><td>IIS configuration missing required fields</td></tr>
         <tr><td>JSN013</td><td>SQL configuration missing required fields</td></tr>
         <tr><td>JSN014</td><td>.NET detection missing required fields</td></tr>
+        <tr><td>JSN015</td><td>signing.provider missing or unknown (valid: none, pem, signserver)</td></tr>
+        <tr><td>JSN016</td><td>Inline secret material in the signing config &mdash; keys and credentials must be referenced by file path or environment-variable name, never pasted into the JSON</td></tr>
+        <tr><td>JSN017</td><td>Ambiguous or missing key source for the pem provider (exactly one of keyPath/keyEnv; at most one of pqKeyPath/pqKeyEnv)</td></tr>
+        <tr><td>JSN018</td><td>Invalid signserver signing config (missing baseUrl/worker, unknown/incomplete authMode, or pqKeyPath/pqKeyEnv on the signserver provider &mdash; hybrid post-quantum signing via JSON requires provider pem)</td></tr>
+        <tr><td>JSN019</td><td>Signing key or auth material unresolvable at build time (e.g. referenced environment variable unset) &mdash; the build fails closed, never falling back to unsigned output</td></tr>
     </tbody>
 </table>
 
@@ -8475,7 +8499,7 @@ public sealed record WixUnmappedFeature(
 <h2>18. Demo Gallery</h2>
 
 <p>
-    FalkForge ships with 58 C# demo projects and 7 JSON configuration demos
+    FalkForge ships with 63 C# demo projects and 7 JSON configuration demos
     that collectively showcase the framework's full capabilities &mdash;
     from minimal MSI installers to complex multi-project bundles with custom WPF UI.
 </p>
@@ -8841,6 +8865,40 @@ public sealed record WixUnmappedFeature(
     <td>58</td><td>Project References</td>
     <td>References another project's build output via the generated <code>ProjectOutputs</code> class instead of a hardcoded <code>bin/</code> path</td>
     <td><span class="badge">ProjectOutputs</span> <span class="badge">Source Generator</span> <span class="badge">ProjectReference</span></td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="demo-gallery-signing-trust">Signing &amp; Trust (59&ndash;63)</h3>
+<table>
+<thead>
+<tr><th>#</th><th>Name</th><th>Description</th><th>Key Features</th></tr>
+</thead>
+<tbody>
+<tr>
+    <td>59</td><td>Bundle Integrity Signing</td>
+    <td>ECDSA payload signing via <code>BundleBuilder.Integrity()</code>: an ephemeral (throwaway) key for zero-setup tamper evidence next to a stable PEM key for real authorship, with the manifest signature verified back</td>
+    <td><span class="badge">Integrity</span> <span class="badge">SigningKey</span> <span class="badge">ECDSA</span></td>
+</tr>
+<tr>
+    <td>60</td><td>Trusted-Key Rotation</td>
+    <td>Rotation-safe dual-signing (<code>AddSigningKey</code>/<code>SigningKeys</code>), trusted-key pinning via <code>-p:FalkForgeTrustedKey</code> and <code>EngineTrustAnchor</code>, plus key roles and quorum notes</td>
+    <td><span class="badge">Rotation</span> <span class="badge">Dual-Sign</span> <span class="badge">EngineTrustAnchor</span> <span class="badge">Roles</span></td>
+</tr>
+<tr>
+    <td>61</td><td>SignServer Remote Signing</td>
+    <td>Remote signing through <code>SignServerSignatureProvider</code>/<code>SignServerConfig</code> on the async build pipeline; falls back to a local key when no SignServer is configured</td>
+    <td><span class="badge">SignServer</span> <span class="badge">BuildBundleAsync</span> <span class="badge">HSM-ready</span></td>
+</tr>
+<tr>
+    <td>62</td><td>Require-Signed Updates</td>
+    <td>Update-trust authoring with <code>Integrity().Epoch()/.Revoke()</code> and <code>UpdateFeed()</code>; runtime enforcement notes for require-signed, anti-downgrade, and revocation (INT001/INT007/INT008)</td>
+    <td><span class="badge">Epoch</span> <span class="badge">Revoke</span> <span class="badge">UpdateFeed</span> <span class="badge">Require-Signed</span></td>
+</tr>
+<tr>
+    <td>63</td><td>Hybrid Post-Quantum Signing</td>
+    <td>Dual-signs a bundle with ECDSA P-256 plus an ML-DSA-65 (FIPS 204) companion via <code>Integrity(i =&gt; i.HybridKey(...))</code>, pins the companion in the engine trust anchor, then proves the strip attack is rejected with INT011</td>
+    <td><span class="badge">HybridKey</span> <span class="badge">ML-DSA-65</span> <span class="badge">TrustHybridKey</span> <span class="badge">INT011</span></td>
 </tr>
 </tbody>
 </table>
@@ -10485,7 +10543,9 @@ openssl ecparam -name prime256v1 -genkey -noout -out falkforge-signing.pem</code
 <p>
     That is it for producing a signed bundle. Under the hood, FalkForge hashes every payload, lists those
     hashes in the manifest, and signs the list with your private key. If any payload byte changes later, its
-    hash no longer matches the signed list, and verification fails loud.
+    hash no longer matches the signed list, and verification fails loud. (One hardening detail you never have
+    to think about: every ECDSA signature is stored and accepted only in its single canonical &ldquo;low-S&rdquo;
+    form, so the same signature can never exist in two different-looking encodings.)
 </p>
 
 <h3 id="signing-trust">Who the Installer Trusts</h3>
@@ -10656,11 +10716,16 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
     return await new BundleCompiler().CompileAsync(model, outputPath);
 });</code></pre>
 
-<div class="warning">
-    <strong>Not yet wired into the JSON/CLI path.</strong> <code>forge build</code>'s JSON config
-    (<code>InstallerConfig</code>) has no <code>signServer</code> section today &mdash; SignServer signing is
-    reachable only from C# code as shown. A config-driven <code>forge build</code> flag for it is a planned
-    follow-up; do not expect a CLI switch yet.
+<div class="note">
+    <strong>Also available from the JSON/CLI path.</strong> A top-level <code>"signing"</code> section in a
+    <code>forge build</code> JSON config produces a signed bundle without any C# &mdash; provider
+    <code>"pem"</code> for a local key or <code>"signserver"</code> for remote signing, with all secrets
+    referenced by environment-variable <em>name</em> or file path, never inline (violations fail the build
+    with JSN015&ndash;JSN019). One caveat: the bundle <code>forge build</code> produces this way uses a
+    design-time placeholder engine stub, so it is for signing/verification tooling, <strong>not a runnable
+    installer</strong>. See the JSON configuration tutorial
+    (<code>docs/tutorials/json-config.html</code>, &ldquo;Signed Bundle Output&rdquo;) for the full field
+    reference.
 </div>
 
 <p>
@@ -10827,6 +10892,122 @@ EngineTrustAnchor.TrustFingerprint("D4E5F6...", TrustRole.Recovery | TrustRole.S
     that introduces any other role.
 </div>
 
+<h3 id="signing-post-quantum">Post-Quantum Hybrid Signing (Future-Proofing Your Keys)</h3>
+
+<p>
+    Everything above rests on ECDSA. ECDSA is excellent today &mdash; but a large, fault-tolerant quantum
+    computer, if one is ever built, could break it, and at that point an attacker could <em>forge</em> your
+    signature on a malicious bundle. Nobody knows if or when that happens. What we do know is that the trusted
+    keys you bake into engines live for <em>years</em> in the field. Hybrid signing is the conservative answer:
+    add a second signature, made with an algorithm designed to resist quantum attack, next to the classical one.
+    It is a forward-looking safety layer for future forgery under a trusted key &mdash; not an urgent fix for
+    anything broken today.
+</p>
+
+<p>
+    <strong>What a hybrid bundle carries.</strong> Two signatures over the exact same manifest content: the
+    classical ECDSA P-256 signature you already know, plus an <strong>ML-DSA-65</strong> signature.
+    ML-DSA (FIPS 204) is the lattice-based signature scheme NIST standardized for the post-quantum era;
+    FalkForge uses the middle parameter set (65) by default. On an up-to-date machine, <strong>both must check
+    out</strong> &mdash; the bundle is trusted only while <em>either</em> algorithm remains unbroken. An ML-DSA
+    signature is about 3.3&nbsp;KB and the companion public key about 2&nbsp;KB, so a hybrid signer grows the
+    bundle by roughly 7&nbsp;KB &mdash; negligible next to any real payload.
+</p>
+
+<p>
+    <strong>The anti-strip guarantee (the part that actually matters).</strong> Two signatures are worthless if
+    an attacker can simply <em>delete</em> the post-quantum one and present the still-valid classical signature
+    alone. FalkForge closes that hole the same way it closes every self-describing-bundle hole in this section:
+    <strong>the bundle proves, the installed engine decides.</strong> The fact &ldquo;this publisher signs
+    hybrid&rdquo; is pinned in the engine's baked trust list &mdash; never read from the bundle. Nothing in the
+    bundle declares the companion, so nothing in the bundle can un-declare it. If a trusted key is pinned as
+    hybrid and the ML-DSA signature is missing, from the wrong key, or fails to verify, the install is refused
+    with <strong>INT011</strong> &mdash; even though the classical signature is cryptographically perfect. A
+    trusted key <em>without</em> a pinned companion verifies exactly as before, so hybrid rollout is per-key
+    and fully backward compatible.
+</p>
+
+<div class="warning">
+    <strong>Protection is only as strong as the weakest pinned key.</strong> If an engine trusts one hybrid
+    key and one plain classical key, a future quantum forger simply targets the plain one. The build warns
+    (FALKPQ001) when a baked trusted set mixes hybrid and non-hybrid keys &mdash; aim to make the whole set
+    hybrid once you start.
+</div>
+
+<p>
+    <strong>What about old Windows?</strong> ML-DSA verification is done by the operating system's crypto
+    stack, and Windows versions that predate its post-quantum additions cannot do it at all. On such a machine
+    the engine verifies the classical signature and writes a <strong>loud log entry</strong> saying the
+    post-quantum check was skipped because the OS cannot perform it &mdash; and the install proceeds. This is
+    safe to allow because the decision hinges on the machine's <em>real</em> OS capability, which nothing in a
+    bundle can influence: an attacker cannot make a modern machine pretend to be an old one. On any
+    ML-DSA-capable OS the companion rule is strictly enforced.
+</p>
+
+<p><strong>Turning it on.</strong> Signing side, one fluent call replaces <code>SigningKey</code> &mdash; give
+    it the classical PEM and the ML-DSA PEM, and both sign the manifest (call it repeatedly to dual-sign
+    during a rotation):</p>
+
+<pre><code class="language-csharp">Installer.BuildBundle(b => b
+    .Product("My App", "2.0.0")
+    // ... chain your packages, UI, etc. ...
+    .Integrity(i => i.HybridKey("falkforge-signing.pem", "falkforge-mldsa.pem")));</code></pre>
+
+<p>You can generate the ML-DSA key with a few lines of .NET (or with OpenSSL 3.5+,
+    <code>openssl genpkey -algorithm ML-DSA-65</code>):</p>
+
+<pre><code class="language-csharp">using System.Security.Cryptography;
+
+using var key = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+File.WriteAllText("falkforge-mldsa.pem", key.ExportPkcs8PrivateKeyPem());
+File.WriteAllText("falkforge-mldsa.pub.pem", key.ExportSubjectPublicKeyInfoPem());</code></pre>
+
+<p>The same hybrid bundle can come out of a <code>forge build</code> JSON config &mdash; add
+    <code>pqKeyPath</code> (or <code>pqKeyEnv</code>) to the <code>pem</code> signing provider. Its presence is
+    what makes the build hybrid. The usual secret rule applies: these fields hold a file path or an environment
+    variable <em>name</em>, never pasted key material:</p>
+
+<pre><code class="language-json">"signing": {
+    "provider": "pem",
+    "keyPath": "keys/release.pem",
+    "pqKeyPath": "keys/release-mldsa.pem"
+}</code></pre>
+
+<p><strong>Pinning the companion</strong> uses the same two channels as plain trust. As build metadata, the
+    trusted-key item gains a <code>PqFingerprint</code> (the ML-DSA public key's SHA-256 fingerprint) &mdash;
+    note that the short-form <code>-p:FalkForgeTrustedKey=&lt;fp&gt;</code> property stays classical-only, so
+    hybrid pinning uses the item form or code:</p>
+
+<pre><code class="language-xml">&lt;ItemGroup&gt;
+  &lt;FalkForgeTrustedKey Include="A1B2C3..." Roles="release"
+                       PqFingerprint="C3D4E5..." PqAlgorithm="ML-DSA-65" /&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+<pre><code class="language-csharp">// ...or in Program.TrustConfig.cs:
+EngineTrustAnchor.TrustHybridKey(classicalSpkiBytes, pqSpkiBytes);
+// ...or by fingerprints:
+EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
+
+<p>
+    Pinning the companion is your cutover statement: from that engine onward, nothing of yours verifies
+    classically alone anymore &mdash; including your own <em>older</em>, classical-only releases, which is why
+    the rotation order from Key Rotation above applies here too (dual-sign first, pin the companion in a later
+    engine release). A hybrid pair counts as <strong>one</strong> signer for roles and quorum &mdash; the ML-DSA
+    half is a validity condition on the classical identity, never a second vote. See
+    <strong>Demo 63 (hybrid-pq-signing)</strong> for the whole flow, including the strip attack being rejected.
+</p>
+
+<div class="note">
+    <strong>SignServer and post-quantum: not yet.</strong> Remote signing of the ML-DSA half through
+    SignServer is <em>not</em> available. SignServer can produce ML-DSA signatures, but not with the
+    domain-separation context (<code>falkforge/manifest</code>) FalkForge's manifest signatures are bound to,
+    so its output can never satisfy
+    the companion check &mdash; and the JSON config refuses the combination (JSN018) rather than silently
+    shipping a bundle that is less protected than you think. The supported setup today: SignServer signs the
+    classical half, a local ML-DSA key signs the post-quantum half &mdash; two independent providers over the
+    same manifest.
+</div>
+
 <h3 id="signing-cert-faq">Do I Need to Buy a Certificate?</h3>
 
 <p>
@@ -10862,9 +11043,11 @@ EngineTrustAnchor.TrustFingerprint("D4E5F6...", TrustRole.Recovery | TrustRole.S
 
 <p>
     For clarity on what <em>is</em> shipped: the free payload signature, trusted-key pinning (build parameter
-    and in-code), fully offline verification, remote signing via SignServer, require-signed updates, active
-    anti-downgrade and revocation, key rotation, and roles-and-quorum governance are all live in this release.
-    The two items above are the only forward-looking pieces in this section.
+    and in-code), fully offline verification, remote signing via SignServer, config-driven signing from
+    <code>forge build</code> JSON, require-signed updates, active anti-downgrade and revocation, key rotation,
+    roles-and-quorum governance, and post-quantum hybrid signing (ML-DSA-65 companion signatures with the
+    INT011 anti-strip rule) are all live in this release. The two items above are the only forward-looking
+    pieces in this section.
 </p>
 </section>
 

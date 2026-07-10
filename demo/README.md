@@ -6,7 +6,7 @@ Practical examples showing how to build Windows Installer packages with FalkForg
 
 FalkForge supports two ways to define installers:
 
-1. **C# Fluent API** (demos 01-58 + MAS) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
+1. **C# Fluent API** (demos 01-63 + MAS) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
 2. **JSON Configuration** (demos 01-07 in `demo/json/`) -- Declarative JSON files validated and built by the `forge` CLI. Use this for straightforward packages that do not need custom code.
 
 Both approaches produce standard `.msi` Windows Installer packages (or `.exe` bundles). The C# demos cover the full API surface; the JSON demos show the subset available through declarative configuration.
@@ -123,6 +123,16 @@ Key properties:
 | 56 | Verify and Plan     | ~47   | Provability CLI: `forge verify --rebuild`, `forge plan-diff`, and `forge plan` |
 | 57 | Reproducible + SBOM | ~68   | Reproducible build under `SOURCE_DATE_EPOCH` + CycloneDX SBOM + ECDSA integrity notes |
 | 58 | Project References  | ~50   | References another project's build output via the generated `ProjectOutputs` class |
+
+### Signing & Trust Demos (59-63)
+
+| #  | Name                | Lines | Description                                                      |
+|----|---------------------|-------|-------------------------------------------------------------------|
+| 59 | Bundle Integrity Signing | ~197 | ECDSA payload signing via `Integrity()`: ephemeral key vs stable PEM key, signature verified back |
+| 60 | Trusted-Key Rotation | ~178 | Rotation-safe dual-signing, trusted-key pinning (`-p:FalkForgeTrustedKey`, `EngineTrustAnchor`), roles/quorum notes |
+| 61 | SignServer Remote Signing | ~181 | Remote signing via `SignServerSignatureProvider` on the async build pipeline; local-key fallback without a server |
+| 62 | Require-Signed Updates | ~167 | Update-trust authoring: `Integrity().Epoch()/.Revoke()` + `UpdateFeed()`; require-signed, anti-downgrade, revocation |
+| 63 | Hybrid Post-Quantum Signing | ~248 | Dual-signs with ECDSA P-256 + ML-DSA-65 (FIPS 204) via `HybridKey()`; companion pin makes the strip attack fail (INT011) |
 
 ## JSON Demo Index
 
