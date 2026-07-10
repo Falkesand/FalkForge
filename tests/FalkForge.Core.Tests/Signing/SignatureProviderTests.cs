@@ -79,6 +79,41 @@ public sealed class SignatureProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task PemSignatureProvider_FromPemContent_SignsInP1363_AndVerifiesWithTheEmbeddedKey()
+    {
+        // The CLI's signing config sources the PEM from an environment variable (never from disk or the
+        // JSON file), so the provider must accept in-memory PEM content and behave identically to the
+        // file-based constructor: P1363 encoding, matching public key, verifiable signature.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+
+        var result = await PemSignatureProvider.FromPemContent(key.ExportPkcs8PrivateKeyPem()).SignAsync(Message);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var signature = result.Value;
+        Assert.Equal(key.ExportSubjectPublicKeyInfo(), signature.SubjectPublicKeyInfo);
+        Assert.Equal(64, signature.Signature.Length);
+
+        using var pub = ECDsa.Create();
+        pub.ImportSubjectPublicKeyInfo(signature.SubjectPublicKeyInfo, out _);
+        Assert.True(pub.VerifyHash(SHA256.HashData(Message), signature.Signature));
+    }
+
+    [Fact]
+    public async Task PemSignatureProvider_FromPemContent_InvalidPem_FailsWithSgn002_WithoutEchoingContent()
+    {
+        // Invalid key material must fail with the typed SGN002 error — and the error message must not
+        // echo the supplied content, because in the CLI flow that content is secret key material.
+        const string bogus = "not-a-pem-private-key";
+
+        var result = await PemSignatureProvider.FromPemContent(bogus).SignAsync(Message);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN002", result.Error.Message);
+        Assert.DoesNotContain(bogus, result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task EphemeralSignatureProvider_ProducesFreshVerifiableP1363Signatures()
     {
         var first = await new EphemeralSignatureProvider().SignAsync(Message);
