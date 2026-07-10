@@ -41,6 +41,20 @@ internal readonly struct TrustPolicy
     /// </summary>
     public IReadOnlyDictionary<OperationKind, PolicyRule>? Rules { get; }
 
+    /// <summary>
+    /// True on the require-signed update path (C19 quorum uniformity): the gate resolves the operation
+    /// from the signed epoch relative to <see cref="StoredEpoch"/> (same epoch → Update, epoch advance →
+    /// KeyChange) instead of assuming Install, and enforces the anti-downgrade epoch (INT008). False for
+    /// fresh installs, which never consult or advance the persisted trust store.
+    /// </summary>
+    public bool IsUpdatePath { get; }
+
+    /// <summary>
+    /// The highest key-epoch this machine has already accepted (from the persisted trust store).
+    /// Consulted only when <see cref="IsUpdatePath"/> is true.
+    /// </summary>
+    public int StoredEpoch { get; }
+
     public TrustPolicy(IReadOnlySet<string> trustedFingerprints, bool requireSigned)
         : this(trustedFingerprints, requireSigned, EmptyRoles, rules: null)
     {
@@ -50,7 +64,9 @@ internal readonly struct TrustPolicy
         IReadOnlySet<string> trustedFingerprints,
         bool requireSigned,
         IReadOnlyDictionary<string, TrustRole> roles,
-        IReadOnlyDictionary<OperationKind, PolicyRule>? rules)
+        IReadOnlyDictionary<OperationKind, PolicyRule>? rules,
+        bool isUpdatePath = false,
+        int storedEpoch = 0)
     {
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
         ArgumentNullException.ThrowIfNull(roles);
@@ -58,6 +74,8 @@ internal readonly struct TrustPolicy
         RequireSigned = requireSigned;
         Roles = roles;
         Rules = rules;
+        IsUpdatePath = isUpdatePath;
+        StoredEpoch = storedEpoch;
     }
 
     private static readonly FrozenDictionary<string, TrustRole> EmptyRoles =
@@ -87,4 +105,18 @@ internal readonly struct TrustPolicy
         IReadOnlyDictionary<string, TrustRole> roles,
         IReadOnlyDictionary<OperationKind, PolicyRule> rules) =>
         new(trustedFingerprints, requireSigned: false, roles, rules);
+
+    /// <summary>
+    /// The require-signed update-path policy (C19 quorum uniformity): a signature is mandatory, and the
+    /// gate resolves the operation from the signed epoch relative to <paramref name="storedEpoch"/> (the
+    /// persisted anti-downgrade epoch) exactly as the staged-update verifier does — a routine same-epoch
+    /// update needs one release signature, an epoch advance is a key change requiring the
+    /// release+recovery quorum. Used by the pipeline when the apply may advance the persisted trust store.
+    /// </summary>
+    public static TrustPolicy RequireSignedUpdate(
+        IReadOnlySet<string> trustedFingerprints,
+        IReadOnlyDictionary<string, TrustRole> roles,
+        IReadOnlyDictionary<OperationKind, PolicyRule> rules,
+        int storedEpoch) =>
+        new(trustedFingerprints, requireSigned: true, roles, rules, isUpdatePath: true, storedEpoch);
 }

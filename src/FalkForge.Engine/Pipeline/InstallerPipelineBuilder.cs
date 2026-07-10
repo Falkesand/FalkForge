@@ -44,6 +44,7 @@ public sealed class InstallerPipelineBuilder
     private FalkForge.Engine.Download.UpdateChecker? _updateChecker;
     private UpdateService? _updateService;
     private bool _advanceTrustStoreOnVerifiedApply;
+    private FalkForge.Engine.Integrity.TrustPolicy? _integrityTrustPolicy;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -198,6 +199,20 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Overrides the trust policy consumed by the apply-time integrity gate. Set on the require-signed
+    /// update path (<see cref="FalkForge.Engine.Integrity.TrustPolicy.RequireSignedUpdate"/>) so the gate
+    /// resolves Update vs KeyChange from the signed epoch against the persisted anti-downgrade epoch —
+    /// the same C19 quorum resolution the staged-update verifier applies — instead of the default
+    /// fresh-install policy. When not called, <see cref="PipelineContext.IntegrityTrustPolicy"/> keeps
+    /// its fresh-install default.
+    /// </summary>
+    internal InstallerPipelineBuilder WithIntegrityTrustPolicy(FalkForge.Engine.Integrity.TrustPolicy policy)
+    {
+        _integrityTrustPolicy = policy;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -241,6 +256,6 @@ public sealed class InstallerPipelineBuilder
 
         return new InstallerPipeline(
             detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest,
-            _advanceTrustStoreOnVerifiedApply);
+            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy);
     }
 }

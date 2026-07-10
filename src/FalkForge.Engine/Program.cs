@@ -669,7 +669,11 @@ internal static partial class Program
                 // pipeline (ApplyStep) — the store's ACL denies a non-elevated write, so the engine no longer
                 // writes it directly here. Advancing after success (not before) prevents an attacker priming
                 // a forged epoch (which would have failed the require-signed gate — the epoch is signed).
-                AdvanceTrustStoreOnVerifiedApply = requireSigned
+                AdvanceTrustStoreOnVerifiedApply = requireSigned,
+                // C19 quorum uniformity: hand the pipeline the ACL-validated stored epoch so the apply-time
+                // integrity gate resolves Update vs KeyChange exactly as the staged-update verifier does —
+                // the store must never advance under a weaker rule than the auto-update path enforces.
+                UpdatePathStoredEpoch = requireSigned ? trustState.Epoch : null
             });
 
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
