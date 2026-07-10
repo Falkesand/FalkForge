@@ -1,0 +1,189 @@
+<title>FalkForge — Competitive Gap Analysis & Roadmap</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#fff; --ink:#1a1d21; --muted:#5b626b; --line:#e4e7eb; --accent:#3f6fd1;
+    --q1:#1f7a4d; --q1bg:#e6f4ec; --q2:#8a6d00; --q2bg:#faf3d6; --q3:#b3261e; --q3bg:#fbe9e7;
+    --now:#1f7a4d; --code:#eef1f5; --card:#fff;
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --bg:#15181c; --panel:#1d2126; --ink:#e6e9ed; --muted:#9aa2ab; --line:#2c323a; --accent:#7fb0ff;
+    --q1:#6fd39a; --q1bg:#16301f; --q2:#e6c84a; --q2bg:#332d13; --q3:#ff6b5e; --q3bg:#3a1f1c;
+    --now:#6fd39a; --code:#12151a; --card:#20242a;
+  }}
+  :root[data-theme="dark"]{--bg:#15181c;--panel:#1d2126;--ink:#e6e9ed;--muted:#9aa2ab;--line:#2c323a;--accent:#7fb0ff;--q1:#6fd39a;--q1bg:#16301f;--q2:#e6c84a;--q2bg:#332d13;--q3:#ff6b5e;--q3bg:#3a1f1c;--now:#6fd39a;--code:#12151a;--card:#20242a;}
+  :root[data-theme="light"]{--bg:#f6f7f9;--panel:#fff;--ink:#1a1d21;--muted:#5b626b;--line:#e4e7eb;--accent:#3f6fd1;--q1:#1f7a4d;--q1bg:#e6f4ec;--q2:#8a6d00;--q2bg:#faf3d6;--q3:#b3261e;--q3bg:#fbe9e7;--now:#1f7a4d;--code:#eef1f5;--card:#fff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+  header{border-bottom:2px solid var(--line);padding-bottom:18px}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:14px}
+  .meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+  h2{font-size:20px;margin:40px 0 4px;letter-spacing:-.01em}
+  h2 .r{height:1px;background:var(--line);margin-top:8px}
+  h3{font-size:16px;margin:26px 0 8px}
+  p{margin:10px 0}
+  .lead{font-size:15.5px}
+  .callout{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout.win{border-left-color:var(--q1)}
+  .callout b{color:var(--ink)}
+  code,.mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;font-size:12.8px}
+  code{background:var(--code);padding:1px 6px;border-radius:5px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:16px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .card .num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;margin-right:7px}
+  .card p{margin:6px 0;font-size:13.5px;color:var(--muted)}
+  .card .eff{font-size:11.5px;font-weight:700;color:var(--q1);margin-top:6px;text-transform:uppercase;letter-spacing:.04em}
+  .tblwrap{overflow-x:auto;margin:14px 0}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .p-low{background:var(--q1bg);color:var(--q1)} .p-med{background:var(--q2bg);color:var(--q2)} .p-high{background:var(--q3bg);color:var(--q3)}
+  .theme{font-weight:650}
+  ul{margin:8px 0;padding-left:22px} li{margin:5px 0}
+  .have{background:var(--q1bg);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-top:12px;font-size:13.5px}
+  .have b{color:var(--q1)}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  a{color:var(--accent)}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>FalkForge — Competitive Gap Analysis &amp; Roadmap</h1>
+  <div class="sub">What other installers offer that FalkForge doesn't — and where the highest-return improvements are</div>
+  <div class="meta">
+    <span>2026-07-10</span><span>·</span>
+    <span>Sources: WiX v4-6, Advanced Installer, InstallShield, Inno, NSIS, MSIX, Velopack, Conveyor, Tauri, electron-builder, Sparkle, WinGet/Choco, Intune</span>
+  </div>
+</header>
+
+<p class="lead">FalkForge is engineered <b>deeper than any competitor on the hardest part of the problem</b> — supply-chain and trust. Hybrid post-quantum signing, M-of-N key quorum, reproducible builds, an SBOM, and a provable <code>plan</code>/<code>verify</code> pipeline are things WiX, Advanced Installer, and InstallShield simply do not have. The gaps are not in the engine. They are in <b>adoption surface, the update <em>lifecycle</em>, and developer onboarding</b> — the parts that decide whether anyone ever gets far enough to benefit from the engine.</p>
+
+<div class="callout win">
+  <b>The one-sentence version:</b> FalkForge is currently built like a 10/10 engine and shipped like a 0/10 product — it's a private repo with no NuGet package, no public docs site, no license statement, and no starter templates. The single highest-return move is not another engine feature; it's <b>making it exist as something a developer can find, install, and run in fifteen minutes</b> — and pointing that at the live WiX-licensing exodus.
+</div>
+
+<div class="have">
+  <b>Already covered — not gaps</b> (so the list below excludes them): Burn-style bundles &amp; rollback boundaries, auto-update feed + Octodiff delta, ECDSA + hybrid-PQ signing, trusted-key pinning, roles/quorum, rotation, revocation, require-signed updates, anti-downgrade epoch, SBOM (CycloneDX), reproducible builds, WinGet manifest generation, MSI/WiX-Burn → C# decompile (<code>forge migrate</code>), ICE validation, MSP/MSM/MST, the Firewall/IIS/SQL/.NET/Util/Dependency/Driver/Http extensions, JSON + fluent + CLI + MSBuild-SDK authoring, custom WPF UI, and a WPF "Studio" visual builder. FalkForge's security story is <b>ahead of the entire market</b> — that's the thing to lead with, not fix.
+</div>
+
+<h2>Start here — 5 highest-leverage, lowest-effort wins<div class="r"></div></h2>
+<p>Each of these is cheap relative to its impact, and every one rides infrastructure FalkForge already has.</p>
+<div class="grid">
+  <div class="card">
+    <h4><span class="num">1</span>Ship it as a product</h4>
+    <p>Publish the NuGet packages, split the 540 KB <code>documentation.html</code> into a searchable/SEO-indexed docs site, state a license, open GitHub Discussions. No distribution = no adoption. Nothing else on this list matters until a developer can <code>dotnet add package</code> and Google their way in.</p>
+    <div class="eff">Effort: Med (mostly packaging) · Impact: Very high</div>
+  </div>
+  <div class="card">
+    <h4><span class="num">2</span><code>forge init</code> + <code>dotnet new</code> templates</h4>
+    <p>Point it at a publish folder → get a working, buildable installer project. Velopack proved a &lt;15-minute "first installer" wins developers; 63 demos don't help someone who hasn't committed yet. Mostly glue over the builders you already have.</p>
+    <div class="eff">Effort: Low · Impact: Very high</div>
+  </div>
+  <div class="card">
+    <h4><span class="num">3</span>Official CI: GitHub Action + Azure DevOps task</h4>
+    <p>A <code>setup-falkforge</code> action and a documented build→sign→publish→WinGet-PR workflow. It's the second thing every evaluator checks, it's mostly YAML + docs, and every competitor already ships one.</p>
+    <div class="eff">Effort: Low-Med · Impact: High</div>
+  </div>
+  <div class="card">
+    <h4><span class="num">4</span><code>forge preview</code> — live installer-UI hot-reload</h4>
+    <p>Render the installer UI against the existing <code>NullInstallerEngine</code> with theme hot-reload. <b>No competitor has hot-reload installer UI</b> — Orca/WixEdit are ancient. The WPF infra and Studio already exist; this is wiring + a file-watcher for a market-first feature.</p>
+    <div class="eff">Effort: Low-Med · Impact: High</div>
+  </div>
+  <div class="card">
+    <h4><span class="num">5</span><code>forge sandbox</code> — runtime install test harness</h4>
+    <p>Generate a Windows Sandbox <code>.wsb</code>, run install → upgrade → uninstall, assert no leftover files/registry, exit red/green for CI. Upgrade-path testing is the top unmet wish in the market, nobody ships it first-class, and it extends your "provable installer" thesis from build-time to runtime.</p>
+    <div class="eff">Effort: Med · Impact: High</div>
+  </div>
+</div>
+
+<h2>The strategic timing<div class="r"></div></h2>
+<p>WiX v6+ now charges an Open-Source Maintenance Fee to revenue-generating users, and the community has been openly reassessing installers since April 2025 (HN threads, GitHub issues, competitors farming it). FalkForge is a free, code-first, .NET-10 framework whose <code>forge migrate</code> already turns an existing MSI or WiX-Burn bundle into a buildable C# project. <b>That is a ready-made on-ramp for WiX refugees — aimed at exactly the audience in motion right now, and completely unmarketed.</b> WixSharp proves the C#-code-first appetite exists; it's stuck on .NET Framework + a WiX dependency, which FalkForge isn't.</p>
+
+<h2>Full prioritized backlog<div class="r"></div></h2>
+<p>Grouped by theme. Priority pill = suggested order (do <span class="pill p-low">quick win</span> before <span class="pill p-med">worth doing</span> before <span class="pill p-high">big bet</span>). Everything here is a genuine gap versus a named competitor.</p>
+
+<h3>A · Update lifecycle — the biggest capability gap</h3>
+<p>Competitors treat updates as a <em>lifecycle product</em> (channels → staged ramp → criticality → rollback). FalkForge's feed today answers only "is there a newer, signed version, and is there a delta?" Closing this class is mostly feed-schema + engine-logic work on infrastructure you already own.</p>
+<div class="tblwrap"><table>
+<thead><tr><th>Gap</th><th>Who has it</th><th>Why it matters</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><b>Staged / percentage rollout</b> (per-install ID hash vs a <code>StagedRolloutPercentage</code>)</td><td>Velopack, electron-updater, Sparkle</td><td>Catch a bad release at 10% of users, not 100%. Static-file-hostable — a feed field + a stable install-ID hash in the engine.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b>Release channels</b> (stable/beta/nightly, per-channel feed files, runtime switch)</td><td>Velopack, Sparkle, electron</td><td>Beta pipelines. Every update framework has it; FalkForge feed is a single stream.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b>Update-policy knobs</b>: criticality/mandatory flag, check cadence, force-update-before-launch, OS-scheduled background check (Task Scheduler)</td><td>MSIX App Installer, Sparkle</td><td>FalkForge only checks when the engine runs. Critical-CVE updates need "mandatory" UX and a background check that runs without the app open.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>Vendor-authorized rollback / downgrade</b> (a signed "pull this release" token that co-operates with the anti-downgrade epoch)</td><td>Velopack (<code>IsDowngrade</code>)</td><td>A bad release is currently only fixable by rolling <em>forward</em>. Needs design care so it doesn't weaken the epoch security — but it's a real operational hole.</td><td><span class="pill p-med">worth doing</span></td></tr>
+</tbody>
+</table></div>
+
+<h3>B · Distribution &amp; package-manager reach</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Gap</th><th>Who has it</th><th>Why it matters</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><b>WinGet auto-submission</b> (<code>forge winget --submit</code> via wingetcreate/Komac + a shipped GH Action)</td><td>WinGet Releaser, Komac</td><td>You already generate the manifest; the ecosystem norm is an auto-PR to winget-pkgs on release. Half the feature is missing.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b>Chocolatey package emitter</b> (nuspec + silent-install script from the PackageModel)</td><td>Chocolatey / chocolatey-au</td><td>Big enterprise install base + internal NuGet feeds. Near-free given the model already exists.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b>Download-site scaffold</b> (OS/arch-detecting download page + feed + bootstrap script, Conveyor-style)</td><td>Conveyor</td><td>Removes the "…now host it yourself" gap after a build. Cheap polish that finishes the release story.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>Intune deployment kit</b> (<code>.intunewin</code> + detection rules + a documented silent-switch/exit-code contract for the bundle EXE)</td><td>Nobody generates this</td><td>Enterprises hand-build this for every app. A generator would be a genuine differentiator for an MSI-native tool. (Note: the bundle EXE needs a documented end-user <code>/quiet /norestart</code> contract + 0/3010 exit codes — currently silent mode is authoring-time only.)</td><td><span class="pill p-med">worth doing</span></td></tr>
+</tbody>
+</table></div>
+
+<h3>C · Authoring DX &amp; tooling</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Gap</th><th>Who has it</th><th>Why it matters</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><b>Roslyn analyzers for authoring</b> (the PKG/FEA/SVC validators as live editor squiggles + code fixes)</td><td>Nobody — unique to code-first</td><td>Turns FalkForge's C# advantage into a moat: catch a missing UpgradeCode or a bad component rule as you type, not at build. WiX/Inno/ISS structurally can't do this.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>Visual Studio extension</b> (templates, F5 build/debug of an installer project)</td><td>WiX HeatWave</td><td>Discoverability + onboarding for exactly FalkForge's C# audience.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>Studio: theme editor + live sequence preview</b> (colors/branding/watermark, not a full control-level dialog designer)</td><td>Advanced Installer, InstallShield (Enterprise-gated)</td><td>Competitors put visual designers behind paywalls — a free visual theme preview is a differentiator, and it's far cheaper than chasing a 20-year WYSIWYG dialog editor head-on.</td><td><span class="pill p-high">big bet</span></td></tr>
+</tbody>
+</table></div>
+
+<h3>D · Signing &amp; CI (you're strong here — small gaps)</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Gap</th><th>Who has it</th><th>Why it matters</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><b>Azure Trusted Signing provider</b> (next to the existing SignServer provider)</td><td>Advanced Installer ("first native")</td><td>Trusted Signing + OIDC is what indie/small ISVs actually use in CI in 2025. Your provider abstraction makes this cheap.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b>SPDX SBOM</b> (you emit CycloneDX only)</td><td>Most SBOM tooling</td><td>Some procurement/compliance pipelines require SPDX specifically. Small addition to existing SBOM code.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b>Release-notes / changelog embedding</b> into the bundle + update feed entry</td><td>electron, Velopack, Sparkle</td><td>"What's new" in the update prompt; feeds the download-site scaffold.</td><td><span class="pill p-low">quick win</span></td></tr>
+</tbody>
+</table></div>
+
+<h3>E · Diagnostics &amp; end-user UX</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Gap</th><th>Who has it</th><th>Why it matters</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><b>"What will this change" page for END USERS</b> (expose <code>forge plan</code> — files/services/registry preview + ETA — in the installer UI)</td><td>Nobody</td><td>You already compute the plan. No competitor shows users a verifiable change manifest — a unique, marketable transparency feature that fits your provability thesis.</td><td><span class="pill p-low">quick win</span></td></tr>
+<tr><td><b><code>forge logs analyze</code> + support-bundle</b> (parse engine + MSI verbose logs → known failure signatures + fix hints; zip logs+plan+machine facts)</td><td>wilogutl (20 years stale)</td><td>Install-failure diagnosis is stuck in 2005. A modern analyzer + a one-click support zip is a real support-cost win.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>End-user UX pass</b>: system dark-mode auto-detect in the default theme, UIA accessibility names (also unlocks UI test automation), keyboard-only flow, per-monitor-v2 DPI</td><td>Advanced Installer, Setup Factory</td><td>Rising bar; WPF gives a modern base but these must be verified/shipped, not assumed.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>Opt-in install analytics</b> (success/failure/error-code beacon → dashboard-ready feed)</td><td>Advanced Installer's Installer Analytics (a paid product)</td><td>Proven commercial value; opt-in default keeps trust. Your update-feed infra is a natural home for the beacon.</td><td><span class="pill p-high">big bet</span></td></tr>
+<tr><td><b>UI language packs</b> (ship 30-60 translations; you ship en-US + sv-SE)</td><td>NSIS 60+, Inno ~30</td><td>Instant credibility — a checkbox in every comparison table. The mechanism already exists; it's a content grind.</td><td><span class="pill p-low">quick win</span></td></tr>
+</tbody>
+</table></div>
+
+<h3>F · Bigger strategic bets (high effort — decide deliberately)</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Bet</th><th>Who has it</th><th>Why it matters</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><b>Prerequisite / runtime catalog</b> (curated VC++ redist, .NET, WebView2, SQL Express, Java… with detection logic + official URLs, embed-or-download)</td><td>Advanced Installer, InstallShield, Burn ext</td><td>Every real app ships runtimes; devs hate hand-writing detection. Fits your existing bundle chain + .NET-detection extension. High-value, and mostly a maintained-content problem.</td><td><span class="pill p-med">worth doing</span></td></tr>
+<tr><td><b>Finish MSIX</b> (CLI dispatch + <code>.appinstaller</code> generation + Package Support Framework + Store submission API)</td><td>Advanced Installer, MSIX Packaging Tool</td><td>MSIX = Intune-era enterprise deployment + free Store signing/CDN. The compiler exists but is experimental; <code>.appinstaller</code> is a natural sibling to your WinGet generator.</td><td><span class="pill p-high">big bet</span></td></tr>
+<tr><td><b>Trial / licensing engine</b> (signed serials, trial period, web validation, blacklist)</td><td>Advanced Installer (its cash cow)</td><td>ISVs pay for this specifically; monetization built into the installer. Your crypto stack is a head start. Serves a specific (ISV) segment.</td><td><span class="pill p-high">big bet</span></td></tr>
+<tr><td><b>Cross-platform via compile-only emitters</b> (<code>.deb</code>/<code>.rpm</code>/AppImage, then macOS <code>.pkg</code>/<code>.dmg</code>) that <em>ride native updaters</em> (Sparkle appcast, Flathub metadata) instead of porting the engine</td><td>Conveyor, Tauri, electron-builder, Velopack</td><td>Every modern framework is cross-platform from one config; FalkForge is the outlier. Conveyor's whole moat is "one config → native formats → native update mechanisms," and your OS-agnostic model layer is ~80% there. <code>.deb</code>/<code>.rpm</code> are pure archive-writing (buildable on Windows); macOS notarization can reuse your remote-signing infra (rcodesign needs no Mac). <b>Don't port the engine — emit the metadata and let native updaters do the work.</b></td><td><span class="pill p-high">big bet</span></td></tr>
+<tr><td><b>Repackaging / setup capture</b> (snapshot/monitor a legacy EXE installer → MSI/MSIX; sandbox/VM capture)</td><td>Advanced Installer Architect, PACE, MSIX Packaging Tool</td><td>Opens the IT-pro / app-migration market. Large effort; your decompiler covers MSI/WiX only today.</td><td><span class="pill p-high">big bet</span></td></tr>
+<tr><td>Smaller/niche: encrypted &amp; passworded installers (Inno has it), multi-instance installs (InstallShield), per-user no-UAC install/update mode (Velopack), a lightweight non-MSI file-copy package type + smaller engine footprint (Inno/NSIS crowd)</td><td>as noted</td><td>Each serves a specific audience; pick per your target user.</td><td><span class="pill p-high">big bet</span></td></tr>
+</tbody>
+</table></div>
+
+<h2>Loose ends worth a quick fix<div class="r"></div></h2>
+<ul>
+  <li><b>Stale README</b> — it says 57 demos / 2,500 tests / 25 projects; reality is 63 / ~3,500 / 28. First thing a visitor reads.</li>
+  <li><b>MSIX CLI gap</b> and the <b>design-time placeholder engine stub</b> in <code>forge build</code> bundles (it warns "NOT a runnable installer") — both are honesty-flagged today but limit what the CLI can actually ship.</li>
+  <li><b>Studio</b> is broad (23 editors) but unproven and has no demo — a single "build this installer in Studio" walkthrough would de-risk it.</li>
+</ul>
+
+<h2>If I had to pick one sentence of advice<div class="r"></div></h2>
+<p class="lead">Stop adding to the engine and start shipping the product: publish it, template the on-ramp, wire the CI, and put <code>forge migrate</code> in front of the WiX-fee refugees — then spend the next cycle turning the update <em>feed</em> into an update <em>lifecycle</em> (channels + staged rollout + criticality). The security depth you already have is the differentiator; the market just can't see it yet.</p>
+
+<footer>
+  Competitive gap analysis · 2026-07-10 · synthesized from an internal capability inventory plus web research across Windows installer tools, modern update/cross-platform frameworks, and developer-experience/ecosystem sources. Priorities are a starting judgment, not a committed plan — each row can be scoped into its own design.
+</footer>
+</div>
