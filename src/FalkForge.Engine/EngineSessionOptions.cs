@@ -96,6 +96,16 @@ public sealed record EngineSessionOptions
     /// </summary>
     public bool AdvanceTrustStoreOnVerifiedApply { get; init; }
 
+    /// <summary>
+    /// The persisted anti-downgrade epoch loaded (and ACL-validated) by the bootstrapper on the
+    /// require-signed update path. When non-null, the pipeline's apply-time integrity gate runs with the
+    /// update-path trust policy: it resolves Update vs KeyChange from the signed epoch against this value
+    /// (the same C19 quorum resolution the staged-update verifier applies) and enforces anti-downgrade,
+    /// so the path that advances the persisted trust store cannot accept a key change under the weaker
+    /// fresh-install rule. Null (the default) keeps the fresh-install policy.
+    /// </summary>
+    public int? UpdatePathStoredEpoch { get; init; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Test-only injection point (exposed via EngineSession.BindToChannel)
     // ──────────────────────────────────────────────────────────────────────────

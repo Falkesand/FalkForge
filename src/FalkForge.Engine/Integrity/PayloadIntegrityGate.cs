@@ -68,8 +68,8 @@ internal static class PayloadIntegrityGate
         // VerifyTrusted fall back to consistency-only (accept ANY self-verifying signature). On a
         // require-signed path that is fail-open: an attacker re-signs a rewritten update with their own
         // fresh key and it would be accepted. Require-signed cannot establish authorship without a pinned
-        // key, so refuse rather than accept-any. ApplyStep never sets RequireSigned today (so this is no
-        // live behavior change), but the guard prevents a future silent fail-open. The empty-set
+        // key, so refuse rather than accept-any. ApplyStep runs with RequireSigned on the update path
+        // (TrustPolicy.RequireSignedUpdate); this guard keeps that path fail-closed. The empty-set
         // consistency-only acceptance stays legal only off the require-signed (fresh-install) path above.
         if (policy.RequireSigned && trustedFingerprints.Count == 0)
             return Result<Unit>.Failure(ErrorKind.IntegrityError,
@@ -77,16 +77,30 @@ internal static class PayloadIntegrityGate
                 "keys, so authorship cannot be established. Refusing to accept a signed bundle on trust the " +
                 "engine cannot anchor (fail closed).");
 
+        // Anti-downgrade on the update path (C19 quorum uniformity), mirroring SignedPayloadTocVerifier:
+        // a signed release older than the highest epoch this machine has accepted is a replay/downgrade.
+        // The epoch is part of the signed bytes, so it cannot have been lowered without failing the
+        // signature verification below. Fresh installs (IsUpdatePath false) never consult the store.
+        if (policy.IsUpdatePath && envelope.Epoch < policy.StoredEpoch)
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                $"INT008: Bundle key-epoch {envelope.Epoch} is below the highest accepted epoch " +
+                $"{policy.StoredEpoch} on this machine. Refusing a downgrade/replay of a superseded release.");
+
         // Authorship + tamper check. Two paths (C19):
         //   - No roles configured  -> the C14 verify-any rule (accept on the first valid trusted signature).
         //     This keeps an un-migrated engine bit-for-bit as C14 (§7.1).
         //   - Roles configured      -> collect ALL valid distinct trusted signatures and evaluate them
-        //     against the Install operation's quorum rule (a fresh install is always the Install operation),
-        //     failing loud with INT010 when the policy is unsatisfied.
+        //     against the resolved operation's quorum rule: Install on the fresh-install path, and on the
+        //     update path Update (same epoch) or KeyChange (epoch advance) resolved from the signed epoch
+        //     relative to the stored epoch — the SAME resolution the staged-update verifier applies, so a
+        //     single release key cannot advance the persisted epoch under the weaker Install rule. Fails
+        //     loud with INT010 when the policy is unsatisfied.
         if (policy.Rules is { } rules && policy.Roles.Count > 0)
         {
             var hasRevocations = envelope.Revoked is { Count: > 0 };
-            var rule = BakedTrustPolicy.RuleFrom(rules, OperationKind.Install, hasRevocations);
+            var operation = BakedTrustPolicy.ResolveOperation(
+                policy.IsUpdatePath, envelope.Epoch, policy.StoredEpoch);
+            var rule = BakedTrustPolicy.RuleFrom(rules, operation, hasRevocations);
             var roles = policy.Roles;
             var collected = IntegrityEnvelopeCodec.CollectTrustedSignatures(
                 envelope, trustedFingerprints,
@@ -97,7 +111,7 @@ internal static class PayloadIntegrityGate
             var decision = QuorumEvaluator.Evaluate(collected.Value, rule);
             if (!decision.Satisfied)
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                    $"INT010: The signing quorum for a fresh install is not satisfied. {decision.Diagnostic}");
+                    $"INT010: The signing quorum for this operation ('{operation}') is not satisfied. {decision.Diagnostic}");
         }
         else
         {

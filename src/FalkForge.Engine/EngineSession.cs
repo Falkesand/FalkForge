@@ -341,6 +341,18 @@ public sealed class EngineSession : IAsyncDisposable
         if (options.AdvanceTrustStoreOnVerifiedApply)
             pipelineBuilder = pipelineBuilder.WithTrustStoreAdvanceOnVerifiedApply();
 
+        // C19 quorum uniformity: on the require-signed update path, the apply-time integrity gate must
+        // enforce the same operation resolution (Update vs KeyChange against the persisted epoch) as the
+        // staged-update verifier — the store advance above must never happen under a weaker rule than the
+        // one that governs the auto-update path.
+        if (options.UpdatePathStoredEpoch is { } storedEpoch)
+            pipelineBuilder = pipelineBuilder.WithIntegrityTrustPolicy(
+                FalkForge.Engine.Integrity.TrustPolicy.RequireSignedUpdate(
+                    FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints,
+                    FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveRoles,
+                    FalkForge.Engine.Protocol.Integrity.BakedTrustPolicy.Default,
+                    storedEpoch));
+
         var pipeline = pipelineBuilder.Build();
 
         return new EngineSession(

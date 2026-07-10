@@ -71,10 +71,8 @@ internal static class StagedUpdateVerifier
         // the C14 verify-any path — bit-for-bit backward compatible (§7.1). When roles are present, the
         // verifier resolves the operation (Update vs KeyChange) from the signed epoch and enforces the
         // governance rule (e.g. a rotation demands release + recovery).
-        var roles = EngineTrustAnchor.EffectiveRoles;
-        var policyTable = roles.Count > 0 ? BakedTrustPolicy.Default : null;
-
         return Verify(
-            stagedBundlePath, EngineTrustAnchor.EffectiveFingerprints, state.Epoch, revoked, policyTable, roles);
+            stagedBundlePath, EngineTrustAnchor.EffectiveFingerprints, state.Epoch, revoked,
+            EngineTrustAnchor.EffectivePolicyTable, EngineTrustAnchor.EffectiveRoles);
     }
 }

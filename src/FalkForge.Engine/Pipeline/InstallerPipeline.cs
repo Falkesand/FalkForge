@@ -39,7 +39,8 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         IRollbackStep? rollbackStep,
         UpdateService? updateService = null,
         FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null,
-        bool advanceTrustStoreOnVerifiedApply = false)
+        bool advanceTrustStoreOnVerifiedApply = false,
+        FalkForge.Engine.Integrity.TrustPolicy? integrityTrustPolicy = null)
     {
         _detectStep = detectStep;
         _planStep = planStep;
@@ -48,6 +49,12 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         _rollbackStep = rollbackStep;
         _updateService = updateService;
         _ctx.AdvanceTrustStoreOnVerifiedApply = advanceTrustStoreOnVerifiedApply;
+
+        // Update-path trust policy override (C19 quorum uniformity): the apply-time integrity gate must
+        // resolve Update vs KeyChange against the persisted epoch on the path that advances the store,
+        // rather than assume the (weakest) fresh-install operation.
+        if (integrityTrustPolicy is { } policy)
+            _ctx.IntegrityTrustPolicy = policy;
 
         // Pre-seed the context manifest so PlanStep can operate even when
         // DetectStep is absent (e.g. headless / ordering-only tests).
