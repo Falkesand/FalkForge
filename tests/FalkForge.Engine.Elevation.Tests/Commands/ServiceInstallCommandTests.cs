@@ -44,6 +44,23 @@ public sealed class ServiceInstallCommandTests
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
     }
 
+    [Fact]
+    public void Execute_RejectsBinaryPathUnderUserProfile()
+    {
+        // FIX 2: a SYSTEM service image must never live under the user profile. Even though
+        // FileWrite permits the user profile, ServiceInstall must not — a user-writable image
+        // path is a weak-service-path escalation (swap the binary later → run as SYSTEM).
+        var command = new ServiceInstallCommand();
+        var userProfilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "EvilApp", "svc.exe");
+        var payload = BuildPayload("MySvc", "My Service", userProfilePath);
+
+        var result = command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
     private static byte[] BuildPayload(string serviceName, string displayName, string binaryPath)
     {
         using var stream = new MemoryStream();

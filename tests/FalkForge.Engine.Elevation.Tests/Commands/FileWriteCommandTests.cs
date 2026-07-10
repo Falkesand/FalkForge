@@ -98,6 +98,43 @@ public sealed class FileWriteCommandTests : IDisposable
         Assert.Contains("symbolic link or junction", result.Error.Message);
     }
 
+    [Fact]
+    public void Execute_RejectsAncestorDirectoryJunction()
+    {
+        // Attack: an attacker pre-creates a junction at an ANCESTOR level under an allowed,
+        // user-writable root. Directory.CreateDirectory would happily walk THROUGH the
+        // junction, landing elevated bytes at the junction's target. The leaf-only reparse
+        // check does not catch this because the leaf (evil/dropped.dll's parent) is created
+        // fresh below the junction. FIX 1: reject when ANY ancestor is a reparse point.
+        var junctionTarget = Path.Combine(_tempDir, "realTarget");
+        var ancestorJunction = Path.Combine(_tempDir, "ancestor");
+        Directory.CreateDirectory(junctionTarget);
+
+        using var proc = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{ancestorJunction}\" \"{junctionTarget}\"")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true
+        })!;
+        proc.WaitForExit(5_000);
+
+        if (!Directory.Exists(ancestorJunction))
+            return; // Skip if junction creation failed (e.g., filesystem without reparse support)
+
+        // The target sits UNDER a not-yet-existing subdirectory of the ancestor junction.
+        var targetPath = Path.Combine(ancestorJunction, "sub", "evil.dll");
+        var payload = BuildPayload(targetPath, new byte[] { 0x4D, 0x5A });
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("symbolic link or junction", result.Error.Message);
+
+        // No bytes must have escaped through the junction into the target directory.
+        Assert.False(File.Exists(Path.Combine(junctionTarget, "sub", "evil.dll")));
+    }
+
     private static byte[] BuildPayload(string targetPath, byte[] content)
     {
         using var stream = new MemoryStream();

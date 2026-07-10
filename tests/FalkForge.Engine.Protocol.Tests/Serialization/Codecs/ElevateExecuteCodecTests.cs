@@ -70,6 +70,26 @@ public class ElevateExecuteCodecTests
     }
 
     [Fact]
+    public void Read_with_oversized_payload_throws()
+    {
+        // The inner CommandPayload length is attacker-controlled and independent of the outer
+        // frame length. Without a cap, a tiny frame can declare a ~2 GB payload and OOM-crash
+        // the elevated receive loop (FIX 4). Mirror the SetSecureProperty guard: reject over-cap.
+        using var ms = new MemoryStream();
+        using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write((uint)1);           // SequenceId
+            bw.Write("MsiInstall");      // CommandName
+            bw.Write(ElevateExecuteCodec.MaxPayloadSize + 1); // oversized inner payload length
+        }
+
+        ms.Position = 0;
+        using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+
+        Assert.Throws<InvalidOperationException>(() => ElevateExecuteCodec.Instance.Read(br));
+    }
+
+    [Fact]
     public void GoldenBytes_wire_format_stable()
     {
         // Golden bytes lock the wire format against accidental drift.

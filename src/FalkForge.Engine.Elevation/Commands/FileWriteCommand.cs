@@ -34,12 +34,25 @@ public sealed class FileWriteCommand : IElevatedCommand
             var dir = Path.GetDirectoryName(normalizedPath);
             if (dir is not null)
             {
-                Directory.CreateDirectory(dir);
-                var dirInfo = new DirectoryInfo(dir);
-                if (dirInfo.Exists && dirInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
-                    return Result<byte[]>.Failure(ErrorKind.SecurityError,
-                        "Target directory is a symbolic link or junction and cannot be written to");
+                // Reject if ANY ancestor (up to the allowed root) is a junction/symlink, and
+                // create each missing level ourselves. This closes the STATIC ancestor-junction
+                // pre-plant only: the write below is path-based (File.WriteAllBytes), not a held
+                // no-follow handle, so a path-based TOCTOU residual remains — a junction swapped
+                // in after this check is not detected. Handle-based no-follow write is tracked
+                // as a follow-up.
+                var treeResult = ElevatedPathPolicy.EnsureDirectoryTreeSafe(dir, ElevatedPathPolicy.FileWriteRoots());
+                if (treeResult.IsFailure)
+                    return Result<byte[]>.Failure(treeResult.Error);
             }
+
+            // Reject an existing target that is itself a reparse point (a file symlink would
+            // otherwise redirect the elevated write to the link's target). Same TOCTOU caveat
+            // as above: this is a point-in-time path check, not a no-follow open.
+            if (File.Exists(normalizedPath) &&
+                File.GetAttributes(normalizedPath).HasFlag(FileAttributes.ReparsePoint))
+                return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                    "Target file is a symbolic link and cannot be written to");
+
             File.WriteAllBytes(normalizedPath, content);
             return Array.Empty<byte>();
         }
@@ -49,23 +62,6 @@ public sealed class FileWriteCommand : IElevatedCommand
         }
     }
 
-    internal static bool IsAllowedPath(string normalizedPath)
-    {
-        ReadOnlySpan<string> allowedPrefixes =
-        [
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
-        ];
-
-        foreach (var prefix in allowedPrefixes)
-        {
-            if (!string.IsNullOrEmpty(prefix) &&
-                normalizedPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
+    internal static bool IsAllowedPath(string normalizedPath) =>
+        ElevatedPathPolicy.IsUnderAllowedRoot(normalizedPath, ElevatedPathPolicy.FileWriteRoots());
 }
