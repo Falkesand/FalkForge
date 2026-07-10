@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Protocol.Integrity;
 
+using System.Collections.Frozen;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 
@@ -45,6 +46,27 @@ using FalkForge.Engine.Protocol.Manifest;
 /// </summary>
 public static class SignedPayloadTocVerifier
 {
+    private static readonly FrozenDictionary<string, TrustRole> EmptyRoles =
+        FrozenDictionary<string, TrustRole>.Empty;
+
+    // Returns the collected signatures with any locally-revoked fingerprint removed. Allocation-free when
+    // there are no revocations (the common path) — returns the input list unchanged.
+    private static IReadOnlyList<TrustedSignature> DropRevoked(
+        IReadOnlyList<TrustedSignature> collected, IReadOnlySet<string>? revokedFingerprints)
+    {
+        if (revokedFingerprints is null || revokedFingerprints.Count == 0 || collected.Count == 0)
+            return collected;
+
+        var kept = new List<TrustedSignature>(collected.Count);
+        foreach (var signature in collected)
+        {
+            if (!revokedFingerprints.Contains(signature.Fingerprint))
+                kept.Add(signature);
+        }
+
+        return kept;
+    }
+
     /// <summary>
     /// Verifies that every TOC payload which is covered by the manifest's ECDSA signature carries a
     /// hash that matches the signed hash, so tampered bytes with a rewritten (unsigned) TOC hash are
@@ -74,13 +96,28 @@ public static class SignedPayloadTocVerifier
     /// signature is one of these is rejected (INT001) even if the key is still in the baked trusted set.
     /// Null/empty means no local revocations are enforced.
     /// </param>
+    /// <param name="policyTable">
+    /// The C19 per-operation quorum table to enforce (typically <see cref="BakedTrustPolicy.Default"/>).
+    /// Null (the default) keeps the C14 verify-any path — accept on the first valid trusted signature — so
+    /// every existing caller and already-signed bundle verifies exactly as before. Non-null is supplied only
+    /// on the update path, where the operation is resolved from the signed epoch relative to
+    /// <paramref name="storedEpoch"/> (§5.3) and the collected distinct signatures are evaluated against the
+    /// resolved rule, failing with INT010 when unsatisfied.
+    /// </param>
+    /// <param name="roles">
+    /// Resolves each accepted fingerprint to its pinned role(s) for the quorum evaluation. Only consulted
+    /// when <paramref name="policyTable"/> is non-null; a fingerprint absent from the map defaults to
+    /// <see cref="TrustRole.Release"/>.
+    /// </param>
     public static Result<Unit> Verify(
         InstallerManifest manifest,
         IReadOnlyList<TocEntry> tocEntries,
         IReadOnlySet<string> trustedFingerprints,
         bool requireSigned = false,
         int storedEpoch = 0,
-        IReadOnlySet<string>? revokedFingerprints = null)
+        IReadOnlySet<string>? revokedFingerprints = null,
+        IReadOnlyDictionary<OperationKind, PolicyRule>? policyTable = null,
+        IReadOnlyDictionary<string, TrustRole>? roles = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(tocEntries);
@@ -116,29 +153,64 @@ public static class SignedPayloadTocVerifier
                 "keys, so authorship cannot be established. Refusing to accept a signed update on trust the " +
                 "engine cannot anchor (fail closed).");
 
-        // The signed hashes are only trustworthy if a TRUSTED signature verifies. A tampered, forged,
-        // or attacker-re-signed envelope (key not in the pinned set) is rejected here, before any hash
-        // from it is trusted. MatchTrustedSignature returns the accepted fingerprint so we can enforce
-        // the persisted revocation list against it.
-        var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(envelope, trustedFingerprints);
-        if (trust.IsFailure)
-            return Result<Unit>.Failure(trust.Error);
+        if (policyTable is null)
+        {
+            // C14 verify-any path (unchanged). The signed hashes are only trustworthy if a TRUSTED
+            // signature verifies. A tampered, forged, or attacker-re-signed envelope (key not in the pinned
+            // set) is rejected here. MatchTrustedSignature returns the accepted fingerprint so we can
+            // enforce the persisted revocation list against it.
+            var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(envelope, trustedFingerprints);
+            if (trust.IsFailure)
+                return Result<Unit>.Failure(trust.Error);
 
-        // Anti-downgrade (§6.3 step 2): a signed release older than the highest epoch this machine has
-        // accepted is a replay/downgrade (e.g. a bundle signed by a since-revoked key). The epoch is part
-        // of the signed bytes, so it cannot have been lowered without failing the verify above.
-        if (envelope.Epoch < storedEpoch)
-            return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                $"INT008: Bundle key-epoch {envelope.Epoch} is below the highest accepted epoch " +
-                $"{storedEpoch} on this machine. Refusing a downgrade/replay of a superseded release.");
+            // Anti-downgrade (§6.3 step 2): a signed release older than the highest epoch this machine has
+            // accepted is a replay/downgrade. The epoch is part of the signed bytes, so it cannot have been
+            // lowered without failing the verify above.
+            if (envelope.Epoch < storedEpoch)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT008: Bundle key-epoch {envelope.Epoch} is below the highest accepted epoch " +
+                    $"{storedEpoch} on this machine. Refusing a downgrade/replay of a superseded release.");
 
-        // Revocation (§6.3 step 3): the accepted key is still in the baked trusted set but has been
-        // recorded as revoked locally (via a previously-applied update). The revocation overrides the
-        // stale baked trust.
-        if (revokedFingerprints is not null && revokedFingerprints.Contains(trust.Value))
-            return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                "INT001: The bundle's signature is from a key that has been revoked on this machine. " +
-                "Refusing to extract or execute a payload signed by a revoked publisher key.");
+            // Revocation (§6.3 step 3): the accepted key is still in the baked trusted set but has been
+            // recorded as revoked locally. The revocation overrides the stale baked trust.
+            if (revokedFingerprints is not null && revokedFingerprints.Contains(trust.Value))
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    "INT001: The bundle's signature is from a key that has been revoked on this machine. " +
+                    "Refusing to extract or execute a payload signed by a revoked publisher key.");
+        }
+        else
+        {
+            // C19 quorum path. Anti-downgrade first (INT008), so a revoked-key replay cannot even reach the
+            // quorum count.
+            if (envelope.Epoch < storedEpoch)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT008: Bundle key-epoch {envelope.Epoch} is below the highest accepted epoch " +
+                    $"{storedEpoch} on this machine. Refusing a downgrade/replay of a superseded release.");
+
+            // The quorum table is supplied only on the update path, so resolve within the Update family:
+            // a signed epoch above the stored epoch is a rotation (KeyChange), otherwise a routine Update
+            // (§5.3). A below-stored epoch is already rejected by INT008 above.
+            var hasRevocations = envelope.Revoked is { Count: > 0 };
+            var operation = BakedTrustPolicy.ResolveOperation(
+                isUpdatePath: true, envelope.Epoch, storedEpoch);
+            var rule = BakedTrustPolicy.RuleFrom(policyTable, operation, hasRevocations);
+
+            var roleMap = roles ?? EmptyRoles;
+            var collected = IntegrityEnvelopeCodec.CollectTrustedSignatures(
+                envelope, trustedFingerprints,
+                fp => roleMap.TryGetValue(fp, out var r) ? r : TrustRole.Release);
+            if (collected.IsFailure)
+                return Result<Unit>.Failure(collected.Error);
+
+            // Drop locally-revoked keys before counting toward the threshold (§6.2 step 5): a revoked key
+            // can never contribute to a quorum even if it is still in the baked trusted set.
+            var usable = DropRevoked(collected.Value, revokedFingerprints);
+
+            var decision = QuorumEvaluator.Evaluate(usable, rule);
+            if (!decision.Satisfied)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT010: The signing quorum for this update ('{operation}') is not satisfied. {decision.Diagnostic}");
+        }
 
         // Signed hash per package id — the ECDSA-covered source of truth for payload integrity.
         var signedHashes = new Dictionary<string, string>(envelope.Files.Count, StringComparer.Ordinal);

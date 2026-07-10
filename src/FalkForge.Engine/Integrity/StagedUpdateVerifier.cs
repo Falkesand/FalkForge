@@ -29,7 +29,9 @@ internal static class StagedUpdateVerifier
         string stagedBundlePath,
         IReadOnlySet<string> trustedFingerprints,
         int storedEpoch,
-        IReadOnlySet<string>? revokedFingerprints)
+        IReadOnlySet<string>? revokedFingerprints,
+        IReadOnlyDictionary<OperationKind, PolicyRule>? policyTable = null,
+        IReadOnlyDictionary<string, TrustRole>? roles = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(stagedBundlePath);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -41,7 +43,8 @@ internal static class StagedUpdateVerifier
         // requireSigned: true — an update is an automatic, unattended replacement of already-trusted
         // software, so a missing/stripped signature is itself a rejection (design §3.4).
         return BundleTrustVerifier.VerifyBundleContent(
-            extract.Value, trustedFingerprints, requireSigned: true, storedEpoch, revokedFingerprints);
+            extract.Value, trustedFingerprints, requireSigned: true, storedEpoch, revokedFingerprints,
+            policyTable, roles);
     }
 
     /// <summary>
@@ -63,6 +66,15 @@ internal static class StagedUpdateVerifier
             ? new HashSet<string>(state.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
             : null;
 
-        return Verify(stagedBundlePath, EngineTrustAnchor.EffectiveFingerprints, state.Epoch, revoked);
+        // C19: enforce the baked per-operation quorum policy on the update path ONLY when the engine is
+        // role-configured. With no roles (the un-migrated / ship-with-nothing engine) the verify stays on
+        // the C14 verify-any path — bit-for-bit backward compatible (§7.1). When roles are present, the
+        // verifier resolves the operation (Update vs KeyChange) from the signed epoch and enforces the
+        // governance rule (e.g. a rotation demands release + recovery).
+        var roles = EngineTrustAnchor.EffectiveRoles;
+        var policyTable = roles.Count > 0 ? BakedTrustPolicy.Default : null;
+
+        return Verify(
+            stagedBundlePath, EngineTrustAnchor.EffectiveFingerprints, state.Epoch, revoked, policyTable, roles);
     }
 }

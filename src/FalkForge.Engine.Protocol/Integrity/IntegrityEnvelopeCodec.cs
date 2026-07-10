@@ -326,4 +326,89 @@ public static class IntegrityEnvelopeCodec
             "INT001: No trusted signature validates the manifest. The bundle may have been tampered " +
             "with or signed by an untrusted publisher.");
     }
+
+    /// <summary>
+    /// Collects EVERY valid, trusted, DISTINCT signature in the envelope, resolving each accepted
+    /// fingerprint to its pinned role via <paramref name="roleOf"/> (C19 §6.1). Unlike the C14 first-wins
+    /// <see cref="MatchTrustedSignature"/>, this never short-circuits — it returns the full evidence for the
+    /// quorum evaluator (<see cref="QuorumEvaluator"/>) to weigh against an operation's policy. Distinct-key
+    /// dedup (by uppercase-hex fingerprint) is the determinism the quorum guarantee hinges on: a bundle that
+    /// repeats one key contributes exactly one member.
+    ///
+    /// <para>Per-entry checks mirror <see cref="MatchTrustedSignature"/>: a lying fingerprint (one that does
+    /// not re-derive to its own key) or an untrusted key is skipped, never counted. Roles are resolved from
+    /// the pinned trusted set, never from the bundle, so a key can never assert its own privilege.</para>
+    /// </summary>
+    /// <param name="envelope">The parsed integrity envelope.</param>
+    /// <param name="trustedFingerprints">
+    /// The pinned trusted-key set. Quorum requires named roles, which require a pinned set — an empty set
+    /// therefore collects nothing (the require-signed path already fails closed with INT009 upstream).
+    /// </param>
+    /// <param name="roleOf">Resolves an accepted fingerprint to its pinned role(s).</param>
+    /// <returns>
+    /// Success carrying the distinct trusted signatures (possibly empty when none are trusted). INT003 when
+    /// the envelope carries no signatures at all.
+    /// </returns>
+    public static Result<IReadOnlyList<TrustedSignature>> CollectTrustedSignatures(
+        ManifestSignatureEnvelope envelope,
+        IReadOnlySet<string> trustedFingerprints,
+        Func<string, TrustRole> roleOf)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentNullException.ThrowIfNull(trustedFingerprints);
+        ArgumentNullException.ThrowIfNull(roleOf);
+
+        var signatures = envelope.Signatures;
+        if (signatures.Count == 0)
+            return Result<IReadOnlyList<TrustedSignature>>.Failure(ErrorKind.IntegrityError,
+                "INT003: Manifest integrity envelope carries no signatures.");
+
+        // Same signed message as MatchTrustedSignature — files plus, when present, epoch + revocations.
+        var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked));
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var collected = new List<TrustedSignature>(signatures.Count);
+
+        foreach (var entry in signatures)
+        {
+            if (string.IsNullOrEmpty(entry.PublicKey) || string.IsNullOrEmpty(entry.Signature))
+                continue;
+
+            byte[] spki;
+            byte[] signatureBytes;
+            try
+            {
+                spki = Convert.FromBase64String(entry.PublicKey);
+                signatureBytes = Convert.FromBase64String(entry.Signature);
+            }
+            catch (FormatException)
+            {
+                continue;
+            }
+
+            // (a) The declared fingerprint must equal its own key's fingerprint (no lying fingerprint).
+            var actualFingerprint = ComputeFingerprint(spki);
+            if (!string.Equals(actualFingerprint, entry.Fingerprint, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // (b) The key must be pinned. Quorum requires a named role, which requires a pinned set.
+            if (!trustedFingerprints.Contains(actualFingerprint))
+                continue;
+
+            // (c) The signature must cryptographically verify; first distinct occurrence only.
+            try
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportSubjectPublicKeyInfo(spki, out _);
+                if (ecdsa.VerifyHash(hash, signatureBytes) && seen.Add(actualFingerprint))
+                    collected.Add(new TrustedSignature(actualFingerprint, roleOf(actualFingerprint)));
+            }
+            catch (CryptographicException)
+            {
+                // Import/verify failed for this entry — try the next signature.
+            }
+        }
+
+        return Result<IReadOnlyList<TrustedSignature>>.Success(collected);
+    }
 }

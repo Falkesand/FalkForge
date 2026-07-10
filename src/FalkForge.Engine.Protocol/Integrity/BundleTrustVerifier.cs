@@ -30,12 +30,18 @@ public static class BundleTrustVerifier
     /// <param name="requireSigned">When true, an unsigned/absent-manifest bundle is rejected (INT007).</param>
     /// <param name="storedEpoch">Highest accepted key-epoch for anti-downgrade (§6.3); 0 disables it.</param>
     /// <param name="revokedFingerprints">Locally-revoked fingerprints to reject (§6.3); null disables it.</param>
+    /// <param name="policyTable">
+    /// The C19 per-operation quorum table to enforce; null keeps the C14 verify-any path (backward compatible).
+    /// </param>
+    /// <param name="roles">Resolves accepted fingerprints to roles for the quorum evaluation.</param>
     public static Result<Unit> VerifyBundleContent(
         BundleContent content,
         IReadOnlySet<string> trustedFingerprints,
         bool requireSigned = false,
         int storedEpoch = 0,
-        IReadOnlySet<string>? revokedFingerprints = null)
+        IReadOnlySet<string>? revokedFingerprints = null,
+        IReadOnlyDictionary<OperationKind, PolicyRule>? policyTable = null,
+        IReadOnlyDictionary<string, TrustRole>? roles = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -64,6 +70,7 @@ public static class BundleTrustVerifier
         }
 
         return SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, trustedFingerprints, requireSigned, storedEpoch, revokedFingerprints);
+            manifest, content.TocEntries, trustedFingerprints, requireSigned, storedEpoch, revokedFingerprints,
+            policyTable, roles);
     }
 }

@@ -104,7 +104,10 @@ internal sealed class PipelineContext
     /// consistency-only verification. Overridable for tests.
     /// </summary>
     public FalkForge.Engine.Integrity.TrustPolicy IntegrityTrustPolicy { get; set; } =
-        FalkForge.Engine.Integrity.TrustPolicy.FreshInstall(FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints);
+        FalkForge.Engine.Integrity.TrustPolicy.FreshInstall(
+            FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints,
+            FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveRoles,
+            FalkForge.Engine.Protocol.Integrity.BakedTrustPolicy.Default);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ElevateStep
