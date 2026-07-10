@@ -4,10 +4,16 @@
     <Description>MSBuild SDK for building Windows installers with FalkForge</Description>
     <TargetFramework>netstandard2.0</TargetFramework>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
-    <!-- SDK package configuration -->
+    <!-- SDK package configuration: packs as an MSBuild project SDK
+         (<Project Sdk="FalkForge.Sdk/x.y.z">) with Sdk/Sdk.props + Sdk/Sdk.targets. -->
+    <IsPackable>true</IsPackable>
+    <PackageType>MSBuildSdk</PackageType>
     <DevelopmentDependency>true</DevelopmentDependency>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <!-- MSBuild SDK packages carry only Sdk/*.props|targets; the placeholder
+         netstandard2.0 assembly is build plumbing, not content. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>

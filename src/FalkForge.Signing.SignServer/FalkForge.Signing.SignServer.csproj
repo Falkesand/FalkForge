@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Signing.SignServer</RootNamespace>
         <Description>Keyfactor SignServer remote signing backend (ISignatureProvider) for FalkForge bundle integrity signatures</Description>
         <IsAotCompatible>true</IsAotCompatible>

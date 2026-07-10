@@ -6,6 +6,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <RootNamespace>FalkForge.Plugins.FileSystem</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <Description>Folder browser dialog plugin for FalkForge installer UI (WPF, Windows-only)</Description>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../FalkForge.Core/FalkForge.Core.csproj"/>

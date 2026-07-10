@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <RootNamespace>FalkForge.Platform</RootNamespace>
     <Description>OS integration abstractions</Description>
   </PropertyGroup>

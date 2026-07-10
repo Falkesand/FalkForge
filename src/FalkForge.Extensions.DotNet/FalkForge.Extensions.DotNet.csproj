@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Extensions.DotNet</RootNamespace>
         <Description>.NET runtime detection extension for FalkForge</Description>
     </PropertyGroup>

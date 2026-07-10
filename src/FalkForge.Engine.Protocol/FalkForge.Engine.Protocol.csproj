@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <RootNamespace>FalkForge.Engine.Protocol</RootNamespace>
     <Description>IPC protocol types and serialization for FalkForge engine</Description>
     <IsAotCompatible>true</IsAotCompatible>

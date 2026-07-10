@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Extensions.Dependency</RootNamespace>
         <Description>Dependency extension for FalkForge — manages dependency provider and consumer relationships during installation</Description>
     </PropertyGroup>

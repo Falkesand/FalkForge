@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Extensions.Driver</RootNamespace>
         <Description>Driver extension for FalkForge — manages device driver installation via pnputil</Description>
     </PropertyGroup>
