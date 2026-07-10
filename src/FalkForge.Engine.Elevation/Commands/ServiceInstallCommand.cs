@@ -41,7 +41,10 @@ public sealed partial class ServiceInstallCommand : IElevatedCommand
         if (normalizedBinaryPath.Contains("..", StringComparison.Ordinal))
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "Binary path must not contain '..' segments after normalization");
 
-        if (!FileWriteCommand.IsAllowedPath(normalizedBinaryPath))
+        // A SYSTEM service image has its OWN, stricter allowlist (Program Files / ProgramData) —
+        // deliberately excluding the user profile, unlike FileWrite. A user-writable image path
+        // is a weak-service-path escalation.
+        if (!ElevatedPathPolicy.IsUnderAllowedRoot(normalizedBinaryPath, ElevatedPathPolicy.ServiceBinaryRoots()))
             return Result<byte[]>.Failure(ErrorKind.SecurityError,
                 "Binary path must be under Program Files or ProgramData");
 
