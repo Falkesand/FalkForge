@@ -32,7 +32,7 @@ public static class BundleRegionHint
     }
 
     /// <summary>
-    /// Returns true when the embedded manifest JSON carries a non-null <c>manifestSignature</c>
+    /// Returns true when the embedded manifest JSON carries a non-null <c>ManifestSignature</c>
     /// field — i.e. the bundle is ECDSA-signed and therefore cannot be byte-identical across
     /// independent rebuilds (ECDSA is non-deterministic).
     /// </summary>
@@ -44,7 +44,9 @@ public static class BundleRegionHint
         try
         {
             using var doc = JsonDocument.Parse(manifestJsonBytes);
-            if (!doc.RootElement.TryGetProperty("manifestSignature", out var sig))
+            // The manifest is written by ManifestJsonContext (Compiler.Bundle) with the default
+            // naming policy, so InstallerManifest.ManifestSignature serializes PascalCase.
+            if (!doc.RootElement.TryGetProperty("ManifestSignature", out var sig))
                 return false;
 
             return sig.ValueKind switch
