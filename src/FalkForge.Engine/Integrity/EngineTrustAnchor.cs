@@ -106,6 +106,16 @@ public static class EngineTrustAnchor
     }
 
     /// <summary>
+    /// The effective per-operation quorum policy table (C19): the baked default table when the engine is
+    /// role-configured, or <c>null</c> when no roles are present so verification stays on the C14
+    /// verify-any path (bit-for-bit backward compatible, §7.1). Every path that verifies a bundle against
+    /// the engine's trust anchor must select its policy through this single property so the same
+    /// role-configuration threshold gates every verification uniformly.
+    /// </summary>
+    public static IReadOnlyDictionary<OperationKind, PolicyRule>? EffectivePolicyTable =>
+        EffectiveRoles.Count > 0 ? BakedTrustPolicy.Default : null;
+
+    /// <summary>
     /// Computes and publishes both frozen structures (fingerprint set + role map) atomically under
     /// <see cref="Gate"/>. Baked roles are unioned with code-registered roles; an entry present in the
     /// baked fingerprint set but with no explicit role defaults to <see cref="TrustRole.Release"/>.

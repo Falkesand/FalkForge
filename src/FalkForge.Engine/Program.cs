@@ -378,24 +378,7 @@ internal static partial class Program
             trustState = new TrustState();
         }
 
-        IReadOnlySet<string>? revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
-            ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
-            : null;
-
-        // C19 note: this call intentionally does NOT pass a policy table or roles, so it takes the C14
-        // verify-any path (one valid, trusted signature) rather than applying the role-aware quorum policy.
-        // That is safe here because this `--extract --require-signed` gate is a non-authoritative self-check
-        // of a staged artifact's own signature, not the authoritative trust decision for an in-place update:
-        // the authoritative quorum enforcement already ran in the already-trusted, already-running engine
-        // via StagedUpdateVerifier (see StagedUpdateVerifier.VerifyWithBakedTrust) BEFORE this artifact was
-        // ever relaunched or asked to extract itself with `--require-signed`. A future change that promotes
-        // this call site into a primary trust gate (rather than a self-check) MUST thread the effective
-        // policy table and roles through here exactly as StagedUpdateVerifier does, or the quorum policy
-        // would be silently bypassed on this path.
-        return BundleTrustVerifier.VerifyBundleContent(
-            content, EngineTrustAnchor.EffectiveFingerprints, requireSigned,
-            storedEpoch: requireSigned ? trustState.Epoch : 0,
-            revokedFingerprints: revokedSet);
+        return BundleTrustGate.Verify(content, requireSigned, trustState);
     }
 
     /// <summary>
@@ -522,24 +505,7 @@ internal static partial class Program
             trustState = new TrustState();
         }
 
-        var revokedSet = requireSigned && trustState.RevokedFingerprints.Length > 0
-            ? new HashSet<string>(trustState.RevokedFingerprints, StringComparer.OrdinalIgnoreCase)
-            : null;
-
-        // C19 note: this call intentionally does NOT pass a policy table or roles, so it takes the C14
-        // verify-any path (one valid, trusted signature) rather than applying the role-aware quorum policy.
-        // That is safe here because RunAsBootstrapper's require-signed re-check is a non-authoritative
-        // self-check of the relaunched artifact, not the authoritative trust decision: for a downloaded
-        // update, the authoritative quorum enforcement already ran upstream, in the already-trusted,
-        // already-running engine, via StagedUpdateVerifier (see StagedUpdateVerifier.VerifyWithBakedTrust)
-        // BEFORE this bundle was ever relaunched with `--require-signed`. A future change that promotes this
-        // bootstrapper self-check into a primary trust gate MUST thread the effective policy table and roles
-        // through here exactly as StagedUpdateVerifier does, or the quorum policy would be silently bypassed
-        // on this path.
-        var bootstrapTrust = SignedPayloadTocVerifier.Verify(
-            manifest, content.TocEntries, EngineTrustAnchor.EffectiveFingerprints, requireSigned,
-            storedEpoch: requireSigned ? trustState.Epoch : 0,
-            revokedFingerprints: revokedSet);
+        var bootstrapTrust = BundleTrustGate.Verify(manifest, content.TocEntries, requireSigned, trustState);
         if (bootstrapTrust.IsFailure)
         {
             await Console.Error.WriteLineAsync(
