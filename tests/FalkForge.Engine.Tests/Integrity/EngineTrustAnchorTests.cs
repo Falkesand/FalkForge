@@ -252,6 +252,80 @@ public sealed class EngineTrustAnchorTests : IDisposable
         Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
     }
 
+    // ── Roles (C19 §3.2) ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void TrustFingerprint_NoRoleArgument_DefaultsToRelease_BackwardCompat()
+    {
+        // §7.1: an un-roled trusted key defaults to Release so the ship-with-nothing behavior is exactly
+        // C14 (install/update need one release signature, which any trusted key is).
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var fp = Fingerprint(key);
+
+        EngineTrustAnchor.TrustFingerprint(fp);
+
+        Assert.Equal(TrustRole.Release, EngineTrustAnchor.EffectiveRoles[fp]);
+    }
+
+    [Fact]
+    public void TrustFingerprint_ExplicitRoles_LandInEffectiveRoles()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var fp = Fingerprint(key);
+
+        EngineTrustAnchor.TrustFingerprint(fp, TrustRole.Recovery | TrustRole.Security);
+
+        Assert.Equal(TrustRole.Recovery | TrustRole.Security, EngineTrustAnchor.EffectiveRoles[fp]);
+    }
+
+    [Fact]
+    public void TrustPublicKey_WithRoles_ResolvesRolesByDerivedFingerprint()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var spki = key.ExportSubjectPublicKeyInfo();
+
+        EngineTrustAnchor.TrustPublicKey(spki, TrustRole.Recovery);
+
+        Assert.Equal(TrustRole.Recovery, EngineTrustAnchor.EffectiveRoles[IntegrityEnvelopeCodec.ComputeFingerprint(spki)]);
+    }
+
+    [Fact]
+    public void DuplicateRegistration_UnionsRoles_Additive()
+    {
+        // The same key registered twice (or by both channels) unions its roles — additive, never a
+        // replacement, matching the anchor's contract. A key that ends up release|recovery must NOT then
+        // single-handedly satisfy a two-distinct-key requirement; that is the quorum evaluator's job.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var fp = Fingerprint(key);
+
+        EngineTrustAnchor.TrustFingerprint(fp, TrustRole.Release);
+        EngineTrustAnchor.TrustFingerprint(fp, TrustRole.Recovery);
+
+        Assert.Equal(TrustRole.Release | TrustRole.Recovery, EngineTrustAnchor.EffectiveRoles[fp]);
+        // Still exactly one distinct trusted fingerprint.
+        Assert.Single(EngineTrustAnchor.EffectiveFingerprints);
+    }
+
+    [Fact]
+    public void EffectiveRoles_NoRegistration_IsEmptyButNonNull()
+    {
+        Assert.NotNull(EngineTrustAnchor.EffectiveRoles);
+        Assert.Empty(EngineTrustAnchor.EffectiveRoles);
+    }
+
+    [Fact]
+    public void EffectiveRoles_ReadFreezesTheAnchor_LateRegistrationRejected()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(key), TrustRole.Release);
+
+        _ = EngineTrustAnchor.EffectiveRoles; // freeze via the roles read
+
+        Assert.True(EngineTrustAnchor.IsFrozen);
+        using var other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        Assert.Throws<InvalidOperationException>(() => EngineTrustAnchor.TrustFingerprint(Fingerprint(other)));
+    }
+
     [Fact]
     public void CodeRegistered_NonEmptySet_FreshInstall_RejectsUntrustedSignedBundle()
     {
