@@ -32,28 +32,27 @@ public sealed class FileWriteCommand : IElevatedCommand
         try
         {
             var dir = Path.GetDirectoryName(normalizedPath);
-            if (dir is not null)
-            {
-                // Reject if ANY ancestor (up to the allowed root) is a junction/symlink, and
-                // create each missing level ourselves. This closes the STATIC ancestor-junction
-                // pre-plant only: the write below is path-based (File.WriteAllBytes), not a held
-                // no-follow handle, so a path-based TOCTOU residual remains — a junction swapped
-                // in after this check is not detected. Handle-based no-follow write is tracked
-                // as a follow-up.
-                var treeResult = ElevatedPathPolicy.EnsureDirectoryTreeSafe(dir, ElevatedPathPolicy.FileWriteRoots());
-                if (treeResult.IsFailure)
-                    return Result<byte[]>.Failure(treeResult.Error);
-            }
-
-            // Reject an existing target that is itself a reparse point (a file symlink would
-            // otherwise redirect the elevated write to the link's target). Same TOCTOU caveat
-            // as above: this is a point-in-time path check, not a no-follow open.
-            if (File.Exists(normalizedPath) &&
-                File.GetAttributes(normalizedPath).HasFlag(FileAttributes.ReparsePoint))
+            if (dir is null)
                 return Result<byte[]>.Failure(ErrorKind.SecurityError,
-                    "Target file is a symbolic link and cannot be written to");
+                    "Target path must include a file name under an allowed directory");
 
-            File.WriteAllBytes(normalizedPath, content);
+            // Outer gate: reject if ANY ancestor (up to the allowed root) is a junction/symlink,
+            // and create each missing level ourselves. This defeats a junction planted BEFORE
+            // the check; the handle-based write below is the inner enforcement against a swap
+            // planted AFTER it.
+            var treeResult = ElevatedPathPolicy.EnsureDirectoryTreeSafe(dir, ElevatedPathPolicy.FileWriteRoots());
+            if (treeResult.IsFailure)
+                return Result<byte[]>.Failure(treeResult.Error);
+
+            // Inner enforcement: pin the parent directory by a verified no-follow handle, open
+            // the target no-follow, verify BOTH handles (reparse attribute + true final path),
+            // and write only through the verified handle. A leaf symlink — dangling or not —
+            // and a post-check junction swap are both rejected here. See NoFollowFileWriter
+            // for the mechanism and the precise (narrow) residual that remains.
+            var writeResult = NoFollowFileWriter.Write(dir, normalizedPath, content);
+            if (writeResult.IsFailure)
+                return Result<byte[]>.Failure(writeResult.Error);
+
             return Array.Empty<byte>();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
