@@ -273,6 +273,10 @@ public sealed class EngineTrustAnchorTests : IDisposable
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var fp = Fingerprint(key);
 
+        // A Release key must also be registered here so the lock-out footgun guard (below) does not fire —
+        // this test is about role resolution, not about the lockout policy.
+        using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
         EngineTrustAnchor.TrustFingerprint(fp, TrustRole.Recovery | TrustRole.Security);
 
         Assert.Equal(TrustRole.Recovery | TrustRole.Security, EngineTrustAnchor.EffectiveRoles[fp]);
@@ -284,6 +288,10 @@ public sealed class EngineTrustAnchorTests : IDisposable
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var spki = key.ExportSubjectPublicKeyInfo();
 
+        // A Release key must also be registered here so the lock-out footgun guard (below) does not fire —
+        // this test is about role resolution, not about the lockout policy.
+        using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
         EngineTrustAnchor.TrustPublicKey(spki, TrustRole.Recovery);
 
         Assert.Equal(TrustRole.Recovery, EngineTrustAnchor.EffectiveRoles[IntegrityEnvelopeCodec.ComputeFingerprint(spki)]);
@@ -344,5 +352,89 @@ public sealed class EngineTrustAnchorTests : IDisposable
 
         Assert.True(result.IsFailure);
         Assert.Contains("INT001", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    // ── Lock-out footgun guard (C19 follow-up) ──────────────────────────────────
+    //
+    // With roles configured, the default Install/Update policy is [(Release,1)]. If no trusted key holds
+    // Release, every install/update is unsatisfiable — a total, self-inflicted lockout. This is caught at
+    // freeze time (the publisher's own bootstrap), not at verify time, so the publisher hits it in their
+    // own build/test rather than in a customer's failed install.
+
+    [Fact]
+    public void Freeze_RolesConfigured_NoTrustedKeyHoldsRelease_ThrowsConfigurationException()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(key), TrustRole.Security);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => _ = EngineTrustAnchor.EffectiveFingerprints);
+        Assert.Contains("Release", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Freeze_RolesConfigured_SomeKeyHoldsReleaseAmongOthers_DoesNotThrow()
+    {
+        using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var securityKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(securityKey), TrustRole.Security);
+
+        var fingerprints = EngineTrustAnchor.EffectiveFingerprints; // must not throw
+
+        Assert.Equal(2, fingerprints.Count);
+    }
+
+    [Fact]
+    public void Freeze_UnRoledKey_DefaultsToRelease_DoesNotThrow()
+    {
+        // §7.1 backward compat: a plain TrustFingerprint call with no explicit role defaults to Release,
+        // so a C14-style single-key setup never trips the lockout guard.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(key));
+
+        var fingerprints = EngineTrustAnchor.EffectiveFingerprints; // must not throw
+
+        Assert.Single(fingerprints);
+    }
+
+    [Fact]
+    public void Freeze_NoRolesConfigured_C14Default_NeverThrows()
+    {
+        // No registration at all (the C14 default, empty baked set): the guard is skipped entirely because
+        // there is nothing to be locked out of.
+        var fingerprints = EngineTrustAnchor.EffectiveFingerprints; // must not throw
+
+        Assert.Empty(fingerprints);
+        Assert.Empty(EngineTrustAnchor.ConfigurationWarnings);
+    }
+
+    [Fact]
+    public void Freeze_ReleaseKeyPresent_NoRecoveryKey_WarnsAboutKeyChangeLockout()
+    {
+        // Softer case: install/update still work (a Release key exists), but the KeyChange rule
+        // (Release + Recovery) can never be satisfied because no key holds Recovery. Non-fatal: warn,
+        // do not throw — the publisher may never need to rotate.
+        using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var securityKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(securityKey), TrustRole.Security);
+
+        _ = EngineTrustAnchor.EffectiveFingerprints; // freeze
+
+        Assert.Contains(EngineTrustAnchor.ConfigurationWarnings,
+            w => w.Contains("Recovery", StringComparison.Ordinal) && w.Contains("KeyChange", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Freeze_ReleaseAndRecoveryKeysPresent_NoWarning()
+    {
+        using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var recoveryKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(recoveryKey), TrustRole.Recovery);
+
+        _ = EngineTrustAnchor.EffectiveFingerprints; // freeze
+
+        Assert.Empty(EngineTrustAnchor.ConfigurationWarnings);
     }
 }
