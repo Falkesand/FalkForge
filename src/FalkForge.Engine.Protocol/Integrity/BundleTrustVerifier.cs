@@ -34,6 +34,10 @@ public static class BundleTrustVerifier
     /// The C19 per-operation quorum table to enforce; null keeps the C14 verify-any path (backward compatible).
     /// </param>
     /// <param name="roles">Resolves accepted fingerprints to roles for the quorum evaluation.</param>
+    /// <param name="pqPolicy">
+    /// The PQ-hybrid companion policy (Stage 1): pinned classical→ML-DSA companion pairs. Null keeps
+    /// verification bit-for-bit as before.
+    /// </param>
     public static Result<Unit> VerifyBundleContent(
         BundleContent content,
         IReadOnlySet<string> trustedFingerprints,
@@ -41,7 +45,8 @@ public static class BundleTrustVerifier
         int storedEpoch = 0,
         IReadOnlySet<string>? revokedFingerprints = null,
         IReadOnlyDictionary<OperationKind, PolicyRule>? policyTable = null,
-        IReadOnlyDictionary<string, TrustRole>? roles = null)
+        IReadOnlyDictionary<string, TrustRole>? roles = null,
+        PqCompanionPolicy? pqPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -71,6 +76,6 @@ public static class BundleTrustVerifier
 
         return SignedPayloadTocVerifier.Verify(
             manifest, content.TocEntries, trustedFingerprints, requireSigned, storedEpoch, revokedFingerprints,
-            policyTable, roles);
+            policyTable, roles, pqPolicy);
     }
 }

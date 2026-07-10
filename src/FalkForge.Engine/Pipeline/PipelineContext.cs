@@ -107,7 +107,8 @@ internal sealed class PipelineContext
         FalkForge.Engine.Integrity.TrustPolicy.FreshInstall(
             FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints,
             FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveRoles,
-            FalkForge.Engine.Protocol.Integrity.BakedTrustPolicy.Default);
+            FalkForge.Engine.Protocol.Integrity.BakedTrustPolicy.Default,
+            FalkForge.Engine.Integrity.EngineTrustAnchor.EffectivePqCompanions);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ElevateStep
