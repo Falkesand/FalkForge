@@ -16,22 +16,36 @@ public sealed class PipeServer : PipeTransportBase
     {
     }
 
-    public async Task<Result<Unit>> StartAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Eagerly creates and reserves the named pipe (without waiting for a connection) so the
+    /// pipe name is claimed BEFORE the elevated companion is spawned. This closes the
+    /// name-squat race where a same-user rogue process could pre-create a server on the known
+    /// pipe name and have the SYSTEM companion connect to it (first-server-wins). Idempotent.
+    /// </summary>
+    public void CreateListener()
     {
-        _pipe = new NamedPipeServerStream(
+        _pipe ??= new NamedPipeServerStream(
             _options.PipeName,
             PipeDirection.InOut,
             1,
             PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+    }
 
+    public async Task<Result<Unit>> StartAsync(CancellationToken ct = default)
+    {
+        // Reuse the listener if it was already reserved via CreateListener (create-before-spawn);
+        // otherwise create it now (UI↔Engine channel and tests that start after connect).
+        CreateListener();
+
+        // CreateListener guarantees _pipe is assigned.
         try
         {
-            await ((NamedPipeServerStream)_pipe).WaitForConnectionAsync(ct);
+            await ((NamedPipeServerStream)_pipe!).WaitForConnectionAsync(ct);
         }
         catch (OperationCanceledException)
         {
-            await _pipe.DisposeAsync();
+            await _pipe!.DisposeAsync();
             _pipe = null;
             return Result<Unit>.Failure(ErrorKind.TransportError, "Connection timed out");
         }
@@ -51,30 +65,49 @@ public sealed class PipeServer : PipeTransportBase
         return Unit.Value;
     }
 
+    // Mutual HMAC handshake (server side):
+    //   1. Server -> client: serverNonce (32 bytes)
+    //   2. Client -> server: clientNonce (32 bytes) || tag_c (32 bytes),
+    //        tag_c = HMAC(secret, LABEL_C2S || serverNonce || clientNonce)  -- proves the client knows the secret.
+    //   3. Server -> client: tag_s (32 bytes),
+    //        tag_s = HMAC(secret, LABEL_S2C || serverNonce || clientNonce)  -- proves the server knows the secret.
+    // The server sends tag_s ONLY after tag_c validates, so an unauthenticated client learns nothing.
     private async Task<Result<Unit>> PerformServerHandshakeAsync(CancellationToken ct)
     {
-        var nonce = PipeSecurityValidator.GenerateNonce();
-        await _pipe!.WriteAsync(nonce, ct);
+        var serverNonce = PipeSecurityValidator.GenerateNonce();
+        await _pipe!.WriteAsync(serverNonce, ct);
         await _pipe.FlushAsync(ct);
 
-        var clientHmac = new byte[PipeSecurityValidator.HmacSize];
-        var bytesRead = 0;
-        while (bytesRead < PipeSecurityValidator.HmacSize)
+        // Read clientNonce || tag_c in one fixed-size buffer.
+        var response = new byte[PipeSecurityValidator.NonceSize + PipeSecurityValidator.HmacSize];
+        if (!await ReadExactAsync(_pipe, response, ct))
         {
-            var read = await _pipe.ReadAsync(clientHmac.AsMemory(bytesRead), ct);
-            if (read == 0)
-            {
-                _options.OnSecurityEvent?.Invoke("Client disconnected during HMAC handshake before completing response");
-                return Result<Unit>.Failure(ErrorKind.HandshakeError, "Client disconnected during handshake");
-            }
-            bytesRead += read;
+            _options.OnSecurityEvent?.Invoke("Client disconnected during HMAC handshake before completing response");
+            return Result<Unit>.Failure(ErrorKind.HandshakeError, "Client disconnected during handshake");
         }
 
-        if (!PipeSecurityValidator.ValidateHmac(_options.SharedSecret, nonce, clientHmac))
+        var clientNonce = response.AsSpan(0, PipeSecurityValidator.NonceSize);
+        var clientProof = response.AsSpan(PipeSecurityValidator.NonceSize, PipeSecurityValidator.HmacSize);
+
+        if (!PipeSecurityValidator.ValidateProof(
+                _options.SharedSecret,
+                PipeSecurityValidator.ClientProofLabel,
+                serverNonce,
+                clientNonce,
+                clientProof))
         {
             _options.OnSecurityEvent?.Invoke("HMAC validation failed: client presented invalid credentials during handshake");
             return Result<Unit>.Failure(ErrorKind.HandshakeError, "HMAC validation failed");
         }
+
+        // Client authenticated: prove server identity back so the client can trust us.
+        var serverProof = PipeSecurityValidator.ComputeProof(
+            _options.SharedSecret,
+            PipeSecurityValidator.ServerProofLabel,
+            serverNonce,
+            clientNonce);
+        await _pipe.WriteAsync(serverProof, ct);
+        await _pipe.FlushAsync(ct);
 
         return Unit.Value;
     }
