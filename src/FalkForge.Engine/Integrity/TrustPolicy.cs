@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Integrity;
 
 using System.Collections.Frozen;
+using FalkForge.Engine.Protocol.Integrity;
 
 /// <summary>
 /// The trust inputs threaded into the integrity gates: which publisher-key fingerprints the engine
@@ -26,12 +27,41 @@ internal readonly struct TrustPolicy
     /// <summary>When true, an unsigned manifest is rejected instead of passed through.</summary>
     public bool RequireSigned { get; }
 
+    /// <summary>
+    /// The role(s) each trusted fingerprint holds (C19 §3), keyed by uppercase-hex fingerprint. Empty
+    /// means "no roles configured" — the gates then take the C14 verify-any path (bit-for-bit backward
+    /// compatible, §7.1). Never null.
+    /// </summary>
+    public IReadOnlyDictionary<string, TrustRole> Roles { get; }
+
+    /// <summary>
+    /// The effective per-operation quorum rules (C19 §5). Null when no policy is configured — combined with
+    /// empty <see cref="Roles"/>, this keeps the gates on the trivial C14 path. Non-null activates the
+    /// collect-all-distinct + quorum evaluation once roles are also present.
+    /// </summary>
+    public IReadOnlyDictionary<OperationKind, PolicyRule>? Rules { get; }
+
     public TrustPolicy(IReadOnlySet<string> trustedFingerprints, bool requireSigned)
+        : this(trustedFingerprints, requireSigned, EmptyRoles, rules: null)
+    {
+    }
+
+    public TrustPolicy(
+        IReadOnlySet<string> trustedFingerprints,
+        bool requireSigned,
+        IReadOnlyDictionary<string, TrustRole> roles,
+        IReadOnlyDictionary<OperationKind, PolicyRule>? rules)
     {
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
+        ArgumentNullException.ThrowIfNull(roles);
         TrustedFingerprints = trustedFingerprints;
         RequireSigned = requireSigned;
+        Roles = roles;
+        Rules = rules;
     }
+
+    private static readonly FrozenDictionary<string, TrustRole> EmptyRoles =
+        FrozenDictionary<string, TrustRole>.Empty;
 
     /// <summary>
     /// The no-pin, no-requirement policy: consistency-only verification, unsigned bundles pass.
@@ -41,8 +71,20 @@ internal readonly struct TrustPolicy
 
     /// <summary>
     /// A fresh-install policy pinned to <paramref name="trustedFingerprints"/>: signatures must match
-    /// a pinned key, but an unsigned bundle still installs (the user chose to run this artifact).
+    /// a pinned key, but an unsigned bundle still installs (the user chose to run this artifact). No roles
+    /// or quorum rules — the gate takes the C14 verify-any path.
     /// </summary>
     public static TrustPolicy FreshInstall(IReadOnlySet<string> trustedFingerprints) =>
         new(trustedFingerprints, requireSigned: false);
+
+    /// <summary>
+    /// A fresh-install policy carrying roles and the per-operation quorum rules (C19). When
+    /// <paramref name="roles"/> is empty the gate still behaves exactly as C14; when roles are present the
+    /// Install rule is enforced via the quorum evaluator.
+    /// </summary>
+    public static TrustPolicy FreshInstall(
+        IReadOnlySet<string> trustedFingerprints,
+        IReadOnlyDictionary<string, TrustRole> roles,
+        IReadOnlyDictionary<OperationKind, PolicyRule> rules) =>
+        new(trustedFingerprints, requireSigned: false, roles, rules);
 }

@@ -77,11 +77,35 @@ internal static class PayloadIntegrityGate
                 "keys, so authorship cannot be established. Refusing to accept a signed bundle on trust the " +
                 "engine cannot anchor (fail closed).");
 
-        // Authorship + tamper check: a trusted signature must validate. An attacker's re-signed bundle
-        // (key not in the pinned set) is rejected here with INT001.
-        var trust = IntegrityEnvelopeCodec.VerifyTrusted(envelope, trustedFingerprints);
-        if (trust.IsFailure)
-            return trust;
+        // Authorship + tamper check. Two paths (C19):
+        //   - No roles configured  -> the C14 verify-any rule (accept on the first valid trusted signature).
+        //     This keeps an un-migrated engine bit-for-bit as C14 (§7.1).
+        //   - Roles configured      -> collect ALL valid distinct trusted signatures and evaluate them
+        //     against the Install operation's quorum rule (a fresh install is always the Install operation),
+        //     failing loud with INT010 when the policy is unsatisfied.
+        if (policy.Rules is { } rules && policy.Roles.Count > 0)
+        {
+            var hasRevocations = envelope.Revoked is { Count: > 0 };
+            var rule = BakedTrustPolicy.RuleFrom(rules, OperationKind.Install, hasRevocations);
+            var roles = policy.Roles;
+            var collected = IntegrityEnvelopeCodec.CollectTrustedSignatures(
+                envelope, trustedFingerprints,
+                fp => roles.TryGetValue(fp, out var r) ? r : TrustRole.Release);
+            if (collected.IsFailure)
+                return Result<Unit>.Failure(collected.Error);
+
+            var decision = QuorumEvaluator.Evaluate(collected.Value, rule);
+            if (!decision.Satisfied)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT010: The signing quorum for a fresh install is not satisfied. {decision.Diagnostic}");
+        }
+        else
+        {
+            // An attacker's re-signed bundle (key not in the pinned set) is rejected here with INT001.
+            var trust = IntegrityEnvelopeCodec.VerifyTrusted(envelope, trustedFingerprints);
+            if (trust.IsFailure)
+                return trust;
+        }
 
         // Direction 1 — signed → manifest: every signed entry must bind to a manifest package
         // whose hash matches the signed hash the cache enforces against payload bytes.
