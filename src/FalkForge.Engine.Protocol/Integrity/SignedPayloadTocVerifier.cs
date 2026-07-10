@@ -109,6 +109,10 @@ public static class SignedPayloadTocVerifier
     /// when <paramref name="policyTable"/> is non-null; a fingerprint absent from the map defaults to
     /// <see cref="TrustRole.Release"/>.
     /// </param>
+    /// <param name="pqPolicy">
+    /// The PQ-hybrid companion policy (Stage 1, §2.2): pinned classical→ML-DSA companion pairs plus the
+    /// platform-capability seam and the loud-log sink. Null keeps verification bit-for-bit as before.
+    /// </param>
     public static Result<Unit> Verify(
         InstallerManifest manifest,
         IReadOnlyList<TocEntry> tocEntries,
@@ -117,7 +121,8 @@ public static class SignedPayloadTocVerifier
         int storedEpoch = 0,
         IReadOnlySet<string>? revokedFingerprints = null,
         IReadOnlyDictionary<OperationKind, PolicyRule>? policyTable = null,
-        IReadOnlyDictionary<string, TrustRole>? roles = null)
+        IReadOnlyDictionary<string, TrustRole>? roles = null,
+        PqCompanionPolicy? pqPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(tocEntries);
@@ -163,7 +168,7 @@ public static class SignedPayloadTocVerifier
             // the quorum path's DropRevoked), while a bundle with ONLY revoked trusted signatures
             // fails INT001.
             var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(
-                envelope, trustedFingerprints, revokedFingerprints);
+                envelope, trustedFingerprints, revokedFingerprints, pqPolicy);
             if (trust.IsFailure)
                 return Result<Unit>.Failure(trust.Error);
 
@@ -195,7 +200,8 @@ public static class SignedPayloadTocVerifier
             var roleMap = roles ?? EmptyRoles;
             var collected = IntegrityEnvelopeCodec.CollectTrustedSignatures(
                 envelope, trustedFingerprints,
-                fp => roleMap.TryGetValue(fp, out var r) ? r : TrustRole.Release);
+                fp => roleMap.TryGetValue(fp, out var r) ? r : TrustRole.Release,
+                pqPolicy);
             if (collected.IsFailure)
                 return Result<Unit>.Failure(collected.Error);
 

@@ -28,4 +28,15 @@ public sealed class ProviderSignature
     /// to preserve the historical wire bytes of the built-in signer.
     /// </summary>
     public string KeyId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The algorithm this signature was produced with (PQ-hybrid Stage 1). Defaults to
+    /// <see cref="SignatureAlgorithms.EcdsaP256"/> so every existing provider — including third-party
+    /// <see cref="ISignatureProvider"/> implementations compiled before this member existed — keeps
+    /// meaning exactly what it meant. An ML-DSA provider sets <see cref="SignatureAlgorithms.MlDsa65"/>
+    /// (or the actual FIPS 204 parameter-set name of its key); for those, <see cref="Signature"/> is the
+    /// raw FIPS 204 signature over the raw message under <see cref="SignatureAlgorithms.ManifestContext"/>
+    /// (no SHA-256 pre-hash, no P1363/low-S — those are ECDSA-only concepts).
+    /// </summary>
+    public string Algorithm { get; init; } = SignatureAlgorithms.EcdsaP256;
 }

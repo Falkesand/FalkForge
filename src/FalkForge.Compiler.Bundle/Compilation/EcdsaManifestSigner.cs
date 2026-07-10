@@ -76,7 +76,11 @@ internal static class EcdsaManifestSigner
         var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch, revoked);
 
         var providers = BuildProviders(config);
-        var signatures = new List<SignatureEntry>(providers.Count);
+        // PQ-hybrid Stage 1: classical entries are ordered before post-quantum entries regardless of
+        // provider declaration order, so the runtime's first-wins verify loop meets the cheap ECDSA
+        // path first. Two lists + concat keeps the classical wire shape untouched.
+        var classicalSignatures = new List<SignatureEntry>(providers.Count);
+        var pqSignatures = new List<SignatureEntry>();
         foreach (var provider in providers)
         {
             var result = await provider.SignAsync(message, cancellationToken).ConfigureAwait(false);
@@ -84,18 +88,41 @@ internal static class EcdsaManifestSigner
                 return Result<string>.Failure(result.Error);
 
             var signature = result.Value;
-            signatures.Add(new SignatureEntry
+            if (string.Equals(signature.Algorithm, SignatureAlgorithms.EcdsaP256, StringComparison.Ordinal))
             {
-                KeyId = signature.KeyId,
-                Fingerprint = IntegrityEnvelopeCodec.ComputeFingerprint(signature.SubjectPublicKeyInfo),
-                PublicKey = Convert.ToBase64String(signature.SubjectPublicKeyInfo),
-                // Defense-in-depth low-S canonicalization: the built-in providers already canonicalize,
-                // but a CUSTOM ISignatureProvider may hand back a malleable high-S signature the verifier
-                // would reject. Canonicalizing at the envelope-assembly chokepoint guarantees FalkForge
-                // never emits a non-canonical signature regardless of backend.
-                Signature = Convert.ToBase64String(EcdsaLowS.Canonicalize(signature.Signature))
-            });
+                classicalSignatures.Add(new SignatureEntry
+                {
+                    KeyId = signature.KeyId,
+                    Fingerprint = IntegrityEnvelopeCodec.ComputeFingerprint(signature.SubjectPublicKeyInfo),
+                    PublicKey = Convert.ToBase64String(signature.SubjectPublicKeyInfo),
+                    // Defense-in-depth low-S canonicalization: the built-in providers already canonicalize,
+                    // but a CUSTOM ISignatureProvider may hand back a malleable high-S signature the verifier
+                    // would reject. Canonicalizing at the envelope-assembly chokepoint guarantees FalkForge
+                    // never emits a non-canonical signature regardless of backend.
+                    Signature = Convert.ToBase64String(EcdsaLowS.Canonicalize(signature.Signature))
+                    // Algorithm stays null: an absent field IS the classical algorithm on the wire,
+                    // keeping every classical entry byte-identical to pre-hybrid envelopes.
+                });
+            }
+            else
+            {
+                pqSignatures.Add(new SignatureEntry
+                {
+                    KeyId = signature.KeyId,
+                    Fingerprint = IntegrityEnvelopeCodec.ComputeFingerprint(signature.SubjectPublicKeyInfo),
+                    PublicKey = Convert.ToBase64String(signature.SubjectPublicKeyInfo),
+                    // Emitted byte-verbatim: low-S canonicalization is an ECDSA-P256 concept; an ML-DSA
+                    // signature is the raw FIPS 204 signature over the raw message under the manifest
+                    // context, and must not be run through any classical normalization.
+                    Signature = Convert.ToBase64String(signature.Signature),
+                    Algorithm = signature.Algorithm
+                });
+            }
         }
+
+        var signatures = new List<SignatureEntry>(classicalSignatures.Count + pqSignatures.Count);
+        signatures.AddRange(classicalSignatures);
+        signatures.AddRange(pqSignatures);
 
         var envelope = new ManifestSignatureEnvelope
         {
@@ -129,7 +156,15 @@ internal static class EcdsaManifestSigner
             providers.AddRange(custom);
 
         if (providers.Count == 0)
+        {
             providers.Add(new EphemeralSignatureProvider());
+            // PQ-hybrid Stage 1 (human decision §8.7): the zero-config build is hybrid too, so the dev
+            // loop exercises the same envelope shape production uses. Gated on OS capability — the
+            // ephemeral path is the zero-config fallback and must keep working on build machines whose
+            // OS cannot do ML-DSA (a CONFIGURED MLDsaPemSignatureProvider still fails loud there).
+            if (System.Security.Cryptography.MLDsa.IsSupported)
+                providers.Add(new EphemeralMLDsaSignatureProvider());
+        }
 
         return providers;
     }

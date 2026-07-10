@@ -33,7 +33,13 @@ internal static class PayloadIntegrityGate
     /// </summary>
     /// <param name="manifest">The manifest whose signature envelope (if any) is verified.</param>
     /// <param name="policy">
-    /// The trust inputs: the pinned fingerprint set (authorship) and whether a signature is required.
+    /// The trust inputs: the pinned fingerprint set (authorship), whether a signature is required, and
+    /// the PQ-hybrid companion pins (Stage 1).
+    /// </param>
+    /// <param name="onPqClassicalFallback">
+    /// Loud-log sink for the incapable-OS classical-fallback branch (a hybrid-pinned key accepted on
+    /// its classical signature alone because the OS cannot verify ML-DSA). The caller owns making it
+    /// visible — ApplyStep forwards it to the UI channel log.
     /// </param>
     /// <returns>
     /// Success when the manifest is unsigned and not required, or when a trusted signature validates,
@@ -41,7 +47,8 @@ internal static class PayloadIntegrityGate
     /// covered by the signed set. Returns an <see cref="ErrorKind.IntegrityError"/> otherwise so the
     /// pipeline aborts before a single package runs.
     /// </returns>
-    internal static Result<Unit> Verify(InstallerManifest manifest, TrustPolicy policy)
+    internal static Result<Unit> Verify(
+        InstallerManifest manifest, TrustPolicy policy, Action<string>? onPqClassicalFallback = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
 
@@ -95,6 +102,11 @@ internal static class PayloadIntegrityGate
         //     relative to the stored epoch — the SAME resolution the staged-update verifier applies, so a
         //     single release key cannot advance the persisted epoch under the weaker Install rule. Fails
         //     loud with INT010 when the policy is unsatisfied.
+        // PQ-hybrid Stage 1: the pinned companion map (never read from the bundle) rides into the
+        // envelope verifier on both branches below — a hybrid-pinned key needs its ML-DSA companion
+        // (INT011 otherwise on a capable OS; classical-fallback + loud log on an incapable one).
+        var pqPolicy = policy.CreatePqPolicy(onPqClassicalFallback);
+
         if (policy.Rules is { } rules && policy.Roles.Count > 0)
         {
             var hasRevocations = envelope.Revoked is { Count: > 0 };
@@ -104,7 +116,8 @@ internal static class PayloadIntegrityGate
             var roles = policy.Roles;
             var collected = IntegrityEnvelopeCodec.CollectTrustedSignatures(
                 envelope, trustedFingerprints,
-                fp => roles.TryGetValue(fp, out var r) ? r : TrustRole.Release);
+                fp => roles.TryGetValue(fp, out var r) ? r : TrustRole.Release,
+                pqPolicy);
             if (collected.IsFailure)
                 return Result<Unit>.Failure(collected.Error);
 
@@ -115,10 +128,12 @@ internal static class PayloadIntegrityGate
         }
         else
         {
-            // An attacker's re-signed bundle (key not in the pinned set) is rejected here with INT001.
-            var trust = IntegrityEnvelopeCodec.VerifyTrusted(envelope, trustedFingerprints);
+            // An attacker's re-signed bundle (key not in the pinned set) is rejected here with INT001;
+            // a hybrid-pinned key with a stripped/invalid PQ companion with INT011.
+            var trust = IntegrityEnvelopeCodec.MatchTrustedSignature(
+                envelope, trustedFingerprints, revokedFingerprints: null, pqPolicy);
             if (trust.IsFailure)
-                return trust;
+                return Result<Unit>.Failure(trust.Error);
         }
 
         // Direction 1 — signed → manifest: every signed entry must bind to a manifest package

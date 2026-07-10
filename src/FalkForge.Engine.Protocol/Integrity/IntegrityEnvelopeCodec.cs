@@ -31,6 +31,13 @@ public static class IntegrityEnvelopeCodec
     /// <summary>The algorithm identifier embedded in produced envelopes.</summary>
     public const string AlgorithmId = "ECDSA-P256";
 
+    /// <summary>
+    /// The per-entry algorithm identifier of an ML-DSA-65 (FIPS 204) post-quantum signature
+    /// (PQ-hybrid Stage 1). Wire value, frozen. An entry with no algorithm field is
+    /// <see cref="AlgorithmId"/> (ECDSA-P256).
+    /// </summary>
+    public const string MlDsa65AlgorithmId = FalkForge.Signing.SignatureAlgorithms.MlDsa65;
+
     /// <summary>The current envelope format version (v2 = signature list).</summary>
     public const int CurrentVersion = 2;
 
@@ -272,15 +279,24 @@ public static class IntegrityEnvelopeCodec
     /// Fingerprints recorded as locally revoked; signatures from these keys never match. Null/empty
     /// means no revocations are enforced.
     /// </param>
+    /// <param name="pqPolicy">
+    /// The post-quantum companion policy (PQ-hybrid Stage 1, §2.2). Null (the default) or an empty
+    /// companion map keeps verification bit-for-bit as before. When a trusted classical fingerprint has
+    /// a pinned ML-DSA companion, the envelope must ALSO carry a matching, verifying ML-DSA entry for
+    /// the classical signature to count — a stripped/wrong/invalid companion fails with INT011 on a
+    /// capable OS, and falls back to classical-with-loud-log on an OS that cannot verify ML-DSA.
+    /// </param>
     /// <returns>
     /// Success carrying the accepted signature's fingerprint (uppercase hex). INT003 when the envelope
-    /// carries no usable signatures. INT001 when no non-revoked signature both matches a trusted
-    /// fingerprint and verifies.
+    /// carries no usable signatures. INT011 when the only trusted classical match is a hybrid-pinned key
+    /// whose post-quantum companion is missing or invalid. INT001 when no non-revoked signature both
+    /// matches a trusted fingerprint and verifies.
     /// </returns>
     public static Result<string> MatchTrustedSignature(
         ManifestSignatureEnvelope envelope,
         IReadOnlySet<string> trustedFingerprints,
-        IReadOnlySet<string>? revokedFingerprints = null)
+        IReadOnlySet<string>? revokedFingerprints = null,
+        PqCompanionPolicy? pqPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -292,14 +308,29 @@ public static class IntegrityEnvelopeCodec
 
         // The signed message covers the files and, when present, the epoch + revocation list (§6.3), so
         // compute the hash once for all entries. Epoch 0 + no revocations reproduces the legacy files-only
-        // bytes, keeping v1 and Stage-1 v2 envelopes verifiable.
-        var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked));
+        // bytes, keeping v1 and Stage-1 v2 envelopes verifiable. The raw message is kept alongside the
+        // hash: ML-DSA companion verification is over the message itself (pure ML-DSA, no pre-hash).
+        var message = ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var hash = SHA256.HashData(message);
         var haveTrustSet = trustedFingerprints.Count > 0;
         var sawRevoked = false;
         var sawNonCanonical = false;
+        var sawCompanionFailure = false;
+
+        // PQ side map (only built when companions are pinned): honest ML-DSA entries indexed by their
+        // RE-DERIVED fingerprint. These entries are never matched against the trust set themselves —
+        // they exist solely as companions consulted after a classical entry verifies.
+        var pqEntries = IndexPqEntries(signatures, pqPolicy);
 
         foreach (var entry in signatures)
         {
+            // Algorithm dispatch (PQ-hybrid Stage 1): this loop is the classical ECDSA-P256 path.
+            // ML-DSA entries live in the side map above; entries with an unknown algorithm are
+            // skipped (forward compatibility with future algorithms). An absent algorithm field is
+            // ECDSA-P256 — exactly what every pre-hybrid envelope meant.
+            if (!IsClassicalEntry(entry))
+                continue;
+
             if (string.IsNullOrEmpty(entry.PublicKey) || string.IsNullOrEmpty(entry.Signature))
                 continue;
 
@@ -352,13 +383,35 @@ public static class IntegrityEnvelopeCodec
                 using var ecdsa = ECDsa.Create();
                 ecdsa.ImportSubjectPublicKeyInfo(spki, out _);
                 if (ecdsa.VerifyHash(hash, signatureBytes))
+                {
+                    // (d) PQ companion rule (§2.2): a hybrid-pinned key counts only when its pinned
+                    // ML-DSA companion is present and verifies (or the OS cannot verify ML-DSA — the
+                    // logged classical-fallback branch). Keep iterating on failure: another trusted
+                    // signature may still satisfy, same continue-shape as the revoked-key skip.
+                    if (!SatisfiesPqCompanion(actualFingerprint, pqPolicy, pqEntries, message))
+                    {
+                        sawCompanionFailure = true;
+                        continue;
+                    }
+
                     return Result<string>.Success(actualFingerprint);
+                }
             }
             catch (CryptographicException)
             {
                 // Import/verify failed for this entry — fall through to try the next signature.
             }
         }
+
+        // Most specific failure first: a companion failure means a TRUSTED classical signature DID
+        // verify but its pinned post-quantum companion was stripped, wrong, or invalid — the exact
+        // downgrade a quantum-capable forger of ECDSA would attempt. Fail loud and specific.
+        if (sawCompanionFailure)
+            return Result<string>.Failure(ErrorKind.IntegrityError,
+                "INT011: A trusted key is pinned as hybrid (post-quantum companion required), but the " +
+                "envelope's ML-DSA companion signature is missing, from the wrong key, or failed to " +
+                "verify. Refusing to accept the classical signature alone — a stripped or forged " +
+                "post-quantum companion is treated as a downgrade attack.");
 
         if (sawRevoked)
             return Result<string>.Failure(ErrorKind.IntegrityError,
@@ -394,6 +447,13 @@ public static class IntegrityEnvelopeCodec
     /// therefore collects nothing (the require-signed path already fails closed with INT009 upstream).
     /// </param>
     /// <param name="roleOf">Resolves an accepted fingerprint to its pinned role(s).</param>
+    /// <param name="pqPolicy">
+    /// The post-quantum companion policy (PQ-hybrid Stage 1, §2.2). Null or an empty companion map keeps
+    /// collection bit-for-bit as before. A hybrid-pinned classical signature whose ML-DSA companion is
+    /// missing or invalid is NOT collected (it contributes nothing toward any quorum); ML-DSA entries are
+    /// never collected as members themselves — a hybrid pair is ONE signer, so the C19 distinct-key
+    /// guarantee is preserved with zero changes to the quorum evaluator.
+    /// </param>
     /// <returns>
     /// Success carrying the distinct trusted signatures (possibly empty when none are trusted). INT003 when
     /// the envelope carries no signatures at all.
@@ -401,7 +461,8 @@ public static class IntegrityEnvelopeCodec
     public static Result<IReadOnlyList<TrustedSignature>> CollectTrustedSignatures(
         ManifestSignatureEnvelope envelope,
         IReadOnlySet<string> trustedFingerprints,
-        Func<string, TrustRole> roleOf)
+        Func<string, TrustRole> roleOf,
+        PqCompanionPolicy? pqPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -413,13 +474,24 @@ public static class IntegrityEnvelopeCodec
                 "INT003: Manifest integrity envelope carries no signatures.");
 
         // Same signed message as MatchTrustedSignature — files plus, when present, epoch + revocations.
-        var hash = SHA256.HashData(ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked));
+        // The raw message is kept for ML-DSA companion verification (pure ML-DSA, no pre-hash).
+        var message = ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var hash = SHA256.HashData(message);
+
+        // PQ side map, mirroring MatchTrustedSignature: companions consulted after a classical entry
+        // verifies, never independent quorum members.
+        var pqEntries = IndexPqEntries(signatures, pqPolicy);
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var collected = new List<TrustedSignature>(signatures.Count);
 
         foreach (var entry in signatures)
         {
+            // Algorithm dispatch (PQ-hybrid Stage 1): only classical ECDSA-P256 entries are quorum
+            // candidates; ML-DSA entries live in the side map, unknown algorithms are skipped.
+            if (!IsClassicalEntry(entry))
+                continue;
+
             if (string.IsNullOrEmpty(entry.PublicKey) || string.IsNullOrEmpty(entry.Signature))
                 continue;
 
@@ -450,12 +522,19 @@ public static class IntegrityEnvelopeCodec
                 continue;
 
             // (c) The signature must cryptographically verify; first distinct occurrence only.
+            // (d) PQ companion rule (§2.2): a hybrid-pinned key contributes toward a quorum only
+            // when its pinned ML-DSA companion is present and verifies (or the OS cannot verify
+            // ML-DSA — the logged classical-fallback branch).
             try
             {
                 using var ecdsa = ECDsa.Create();
                 ecdsa.ImportSubjectPublicKeyInfo(spki, out _);
-                if (ecdsa.VerifyHash(hash, signatureBytes) && seen.Add(actualFingerprint))
+                if (ecdsa.VerifyHash(hash, signatureBytes)
+                    && SatisfiesPqCompanion(actualFingerprint, pqPolicy, pqEntries, message)
+                    && seen.Add(actualFingerprint))
+                {
                     collected.Add(new TrustedSignature(actualFingerprint, roleOf(actualFingerprint)));
+                }
             }
             catch (CryptographicException)
             {
@@ -464,5 +543,112 @@ public static class IntegrityEnvelopeCodec
         }
 
         return Result<IReadOnlyList<TrustedSignature>>.Success(collected);
+    }
+
+    // ── PQ-hybrid Stage 1 internals (§2.2) ──────────────────────────────────────────────────────
+
+    /// <summary>An honest (fingerprint-re-derived) ML-DSA companion entry from the envelope.</summary>
+    private readonly record struct PqEnvelopeEntry(byte[] Spki, byte[] Signature);
+
+    /// <summary>
+    /// True when the entry is on the classical ECDSA-P256 verify path: no algorithm field (the
+    /// pre-hybrid wire shape) or the explicit classical identifier. ML-DSA and unknown algorithms
+    /// return false and are handled (or skipped) elsewhere.
+    /// </summary>
+    private static bool IsClassicalEntry(SignatureEntry entry) =>
+        string.IsNullOrEmpty(entry.Algorithm)
+        || string.Equals(entry.Algorithm, AlgorithmId, StringComparison.Ordinal);
+
+    /// <summary>True for any FIPS 204 ML-DSA parameter-set identifier (ML-DSA-44/-65/-87).</summary>
+    private static bool IsMlDsaAlgorithm(string? algorithm) =>
+        algorithm is not null && algorithm.StartsWith("ML-DSA-", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Indexes the envelope's honest ML-DSA entries by their re-derived fingerprint. Only built when
+    /// companions are actually pinned (null otherwise — zero cost on the classical-only path). The
+    /// same lying-fingerprint defense as the classical path applies: an entry whose declared
+    /// fingerprint does not re-derive from its own SPKI is dropped, so a companion slot can never be
+    /// satisfied by a key other than the pinned one.
+    /// </summary>
+    private static Dictionary<string, PqEnvelopeEntry>? IndexPqEntries(
+        IReadOnlyList<SignatureEntry> signatures, PqCompanionPolicy? pqPolicy)
+    {
+        if (pqPolicy is null || pqPolicy.Companions.Count == 0)
+            return null;
+
+        Dictionary<string, PqEnvelopeEntry>? map = null;
+        foreach (var entry in signatures)
+        {
+            if (!IsMlDsaAlgorithm(entry.Algorithm))
+                continue;
+            if (string.IsNullOrEmpty(entry.PublicKey) || string.IsNullOrEmpty(entry.Signature))
+                continue;
+
+            byte[] spki;
+            byte[] signatureBytes;
+            try
+            {
+                spki = Convert.FromBase64String(entry.PublicKey);
+                signatureBytes = Convert.FromBase64String(entry.Signature);
+            }
+            catch (FormatException)
+            {
+                continue;
+            }
+
+            // Fingerprint honesty: re-derive from the actual key, never trust the declared value.
+            var actualFingerprint = ComputeFingerprint(spki);
+            if (!string.Equals(actualFingerprint, entry.Fingerprint, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            map ??= new Dictionary<string, PqEnvelopeEntry>(StringComparer.OrdinalIgnoreCase);
+            map.TryAdd(actualFingerprint, new PqEnvelopeEntry(spki, signatureBytes));
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// The companion rule (§2.2): decides whether an accepted classical fingerprint may count.
+    /// Returns true when the key has no pinned companion (classical-only trust, unchanged), when the
+    /// pinned companion is present and its ML-DSA signature verifies over <paramref name="message"/>
+    /// under the frozen manifest context, or when the OS cannot verify ML-DSA (classical fallback +
+    /// loud log — sound because platform capability is not attacker-controllable, see
+    /// <see cref="PqCompanionPolicy.IsPqSupported"/>). Returns false — the caller records a
+    /// companion failure — when the companion is missing, from the wrong key, or fails to verify.
+    /// </summary>
+    private static bool SatisfiesPqCompanion(
+        string classicalFingerprint,
+        PqCompanionPolicy? pqPolicy,
+        Dictionary<string, PqEnvelopeEntry>? pqEntries,
+        byte[] message)
+    {
+        if (pqPolicy is null || !pqPolicy.Companions.TryGetValue(classicalFingerprint, out var pinnedPqFingerprint))
+            return true; // not hybrid-pinned — classical-only trust, bit-for-bit previous behavior
+
+        if (!pqPolicy.IsPqSupported())
+        {
+            // Classical fallback + loud log (human decision, design §8.1). Safe ONLY because the
+            // capability reflects the real platform and cannot be influenced by bundle content.
+            pqPolicy.OnClassicalFallback?.Invoke(
+                $"PQ VERIFICATION SKIPPED: trusted key {classicalFingerprint} is pinned as hybrid, " +
+                "but this machine's OS cannot verify ML-DSA signatures (MLDsa.IsSupported = false). " +
+                "Accepting on the classical ECDSA-P256 signature alone — post-quantum protection is " +
+                "NOT in effect on this machine.");
+            return true;
+        }
+
+        if (pqEntries is null || !pqEntries.TryGetValue(pinnedPqFingerprint, out var companion))
+            return false; // stripped, wrong-key, or lying-fingerprint companion
+
+        try
+        {
+            using var mldsa = MLDsa.ImportSubjectPublicKeyInfo(companion.Spki);
+            return mldsa.VerifyData(message, companion.Signature, FalkForge.Signing.SignatureAlgorithms.ManifestContext);
+        }
+        catch (CryptographicException)
+        {
+            return false; // malformed SPKI / unsupported parameter set — never counts
+        }
     }
 }

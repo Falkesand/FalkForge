@@ -55,6 +55,21 @@ internal readonly struct TrustPolicy
     /// </summary>
     public int StoredEpoch { get; }
 
+    /// <summary>
+    /// The pinned post-quantum companion map (PQ-hybrid Stage 1, §2.3): classical fingerprint →
+    /// required ML-DSA companion fingerprint. Null/empty keeps verification bit-for-bit as before.
+    /// Sourced from <see cref="EngineTrustAnchor.EffectivePqCompanions"/> in production; never read
+    /// from a bundle.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? PqCompanions { get; }
+
+    /// <summary>
+    /// Test seam for the ML-DSA platform-capability check. Null (production) means the real
+    /// <c>MLDsa.IsSupported</c>; tests inject <c>() =&gt; false</c> to exercise the incapable-OS
+    /// classical-fallback branch deterministically on a capable machine.
+    /// </summary>
+    public Func<bool>? IsPqSupported { get; }
+
     public TrustPolicy(IReadOnlySet<string> trustedFingerprints, bool requireSigned)
         : this(trustedFingerprints, requireSigned, EmptyRoles, rules: null)
     {
@@ -66,7 +81,9 @@ internal readonly struct TrustPolicy
         IReadOnlyDictionary<string, TrustRole> roles,
         IReadOnlyDictionary<OperationKind, PolicyRule>? rules,
         bool isUpdatePath = false,
-        int storedEpoch = 0)
+        int storedEpoch = 0,
+        IReadOnlyDictionary<string, string>? pqCompanions = null,
+        Func<bool>? isPqSupported = null)
     {
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
         ArgumentNullException.ThrowIfNull(roles);
@@ -76,6 +93,32 @@ internal readonly struct TrustPolicy
         Rules = rules;
         IsUpdatePath = isUpdatePath;
         StoredEpoch = storedEpoch;
+        PqCompanions = pqCompanions;
+        IsPqSupported = isPqSupported;
+    }
+
+    /// <summary>
+    /// Builds the <see cref="PqCompanionPolicy"/> the envelope verifier consumes, or null when no
+    /// hybrid keys are pinned (verification then behaves bit-for-bit as before).
+    /// <paramref name="onClassicalFallback"/> is the loud-log sink for the incapable-OS branch.
+    /// </summary>
+    internal PqCompanionPolicy? CreatePqPolicy(Action<string>? onClassicalFallback)
+    {
+        if (PqCompanions is not { Count: > 0 } companions)
+            return null;
+
+        return IsPqSupported is { } supported
+            ? new PqCompanionPolicy
+            {
+                Companions = companions,
+                IsPqSupported = supported,
+                OnClassicalFallback = onClassicalFallback
+            }
+            : new PqCompanionPolicy
+            {
+                Companions = companions,
+                OnClassicalFallback = onClassicalFallback
+            };
     }
 
     private static readonly FrozenDictionary<string, TrustRole> EmptyRoles =
@@ -96,15 +139,30 @@ internal readonly struct TrustPolicy
         new(trustedFingerprints, requireSigned: false);
 
     /// <summary>
+    /// A fresh-install policy pinned to <paramref name="trustedFingerprints"/> with post-quantum
+    /// companion pins (PQ-hybrid Stage 1) but no roles/quorum — the C14 verify-any path plus the
+    /// companion rule. <paramref name="isPqSupported"/> is the test seam for the incapable-OS branch.
+    /// </summary>
+    public static TrustPolicy FreshInstall(
+        IReadOnlySet<string> trustedFingerprints,
+        IReadOnlyDictionary<string, string>? pqCompanions,
+        Func<bool>? isPqSupported = null) =>
+        new(trustedFingerprints, requireSigned: false, EmptyRoles, rules: null,
+            isUpdatePath: false, storedEpoch: 0, pqCompanions, isPqSupported);
+
+    /// <summary>
     /// A fresh-install policy carrying roles and the per-operation quorum rules (C19). When
     /// <paramref name="roles"/> is empty the gate still behaves exactly as C14; when roles are present the
-    /// Install rule is enforced via the quorum evaluator.
+    /// Install rule is enforced via the quorum evaluator. <paramref name="pqCompanions"/> adds the
+    /// PQ-hybrid companion pins (Stage 1); null keeps verification bit-for-bit as before.
     /// </summary>
     public static TrustPolicy FreshInstall(
         IReadOnlySet<string> trustedFingerprints,
         IReadOnlyDictionary<string, TrustRole> roles,
-        IReadOnlyDictionary<OperationKind, PolicyRule> rules) =>
-        new(trustedFingerprints, requireSigned: false, roles, rules);
+        IReadOnlyDictionary<OperationKind, PolicyRule> rules,
+        IReadOnlyDictionary<string, string>? pqCompanions = null) =>
+        new(trustedFingerprints, requireSigned: false, roles, rules,
+            isUpdatePath: false, storedEpoch: 0, pqCompanions);
 
     /// <summary>
     /// The require-signed update-path policy (C19 quorum uniformity): a signature is mandatory, and the
@@ -112,11 +170,14 @@ internal readonly struct TrustPolicy
     /// persisted anti-downgrade epoch) exactly as the staged-update verifier does — a routine same-epoch
     /// update needs one release signature, an epoch advance is a key change requiring the
     /// release+recovery quorum. Used by the pipeline when the apply may advance the persisted trust store.
+    /// <paramref name="pqCompanions"/> adds the PQ-hybrid companion pins (Stage 1).
     /// </summary>
     public static TrustPolicy RequireSignedUpdate(
         IReadOnlySet<string> trustedFingerprints,
         IReadOnlyDictionary<string, TrustRole> roles,
         IReadOnlyDictionary<OperationKind, PolicyRule> rules,
-        int storedEpoch) =>
-        new(trustedFingerprints, requireSigned: true, roles, rules, isUpdatePath: true, storedEpoch);
+        int storedEpoch,
+        IReadOnlyDictionary<string, string>? pqCompanions = null) =>
+        new(trustedFingerprints, requireSigned: true, roles, rules, isUpdatePath: true, storedEpoch,
+            pqCompanions);
 }

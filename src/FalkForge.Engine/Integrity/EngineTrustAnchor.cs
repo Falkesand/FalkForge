@@ -46,11 +46,20 @@ public static class EngineTrustAnchor
     private static readonly Dictionary<string, TrustRole> CodeRegistered =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Staging area for code-registered PQ companion pairs (classical fp -> ML-DSA companion fp),
+    // mutable only until the first freeze (PQ-hybrid Stage 1, §2.3). Conflicting companions for the
+    // same classical fingerprint throw at registration — no silent last-wins on a security anchor.
+    private static readonly Dictionary<string, string> CodeRegisteredCompanions =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Null until the effective set is frozen on first read. Once non-null, registration is closed.
     private static FrozenSet<string>? _effective;
 
     // The effective fingerprint to role map, frozen alongside _effective on first read.
     private static FrozenDictionary<string, TrustRole>? _effectiveRoles;
+
+    // The effective PQ companion map (classical fp -> pinned ML-DSA fp), frozen alongside the rest.
+    private static FrozenDictionary<string, string>? _effectivePqCompanions;
 
     // Non-fatal configuration warnings discovered during Freeze, published alongside the frozen structures.
     private static IReadOnlyList<string> _configurationWarnings = [];
@@ -106,6 +115,50 @@ public static class EngineTrustAnchor
     }
 
     /// <summary>
+    /// The frozen effective post-quantum companion map (PQ-hybrid Stage 1, §2.3): for every trusted
+    /// classical fingerprint that is pinned as HYBRID, the ML-DSA companion fingerprint the envelope
+    /// must additionally satisfy (INT011 otherwise, on a capable OS). Union of the baked map
+    /// (<see cref="BakedTrustedKeys.PqCompanions"/>, from <c>PqFingerprint=</c> item metadata) and
+    /// code-registered pairs (<see cref="TrustHybridKey"/> / <see cref="TrustHybridFingerprint"/>).
+    /// Companion fingerprints are NOT trust anchors themselves — they never appear in
+    /// <see cref="EffectiveFingerprints"/>. Never null (empty = no hybrid pins, verification
+    /// bit-for-bit unchanged). The first read freezes all anchor structures.
+    /// </summary>
+    public static FrozenDictionary<string, string> EffectivePqCompanions
+    {
+        get
+        {
+            var current = Volatile.Read(ref _effectivePqCompanions);
+            if (current is not null)
+                return current;
+
+            lock (Gate)
+            {
+                if (_effectivePqCompanions is not null)
+                    return _effectivePqCompanions;
+
+                Freeze();
+                return _effectivePqCompanions!;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds the <see cref="PqCompanionPolicy"/> the verifiers consume from the frozen effective
+    /// companion map, or <c>null</c> when no hybrid keys are pinned (the verifier then behaves
+    /// bit-for-bit as before). <paramref name="onClassicalFallback"/> is the loud-log sink invoked
+    /// when a hybrid-pinned key is accepted classically because the OS cannot verify ML-DSA.
+    /// </summary>
+    public static PqCompanionPolicy? CreatePqPolicy(Action<string>? onClassicalFallback = null) =>
+        EffectivePqCompanions.Count > 0
+            ? new PqCompanionPolicy
+            {
+                Companions = EffectivePqCompanions,
+                OnClassicalFallback = onClassicalFallback
+            }
+            : null;
+
+    /// <summary>
     /// The effective per-operation quorum policy table (C19): the baked default table when the engine is
     /// role-configured, or <c>null</c> when no roles are present so verification stays on the C14
     /// verify-any path (bit-for-bit backward compatible, §7.1). Every path that verifies a bundle against
@@ -145,9 +198,54 @@ public static class EngineTrustAnchor
         // consistency-only path, not a role-lockout.
         var warnings = roles.Count > 0 ? ValidatePolicyFeasibility(roles) : [];
 
+        // PQ companion map (PQ-hybrid Stage 1, §2.3): baked pairs unioned with code-registered
+        // pairs. A conflict (two different companions pinned for the same classical identity) is a
+        // configuration contradiction on a security anchor — fail loud, never last-wins.
+        var companions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (classicalFp, pqFp) in BakedTrustedKeys.PqCompanions)
+            companions[classicalFp] = pqFp;
+        foreach (var (classicalFp, pqFp) in CodeRegisteredCompanions)
+        {
+            if (companions.TryGetValue(classicalFp, out var existing)
+                && !string.Equals(existing, pqFp, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Conflicting post-quantum companion registrations for trusted key {classicalFp}: " +
+                    "the baked set and code registration pin different ML-DSA companion fingerprints. " +
+                    "A hybrid identity has exactly one companion — resolve the configuration.");
+            }
+
+            companions[classicalFp] = pqFp;
+        }
+
+        // Weakest-link warning (design §2.2, human decision §8.5): a MIXED set — some keys hybrid,
+        // some classical-only — leaves a quantum forger free to target the un-companioned keys.
+        // Warn (migration mid-states are legitimate), never fail. A set with no companions at all
+        // is the pre-PQ posture and stays quiet.
+        if (companions.Count > 0)
+        {
+            List<string>? uncompanioned = null;
+            foreach (var fingerprint in roles.Keys)
+            {
+                if (!companions.ContainsKey(fingerprint))
+                    (uncompanioned ??= []).Add(fingerprint);
+            }
+
+            if (uncompanioned is not null)
+            {
+                warnings.Add(
+                    "Post-quantum weakest link: the trusted set mixes hybrid keys (ML-DSA companion " +
+                    "pinned) with classical-only keys. A quantum-capable forger simply targets the " +
+                    "un-companioned keys, so PQ protection is only as strong as the weakest pinned key. " +
+                    $"Un-companioned: {string.Join(", ", uncompanioned)}.");
+            }
+        }
+
         var frozenSet = roles.Keys.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
         var frozenRoles = roles.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        var frozenCompanions = companions.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         Volatile.Write(ref _configurationWarnings, warnings);
+        Volatile.Write(ref _effectivePqCompanions, frozenCompanions);
         Volatile.Write(ref _effectiveRoles, frozenRoles);
         Volatile.Write(ref _effective, frozenSet);
     }
@@ -308,6 +406,93 @@ public static class EngineTrustAnchor
     }
 
     /// <summary>
+    /// Registers a HYBRID trusted publisher identity (PQ-hybrid Stage 1, §2.3): the classical
+    /// ECDSA-P256 key (the identity, carrying the roles) plus its pinned ML-DSA companion key.
+    /// Both fingerprints are derived exactly as the envelope verifier derives them (SHA-256 of the
+    /// SPKI). From then on, on an ML-DSA-capable OS, a bundle from this publisher verifies only
+    /// when BOTH signatures are present and valid (INT011 otherwise) — pinning the companion IS the
+    /// publisher's cutover statement that no artifact of theirs verifies classically alone anymore.
+    /// Call from the engine bootstrap hook, before any bundle is verified.
+    /// </summary>
+    /// <param name="classicalSpki">The DER-encoded SubjectPublicKeyInfo of the classical (ECDSA-P256) key.</param>
+    /// <param name="pqSpki">The DER-encoded SubjectPublicKeyInfo of the ML-DSA companion key.</param>
+    /// <param name="roles">The role(s) the identity holds (§3). Defaults to <see cref="TrustRole.Release"/>.</param>
+    /// <exception cref="ArgumentException">Either blob is empty.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The effective set is already frozen, or a DIFFERENT companion is already registered for this
+    /// classical key (fail loud, no silent last-wins).
+    /// </exception>
+    public static void TrustHybridKey(
+        ReadOnlySpan<byte> classicalSpki, ReadOnlySpan<byte> pqSpki, TrustRole roles = TrustRole.Release)
+    {
+        if (classicalSpki.IsEmpty)
+            throw new ArgumentException("Classical SubjectPublicKeyInfo must not be empty.", nameof(classicalSpki));
+        if (pqSpki.IsEmpty)
+            throw new ArgumentException("Post-quantum SubjectPublicKeyInfo must not be empty.", nameof(pqSpki));
+
+        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(classicalSpki, hash);
+        var classicalFingerprint = Convert.ToHexString(hash);
+        SHA256.HashData(pqSpki, hash);
+        var pqFingerprint = Convert.ToHexString(hash);
+
+        RegisterHybridCanonical(classicalFingerprint, pqFingerprint, roles);
+    }
+
+    /// <summary>
+    /// Registers a HYBRID trusted publisher identity by its two fingerprints (each the SHA-256 of a
+    /// SubjectPublicKeyInfo, 64 hex chars, separators tolerated). Fingerprint twin of
+    /// <see cref="TrustHybridKey"/> — see there for the semantics of pinning a companion.
+    /// </summary>
+    /// <param name="classicalFingerprint">The classical (ECDSA-P256) key's fingerprint — the trusted identity.</param>
+    /// <param name="pqFingerprint">The ML-DSA companion key's fingerprint the envelope must additionally satisfy.</param>
+    /// <param name="roles">The role(s) the identity holds (§3). Defaults to <see cref="TrustRole.Release"/>.</param>
+    /// <exception cref="ArgumentException">Either value is not a 64-character hex fingerprint.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The effective set is already frozen, or a DIFFERENT companion is already registered for this
+    /// classical key (fail loud, no silent last-wins).
+    /// </exception>
+    public static void TrustHybridFingerprint(
+        string classicalFingerprint, string pqFingerprint, TrustRole roles = TrustRole.Release)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(classicalFingerprint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pqFingerprint);
+        RegisterHybridCanonical(Normalize(classicalFingerprint), Normalize(pqFingerprint), roles);
+    }
+
+    private static void RegisterHybridCanonical(string classicalFingerprint, string pqFingerprint, TrustRole roles)
+    {
+        var effectiveRoles = roles == TrustRole.None ? TrustRole.Release : roles;
+
+        lock (Gate)
+        {
+            if (_effective is not null)
+                throw new InvalidOperationException(
+                    "The engine trust anchor is already frozen; trusted keys can only be registered during " +
+                    "bootstrap, before the first bundle verification. Register in the Program.ConfigureTrust hook.");
+
+            // A hybrid identity has exactly one companion: registering a different one for the same
+            // classical key is a contradiction on a security anchor — fail loud, no silent last-wins.
+            if (CodeRegisteredCompanions.TryGetValue(classicalFingerprint, out var existing)
+                && !string.Equals(existing, pqFingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"A different post-quantum companion is already registered for trusted key " +
+                    $"{classicalFingerprint}. A hybrid identity has exactly one companion.");
+            }
+
+            CodeRegisteredCompanions[classicalFingerprint] = pqFingerprint;
+
+            // The classical fingerprint is the trusted identity (union roles as usual). The PQ
+            // companion fingerprint is deliberately NOT added to the trusted set — it is a validity
+            // condition, never an independent anchor.
+            CodeRegistered[classicalFingerprint] = CodeRegistered.TryGetValue(classicalFingerprint, out var r)
+                ? r | effectiveRoles
+                : effectiveRoles;
+        }
+    }
+
+    /// <summary>
     /// Normalizes a fingerprint to canonical form: strips common display separators, uppercases, and
     /// validates it is exactly a 64-character hex SHA-256 fingerprint. Rejects anything else (fail loud) so
     /// a typo cannot be silently truncated into a fingerprint that never matches.
@@ -367,8 +552,10 @@ public static class EngineTrustAnchor
         lock (Gate)
         {
             CodeRegistered.Clear();
+            CodeRegisteredCompanions.Clear();
             _effective = null;
             _effectiveRoles = null;
+            _effectivePqCompanions = null;
             _configurationWarnings = [];
         }
     }

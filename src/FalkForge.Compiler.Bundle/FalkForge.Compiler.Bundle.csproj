@@ -2,6 +2,9 @@
     <PropertyGroup>
         <RootNamespace>FalkForge.Compiler.Bundle</RootNamespace>
         <Description>Bundle compiler for creating self-extracting EXE installers</Description>
+        <!-- Deliberate opt-in to the .NET 10 ML-DSA (FIPS 204) API for PQ-hybrid manifest signing —
+             see the rationale comment in FalkForge.Core.csproj. -->
+        <NoWarn>$(NoWarn);SYSLIB5006</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Octopus.Octodiff" />

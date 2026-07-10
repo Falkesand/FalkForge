@@ -50,7 +50,8 @@ internal static class BundleTrustGate
             storedEpoch: requireSigned ? trustState.Epoch : 0,
             revokedFingerprints: RevokedSet(requireSigned, trustState),
             policyTable: requireSigned ? EngineTrustAnchor.EffectivePolicyTable : null,
-            roles: EngineTrustAnchor.EffectiveRoles);
+            roles: EngineTrustAnchor.EffectiveRoles,
+            pqPolicy: EngineTrustAnchor.CreatePqPolicy(PqFallbackLog));
     }
 
     /// <summary>
@@ -68,8 +69,14 @@ internal static class BundleTrustGate
             storedEpoch: requireSigned ? trustState.Epoch : 0,
             revokedFingerprints: RevokedSet(requireSigned, trustState),
             policyTable: requireSigned ? EngineTrustAnchor.EffectivePolicyTable : null,
-            roles: EngineTrustAnchor.EffectiveRoles);
+            roles: EngineTrustAnchor.EffectiveRoles,
+            pqPolicy: EngineTrustAnchor.CreatePqPolicy(PqFallbackLog));
     }
+
+    // Loud log for the incapable-OS classical-fallback branch (PQ-hybrid Stage 1). Both gate call
+    // sites are the bootstrap/self-extract paths, which report to stderr (Program does the same for
+    // verification failures) — the degradation must be visible, never silent.
+    private static void PqFallbackLog(string message) => Console.Error.WriteLine(message);
 
     private static IReadOnlySet<string>? RevokedSet(bool requireSigned, TrustState trustState) =>
         requireSigned && trustState.RevokedFingerprints.Length > 0

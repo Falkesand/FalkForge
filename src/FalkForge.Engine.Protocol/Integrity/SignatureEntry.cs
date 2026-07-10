@@ -35,4 +35,18 @@ public sealed class SignatureEntry
     /// <summary>Base64 ECDSA signature over SHA-256(UTF-8(JSON(files))).</summary>
     [JsonPropertyName("signature")]
     public string Signature { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The signature algorithm of this entry (PQ-hybrid Stage 1). OPTIONAL and appended last so the
+    /// wire shape of every pre-existing entry is byte-identical: <c>null</c> (the field absent on the
+    /// wire) means <see cref="IntegrityEnvelopeCodec.AlgorithmId"/> (ECDSA-P256) — exactly what every
+    /// envelope signed before this field existed meant. An ML-DSA entry carries its FIPS 204
+    /// parameter-set name (e.g. <see cref="IntegrityEnvelopeCodec.MlDsa65AlgorithmId"/>). Verifiers
+    /// skip entries with an algorithm they do not know (forward compatibility); already-shipped
+    /// algorithm-ignorant verifiers skip an ML-DSA entry anyway because its signature fails the
+    /// 64-byte ECDSA low-S length gate and iteration continues.
+    /// </summary>
+    [JsonPropertyName("algorithm")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Algorithm { get; set; }
 }

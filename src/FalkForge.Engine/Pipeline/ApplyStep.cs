@@ -64,8 +64,18 @@ internal sealed class ApplyStep : IApplyStep
         // before a single package runs. Independent of Authenticode.
         if (ctx.Manifest is not null)
         {
+            // PQ-hybrid Stage 1: collect the incapable-OS classical-fallback warnings emitted by
+            // the gate and forward them to the UI channel log after the verify, so the "PQ skipped
+            // due to OS" degradation is loud in the session log, never silent.
+            var pqFallbackWarnings = new List<string>();
             var integrity = PayloadIntegrityGate.Verify(
-                ctx.Manifest, ctx.IntegrityTrustPolicy);
+                ctx.Manifest, ctx.IntegrityTrustPolicy, pqFallbackWarnings.Add);
+            foreach (var warning in pqFallbackWarnings)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning, warning), ct);
+            }
+
             if (integrity.IsFailure)
             {
                 await _uiChannel.SendAsync(

@@ -351,7 +351,8 @@ public sealed class EngineSession : IAsyncDisposable
                     FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveFingerprints,
                     FalkForge.Engine.Integrity.EngineTrustAnchor.EffectiveRoles,
                     FalkForge.Engine.Protocol.Integrity.BakedTrustPolicy.Default,
-                    storedEpoch));
+                    storedEpoch,
+                    FalkForge.Engine.Integrity.EngineTrustAnchor.EffectivePqCompanions));
 
         var pipeline = pipelineBuilder.Build();
 

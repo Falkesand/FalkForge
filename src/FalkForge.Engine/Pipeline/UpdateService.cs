@@ -59,8 +59,12 @@ internal sealed class UpdateService
         _launcher = launcher;
         _channel = channel;
         _logger = logger;
-        // Secure by default: the real in-process trust gate over the baked trusted set.
-        _verifyStagedBundle = verifyStagedBundle ?? StagedUpdateVerifier.VerifyWithBakedTrust;
+        // Secure by default: the real in-process trust gate over the baked trusted set. The PQ
+        // incapable-OS fallback (Stage 1) logs through the service's real logger so the degradation
+        // is visible in the session log, never silent.
+        _verifyStagedBundle = verifyStagedBundle
+            ?? (path => StagedUpdateVerifier.VerifyWithBakedTrust(
+                path, msg => logger.Warning("UpdateService", msg)));
     }
 
     /// <summary>

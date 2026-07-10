@@ -31,7 +31,8 @@ internal static class StagedUpdateVerifier
         int storedEpoch,
         IReadOnlySet<string>? revokedFingerprints,
         IReadOnlyDictionary<OperationKind, PolicyRule>? policyTable = null,
-        IReadOnlyDictionary<string, TrustRole>? roles = null)
+        IReadOnlyDictionary<string, TrustRole>? roles = null,
+        PqCompanionPolicy? pqPolicy = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(stagedBundlePath);
         ArgumentNullException.ThrowIfNull(trustedFingerprints);
@@ -44,7 +45,7 @@ internal static class StagedUpdateVerifier
         // software, so a missing/stripped signature is itself a rejection (design §3.4).
         return BundleTrustVerifier.VerifyBundleContent(
             extract.Value, trustedFingerprints, requireSigned: true, storedEpoch, revokedFingerprints,
-            policyTable, roles);
+            policyTable, roles, pqPolicy);
     }
 
     /// <summary>
@@ -52,7 +53,17 @@ internal static class StagedUpdateVerifier
     /// keys registered from bootstrap code, <see cref="EngineTrustAnchor"/>), consulting the persisted
     /// per-machine trust store for the anti-downgrade epoch and locally-revoked fingerprints (§6.3).
     /// </summary>
-    internal static Result<Unit> VerifyWithBakedTrust(string stagedBundlePath)
+    internal static Result<Unit> VerifyWithBakedTrust(string stagedBundlePath) =>
+        // Default loud-log sink: stderr, so the incapable-OS PQ fallback is never silent even for a
+        // caller with no logger. UpdateService overrides with its real logger.
+        VerifyWithBakedTrust(stagedBundlePath, static msg => Console.Error.WriteLine(msg));
+
+    /// <summary>
+    /// <see cref="VerifyWithBakedTrust(string)"/> with an explicit loud-log sink for the PQ-hybrid
+    /// incapable-OS classical-fallback branch (Stage 1).
+    /// </summary>
+    internal static Result<Unit> VerifyWithBakedTrust(
+        string stagedBundlePath, Action<string>? onPqClassicalFallback)
     {
         // Anti-squat: validate the store directory's ACL before trusting its epoch/revocations. A
         // non-conforming directory (one an unprivileged process could have pre-created/tampered) fails
@@ -73,6 +84,7 @@ internal static class StagedUpdateVerifier
         // governance rule (e.g. a rotation demands release + recovery).
         return Verify(
             stagedBundlePath, EngineTrustAnchor.EffectiveFingerprints, state.Epoch, revoked,
-            EngineTrustAnchor.EffectivePolicyTable, EngineTrustAnchor.EffectiveRoles);
+            EngineTrustAnchor.EffectivePolicyTable, EngineTrustAnchor.EffectiveRoles,
+            EngineTrustAnchor.CreatePqPolicy(onPqClassicalFallback));
     }
 }

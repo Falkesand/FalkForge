@@ -14,6 +14,17 @@
        anchor the runtime honors — it is baked into the binary, never read
        from a bundle, manifest, or config file next to the EXE.
 
+       PQ-hybrid Stage 1: a key may carry PqFingerprint= item metadata — the
+       SHA-256-of-SPKI fingerprint of its pinned ML-DSA companion key. The
+       engine then requires a valid ML-DSA companion signature from that key
+       (INT011 otherwise, on an ML-DSA-capable OS):
+
+         <FalkForgeTrustedKey Include="A1B2..." Roles="release"
+                              PqFingerprint="C3D4..." />
+
+       The property short-form -p:FalkForgeTrustedKey stays classical-only;
+       hybrid pinning uses the item form (or EngineTrustAnchor.TrustHybridKey).
+
        An empty set (no property supplied) generates an empty FrozenSet: the
        engine trusts no publisher and verification falls back to
        consistency-only (safe default — see TrustPolicy). It never fails open
@@ -55,21 +66,26 @@ var knownRoles = new System.Collections.Generic.Dictionary<string, string>(Syste
     { "timestamp",       "FalkForge.Engine.Protocol.Integrity.TrustRole.Timestamp" },
 };
 
-// Collect normalized fingerprint plus its resolved role expression, preserving correspondence.
-var entries = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+// Normalizes a fingerprint-shaped value: strip common display separators, uppercase, drop non-hex chars.
+Func<string, string> normalizeFp = raw =>
+{
+    var norm = new StringBuilder((raw ?? string.Empty).Length);
+    foreach (char c in raw ?? string.Empty)
+    {
+        if (Uri.IsHexDigit(c))
+            norm.Append(char.ToUpperInvariant(c));
+    }
+    return norm.ToString();
+};
+
+// Collect normalized fingerprint, resolved role expression, and (optionally) the normalized
+// PQ companion fingerprint from PqFingerprint= metadata (PQ-hybrid Stage 1), preserving correspondence.
+var entries = new System.Collections.Generic.List<System.Tuple<string, string, string>>();
 if (Fingerprints != null)
 {
     foreach (var item in Fingerprints)
     {
-        // Normalize: strip common display separators, uppercase, drop non-hex chars.
-        var raw = item.ItemSpec ?? string.Empty;
-        var norm = new StringBuilder(raw.Length);
-        foreach (char c in raw)
-        {
-            if (Uri.IsHexDigit(c))
-                norm.Append(char.ToUpperInvariant(c));
-        }
-        var fp = norm.ToString();
+        var fp = normalizeFp(item.ItemSpec);
         if (fp.Length == 0)
             continue;
 
@@ -90,8 +106,69 @@ if (Fingerprints != null)
             ? "FalkForge.Engine.Protocol.Integrity.TrustRole.Release"
             : string.Join(" | ", roleExprs);
 
-        entries.Add(new System.Collections.Generic.KeyValuePair<string, string>(fp, roleExpr));
+        // PQ-hybrid Stage 1: optional ML-DSA companion fingerprint. When present, the engine
+        // requires a valid ML-DSA companion signature for this key (INT011 otherwise).
+        // Mirror EngineTrustAnchor.Normalize's strictness: a supplied value must normalize to
+        // exactly 64 hex chars (SHA-256 of the companion key's SubjectPublicKeyInfo). A typo'd
+        // or truncated value would otherwise bake a companion pin no key can ever match, so
+        // every bundle from this signer rejects INT011 — discovered only at customer install
+        // time. Fail the build now instead.
+        var pqFpRaw = item.GetMetadata("PqFingerprint") ?? string.Empty;
+        var pqFp = normalizeFp(pqFpRaw);
+        if (pqFpRaw.Trim().Length != 0 && pqFp.Length != 64)
+        {
+            Log.LogError(
+                "FALKPQ002: FalkForgeTrustedKey item '{0}' has a malformed PqFingerprint '{1}': " +
+                "it normalizes to {2} hex characters, expected exactly 64 (the SHA-256 of the " +
+                "ML-DSA companion key's SubjectPublicKeyInfo). Baking it would make every bundle " +
+                "from this signer fail INT011 at install time.",
+                item.ItemSpec, pqFpRaw, pqFp.Length);
+        }
+
+        entries.Add(System.Tuple.Create(fp, roleExpr, pqFp));
     }
+}
+
+// Duplicate classical fingerprints would make the generated FrozenDictionary initializers
+// (Roles, and PqCompanions for hybrid items) throw TypeInitializationException at ENGINE
+// STARTUP — fail-closed, but late and opaque. Fail the build at the moment the duplicate is
+// introduced instead. Comparison is case-insensitive to match the generated dictionaries.
+var seenFingerprints = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+foreach (var e in entries)
+{
+    if (!seenFingerprints.Add(e.Item1))
+    {
+        Log.LogError(
+            "FALKPQ003: duplicate trusted-key fingerprint '{0}' in the baked FalkForgeTrustedKey " +
+            "set. Each classical fingerprint may appear once; merge its Roles/PqFingerprint " +
+            "metadata onto a single item (a duplicate would otherwise crash the engine at startup " +
+            "when the generated frozen dictionaries are initialized).",
+            e.Item1);
+    }
+}
+
+// Fail closed: never write a generated source file from an invalid key set.
+if (Log.HasLoggedErrors)
+{
+    return false;
+}
+
+// Weakest-link warning (PQ-hybrid design §2.2, human decision §8.5): a MIXED baked set — some
+// keys with a PQ companion, some without — leaves the un-companioned keys as the quantum-era
+// weakest link. Warn (mid-migration states are legitimate), never fail the build.
+var companionedCount = 0;
+foreach (var e in entries)
+{
+    if (e.Item3.Length != 0)
+        companionedCount++;
+}
+if (companionedCount > 0 && companionedCount < entries.Count)
+{
+    Log.LogWarning(
+        "FALKPQ001: The baked trusted-key set mixes hybrid keys (PqFingerprint= set) with " +
+        "classical-only keys. Post-quantum protection is only as strong as the weakest pinned " +
+        "key - a quantum-capable forger targets the un-companioned keys. Add PqFingerprint= " +
+        "metadata to every FalkForgeTrustedKey item to close the gap.");
 }
 
 var sb = new StringBuilder();
@@ -113,7 +190,7 @@ sb.AppendLine("            {");
 foreach (var entry in entries)
 {
     // Escape for a C# string literal (hex only, but be defensive).
-    var escaped = entry.Key.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    var escaped = entry.Item1.Replace("\\", "\\\\").Replace("\"", "\\\"");
     sb.AppendLine(string.Format("                \"{0}\",", escaped));
 }
 
@@ -128,8 +205,26 @@ sb.AppendLine("            {");
 
 foreach (var entry in entries)
 {
-    var escaped = entry.Key.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    sb.AppendLine(string.Format("                new(\"{0}\", {1}),", escaped, entry.Value));
+    var escaped = entry.Item1.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    sb.AppendLine(string.Format("                new(\"{0}\", {1}),", escaped, entry.Item2));
+}
+
+sb.AppendLine("            },");
+sb.AppendLine("            System.StringComparer.OrdinalIgnoreCase);");
+sb.AppendLine();
+sb.AppendLine("    /// <summary>PQ-hybrid companions (Stage 1, §2.3): classical fingerprint -> pinned ML-DSA companion fingerprint. Empty = no hybrid pins.</summary>");
+sb.AppendLine("    internal static readonly System.Collections.Frozen.FrozenDictionary<string, string> PqCompanions =");
+sb.AppendLine("        System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(");
+sb.AppendLine("            new System.Collections.Generic.KeyValuePair<string, string>[]");
+sb.AppendLine("            {");
+
+foreach (var entry in entries)
+{
+    if (entry.Item3.Length == 0)
+        continue;
+    var escapedFp = entry.Item1.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    var escapedPq = entry.Item3.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    sb.AppendLine(string.Format("                new(\"{0}\", \"{1}\"),", escapedFp, escapedPq));
 }
 
 sb.AppendLine("            },");
