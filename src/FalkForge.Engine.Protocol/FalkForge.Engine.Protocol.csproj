@@ -3,7 +3,9 @@
     <RootNamespace>FalkForge.Engine.Protocol</RootNamespace>
     <Description>IPC protocol types and serialization for FalkForge engine</Description>
     <IsAotCompatible>true</IsAotCompatible>
-    <!-- Required by LibraryImport source-generation (GetNamedPipeServerProcessId in NativePipeMethods). -->
+    <!-- Required by LibraryImport source-generation for NativePipeMethods.GetNamedPipeServerProcessId.
+         Verified 2026-07-10: removing this fails the build with SYSLIB1062 ("LibraryImportAttribute
+         requires unsafe code") and CS0227 in the generated LibraryImports.g.cs. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>

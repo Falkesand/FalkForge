@@ -26,17 +26,9 @@ public static class PipeSecurityValidator
         return nonce;
     }
 
-    public static byte[] ComputeHmac(byte[] sharedSecret, byte[] nonce)
-    {
-        using var hmac = new HMACSHA256(sharedSecret);
-        return hmac.ComputeHash(nonce);
-    }
-
-    public static bool ValidateHmac(byte[] sharedSecret, byte[] nonce, byte[] receivedHmac)
-    {
-        var expected = ComputeHmac(sharedSecret, nonce);
-        return CryptographicOperations.FixedTimeEquals(expected, receivedHmac);
-    }
+    // NOTE: the old one-directional ComputeHmac/ValidateHmac primitives were removed once the
+    // mutual handshake landed — they authenticated only one party and leaving them as public
+    // API invited copy-paste of the insecure pattern. Use ComputeProof/ValidateProof.
 
     /// <summary>
     /// Computes a mutual-auth proof tag = HMAC-SHA256(secret, label || serverNonce || clientNonce).

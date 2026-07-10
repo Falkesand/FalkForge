@@ -7068,12 +7068,12 @@ public static class MessageCodecRegistry
     public TimeSpan ConnectionTimeout { get; init; } = TimeSpan.FromSeconds(30);
 }</code></pre>
 
-<h4>Handshake Protocol</h4>
+<h4>Handshake Protocol (mutual authentication)</h4>
 <ol>
-    <li>Server generates a 32-byte cryptographic nonce using <code>RandomNumberGenerator</code></li>
-    <li>Server sends nonce to client</li>
-    <li>Client computes HMAC-SHA256 of the nonce using the shared secret and sends it back</li>
-    <li>Server validates the HMAC using constant-time comparison (<code>CryptographicOperations.FixedTimeEquals</code>)</li>
+    <li>Server generates a 32-byte cryptographic nonce using <code>RandomNumberGenerator</code> and sends it to the client</li>
+    <li>Client generates its own 32-byte nonce and sends <code>clientNonce || tag_c</code>, where <code>tag_c = HMAC-SHA256(secret, LABEL_C2S || serverNonce || clientNonce)</code></li>
+    <li>Server validates <code>tag_c</code> using constant-time comparison (<code>CryptographicOperations.FixedTimeEquals</code>), then replies with <code>tag_s = HMAC-SHA256(secret, LABEL_S2C || serverNonce || clientNonce)</code></li>
+    <li>Client validates <code>tag_s</code> before processing any message — a server that cannot prove knowledge of the secret is refused. Distinct labels (<code>LABEL_C2S</code> ≠ <code>LABEL_S2C</code>) prevent reflection of one party's proof as the other's</li>
 </ol>
 
 <h4>PipeSecurityValidator</h4>
@@ -7082,9 +7082,14 @@ public static class MessageCodecRegistry
 {
     public const int NonceSize = 32;
     public const int HmacSize = 32;
+    public static ReadOnlySpan&lt;byte&gt; ClientProofLabel { get; }
+    public static ReadOnlySpan&lt;byte&gt; ServerProofLabel { get; }
     public static byte[] GenerateNonce();
-    public static byte[] ComputeHmac(byte[] sharedSecret, byte[] nonce);
-    public static bool ValidateHmac(byte[] sharedSecret, byte[] nonce, byte[] receivedHmac);
+    public static byte[] ComputeProof(byte[] sharedSecret, ReadOnlySpan&lt;byte&gt; label,
+        ReadOnlySpan&lt;byte&gt; serverNonce, ReadOnlySpan&lt;byte&gt; clientNonce);
+    public static bool ValidateProof(byte[] sharedSecret, ReadOnlySpan&lt;byte&gt; label,
+        ReadOnlySpan&lt;byte&gt; serverNonce, ReadOnlySpan&lt;byte&gt; clientNonce,
+        ReadOnlySpan&lt;byte&gt; receivedProof);
 }</code></pre>
 
 <div class="warning">

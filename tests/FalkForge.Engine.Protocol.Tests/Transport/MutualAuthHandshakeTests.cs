@@ -20,9 +20,10 @@ public class MutualAuthHandshakeTests
 {
     private enum ServerBehavior
     {
-        WrongSecret,   // rogue server that does not know the shared secret
-        Reflection,    // rogue server that echoes the client's own tag_c back as tag_s
-        Honest         // legitimate server that knows the secret
+        WrongSecret,          // rogue server that does not know the shared secret
+        Reflection,           // rogue server that echoes the client's own tag_c back as tag_s
+        TruncateBeforeProof,  // server that closes the pipe without ever sending tag_s
+        Honest                // legitimate server that knows the secret
     }
 
     // A hand-rolled server that speaks the mutual handshake wire protocol with a chosen (possibly
@@ -52,6 +53,11 @@ public class MutualAuthHandshakeTests
         await ReadExactAsync(server, response, ct);
         var clientNonce = response.AsSpan(0, PipeSecurityValidator.NonceSize).ToArray();
         var clientProof = response.AsSpan(PipeSecurityValidator.NonceSize, PipeSecurityValidator.HmacSize).ToArray();
+
+        // Truncation: bail out before step 3 — never send tag_s. Disposal (await using)
+        // closes the pipe, so the client observes EOF before the server proved its identity.
+        if (behavior == ServerBehavior.TruncateBeforeProof)
+            return;
 
         // 3. Server -> client: tag_s per the chosen strategy.
         byte[] serverProof = behavior switch
@@ -179,6 +185,52 @@ public class MutualAuthHandshakeTests
     }
 
     [Fact]
+    public async Task Client_rejects_server_that_disconnects_before_proving_identity()
+    {
+        // Truncation: a server that runs the handshake up to receiving clientNonce || tag_c but
+        // closes the pipe WITHOUT sending tag_s has never proven knowledge of the secret. The
+        // client must treat the truncated handshake as a failure — never as an authenticated
+        // connection — and must not dispatch any command.
+        var pipeName = $"test-{Guid.NewGuid()}";
+        var secret = RandomNumberGenerator.GetBytes(32);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var commandDispatched = false;
+        var serverTask = RunRawServerAsync(pipeName, secret, ServerBehavior.TruncateBeforeProof, cts.Token);
+
+        var securityEvents = new List<string>();
+        var options = new PipeConnectionOptions
+        {
+            PipeName = pipeName,
+            SharedSecret = secret,
+            ConnectionTimeout = TimeSpan.FromSeconds(5),
+            OnSecurityEvent = securityEvents.Add
+        };
+        await using var client = new PipeClient(options, _ =>
+        {
+            commandDispatched = true;
+            return Task.CompletedTask;
+        });
+
+        var result = await client.ConnectAsync(cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.HandshakeError, result.Error.Kind);
+        Assert.False(client.IsConnected);
+
+        try { await serverTask; } catch (Exception ex) when (ex is IOException or EndOfStreamException or OperationCanceledException) { }
+
+        // No command may ever reach the handler over an unproven connection.
+        Assert.False(commandDispatched);
+
+        // Pin the EXACT branch: the failure must come from the missing tag_s (server never
+        // proved its identity), not from the earlier serverNonce-truncation branch.
+        Assert.Contains(
+            "Server disconnected during HMAC handshake before proving its identity",
+            securityEvents);
+    }
+
+    [Fact]
     public async Task Client_accepts_honest_server_and_completes_handshake()
     {
         // Control: the exact same harness with an honest server (real secret + server label)
@@ -245,6 +297,12 @@ public class MutualAuthHandshakeTests
     [Fact]
     public async Task Client_rejects_server_whose_pid_differs_from_expected_parent()
     {
+        // PID binding is Windows-only (GetNamedPipeServerProcessId); the production check is
+        // skipped off-Windows, so this test would assert nothing there. Skip explicitly rather
+        // than report a false green on a non-Windows runner.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
         // Server-PID binding: the in-process test server is owned by THIS process, so an
         // ExpectedServerProcessId that is not this process must be refused before any command.
         var options = new PipeConnectionOptions
@@ -286,6 +344,11 @@ public class MutualAuthHandshakeTests
     [Fact]
     public async Task Client_accepts_server_whose_pid_matches_expected_parent()
     {
+        // PID binding is Windows-only (GetNamedPipeServerProcessId); skip explicitly off-Windows
+        // rather than pass without exercising the check.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
         // Positive PID-binding case: the in-process server's owner PID == this process, so a
         // matching ExpectedServerProcessId completes the handshake.
         var options = new PipeConnectionOptions
