@@ -178,6 +178,28 @@ public sealed class BuildCommandSigningTests : IDisposable
             Assert.Single(envelope!.Signatures).Fingerprint);
     }
 
+    // ── placeholder-stub warning: a signed bundle is NOT a runnable installer ─
+
+    [Fact]
+    public void PemSigning_PrintsPlaceholderStubNotRunnableWarning()
+    {
+        // The signed bundle wraps a design-time placeholder engine stub (no NativeAOT engine),
+        // so it verifies but cannot install anything. The build must say so LOUDLY at build
+        // time, not just in tutorial prose.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        File.WriteAllText(Path.Combine(_tempDir, "release.pem"), key.ExportPkcs8PrivateKeyPem());
+
+        var (exitCode, console, _) = RunBuild(
+            WriteConfig("""{ "provider": "pem", "keyPath": "release.pem" }"""));
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        Assert.Contains(console.AllOutput, line =>
+            line.Contains("NOT a runnable installer", StringComparison.Ordinal));
+    }
+
     // ── fail-closed: unresolvable signing config must fail the build ─────────
 
     [Fact]
@@ -192,6 +214,36 @@ public sealed class BuildCommandSigningTests : IDisposable
         Assert.NotEqual(ExitCodes.Success, exitCode);
         Assert.Empty(Directory.GetFiles(outputDir, "*.exe"));
         Assert.Contains(console.Errors, e => e.Contains("JSN019", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SecretShapedBearerTokenEnv_FailsClosed_ConsoleNeverEchoesTheSecret()
+    {
+        // A real alnum-only token mispasted into bearerTokenEnv passes the loader's charset
+        // check (JSN016 cannot classify it), the env var of that literal name is unset, and
+        // the fail-closed error surfaces on the console — where it must NOT echo the token
+        // into stdout / CI logs. This is the end-to-end leak regression.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        const string secretShapedToken = "ghp_FakeLeakCanary0123456789abcdef";
+
+        var (exitCode, console, outputDir) = RunBuild(WriteConfig($$"""
+            {
+                "provider": "signserver",
+                "baseUrl": "https://sign.example.com",
+                "worker": "PlainSigner",
+                "authMode": "bearer",
+                "bearerTokenEnv": "{{secretShapedToken}}"
+            }
+            """));
+
+        Assert.NotEqual(ExitCodes.Success, exitCode);
+        Assert.Empty(Directory.GetFiles(outputDir, "*.exe"));
+        Assert.Contains(console.Errors, e => e.Contains("JSN019", StringComparison.Ordinal));
+        Assert.Contains(console.Errors, e => e.Contains("bearerTokenEnv", StringComparison.Ordinal));
+        Assert.DoesNotContain(console.AllOutput, line =>
+            line.Contains(secretShapedToken, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

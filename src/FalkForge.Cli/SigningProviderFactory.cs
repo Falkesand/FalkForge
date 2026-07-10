@@ -65,9 +65,11 @@ internal static class SigningProviderFactory
             ? config.KeyPath!
             : Path.GetFullPath(Path.Combine(baseDirectory, config.KeyPath!));
 
+        // Never echo the configured value: a secret mispasted into keyPath would otherwise
+        // land verbatim in CLI/CI logs. Name the field to fix instead.
         if (!File.Exists(keyPath))
             return Result<ResolvedSigning>.Failure(new Error(ErrorKind.SecurityError,
-                $"JSN019: Signing key file not found: '{keyPath}'. The build fails closed rather than producing an unsigned bundle."));
+                "JSN019: The signing key file that signing.keyPath points to was not found. The build fails closed rather than producing an unsigned bundle."));
 
         return Result<ResolvedSigning>.Success(
             new ResolvedSigning(new PemSignatureProvider(keyPath), []));
@@ -136,9 +138,10 @@ internal static class SigningProviderFactory
         if (pfxPath.IsFailure)
             return Result<X509Certificate2>.Failure(pfxPath.Error);
 
+        // The env var VALUE is user-controlled and may be a mispasted secret — never echo it.
         if (!File.Exists(pfxPath.Value))
             return Result<X509Certificate2>.Failure(new Error(ErrorKind.SecurityError,
-                $"JSN019: Client certificate file not found: '{pfxPath.Value}' (from signing.clientCertPathEnv)."));
+                "JSN019: The client certificate file named by the environment variable in signing.clientCertPathEnv was not found."));
 
         string? password = null;
         if (!string.IsNullOrWhiteSpace(config.ClientCertPasswordEnv))
@@ -157,16 +160,19 @@ internal static class SigningProviderFactory
         catch (CryptographicException ex)
         {
             return Result<X509Certificate2>.Failure(new Error(ErrorKind.SecurityError,
-                $"JSN019: Failed to load client certificate from '{pfxPath.Value}': {ex.Message}"));
+                $"JSN019: Failed to load the client certificate named by signing.clientCertPathEnv: {ex.Message}"));
         }
     }
 
     private static Result<string> RequireEnv(string envName, string field)
     {
+        // The env var NAME is a user-supplied config value that charset validation (JSN016)
+        // cannot distinguish from a mispasted alphanumeric token, so the error must reference
+        // the config FIELD and never echo the value into CLI/CI logs.
         var value = Environment.GetEnvironmentVariable(envName);
         if (string.IsNullOrEmpty(value))
             return Result<string>.Failure(new Error(ErrorKind.SecurityError,
-                $"JSN019: Environment variable '{envName}' (signing.{field}) is not set — the build fails closed rather than signing without it."));
+                $"JSN019: The environment variable named by signing.{field} is not set — the build fails closed rather than signing without it."));
 
         return Result<string>.Success(value);
     }

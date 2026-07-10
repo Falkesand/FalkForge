@@ -296,6 +296,75 @@ public sealed class SigningProviderFactoryTests : IDisposable
         provider.Dispose();
     }
 
+    // ── secret-leak regression: error messages must never echo config VALUES ─
+    //
+    // A real alphanumeric token (GitHub ghp_…, Stripe sk_live_…) mispasted into a
+    // '*Env' or path field passes the loader's charset check (JSN016), so the
+    // fail-closed JSN019 error is the last line of defense: it must name the config
+    // FIELD to fix, never echo the mispasted VALUE into stdout / CI logs.
+
+    /// <summary>
+    /// A secret-shaped literal that passes IsValidEnvVarName (letters/digits/underscore only).
+    /// Deliberately NOT the exact ghp_ token shape so secret scanners never flag the fixture.
+    /// </summary>
+    private const string SecretShapedLiteral = "ghp_FakeLeakCanary0123456789abcdef";
+
+    [Fact]
+    public void SignServer_BearerTokenEnvHoldsSecretShapedValue_ErrorNamesFieldWithoutEchoingValue()
+    {
+        // The env var of this literal name is (of course) unset, so the build fails closed —
+        // and the error must not leak the mispasted token into the console.
+        var result = SigningProviderFactory.BuildSignServerConfig(new SigningConfig
+        {
+            Provider = "signserver",
+            BaseUrl = "https://sign.example.com",
+            Worker = "W",
+            AuthMode = "bearer",
+            BearerTokenEnv = SecretShapedLiteral,
+        });
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.Contains("bearerTokenEnv", result.Error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(SecretShapedLiteral, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Pem_KeyPathHoldsSecretShapedValue_ErrorNamesFieldWithoutEchoingValue()
+    {
+        // A secret mispasted into keyPath resolves to a non-existent file; the missing-file
+        // error must reference signing.keyPath, not print the resolved path (= the secret).
+        var result = SigningProviderFactory.Create(
+            new SigningConfig { Provider = "pem", KeyPath = SecretShapedLiteral }, _tempDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.Contains("keyPath", result.Error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(SecretShapedLiteral, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SignServer_ClientCertPathEnvValueIsSecretShaped_ErrorNamesFieldWithoutEchoingValue()
+    {
+        // Here the env var IS set, but its VALUE is a mispasted secret rather than a PFX path.
+        // The file-not-found error must not echo that value.
+        var certPathEnv = SetEnv(SecretShapedLiteral);
+
+        var result = SigningProviderFactory.BuildSignServerConfig(new SigningConfig
+        {
+            Provider = "signserver",
+            BaseUrl = "https://sign.example.com",
+            Worker = "W",
+            AuthMode = "clientcert",
+            ClientCertPathEnv = certPathEnv,
+        });
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.Contains("clientCertPathEnv", result.Error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(SecretShapedLiteral, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── warnings (match SignServerConfig doc guidance: warn, don't fail) ─────
 
     [Fact]

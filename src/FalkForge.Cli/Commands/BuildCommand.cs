@@ -189,6 +189,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
                 }
 
                 _console.MarkupLine($"[green]Signed bundle created:[/] {Markup.Escape(bundleResult.Value)}");
+                _console.MarkupLine("[yellow]Note: this signed bundle uses a design-time placeholder engine stub and is NOT a runnable installer — its manifest signature verifies, but do not distribute it as an installer.[/]");
             }
 
             if (settings.GenerateWinGet)

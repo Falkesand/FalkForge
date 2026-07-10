@@ -45,9 +45,12 @@ public sealed class PemSignatureProvider : ISignatureProvider
     {
         // Local crypto completes synchronously — the abstraction is async for remote backends, but this
         // path never blocks and returns an already-completed ValueTask.
+        // The key path can originate from user config (e.g. forge build's signing.keyPath), where
+        // a mispasted secret would otherwise be echoed verbatim into CLI/CI logs — name the
+        // source, never the configured value.
         if (_keyPath is not null && !File.Exists(_keyPath))
             return new ValueTask<Result<ProviderSignature>>(Result<ProviderSignature>.Failure(
-                ErrorKind.SecurityError, $"SGN002: Signing key file not found at '{_keyPath}'."));
+                ErrorKind.SecurityError, "SGN002: Signing key file not found at the configured signing key path."));
 
         try
         {
@@ -63,8 +66,9 @@ public sealed class PemSignatureProvider : ISignatureProvider
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or CryptographicException)
         {
-            // In-memory PEM is secret key material — the error must name the source without echoing it.
-            var source = _keyPath is not null ? $"'{_keyPath}'" : "in-memory PEM content";
+            // Both sources are secret-adjacent — in-memory PEM is key material, and the key path can
+            // be a mispasted secret from user config — so the error names the source without echoing it.
+            var source = _keyPath is not null ? "the configured signing key file" : "in-memory PEM content";
             return new ValueTask<Result<ProviderSignature>>(Result<ProviderSignature>.Failure(
                 ErrorKind.SecurityError, $"SGN002: Failed to load signing key from {source}: {ex.Message}"));
         }

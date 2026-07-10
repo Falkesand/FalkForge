@@ -66,6 +66,38 @@ public sealed class SignatureProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task PemSignatureProvider_MissingFile_ErrorDoesNotEchoKeyPath()
+    {
+        // The key path can originate from user config (forge build's signing.keyPath), where a
+        // mispasted secret would land verbatim in CLI/CI logs. The error names the source
+        // conceptually; it must never echo the configured path value.
+        const string secretShapedName = "ghp_FakeLeakCanary0123456789abcdef";
+        var keyPath = Path.Combine(_tempDir, secretShapedName);
+
+        var result = await new PemSignatureProvider(keyPath).SignAsync(Message);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SGN002", result.Error.Message);
+        Assert.DoesNotContain(secretShapedName, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PemSignatureProvider_InvalidKeyFile_ErrorDoesNotEchoKeyPath()
+    {
+        // Sibling of the missing-file case: a load failure on an EXISTING file must also
+        // avoid echoing the configured path value.
+        const string secretShapedName = "sklive_FakeLeakCanary0123456789";
+        var keyPath = Path.Combine(_tempDir, secretShapedName);
+        File.WriteAllText(keyPath, "not-a-pem-private-key");
+
+        var result = await new PemSignatureProvider(keyPath).SignAsync(Message);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SGN002", result.Error.Message);
+        Assert.DoesNotContain(secretShapedName, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task PemSignatureProvider_CompletesSynchronously()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
