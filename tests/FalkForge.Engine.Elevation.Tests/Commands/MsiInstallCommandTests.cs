@@ -118,9 +118,7 @@ public sealed class MsiInstallCommandTests : IDisposable
     [InlineData("PROP=VALUE ; rm -rf /")]
     [InlineData("PROP=VALUE > output.txt")]
     [InlineData("PROP=VALUE < input.txt")]
-    [InlineData("PROP=VALUE `id`")]
-    [InlineData("PROP=VALUE $(whoami)")]
-    public void Execute_RejectsShellMetachars(string additionalArgs)
+    public void Execute_RejectsProhibitedChars(string additionalArgs)
     {
         var payload = BuildPayload(_tempMsiPath, additionalArgs);
 
@@ -128,7 +126,24 @@ public sealed class MsiInstallCommandTests : IDisposable
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
-        Assert.Contains("metacharacter", result.Error.Message);
+        Assert.Contains("prohibited characters", result.Error.Message);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_RejectsDoubleQuoteInArgs()
+    {
+        // FIX 5: the double-quote is the delimiter that actually breaks an MSI property string
+        // (MsiInstallProduct receives NAME="VALUE" pairs, not a shell). An unescaped quote lets a
+        // value break out and inject an unintended property, so it must be rejected — matching the
+        // engine-side MsiExecutor.ProhibitedValueChars set. The prior blocklist missed it entirely.
+        var payload = BuildPayload(_tempMsiPath, "PROP=\"evil\" INJECTED=1");
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("prohibited characters", result.Error.Message);
         Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
     }
 

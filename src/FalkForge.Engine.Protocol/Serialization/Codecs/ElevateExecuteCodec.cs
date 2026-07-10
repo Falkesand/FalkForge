@@ -12,6 +12,14 @@ internal sealed class ElevateExecuteCodec
 {
     private ElevateExecuteCodec() { }
 
+    /// <summary>
+    /// Maximum command-payload size accepted on the wire. The inner payload length is
+    /// attacker-controlled and independent of the outer frame length, so it is clamped here to
+    /// prevent a tiny frame from declaring a ~2 GB payload and OOM-crashing the receive loop.
+    /// Mirrors <see cref="SetSecurePropertyCodec.MaxPayloadSize"/>.
+    /// </summary>
+    internal const int MaxPayloadSize = 1 * 1024 * 1024;
+
     /// <summary>The wire-version-1 codec for <see cref="ElevateExecuteMessage"/>.</summary>
     public static readonly MessageCodec<ElevateExecuteMessage> Instance = new()
     {
@@ -33,6 +41,12 @@ internal sealed class ElevateExecuteCodec
             var sequenceId = reader.ReadUInt32();
             var commandName = reader.ReadString();
             var payloadLength = reader.ReadInt32();
+            if (payloadLength < 0 || payloadLength > MaxPayloadSize)
+            {
+                throw new InvalidOperationException(
+                    $"Elevate command payload length out of range: {payloadLength}");
+            }
+
             var payload = reader.ReadBytes(payloadLength);
             return new ElevateExecuteMessage
             {

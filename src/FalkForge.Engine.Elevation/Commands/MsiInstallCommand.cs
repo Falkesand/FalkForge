@@ -9,9 +9,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
     private const int InstallUILevelNone = 2;
     private const uint ErrorSuccess = 0;
     private const uint ErrorSuccessRebootRequired = 3010;
+    // Prohibited characters for MSI additional arguments. This runs through MsiInstallProduct
+    // (a P/Invoke, NOT a shell), so shell metacharacters are irrelevant; the character that
+    // actually breaks an MSI property string is the double-quote (the NAME="VALUE" delimiter),
+    // plus the redirection/pipe/command separators. Aligned with the engine-side
+    // MsiExecutor.ProhibitedValueChars set. Whitespace is intentionally allowed — it separates
+    // NAME="VALUE" property pairs.
     // CA1870: SearchValues is the optimized, cached form of a fixed char set for IndexOfAny.
-    private static readonly SearchValues<char> ShellMetacharacters =
-        SearchValues.Create("&|;><`$(){}");
+    private static readonly SearchValues<char> ProhibitedArgChars =
+        SearchValues.Create("\"&|;><");
 
     private readonly IMsiApi _msiApi;
 
@@ -36,8 +42,8 @@ public sealed class MsiInstallCommand : IElevatedCommand
         if (!File.Exists(msiPath))
             return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
 
-        if (additionalArgs.AsSpan().IndexOfAny(ShellMetacharacters) >= 0)
-            return Result<byte[]>.Failure(ErrorKind.SecurityError, "Additional arguments contain prohibited shell metacharacters");
+        if (additionalArgs.AsSpan().IndexOfAny(ProhibitedArgChars) >= 0)
+            return Result<byte[]>.Failure(ErrorKind.SecurityError, "Additional arguments contain prohibited characters");
 
         MsiExternalUIHandler? handler = null;
         GCHandle gcHandle = default;
