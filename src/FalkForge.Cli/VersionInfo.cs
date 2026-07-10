@@ -11,8 +11,9 @@ namespace FalkForge.Cli;
 internal static class VersionInfo
 {
     /// <summary>
-    /// Full informational version, e.g. <c>0.1.0-alpha.1+&lt;commit-sha&gt;</c>
-    /// (Source Link appends the commit hash as build metadata).
+    /// Full informational version, e.g. <c>0.1.0-alpha.1</c>. May carry a
+    /// <c>+&lt;metadata&gt;</c> build-metadata suffix (e.g. if Source Link is added
+    /// later); consumers tolerate and strip it.
     /// </summary>
     internal static string CliVersion { get; } = ResolveVersion();
 

@@ -20,11 +20,13 @@ public sealed class VersionSingleSourceTests
     internal const string ExpectedVersion = "0.1.0-alpha.1";
 
     [Fact]
-    public void CoreAssembly_InformationalVersion_StartsWithSingleSourceVersion()
+    public void CoreAssembly_InformationalVersion_EqualsSingleSourceVersion()
     {
         var informational = InformationalVersionOf(typeof(Installer).Assembly);
 
-        Assert.StartsWith(ExpectedVersion, informational, StringComparison.Ordinal);
+        // Exact match (after stripping "+<metadata>") — StartsWith would false-pass
+        // when e.g. alpha.10 ships against a stale ExpectedVersion of alpha.1.
+        Assert.Equal(ExpectedVersion, StripBuildMetadata(informational));
     }
 
     [Fact]
@@ -57,7 +59,8 @@ public sealed class VersionSingleSourceTests
 
     private static string StripBuildMetadata(string version)
     {
-        // Source Link appends "+<commit-sha>"; the semantic version part must match exactly.
+        // The informational version may carry a "+<metadata>" suffix (e.g. if Source Link
+        // is added later); tolerate and strip it — the semantic version part must match exactly.
         var plusIndex = version.IndexOf('+', StringComparison.Ordinal);
         return plusIndex >= 0 ? version[..plusIndex] : version;
     }

@@ -1,6 +1,6 @@
 # FalkForge
 
-Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools. Self-contained compiler, NativeAOT runtime engine, six output formats.
+Build Windows installers -- MSI, MSIX (experimental), and EXE bundles -- with no external tools. Self-contained compiler, NativeAOT runtime engine, six output formats.
 
 ## About This Project
 
@@ -24,7 +24,7 @@ live here.
 ## Why FalkForge?
 
 - **Self-contained compiler** -- Direct P/Invoke to `msi.dll`. No WiX, no InstallShield, no external tools.
-- **Six output formats** -- MSI, MSIX, MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
+- **Six output formats** -- MSI, MSIX (experimental), MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
 - **NativeAOT engine** -- Sub-10ms startup bundle runtime. Three-process architecture with named-pipe IPC.
 - **WPF custom UI** -- Page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
 - **Modern delivery** -- Delta updates (Octodiff), automatic update feeds, WinGet manifest generation.
