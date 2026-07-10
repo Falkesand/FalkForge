@@ -7,6 +7,9 @@
          Verified 2026-07-10: removing this fails the build with SYSLIB1062 ("LibraryImportAttribute
          requires unsafe code") and CS0227 in the generated LibraryImports.g.cs. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Deliberate opt-in to the .NET 10 ML-DSA (FIPS 204) API for PQ-hybrid manifest signing —
+         see the rationale comment in FalkForge.Core.csproj. AOT-safe (probe-verified NativeAOT). -->
+    <NoWarn>$(NoWarn);SYSLIB5006</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Engine.Protocol.Tests" />
