@@ -4,6 +4,8 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>FalkForge.Engine.Elevation</RootNamespace>
     <Description>Elevated companion process for FalkForge engine</Description>
+    <!-- Required by the LibraryImport source generator (Interop/NativeFileMethods.cs). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IlcOptimizationPreference>Size</IlcOptimizationPreference>

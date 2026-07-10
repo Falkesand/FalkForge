@@ -72,10 +72,10 @@ internal static class ElevatedPathPolicy
     /// junction under a writable allowed root (e.g. ProgramData) could redirect an elevated
     /// write into a forbidden location such as System32. Verifying every existing level and
     /// creating every missing level one at a time defeats a junction planted BEFORE the check.
-    /// A path-based TOCTOU residual remains: the subsequent write is path-based (e.g.
-    /// <see cref="File.WriteAllBytes(string, byte[])"/>), not a held no-follow handle, so a
-    /// junction swapped in between this verification and the write is not detected — the
-    /// handle-based no-follow write is tracked as a follow-up.
+    /// This walk is the OUTER gate and is intentionally point-in-time: a junction swapped in
+    /// AFTER it is caught by the inner enforcement in <see cref="NoFollowFileWriter"/>, which
+    /// pins the parent by a verified no-follow handle and writes only through verified handles
+    /// (see that type for the precise residual that remains).
     /// </remarks>
     internal static Result<Unit> EnsureDirectoryTreeSafe(string leafDirectory, ReadOnlySpan<string> allowedRoots)
     {
