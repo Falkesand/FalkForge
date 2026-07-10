@@ -59,6 +59,35 @@ public sealed class DriverValidatorTests
     }
 
     [Fact]
+    public void Validate_InfFilePathWithEmbeddedQuote_ReturnsDRV005()
+    {
+        // InfFilePath is embedded in a pnputil command line ("[INSTALLDIR]{InfFilePath}")
+        // executed as SYSTEM by a deferred custom action; an embedded quote would break
+        // out of the quoting and inject extra arguments. Mirrors the HttpValidator guard.
+        var drivers = new List<DriverModel>
+        {
+            new() { Id = "Drv1", InfFilePath = "a\" /delete-driver oem0.inf b.inf" },
+        };
+
+        var errors = DriverValidator.Validate(drivers);
+
+        Assert.Contains(errors, e => e.Code == "DRV005");
+    }
+
+    [Fact]
+    public void Validate_InfFilePathWithNewline_ReturnsDRV005()
+    {
+        var drivers = new List<DriverModel>
+        {
+            new() { Id = "Drv1", InfFilePath = "a\r\nb.inf" },
+        };
+
+        var errors = DriverValidator.Validate(drivers);
+
+        Assert.Contains(errors, e => e.Code == "DRV005");
+    }
+
+    [Fact]
     public void Validate_DuplicateIds_ReturnsDRV004()
     {
         var drivers = new List<DriverModel>

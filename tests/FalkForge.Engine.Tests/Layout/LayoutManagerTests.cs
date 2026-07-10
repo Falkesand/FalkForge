@@ -159,6 +159,85 @@ public sealed class LayoutManagerTests : IDisposable
         Assert.Contains("not found", result.Error.Message);
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Containment: the layout write target derives from the manifest-controlled
+    // SourcePath. It must be routed through the shared ContainedPathResolver so a
+    // hostile manifest can never name a write target outside the layout root, and
+    // the failure is a loud, uniform LayoutError (not an incidental downstream error).
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateLayoutAsync_SourcePathResolvingToParentSegment_FailsWithLayoutError()
+    {
+        // Path.GetFileName("..") returns ".." — without containment this would target
+        // the layout directory's PARENT.
+        var package = new PackageInfo
+        {
+            Id = "Evil",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Evil Package",
+            SourcePath = "..",
+            Sha256Hash = "AABB",
+            DownloadUrl = "https://example.com/evil.msi"
+        };
+        var manifest = CreateManifest(package);
+        var manager = CreateManager();
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.LayoutError, result.Error.Kind);
+        Assert.Contains("escapes", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task CreateLayoutAsync_SourcePathWithAlternateDataStreamName_FailsWithLayoutError()
+    {
+        // "name:stream" is a valid NTFS alternate-data-stream target; a layout payload
+        // must never be written into a hidden stream.
+        var package = new PackageInfo
+        {
+            Id = "Ads",
+            Type = PackageType.MsiPackage,
+            DisplayName = "ADS Package",
+            SourcePath = "payload.msi:evil",
+            Sha256Hash = "AABB",
+            DownloadUrl = "https://example.com/payload.msi"
+        };
+        var manifest = CreateManifest(package);
+        var manager = CreateManager();
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.LayoutError, result.Error.Kind);
+        Assert.Contains("file name", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task CreateLayoutAsync_SourcePathWithTrailingSeparator_FailsWithLayoutError()
+    {
+        // A trailing separator yields an EMPTY file name — the write target would be the
+        // layout directory itself.
+        var package = new PackageInfo
+        {
+            Id = "Empty",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Empty Name Package",
+            SourcePath = @"C:\somewhere\",
+            Sha256Hash = "AABB",
+            DownloadUrl = "https://example.com/payload.msi"
+        };
+        var manifest = CreateManifest(package);
+        var manager = CreateManager();
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.LayoutError, result.Error.Kind);
+        Assert.Contains("file name", result.Error.Message);
+    }
+
     private static LayoutManager CreateManager()
     {
         using var client = new HttpClient();

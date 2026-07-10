@@ -45,6 +45,24 @@ public sealed class MspExecutorTests
     }
 
     [Fact]
+    public async Task Install_SourcePathWithEmbeddedQuote_ReturnsValidationFailure()
+    {
+        // The install arguments are built as a raw string (/p "{SourcePath}" ...); an
+        // embedded quote would break out of the quoting and inject extra msiexec switches.
+        // Mirrors the MsuExecutor guard.
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new MspExecutor(runner);
+        var action = CreateAction(sourcePath: "C:\\patches\\evil\" /x {00000000-0000-0000-0000-000000000000}.msp");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("embedded quotes", result.Error.Message);
+        Assert.Null(runner.LastFileName); // msiexec must never have been invoked
+    }
+
+    [Fact]
     public async Task Uninstall_BuildsCorrectArguments()
     {
         var runner = new MockProcessRunner().WithExitCode(0);
