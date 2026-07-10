@@ -782,12 +782,16 @@
           <span class="chevron">&#9656;</span><span class="nav-text">22. Bundle Signing &amp; Trust</span>
         </a>
         <div class="nav-children">
-          <a href="#signing-two-kinds">Two Kinds of Signing</a>
-          <a href="#signing-what-you-do">What You Do</a>
-          <a href="#signing-verification">How Verification Works</a>
-          <a href="#signing-rotation">Key Rotation</a>
-          <a href="#signing-cert-faq">Do I Need a Certificate?</a>
+          <a href="#signing-why">Why Installer Trust Matters</a>
+          <a href="#signing-two-kinds">The Two Kinds of Signing</a>
+          <a href="#signing-what-you-do">Signing Your Bundle</a>
+          <a href="#signing-trust">Who the Installer Trusts</a>
           <a href="#signing-remote-signserver">Remote Signing (SignServer)</a>
+          <a href="#signing-updates">Safe Updates</a>
+          <a href="#signing-rotation">Key Rotation</a>
+          <a href="#signing-roles-quorum">Roles &amp; Quorum</a>
+          <a href="#signing-cert-faq">Do I Need a Certificate?</a>
+          <a href="#signing-future">What's Coming</a>
         </div>
       </div>
 
@@ -10331,222 +10335,242 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
 <h2>22. Bundle Signing, Trust &amp; Key Rotation</h2>
 
 <p>
-    A FalkForge bundle is a self-extracting EXE laid out as
-    <code>[PE stub][Magic][Manifest JSON][compressed payloads][TOC][Footer]</code>. The payloads and the
-    table of contents are appended to the overlay <em>after</em> the PE stub is built. This section explains
-    the two independent kinds of signing that apply to a bundle, what you actually do to sign and trust one,
-    how the engine verifies an update, and how to rotate keys without stranding installed clients.
+    This section is a plain-language guide to keeping your installer trustworthy. You do not need to know any
+    cryptography to follow it. We explain <em>why</em> each piece exists before we show <em>how</em> to use it,
+    and every code snippet is a real FalkForge API. If you read nothing else, read the first two parts &mdash;
+    they cover the whole idea.
 </p>
 
-<h3 id="signing-two-kinds">Two Kinds of Signing</h3>
+<h3 id="signing-why">Why Installer Trust Matters</h3>
 
 <p>
-    There are two <strong>separate</strong> signatures in play, and they protect different things:
+    You build an installer, put it on a download page, and users run it. Later you ship an update and the
+    installed copy fetches it automatically. In both moments the user's machine is about to run <em>your</em>
+    code with <em>their</em> permissions. So there is one question that has to have a good answer:
+</p>
+
+<div class="note">
+    <strong>How does the user's machine know the installer &mdash; and every update after it &mdash; really
+    came from you, and that nobody changed a single byte on the way?</strong>
+</div>
+
+<p>
+    An installer travels a long way: a CDN, a mirror, a corporate proxy, a home router, a USB stick a
+    colleague handed over. Anywhere along that path, someone could swap a file inside it for a malicious one.
+    You want the machine to <em>notice</em> and refuse. That is what signing is for. Signing does not encrypt
+    or hide anything &mdash; it is a tamper-evident seal plus a name tag: &ldquo;these exact bytes were sealed
+    by this publisher, and here is proof.&rdquo;
+</p>
+
+<p>
+    <strong>A word people expect here: Authenticode.</strong> Authenticode is Microsoft's code-signing. It is
+    what makes Windows show a green &ldquo;verified publisher&rdquo; name in the User Account Control prompt
+    instead of &ldquo;Unknown publisher.&rdquo; It is genuinely useful &mdash; but it has a blind spot that
+    matters a lot for bundles, and understanding that blind spot is the key to this whole section.
+</p>
+
+<p>
+    A FalkForge bundle is a single self-extracting <code>.exe</code>. Inside, it is laid out like this:
+</p>
+
+<pre><code>[PE stub]  [Magic] [Manifest JSON] [compressed payloads] [TOC] [Footer]
+   ^                                        ^
+   |                                        |
+ the small program that            your actual files (the MSIs,
+ unpacks and installs              EXEs, data) live here, glued on
+                                   AFTER the PE stub was built</code></pre>
+
+<p>
+    Authenticode only signs the <strong>PE stub</strong> &mdash; the little launcher program at the front. But
+    your real files (the payloads) are glued onto the end <em>after</em> that stub was signed. So an
+    Authenticode signature can still look perfectly valid even if someone replaced every payload behind it.
+    The seal is on the envelope; the letter inside was swapped. That is why FalkForge adds its <em>own</em>
+    signature that covers the payloads.
+</p>
+
+<h3 id="signing-two-kinds">The Two Kinds of Signing</h3>
+
+<p>
+    There are two <strong>separate</strong> signatures you can apply to a bundle. They cost different amounts
+    and protect different things. You usually want both, but only one of them stops payload tampering.
 </p>
 
 <table class="api-table">
-    <thead><tr><th>Signature</th><th>Cost</th><th>Covers</th><th>Gives you</th></tr></thead>
+    <thead><tr><th>Signature</th><th>Costs</th><th>Protects</th><th>Gives you</th></tr></thead>
     <tbody>
         <tr>
             <td><strong>Authenticode</strong></td>
-            <td>Paid Windows code-signing certificate</td>
-            <td>Only the PE stub</td>
-            <td>The "verified publisher" UX (SmartScreen, the signed-publisher name in the UAC prompt)</td>
+            <td>A <em>paid</em> Windows code-signing certificate</td>
+            <td>Only the PE stub (the launcher)</td>
+            <td>The &ldquo;verified publisher&rdquo; name in the UAC prompt and better SmartScreen reputation</td>
         </tr>
         <tr>
             <td><strong>FalkForge payload signature</strong></td>
-            <td>Free &mdash; your own ECDSA P-256 key</td>
-            <td>The actual payload files (via the signed hash list in the manifest envelope)</td>
-            <td>Tamper-evidence and publisher authorship for the bytes that get installed</td>
+            <td><em>Free</em> &mdash; your own key, made with <code>openssl</code> or .NET</td>
+            <td>The actual files that get installed</td>
+            <td>Proof that the payload bytes are unchanged and came from you</td>
         </tr>
     </tbody>
 </table>
 
 <p>
-    Authenticode alone is <strong>not</strong> enough. It signs only the PE stub, and the payloads plus the
-    TOC are appended to the overlay after that stub is signed &mdash; so an Authenticode signature that still
-    validates says nothing about whether the payload bytes were swapped. The picture:
+    Here is the whole picture in one diagram &mdash; who signs what:
 </p>
 
 <pre><code>[PE stub]  [Magic] [Manifest JSON] [compressed payloads] [TOC] [Footer]
    ^                     ^                  ^
    |                     |                  |
- Authenticode      FalkForge ECDSA     appended AFTER the
- signs only        signature covers    stub is signed
- this              these hashes        (Authenticode blind here)</code></pre>
+ Authenticode      FalkForge's        added AFTER the stub was
+ signs only        signature covers   signed, so Authenticode
+ this launcher     these file hashes  is blind to any change here</code></pre>
 
 <div class="warning">
-    A valid Authenticode signature does not imply the payloads are untampered. Overlay bytes are added after
-    the stub is signed, so payload integrity is the FalkForge payload signature's job &mdash; not
-    Authenticode's.
+    <strong>A valid Authenticode signature does NOT mean the payloads are untampered.</strong> The payloads
+    are added after the stub is signed. Protecting the payload bytes is the FalkForge payload signature's job,
+    not Authenticode's. This is the single most important idea in this section.
 </div>
 
-<h3 id="signing-what-you-do">What You Do</h3>
-
 <p>
-    Signing the payloads is free and uses a key you own. There are four steps: generate a keypair, keep the
-    private key in a secret store, enable integrity signing on the bundle, and bake the <em>public</em>-key
-    fingerprint into the engine you ship.
+    One more plain-language term you will meet below: a <strong>fingerprint</strong>. A fingerprint is just a
+    short, fixed-length summary (a SHA-256 hash) of a public key, written as hex. Two different keys practically
+    never share a fingerprint, so it is a safe stand-in for &ldquo;this exact key.&rdquo; It is computed from a
+    <em>public</em> key, so publishing it or baking it into a program leaks nothing secret. And
+    <strong>ECDSA</strong> (which you will see as &ldquo;ECDSA P-256&rdquo;) is simply the signing algorithm
+    FalkForge uses &mdash; a modern, fast, free public-key scheme. You never have to think about the math.
 </p>
 
-<p><strong>1. Generate a P-256 keypair.</strong> The signer loads a PEM private key:</p>
+<h3 id="signing-what-you-do">Signing Your Bundle</h3>
 
-<pre><code class="language-bash"># Generate an ECDSA P-256 private key (PEM)
+<p>
+    The payload signature is free and uses a key <em>you</em> own. There are four small steps: make a key,
+    keep the private half secret, turn on signing for the bundle, and tell the engine which public key to
+    trust. Steps 1&ndash;3 are below; step 4 (trust) gets its own part next because it is where the real
+    security lives.
+</p>
+
+<p><strong>Step 1 &mdash; make a keypair.</strong> A keypair is two matching halves: a <em>private</em> key
+    (kept secret, used to sign) and a <em>public</em> key (shared freely, used to check). One command:</p>
+
+<pre><code class="language-bash"># Make an ECDSA P-256 private key (the PEM file holds both halves)
 openssl ecparam -name prime256v1 -genkey -noout -out falkforge-signing.pem</code></pre>
 
 <p>
-    <strong>2. Keep the private key in a vault or CI secret store.</strong> Never commit it to the repo and
-    never ship it inside a bundle. Your release pipeline pulls the PEM from the secret store at build time.
+    <strong>Step 2 &mdash; keep the private key secret.</strong> Never commit it to your repo and never ship it
+    inside a bundle. Put it in a vault or your CI secret store, and have your release pipeline read it at build
+    time. Anyone who steals this file can sign fakes as you, so treat it like a password.
 </p>
 
-<p><strong>3. Enable integrity signing on the bundle.</strong> Point the integrity builder at the PEM path:</p>
+<p><strong>Step 3 &mdash; turn on signing for the bundle.</strong> Point the integrity builder at your PEM
+    file. That is the whole change:</p>
 
 <pre><code class="language-csharp">Installer.BuildBundle(b => b
     .Product("My App", "1.0.0")
-    // ... chain packages, UI, etc. ...
+    // ... chain your packages, UI, etc. ...
     .Integrity(i => i.SigningKey("falkforge-signing.pem")));</code></pre>
 
-<p>
-    <strong>4. Bake the public-key fingerprint into the engine.</strong> The fingerprint is the SHA-256 of
-    the key's <code>SubjectPublicKeyInfo</code> as uppercase hex. It is a public value (a hash of a public
-    key), so baking it in leaks nothing. Pass it as an MSBuild property when you build the engine
-    (repeatable &mdash; the trust anchor is a <em>set</em>):
-</p>
-
-<pre><code class="language-bash"># Build the engine trusting one publisher key
-dotnet publish src/FalkForge.Engine -c Release -p:FalkForgeTrustedKey=A1B2C3...</code></pre>
-
 <div class="note">
-    The engine is built <strong>per publisher</strong>: each publisher produces their own
-    <code>FalkForge.Engine.exe</code> whose baked trusted set contains their own key fingerprints. An engine
-    built with no <code>FalkForgeTrustedKey</code> trusts nothing on the update path (a safe default), while
-    still running a user-chosen unsigned fresh install.
+    <strong>Just want tamper-detection with zero setup?</strong> Call <code>.Integrity(i =&gt; { })</code> with
+    no key. FalkForge makes a throwaway key for that one build, so the bundle is internally tamper-evident
+    &mdash; but because the key is random each time it proves nothing about <em>who</em> built it. Use a stable
+    <code>SigningKey(path)</code> the moment you care about authorship (which is almost always). See
+    <strong>Demo 59 (bundle-integrity-signing)</strong> for both modes side by side.
 </div>
 
 <p>
-    <strong>4b. Or register the key from code.</strong> Trusted keys can also be added from your own compiled
-    bootstrap code, in addition to (not instead of) the MSBuild property. Since you already rebuild the engine
-    per publisher, edit <code>Program.TrustConfig.cs</code> &mdash; its <code>ConfigureTrust</code> hook runs at
-    the very top of the engine's <code>Main</code>, before any bundle is extracted or verified, and unions its
-    keys with the baked set:
+    That is it for producing a signed bundle. Under the hood, FalkForge hashes every payload, lists those
+    hashes in the manifest, and signs the list with your private key. If any payload byte changes later, its
+    hash no longer matches the signed list, and verification fails loud.
 </p>
+
+<h3 id="signing-trust">Who the Installer Trusts</h3>
+
+<p>
+    A signature by itself only proves &ldquo;some key sealed these bytes.&rdquo; It does not say <em>whose</em>
+    key. If the engine accepted any key that happened to be inside the bundle, an attacker could rewrite your
+    payloads, sign them with a fresh key of <em>their own</em>, drop that key in the bundle, and everything
+    would check out. So the engine must decide, from outside the bundle, <strong>which keys it will
+    trust</strong>. This is called <em>pinning</em>, and it is the heart of the whole model.
+</p>
+
+<p>
+    You pin by baking your <em>public</em>-key fingerprint into the engine when you build it. Two ways, and you
+    can use either or both:
+</p>
+
+<p><strong>Way A &mdash; a build parameter.</strong> Pass the fingerprint as an MSBuild property. It is a
+    public value, so this leaks nothing. It is repeatable, because trust is a <em>set</em> of keys, not one
+    (that is what makes rotation safe &mdash; see Key Rotation below):</p>
+
+<pre><code class="language-bash"># Build your engine trusting one publisher key (repeat the flag for more)
+dotnet publish src/FalkForge.Engine -c Release -p:FalkForgeTrustedKey=A1B2C3...</code></pre>
+
+<p><strong>Way B &mdash; register it in code.</strong> Since you already rebuild the engine per publisher, you
+    can add trusted keys from your own bootstrap code. This runs at the very top of the engine's startup,
+    before any bundle is read, and it <em>adds to</em> (never replaces) the baked set:</p>
 
 <pre><code class="language-csharp">// src/FalkForge.Engine/Program.TrustConfig.cs
 static partial void ConfigureTrust()
 {
-    // Any of these; each derives the same SHA-256 SubjectPublicKeyInfo fingerprint the verifier matches.
-    EngineTrustAnchor.TrustPublicKey(Convert.FromBase64String("&lt;base64 SPKI&gt;"));
+    // Any of these register the same key. Pick whichever form you have on hand.
+    EngineTrustAnchor.TrustFingerprint("A1B2C3...");   // 64-hex SHA-256 of the key
     EngineTrustAnchor.TrustPublicKeyPem("-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----");
-    EngineTrustAnchor.TrustFingerprint("A1B2C3...");   // 64-hex SHA-256 of the key's SPKI
+    EngineTrustAnchor.TrustPublicKey(Convert.FromBase64String("&lt;base64 public key&gt;"));
 }</code></pre>
 
 <div class="note">
-    <strong>Trust comes only from compiled code.</strong> Registration is reachable solely from the bootstrap
-    hook &mdash; never from a bundle, manifest, downloaded update, or any file/network input the installer
-    processes. The effective trusted set (baked &cup; code-registered) is frozen on first use, so a
-    registration attempt after verification has begun throws. This keeps the trust anchor outside anything an
-    attacker controls; a key embedded in a bundle is only ever used to <em>check</em> a signature, never to
-    decide whether that signature is trusted.
+    <strong>Trust only ever comes from compiled code &mdash; never from a bundle.</strong> You cannot add a
+    trusted key from a manifest, a downloaded update, or any file the installer reads. The trusted set is
+    frozen the first time it is used, so nothing an attacker controls can widen it. A key found <em>inside</em>
+    a bundle is only ever used to <em>check</em> a signature &mdash; never to decide whether that signature is
+    trusted.
 </div>
 
-<h3 id="signing-verification">How Verification Works</h3>
+<p><strong>What pinning buys you, in one paragraph.</strong> The installed product accepts updates signed by
+    <em>your exact key</em> and nothing else. Not &ldquo;a key from a company with the same name.&rdquo; Not a
+    different certificate. Not an attacker's fresh key, even if they re-hash and re-sign every payload
+    perfectly &mdash; their key is not in your pinned set, so it is rejected. And because the pinned key is
+    <em>public</em> and baked in, this check needs <strong>no internet at all</strong>: verification is fully
+    offline. The engine never phones home to decide whom to trust.</p>
 
-<p>
-    The engine trusts a bundle only when it is signed by a key whose fingerprint is in the set the engine was
-    <em>built</em> to trust. Concretely:
-</p>
+<p>How the check actually runs, in four plain points:</p>
 
 <ul>
     <li>
-        <strong>Trust anchor, not self-describing.</strong> The signature envelope carries its own public
-        key, but that key is only accepted if its fingerprint is in the engine's baked trusted set. An
-        attacker who re-signs tampered payloads with a fresh key fails this check &mdash; the fresh key is
-        not in the set.
+        <strong>The signature carries its own public key, but that is not enough.</strong> The engine
+        re-derives the fingerprint from that key and only proceeds if the fingerprint is in the pinned set. A
+        fresh attacker key fails here.
     </li>
     <li>
-        <strong>Payload bytes are checked against the signed hash, not the embedded TOC.</strong> Extraction
-        binds every payload's bytes to the ECDSA-signed hash list, not to the unsigned TOC hash in the
-        overlay. Flipping bytes and rewriting the TOC to match no longer passes.
+        <strong>Payload bytes are checked against the <em>signed</em> hash list.</strong> Flipping a byte and
+        rewriting the unsigned table-of-contents to match no longer works &mdash; the bytes are bound to the
+        signed list, not the rewritable one.
     </li>
     <li>
-        <strong>Updates must be signed and trusted.</strong> On the update path the engine requires a
-        signature that validates against the baked set. An unsigned update, a stripped signature, or one
-        signed by an untrusted (or attacker-re-signed) key is rejected &mdash; the update is discarded and
-        the current install keeps running. The already-installed, already-trusted engine verifies the staged
-        bundle in-process before it ever launches the update.
+        <strong>Fresh installs of unsigned bundles still run.</strong> Installing is a deliberate act on a file
+        the user chose, so an <em>unsigned</em> bundle is allowed. But a bundle that <em>is</em> signed by an
+        untrusted key is rejected &mdash; a present-but-wrong signature is an attack signal, not an old bundle.
     </li>
     <li>
-        <strong>Fresh installs of unsigned bundles still run.</strong> A fresh install is a deliberate user
-        act on a chosen artifact, so an unsigned bundle is allowed (the higher-risk automatic update path is
-        the one held to require-signed). A signed-but-untrusted fresh install is still rejected &mdash; a
-        present-but-untrusted signature is an attack signal, not a legacy bundle.
+        <strong>Updates are held to a stricter rule</strong> (they must be signed and trusted) &mdash; covered
+        in Safe Updates below, because an automatic update is the higher-risk path.
     </li>
 </ul>
 
-<h3 id="signing-rotation">Key Rotation</h3>
+<h3 id="signing-remote-signserver">Remote Signing with a Signing Server (Keeping the Key Off Build Machines)</h3>
 
 <p>
-    Trust is a <strong>set</strong>, and a release can be signed by <strong>more than one</strong> key at
-    once. That is what makes rotation safe: an already-installed engine (built to trust the old key) must be
-    able to accept a bundle signed by a new key without a flag-day. The governing rule is
-    <strong>&ldquo;trust leads, signing follows&rdquo;</strong> &mdash; a new key must be trusted by the
-    fleet <em>before</em> any release is signed only with it, and an old key must stop being used to sign
-    <em>before</em> it is removed from trust. A fresh install is always self-consistent by construction (the
-    bundle embeds the engine that trusts the key it was signed with), so rotation only ever concerns the
-    update path.
-</p>
-
-<pre><code>1. Steady state   engines trust {K_old}          releases signed by K_old
-2. Add trust      ship engine trusting {K_old, K_new}   still signed by K_old
-                  (wait until this engine is the fleet baseline)
-3. Dual-sign      releases signed by BOTH K_old + K_new
-                  old engines accept via K_old, new engines via either
-4. Signing        releases signed by K_new only
-   follows        ship engine trusting {K_new} (optionally {K_old, K_new})
-5. Retire K_old   drop K_old from the baked set in the next engine build</code></pre>
-
-<p>
-    During the dual-sign window the v2 envelope carries two signature entries over the identical file set, so
-    a client trusting either key accepts. Because trust is widened first and narrowed last, no client is ever
-    handed a bundle it cannot verify.
-</p>
-
-<div class="warning">
-    <strong>Anti-downgrade / replay protection is planned, not yet active in this release.</strong> The
-    design pairs rotation with a persisted key-epoch and revocation store so a client refuses an older bundle
-    signed by a since-revoked key. That store ships but is currently dormant: the non-elevated engine cannot
-    write it under the intended restrictive ACL, so the epoch does not yet advance on a standard-user apply.
-    The version-rollback / replay protection activates in a follow-up once the trust store is written from
-    the elevated helper. Do not rely on the engine blocking a downgrade or replay today &mdash; that is
-    coming in a follow-up.
-</div>
-
-<h3 id="signing-cert-faq">Do I Need to Buy a Certificate?</h3>
-
-<p>
-    <strong>No.</strong> Payload integrity &mdash; the signature that protects the files that actually get
-    installed &mdash; uses your own free ECDSA P-256 key. Generating a keypair with <code>openssl</code> and
-    baking the public fingerprint into the engine costs nothing.
+    Everything above assumes your private key sits in a PEM file on whatever machine builds the bundle. That is
+    fine to start, but a build agent that can <em>read</em> the key is a build agent that can <em>leak</em> it.
+    A signing server fixes that: the private key lives on the server (optionally inside a hardware security
+    module), and it <strong>never leaves</strong>. FalkForge sends the bytes-to-be-signed over to the server,
+    the server signs them, and only the signature comes back.
 </p>
 
 <p>
-    An Authenticode certificate (paid) is <strong>optional</strong> and does a different job: it gives the
-    Windows publisher-trust UX &mdash; a recognized publisher name in the UAC prompt and better SmartScreen
-    reputation. It is a nice-to-have for the install experience, but it does not protect the payload bytes
-    and is not a substitute for the FalkForge payload signature.
+    FalkForge integrates with <a href="https://www.signserver.org/" target="_blank" rel="noopener">Keyfactor
+    SignServer</a> for exactly this. It is <strong>not a different trust model</strong> &mdash; it is the same
+    free ECDSA payload signature, just produced somewhere safer:
 </p>
-
-<h3 id="signing-remote-signserver">Remote Signing with a Signing Server (Keyfactor SignServer)</h3>
-
-<p>
-    Everything above assumes the ECDSA private key lives in a PEM file on the machine that builds the bundle.
-    <code>FalkForge.Signing.SignServer</code> offers a second way to produce that same signature: instead of
-    loading a private key locally, FalkForge sends the canonical bytes to be signed to a
-    <a href="https://www.signserver.org/" target="_blank" rel="noopener">Keyfactor SignServer</a> instance over
-    its REST API and gets the signature back. The private key never leaves the signing server.
-</p>
-
-<p>This is not a different trust model &mdash; it is a different place for the signing operation to happen:</p>
 
 <table class="api-table">
     <thead><tr><th>Aspect</th><th>Local PEM key</th><th>SignServer</th></tr></thead>
@@ -10558,74 +10582,37 @@ static partial void ConfigureTrust()
         </tr>
         <tr>
             <td>Signing operation</td>
-            <td>In-process, synchronous</td>
-            <td>A network call to the server's REST API, asynchronous</td>
+            <td>In-process, instant</td>
+            <td>A network call to the server, asynchronous</td>
         </tr>
         <tr>
-            <td>Signature format on disk</td>
-            <td>P-256 / P1363, embedded in the manifest envelope</td>
-            <td>Same &mdash; normalized to P1363 before embedding</td>
-        </tr>
-        <tr>
-            <td>Engine-side verification</td>
-            <td>Unchanged</td>
-            <td>Unchanged &mdash; fully offline, no server contact at install time</td>
+            <td>How the engine verifies</td>
+            <td colspan="2">Identical, and fully offline &mdash; the engine never contacts the server</td>
         </tr>
     </tbody>
 </table>
 
-<p><strong>Why route signing through a server instead of a file:</strong></p>
-
-<ul>
-    <li>
-        <strong>The private key never touches a build agent or developer machine</strong> &mdash; removing the
-        single biggest key-leak vector in a CI pipeline (a compromised runner cannot exfiltrate a key it never
-        held).
-    </li>
-    <li>
-        <strong>HSM-backed keys.</strong> SignServer can hold the key in a PKCS#11 hardware security module, so
-        the key is non-exportable even from the signing server's own operators.
-    </li>
-    <li>
-        <strong>Central custody, audit, and access control.</strong> One controlled service logs every signing
-        request &mdash; who signed what, and when &mdash; which is valuable evidence for compliance regimes
-        such as the EU Cyber Resilience Act.
-    </li>
-    <li>
-        <strong>Clean key rotation and role separation.</strong> Rotating a key means reconfiguring the
-        signing server, not redistributing a PEM file to every build agent, and pairs naturally with a future
-        roles/quorum model for who is allowed to trigger a signed release.
-    </li>
-    <li>
-        <strong>Offline verification is preserved.</strong> The signer's public key travels inside the signed
-        manifest exactly as it does for a local key, so the installed engine verifies a signature entirely
-        offline &mdash; the signing server is never contacted at install or update time.
-    </li>
-    <li>
-        <strong>CI-native.</strong> The build pipeline authenticates to the server over the network; there is
-        no signing secret sitting in the repository or the CI configuration.
-    </li>
-    <li>
-        <strong>No certificate purchase required.</strong> Like the local-key path, this is the free ECDSA
-        payload signature, not an Authenticode certificate &mdash; SignServer is an alternative place to keep
-        the key, not a paid trust upgrade.
-    </li>
-</ul>
+<p><strong>Why route signing through a server:</strong> the key never touches a build agent or a laptop
+    (removing the biggest key-leak risk in CI); an HSM can make the key non-exportable even for the server's
+    own admins; every signing request is centrally logged (useful evidence for compliance regimes like the EU
+    Cyber Resilience Act); and rotating a key becomes &ldquo;reconfigure one server&rdquo; instead of
+    &ldquo;re-distribute a file to every build agent.&rdquo; Crucially, offline verification is preserved: the
+    signer's public key still travels inside the signed manifest, so the installed engine verifies with no
+    server contact at all.</p>
 
 <div class="note">
     This path is proven end to end: an integration test signs a real bundle against a live
-    <code>keyfactor/signserver-ce</code> container (a PlainSigner worker, ECDSA P-256, SHA256withECDSA) and
-    verifies the resulting manifest through the same <code>IntegrityEnvelopeCodec</code> the engine uses. The
-    test is Docker/Podman-gated and skips &mdash; never fails &mdash; when no container runtime is available,
-    so it does not affect a normal <code>dotnet test</code> run.
+    <code>keyfactor/signserver-ce</code> container (a PlainSigner worker, ECDSA P-256) and verifies the result
+    through the very same codec the engine uses. It is Docker/Podman-gated &mdash; it skips (never fails) when
+    no container runtime is present, so a normal <code>dotnet test</code> is unaffected. See
+    <strong>Demo 61 (signserver-remote-signing)</strong>.
 </div>
 
 <p><strong>Configuring the provider.</strong> <code>SignServerConfig</code> holds the endpoint, worker name,
-    and authentication settings; <code>SignServerAuthMode</code> supports <code>None</code>,
-    <code>Bearer</code>, <code>Basic</code>, and <code>ClientCert</code> (mTLS). A convenience
-    <code>FromEnvironment()</code> reads <code>SIGNSERVER_URL</code>, <code>SIGNSERVER_WORKER</code>,
-    <code>SIGNSERVER_AUTH</code>, and the matching credential variables, so a CI pipeline can configure remote
-    signing without any secret in source:</p>
+    and authentication; <code>SignServerAuthMode</code> supports <code>None</code>, <code>Bearer</code>,
+    <code>Basic</code>, and <code>ClientCert</code> (mTLS). <code>FromEnvironment()</code> reads
+    <code>SIGNSERVER_URL</code>, <code>SIGNSERVER_WORKER</code>, <code>SIGNSERVER_AUTH</code>, and the matching
+    credentials, so CI needs no secret in source:</p>
 
 <pre><code class="language-csharp">using FalkForge.Signing.SignServer;
 
@@ -10639,17 +10626,14 @@ var config = new SignServerConfig
     KeyId = "release-signer"            // optional, informational only
 };
 
-// Or, for a CI pipeline, from SIGNSERVER_URL / SIGNSERVER_WORKER / SIGNSERVER_AUTH / ...:
+// Or, for CI, from SIGNSERVER_URL / SIGNSERVER_WORKER / SIGNSERVER_AUTH / ...:
 var configResult = SignServerConfig.FromEnvironment();</code></pre>
 
-<p><strong>Wiring it into a bundle build.</strong> Add the provider via
-    <code>IntegrityBuilder.SigningProvider(...)</code> &mdash; the same fluent call used for any custom
-    <code>ISignatureProvider</code> (a remote service, an HSM, or a mock in tests). Because
-    <code>SignServerSignatureProvider</code> performs real network I/O, it is a
-    <strong>genuinely asynchronous</strong> provider, and the build must go through
-    <code>Installer.BuildBundleAsync</code> and <code>BundleCompiler.CompileAsync</code> &mdash; the
-    synchronous <code>Installer.BuildBundle</code> / <code>BundleCompiler.Compile</code> path fails loud
-    (SGN010) rather than block a thread on a network call:</p>
+<p><strong>Wiring it into a build.</strong> Add the provider via
+    <code>IntegrityBuilder.SigningProvider(...)</code>. Because the server call is real network I/O, this
+    provider is genuinely asynchronous, so the build must go through <code>Installer.BuildBundleAsync</code>
+    and <code>BundleCompiler.CompileAsync</code>. The synchronous path fails loud (SGN010) rather than block a
+    thread on a network call:</p>
 
 <pre><code class="language-csharp">using var provider = new SignServerSignatureProvider(config);
 
@@ -10667,17 +10651,214 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
 });</code></pre>
 
 <div class="warning">
-    <strong>Not yet wired into the JSON/CLI config path.</strong> <code>forge build</code>'s JSON config
+    <strong>Not yet wired into the JSON/CLI path.</strong> <code>forge build</code>'s JSON config
     (<code>InstallerConfig</code>) has no <code>signServer</code> section today &mdash; SignServer signing is
-    only reachable from C# code as shown above. A config-driven <code>forge build</code> flag for SignServer is
-    a planned follow-up; do not expect a CLI switch for it yet.
+    reachable only from C# code as shown. A config-driven <code>forge build</code> flag for it is a planned
+    follow-up; do not expect a CLI switch yet.
 </div>
 
 <p>
-    <strong>Verification is unchanged.</strong> The engine does not know or care whether a signature came from
-    a local PEM key or a signing server &mdash; it only checks the signature against the same baked trusted-key
-    set described above. SignServer changes <em>where</em> the signing operation runs; it does not change what
-    the engine trusts or how it verifies.
+    <strong>The engine does not know or care where a signature was produced.</strong> A local PEM key and a
+    signing server yield the same signature, checked the same way against the same pinned set. SignServer
+    changes <em>where</em> signing happens, never <em>what</em> the engine trusts or how it verifies.
+</p>
+
+<h3 id="signing-updates">Safe Updates</h3>
+
+<p>
+    A fresh install is a file the user picked on purpose. An <strong>update</strong> is different: it arrives
+    automatically, over the network, and replaces software the machine already trusts. Nobody clicks
+    &ldquo;yes&rdquo; on each one. That makes updates the highest-value target, so FalkForge holds them to the
+    strict rule.
+</p>
+
+<p><strong>Require-signed.</strong> On the update path the engine <em>requires</em> a signature that verifies
+    against its pinned trusted set. An update that is unsigned, has had its signature stripped, or is re-signed
+    by an attacker's untrusted key is <strong>rejected</strong> &mdash; the download is discarded and the
+    machine keeps running the version it already has. Nothing worse than &ldquo;no update today&rdquo; happens.</p>
+
+<p><strong>Who does the checking matters.</strong> The already-installed, already-trusted engine verifies the
+    downloaded update <em>in-process, before it launches it</em>. It does not hand the decision to the
+    downloaded file (which could just lie). If verification fails, the staged bundle is thrown away and never
+    executed.</p>
+
+<p>
+    Two more attacks are now blocked, and both protections are <strong>active in this release</strong>:
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Attack</th><th>What the attacker tries</th><th>What the engine does</th></tr></thead>
+    <tbody>
+        <tr>
+            <td><strong>Downgrade / replay</strong></td>
+            <td>Serve you an <em>older</em>, still-validly-signed release that has a known vulnerability</td>
+            <td>The engine remembers a monotonic &ldquo;epoch&rdquo; counter and refuses any bundle older than
+                the newest one it has accepted</td>
+        </tr>
+        <tr>
+            <td><strong>Revoked key</strong></td>
+            <td>Re-use a key you have since retired because it leaked</td>
+            <td>A verified update can declare a key revoked; from then on any bundle signed only by that key is
+                rejected, even though the key is still in older engines' pinned sets</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="note">
+    This anti-downgrade and revocation store is kept in a per-machine file that is protected by a strict
+    Windows access-control list (only SYSTEM and Administrators can write it) and advanced only by the elevated
+    helper after a genuinely verified update. If a run does not elevate, the store simply does not advance that
+    time and the engine says so &mdash; it never pretends to have protection it does not have. See
+    <strong>Demo 62 (require-signed-updates)</strong>.
+</div>
+
+<h3 id="signing-rotation">Key Rotation (Changing Keys Without Breaking Installs)</h3>
+
+<p>
+    Keys do not last forever. You might retire one on a schedule, or in a hurry because it leaked. The problem:
+    machines already in the field trust your <em>old</em> key. If you just start signing with a new key, those
+    machines will reject your updates &mdash; you have stranded them. Rotation is how you switch keys with
+    nobody left behind.
+</p>
+
+<p>
+    Two facts make it safe. First, trust is a <strong>set</strong> &mdash; an engine can trust several keys at
+    once. Second, one release can be signed by <strong>more than one</strong> key at the same time. The golden
+    rule is <strong>&ldquo;trust leads, signing follows&rdquo;</strong>: widen trust to include the new key
+    <em>before</em> you sign anything with it alone, and stop signing with the old key <em>before</em> you drop
+    it from trust. Do it in that order and no machine is ever handed a bundle it cannot verify.
+</p>
+
+<pre><code>1. Steady state   engines trust {K_old}                 releases signed by K_old
+2. Add trust      ship an engine trusting {K_old, K_new}  still signed by K_old
+                  (wait until this engine is the fleet baseline)
+3. Dual-sign      sign each release with BOTH K_old + K_new
+                  old engines accept via K_old, new engines via either
+4. Signing        sign releases with K_new only
+   follows        ship an engine trusting {K_new} (or {K_old, K_new} for a grace period)
+5. Retire K_old   drop K_old from the baked set in the next engine build</code></pre>
+
+<p>
+    During the dual-sign window a single bundle carries two signatures over the identical files, so a machine
+    trusting <em>either</em> key is happy. Because you widen trust first and narrow it last, there is never a
+    gap. A fresh install is always fine by construction &mdash; the bundle carries the engine that trusts the
+    key it was signed with &mdash; so rotation only ever concerns the update path. See
+    <strong>Demo 60 (trusted-key-rotation)</strong>.
+</p>
+
+<h3 id="signing-roles-quorum">Stronger: Roles &amp; Quorum</h3>
+
+<p>
+    So far, every trusted key is equal and all-powerful: any one of them can sign anything. If just <em>one</em>
+    leaks &mdash; a CI secret, a developer key baked in for convenience &mdash; an attacker can ship a fully
+    rewritten update, and every check above still passes. Roles and quorum close that gap. The idea, borrowed
+    from how big projects protect their release keys, is simple:
+</p>
+
+<div class="note">
+    <strong>Give keys jobs, and require a combination of jobs for risky actions.</strong> A normal update needs
+    one <em>release</em> signature. Changing keys needs a <em>release</em> key <em>and</em> a separately-held
+    <em>recovery</em> key. A deliberate downgrade needs <em>release</em> plus a <em>security</em> key. So one
+    stolen key, on its own, cannot ship the dangerous stuff.
+</div>
+
+<p>
+    A key can hold one or more <strong>roles</strong>. The roles are: <code>release</code> (the everyday
+    signer), <code>recovery</code> (an offline key, kept separately, that co-signs key changes),
+    <code>security</code> (co-signs downgrades and revocations), <code>emergency-revoke</code> (a break-glass
+    key that can only revoke), <code>ci</code> (an automated build key, deliberately <em>not</em> release),
+    <code>developer</code> (local test builds only, never counts for production), and <code>timestamp</code>
+    (attests <em>when</em> something was signed, never counts toward a quorum).
+</p>
+
+<p>
+    A <strong>quorum</strong> is just &ldquo;how many, of which roles, must sign.&rdquo; The built-in default
+    policy, once you turn roles on, is:
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Action</th><th>Signatures required (all by <em>distinct</em> keys)</th></tr></thead>
+    <tbody>
+        <tr><td>Install / Update (routine)</td><td>1 <code>release</code></td></tr>
+        <tr><td>Key change (rotation)</td><td>1 <code>release</code> <strong>and</strong> 1 <code>recovery</code></td></tr>
+        <tr><td>Downgrade (deliberate)</td><td>1 <code>release</code> <strong>and</strong> 1 <code>security</code></td></tr>
+        <tr><td>Revoke a key</td><td>1 <code>release</code> <strong>and</strong> 1 <code>security</code> or <code>emergency-revoke</code></td></tr>
+    </tbody>
+</table>
+
+<p>
+    &ldquo;Distinct keys&rdquo; is the crux: one key that happens to hold both <code>release</code> and
+    <code>recovery</code> does <em>not</em> satisfy a rule that needs both &mdash; you genuinely need two
+    different private keys, ideally in two different custodies. That is what makes a single compromise
+    survivable.
+</p>
+
+<p>You tag a key's roles either as build metadata or in code &mdash; the same two channels as plain trust:</p>
+
+<pre><code class="language-xml">&lt;!-- In the engine project: give each pinned key its role(s) --&gt;
+&lt;ItemGroup&gt;
+  &lt;FalkForgeTrustedKey Include="A1B2C3..." Roles="Release" /&gt;
+  &lt;FalkForgeTrustedKey Include="D4E5F6..." Roles="Recovery;Security" /&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+<pre><code class="language-csharp">// ...or in Program.TrustConfig.cs, a key that holds two roles:
+EngineTrustAnchor.TrustFingerprint("D4E5F6...", TrustRole.Recovery | TrustRole.Security);</code></pre>
+
+<div class="note">
+    <strong>Backward compatible by default.</strong> If you configure no roles, every trusted key is treated as
+    a <code>release</code> key and every action needs just one signature &mdash; exactly the behavior from the
+    parts above. Roles are opt-in governance you layer on when you are ready.
+</div>
+
+<div class="warning">
+    <strong>If you turn on roles, make sure at least one key holds the <code>Release</code> role.</strong> The
+    moment any key carries an explicit role, the default policy engages &mdash; and routine install/update then
+    requires a <code>Release</code> signature. If no trusted key holds <code>Release</code>, the engine can
+    never satisfy that rule and will refuse to verify <em>anything</em> (a permanent self-lockout). This is a
+    fail-safe, and it is caught early: the engine refuses to start (at bootstrap) if roles are configured with
+    no <code>Release</code> key, rather than shipping a broken installer. A leave-it-un-roled key counts as
+    <code>Release</code>, so the simplest safe habit is to tag one key <code>Release</code> in the same change
+    that introduces any other role.
+</div>
+
+<h3 id="signing-cert-faq">Do I Need to Buy a Certificate?</h3>
+
+<p>
+    <strong>No.</strong> The signature that protects the files that actually get installed uses your own free
+    ECDSA key. Making a keypair with <code>openssl</code> and baking the public fingerprint into the engine
+    costs nothing, and it is the part that stops payload tampering.
+</p>
+
+<p>
+    A paid <strong>Authenticode</strong> certificate is <em>optional</em> and does a different job: it gives the
+    Windows &ldquo;verified publisher&rdquo; experience &mdash; a recognized name in the UAC prompt and better
+    SmartScreen reputation. It is nice for the install experience, but it does not protect the payload bytes and
+    is not a substitute for the FalkForge payload signature. Most publishers eventually want both: Authenticode
+    for the friendly prompt, the free payload signature for real tamper protection.
+</p>
+
+<h3 id="signing-future">What's Coming (Planned, Not Yet Shipped)</h3>
+
+<p>
+    Two hardening features are designed but <strong>not active yet</strong> &mdash; do not rely on them today:
+</p>
+
+<ul>
+    <li>
+        <strong>Signature expiry windows.</strong> A per-signature &ldquo;valid from / valid until&rdquo; so a
+        retired key's signatures naturally age out on a schedule, even before a revocation reaches a machine.
+    </li>
+    <li>
+        <strong>Transparency log.</strong> A tamper-evident public record of every signature, so a victim could
+        detect being handed a specially-crafted malicious bundle nobody else received.
+    </li>
+</ul>
+
+<p>
+    For clarity on what <em>is</em> shipped: the free payload signature, trusted-key pinning (build parameter
+    and in-code), fully offline verification, remote signing via SignServer, require-signed updates, active
+    anti-downgrade and revocation, key rotation, and roles-and-quorum governance are all live in this release.
+    The two items above are the only forward-looking pieces in this section.
 </p>
 </section>
 
