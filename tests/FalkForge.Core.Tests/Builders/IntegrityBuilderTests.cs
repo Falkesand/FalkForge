@@ -156,6 +156,70 @@ public sealed class IntegrityBuilderTests
     }
 
     [Fact]
+    public void HybridKey_AddsClassicalKeyAndPqCompanionKey()
+    {
+        // A hybrid signer is ONE identity holding two keys (PQ-hybrid design §2.2): the classical
+        // key joins the ordinary signing-key list and the ML-DSA key is recorded as its companion,
+        // so the compiled envelope carries both signature entries over the same message.
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(i => i.HybridKey("/keys/classical.pem", "/keys/mldsa.pem"));
+        });
+
+        Assert.NotNull(package.Integrity!.SigningKeyPaths);
+        Assert.Contains("/keys/classical.pem", package.Integrity.SigningKeyPaths!);
+        Assert.NotNull(package.Integrity.PqSigningKeyPaths);
+        Assert.Contains("/keys/mldsa.pem", package.Integrity.PqSigningKeyPaths!);
+    }
+
+    [Fact]
+    public void HybridKey_Repeatable_ForRotationDualSign()
+    {
+        // Rotation dual-sign (C18) applies to hybrid pairs too: each call contributes one
+        // classical + one PQ key, all signing the identical message.
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(i => i
+                .HybridKey("/keys/old-classical.pem", "/keys/old-mldsa.pem")
+                .HybridKey("/keys/new-classical.pem", "/keys/new-mldsa.pem"));
+        });
+
+        Assert.Equal(2, package.Integrity!.SigningKeyPaths!.Count);
+        Assert.Equal(2, package.Integrity.PqSigningKeyPaths!.Count);
+    }
+
+    [Theory]
+    [InlineData(null, "/keys/mldsa.pem")]
+    [InlineData("", "/keys/mldsa.pem")]
+    [InlineData("/keys/classical.pem", null)]
+    [InlineData("/keys/classical.pem", "")]
+    public void HybridKey_MissingEitherKey_Throws(string? classical, string? pq)
+    {
+        // Hybrid REQUIRES both halves: an ML-DSA entry is a companion, never a trust anchor,
+        // so a PQ key without its classical partner could never produce a verifiable bundle.
+        var builder = new IntegrityBuilder();
+
+        Assert.ThrowsAny<ArgumentException>(() => builder.HybridKey(classical!, pq!));
+    }
+
+    [Fact]
+    public void PqSigningKeyPaths_DefaultsToNull()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Integrity(_ => { });
+        });
+
+        Assert.Null(package.Integrity!.PqSigningKeyPaths);
+    }
+
+    [Fact]
     public void FluentChaining_Works()
     {
         var package = InstallerTestHost.BuildPackage(p =>

@@ -120,6 +120,17 @@ internal static class EcdsaManifestSigner
             }
         }
 
+        // PQ-hybrid Stage 3 guard: an ML-DSA entry is a COMPANION consulted only after a classical
+        // entry verifies (design §2.2) — it is never matched against the trust set on its own. An
+        // envelope whose only signatures are post-quantum could therefore never verify on ANY engine;
+        // emitting it silently would ship an unverifiable artifact, so the signer fails loud instead.
+        if (classicalSignatures.Count == 0 && pqSignatures.Count > 0)
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "SGN012: Only post-quantum (ML-DSA) signing keys are configured. Hybrid signing requires " +
+                "a classical key as well — an ML-DSA signature is a companion to a classical identity, " +
+                "never a trust anchor on its own, so a PQ-only envelope can never verify. Add a classical " +
+                "signing key or provider (e.g. IntegrityBuilder.HybridKey(classicalPem, pqPem)).");
+
         var signatures = new List<SignatureEntry>(classicalSignatures.Count + pqSignatures.Count);
         signatures.AddRange(classicalSignatures);
         signatures.AddRange(pqSignatures);
@@ -151,6 +162,15 @@ internal static class EcdsaManifestSigner
 
         foreach (var keyPath in ResolveKeyPaths(config))
             providers.Add(new PemSignatureProvider(keyPath));
+
+        // Hybrid companions (PQ-hybrid Stage 3, IntegrityBuilder.HybridKey): one ML-DSA provider per
+        // configured PQ key PEM. Declaration order is irrelevant on the wire — the envelope assembly
+        // above partitions classical entries first regardless.
+        if (config?.PqSigningKeyPaths is { Count: > 0 } pqKeyPaths)
+        {
+            foreach (var pqKeyPath in pqKeyPaths)
+                providers.Add(new MLDsaPemSignatureProvider(pqKeyPath));
+        }
 
         if (config?.SignatureProviders is { Count: > 0 } custom)
             providers.AddRange(custom);

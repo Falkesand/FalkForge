@@ -7,6 +7,7 @@ public sealed class IntegrityBuilder
 {
     private string? _signingKeyPath;
     private readonly List<string> _signingKeyPaths = [];
+    private readonly List<string> _pqSigningKeyPaths = [];
     private readonly List<ISignatureProvider> _signatureProviders = [];
     private string? _certStoreThumbprint;
     private string? _storeLocation;
@@ -27,6 +28,28 @@ public sealed class IntegrityBuilder
 
     /// <summary>Adds several signing keys at once (see <see cref="AddSigningKey"/>).</summary>
     public IntegrityBuilder SigningKeys(params string[] paths) { _signingKeyPaths.AddRange(paths); return this; }
+
+    /// <summary>
+    /// Adds a HYBRID post-quantum signing identity (PQ-hybrid design §2.2): one classical ECDSA-P256
+    /// private-key PEM plus its ML-DSA (FIPS 204) companion private-key PEM. Both keys sign the identical
+    /// canonical message, so the compiled envelope carries a classical entry and an algorithm-tagged
+    /// ML-DSA entry (classical first). Verification-side, pin the pair with
+    /// <c>EngineTrustAnchor.TrustHybridKey</c> or the <c>PqFingerprint=</c> trusted-key item metadata so
+    /// stripping the ML-DSA signature fails INT011. Both halves are required — an ML-DSA entry is a
+    /// companion to the classical identity, never a trust anchor on its own, so a PQ key without its
+    /// classical partner could never produce a verifiable bundle. Repeatable (rotation dual-sign of
+    /// hybrid pairs).
+    /// </summary>
+    /// <param name="classicalKeyPath">Path to the classical ECDSA-P256 private-key PEM.</param>
+    /// <param name="pqKeyPath">Path to the ML-DSA companion private-key PEM (PKCS#8).</param>
+    public IntegrityBuilder HybridKey(string classicalKeyPath, string pqKeyPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(classicalKeyPath);
+        ArgumentException.ThrowIfNullOrEmpty(pqKeyPath);
+        _signingKeyPaths.Add(classicalKeyPath);
+        _pqSigningKeyPaths.Add(pqKeyPath);
+        return this;
+    }
 
     public IntegrityBuilder CertStore(string thumbprint, string storeLocation = "CurrentUser")
     {
@@ -69,6 +92,7 @@ public sealed class IntegrityBuilder
     {
         SigningKeyPath = _signingKeyPath,
         SigningKeyPaths = _signingKeyPaths.Count > 0 ? _signingKeyPaths.AsReadOnly() : null,
+        PqSigningKeyPaths = _pqSigningKeyPaths.Count > 0 ? _pqSigningKeyPaths.AsReadOnly() : null,
         CertStoreThumbprint = _certStoreThumbprint,
         StoreLocation = _storeLocation,
         VaultProvider = _vaultProvider,
