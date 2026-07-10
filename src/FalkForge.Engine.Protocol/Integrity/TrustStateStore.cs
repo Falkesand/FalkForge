@@ -32,6 +32,18 @@ public static class TrustStateStore
         "FalkForge", "Trust", "trust-state.json");
 
     /// <summary>
+    /// Absolute upper bound on the stored anti-downgrade epoch. A key-epoch increments once per publisher
+    /// key-rotation event, so even aggressive daily rotation stays far below this in any realistic product
+    /// lifetime — yet the cap sits three orders of magnitude under <see cref="int.MaxValue"/>. It exists so a
+    /// <i>compromised engine</i> (or a bug) cannot jam the store to a saturated value (e.g. <c>int.MaxValue</c>)
+    /// that no legitimate future release could ever exceed: because the store is monotonic and INT008 rejects
+    /// any release with an epoch below the stored one, a saturated epoch would permanently lock out EVERY
+    /// subsequent update — a denial-of-service self-lockout. <see cref="Advance"/> refuses (fails loud) any
+    /// advance above this cap rather than clamping, leaving the store untouched.
+    /// </summary>
+    public const int MaxEpoch = 1_000_000;
+
+    /// <summary>
     /// Loads the persisted trust state. A missing, empty, or malformed file yields a first-run state
     /// (epoch 0, no revocations) rather than throwing — the store is advisory hardening layered on top of
     /// the baked trust set, so an unreadable store must fail safe (no anti-downgrade), not fail closed.
@@ -67,6 +79,17 @@ public static class TrustStateStore
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         ArgumentNullException.ThrowIfNull(revoked);
+
+        // Absolute cap: an out-of-range epoch is refused BEFORE the store is loaded or touched, so a
+        // compromised/buggy caller cannot saturate the epoch and permanently lock out all future updates
+        // (INT008 would then reject every lower-epoch legitimate release). Fail loud, do not clamp — a
+        // silently clamped store would still be jammed near the cap.
+        if (epoch > MaxEpoch)
+        {
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                $"Refusing to advance the trust store to epoch {epoch}: it exceeds the maximum permitted " +
+                $"epoch ({MaxEpoch}). An out-of-range epoch would permanently lock out all future updates (INT008).");
+        }
 
         var state = Load(path);
 
@@ -106,12 +129,22 @@ public static class TrustStateStore
     }
 
     /// <summary>
-    /// Loads the persisted trust state after validating the store directory's ACL (anti-squat). An absent
-    /// directory is a first run (success, epoch 0). An existing directory whose ACL an unprivileged process
-    /// could have tampered — inheritance not severed, or a write grant to Users/Everyone/Authenticated
-    /// Users — is refused (<see cref="ErrorKind.SecurityError"/>): the caller must NOT trust an
-    /// attacker-writable anti-downgrade/revocation set, and fails closed rather than silently trusting it.
-    /// Used on the require-signed update path where the store's integrity gates the anti-downgrade decision.
+    /// Loads the persisted trust state after validating the store directory's ACL AND owner (anti-squat). An
+    /// absent directory is a first run (success, epoch 0). An existing directory that fails conformance —
+    /// inheritance not severed, a write-class grant held by any principal other than SYSTEM/Administrators, or
+    /// an owner that is not SYSTEM/Administrators (an owner keeps implicit WRITE_DAC) — is refused
+    /// (<see cref="ErrorKind.SecurityError"/>): the caller must NOT trust an attacker-writable
+    /// anti-downgrade/revocation set, and fails closed rather than silently trusting it. Used on the
+    /// require-signed update path where the store's integrity gates the anti-downgrade decision.
+    ///
+    /// <para><b>Recovery (fail-closed, no self-heal on this path).</b> This read path runs in the non-elevated
+    /// engine, so it cannot itself re-harden a squatted directory — re-hardening (reset + ownership seizure)
+    /// requires elevation and happens only from the elevated companion's write path
+    /// (<see cref="EnsureSecuredDirectory"/>). Because a non-conforming store makes this read fail closed, no
+    /// update applies to trigger that elevated write, so the directory does NOT self-heal automatically.
+    /// An <b>administrator</b> must remove the directory (or reset its ACL + owner from an elevated prompt) so
+    /// the elevated installer re-creates it hardened. Failing closed is the safe outcome: an attacker cannot
+    /// push a downgrade/replay through the tampered store either.</para>
     /// </summary>
     public static Result<TrustState> LoadValidated(string path)
     {
@@ -121,20 +154,25 @@ public static class TrustStateStore
         if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir) && !IsDirectoryAclConforming(dir))
         {
             return Result<TrustState>.Failure(ErrorKind.SecurityError,
-                $"The trust store directory '{dir}' has a non-conforming ACL (an unprivileged process could " +
-                "have tampered it). Refusing to trust the anti-downgrade/revocation store. Reset it with an " +
-                "elevated install or remove the directory so a hardened one is re-created.");
+                $"The trust store directory '{dir}' has a non-conforming ACL or owner (an unprivileged process " +
+                "could have pre-created or tampered it). Refusing to trust the anti-downgrade/revocation store " +
+                "(fail-closed). Recovery: an administrator must remove the directory (or reset its ACL and owner " +
+                "from an elevated prompt) so the elevated installer re-creates it hardened; the store cannot " +
+                "self-heal on the non-elevated read path.");
         }
 
         return Load(path);
     }
 
     /// <summary>
-    /// Ensures the store directory exists AND is hardened. Creates it with the restrictive DACL when absent;
-    /// when it exists with a non-conforming ACL (anti-squat: an unprivileged process pre-created it with a
-    /// loose ACL), RESETS the DACL to the restrictive shape. Off-Windows this is a plain directory create.
-    /// Requires write access to the DACL — used by the elevated write-path (the elevated companion), never
-    /// the non-elevated engine.
+    /// Ensures the store directory exists AND is hardened. Creates it with the restrictive DACL when absent,
+    /// then — for BOTH a freshly-created and a pre-existing directory — RESETS it to the restrictive shape
+    /// whenever it is non-conforming by the stricter <see cref="IsDirectoryAclConforming"/> check (loose/broad
+    /// DACL, a targeted foreign write ACE, OR a non-admin owner). The reset seizes ownership to Administrators
+    /// and purges every foreign ACE, so a targeted anti-squat (an unprivileged process that pre-created the
+    /// directory, becoming its owner, and granted write to its own SID) is fully undone. Off-Windows this is a
+    /// plain directory create. Requires elevation (DACL write + ownership seizure) — used by the elevated
+    /// write-path (the elevated companion), never the non-elevated engine.
     /// </summary>
     public static Result<Unit> EnsureSecuredDirectory(string dir)
     {
@@ -149,11 +187,11 @@ public static class TrustStateStore
             }
 
             if (!Directory.Exists(dir))
-            {
                 CreateSecuredDirectoryWindows(dir);
-                return Unit.Value;
-            }
 
+            // Reset whenever non-conforming by the strict check — this also catches a freshly-created
+            // directory whose owner defaulted to the (elevated) user rather than Administrators, and a
+            // targeted own-SID squat that the old broad-SID-only check would have waved through.
             if (!IsDirectoryAclConforming(dir))
                 ResetToRestrictiveDaclWindows(dir);
 
@@ -167,11 +205,15 @@ public static class TrustStateStore
     }
 
     /// <summary>
-    /// Returns whether the store directory's DACL is in the hardened shape: inheritance severed AND no
-    /// Allow ACE grants a write-class right (Write/Modify/FullControl/WriteDac/WriteOwner) to a broad,
-    /// unprivileged principal (Users, Everyone, Authenticated Users). Off-Windows there is no ACL to
-    /// validate, so it returns <c>true</c> (nothing to distrust). A non-existent directory also returns
-    /// <c>true</c> (a first run is not a squat).
+    /// Returns whether the store directory is in the hardened shape. Conformance requires ALL of:
+    /// (1) inheritance severed (protected DACL); (2) NO Allow ACE granting a write-class right
+    /// (write data / append / write attrs / delete / delete-child / change-permissions / take-ownership) to
+    /// any principal OTHER than <c>SYSTEM</c> (S-1-5-18) or
+    /// <c>BUILTIN\Administrators</c> (S-1-5-32-544) — a whitelist of writers, so a targeted own-SID grant is
+    /// rejected, not just the broad groups; and (3) the OWNER is SYSTEM or Administrators, because an owner
+    /// holds implicit WRITE_DAC and could rewrite the DACL at will. Off-Windows there is no ACL to validate,
+    /// so it returns <c>true</c> (nothing to distrust). A non-existent directory also returns <c>true</c> (a
+    /// first run is not a squat).
     /// </summary>
     public static bool IsDirectoryAclConforming(string dir)
     {
@@ -196,44 +238,67 @@ public static class TrustStateStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            // Cannot even read the DACL — cannot establish that it is hardened, so do not trust it.
+            // Cannot even read the descriptor — cannot establish that it is hardened, so do not trust it.
             return false;
         }
 
+        var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        return IsAclConforming(
+            owner,
+            security.AreAccessRulesProtected,
+            security.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier)));
+    }
+
+    /// <summary>
+    /// Pure conformance decision over an already-read descriptor (owner + protection flag + access rules).
+    /// Extracted from the filesystem read so the security rule is unit-testable in-memory without a real
+    /// directory (and without elevation): rejects a non-protected DACL, a write-class grant held by any
+    /// principal other than SYSTEM/Administrators (whitelist, not a broad-SID blacklist), or an owner that is
+    /// not SYSTEM/Administrators.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    internal static bool IsAclConforming(
+        SecurityIdentifier? owner, bool areAccessRulesProtected, AuthorizationRuleCollection accessRules)
+    {
+        ArgumentNullException.ThrowIfNull(accessRules);
+
         // Inheritance must be severed; otherwise %ProgramData%'s broad default ACL (Users create/modify)
         // leaks a write grant back in.
-        if (!security.AreAccessRulesProtected)
+        if (!areAccessRulesProtected)
             return false;
 
-        // A write grant to any broad unprivileged principal means an unprivileged process can tamper the
-        // store — the exact anti-squat / rollback threat. Reject it. Only PURE write/permission bits are
-        // listed here: the composites FullControl and Modify are intentionally omitted because they include
-        // read/execute/synchronize bits (FullControl == 0x1F01FF), which would false-flag a legitimate
-        // read-only grant. A principal holding FullControl or Modify still trips this mask via its
-        // underlying WriteData/AppendData/… bits.
+        // Write-class rights: the "write-ish" mask (write data / append / write attrs / delete / delete-child /
+        // change-permissions / take-ownership). Deliberately EXCLUDES read/execute/synchronize so a legitimate
+        // read-only grant never trips it. The composites FullControl (0x1F01FF) and Modify still trip it via
+        // their underlying WriteData/AppendData/Delete bits.
         const FileSystemRights writeClass =
             FileSystemRights.WriteData | FileSystemRights.AppendData
             | FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes
             | FileSystemRights.Delete | FileSystemRights.DeleteSubdirectoriesAndFiles
             | FileSystemRights.ChangePermissions | FileSystemRights.TakeOwnership;
 
-        var broad = new HashSet<SecurityIdentifier>
-        {
-            new(WellKnownSidType.BuiltinUsersSid, null),
-            new(WellKnownSidType.WorldSid, null),                 // Everyone
-            new(WellKnownSidType.AuthenticatedUserSid, null),
-            new(WellKnownSidType.InteractiveSid, null),
-        };
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
 
-        foreach (FileSystemAccessRule rule in security.GetAccessRules(
-                     includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier)))
+        // Owner check: the owner holds implicit WRITE_DAC and can rewrite the DACL at any time. A non-admin
+        // owner (e.g. a squatter who pre-created the directory and is therefore CREATOR OWNER) is untrusted.
+        if (owner is null || (!owner.Equals(system) && !owner.Equals(admins)))
+            return false;
+
+        // Writer WHITELIST: any Allow ACE granting a write-class right must belong to SYSTEM or
+        // Administrators. A grant to any other principal — including a targeted specific-user SID that the old
+        // broad-group blacklist missed — means an unprivileged process can tamper the store. Reject it.
+        foreach (FileSystemAccessRule rule in accessRules)
         {
             if (rule.AccessControlType != AccessControlType.Allow)
                 continue;
 
-            if (rule.IdentityReference is SecurityIdentifier sid
-                && broad.Contains(sid)
-                && (rule.FileSystemRights & writeClass) != default(FileSystemRights))
+            if ((rule.FileSystemRights & writeClass) == default(FileSystemRights))
+                continue; // read/execute-only grant: harmless
+
+            // A write-class grant to an un-translatable or non-privileged principal fails conformance.
+            if (rule.IdentityReference is not SecurityIdentifier sid
+                || (!sid.Equals(system) && !sid.Equals(admins)))
             {
                 return false;
             }
@@ -245,16 +310,38 @@ public static class TrustStateStore
     [SupportedOSPlatform("windows")]
     private static void ResetToRestrictiveDaclWindows(string dir)
     {
-        // Owner retains WRITE_DAC, so an elevated writer (and the directory's owner) can re-apply the
-        // hardened DACL over a squatter's loose one. Read-modify-write on the descriptor actually read from
-        // the directory (not a fresh, ownerless one) so the protection flag + ACE replacement reliably
-        // persist: sever inheritance, purge every explicit ACE (incl. a squatter's Users-write grant), then
-        // add back only SYSTEM/Admins FullControl + Users read-only.
+        // Read-modify-write on the descriptor actually read from the directory (not a fresh, ownerless one)
+        // so the protection flag, ownership seizure, and ACE replacement reliably persist.
         var info = new DirectoryInfo(dir);
         var security = info.GetAccessControl();
+        ApplyRestrictiveDacl(security);
+        info.SetAccessControl(security);
+    }
+
+    /// <summary>
+    /// Pure in-memory hardening transform over a descriptor: sever inheritance, SEIZE ownership to
+    /// Administrators (a squatter who pre-created the directory is its owner and keeps implicit WRITE_DAC —
+    /// re-owning strips that standing), PURGE every explicit ACE (incl. the squatter's own-SID write grant),
+    /// then add back only SYSTEM + Administrators FullControl and Users read-only. Extracted from the
+    /// filesystem write so the reset shaping is unit-testable in-memory; the ownership seizure only requires
+    /// elevation when the descriptor is COMMITTED to disk (<see cref="ResetToRestrictiveDaclWindows"/>), which
+    /// runs from the elevated companion.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    internal static void ApplyRestrictiveDacl(DirectorySecurity security)
+    {
+        ArgumentNullException.ThrowIfNull(security);
+
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
 
         // Sever inheritance (drop inherited ACEs); only the explicit ACEs we set below remain.
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+        // Seize ownership so the previous (squatter) owner loses its implicit WRITE_DAC standing.
+        security.SetOwner(admins);
 
         foreach (FileSystemAccessRule rule in security
                      .GetAccessRules(includeExplicit: true, includeInherited: false, typeof(SecurityIdentifier))
@@ -264,19 +351,12 @@ public static class TrustStateStore
             security.PurgeAccessRules(rule.IdentityReference);
         }
 
-        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
-        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-        var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-        const InheritanceFlags inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
-
         security.AddAccessRule(new FileSystemAccessRule(
             system, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
         security.AddAccessRule(new FileSystemAccessRule(
             admins, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
         security.AddAccessRule(new FileSystemAccessRule(
             users, FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
-
-        info.SetAccessControl(security);
     }
 
     /// <summary>
