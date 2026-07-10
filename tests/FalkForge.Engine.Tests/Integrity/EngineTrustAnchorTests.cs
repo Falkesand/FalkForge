@@ -426,8 +426,12 @@ public sealed class EngineTrustAnchorTests : IDisposable
     }
 
     [Fact]
-    public void Freeze_ReleaseAndRecoveryKeysPresent_NoWarning()
+    public void Freeze_ReleaseAndRecoveryKeysPresent_NoKeyChangeWarning()
     {
+        // Release and Recovery are held by two DISTINCT keys, so the KeyChange rule (one Release AND one
+        // Recovery, distinct) is genuinely satisfiable — no KeyChange warning. Downgrade and Revoke may
+        // still warn here (no Security-role key is registered), which is correct precision, not a
+        // regression: this test is scoped to the KeyChange claim its name makes.
         using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var recoveryKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
@@ -435,6 +439,44 @@ public sealed class EngineTrustAnchorTests : IDisposable
 
         _ = EngineTrustAnchor.EffectiveFingerprints; // freeze
 
+        Assert.DoesNotContain(EngineTrustAnchor.ConfigurationWarnings,
+            w => w.Contains("KeyChange", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Freeze_SingleKeyHoldsReleaseAndRecovery_WarnsAboutKeyChangeLockout_DistinctKeyRequired()
+    {
+        // The quorum evaluator's distinct-key matching forbids one key filling two role slots (see
+        // QuorumEvaluator). A single key tagged Release|Recovery makes a naive "does any key hold the
+        // Recovery bit" test pass, but KeyChange (Release AND Recovery, held by DIFFERENT keys) is still
+        // permanently unsatisfiable with only one key registered. The guard must catch this by running the
+        // real distinct-key feasibility check, not a bit test.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(key), TrustRole.Release | TrustRole.Recovery);
+
+        _ = EngineTrustAnchor.EffectiveFingerprints; // freeze
+
+        Assert.Contains(EngineTrustAnchor.ConfigurationWarnings,
+            w => w.Contains("Recovery", StringComparison.Ordinal) && w.Contains("KeyChange", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Freeze_AllOperationsSatisfiable_NoWarningsNoThrow()
+    {
+        // Release + Recovery + Security, each a distinct key, satisfies every baked rule: Install/Update
+        // (Release alone), KeyChange (Release + Recovery), Downgrade (Release + Security), and Revoke
+        // (Release + (Security | EmergencyRevoke) — the Security key alone covers the OR). No EmergencyRevoke
+        // key is needed for full satisfiability.
+        using var releaseKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var recoveryKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var securityKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(releaseKey), TrustRole.Release);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(recoveryKey), TrustRole.Recovery);
+        EngineTrustAnchor.TrustFingerprint(Fingerprint(securityKey), TrustRole.Security);
+
+        var fingerprints = EngineTrustAnchor.EffectiveFingerprints; // must not throw
+
+        Assert.Equal(3, fingerprints.Count);
         Assert.Empty(EngineTrustAnchor.ConfigurationWarnings);
     }
 }

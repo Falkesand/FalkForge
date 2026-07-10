@@ -133,7 +133,7 @@ public static class EngineTrustAnchor
         // Lock-out footgun guard (C19 follow-up). Only meaningful once roles are actually configured
         // (roles is empty when nothing at all is trusted) — an empty trusted set is the unrelated
         // consistency-only path, not a role-lockout.
-        var warnings = roles.Count > 0 ? ValidateNoLockout(roles) : [];
+        var warnings = roles.Count > 0 ? ValidatePolicyFeasibility(roles) : [];
 
         var frozenSet = roles.Keys.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
         var frozenRoles = roles.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
@@ -143,59 +143,74 @@ public static class EngineTrustAnchor
     }
 
     /// <summary>
-    /// Guards against the total-self-lockout misconfiguration: with roles configured, the baked default
-    /// Install/Update policy is <c>[(Release,1)]</c> (<see cref="BakedTrustPolicy"/>). If no trusted key
-    /// holds <see cref="TrustRole.Release"/>, every install and update becomes permanently unsatisfiable —
-    /// the engine fails closed on 100% of its traffic. That is not attacker-exploitable (fail-closed), but
-    /// it is a sharp footgun a publisher should hit at their own bootstrap/build/test, not learn about from
-    /// a customer's failed install — so it throws (fail-fast) rather than merely warning.
+    /// Guards against policy lock-out misconfigurations by asking, for every baked operation rule (§5.2:
+    /// Install, Update, KeyChange, Downgrade, Revoke), whether it is actually SATISFIABLE by the effective
+    /// trusted keys and their roles — not merely whether some key holds each required role bit. A bit test
+    /// is imprecise: a single key tagged <c>Release | Recovery</c> makes "some key holds Recovery" true, but
+    /// <see cref="QuorumEvaluator"/>'s distinct-key matching (the same matching that runs at verify time)
+    /// forbids that one key from filling both the Release slot and the Recovery slot of the KeyChange rule,
+    /// so the rule is still permanently unsatisfiable with only one key registered.
     ///
-    /// <para>A softer variant — a Release key exists (install/update work) but no key holds
-    /// <see cref="TrustRole.Recovery"/> — makes the KeyChange (rotation) rule permanently unsatisfiable
-    /// too. The publisher may simply never rotate keys, so this does not throw; it is surfaced as a
-    /// non-fatal entry in <see cref="ConfigurationWarnings"/> instead, which the publisher's bootstrap code
-    /// can inspect after the first freeze (least-intrusive option: <see cref="EngineTrustAnchor"/> has no
-    /// logger of its own to write a "loud" warning through at this point in the bootstrap sequence).</para>
+    /// <para>This method reuses <see cref="QuorumEvaluator.Evaluate"/> directly rather than reimplementing
+    /// the bipartite matching: every effective trusted key is treated as a hypothetical signer (ignoring
+    /// actual signatures — there are none yet, this runs at configuration time) and evaluated against each
+    /// <see cref="BakedTrustPolicy.Default"/> rule. If ANY distinct-key assignment could satisfy the rule
+    /// with the keys configured today, evaluation is treated as feasible.</para>
+    ///
+    /// <para>If the Install or Update rule is unsatisfiable, every install and update becomes permanently
+    /// rejected (total self-lockout). That is not attacker-exploitable (fail-closed), but it is a sharp
+    /// footgun a publisher should hit at their own bootstrap/build/test, not learn about from a customer's
+    /// failed install — so it throws (fail-fast) rather than merely warning.</para>
+    ///
+    /// <para>If a softer rule (KeyChange, Downgrade, or Revoke) is unsatisfiable, install/update still work,
+    /// so this does not throw — the publisher may simply never need that operation. It is surfaced as a
+    /// non-fatal, operation-named entry in <see cref="ConfigurationWarnings"/> instead, which the
+    /// publisher's bootstrap code can inspect after the first freeze (least-intrusive option:
+    /// <see cref="EngineTrustAnchor"/> has no logger of its own to write a "loud" warning through at this
+    /// point in the bootstrap sequence).</para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
-    /// No trusted key holds <see cref="TrustRole.Release"/>, so install/update can never verify.
+    /// The Install or Update policy rule cannot be satisfied by the configured trusted keys and roles.
     /// </exception>
-    private static List<string> ValidateNoLockout(Dictionary<string, TrustRole> roles)
+    private static List<string> ValidatePolicyFeasibility(Dictionary<string, TrustRole> roles)
     {
-        var hasRelease = false;
-        var hasRecovery = false;
-        foreach (var role in roles.Values)
-        {
-            if ((role & TrustRole.Release) != TrustRole.None)
-                hasRelease = true;
-            if ((role & TrustRole.Recovery) != TrustRole.None)
-                hasRecovery = true;
-        }
-
-        if (!hasRelease)
-            throw new InvalidOperationException(
-                "Trust roles are configured but no trusted key holds the Release role. The baked default " +
-                "Install/Update policy requires one Release signature, so every install and update would be " +
-                "permanently rejected (total self-lockout). Tag at least one trusted key with the Release " +
-                "role (EngineTrustAnchor.TrustFingerprint(fp, TrustRole.Release) or the equivalent " +
-                "-p:FalkForgeTrustedKey Roles= metadata), or leave it un-roled — an un-roled key defaults to " +
-                "Release.");
+        // Every effective trusted key, once, as a hypothetical signer — the "available signers" set the
+        // feasibility question is asked against (not an actual collected signature set).
+        var signers = new List<TrustedSignature>(roles.Count);
+        foreach (var (fingerprint, role) in roles)
+            signers.Add(new TrustedSignature(fingerprint, role));
 
         var warnings = new List<string>();
-        if (!hasRecovery)
+        foreach (var (operation, rule) in BakedTrustPolicy.Default)
+        {
+            var decision = QuorumEvaluator.Evaluate(signers, rule);
+            if (decision.Satisfied)
+                continue;
+
+            if (operation is OperationKind.Install or OperationKind.Update)
+                throw new InvalidOperationException(
+                    $"Trust roles are configured but the {operation} policy rule cannot be satisfied by the " +
+                    $"configured trusted keys and roles ({decision.Diagnostic}). Every install and update " +
+                    "would be permanently rejected (total self-lockout). Tag at least one trusted key with " +
+                    "the Release role (EngineTrustAnchor.TrustFingerprint(fp, TrustRole.Release) or the " +
+                    "equivalent -p:FalkForgeTrustedKey Roles= metadata), or leave it un-roled — an un-roled " +
+                    "key defaults to Release.");
+
             warnings.Add(
-                "Trust roles are configured with a Release key but no trusted key holds the Recovery role. " +
-                "The KeyChange (key rotation) policy rule requires one Release AND one Recovery signature, so " +
-                "a future key rotation can never verify until a Recovery-tagged key is registered.");
+                $"Trust roles are configured but the {operation} policy rule cannot be satisfied by the " +
+                $"configured trusted keys and roles ({decision.Diagnostic}). {operation} will remain " +
+                "permanently unavailable until a distinct key holding the missing role is registered.");
+        }
 
         return warnings;
     }
 
     /// <summary>
-    /// Non-fatal configuration warnings discovered during <see cref="Freeze"/> (C19 follow-up) — currently
-    /// only the Recovery-role-missing case (see <see cref="ValidateNoLockout"/>). Empty when no roles are
-    /// configured or no risk was detected. Populated atomically with the frozen structures; read this after
-    /// the first read of <see cref="EffectiveFingerprints"/> or <see cref="EffectiveRoles"/>.
+    /// Non-fatal configuration warnings discovered during <see cref="Freeze"/> (C19 follow-up) — one entry
+    /// per unsatisfiable non-Install/Update rule (see <see cref="ValidatePolicyFeasibility"/>). Empty when
+    /// no roles are configured or every rule is satisfiable. Populated atomically with the frozen
+    /// structures; read this after the first read of <see cref="EffectiveFingerprints"/> or
+    /// <see cref="EffectiveRoles"/>.
     /// </summary>
     public static IReadOnlyList<string> ConfigurationWarnings => Volatile.Read(ref _configurationWarnings);
 
