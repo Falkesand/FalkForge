@@ -50,29 +50,60 @@ internal static class SigningProviderFactory
 
     private static Result<ResolvedSigning> CreatePem(SigningConfig config, string baseDirectory)
     {
+        ISignatureProvider classical;
         if (!string.IsNullOrWhiteSpace(config.KeyEnv))
         {
             var pem = RequireEnv(config.KeyEnv, "keyEnv");
             if (pem.IsFailure)
                 return Result<ResolvedSigning>.Failure(pem.Error);
 
-            return Result<ResolvedSigning>.Success(
-                new ResolvedSigning(PemSignatureProvider.FromPemContent(pem.Value), []));
+            classical = PemSignatureProvider.FromPemContent(pem.Value);
+        }
+        else
+        {
+            // The loader guarantees exactly one key source, so KeyPath is set here.
+            var keyPath = Path.IsPathRooted(config.KeyPath!)
+                ? config.KeyPath!
+                : Path.GetFullPath(Path.Combine(baseDirectory, config.KeyPath!));
+
+            // Never echo the configured value: a secret mispasted into keyPath would otherwise
+            // land verbatim in CLI/CI logs. Name the field to fix instead.
+            if (!File.Exists(keyPath))
+                return Result<ResolvedSigning>.Failure(new Error(ErrorKind.SecurityError,
+                    "JSN019: The signing key file that signing.keyPath points to was not found. The build fails closed rather than producing an unsigned bundle."));
+
+            classical = new PemSignatureProvider(keyPath);
         }
 
-        // The loader guarantees exactly one key source, so KeyPath is set here.
-        var keyPath = Path.IsPathRooted(config.KeyPath!)
-            ? config.KeyPath!
-            : Path.GetFullPath(Path.Combine(baseDirectory, config.KeyPath!));
+        // Optional ML-DSA companion for HYBRID signing (present pqKeyPath/pqKeyEnv ⇒ hybrid). The
+        // PQ key follows the exact C20 secret rules the classical key does: the config carries only
+        // a file path or an env var NAME, an unset env var fails the build closed (JSN019 — never a
+        // silent classical-only bundle the publisher believes is hybrid), and error messages name
+        // the FIELD, never echoing a value that could be a mispasted secret into CLI/CI logs.
+        ISignatureProvider? pqProvider = null;
+        if (!string.IsNullOrWhiteSpace(config.PqKeyEnv))
+        {
+            var pqPem = RequireEnv(config.PqKeyEnv, "pqKeyEnv");
+            if (pqPem.IsFailure)
+                return Result<ResolvedSigning>.Failure(pqPem.Error);
 
-        // Never echo the configured value: a secret mispasted into keyPath would otherwise
-        // land verbatim in CLI/CI logs. Name the field to fix instead.
-        if (!File.Exists(keyPath))
-            return Result<ResolvedSigning>.Failure(new Error(ErrorKind.SecurityError,
-                "JSN019: The signing key file that signing.keyPath points to was not found. The build fails closed rather than producing an unsigned bundle."));
+            pqProvider = MLDsaPemSignatureProvider.FromPemContent(pqPem.Value);
+        }
+        else if (!string.IsNullOrWhiteSpace(config.PqKeyPath))
+        {
+            var pqKeyPath = Path.IsPathRooted(config.PqKeyPath)
+                ? config.PqKeyPath
+                : Path.GetFullPath(Path.Combine(baseDirectory, config.PqKeyPath));
 
-        return Result<ResolvedSigning>.Success(
-            new ResolvedSigning(new PemSignatureProvider(keyPath), []));
+            // Never echo the configured value (see the classical keyPath branch above).
+            if (!File.Exists(pqKeyPath))
+                return Result<ResolvedSigning>.Failure(new Error(ErrorKind.SecurityError,
+                    "JSN019: The post-quantum signing key file that signing.pqKeyPath points to was not found. The build fails closed rather than producing a bundle without the configured hybrid signature."));
+
+            pqProvider = new MLDsaPemSignatureProvider(pqKeyPath);
+        }
+
+        return Result<ResolvedSigning>.Success(new ResolvedSigning(classical, [], pqProvider));
     }
 
     /// <summary>

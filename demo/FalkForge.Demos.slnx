@@ -99,6 +99,10 @@
         <Project Path="62-require-signed-updates/bundle/bundle.csproj" />
         <Project Path="62-require-signed-updates/msi-package/msi-package.csproj" />
     </Folder>
+    <Folder Name="/signing-trust/63-hybrid-pq-signing/">
+        <Project Path="63-hybrid-pq-signing/bundle/bundle.csproj" />
+        <Project Path="63-hybrid-pq-signing/msi-package/msi-package.csproj" />
+    </Folder>
     <Folder Name="/tooling/">
         <Project Path="54-forge-migrate/54-forge-migrate.csproj" />
         <Project Path="55-winget/55-winget.csproj" />

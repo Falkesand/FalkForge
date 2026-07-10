@@ -110,11 +110,31 @@ public static class JsonConfigLoader
         if (hasEnv && !IsValidEnvVarName(signing.KeyEnv!))
             return SigningFailure("JSN016: signing.keyEnv must be an environment variable NAME (letters, digits, underscore) — it looks like literal key material.");
 
+        // Hybrid post-quantum companion (optional; present ⇒ hybrid). The PQ key follows the SAME
+        // secret rules as the classical key: file path or env var NAME, never inline material.
+        var hasPqPath = !string.IsNullOrWhiteSpace(signing.PqKeyPath);
+        var hasPqEnv = !string.IsNullOrWhiteSpace(signing.PqKeyEnv);
+
+        if (hasPqPath && hasPqEnv) // ambiguously both — refusing beats picking one silently
+            return SigningFailure("JSN017: signing provider 'pem' accepts at most one post-quantum key source: 'pqKeyPath' (ML-DSA PEM file path) or 'pqKeyEnv' (environment variable name holding the PEM).");
+
+        if (hasPqPath && signing.PqKeyPath!.Contains("-----BEGIN", StringComparison.Ordinal))
+            return SigningFailure("JSN016: signing.pqKeyPath contains inline PEM key material — secrets must come from a key FILE or an environment variable, not the config file.");
+
+        if (hasPqEnv && !IsValidEnvVarName(signing.PqKeyEnv!))
+            return SigningFailure("JSN016: signing.pqKeyEnv must be an environment variable NAME (letters, digits, underscore) — it looks like literal key material.");
+
         return Result<SigningConfig>.Success(signing);
     }
 
     private static Result<SigningConfig> ValidateSignServerSigning(SigningConfig signing)
     {
+        // SignServer ML-DSA workers are a Stage-4 assessment (PQ-hybrid design §8.6): until then
+        // the PQ fields are pem-only. Failing loud beats silently emitting a classical-only bundle
+        // the author believes is hybrid-signed.
+        if (!string.IsNullOrWhiteSpace(signing.PqKeyPath) || !string.IsNullOrWhiteSpace(signing.PqKeyEnv))
+            return SigningFailure("JSN018: signing provider 'signserver' does not support 'pqKeyPath'/'pqKeyEnv' — hybrid post-quantum signing currently requires provider 'pem'.");
+
         if (string.IsNullOrWhiteSpace(signing.BaseUrl))
             return SigningFailure("JSN018: signing provider 'signserver' requires 'baseUrl'.");
 

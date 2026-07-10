@@ -148,6 +148,114 @@ public sealed class SigningProviderFactoryTests : IDisposable
         Assert.Contains("JSN019", result.Error.Message);
     }
 
+    // ── pem: hybrid post-quantum companion (pqKeyPath / pqKeyEnv) ────────────
+
+    private static async Task AssertPqSignsVerifiablyWith(ISignatureProvider pqProvider, MLDsa expectedKey)
+    {
+        var signResult = await pqProvider.SignAsync(Message);
+        Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : null);
+        Assert.Equal(SignatureAlgorithms.MlDsa65, signResult.Value.Algorithm);
+        Assert.Equal(expectedKey.ExportSubjectPublicKeyInfo(), signResult.Value.SubjectPublicKeyInfo);
+
+        using var pub = MLDsa.ImportSubjectPublicKeyInfo(signResult.Value.SubjectPublicKeyInfo);
+        Assert.True(pub.VerifyData(Message, signResult.Value.Signature, SignatureAlgorithms.ManifestContext));
+    }
+
+    [Fact]
+    public async Task Pem_HybridKeyPaths_YieldsClassicalAndPqProviders_BothSignVerifiably()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var pq = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+        Directory.CreateDirectory(Path.Combine(_tempDir, "keys"));
+        File.WriteAllText(Path.Combine(_tempDir, "keys", "c.pem"), classical.ExportPkcs8PrivateKeyPem());
+        File.WriteAllText(Path.Combine(_tempDir, "keys", "q.pem"), pq.ExportPkcs8PrivateKeyPem());
+
+        // Relative PQ paths resolve against the config directory, like every other config path.
+        var result = SigningProviderFactory.Create(
+            new SigningConfig { Provider = "pem", KeyPath = "keys/c.pem", PqKeyPath = "keys/q.pem" },
+            _tempDir);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.True(result.Value.IsEnabled);
+        await AssertSignsVerifiablyWith(result.Value.Provider!, classical);
+        Assert.NotNull(result.Value.PqProvider);
+        await AssertPqSignsVerifiablyWith(result.Value.PqProvider!, pq);
+    }
+
+    [Fact]
+    public async Task Pem_PqKeyEnv_ReadsPemFromEnvironmentValue()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var pq = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+        var classicalEnv = SetEnv(classical.ExportPkcs8PrivateKeyPem());
+        var pqEnv = SetEnv(pq.ExportPkcs8PrivateKeyPem());
+
+        var result = SigningProviderFactory.Create(
+            new SigningConfig { Provider = "pem", KeyEnv = classicalEnv, PqKeyEnv = pqEnv }, _tempDir);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.NotNull(result.Value.PqProvider);
+        await AssertPqSignsVerifiablyWith(result.Value.PqProvider!, pq);
+    }
+
+    [Fact]
+    public void Pem_PqKeyEnvUnset_FailsClosedJsn019()
+    {
+        // An unset PQ env var must ERROR — never degrade to a classical-only bundle the
+        // publisher believes is hybrid.
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var classicalEnv = SetEnv(classical.ExportPkcs8PrivateKeyPem());
+
+        var result = SigningProviderFactory.Create(
+            new SigningConfig { Provider = "pem", KeyEnv = classicalEnv, PqKeyEnv = UnsetEnvName() }, _tempDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.Contains("pqKeyEnv", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pem_MissingPqKeyFile_FailsJsn019()
+    {
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var pemPath = Path.Combine(_tempDir, "c.pem");
+        File.WriteAllText(pemPath, classical.ExportPkcs8PrivateKeyPem());
+
+        var result = SigningProviderFactory.Create(
+            new SigningConfig
+            {
+                Provider = "pem",
+                KeyPath = pemPath,
+                PqKeyPath = Path.Combine(_tempDir, "missing-mldsa.pem")
+            }, _tempDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+    }
+
+    [Fact]
+    public void Pem_PqKeyPathHoldsSecretShapedValue_ErrorNamesFieldWithoutEchoingValue()
+    {
+        // The C20 leak-regression rule extends to the PQ field: a secret mispasted into
+        // pqKeyPath resolves to a non-existent file; the missing-file error must reference
+        // signing.pqKeyPath, never print the resolved path (= the secret).
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var pemPath = Path.Combine(_tempDir, "c.pem");
+        File.WriteAllText(pemPath, classical.ExportPkcs8PrivateKeyPem());
+
+        var result = SigningProviderFactory.Create(
+            new SigningConfig { Provider = "pem", KeyPath = pemPath, PqKeyPath = SecretShapedLiteral }, _tempDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.Contains("pqKeyPath", result.Error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(SecretShapedLiteral, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── signserver: env-sourced auth material ────────────────────────────────
 
     [Fact]

@@ -155,7 +155,87 @@ public sealed class SigningConfigLoaderTests
         Assert.Contains("JSN017", result.Error.Message);
     }
 
+    // ── pem provider: hybrid post-quantum key (JSN016/JSN017) ────────────────
+
+    [Fact]
+    public void Pem_WithPqKeyPath_Succeeds_AsHybrid()
+    {
+        // The presence of a PQ key source turns the pem provider hybrid: the classical key and
+        // the ML-DSA companion both sign the same manifest message (PQ-hybrid design §2.2).
+        var result = Load(
+            """{ "provider": "pem", "keyPath": "keys/release.pem", "pqKeyPath": "keys/release-mldsa.pem" }""");
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal("keys/release-mldsa.pem", result.Value.PqKeyPath);
+    }
+
+    [Fact]
+    public void Pem_WithPqKeyEnv_Succeeds_AsHybrid()
+    {
+        var result = Load(
+            """{ "provider": "pem", "keyEnv": "RELEASE_SIGNING_KEY", "pqKeyEnv": "RELEASE_PQ_SIGNING_KEY" }""");
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal("RELEASE_PQ_SIGNING_KEY", result.Value.PqKeyEnv);
+    }
+
+    [Fact]
+    public void Pem_WithBothPqKeySources_FailsJsn017()
+    {
+        // Same ambiguity rule as the classical key: refusing beats picking one silently.
+        var result = Load(
+            """{ "provider": "pem", "keyPath": "k.pem", "pqKeyPath": "q.pem", "pqKeyEnv": "PQ_KEY" }""");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN017", result.Error.Message);
+    }
+
+    [Fact]
+    public void Pem_InlinePemBlockInPqKeyPath_FailsJsn016()
+    {
+        // The PQ key follows the SAME secret rules as the classical key: file path or env var
+        // NAME only, never inline key material in the config file.
+        var result = Load(
+            """{ "provider": "pem", "keyPath": "k.pem", "pqKeyPath": "-----BEGIN PRIVATE KEY-----\nMIG...\n-----END PRIVATE KEY-----" }""");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN016", result.Error.Message);
+    }
+
+    [Fact]
+    public void Pem_PqKeyEnvHoldingLiteralSecret_FailsJsn016()
+    {
+        var result = Load(
+            """{ "provider": "pem", "keyPath": "k.pem", "pqKeyEnv": "eyJhbGciOiJIUzI1NiJ9.payload.sig" }""");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN016", result.Error.Message);
+    }
+
     // ── signserver provider (JSN018) ─────────────────────────────────────────
+
+    [Fact]
+    public void SignServer_WithPqKeyPath_FailsJsn018()
+    {
+        // SignServer ML-DSA workers are a Stage-4 assessment (design §8.6): until then the PQ
+        // fields are pem-only, and a signserver config carrying them must fail loud rather than
+        // silently producing a classical-only bundle the author believes is hybrid.
+        var result = Load(
+            """{ "provider": "signserver", "baseUrl": "https://s", "worker": "W", "pqKeyPath": "q.pem" }""");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN018", result.Error.Message);
+    }
+
+    [Fact]
+    public void SignServer_WithPqKeyEnv_FailsJsn018()
+    {
+        var result = Load(
+            """{ "provider": "signserver", "baseUrl": "https://s", "worker": "W", "pqKeyEnv": "PQ_KEY" }""");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN018", result.Error.Message);
+    }
 
     [Fact]
     public void SignServer_Valid_Succeeds()

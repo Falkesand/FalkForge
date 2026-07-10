@@ -13,6 +13,17 @@ public sealed class IntegrityConfiguration
     /// <see cref="SigningKeyPath"/> (or an ephemeral key when that is also unset).
     /// </summary>
     public IReadOnlyList<string>? SigningKeyPaths { get; init; }
+
+    /// <summary>
+    /// Optional ML-DSA (FIPS 204) private-key PEM paths for HYBRID post-quantum signing (PQ-hybrid
+    /// design §2.2, Stage 3). Each listed key signs the identical canonical message and contributes one
+    /// algorithm-tagged ML-DSA signature entry alongside the classical entries. A PQ key is a
+    /// <b>companion</b> to a classical key, never a trust anchor on its own: configuring PQ keys with no
+    /// classical key (or classical provider) at all fails the build loud (SGN012) because the resulting
+    /// envelope could never verify on any engine. Populated by
+    /// <see cref="FalkForge.Builders.IntegrityBuilder.HybridKey"/>.
+    /// </summary>
+    public IReadOnlyList<string>? PqSigningKeyPaths { get; init; }
     public string? CertStoreThumbprint { get; init; }
     public string? StoreLocation { get; init; }
     public string? VaultProvider { get; init; }

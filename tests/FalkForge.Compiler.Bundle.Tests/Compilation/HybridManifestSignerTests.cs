@@ -112,6 +112,92 @@ public sealed class HybridManifestSignerTests : IDisposable
     }
 
     [Fact]
+    public void Sign_HybridKeyPaths_EmitsClassicalAndPqEntries_BothVerify()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+
+        // Stage 3 ergonomics: the config shape IntegrityBuilder.HybridKey(classical, pq) produces —
+        // a classical key path plus its ML-DSA companion path — must yield one classical and one
+        // algorithm-tagged ML-DSA entry over the same canonical message.
+        using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var mldsa = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+        var classicalPem = Path.Combine(_tempDir, "classical.pem");
+        var pqPem = Path.Combine(_tempDir, "mldsa.pem");
+        File.WriteAllText(classicalPem, ecdsa.ExportPkcs8PrivateKeyPem());
+        File.WriteAllText(pqPem, mldsa.ExportPkcs8PrivateKeyPem());
+        var config = new IntegrityConfiguration
+        {
+            SigningKeyPaths = [classicalPem],
+            PqSigningKeyPaths = [pqPem]
+        };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var envelope = IntegrityEnvelopeCodec.Parse(result.Value)!;
+        Assert.Equal(2, envelope.Signatures.Count);
+
+        var classical = envelope.Signatures[0];
+        Assert.Null(classical.Algorithm);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(ecdsa.ExportSubjectPublicKeyInfo())),
+            classical.Fingerprint);
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+
+        var pq = envelope.Signatures[1];
+        Assert.Equal(IntegrityEnvelopeCodec.MlDsa65AlgorithmId, pq.Algorithm);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(mldsa.ExportSubjectPublicKeyInfo())),
+            pq.Fingerprint);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        using var pub = MLDsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(pq.PublicKey));
+        Assert.True(pub.VerifyData(message, Convert.FromBase64String(pq.Signature), SignatureAlgorithms.ManifestContext));
+    }
+
+    [Fact]
+    public void Sign_PqKeyWithoutAnyClassicalKey_FailsLoudWithSgn012()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+
+        // Hybrid requires both halves (design §2.2): ML-DSA entries are companions consulted only
+        // AFTER a classical entry verifies — they are never matched against the trust set on their
+        // own. An envelope whose only signature is ML-DSA could therefore never verify on ANY
+        // engine; emitting it silently would ship an unverifiable artifact, so the signer fails
+        // loud instead.
+        using var mldsa = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+        var pqPem = Path.Combine(_tempDir, "mldsa-only.pem");
+        File.WriteAllText(pqPem, mldsa.ExportPkcs8PrivateKeyPem());
+        var config = new IntegrityConfiguration { PqSigningKeyPaths = [pqPem] };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsFailure, "a PQ-only envelope is unverifiable by design and must be rejected");
+        Assert.Contains("SGN012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Sign_PqOnlyCustomProvider_FailsLoudWithSgn012()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+
+        // Same guard for the provider seam: a custom provider list that yields only ML-DSA
+        // signatures produces an unverifiable envelope and must be rejected at assembly time.
+        using var mldsa = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+        var config = new IntegrityConfiguration
+        {
+            SignatureProviders = new ISignatureProvider[]
+            {
+                MLDsaPemSignatureProvider.FromPemContent(mldsa.ExportPkcs8PrivateKeyPem())
+            }
+        };
+
+        var result = EcdsaManifestSigner.Sign(Entries(("PkgA", "AABBCC")), config);
+
+        Assert.True(result.IsFailure, "a PQ-only envelope is unverifiable by design and must be rejected");
+        Assert.Contains("SGN012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Sign_PqProviderListedBeforeClassical_StillOrdersClassicalEntriesFirst()
     {
         Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");

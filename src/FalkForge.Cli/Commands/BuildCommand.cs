@@ -181,7 +181,8 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
             if (resolvedSigning.IsEnabled)
             {
                 var bundleResult = await CompileSignedBundleAsync(
-                    compileResult.Value, package, outputPath, resolvedSigning.Provider, cancellationToken).ConfigureAwait(false);
+                    compileResult.Value, package, outputPath, resolvedSigning.Provider,
+                    resolvedSigning.PqProvider, cancellationToken).ConfigureAwait(false);
                 if (bundleResult.IsFailure)
                 {
                     _console.WriteError(bundleResult.Error.Message);
@@ -206,19 +207,23 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         finally
         {
             (resolvedSigning.Provider as IDisposable)?.Dispose();
+            (resolvedSigning.PqProvider as IDisposable)?.Dispose();
         }
     }
 
     /// <summary>
     /// Wraps the freshly compiled MSI in a single-package EXE bundle whose integrity manifest is
     /// signed by <paramref name="provider"/> (the C17 seam), using the ASYNC bundle build path so
-    /// a genuinely asynchronous provider (e.g. SignServer) signs without blocking a thread.
+    /// a genuinely asynchronous provider (e.g. SignServer) signs without blocking a thread. A
+    /// non-null <paramref name="pqProvider"/> makes the bundle HYBRID-signed: the ML-DSA companion
+    /// signs the same manifest message and the envelope carries both entries (classical first).
     /// </summary>
     private static async Task<Result<string>> CompileSignedBundleAsync(
         string msiPath,
         PackageModel package,
         string outputPath,
         ISignatureProvider provider,
+        ISignatureProvider? pqProvider,
         CancellationToken cancellationToken)
     {
         var bundle = new BundleBuilder()
@@ -229,7 +234,12 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
                 .Id("MainMsi")
                 .DisplayName(package.Name)
                 .Vital(true)))
-            .Integrity(i => i.SigningProvider(provider))
+            .Integrity(i =>
+            {
+                i.SigningProvider(provider);
+                if (pqProvider is not null)
+                    i.SigningProvider(pqProvider);
+            })
             .Build();
 
         return await new BundleCompiler().CompileAsync(bundle, outputPath, cancellationToken).ConfigureAwait(false);

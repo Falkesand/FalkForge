@@ -178,6 +178,74 @@ public sealed class BuildCommandSigningTests : IDisposable
             Assert.Single(envelope!.Signatures).Fingerprint);
     }
 
+    // ── e2e: hybrid pem signing carries classical + ML-DSA entries ───────────
+
+    [Fact]
+    public void PemHybridSigning_ProducesBundleWithClassicalAndPqSignatures_BothVerify()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var pq = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
+        File.WriteAllText(Path.Combine(_tempDir, "release.pem"), classical.ExportPkcs8PrivateKeyPem());
+        File.WriteAllText(Path.Combine(_tempDir, "release-mldsa.pem"), pq.ExportPkcs8PrivateKeyPem());
+
+        var (exitCode, _, outputDir) = RunBuild(WriteConfig(
+            """{ "provider": "pem", "keyPath": "release.pem", "pqKeyPath": "release-mldsa.pem" }"""));
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        var bundlePath = Assert.Single(Directory.GetFiles(outputDir, "*.exe"));
+        var content = PayloadEmbedder.Extract(bundlePath);
+        Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
+
+        using var manifest = JsonDocument.Parse(content.Value.ManifestJsonBytes!);
+        var envelope = IntegrityEnvelopeCodec.Parse(
+            manifest.RootElement.GetProperty("ManifestSignature").GetString()!)!;
+
+        // Both entries present, classical first, from the CONFIGURED keys.
+        Assert.Equal(2, envelope.Signatures.Count);
+        Assert.Null(envelope.Signatures[0].Algorithm);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(classical.ExportSubjectPublicKeyInfo())),
+            envelope.Signatures[0].Fingerprint);
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope), "classical signature does not verify");
+
+        Assert.Equal(IntegrityEnvelopeCodec.MlDsa65AlgorithmId, envelope.Signatures[1].Algorithm);
+        Assert.Equal(
+            Convert.ToHexString(SHA256.HashData(pq.ExportSubjectPublicKeyInfo())),
+            envelope.Signatures[1].Fingerprint);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        using var pqPub = MLDsa.ImportSubjectPublicKeyInfo(
+            Convert.FromBase64String(envelope.Signatures[1].PublicKey));
+        Assert.True(pqPub.VerifyData(
+            message,
+            Convert.FromBase64String(envelope.Signatures[1].Signature),
+            FalkForge.Signing.SignatureAlgorithms.ManifestContext), "ML-DSA signature does not verify");
+    }
+
+    [Fact]
+    public void PemHybridSigning_UnsetPqKeyEnv_FailsBuildClosed()
+    {
+        // A hybrid config whose PQ env var is unset must fail the whole build — never quietly
+        // produce a classical-only bundle the publisher believes is hybrid.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        using var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var classicalEnv = SetEnv(classical.ExportPkcs8PrivateKeyPem());
+
+        var (exitCode, console, outputDir) = RunBuild(WriteConfig($$"""
+            { "provider": "pem", "keyEnv": "{{classicalEnv}}", "pqKeyEnv": "C20_UNSET_{{Guid.NewGuid():N}}" }
+            """));
+
+        Assert.NotEqual(ExitCodes.Success, exitCode);
+        Assert.Empty(Directory.GetFiles(outputDir, "*.exe"));
+        Assert.Contains(console.Errors, e => e.Contains("JSN019", StringComparison.Ordinal));
+        Assert.Contains(console.Errors, e => e.Contains("pqKeyEnv", StringComparison.Ordinal));
+    }
+
     // ── placeholder-stub warning: a signed bundle is NOT a runnable installer ─
 
     [Fact]
