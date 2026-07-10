@@ -108,10 +108,49 @@ if (Fingerprints != null)
 
         // PQ-hybrid Stage 1: optional ML-DSA companion fingerprint. When present, the engine
         // requires a valid ML-DSA companion signature for this key (INT011 otherwise).
-        var pqFp = normalizeFp(item.GetMetadata("PqFingerprint"));
+        // Mirror EngineTrustAnchor.Normalize's strictness: a supplied value must normalize to
+        // exactly 64 hex chars (SHA-256 of the companion key's SubjectPublicKeyInfo). A typo'd
+        // or truncated value would otherwise bake a companion pin no key can ever match, so
+        // every bundle from this signer rejects INT011 — discovered only at customer install
+        // time. Fail the build now instead.
+        var pqFpRaw = item.GetMetadata("PqFingerprint") ?? string.Empty;
+        var pqFp = normalizeFp(pqFpRaw);
+        if (pqFpRaw.Trim().Length != 0 && pqFp.Length != 64)
+        {
+            Log.LogError(
+                "FALKPQ002: FalkForgeTrustedKey item '{0}' has a malformed PqFingerprint '{1}': " +
+                "it normalizes to {2} hex characters, expected exactly 64 (the SHA-256 of the " +
+                "ML-DSA companion key's SubjectPublicKeyInfo). Baking it would make every bundle " +
+                "from this signer fail INT011 at install time.",
+                item.ItemSpec, pqFpRaw, pqFp.Length);
+        }
 
         entries.Add(System.Tuple.Create(fp, roleExpr, pqFp));
     }
+}
+
+// Duplicate classical fingerprints would make the generated FrozenDictionary initializers
+// (Roles, and PqCompanions for hybrid items) throw TypeInitializationException at ENGINE
+// STARTUP — fail-closed, but late and opaque. Fail the build at the moment the duplicate is
+// introduced instead. Comparison is case-insensitive to match the generated dictionaries.
+var seenFingerprints = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+foreach (var e in entries)
+{
+    if (!seenFingerprints.Add(e.Item1))
+    {
+        Log.LogError(
+            "FALKPQ003: duplicate trusted-key fingerprint '{0}' in the baked FalkForgeTrustedKey " +
+            "set. Each classical fingerprint may appear once; merge its Roles/PqFingerprint " +
+            "metadata onto a single item (a duplicate would otherwise crash the engine at startup " +
+            "when the generated frozen dictionaries are initialized).",
+            e.Item1);
+    }
+}
+
+// Fail closed: never write a generated source file from an invalid key set.
+if (Log.HasLoggedErrors)
+{
+    return false;
 }
 
 // Weakest-link warning (PQ-hybrid design §2.2, human decision §8.5): a MIXED baked set — some
