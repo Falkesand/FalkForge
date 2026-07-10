@@ -26,5 +26,5 @@ public sealed class HttpPayloadSource : IPayloadSource
         string destinationPath,
         IProgress<(long BytesReceived, long TotalBytes)>? progress,
         CancellationToken ct)
-        => _downloader.DownloadAsync(url, expectedSha256, destinationPath, progress, allowResume: false, ct);
+        => _downloader.DownloadAsync(url, expectedSha256, destinationPath, progress, allowResume: false, ct: ct);
 }

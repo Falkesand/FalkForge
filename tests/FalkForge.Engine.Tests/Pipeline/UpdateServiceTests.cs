@@ -80,7 +80,7 @@ public sealed class UpdateServiceTests
         return new UpdateService(
             feed,
             cacheDir: "/cache",
-            download: (url, sha, dest, progress, resume, ct) => Task.FromResult(result),
+            download: (url, sha, dest, progress, resume, expectedSize, ct) => Task.FromResult(result),
             launcher: launcher,
             channel: channel,
             logger: new NullLogger(),
@@ -224,7 +224,7 @@ public sealed class UpdateServiceTests
         var service = new UpdateService(
             feed,
             cacheDir: "/cache",
-            download: (url, sha, dest, progress, resume, ct) =>
+            download: (url, sha, dest, progress, resume, expectedSize, ct) =>
                 Task.FromResult(Result<string>.Failure(new Error(ErrorKind.DownloadError, "UPD-TEST: simulated network failure"))),
             launcher: launcher,
             channel: channel,

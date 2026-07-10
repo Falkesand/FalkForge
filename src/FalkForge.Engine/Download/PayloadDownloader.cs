@@ -12,6 +12,21 @@ public sealed class PayloadDownloader
     private readonly TokenBucket? _tokenBucket;
     private const int MaxRetries = 3;
 
+    /// <summary>
+    /// Absolute download ceiling applied when the caller has no expected payload size
+    /// (disk-fill DoS defense). 16 GiB is deliberately generous: real-world installer
+    /// payloads (game installers, SQL Server media, multi-MSI bundles) top out at a few
+    /// GB, so legitimate downloads are never rejected while a hostile endless stream is.
+    /// </summary>
+    internal const long MaxPayloadSizeWithoutExpectedSizeBytes = 16L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// Slack added on top of a caller-supplied expected size before the download is
+    /// aborted. Any overrun already guarantees a SHA-256 mismatch; the slack only keeps
+    /// the early-abort from firing on benign size metadata drift (e.g. a re-signed file).
+    /// </summary>
+    internal const long ExpectedSizeSlackBytes = 1L * 1024 * 1024;
+
     /// <param name="httpClient">Shared HttpClient; caller owns its lifetime.</param>
     /// <param name="timeoutPerAttempt">
     ///   Maximum wall-clock time for a single download attempt before the attempt is
@@ -37,12 +52,24 @@ public sealed class PayloadDownloader
         _tokenBucket = tokenBucket;
     }
 
+    /// <param name="url">HTTPS source URL.</param>
+    /// <param name="expectedSha256">Expected SHA-256 of the finished file (hex).</param>
+    /// <param name="targetPath">Destination file path.</param>
+    /// <param name="progress">Optional progress sink.</param>
+    /// <param name="allowResume">Resume a previous partial download when the server supports ranges.</param>
+    /// <param name="expectedSize">
+    ///   Expected payload size in bytes when the caller knows it (e.g. from an update feed).
+    ///   The download is aborted once it exceeds this size plus <see cref="ExpectedSizeSlackBytes"/>;
+    ///   when null or non-positive, <see cref="MaxPayloadSizeWithoutExpectedSizeBytes"/> applies.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     public async Task<Result<string>> DownloadAsync(
         string url,
         string expectedSha256,
         string targetPath,
         IProgress<(long BytesReceived, long TotalBytes)>? progress = null,
         bool allowResume = false,
+        long? expectedSize = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -94,6 +121,7 @@ public sealed class PayloadDownloader
 
         Exception? lastException = null;
         var kind = InferKind(url);
+        var byteCap = ComputeByteCap(expectedSize);
 
         for (var attempt = 0; attempt < MaxRetries; attempt++)
         {
@@ -132,6 +160,18 @@ public sealed class PayloadDownloader
                     ? responseContentLength + existingSize
                     : responseContentLength;
 
+                // Early abort when the server DECLARES an oversize body. Advisory only —
+                // the header is attacker-controlled and absent on chunked responses, so
+                // the authoritative cap is enforced byte-by-byte in the read loop below.
+                if (responseContentLength >= 0 && responseContentLength + existingSize > byteCap)
+                {
+                    TryDeleteFile(partialPath);
+                    EngineMeter.RecordPayloadDownload(success: false, sizeBytes: 0L, kind);
+                    return Result<string>.Failure(
+                        ErrorKind.DownloadError,
+                        $"Download exceeds maximum allowed size ({byteCap} bytes): {url}");
+                }
+
                 await using var contentStream = await response.Content.ReadAsStreamAsync(timeoutCts.Token);
 
                 // Append when resuming; overwrite from scratch otherwise.
@@ -155,6 +195,19 @@ public sealed class PayloadDownloader
                 {
                     // Data arrived — reset the idle timer for the next chunk.
                     idleCts.CancelAfter(_chunkIdleTimeout);
+
+                    // Hard total-size cap (disk-fill DoS defense). Checked against bytes
+                    // actually received, never the Content-Length header. Not retried —
+                    // an oversize stream is hostile or corrupt, not transient.
+                    if (totalRead + bytesRead > byteCap)
+                    {
+                        fileStream.Close();
+                        TryDeleteFile(partialPath);
+                        EngineMeter.RecordPayloadDownload(success: false, sizeBytes: 0L, kind);
+                        return Result<string>.Failure(
+                            ErrorKind.DownloadError,
+                            $"Download exceeds maximum allowed size ({byteCap} bytes): {url}");
+                    }
 
                     if (_tokenBucket is not null)
                         await _tokenBucket.WaitForTokensAsync(bytesRead, idleCts.Token);
@@ -216,6 +269,16 @@ public sealed class PayloadDownloader
             ErrorKind.DownloadError,
             $"Failed to download {url} after {MaxRetries} attempts: {failureDetail}");
     }
+
+    /// <summary>
+    /// Resolves the effective download byte cap: the caller's expected size plus
+    /// <see cref="ExpectedSizeSlackBytes"/> when a positive size is known, otherwise the
+    /// generous <see cref="MaxPayloadSizeWithoutExpectedSizeBytes"/> absolute ceiling.
+    /// </summary>
+    internal static long ComputeByteCap(long? expectedSize) =>
+        expectedSize is > 0
+            ? expectedSize.Value + ExpectedSizeSlackBytes
+            : MaxPayloadSizeWithoutExpectedSizeBytes;
 
     /// <summary>
     /// Infers the <see cref="EngineMeter.PayloadKind"/> from a URL's file extension.

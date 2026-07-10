@@ -142,7 +142,7 @@ public sealed class PipelinePhaseStepTests
         var service = new FalkForge.Engine.Pipeline.UpdateService(
             manifest.UpdateFeed!,
             cacheDir: Path.GetTempPath(),
-            download: (url, sha, dest, progress, resume, ct) =>
+            download: (url, sha, dest, progress, resume, expectedSize, ct) =>
                 Task.FromResult(Result<string>.Success(dest)),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
@@ -184,7 +184,7 @@ public sealed class PipelinePhaseStepTests
         var service = new FalkForge.Engine.Pipeline.UpdateService(
             manifest.UpdateFeed!,
             cacheDir: Path.GetTempPath(),
-            download: (url, sha, dest, progress, resume, ct) =>
+            download: (url, sha, dest, progress, resume, expectedSize, ct) =>
                 throw new InvalidOperationException("simulated download blow-up"),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,
@@ -216,7 +216,7 @@ public sealed class PipelinePhaseStepTests
         var service = new FalkForge.Engine.Pipeline.UpdateService(
             manifest.UpdateFeed!,
             cacheDir: Path.GetTempPath(),
-            download: (url, sha, dest, progress, resume, ct) =>
+            download: (url, sha, dest, progress, resume, expectedSize, ct) =>
             {
                 cts.Cancel();
                 ct.ThrowIfCancellationRequested();
@@ -246,7 +246,7 @@ public sealed class PipelinePhaseStepTests
         var service = new FalkForge.Engine.Pipeline.UpdateService(
             manifest.UpdateFeed!,
             cacheDir: Path.GetTempPath(),
-            download: (url, sha, dest, progress, resume, ct) =>
+            download: (url, sha, dest, progress, resume, expectedSize, ct) =>
                 Task.FromResult(Result<string>.Success(dest)),
             launcher: new NoOpUpdateLauncher(),
             channel: channel,

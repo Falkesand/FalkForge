@@ -29,6 +29,19 @@ internal static class EngineHttpClientFactory
     /// </summary>
     public static HttpClient Create()
     {
+        // Redirect policy (deliberate, reviewed):
+        //  - Cross-host redirects stay ALLOWED. Real download hosts legitimately redirect to
+        //    CDNs (S3, Azure Blob, Fastly); pinning redirects to the original host would break
+        //    normal payload downloads. The residual blind-GET SSRF a hostile redirect enables
+        //    is bounded: every downloaded byte is SHA-256/signature-verified downstream, so a
+        //    redirected response can never be installed or executed.
+        //  - https -> http downgrade redirects are BLOCKED by .NET itself: SocketsHttpHandler's
+        //    RedirectHandler refuses to follow a redirect from a secure (https) request URI to
+        //    an insecure (http) location (dotnet/runtime RedirectHandler.RequestNeedsRedirect),
+        //    and initial URLs are already https-only (PayloadDownloader scheme check, BDL025 +
+        //    UpdateChecker for the feed). Do not add a second, redundant scheme gate here.
+        //  - .NET also strips the Authorization header on any redirect, so credentials cannot
+        //    leak to a redirect target.
         var handler = new SocketsHttpHandler
         {
             MaxAutomaticRedirections = DefaultMaxRedirects,
