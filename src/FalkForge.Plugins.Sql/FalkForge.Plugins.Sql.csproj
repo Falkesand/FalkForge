@@ -5,6 +5,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <RootNamespace>FalkForge.Plugins.Sql</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <Description>SQL Server discovery, database listing, and connection-testing plugin for FalkForge installer UI</Description>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../FalkForge.Core/FalkForge.Core.csproj"/>

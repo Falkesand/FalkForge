@@ -2,6 +2,12 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
+    <!-- Packs as a .NET global tool: dotnet tool install -g FalkForge.Tool -> 'forge' command -->
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>forge</ToolCommandName>
+    <PackageId>FalkForge.Tool</PackageId>
+    <Description>forge — the FalkForge command-line tool: build, validate, inspect, decompile, migrate, verify, and sign Windows installers (MSI, MSIX, EXE bundles)</Description>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Cli.Tests" />

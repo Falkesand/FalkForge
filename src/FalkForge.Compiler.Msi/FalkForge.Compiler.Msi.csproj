@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Compiler.Msi</RootNamespace>
         <Description>MSI generation via msi.dll P/Invoke</Description>
         <!-- Required for P/Invoke interop with msi.dll and cabinet.dll (FCI/FDI callbacks use raw pointers) -->

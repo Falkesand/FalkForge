@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge</RootNamespace>
         <Description>Domain model and fluent API for FalkForge</Description>
         <!-- Deliberate opt-in to the .NET 10 ML-DSA (FIPS 204) API for PQ-hybrid manifest signing

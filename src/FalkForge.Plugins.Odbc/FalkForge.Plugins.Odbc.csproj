@@ -5,6 +5,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <RootNamespace>FalkForge.Plugins.Odbc</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <Description>ODBC DSN checking and administrator launcher plugin for FalkForge installer UI (Windows-only)</Description>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../FalkForge.Core/FalkForge.Core.csproj"/>

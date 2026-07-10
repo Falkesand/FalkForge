@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Extensions.Util</RootNamespace>
         <Description>Util extension for FalkForge - XML configuration file manipulation</Description>
     </PropertyGroup>

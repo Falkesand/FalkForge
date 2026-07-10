@@ -1,5 +1,19 @@
 <Project>
     <PropertyGroup>
+        <!-- ============================================================================
+             SINGLE SOURCE OF TRUTH FOR VERSION — change here; flows to every assembly
+             (AssemblyVersion/FileVersion/InformationalVersion), the version the forge
+             CLI reports, and every NuGet package (PackageVersion).
+             Intended progression: alpha.N (now) -> beta.1 (friend beta) -> beta.N
+             (public beta) -> 1.0.0 (GA).
+             When bumping, also update ExpectedVersion in
+             tests/FalkForge.Core.Tests/VersionSingleSourceTests.cs and
+             tests/FalkForge.Cli.Tests/VersionInfoTests.cs — those tests pin this value
+             so a version change is always a deliberate, reviewed act.
+             ============================================================================ -->
+        <VersionPrefix>0.1.0</VersionPrefix>
+        <VersionSuffix>alpha.1</VersionSuffix>
+
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
@@ -12,8 +26,38 @@
         <LangVersion>latest</LangVersion>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+        <!-- ============================================================================
+             NuGet PACKAGE METADATA — shared by every packable project.
+             Packability is deny-by-default: IsPackable=false here; each shippable
+             project opts in with IsPackable=true in its own csproj. Test projects,
+             demos, the NativeAOT engine exes, Studio, and Testing therefore never pack.
+             ============================================================================ -->
+        <IsPackable>false</IsPackable>
+        <Authors>Peter Falkesand</Authors>
+        <Company>FalkForge</Company>
+        <Product>FalkForge</Product>
+        <Copyright>© Peter Falkesand</Copyright>
+        <PackageProjectUrl>https://github.com/Falkesand/FalkForge</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Falkesand/FalkForge.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <!-- PolyForm Perimeter 1.0.0 is not an SPDX/OSI expression, so the license file
+             itself is packed into every .nupkg (see the IsPackable ItemGroup below). -->
+        <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageTags>installer;msi;msix;bundle;setup;deployment;windows;wix-alternative</PackageTags>
+        <!-- Default package description; shippable projects override with their own. -->
+        <Description>FalkForge — a self-contained C# framework for authoring and compiling Windows installers (MSI, MSIX, MSM, MSP, MST, EXE bundles) with no external tools.</Description>
         <!-- NU1608 no longer fires: bumping Microsoft.CodeAnalysis.CSharp.Scripting to 5.6.0 aligned the transitive Roslyn versions, resolving the former SecurityCodeScan.VS2019 conflict, so the suppression is obsolete (verified via force-restore + clean build). -->
     </PropertyGroup>
+
+    <!-- Pack the license and readme into every packable project's .nupkg.
+         Item conditions evaluate after all properties, so a csproj's IsPackable=true
+         opt-in is respected here even though this file imports first. -->
+    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+        <None Include="$(MSBuildThisFileDirectory)LICENSE.md" Pack="true" PackagePath="" Visible="false" />
+        <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="" Visible="false" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="SonarAnalyzer.CSharp">

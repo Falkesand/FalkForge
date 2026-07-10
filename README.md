@@ -1,6 +1,17 @@
 # FalkForge
 
-Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools. Self-contained compiler, NativeAOT runtime engine, six output formats.
+Build Windows installers -- MSI, MSIX (experimental), and EXE bundles -- with no external tools. Self-contained compiler, NativeAOT runtime engine, six output formats.
+
+## About This Project
+
+FalkForge is a personal project: I built it to make my own installers, and I keep
+building it because it's fun. It's shared here because it might be useful to you
+too -- you're welcome to use it to build and ship installers for your own products,
+free of charge (see [License](#license)). Issues and ideas are welcome; just know
+this is maintained at hobby-project pace by one person.
+
+This GitHub repository is the project's home page -- docs, demos, and releases all
+live here.
 
 ## Three Ways to Build
 
@@ -13,23 +24,28 @@ Build Windows installers -- MSI, MSIX, and EXE bundles -- with no external tools
 ## Why FalkForge?
 
 - **Self-contained compiler** -- Direct P/Invoke to `msi.dll`. No WiX, no InstallShield, no external tools.
-- **Six output formats** -- MSI, MSIX, MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
+- **Six output formats** -- MSI, MSIX (experimental), MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
 - **NativeAOT engine** -- Sub-10ms startup bundle runtime. Three-process architecture with named-pipe IPC.
 - **WPF custom UI** -- Page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
-- **Security validation** -- Compile-time warnings for sensitive property references in registry and custom tables (REG007, CTB011).
-- **Prerequisite management** -- Built-in package groups for .NET Framework, VC++, ODBC drivers, SQL Server Express.
-- **WinGet manifest generation** -- Generate WinGet package manifests alongside MSI output -- `forge winget` CLI or `.WinGet()` fluent API.
-- **Delta updates** -- Binary delta updates for bundles -- only changed bytes downloaded, Octodiff-powered, automatic fallback to full download.
-- **forge migrate** -- Convert an existing MSI, MSM, or WiX Burn EXE into a complete buildable FalkForge C# project in one command.
-- **forge verify / forge plan / forge plan-diff** -- Verify installer integrity, preview install plans, and diff plans across versions.
-- **Reproducible builds + SBOM** -- Deterministic output under `SOURCE_DATE_EPOCH`; CycloneDX SBOM generated alongside every artifact.
-- **ECDSA payload integrity** -- All bundle payloads signed and verified; tamper detection before execution.
-- **CI/CD pipeline** -- GitHub Actions pipeline with build, test, and Roslynator code quality gates.
-- **57+ demo projects** -- From hello-world to complex multi-package bundles.
+- **Modern delivery** -- Delta updates (Octodiff), automatic update feeds, WinGet manifest generation.
+- **Provable installers** -- Reproducible builds, CycloneDX SBOM, ECDSA payload integrity, `forge verify`/`plan`/`plan-diff`.
+- **Migration path** -- `forge migrate` converts an existing MSI, MSM, or WiX Burn EXE into a buildable FalkForge C# project.
+- **60+ demo projects** -- From hello-world to complex multi-package bundles.
+
+## Security
+
+Installer integrity is where FalkForge goes further than the mainstream installer tools:
+
+- **Real payload integrity, not just a signed launcher** -- every payload is hashed into a signed manifest and verified before anything installs, so a swapped payload is caught even when the Authenticode signature on the outer `.exe` still looks valid.
+- **Post-quantum ready** -- optional hybrid signing adds an ML-DSA-65 (FIPS 204) signature alongside classical ECDSA-P256.
+- **A real trusted-key model** -- pin trusted keys in the engine, assign key roles with M-of-N quorum for sensitive operations, rotate and revoke keys safely.
+- **Secure updates** -- require-signed update feeds with key revocation and version epochs, so an update can't be rolled back to a revoked build.
+- **Supply-chain transparency** -- reproducible builds, CycloneDX SBOM, and a provable pipeline (`forge plan` / `forge verify --rebuild`) to show what a bundle does and that it matches its source.
+- **Hardened install engine** -- the elevated helper is mutually authenticated (HMAC handshake, parent PID verification) and executes only a whitelisted command set.
+
+Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](documentation.html) (section 22, includes the plain-language security manual).
 
 ## Quick Start
-
-### Hello World
 
 ```csharp
 using FalkForge;
@@ -56,130 +72,13 @@ Build it:
 forge build hello-world.csx
 ```
 
-## Features
+Chaining multiple packages into a self-extracting EXE bundle with rollback
+boundaries, built-in UI, and update feeds works the same way -- see
+[demo/06-product-suite](demo/06-product-suite) and
+[demo/10-advanced-bundle](demo/10-advanced-bundle). Custom WPF installer UI:
+[demo/11-custom-ui-simple](demo/11-custom-ui-simple).
 
-### MSI Packages
-
-Define packages with a fluent builder -- files, features, registry entries, shortcuts, services, environment variables, and more. The compiler emits standards-compliant MSI databases directly.
-
-```csharp
-Installer.Build(args, p =>
-{
-    p.Name = "Acme Client-Server Suite";
-    p.Manufacturer = "Acme Corporation";
-    p.Version = new Version(3, 5, 0);
-
-    p.UseDialogSet(MsiDialogSet.FeatureTree);
-
-    p.Feature("Client", f =>
-    {
-        f.Title = "Client Application";
-        f.Description = "Desktop client with user interface";
-        f.IsDefault = true;
-    });
-
-    p.Files(f => f
-        .Add("payload/client/client.exe")
-        .Add("payload/client/client.core.dll")
-        .To(KnownFolder.ProgramFiles / "Acme" / "Client"));
-
-    p.Shortcut("Acme Client", "client.exe")
-        .OnDesktop()
-        .OnStartMenu("Acme");
-}, new MsiCompiler());
-```
-
-### Windows Services
-
-Full service lifecycle management -- startup mode, account, dependencies, failure recovery, and conditional installation.
-
-```csharp
-package.Service("DemoService", svc =>
-{
-    svc.DisplayName = "Demo Background Service";
-    svc.Executable = @"[ProgramFilesFolder]Demo\ServiceDemo\myservice.exe";
-    svc.StartMode = ServiceStartMode.Automatic;
-    svc.Account = ServiceAccount.LocalService;
-    svc.Arguments = "--config=default --log-level=info";
-    svc.Condition("INSTALLSERVICE ~= \"true\"");
-    svc.DependsOn("Tcpip");
-});
-```
-
-### EXE Bundles
-
-Chain multiple packages into a single bootstrapper with rollback boundaries, built-in UI, and automatic update feeds.
-
-```csharp
-Installer.BuildBundle(args, outputPath =>
-{
-    var bundle = new BundleBuilder()
-        .Name("Acme Product Suite")
-        .Manufacturer("Acme Corporation")
-        .Version("2.0.0")
-        .Scope(InstallScope.PerMachine)
-        .UseBuiltInUI(licenseFile, themeColor: "#2563EB")
-        .Chain(chain => chain
-            .RollbackBoundary("Prerequisites")
-            .MsiPackage(appMsiPath, p => p
-                .Id("AcmeApp")
-                .DisplayName("Acme Application")
-                .Vital(true))
-            .RollbackBoundary("Services")
-            .MsiPackage(serviceMsiPath, p => p
-                .Id("AcmeService")
-                .DisplayName("Acme Background Service")
-                .Vital(true)))
-        .Build();
-
-    return new BundleCompiler().Compile(bundle, outputPath);
-});
-```
-
-### MSIX Packages
-
-Build modern MSIX packages for Windows 10+ with application declarations, capabilities, and code signing.
-
-```csharp
-InstallerMsix.BuildMsix(args, msix =>
-{
-    msix
-        .Name("MyApp")
-        .Publisher("CN=Contoso")
-        .DisplayName("My Application")
-        .Version(new Version(1, 0, 0, 0))
-        .Architecture(ProcessorArchitecture.X64)
-        .Application("App", "myapp.exe", app => app
-            .DisplayName("My Application")
-            .Square150x150Logo("assets/Logo.png"))
-        .Capability("internetClient")
-        .Signing(s => s.CertificatePath("cert.pfx"));
-}, (model, outputPath) => new MsixCompiler().Compile(model, outputPath));
-```
-
-### Custom Installer UI
-
-Build fully custom WPF installer experiences with the page-based UI framework, ReactiveUI bindings, localization, and DPAPI-secured password handling.
-
-```csharp
-return InstallerApp.Run(args, app => app
-    .Localization(loc => loc
-        .DefaultCulture("en-US")
-        .AddJsonResource<WelcomePage>("lang.strings.en-US.json")
-        .AddJsonResource<WelcomePage>("lang.strings.sv-SE.json")
-        .DetectCulture()
-        .AllowLanguageSelection())
-    .Window(w => w
-        .Size(500, 350)
-        .Title("My App Setup")
-        .Accent("#2563EB"))
-    .Pages(p => p
-        .Add<WelcomePage>()
-        .Add<ProgressPage>()
-        .Add<CompletePage>()));
-```
-
-### Extensions
+## Extensions
 
 | Extension | Capabilities |
 |-----------|-------------|
@@ -189,19 +88,10 @@ return InstallerApp.Run(args, app => app
 | **.NET** | Runtime detection via registry + filesystem |
 | **Dependency** | Provider/consumer ref-counting (WiX-compatible) |
 | **Util** | XmlConfig, UserMgmt, FileShare, QuietExec, InternetShortcut |
+| **Http** | URL ACL reservations, SNI SSL bindings |
+| **Driver** | Device driver installation via PnP |
 
-### Type-Safe Conditions and Properties
-
-MSI properties and conditions are first-class C# types with operator overloads -- no more string typos.
-
-```csharp
-var installDir = MsiProperty.Custom("INSTALLDIR");
-var condition = Condition.IsWindows10OrLater & Condition.IsPrivileged;
-
-package.LaunchCondition(condition, "Requires Windows 10+ and admin rights.");
-```
-
-### CLI Tool
+## CLI Tool
 
 ```
 forge build        Build an installer from .csx or .json definition
@@ -225,40 +115,16 @@ FalkForge uses a three-process model for bundle installation:
 [UI  WPF + ReactiveUI] <-- Named Pipe A --> [Engine  NativeAOT] <-- Named Pipe B --> [Elevated  NativeAOT]
 ```
 
-**Phases:** Initializing, Detecting, Planning, Elevating, Applying, Completing, Shutdown
-
-The UI process runs unprivileged. The Engine coordinates detection, planning, and execution. Elevation is requested only when needed, with PID verification and HMAC-SHA256 handshake security.
-
-MSI operations use direct `msi.dll` P/Invoke (`MsiInstallProduct` / `MsiConfigureProduct`) -- never `msiexec.exe`.
-
-## Solution Structure
-
-| Project | Purpose |
-|---------|---------|
-| **Core** | Domain model, fluent API, validation, `Result<T>` |
-| **Compiler.Msi** | MSI/MSM/MSP/MST generation via `msi.dll` P/Invoke |
-| **Compiler.Bundle** | Self-extracting EXE bundle compiler |
-| **Compiler.Msix** | MSIX package compiler |
-| **Engine** | NativeAOT installer runtime (detection, planning, execution) |
-| **Engine.Elevation** | NativeAOT elevated companion process |
-| **Engine.Protocol** | Binary IPC messages + serialization (AOT-safe) |
-| **Platform / Platform.Windows** | OS abstractions, Windows P/Invoke |
-| **Ui.Abstractions** | `IInstallerEngine`, `PageResult`, `InstallerState` |
-| **Ui** | WPF + ReactiveUI installer UI framework |
-| **Extensibility** | Extension system interfaces |
-| **Extensions.\*** | Firewall, IIS, SQL, .NET, Dependency, Util |
-| **Localization** | JSON-based localization with culture fallback |
-| **Decompiler** | MSI and Bundle decompiler to `PackageModel` + C# |
-| **Cli** | `forge` command-line tool (Spectre.Console) |
-| **Sdk** | MSBuild SDK targets for build integration |
-
-25 source projects, 21 test projects.
+The UI process runs unprivileged. The Engine coordinates detection, planning, and
+execution. Elevation is requested only when needed, with PID verification and
+HMAC-SHA256 handshake security. MSI operations use direct `msi.dll` P/Invoke
+(`MsiInstallProduct` / `MsiConfigureProduct`) -- never `msiexec.exe`.
 
 ## Building from Source
 
 ```bash
 dotnet build                # 0 warnings required (TreatWarningsAsErrors)
-dotnet test                 # ~2,500+ tests
+dotnet test                 # ~7,000+ tests
 dotnet publish -c Release   # NativeAOT for Engine + Elevation
 ```
 
@@ -266,62 +132,34 @@ dotnet publish -c Release   # NativeAOT for Engine + Elevation
 
 > **NuGet lock files:** The solution uses `RestorePackagesWithLockFile=true` (set in
 > `Directory.Build.props`). After adding or changing any package reference, regenerate the
-> lock files before committing:
-> ```bash
-> dotnet restore --force-evaluate
-> ```
-> Commit the updated `packages.lock.json` files alongside the `.csproj` change so CI
-> reproducibility is preserved.
+> lock files before committing (`dotnet restore --force-evaluate`) and commit the updated
+> `packages.lock.json` files alongside the `.csproj` change.
 
-## Demos
+## Demos and Documentation
 
-57 demo projects covering every feature:
-
-| Range | Focus |
-|-------|-------|
-| 01-05 | MSI basics: hello-world, shortcuts, features, registry, services |
-| 06, 10 | EXE bundles: multi-package suites, rollback boundaries |
-| 11-14 | Custom UI: simple, VS-style dark theme, glass, lifecycle hooks |
-| 15-28 | Focused features: MSIX, signing, services, custom actions, fonts, permissions |
-| 29-34 | Extensions: firewall, IIS, SQL, .NET, util, dependency |
-| 35-43 | Advanced bundles: exe packages, MSU, nested, remote payloads, update feeds |
-| 44-46 | MSM, MSP, MST: merge modules, patches, transforms |
-| 47-52 | PowerShell, COM, HTTP, driver install, ICE validation, advanced MSIX |
-| 53 | Delta bundle updates (Octodiff) |
-| 54 | forge migrate: full MSI-to-FalkForge round-trip |
-| 55 | WinGet manifest generation |
-| 56 | forge verify + forge plan + forge plan-diff |
-| 57 | Reproducible builds + CycloneDX SBOM |
-| json/ | JSON-based definitions (no C# required) |
-
-## Documentation
-
-Full documentation is available in [documentation.html](documentation.html) -- a self-contained 9,000+ line reference with dark/light theme and searchable sidebar covering all 18 sections.
+- **[demo/](demo/)** -- 60+ demo projects covering every feature, from hello-world
+  to delta updates, signing, and reproducible builds.
+- **[documentation.html](documentation.html)** -- self-contained full reference
+  (18 sections, searchable, dark/light theme).
+- **[docs/provenance.md](docs/provenance.md)** -- the supply-chain provenance
+  surface: SBOM, payload integrity, reproducible builds, attestations.
 
 ## Releases & Provenance
 
-Release artifacts (Engine, Engine.Elevation, CLI) are published automatically on version tag pushes
-via the [release workflow](.github/workflows/release.yml). Each release includes a `SHA256SUMS.txt`
-checksum file alongside the binaries.
-
-**Build provenance attestation** is generated for every release using
-[GitHub build provenance](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds).
-Verify an artifact before running it:
+Release artifacts (Engine, Engine.Elevation, CLI) are published on version tag pushes
+via the [release workflow](.github/workflows/release.yml), each with a
+`SHA256SUMS.txt` checksum file and (where plan support allows)
+[GitHub build provenance attestations](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds):
 
 ```bash
 gh attestation verify forge.exe --repo Falkesand/FalkForge
-gh attestation verify FalkForge.Engine.exe --repo Falkesand/FalkForge
 ```
-
-> **Note:** Attestation is best-effort while this repository is private. GitHub build
-> provenance attestations require a paid plan for private repos on GitHub-hosted runners.
-> The release workflow continues and publishes artifacts even when attestation is unavailable;
-> a warning is written to the workflow summary. Attestation will be unconditionally enforced
-> once the repository is public or plan support is confirmed.
-
-For the full supply-chain provenance surface (SBOM, ECDSA payload integrity, reproducible
-builds, WinGet manifests, and plan export), see [docs/provenance.md](docs/provenance.md).
 
 ## License
 
-Proprietary. All rights reserved.
+[PolyForm Perimeter 1.0.0](LICENSE.md) -- in plain words: use FalkForge freely to
+build, package, and ship installers for your own or your customers' software,
+commercially or not. The only thing you can't do is take FalkForge itself and offer
+it (or a derivative) as a competing installer/packaging/setup-authoring product.
+
+Copyright Peter Falkesand.

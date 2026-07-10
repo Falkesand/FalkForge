@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <RootNamespace>FalkForge.Platform.Windows</RootNamespace>
     <Description>Windows P/Invoke implementations</Description>
     <!-- Required for P/Invoke interop with Windows registry and MSI APIs -->

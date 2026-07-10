@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <IsPackable>true</IsPackable>
         <RootNamespace>FalkForge.Extensions.Firewall</RootNamespace>
         <Description>Firewall extension for FalkForge — manages Windows Firewall rules during installation</Description>
     </PropertyGroup>
