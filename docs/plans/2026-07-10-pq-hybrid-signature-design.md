@@ -177,6 +177,52 @@ Mirrors the C18 rotation discipline, with the lead/follow order flipped because 
 **Stage 3**: authoring ergonomics — `BundleBuilder.Integrity().HybridKey(...)`, `forge` key-gen helper for ML-DSA PEM, JSON config, demo 63 (`hybrid-pq-signing`), manual section.
 **Stage 4**: remote signing — assess SignServer/Keyfactor ML-DSA worker availability; wire `SignServerSignatureProvider` PQ variant if real; else document local-PQ + remote-classical mixed pattern as the supported posture.
 
+### Stage 2 completion note (2026-07-10) — rotation proven, SignServer ML-DSA assessed and DEFERRED
+
+**Hybrid rotation composes with zero new product code.** The Stage 2 e2e battery
+(`tests/FalkForge.Integration.Tests/HybridRotationEndToEndTests.cs`) proves against real compiled
+bundles at the real verify layer: rotation-overlap verify-any across old/new/both hybrid-pair trust
+sets (each classical entry satisfying its own pinned companion), cutover via revocation and via
+trust removal (revoking the classical fingerprint retires the whole hybrid identity), anti-strip
+during rotation (stripping the NEW pair's ML-DSA entry is INT011 on a migrated client; stripping
+both pairs' companions is INT011 even mid-rotation), and epoch/quorum composition (an epoch-advance
+KeyChange dual-signed by hybrid release + hybrid recovery identities satisfies the C19 quorum only
+while every participating signer keeps its valid companion — stripping either signer's companion
+fails the quorum with INT010; lower-epoch hybrid bundles stay INT008). No gap was found: the
+existing companion rule, revoked-skip iteration, quorum collection, and epoch enforcement compose.
+
+**SignServer ML-DSA assessment (Stage 4 question, answered early) — DEFERRED, with evidence.**
+What was checked (2026-07-10, official Keyfactor documentation; the local machine had no
+Docker/Podman runtime, so the container could not be probed live — the existing Docker-gated e2e
+suite skipped for the same reason):
+
+- SignServer CE 7.1 added NIST-final ML-DSA (FIPS 204) and SLH-DSA (FIPS 205) via BouncyCastle
+  1.79, and the `keyfactor/signserver-ce:latest` image is 7.3.2 — so the container's crypto stack
+  DOES have ML-DSA. PlainSigner's documented `SIGNATUREALGORITHM` values include
+  `ML-DSA-44/65/87` ("Pure ML-DSA") and `ML-DSA-EXTERNAL-MU`.
+- **The blocker is the FIPS 204 context string, not algorithm availability.** PlainSigner exposes
+  no context-string worker property; pure ML-DSA there is made with the EMPTY context. FalkForge's
+  companion signatures are bound to the frozen context `"falkforge/manifest"` (decision §8.3 —
+  part of the wire contract forever), and the verifier rejects any other context (pinned by
+  `PqSignatureUnderWrongContext_RejectsWithInt011`). A SignServer-produced ML-DSA signature can
+  therefore never satisfy the companion rule; wiring it would require dropping or forking the
+  context binding — a deliberate weakening of domain separation. Not done.
+- Secondary: the CE image's demo keystore ships no ML-DSA keys, and the e2e recipe's
+  `KeystoreCryptoToken` over the static PKCS12 file exposes no runtime key generation (discovered
+  live during the classical rotation e2e work), so provisioning an ML-DSA worker in the gated e2e
+  would need a new keystore path even if the context problem were solved.
+
+**Supported interim posture (verified):** mixed providers — SignServer signs the classical half,
+a local ML-DSA-65 PEM signs the PQ half under the correct manifest context; the two are independent
+`ISignatureProvider` entries over the identical canonical message. Proven end-to-end (real async
+compile pipeline, real provider REST + DER→P1363 boundary against the deterministic in-memory
+SignServer stub, companion-pinned verify + INT011 anti-strip) in
+`tests/FalkForge.Integration.Tests/SignServerMixedHybridSigningTests.cs`. The JSON-config guard
+stays: `signserver` + `pqKeyPath`/`pqKeyEnv` fails loud with JSN018 (hybrid via JSON config remains
+pem-only), because silently emitting a classical-only bundle the author believes is hybrid is the
+exact failure mode this rejects. Revisit if a SignServer release adds a per-request or per-worker
+FIPS 204 context parameter (or a CMS profile FalkForge chooses to accept for the companion).
+
 ## 7. Size/perf notes
 
 - Envelope growth ~7.2 KB per hybrid signer (§2.1) — negligible.
@@ -206,6 +252,11 @@ contract from the first shipped hybrid bundle onward.
    quantum weakest link). Surfaced both as an MSBuild warning from the `TrustedKeys.targets`
    generator and via `EngineTrustAnchor.ConfigurationWarnings`.
 6. **SignServer PQ**: deferred to Stage 4; availability must be assessed, not assumed.
+   **ASSESSED 2026-07-10 (Stage 2) — DEFERRED.** SignServer CE 7.1+/7.3.2 PlainSigner does offer
+   pure ML-DSA-44/65/87, but with no FIPS 204 context-string property its signatures use the empty
+   context and can never satisfy the frozen `"falkforge/manifest"` companion context. Interim:
+   SignServer classical + local ML-DSA PEM (independent providers) — see the Stage 2 completion
+   note in §6. JSN018 fail-loud stays.
 7. **Ephemeral (zero-config) builds — DECIDED: yes, hybrid.** The ephemeral signer emits a
    classical + ML-DSA-65 pair (when the build OS supports ML-DSA), keeping dev-loop parity with
    the production envelope shape.
