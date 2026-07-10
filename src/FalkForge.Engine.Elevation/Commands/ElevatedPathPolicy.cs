@@ -67,11 +67,15 @@ internal static class ElevatedPathPolicy
     /// a junction. Rejects when ANY existing ancestor OR the leaf is a reparse point.
     /// </summary>
     /// <remarks>
-    /// This closes the ancestor-junction bypass: <see cref="Directory.CreateDirectory(string)"/>
+    /// This closes the STATIC ancestor-junction pre-plant: <see cref="Directory.CreateDirectory(string)"/>
     /// will walk THROUGH an existing ancestor junction, so an attacker who pre-creates a
     /// junction under a writable allowed root (e.g. ProgramData) could redirect an elevated
-    /// write into a forbidden location such as System32. By verifying every existing level and
-    /// creating every missing level one at a time, no write ever traverses a reparse point.
+    /// write into a forbidden location such as System32. Verifying every existing level and
+    /// creating every missing level one at a time defeats a junction planted BEFORE the check.
+    /// A path-based TOCTOU residual remains: the subsequent write is path-based (e.g.
+    /// <see cref="File.WriteAllBytes(string, byte[])"/>), not a held no-follow handle, so a
+    /// junction swapped in between this verification and the write is not detected — the
+    /// handle-based no-follow write is tracked as a follow-up.
     /// </remarks>
     internal static Result<Unit> EnsureDirectoryTreeSafe(string leafDirectory, ReadOnlySpan<string> allowedRoots)
     {

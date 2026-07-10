@@ -35,14 +35,19 @@ public sealed class FileWriteCommand : IElevatedCommand
             if (dir is not null)
             {
                 // Reject if ANY ancestor (up to the allowed root) is a junction/symlink, and
-                // create each missing level ourselves so no write walks through a reparse point.
+                // create each missing level ourselves. This closes the STATIC ancestor-junction
+                // pre-plant only: the write below is path-based (File.WriteAllBytes), not a held
+                // no-follow handle, so a path-based TOCTOU residual remains — a junction swapped
+                // in after this check is not detected. Handle-based no-follow write is tracked
+                // as a follow-up.
                 var treeResult = ElevatedPathPolicy.EnsureDirectoryTreeSafe(dir, ElevatedPathPolicy.FileWriteRoots());
                 if (treeResult.IsFailure)
                     return Result<byte[]>.Failure(treeResult.Error);
             }
 
             // Reject an existing target that is itself a reparse point (a file symlink would
-            // otherwise redirect the elevated write to the link's target).
+            // otherwise redirect the elevated write to the link's target). Same TOCTOU caveat
+            // as above: this is a point-in-time path check, not a no-follow open.
             if (File.Exists(normalizedPath) &&
                 File.GetAttributes(normalizedPath).HasFlag(FileAttributes.ReparsePoint))
                 return Result<byte[]>.Failure(ErrorKind.SecurityError,

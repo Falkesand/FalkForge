@@ -1,4 +1,6 @@
+using System.Text;
 using FalkForge.Diagnostics;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Serialization;
 using Xunit;
@@ -68,6 +70,39 @@ public class MessageDeserializerFacadeTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.ProtocolError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void Deserialize_ElevateExecute_with_oversized_inner_payload_returns_failure()
+    {
+        // The ElevateExecuteCodec clamp throws InvalidOperationException when the inner
+        // CommandPayload length exceeds its 1 MiB cap. The elevated receive loop
+        // (PipeTransportBase.ReceiveLoop) consumes messages exclusively through this facade,
+        // so that throw MUST surface as a typed failure here — an unhandled throw would kill
+        // the receive loop and turn the OOM defense into a crash DoS of its own.
+        using var body = new MemoryStream();
+        using (var bw = new BinaryWriter(body, Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write(7u);                // SequenceId
+            bw.Write("MsiInstall");      // CommandName
+            bw.Write(2_000_000_000);     // declared inner payload length (~2 GB, over the cap)
+        }
+        var bodyBytes = body.ToArray();
+
+        using var frame = new MemoryStream();
+        using (var bw = new BinaryWriter(frame, Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write(MessageSerializer.CurrentWireVersion);   // outer header: wire version
+            bw.Write((ushort)MessageType.ElevateExecute);     // outer header: message type
+            bw.Write(bodyBytes.Length);                       // outer header: payload length (small, valid)
+            bw.Write(bodyBytes);
+        }
+
+        var result = MessageDeserializer.Deserialize(frame.ToArray());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Codec read failed", result.Error.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
