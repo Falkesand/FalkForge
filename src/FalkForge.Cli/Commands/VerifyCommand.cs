@@ -257,7 +257,7 @@ internal sealed class VerifyCommand : Command<VerifySettings>
         {
             result["signed"] = "true";
             output.MarkupLine(
-                "[yellow]Note:[/] the rebuilt bundle is ECDSA-signed (manifestSignature present). " +
+                "[yellow]Note:[/] the rebuilt bundle is ECDSA-signed (ManifestSignature present). " +
                 "ECDSA signatures are non-deterministic, so a signed bundle can never byte-match across builds. " +
                 "Rebuild the project with the FALKFORGE_NO_SIGN environment variable set to verify the unsigned content.");
         }
