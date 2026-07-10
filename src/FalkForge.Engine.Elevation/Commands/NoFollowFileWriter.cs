@@ -121,14 +121,64 @@ internal static class NoFollowFileWriter
             return Result<Unit>.Failure(ErrorKind.ElevationError,
                 "File write failed: cannot resolve the opened handle's final path");
 
-        if (!string.Equals(
-                Path.TrimEndingDirectorySeparator(finalPath),
-                Path.TrimEndingDirectorySeparator(expectedPath),
-                StringComparison.OrdinalIgnoreCase))
+        if (!FinalPathMatchesExpected(finalPath, expectedPath))
             return Result<Unit>.Failure(ErrorKind.SecurityError,
                 "Path resolution traversed a symbolic link or junction and was rejected");
 
         return Unit.Value;
+    }
+
+    /// <summary>
+    /// Compares the handle's true final path against the caller-expected path. The final path
+    /// is always in long canonical form while the expected path may contain 8.3 short
+    /// components (e.g. <c>PROGRA~1</c>), so on a raw mismatch the expected path is converted
+    /// via <c>GetLongPathName</c> and compared again. That conversion only substitutes each
+    /// component with the alternate NAME of the same directory entry — it never resolves a
+    /// reparse point to its target — so a genuinely redirected path still mismatches and is
+    /// rejected; a conversion failure keeps the raw-compare (fail-closed) result.
+    /// </summary>
+    private static bool FinalPathMatchesExpected(string finalPath, string expectedPath)
+    {
+        var trimmedFinal = Path.TrimEndingDirectorySeparator(finalPath);
+        if (string.Equals(trimmedFinal,
+                Path.TrimEndingDirectorySeparator(expectedPath),
+                StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var longExpected = GetLongForm(expectedPath);
+        return longExpected is not null &&
+               string.Equals(trimmedFinal,
+                   Path.TrimEndingDirectorySeparator(longExpected),
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? GetLongForm(string path)
+    {
+        // Same buffer strategy as GetFinalPath: fast path, then retry with the required size.
+        Span<char> buffer = stackalloc char[512];
+        var utf16 = MemoryMarshal.Cast<char, ushort>(buffer);
+        var length = NativeFileMethods.GetLongPathName(
+            path, ref MemoryMarshal.GetReference(utf16), (uint)buffer.Length);
+        if (length == 0)
+            return null;
+        if (length <= buffer.Length)
+            return new string(buffer[..(int)length]);
+
+        var rented = ArrayPool<char>.Shared.Rent((int)length);
+        try
+        {
+            var span = rented.AsSpan();
+            var rentedUtf16 = MemoryMarshal.Cast<char, ushort>(span);
+            var retryLength = NativeFileMethods.GetLongPathName(
+                path, ref MemoryMarshal.GetReference(rentedUtf16), (uint)span.Length);
+            if (retryLength == 0 || retryLength > span.Length)
+                return null;
+            return new string(span[..(int)retryLength]);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
+        }
     }
 
     private static string? GetFinalPath(SafeFileHandle handle)

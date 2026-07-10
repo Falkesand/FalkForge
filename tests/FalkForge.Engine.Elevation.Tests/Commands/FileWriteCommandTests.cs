@@ -150,7 +150,7 @@ public sealed class FileWriteCommandTests : IDisposable
         var linkPath = Path.Combine(_tempDir, "dangling-link.dll");
 
         if (!TryCreateFileSymlink(linkPath, linkTarget))
-            return; // Skip when symlink creation is unavailable (no privilege / no dev mode)
+            Assert.Skip("File symlink creation unavailable on this host (requires privilege or Developer Mode)");
 
         var payload = BuildPayload(linkPath, new byte[] { 0x4D, 0x5A });
 
@@ -175,7 +175,7 @@ public sealed class FileWriteCommandTests : IDisposable
 
         var linkPath = Path.Combine(_tempDir, "link-to-victim.txt");
         if (!TryCreateFileSymlink(linkPath, victimPath))
-            return; // Skip when symlink creation is unavailable
+            Assert.Skip("File symlink creation unavailable on this host (requires privilege or Developer Mode)");
 
         var payload = BuildPayload(linkPath, new byte[] { 0xFF });
 

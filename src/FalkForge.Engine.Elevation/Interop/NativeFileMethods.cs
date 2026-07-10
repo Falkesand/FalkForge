@@ -69,6 +69,15 @@ internal static partial class NativeFileMethods
         uint filePathLength,
         uint flags);
 
+    // Converts 8.3 short components to their long form. The buffer is UTF-16 text; ushort
+    // keeps the parameter blittable (see GetFinalPathNameByHandle above).
+    [LibraryImport("kernel32.dll", EntryPoint = "GetLongPathNameW", SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial uint GetLongPathName(
+        string shortPath,
+        ref ushort longPath,
+        uint longPathLength);
+
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetFileInformationByHandle(
