@@ -387,6 +387,29 @@
       </div>
     </details>
 
+    <!-- Signing -->
+    <h2>7. Signed Bundle Output (signing section)</h2>
+    <p>An optional top-level <code>"signing"</code> section makes <code>forge build</code> wrap the compiled MSI in a single-package EXE bundle whose integrity manifest is ECDSA-signed through the <code>ISignatureProvider</code> seam. Without a signing section the build keeps its normal MSI-only output.</p>
+    <p><strong>No secrets ever go in the JSON file.</strong> Keys and credentials are referenced by file path or by environment variable <em>name</em> (the <code>*Env</code> fields); the values are read from the environment at build time. The loader rejects inline secret material (JSN016), and any referenced environment variable that is unset at build time fails the build (JSN019) &mdash; it never falls back to unsigned output or an unauthenticated signing request.</p>
+
+    <h3>Local PEM key</h3>
+    <pre><code><span class="str">"signing"</span><span class="punc">:</span> <span class="punc">{</span>
+  <span class="str">"provider"</span><span class="punc">:</span> <span class="str">"pem"</span><span class="punc">,</span>
+  <span class="str">"keyPath"</span><span class="punc">:</span> <span class="str">"keys/release.pem"</span>
+<span class="punc">}</span></code></pre>
+    <p>Exactly one key source is required: <code>keyPath</code> (an ECDSA private-key PEM file, relative paths resolve against the config file) or <code>keyEnv</code> (the name of an environment variable whose value is the PEM, so the key never touches the config or the repo).</p>
+
+    <h3>Keyfactor SignServer (remote signing)</h3>
+    <pre><code><span class="str">"signing"</span><span class="punc">:</span> <span class="punc">{</span>
+  <span class="str">"provider"</span><span class="punc">:</span> <span class="str">"signserver"</span><span class="punc">,</span>
+  <span class="str">"baseUrl"</span><span class="punc">:</span> <span class="str">"https://signserver.example.com:8443"</span><span class="punc">,</span>
+  <span class="str">"worker"</span><span class="punc">:</span> <span class="str">"PlainSigner"</span><span class="punc">,</span>
+  <span class="str">"authMode"</span><span class="punc">:</span> <span class="str">"bearer"</span><span class="punc">,</span>
+  <span class="str">"bearerTokenEnv"</span><span class="punc">:</span> <span class="str">"SIGNSERVER_TOKEN"</span>
+<span class="punc">}</span></code></pre>
+    <p><code>authMode</code> is one of <code>none</code>, <code>basic</code> (<code>usernameEnv</code> + <code>passwordEnv</code>), <code>bearer</code> (<code>bearerTokenEnv</code>), or <code>clientcert</code> (<code>clientCertPathEnv</code> naming an env var that holds a PFX path, plus optional <code>clientCertPasswordEnv</code>). An optional <code>keyId</code> labels the signature in the envelope. An <code>http://</code> base URL or <code>authMode: "none"</code> builds with a warning &mdash; acceptable for local SignServer CE test containers only.</p>
+    <p>The bundle produced this way uses the same design-time placeholder engine stub as the default <code>BundleCompiler</code>, so it is <strong>NOT a runnable installer</strong> &mdash; its embedded manifest signature verifies with the existing verification tooling, but do not distribute it as an installer. The build prints a warning to that effect.</p>
+
     <!-- Recap -->
     <h2>Recap: JSON vs C# decision guide</h2>
     <table style="width:100%;border-collapse:collapse;margin:1rem 0">
@@ -403,6 +426,7 @@
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Services, environment variables</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">IIS, Firewall, SQL, .NET extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">CI/CD pipeline generation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Ideal</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Possible</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Signed bundle (integrity manifest, PEM or SignServer)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Custom actions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Sequence table manipulation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Merge modules, patches, transforms</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>

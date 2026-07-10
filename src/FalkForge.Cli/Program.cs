@@ -99,4 +99,4 @@ app.Configure(config =>
     });
 });
 
-return app.Run(args);
+return await app.RunAsync(args).ConfigureAwait(false);

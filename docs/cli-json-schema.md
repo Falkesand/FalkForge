@@ -77,9 +77,12 @@ Each entry in `messages` represents one line of console output captured during t
 **Representative messages:**
 - `info` — `Loaded JSON config: <name> v<version>` (JSON inputs only)
 - `info` — `Build succeeded: <output path>`
+- `info` — `Signed bundle created: <output path>` (JSON inputs with a `signing` section: the MSI is wrapped in an EXE bundle whose integrity manifest is signed via the configured provider)
 - `info` — `WinGet manifest written alongside installer` (when `--winget`)
 - `warning` — `WinGet manifest generation failed: <reason>`
+- `warning` — signing security warnings (SignServer `http://` base URL, `authMode: none`)
 - `error` — script load / compilation failure messages, surfaced from `Result<T>.Error.Message`
+- `error` — signing config errors `JSN015`–`JSN018` (structural validation) and `JSN019` (unresolvable key/auth material at build time; the build fails closed)
 
 **Exit codes:**
 - `0` — build succeeded

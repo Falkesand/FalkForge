@@ -46,6 +46,9 @@ namespace FalkForge.Cli;
 [JsonSerializable(typeof(List<SqlScriptConfig>))]
 [JsonSerializable(typeof(DotNetSearchConfig))]
 [JsonSerializable(typeof(List<DotNetSearchConfig>))]
+[JsonSerializable(typeof(SigningConfig))]
+[JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(Dictionary<string, JsonElement>))]
 [JsonSourceGenerationOptions(
     PropertyNameCaseInsensitive = true,
     ReadCommentHandling = JsonCommentHandling.Skip,

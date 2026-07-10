@@ -30,4 +30,7 @@ public sealed class InstallerConfig
 
     [JsonPropertyName("extensions")]
     public ExtensionsConfig? Extensions { get; set; }
+
+    [JsonPropertyName("signing")]
+    public SigningConfig? Signing { get; set; }
 }

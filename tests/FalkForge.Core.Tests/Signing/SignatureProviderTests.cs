@@ -66,6 +66,38 @@ public sealed class SignatureProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task PemSignatureProvider_MissingFile_ErrorDoesNotEchoKeyPath()
+    {
+        // The key path can originate from user config (forge build's signing.keyPath), where a
+        // mispasted secret would land verbatim in CLI/CI logs. The error names the source
+        // conceptually; it must never echo the configured path value.
+        const string secretShapedName = "ghp_FakeLeakCanary0123456789abcdef";
+        var keyPath = Path.Combine(_tempDir, secretShapedName);
+
+        var result = await new PemSignatureProvider(keyPath).SignAsync(Message);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SGN002", result.Error.Message);
+        Assert.DoesNotContain(secretShapedName, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PemSignatureProvider_InvalidKeyFile_ErrorDoesNotEchoKeyPath()
+    {
+        // Sibling of the missing-file case: a load failure on an EXISTING file must also
+        // avoid echoing the configured path value.
+        const string secretShapedName = "sklive_FakeLeakCanary0123456789";
+        var keyPath = Path.Combine(_tempDir, secretShapedName);
+        File.WriteAllText(keyPath, "not-a-pem-private-key");
+
+        var result = await new PemSignatureProvider(keyPath).SignAsync(Message);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SGN002", result.Error.Message);
+        Assert.DoesNotContain(secretShapedName, result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task PemSignatureProvider_CompletesSynchronously()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -76,6 +108,41 @@ public sealed class SignatureProviderTests : IDisposable
         var task = new PemSignatureProvider(pemPath).SignAsync(Message);
         Assert.True(task.IsCompleted);
         _ = await task;
+    }
+
+    [Fact]
+    public async Task PemSignatureProvider_FromPemContent_SignsInP1363_AndVerifiesWithTheEmbeddedKey()
+    {
+        // The CLI's signing config sources the PEM from an environment variable (never from disk or the
+        // JSON file), so the provider must accept in-memory PEM content and behave identically to the
+        // file-based constructor: P1363 encoding, matching public key, verifiable signature.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+
+        var result = await PemSignatureProvider.FromPemContent(key.ExportPkcs8PrivateKeyPem()).SignAsync(Message);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var signature = result.Value;
+        Assert.Equal(key.ExportSubjectPublicKeyInfo(), signature.SubjectPublicKeyInfo);
+        Assert.Equal(64, signature.Signature.Length);
+
+        using var pub = ECDsa.Create();
+        pub.ImportSubjectPublicKeyInfo(signature.SubjectPublicKeyInfo, out _);
+        Assert.True(pub.VerifyHash(SHA256.HashData(Message), signature.Signature));
+    }
+
+    [Fact]
+    public async Task PemSignatureProvider_FromPemContent_InvalidPem_FailsWithSgn002_WithoutEchoingContent()
+    {
+        // Invalid key material must fail with the typed SGN002 error — and the error message must not
+        // echo the supplied content, because in the CLI flow that content is secret key material.
+        const string bogus = "not-a-pem-private-key";
+
+        var result = await PemSignatureProvider.FromPemContent(bogus).SignAsync(Message);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN002", result.Error.Message);
+        Assert.DoesNotContain(bogus, result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -196,6 +196,12 @@
           "FalkForge.Platform": "[1.0.0, )"
         }
       },
+      "falkforge.signing.signserver": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[1.0.0, )"
+        }
+      },
       "Octopus.Octodiff": {
         "type": "CentralTransitive",
         "requested": "[2.0.549, )",
