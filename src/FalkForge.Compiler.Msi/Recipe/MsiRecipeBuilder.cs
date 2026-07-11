@@ -40,6 +40,7 @@ public static class MsiRecipeBuilder
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options,
         IReadOnlyList<IMultiTableProducer> multiProducers,
+        ExtensionContext? extensionContext = null,
         IFalkLogger? logger = null)
     {
         if (multiProducers is null)
@@ -49,7 +50,7 @@ public static class MsiRecipeBuilder
                 "Multi-table producers list cannot be null.");
         }
 
-        return BuildCore(resolved, contributors, options, multiProducers, logger);
+        return BuildCore(resolved, contributors, options, multiProducers, extensionContext, logger);
     }
 
     /// <summary>
@@ -62,13 +63,14 @@ public static class MsiRecipeBuilder
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options)
-        => BuildCore(resolved, contributors, options, [], null);
+        => BuildCore(resolved, contributors, options, [], null, null);
 
     private static Result<MsiDatabaseRecipe> BuildCore(
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
         MsiRecipeBuildOptions options,
         IReadOnlyList<IMultiTableProducer> multiProducers,
+        ExtensionContext? extensionContext,
         IFalkLogger? logger)
     {
         if (resolved is null)
@@ -198,12 +200,45 @@ public static class MsiRecipeBuilder
             tableBuilder.Add(table);
         }
 
+        // Phase 5a.5: route extension table contributors into the recipe. Registered
+        // IMsiTableContributor rows are either MERGED into a matching built-in table
+        // (e.g. CustomAction, Registry) or emitted as a new CUSTOM table declared by the
+        // contributor's WriteColumns schema. A contributor that yields rows for a custom
+        // table with no write schema fails the build loudly (EXT001) rather than silently
+        // dropping the rows — this is the wiring that the earlier "phase 11" note deferred.
+        // When there are no contributors the built-in tables pass through unchanged, preserving the
+        // byte-identical recipe/legacy parity for extension-less packages.
+        ImmutableArray<RecipeTable> builtInTables = tableBuilder.ToImmutable();
+        ImmutableArray<RecipeTable> extensionCustomTables = ImmutableArray<RecipeTable>.Empty;
+        if (contributors.Count > 0)
+        {
+            ExtensionContext emitContext = extensionContext ?? new ExtensionContext
+            {
+                Package = resolved.Package,
+                OutputDirectory = string.Empty,
+                SourceDirectory = string.Empty,
+            };
+
+            Result<ExtensionTableEmitter.EmissionOutcome> emitResult = ExtensionTableEmitter.Emit(
+                contributors, builtInTables, emitContext, context.Streams, logger);
+            if (emitResult.IsFailure)
+            {
+                logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
+                    $"Extension table emission failed: {emitResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = emitResult.Error.Kind.ToString() });
+                return Result<MsiDatabaseRecipe>.Failure(emitResult.Error);
+            }
+
+            builtInTables = emitResult.Value.BuiltInTables;
+            extensionCustomTables = emitResult.Value.CustomTables;
+        }
+
         // Phase 5: run recipe-level validators after every producer has
-        // emitted rows. Both validators are pure functions over the
-        // already-built tables, so failure here unambiguously indicates a
-        // producer-level bug or a malformed input package — never a transient
-        // condition that retrying would fix.
-        ImmutableArray<RecipeTable> validatedTables = tableBuilder.ToImmutable();
+        // emitted rows (extension merges into built-in tables included). Both
+        // validators are pure functions over the already-built tables, so failure
+        // here unambiguously indicates a producer-level bug or a malformed input
+        // package — never a transient condition that retrying would fix.
+        ImmutableArray<RecipeTable> validatedTables = builtInTables;
         Result<Unit> pkResult = PrimaryKeyValidator.Validate(validatedTables);
         if (pkResult.IsFailure)
         {
@@ -231,38 +266,35 @@ public static class MsiRecipeBuilder
         // emitted here are NOT checked. Each IMultiTableProducer implementation is
         // solely responsible for FK integrity within its tables and against the
         // built-in tables. See IMultiTableProducer XML doc for the full contract.
-        ImmutableArray<RecipeTable> finalTables;
-        if (multiProducers.Count == 0)
-        {
-            finalTables = validatedTables;
-        }
-        else
-        {
-            // Pre-size: known fixed count plus a reasonable estimate for dynamic tables.
-            ImmutableArray<RecipeTable>.Builder multiBuilder =
-                ImmutableArray.CreateBuilder<RecipeTable>(validatedTables.Length + multiProducers.Count);
-            multiBuilder.AddRange(validatedTables);
+        // Assemble the final table set in deterministic order:
+        //   built-in (validated, with any extension merges) → extension custom tables →
+        //   multi-table producer output (user custom tables, dialog tables).
+        // Extension custom tables and multi-producer tables share the multi-producer FK
+        // validation exemption: their schemas are not known to the fixed-table validators.
+        ImmutableArray<RecipeTable>.Builder finalBuilder = ImmutableArray.CreateBuilder<RecipeTable>(
+            validatedTables.Length + extensionCustomTables.Length + multiProducers.Count);
+        finalBuilder.AddRange(validatedTables);
+        finalBuilder.AddRange(extensionCustomTables);
 
-            foreach (IMultiTableProducer multiProducer in multiProducers)
+        foreach (IMultiTableProducer multiProducer in multiProducers)
+        {
+            Result<ImmutableArray<RecipeTable>> multiResult = multiProducer.Produce(context);
+            if (multiResult.IsFailure)
             {
-                Result<ImmutableArray<RecipeTable>> multiResult = multiProducer.Produce(context);
-                if (multiResult.IsFailure)
-                {
-                    logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
-                        $"Multi-table producer '{multiProducer.GetType().Name}' failed: {multiResult.Error.Message}",
-                        new Dictionary<string, string> { ["code"] = multiResult.Error.Kind.ToString() });
-                    return Result<MsiDatabaseRecipe>.Failure(multiResult.Error);
-                }
-
-                if (logProducerDebug)
-                    logger!.Debug("MsiRecipeBuilder",
-                        $"Multi-table producer '{multiProducer.GetType().Name}' produced {multiResult.Value.Length} table(s).");
-
-                multiBuilder.AddRange(multiResult.Value);
+                logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
+                    $"Multi-table producer '{multiProducer.GetType().Name}' failed: {multiResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = multiResult.Error.Kind.ToString() });
+                return Result<MsiDatabaseRecipe>.Failure(multiResult.Error);
             }
 
-            finalTables = multiBuilder.ToImmutable();
+            if (logProducerDebug)
+                logger!.Debug("MsiRecipeBuilder",
+                    $"Multi-table producer '{multiProducer.GetType().Name}' produced {multiResult.Value.Length} table(s).");
+
+            finalBuilder.AddRange(multiResult.Value);
         }
+
+        ImmutableArray<RecipeTable> finalTables = finalBuilder.ToImmutable();
 
         var pkg = resolved.Package;
 

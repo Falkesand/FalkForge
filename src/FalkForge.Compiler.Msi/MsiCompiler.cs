@@ -27,7 +27,7 @@ public sealed class MsiCompiler : ICompiler
     private readonly IFileSystem _fileSystem;
 #pragma warning restore S4487, IDE0052
 
-    private readonly IReadOnlyList<IFalkForgeExtension> _extensions;
+    private readonly List<IFalkForgeExtension> _extensions;
     private readonly IFalkLogger? _logger;
 
     public MsiCompiler() : this(new WindowsFileSystem())
@@ -40,8 +40,9 @@ public sealed class MsiCompiler : ICompiler
 
     /// <summary>
     /// Initialises the compiler with a custom file system, a set of extensions whose
-    /// validation rules are merged into the validation engine before table emission, and
-    /// an optional structured logger. <paramref name="logger"/> defaults to <see langword="null"/>
+    /// validation rules are merged into the validation engine and whose registered
+    /// <c>IMsiTableContributor</c> rows are emitted into the compiled MSI, and an optional
+    /// structured logger. <paramref name="logger"/> defaults to <see langword="null"/>
     /// (no-op) so every existing caller compiles and behaves unchanged.
     /// </summary>
     public MsiCompiler(IFileSystem fileSystem, IReadOnlyList<IFalkForgeExtension> extensions, IFalkLogger? logger = null)
@@ -49,8 +50,40 @@ public sealed class MsiCompiler : ICompiler
         ArgumentNullException.ThrowIfNull(fileSystem);
         ArgumentNullException.ThrowIfNull(extensions);
         _fileSystem = fileSystem;
-        _extensions = extensions;
+        _extensions = [.. extensions];
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Attaches <paramref name="extension"/> to this compiler so its validation rules run and
+    /// its registered <c>IMsiTableContributor</c> tables/rows are emitted into the compiled MSI.
+    /// This is the discoverable, fluent way to activate an extension:
+    /// <code>
+    /// var sql = new SqlExtension();
+    /// sql.DefineDatabase(db => db.Id("AppDb").Server(".").Database("Demo").CreateOnInstall());
+    /// return Installer.Build(args, package => { /* ... */ }, new MsiCompiler().Use(sql));
+    /// </code>
+    /// The call mutates and returns the same compiler, so a discarded result still attaches the
+    /// extension — a newcomer cannot accidentally build an installer that silently omits it.
+    /// </summary>
+    public MsiCompiler Use(IFalkForgeExtension extension)
+    {
+        ArgumentNullException.ThrowIfNull(extension);
+        _extensions.Add(extension);
+        return this;
+    }
+
+    /// <summary>Attaches every extension in <paramref name="extensions"/>, in order. See <see cref="Use(IFalkForgeExtension)"/>.</summary>
+    public MsiCompiler Use(params IFalkForgeExtension[] extensions)
+    {
+        ArgumentNullException.ThrowIfNull(extensions);
+        foreach (IFalkForgeExtension extension in extensions)
+        {
+            ArgumentNullException.ThrowIfNull(extension);
+            _extensions.Add(extension);
+        }
+
+        return this;
     }
 
     /// <summary>
