@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FalkForge — Newcomer Onboarding Audit (2026-07-11)</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --ink:#e6e8ec; --muted:#9aa3b2;
+    --line:#2a2f3a; --accent:#6ea8fe; --accent2:#8b7cff;
+    --blocker:#ff5d5d; --major:#ff9f43; --minor:#f6c445; --good:#38d39f; --info:#6ea8fe;
+    --code:#0b0d11;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f6f7f9; --panel:#ffffff; --panel2:#f0f2f5; --ink:#1a1d24; --muted:#5b6472;
+      --line:#e2e5ea; --accent:#2563eb; --accent2:#6d4df6;
+      --blocker:#d92d2d; --major:#c46a08; --minor:#9a7d0a; --good:#0f9d68; --info:#2563eb;
+      --code:#0f1115;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 22px 90px;}
+  header.hero{border:1px solid var(--line);background:linear-gradient(160deg,var(--panel),var(--panel2));
+    border-radius:16px;padding:30px 30px 26px;margin-bottom:30px;}
+  h1{font-size:29px;margin:0 0 6px;letter-spacing:-.02em;}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 18px;}
+  h2{font-size:22px;margin:44px 0 12px;letter-spacing:-.01em;border-bottom:1px solid var(--line);padding-bottom:8px;}
+  h3{font-size:17px;margin:26px 0 8px;}
+  h4{font-size:15px;margin:18px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  p{margin:10px 0;}
+  code,.mono{font-family:"SF Mono",ui-monospace,Consolas,"Liberation Mono",Menlo,monospace;font-size:13px;}
+  code{background:var(--panel2);padding:1.5px 6px;border-radius:5px;border:1px solid var(--line);}
+  pre{background:var(--code);color:#e6e8ec;border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5;}
+  pre code{background:none;border:none;padding:0;color:inherit;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  .verdict{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;}
+  .vcard{flex:1 1 220px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel);}
+  .vcard .t{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;}
+  .vcard .v{font-size:15px;font-weight:600;}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:2px 9px;border-radius:20px;vertical-align:middle;color:#0b0d11;}
+  .p-blocker{background:var(--blocker);color:#fff;} .p-major{background:var(--major);color:#111;}
+  .p-minor{background:var(--minor);color:#111;} .p-good{background:var(--good);color:#062;}
+  .p-info{background:var(--info);color:#fff;} .p-proven{background:#111;color:#fff;border:1px solid var(--good);}
+  @media (prefers-color-scheme:light){.p-proven{background:#062;color:#fff;border:none;}}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+  tr:last-child td{border-bottom:none;}
+  .box{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:16px 0;background:var(--panel);}
+  .box.crit{border-color:var(--blocker);}
+  .box.good{border-color:var(--good);}
+  .box .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  ul,ol{margin:8px 0 8px 4px;padding-left:22px;} li{margin:5px 0;}
+  .ref{color:var(--muted);font-size:12px;}
+  .toc{columns:2;column-gap:30px;font-size:14px;}
+  .toc a{display:block;padding:3px 0;}
+  @media(max-width:640px){.toc{columns:1;}}
+  .fix{border-left:3px solid var(--line);padding:2px 0 2px 14px;margin:12px 0;}
+  .fix.p0{border-color:var(--blocker);} .fix.p1{border-color:var(--major);} .fix.p2{border-color:var(--minor);}
+  .fix .h{font-weight:600;}
+  .kbd{font-family:inherit;}
+  hr{border:none;border-top:1px solid var(--line);margin:30px 0;}
+  .foot{color:var(--muted);font-size:13px;margin-top:40px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>FalkForge — Newcomer Onboarding Audit</h1>
+  <p class="sub">Two zero-experience journeys (no FalkForge, no WiX) + documentation review · 2026-07-11 · read-only, evidence-first</p>
+  <div class="verdict">
+    <div class="vcard"><div class="t">Simple installer</div><div class="v">Genuinely easy once reachable <span class="pill p-good">good</span></div></div>
+    <div class="vcard"><div class="t">Enterprise installer</div><div class="v">Blocked — extensions don't emit <span class="pill p-blocker">blocker</span></div></div>
+    <div class="vcard"><div class="t">Documentation</div><div class="v">Reference wall, no concepts <span class="pill p-major">major</span></div></div>
+  </div>
+</header>
+
+<div class="box">
+  <div class="lbl">Bottom line</div>
+  <p>FalkForge is genuinely <strong>pleasant to start</strong> — the fluent C# API hides every MSI internal (GUIDs, Components, KeyPath, the Directory table) that makes WiX painful, and a simple single-tool MSI is a ~15&ndash;20&nbsp;minute job. But this audit surfaced <strong>one real code bug that is bigger than any doc gap</strong>: the extension table-contributor pipeline is unwired, so <strong>IIS / SQL / Firewall / etc. configuration never reaches the compiled MSI</strong> &mdash; live-proven, not just code review. The enterprise story is <em>authorable</em> but <em>doesn't actually compile through</em> today. Separately, the manual is a ~95% reference wall with no "concepts" teaching and the best tutorial content is orphaned. <strong>Core MSI authoring is solid and proven working</strong> &mdash; the problems are scoped, not systemic.</p>
+</div>
+
+<h2>Contents</h2>
+<nav class="toc">
+  <a href="#works">0 · What already works (proven)</a>
+  <a href="#a">1 · Journey A — simple tool</a>
+  <a href="#b">2 · Journey B — enterprise</a>
+  <a href="#bug">3 · The extension bug (live-proven)</a>
+  <a href="#docs">4 · Documentation review</a>
+  <a href="#good">5 · Good parts (honest credit)</a>
+  <a href="#fixes">6 · Prioritized fixes</a>
+  <a href="#wix">7 · FalkForge vs WiX for a beginner</a>
+  <a href="#method">8 · Method &amp; evidence</a>
+</nav>
+
+<h2 id="works">0 · What already works — proven, so severity is honest</h2>
+<p>Before the problems: a live compile of <code>demo/01-hello-world</code> and <code>demo/05-enterprise-suite</code> proves the core pipeline is healthy. A compiled MSI carried <strong>35 core tables</strong> plus, when a dialog set was configured, <strong>7 UI tables</strong> — i.e. the tool reflects real authoring diffs.</p>
+<table>
+  <tr><th>Capability</th><th>Status</th></tr>
+  <tr><td>Files, Components, Features, FeatureComponents, Media</td><td><span class="pill p-good">works</span></td></tr>
+  <tr><td>Services, Registry, Shortcuts, Environment, INI, Fonts, File associations (Verb/MIME/ProgId)</td><td><span class="pill p-good">works</span></td></tr>
+  <tr><td>Custom actions authored directly on the package, Upgrade, LaunchConditions, sequencing tables</td><td><span class="pill p-good">works</span></td></tr>
+  <tr><td>UI dialog sets (Dialog/Control/ControlEvent/… appear when configured)</td><td><span class="pill p-good">works</span></td></tr>
+  <tr><td>Bundle compile, signing / integrity / trust, update feed authoring</td><td><span class="pill p-good">works</span> (best-documented area)</td></tr>
+  <tr><td><strong>Extension-contributed tables</strong> (IIS, SQL, Firewall, Dependency, Driver, Http, Util)</td><td><span class="pill p-blocker">does NOT emit</span> — see §3</td></tr>
+</table>
+
+<h2 id="a">1 · Journey A — a simple installer for a small Windows tool</h2>
+<p><em>Persona goal:</em> ship an <code>.msi</code> for a single <code>PomodoroTimer.exe</code> — Program Files, a Start Menu shortcut, clean uninstall.</p>
+
+<h4>Verdict</h4>
+<p>Once you can actually get the tool, this is <strong>the framework at its best</strong>. Scaffold → <code>dotnet run</code> is ~2&nbsp;min; the only real work is adding one shortcut call. No MSI concepts leak out — no GUID, no Component, no KeyPath. Uninstall is free.</p>
+
+<h4>Friction</h4>
+<table>
+  <tr><th>Sev</th><th>Issue</th><th>Evidence</th></tr>
+  <tr><td><span class="pill p-blocker">blocker*</span></td>
+    <td>README's "Get Started in a Minute" commands 404 — <code>dotnet tool install -g FalkForge.Tool</code>, <code>dotnet new install FalkForge.Templates</code>, <code>dotnet add package FalkForge</code> are not on nuget.org. A day-1 user hits a dead command on step 1 (real path today = clone + build the CLI from source, which the README never states). <strong>*Expected pre-alpha state</strong> — the repo is private and nothing is published yet; resolves the moment you publish.</td>
+    <td class="ref">README.md:54,59,64 · release.yml pushes only .exe, no <code>nuget push</code> · scripts/pack.ps1 = local feed only · Directory.Build.props:17 <code>0.1.0-alpha.1</code></td></tr>
+  <tr><td><span class="pill p-major">major</span></td>
+    <td>Neither scaffold path emits a shortcut. <code>forge init --type msi</code> and <code>dotnet new falkforge-msi</code> generate <code>package.Files(...)</code> only — the newcomer's <em>explicit</em> goal (Start Menu shortcut) is absent; they must discover <code>ShortcutBuilder</code> and hand-splice it.</td>
+    <td class="ref">src/FalkForge.Cli/InitScaffolder.cs:69-93 · content/falkforge-msi/Program.cs:1-19</td></tr>
+  <tr><td><span class="pill p-major">major</span></td>
+    <td><code>forge init</code> is invisible in the manual. documentation.html §2 and §11 list the other CLI verbs; a full-file search for <code>forge init</code>/<code>dotnet new</code>/<code>falkforge-msi</code> = zero hits — even though it is the README's headline onboarding command.</td>
+    <td class="ref">documentation.html §2 (~L900), §11 (~L7337) — "Fourteen leaf commands", init not among them</td></tr>
+  <tr><td><span class="pill p-minor">minor</span></td>
+    <td>Stale doc counts erode trust (manual says "~2500 tests"; README says "~7,000+"). Signals doc-gen drift.</td>
+    <td class="ref">documentation.html:866,919 vs README.md:153</td></tr>
+  <tr><td><span class="pill p-minor">minor</span></td>
+    <td>Scaffold comment implies pure <code>dotnet run</code> simplicity but doesn't repeat the Windows-only MSI-compile requirement at the point of use.</td>
+    <td class="ref">content/falkforge-msi/Program.cs (README.md:157 has it, scaffold output doesn't)</td></tr>
+</table>
+
+<div class="box good">
+  <div class="lbl">What "easy" looks like — the quote-worthy snippet</div>
+  <p class="ref">demo/02-notepad-clone/Program.cs:38-42 — no GUID, no Component, no KeyPath; the chain reads like a sentence:</p>
+<pre><code>// Start menu shortcut under company subfolder
+package.Shortcut("FalkPad", "falkpad.exe")
+    .WithIcon("payload/falkpad.ico")
+    .WithDescription("Launch FalkPad text editor")
+    .OnStartMenu("Falk Software");</code></pre>
+  <p>This is the strongest argument for the whole project — and <code>demo/02-notepad-clone</code> is already ~90% of the simple persona's target. If a newcomer finds it, they're done in minutes.</p>
+</div>
+
+<h2 id="b">2 · Journey B — the full-blown enterprise installer</h2>
+<p><em>Persona goal:</em> "AcmeSuite" — a feature tree (Server / Client / Tools), a Windows service, registry config, an IIS site + app pool, a SQL Server database, a custom action, code signing, and an EXE bundle wrapping prerequisites + the MSI with an update feed.</p>
+
+<h4>Verdict</h4>
+<p><strong>Cannot be assembled from docs + demos today</strong>, for two independent reasons: (1) the extension capabilities the enterprise case depends on (IIS, SQL) <strong>silently produce nothing</strong> — see §3; and (2) even where capabilities work in isolation, there is <strong>no end-to-end example that composes them</strong>, and feature-gating a service/registry entry isn't reachable through the fluent API.</p>
+
+<h4>Per-capability coverage for a newcomer</h4>
+<table>
+  <tr><th>Capability</th><th>Rating</th><th>Note</th></tr>
+  <tr><td>Feature tree</td><td><span class="pill p-major">gap</span></td><td>Works in isolation (demos 05/16), but can't gate service/registry/IIS/SQL <em>to</em> a feature via the builder.</td></tr>
+  <tr><td>Windows service</td><td><span class="pill p-major">gap</span></td><td>Reference tables OK (§7.6&ndash;7.8); elevation/account-security guidance lives only in an <em>orphaned</em> tutorial (<code>docs/tutorials/services.html</code>).</td></tr>
+  <tr><td>Registry</td><td><span class="pill p-good">ok</span></td><td>Emits fine (proven). No HKLM-elevation note in docs.</td></tr>
+  <tr><td>IIS site + app pool</td><td><span class="pill p-blocker">blocker</span></td><td><code>IisExtension.Register()</code> is a literal no-op; IIS has <em>no</em> table contributor at all. Config reaches the MSI: never. (§3)</td></tr>
+  <tr><td>SQL database</td><td><span class="pill p-blocker">blocker</span></td><td>Extension has real contributors, but the pipeline that would run them is unwired. Table in MSI: absent (§3).</td></tr>
+  <tr><td>Custom action</td><td><span class="pill p-major">gap</span></td><td>Define ≠ schedule: <code>CustomAction()</code> defines but doesn't sequence; an unscheduled CA silently never runs, and nothing warns. Classic WiX trap, unguarded.</td></tr>
+  <tr><td>Code signing / integrity</td><td><span class="pill p-good">ok</span></td><td>Best-documented capability in the repo (§22 is a real tutorial). One non-compiling snippet (<code>.Product(...)</code>, ~L10531).</td></tr>
+  <tr><td>EXE bundle + prereqs</td><td><span class="pill p-good">ok</span></td><td>Works; MSI is referenced into a bundle by a bare path string (breaks the typed-ref convention used elsewhere), undocumented "build MSI first, then point bundle at it".</td></tr>
+  <tr><td>Update feed</td><td><span class="pill p-good">ok</span></td><td>Documented honestly — admits <code>DownloadAndPrompt</code>/<code>AutoUpdate</code> currently behave as <code>NotifyOnly</code>.</td></tr>
+</table>
+
+<h4>Two structural gaps beyond the bug</h4>
+<ul>
+  <li><span class="pill p-major">gap</span> <strong>No "put it all together" enterprise example.</strong> Checked all 60+ demos, <code>docs/tutorials/</code>, the manual, and the MAS reference app — the richest single artifacts (doc §7.27 "Complete Example"; demo 05 enterprise-suite; demo 06 product-suite) each cover a <em>subset</em>. Nothing combines feature-tree + service + registry + IIS + SQL + custom-action + bundle + signing.</li>
+  <li><span class="pill p-major">gap · confirmed</span> <strong>Can't feature-gate a service/registry entry via the fluent API.</strong> <code>ServiceModel.FeatureRef</code> / <code>RegistryEntryModel.FeatureRef</code> exist but have no builder setter, and there is no <code>FeatureBuilder.Service(...)</code>/<code>.Registry(...)</code>. Only <em>files</em> are feature-gated (<code>FeatureBuilder.Files</code> → <code>FeatureBuilder.cs:65-89</code>). So "the Server feature installs the service" isn't buildable as it looks like it should be.</li>
+</ul>
+
+<h2 id="bug">3 · The extension bug — live-proven, the headline finding</h2>
+<div class="box crit">
+  <div class="lbl">Claim, escalated to proof</div>
+  <p><span class="pill p-proven">live-proven</span> Extensions that emit MSI tables (IIS, SQL, and by the same code path Firewall / Dependency / Driver / Http / Util) <strong>configure successfully, print success, and produce an MSI missing their tables entirely.</strong> This is a false-positive success: a newcomer following demo 30/31 ships a broken installer believing it works.</p>
+</div>
+
+<h4>The live evidence</h4>
+<table>
+  <tr><th>Build</th><th>Output MSI</th><th>Extension tables</th><th>CustomAction rows</th></tr>
+  <tr><td>demo/31-ext-sql</td><td class="mono">SQL_Demo-1.0.0.msi (35 tables)</td><td><code>SqlDatabase</code>/<code>SqlScript</code>/<code>SqlString</code> — <strong>ABSENT</strong></td><td><strong>0</strong></td></tr>
+  <tr><td>demo/30-ext-iis</td><td class="mono">IIS_Demo-1.0.0.msi (same 35 tables)</td><td>any <code>IIs*</code> table — <strong>ABSENT</strong></td><td><strong>0</strong></td></tr>
+  <tr><td><em>control</em> demo/01</td><td class="mono">Hello_World-1.0.0.msi (42 tables)</td><td>+7 UI tables present (Dialog/Control/…)</td><td>—</td></tr>
+</table>
+<p>The control proves the inspector reflects real config — so "ABSENT" for SQL/IIS is a genuine absence, not a tooling artifact.</p>
+
+<h4>Root cause (unwired pipeline, self-documented)</h4>
+<pre><code>// src/FalkForge.Compiler.Msi/Recipe/MsiAuthoring.cs:174-178
+// "No other contributors wired in yet — phase 11 will route
+//  IMsiTableContributor through here."
+contributors: Array.Empty&lt;IMsiTableContributor&gt;()
+
+// same file :492 — the registry the extensions call into is a no-op
+public void RegisterTableContributor(IMsiTableContributor c) { }   // drops it</code></pre>
+<ul>
+  <li>All 6 extension demos call a 0- or 1-arg <code>new MsiCompiler(...)</code>, so the compiler's extension list is empty; but even passing extensions correctly wouldn't help, because the contributor array is hardcoded empty downstream. The gap is <strong>framework-wide, not per-demo</strong>.</li>
+  <li><code>SqlExtension.Register()</code> <em>does</em> call <code>RegisterTableContributor(...)</code> correctly — the contribution lands in the no-op and is dropped silently (<span class="ref">src/FalkForge.Extensions.Sql/SqlExtension.cs:18-23</span>).</li>
+  <li><code>IisExtension.Register()</code> is a literal no-op and IIS declares <em>no</em> contributor type at all — deeper gap than SQL (<span class="ref">src/FalkForge.Extensions.Iis/IisExtension.cs:23-28</span>).</li>
+  <li><strong>Zero warning surface:</strong> <code>BuildCore</code> validation only inspects the <code>PackageModel</code>; the standalone extension objects are never seen, so orphaned IIS/SQL config produces no error or warning.</li>
+  <li><em>Why tests didn't catch it:</em> extension tests cover builders/models/validators in isolation; nothing asserts end-to-end that the table appears in a compiled MSI.</li>
+</ul>
+
+<h2 id="docs">4 · Documentation review — meaty, but the wrong kind of meaty</h2>
+<h4>README <span class="pill p-good">good front door</span></h4>
+<p>217 lines, tight, a 30-second "Three Ways to Build" table, <code>forge init</code> featured first, a working Quick Start snippet, a genuine Security section, links out to demos + manual. No complaints — this is the strongest single onboarding asset.</p>
+
+<h4>documentation.html <span class="pill p-major">reference wall</span></h4>
+<ul>
+  <li>11,271 lines, 22 sections. <strong>~95% API reference, ~0% tutorial.</strong> Section 7 (MSI Builder API) alone is ~1,812 lines of one-subsection-per-builder signature tables. 244 API tables across the file.</li>
+  <li><strong>No "Concepts" section.</strong> Searched for <code>concept</code>/<code>glossary</code>/<code>component rule</code>/<code>why guid</code>/<code>mental model</code> — zero hits. GUID/Component/ProductCode appear only inside parameter tables. The manual <em>assumes</em> the Windows Installer mental model and teaches none of it. A WiX veteran reads fine; a true beginner gets syntax without meaning.</li>
+  <li><code>forge init</code>: zero mentions in 11k lines (README/doc divergence, repeated from §1).</li>
+  <li>Navigation tooling itself is good — sidebar, chevrons, search box, dark/light, deep anchors. The problem is content <em>shape</em>, not findability.</li>
+</ul>
+
+<h4>Demos as a learning ladder <span class="pill p-good">strength</span> / <span class="pill p-minor">one nit</span></h4>
+<p>63 demos, but <em>not</em> a flat dump: <code>demo/README.md</code> (831 lines) groups them into tables with feature matrices, 61/63 have their own README, numbering runs beginner→advanced. This is genuinely better than most sample repos. Nit: no "if you're new, read 01 → 02 → 06 → 11 and stop" callout above the 150-row matrices.</p>
+
+<h4>Orphaned gold <span class="pill p-major">fix</span></h4>
+<p><code>docs/tutorials/</code> (14 files, ~4,084 lines) holds the best narrative content in the repo — <em>getting-started</em>, <em>coming-from-wix</em>, a services deep-dive with real LocalSystem-vs-NetworkService security tradeoffs. The README never links it, so the one place that actually <em>teaches</em> is invisible on the documented path.</p>
+
+<h2 id="good">5 · Good parts — honest credit</h2>
+<div class="box good">
+<ul>
+  <li><strong>The fluent API is the product's best asset.</strong> Plain typed C#, IntelliSense, no XML, no MSI internals leaking. Proven to hide GUID/Component/KeyPath entirely on the simple path.</li>
+  <li><strong>Security/signing depth is real and rare</strong> for an installer tool — payload-hash signing, hybrid ML-DSA-65 PQ, trust roles/quorum, revocation, anti-downgrade, reproducible builds/SBOM. §22 of the manual is a model tutorial (WHY, with diagrams).</li>
+  <li><strong>Demo catalog is well-indexed</strong> — grouped tables, feature matrices, per-demo READMEs, consistent numbering.</li>
+  <li><strong>Thoughtful CLI ergonomics</strong> — <code>forge init</code> clobber-protection (check-all-before-write, <code>--force</code>), <code>--from-publish</code> prefill.</li>
+  <li><strong>Honesty in the docs where it counts</strong> — the update-feed section admits unimplemented policy behavior rather than overselling.</li>
+  <li><strong>Design care where wired</strong> — typed cross-refs (<code>AppPoolRef</code>, <code>CertificateRef</code>, <code>SqlDatabaseRef</code>, <code>ContainerRef</code>), 8 extensions, <code>forge migrate</code> for WiX refugees.</li>
+</ul>
+</div>
+
+<h2 id="fixes">6 · Prioritized fixes</h2>
+
+<h4>P0 — correctness (do before the enterprise story is credible)</h4>
+<div class="fix p0"><span class="h">Wire the <code>IMsiTableContributor</code> pipeline ("phase 11").</span> Route registered contributors into <code>MsiAuthoring</code> so SQL/Firewall/Dependency/Driver/Http/Util tables actually emit; give IIS a real contributor (or custom-action emitter). This is the single highest-impact fix — it turns 6 "working-looking" demos from broken to real. <span class="ref">MsiAuthoring.cs:178, :492</span></div>
+<div class="fix p0"><span class="h">Add a fail-loud guard for orphaned extension config.</span> If an extension is configured but nothing it contributes reaches the model, warn/error at build. Silent false-success is worse than a missing feature.</div>
+<div class="fix p0"><span class="h">Fix the demo call-sites</span> to pass extensions to the compiler (once the pipeline lands), and add one end-to-end test that asserts an extension table appears in a compiled MSI.</div>
+
+<h4>P1 — onboarding / docs (the actual ask)</h4>
+<div class="fix p1"><span class="h">Add a "Concepts" section to the manual</span> right after Overview: what a Component is (and the component rule), ProductCode vs UpgradeCode vs PackageCode, why elevation exists, sequencing basics. This is <em>the</em> missing piece for a WiX-newcomer.</div>
+<div class="fix p1"><span class="h">Document <code>forge init</code> + templates in the manual</span> (§14) — cheap, fixes the README/doc divergence.</div>
+<div class="fix p1"><span class="h">Link <code>docs/tutorials/</code> from the README</span> — unbury the content that already teaches.</div>
+<div class="fix p1"><span class="h">Emit a shortcut in the <code>forge init</code> scaffold</span> — a 3-line <code>package.Shortcut(...)</code>; it's the most common first ask.</div>
+<div class="fix p1"><span class="h">Write one end-to-end "AcmeSuite" enterprise walkthrough</span> that composes the capabilities (after P0 makes IIS/SQL real).</div>
+<div class="fix p1"><span class="h">Expose feature-gating for service/registry</span> via the fluent API, or document the current limitation explicitly.</div>
+
+<h4>P2 — polish (mostly gated on going public)</h4>
+<div class="fix p2"><span class="h">Publish alpha packages to nuget.org</span> (or reword the README's Get-Started to the real clone+build path) so day-1 commands aren't dead. Gated on the private→public flip.</div>
+<div class="fix p2"><span class="h">Add a "new here? start with these 4 demos" callout</span> above the feature matrices; sync stale doc counts; fix the non-compiling §22 <code>.Product(...)</code> snippet; warn on define-without-schedule custom actions.</div>
+
+<h2 id="wix">7 · FalkForge vs WiX for a total beginner</h2>
+<p>WiX drops a newcomer straight into XML authoring and the Windows Installer spec — Components/Features/Directories tables, GUID discipline, ICE validation, WiX's own quirky syntax — with sparse official docs and a notoriously steep, tribal-knowledge learning curve (most people learn it by scraping Stack Overflow). FalkForge's fluent C# API removes the XML pain and gives type-safety and IntelliSense, and its README + demo catalog are more approachable on day one. <strong>Net: FalkForge is meaningfully easier to <em>start</em></strong> (fewer footguns, better first 15 minutes). But under the hood it's still Windows Installer, and the manual currently assumes the same mental model WiX assumes — just without teaching it. Add the Concepts section (P1) and fix the extension pipeline (P0), and the advantage over WiX widens sharply; without them, the honest framing is "WiX's hard parts wearing a friendlier syntax — plus, right now, extensions that don't emit."</p>
+
+<h2 id="method">8 · Method &amp; evidence</h2>
+<p>Four independent read-only scouts walked the actual newcomer entry points (README → install → <code>forge init</code>/templates → manual → demos) for the simple and enterprise journeys, plus a documentation-meatiness pass. A fifth agent verified the extension claim by static code trace, and a sixth <strong>built and inspected real MSIs on this Windows box</strong> to convert the claim from code-review to live proof (table lists via <code>forge inspect</code> + a WindowsInstaller COM row query, with demo 01 as a positive control). Every finding above carries a file:line or a build+inspect result. Nothing here is speculative; where scope is uncertain (e.g. extensions beyond SQL/IIS that share the contributor path) it is called out as "by the same code path", not claimed as separately tested.</p>
+
+<p class="foot">FalkForge newcomer onboarding audit · generated 2026-07-11 · this file lives at <code>docs/plans/2026-07-11-newcomer-onboarding-audit.html</code></p>
+
+</div>
+</body>
+</html>

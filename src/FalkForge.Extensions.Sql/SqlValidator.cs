@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.RegularExpressions;
 using FalkForge.Extensions.Sql.Models;
 
 namespace FalkForge.Extensions.Sql;
@@ -6,6 +7,25 @@ namespace FalkForge.Extensions.Sql;
 public static class SqlValidator
 {
     private const int MaxCustomActionDataLength = 32767;
+
+    // Secure/public MSI properties (the only kind that can carry a value into a deferred custom action
+    // and be marked secure) are all-uppercase identifiers. Enforcing this steers authors onto a property
+    // the engine's SetSecureProperty can actually populate at run time.
+    private static readonly Regex PublicPropertyPattern = new(
+        "^[A-Z][A-Z0-9_]*$",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(100));
+
+    /// <summary>
+    /// True when the database model carries a <b>literal</b> SQL password (as opposed to a runtime secure
+    /// <see cref="SqlDatabaseModel.PasswordProperty"/> reference or no credentials at all). Backs the
+    /// SQL015 compile-time warning: a literal password is embedded in plaintext in the MSI.
+    /// </summary>
+    public static bool HasLiteralPassword(SqlDatabaseModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        return !string.IsNullOrEmpty(model.Password);
+    }
 
     /// <summary>
     /// SQL014 — Detects plaintext credentials (Password/Pwd) in a connection string.
@@ -51,6 +71,58 @@ public static class SqlValidator
         if (string.IsNullOrWhiteSpace(model.Server) && string.IsNullOrWhiteSpace(model.ConnectionString))
             return Result<Unit>.Failure(ErrorKind.Validation,
                 "SQL001: Database requires either Server or ConnectionString.");
+
+        var credentials = ValidateCredentials(model);
+        if (credentials.IsFailure)
+            return credentials;
+
+        return Unit.Value;
+    }
+
+    /// <summary>
+    /// Validates the SQL-authentication credential shape (SQL016/017/018). A literal
+    /// <see cref="SqlDatabaseModel.Password"/> is intentionally NOT an error here — it is allowed but
+    /// surfaced as the SQL015 warning (see <see cref="HasLiteralPassword"/>), mirroring REG007/CTB011.
+    /// </summary>
+    public static Result<Unit> ValidateCredentials(SqlDatabaseModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        bool hasProperty = !string.IsNullOrEmpty(model.PasswordProperty);
+        bool hasLiteral = !string.IsNullOrEmpty(model.Password);
+        bool hasUser = !string.IsNullOrWhiteSpace(model.User);
+
+        if (hasProperty && hasLiteral)
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL016: Specify either PasswordProperty (secure, recommended) or Password (literal), not both.");
+
+        if ((hasProperty || hasLiteral) && !hasUser)
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL017: SQL authentication requires a User when a password is supplied. " +
+                "Omit the password for Windows integrated authentication.");
+
+        // The inverse of SQL017: a User with no password would silently connect with Windows integrated
+        // authentication as the deferred action's SYSTEM account — MORE privilege than the scoped SQL login
+        // the author asked for. Reject it rather than silently escalate.
+        if (hasUser && !hasProperty && !hasLiteral)
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL021: User is set without a password, which would silently connect with Windows " +
+                "integrated authentication (as SYSTEM). Supply PasswordProperty (recommended) or Password, " +
+                "or omit User for intended integrated authentication.");
+
+        if (hasProperty && !PublicPropertyPattern.IsMatch(model.PasswordProperty!))
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"SQL018: PasswordProperty '{model.PasswordProperty}' must be a public MSI property " +
+                "(uppercase letters, digits and underscore, starting with a letter) so it can be supplied " +
+                "securely at run time.");
+
+        // A literal password's value IS known at compile time (unlike a runtime secure property), so the
+        // one break in the double-quoted CustomActionData CLI transport — a literal double quote — is
+        // preventable here rather than corrupting the connection attempt at install time.
+        if (hasLiteral && model.Password!.Contains('"', StringComparison.Ordinal))
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL022: A literal Password must not contain a double-quote character (it would break the " +
+                "install-time command-line transport). Use PasswordProperty for an arbitrary secret.");
 
         return Unit.Value;
     }

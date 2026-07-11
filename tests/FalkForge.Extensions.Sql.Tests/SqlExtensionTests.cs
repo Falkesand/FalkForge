@@ -22,14 +22,16 @@ public sealed class SqlExtensionTests
     }
 
     [Fact]
-    public void Register_RegistersThreeTableContributors()
+    public void Register_RegistersTableContributors_ThreeDataTablesPlusHiddenProperties()
     {
         var extension = new SqlExtension();
         var registry = new TestExtensionRegistry();
 
         extension.Register(registry);
 
-        Assert.Equal(3, registry.TableContributors.Count);
+        // SqlDatabase, SqlScript, SqlString + the MsiHiddenProperties contributor that scrubs SQL passwords.
+        Assert.Equal(4, registry.TableContributors.Count);
+        Assert.IsType<SqlHiddenPropertiesContributor>(registry.TableContributors[3]);
     }
 
     [Fact]
@@ -92,16 +94,32 @@ public sealed class SqlExtensionTests
         Assert.Same(extension.Strings, extension.Strings);
     }
 
+    [Fact]
+    public void Register_RegistersExecutionContributor_SoTablesRunAtInstall()
+    {
+        var extension = new SqlExtension();
+        var registry = new TestExtensionRegistry();
+
+        extension.Register(registry);
+
+        // Without this the SqlDatabase/SqlScript/SqlString tables would remain inert.
+        Assert.Single(registry.ExecutionContributors);
+    }
+
     private sealed class TestExtensionRegistry : IExtensionRegistry
     {
         public List<IMsiTableContributor> TableContributors { get; } = [];
         public List<IComponentContributor> ComponentContributors { get; } = [];
+        public List<IExecutionContributor> ExecutionContributors { get; } = [];
 
         public void RegisterTableContributor(IMsiTableContributor contributor) =>
             TableContributors.Add(contributor);
 
         public void RegisterComponentContributor(IComponentContributor contributor) =>
             ComponentContributors.Add(contributor);
+
+        public void RegisterExecutionContributor(IExecutionContributor contributor) =>
+            ExecutionContributors.Add(contributor);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
         public void RegisterDialogStep(IDialogStepBuilder builder) { }

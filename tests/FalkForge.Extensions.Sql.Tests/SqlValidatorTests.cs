@@ -236,12 +236,18 @@ public sealed class SqlValidatorTests
         string id = "db1",
         string? server = "[SQL_SERVER]",
         string database = "AppDb",
-        string? connectionString = null) => new()
+        string? connectionString = null,
+        string? user = null,
+        string? password = null,
+        string? passwordProperty = null) => new()
     {
         Id = id,
         Server = server,
         Database = database,
-        ConnectionString = connectionString
+        ConnectionString = connectionString,
+        User = user,
+        Password = password,
+        PasswordProperty = passwordProperty
     };
 
     private static SqlScriptModel CreateScript(
@@ -303,5 +309,96 @@ public sealed class SqlValidatorTests
         var result = SqlValidator.CheckConnectionStringCredentials(string.Empty);
 
         Assert.True(result.IsSuccess);
+    }
+
+    // SQL015/016/017/018 — SQL-authentication credential shape
+
+    [Fact]
+    public void ValidateCredentials_IntegratedAuth_ReturnsSuccess()
+    {
+        var model = CreateDatabase();
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(SqlValidator.HasLiteralPassword(model));
+    }
+
+    [Fact]
+    public void ValidateCredentials_UserWithSecureProperty_ReturnsSuccess()
+    {
+        var model = CreateDatabase(user: "appLogin", passwordProperty: "SQLPASSWORD");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void ValidateCredentials_LiteralPassword_IsNotAnError_ButFlaggedForSQL015()
+    {
+        var model = CreateDatabase(user: "appLogin", password: "secret");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(SqlValidator.HasLiteralPassword(model));
+    }
+
+    [Fact]
+    public void ValidateCredentials_BothPasswordAndProperty_ReturnsSQL016()
+    {
+        var model = CreateDatabase(user: "u", password: "p", passwordProperty: "SQLPASSWORD");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL016", result.Error.Message);
+    }
+
+    [Fact]
+    public void ValidateCredentials_PasswordWithoutUser_ReturnsSQL017()
+    {
+        var model = CreateDatabase(password: "secret");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL017", result.Error.Message);
+    }
+
+    [Fact]
+    public void ValidateCredentials_NonPublicProperty_ReturnsSQL018()
+    {
+        var model = CreateDatabase(user: "u", passwordProperty: "lowercase");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL018", result.Error.Message);
+    }
+
+    [Fact]
+    public void ValidateCredentials_UserWithoutPassword_ReturnsSQL021()
+    {
+        // A User with no password would silently connect as SYSTEM (integrated) — an escalation, not the
+        // scoped SQL login the author asked for.
+        var model = CreateDatabase(user: "appLogin");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL021", result.Error.Message);
+    }
+
+    [Fact]
+    public void ValidateCredentials_LiteralPasswordWithDoubleQuote_ReturnsSQL022()
+    {
+        var model = CreateDatabase(user: "u", password: "se\"cret");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL022", result.Error.Message);
     }
 }
