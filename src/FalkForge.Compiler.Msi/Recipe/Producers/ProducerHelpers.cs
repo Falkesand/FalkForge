@@ -146,7 +146,14 @@ internal static class ProducerHelpers
             }
         }
 
-        return string.Concat("Icon_", StableHash4Wide(iconFilePath), suffix);
+        string name = string.Concat("Icon_", StableHash4Wide(iconFilePath), suffix);
+
+        // Cap at the Icon.Name CHAR(72) column width, matching the truncation
+        // convention of the sibling identifier generators (e.g.
+        // GetStartMenuSubfolderId). The 21-char "Icon_" + 16-hex prefix is
+        // hash-unique on its own, so a truncated suffix cannot collide two
+        // distinct sources that did not already collide on the hash.
+        return name.Length > 72 ? name[..72] : name;
     }
 
     /// <summary>

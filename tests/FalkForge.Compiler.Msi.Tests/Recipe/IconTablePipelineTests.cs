@@ -191,6 +191,28 @@ public sealed class IconTablePipelineTests : IDisposable
     }
 
     [Fact]
+    public void Missing_icon_source_file_fails_the_compile_loud()
+    {
+        (string sourceFile, _, string outputDir) = Arrange();
+        string missingIcon = Path.Combine(_tempDir, "src", "does-not-exist.ico");
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "MissingIcon";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "MissingIcon"));
+            p.Shortcut("App", "[INSTALLDIR]app.exe").WithIcon(missingIcon).OnDesktop();
+        });
+
+        Result<string> compile = MsiAuthoring.Compile(package, outputDir);
+
+        Assert.True(compile.IsFailure);
+        Assert.Equal(ErrorKind.FileNotFound, compile.Error.Kind);
+        Assert.Contains("does-not-exist.ico", compile.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Two_shortcuts_sharing_one_icon_file_dedup_to_a_single_icon_row()
     {
         (string sourceFile, string iconFile, string outputDir) = Arrange();

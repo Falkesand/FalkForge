@@ -48,6 +48,55 @@ public static partial class MiscRules
                     $"Shortcut '{s.Name}' has no locations specified.")
                 : null));
 
+    /// <summary>
+    /// SHC004 — Shortcut WorkingDirectory must be a Directory identifier (warning).
+    /// The MSI <c>Shortcut.WkDir</c> column is a Directory-table key, not a
+    /// Formatted path. A value that is not a bare identifier (e.g. the bracketed
+    /// <c>[ProgramFilesFolder]App\Sub</c> Formatted form used for <c>Target</c>)
+    /// cannot resolve and is silently downgraded to the INSTALLDIR default — so
+    /// warn loudly rather than dropping the author's intent in silence.
+    /// </summary>
+    public static readonly ValidationRule Shc004_WorkingDirectoryIdentifier = new(
+        new RuleId("SHC004"),
+        Severity.Warning,
+        ModelSection.Shortcut,
+        "Shortcut WorkingDirectory is not a directory identifier",
+        "Shortcut.WkDir must be a Directory table key; a Formatted path such as "
+            + "\"[ProgramFilesFolder]App\" is ignored and the shortcut falls back to INSTALLDIR.",
+        static ctx => ValidationCollectionHelper.ValidateCollection(ctx.Package.Shortcuts,
+            static (s, i) => s.WorkingDirectory is { Length: > 0 } wd && !IsDirectoryIdentifier(wd)
+                ? new Violation(new RuleId("SHC004"), Severity.Warning,
+                    ModelPath.Root.Field("Shortcuts").Index(i).Field("WorkingDirectory"),
+                    $"Shortcut '{s.Name}' WorkingDirectory '{wd}' is not a directory identifier and will be "
+                        + "ignored (the shortcut falls back to INSTALLDIR). Use a directory id such as INSTALLDIR.")
+                : null));
+
+    /// <summary>
+    /// True when <paramref name="value"/> is a syntactically valid MSI
+    /// identifier — first character a letter or underscore, remaining characters
+    /// letters, digits, underscores, or dots. This is the shape the Directory
+    /// table primary key must take, so anything else cannot be a WkDir target.
+    /// </summary>
+    private static bool IsDirectoryIdentifier(string value)
+    {
+        char first = value[0];
+        if (!char.IsLetter(first) && first != '_')
+        {
+            return false;
+        }
+
+        for (int i = 1; i < value.Length; i++)
+        {
+            char c = value[i];
+            if (!char.IsLetterOrDigit(c) && c != '_' && c != '.')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // ── Fonts ─────────────────────────────────────────────────────────────────
 
     /// <summary>FNT001 — Font FileName is required.</summary>

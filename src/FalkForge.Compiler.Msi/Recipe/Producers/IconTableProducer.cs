@@ -105,7 +105,8 @@ internal sealed class IconTableProducer : ITableProducer
             length = fs.Length;
             sha256 = SHA256.HashData(fs);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or ArgumentException or NotSupportedException or System.Security.SecurityException)
         {
             // Fail loud: a missing/unreadable icon file is an authoring error.
             return Result<Unit>.Failure(
