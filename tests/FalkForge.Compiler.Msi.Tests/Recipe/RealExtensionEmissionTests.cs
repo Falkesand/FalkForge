@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using FalkForge.Extensions.Driver;
 using FalkForge.Extensions.Firewall;
 using FalkForge.Extensions.Iis;
 using FalkForge.Extensions.Iis.Models;
@@ -71,6 +72,51 @@ public sealed class RealExtensionEmissionTests
         var row = Assert.Single(rows.Value);
         Assert.Equal("My App HTTP", row[0]);
         Assert.Equal("8080", row[1]);
+    }
+
+    [Fact]
+    public void FirewallExtension_EmitsRemotePortAndLocalAddress()
+    {
+        using var scratch = new Scratch();
+
+        var firewall = new FirewallExtension();
+        firewall.AddRule(rule => rule
+            .Id("AllowRange").Name("My App Range")
+            .Protocol(FirewallProtocol.Tcp).Port("8080")
+            .RemotePort("1024-65535").LocalAddress("192.168.1.10")
+            .Direction(FirewallDirection.Inbound).Action(FirewallRuleAction.Allow)
+            .Profile(FirewallProfile.All));
+
+        using var db = Compile(scratch, "FirewallRemotePortApp", c => c.Use(firewall));
+
+        var rows = db.QueryRows("SELECT `Name`, `RemotePort`, `LocalAddress` FROM `WixFirewallException`", 3);
+        Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : "");
+        var row = Assert.Single(rows.Value);
+        Assert.Equal("My App Range", row[0]);
+        Assert.Equal("1024-65535", row[1]);
+        Assert.Equal("192.168.1.10", row[2]);
+    }
+
+    [Fact]
+    public void DriverExtension_EmitsFalkDriverPackageWithDescription()
+    {
+        using var scratch = new Scratch();
+
+        var driver = new DriverExtension();
+        var result = driver.AddDriver(d => d
+            .Id("UsbCam")
+            .InfFilePath("payload/usbcam.inf")
+            .Description("Demo USB Camera Driver")
+            .PlugAndPlay());
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+        using var db = Compile(scratch, "DriverEmitApp", c => c.Use(driver));
+
+        var rows = db.QueryRows("SELECT `Action`, `Description` FROM `FalkDriverPackage`", 2);
+        Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : "");
+        Assert.Equal(2, rows.Value.Count); // install + uninstall rows
+        Assert.All(rows.Value, r => Assert.Equal("Demo USB Camera Driver", r[1]));
+        Assert.Contains(rows.Value, r => r[0] == "DrvInstall_UsbCam");
     }
 
     [Fact]

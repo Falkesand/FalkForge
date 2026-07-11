@@ -15,7 +15,8 @@ internal sealed class FirewallTableReadSchema : ITableReadSchema
     private static readonly string[] Columns =
     [
         "Name", "RemoteAddresses", "Port", "Protocol", "Program",
-        "Profile", "Direction", "Action", "Component_", "Description", "Condition"
+        "Profile", "Direction", "Action", "Component_", "Description", "Condition",
+        "RemotePort", "LocalAddress"
     ];
 
     public string TableName => "WixFirewallException";
@@ -34,7 +35,7 @@ internal sealed class FirewallTableReadSchema : ITableReadSchema
                 ErrorKind.Validation,
                 $"DEC003: Failed to read WixFirewallException table. {rowsResult.Error.Message}");
 
-        const int expectedCells = 11;
+        const int expectedCells = 13;
         var result = new List<object>(rowsResult.Value.Count);
 
         for (var i = 0; i < rowsResult.Value.Count; i++)
@@ -73,7 +74,9 @@ internal sealed class FirewallTableReadSchema : ITableReadSchema
                 Action:          action,
                 Component_:      cells[8],
                 Description:     cells[9],
-                Condition:       cells[10]));
+                Condition:       cells[10],
+                RemotePort:      cells[11],
+                LocalAddress:    cells[12]));
         }
 
         return Result<IReadOnlyList<object>>.Success(result);

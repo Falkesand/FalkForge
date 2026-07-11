@@ -41,9 +41,9 @@ public sealed class FirewallReadSchemaTests
             .WithTable("Property", [["ProductName", "FirewallTest"]])
             .WithTable("WixFirewallException",
             [
-                // Name, RemoteAddresses, Port, Protocol, Program, Profile, Direction, Action, Component_, Description, Condition
-                ["MyHttpRule", null, "80", "6", null, "7", "1", "1", "comp1", "HTTP inbound", null],
-                ["MyUdpRule",  null, "53", "17", null, "7", "1", "1", "comp1", null, null],
+                // Name, RemoteAddresses, Port, Protocol, Program, Profile, Direction, Action, Component_, Description, Condition, RemotePort, LocalAddress
+                ["MyHttpRule", null, "80", "6", null, "7", "1", "1", "comp1", "HTTP inbound", null, "1024-65535", "127.0.0.1"],
+                ["MyUdpRule",  null, "53", "17", null, "7", "1", "1", "comp1", null, null, null, null],
             ]);
 
         var contributor = new FirewallTableContributor();
@@ -81,7 +81,7 @@ public sealed class FirewallReadSchemaTests
             .WithTable("Property", [["ProductName", "TypeTest"]])
             .WithTable("WixFirewallException",
             [
-                ["Rule1", null, "443", "6", null, "7", "1", "1", "comp1", "HTTPS", null],
+                ["Rule1", null, "443", "6", null, "7", "1", "1", "comp1", "HTTPS", null, "9000-9010", "10.0.0.1"],
             ]);
 
         var contributor = new FirewallTableContributor();
@@ -98,5 +98,7 @@ public sealed class FirewallReadSchemaTests
         Assert.Equal("Rule1", row.Name);
         Assert.Equal("443", row.Port);
         Assert.Equal(6, row.Protocol);
+        Assert.Equal("9000-9010", row.RemotePort);
+        Assert.Equal("10.0.0.1", row.LocalAddress);
     }
 }

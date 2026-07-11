@@ -18,6 +18,7 @@ public sealed class DriverTableContributor : IMsiTableContributor
         ContributedColumn.Text("Source", 72),
         ContributedColumn.Text("Target"),
         ContributedColumn.Text("Condition"),
+        ContributedColumn.Text("Description"),
     ];
 
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
@@ -33,14 +34,16 @@ public sealed class DriverTableContributor : IMsiTableContributor
                 .Set("Type", 3090) // Deferred, no-impersonate, EXE
                 .Set("Source", "pnputil")
                 .Set("Target", $"/add-driver \"[INSTALLDIR]{driver.InfFilePath}\"{installFlags}")
-                .Set("Condition", driver.Condition);
+                .Set("Condition", driver.Condition)
+                .Set("Description", driver.Description);
 
             var uninstallRow = new MsiTableRow()
                 .Set("Action", $"DrvUninstall_{driver.Id}")
                 .Set("Type", 3090)
                 .Set("Source", "pnputil")
                 .Set("Target", $"/delete-driver \"[INSTALLDIR]{driver.InfFilePath}\" /uninstall{(driver.ForceInstall ? " /force" : string.Empty)}")
-                .Set("Condition", driver.Condition);
+                .Set("Condition", driver.Condition)
+                .Set("Description", driver.Description);
 
             rows.Add(installRow);
             rows.Add(uninstallRow);

@@ -188,6 +188,23 @@ public sealed class DriverTableContributorTests
     }
 
     [Fact]
+    public void GetRows_WithDescription_SetsDescriptionOnBothActions()
+    {
+        var contributor = new DriverTableContributor();
+        contributor.AddDriver(new DriverModel
+        {
+            Id = "DescDrv",
+            InfFilePath = "drivers\\desc.inf",
+            Description = "Demo USB Device Driver",
+        });
+
+        var rows = contributor.GetRows(CreateContext());
+
+        Assert.Equal("Demo USB Device Driver", rows[0].Get("Description"));
+        Assert.Equal("Demo USB Device Driver", rows[1].Get("Description"));
+    }
+
+    [Fact]
     public void TableName_IsFalkDriverPackage()
     {
         var contributor = new DriverTableContributor();

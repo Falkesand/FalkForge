@@ -16,4 +16,6 @@ public sealed record WixFirewallExceptionRow(
     int     Action,
     string? Component_,
     string? Description,
-    string? Condition);
+    string? Condition,
+    string? RemotePort,
+    string? LocalAddress);

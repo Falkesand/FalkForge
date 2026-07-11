@@ -5811,18 +5811,6 @@ Installer.Build(p =&gt; p
     </tbody>
   </table>
 
-  <h4>PackageBuilder Integration</h4>
-  <p>The <code>Driver</code> extension method on <code>PackageBuilder</code> provides direct integration without explicitly creating a <code>DriverExtension</code> instance:</p>
-  <pre><code class="language-csharp">Installer.Build(p =&gt; p
-    .Name("Contoso Device Driver")
-    .UpgradeCode(Guid.Parse("..."))
-    .Version("1.0.0")
-    .Driver(d =&gt; d
-        .Id("ContosoUsb")
-        .InfFilePath(@"drivers\contoso_usb.inf")
-        .PlugAndPlay()
-        .Force()));</code></pre>
-
   <h4>Validation Error Codes</h4>
   <table class="api-table">
     <thead>
@@ -5857,18 +5845,19 @@ var errors = driver.ValidateDrivers();
 foreach (var error in errors)
     Console.WriteLine($"{error.Code}: {error.Message}");
 
-// Register with the package builder
-Installer.Build(p =&gt; p
-    .Name("Contoso Hardware Suite")
-    .UpgradeCode(Guid.Parse("..."))
-    .Version("1.0.0")
-    .Extension(driver)
-    .Feature("Drivers", f =&gt; f
-        .Files(files =&gt; files
-            .Source(@"drivers\")
-            .Include("*.inf")
-            .Include("*.sys")
-            .Include("*.cat"))));</code></pre>
+// Attach the extension to the compiler with .Use(...) — this is what makes the
+// FalkDriverPackage table + rows emit into the compiled MSI.
+Installer.Build(args, package =&gt;
+{
+    package.Name = "Contoso Hardware Suite";
+    package.Manufacturer = "Contoso";
+    package.Version = new Version(1, 0, 0);
+
+    package.Files(files =&gt; files
+        .Add(@"drivers\contoso_usb.inf")
+        .Add(@"drivers\contoso_printer.inf")
+        .To(KnownFolder.ProgramFiles / "Contoso" / "Hardware Suite"));
+}, new MsiCompiler().Use(driver));</code></pre>
 
   <!-- 9.9 COM Registration -->
   <h3 id="ext-com">9.9 COM Registration</h3>
