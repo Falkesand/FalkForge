@@ -8,8 +8,11 @@ using System.Text.Json;
 /// <summary>
 /// Load/advance helpers for the persisted anti-downgrade/revocation store (C14 Stage 2, §6.2/§6.3).
 ///
-/// <para><b>Load</b> tolerates a missing or unreadable file — the first run (or a wiped store) is treated
-/// as epoch 0 with no revocations, which is the safe pre-rotation baseline. <b>Advance</b> is monotonic:
+/// <para><b>Load</b> (advisory, backing the elevated <b>Advance</b> write path) tolerates a missing or
+/// unreadable file — the first run (or a wiped store) is treated as epoch 0 with no revocations, the safe
+/// pre-rotation baseline. The ENFORCEMENT read (<see cref="LoadValidated"/>) distinguishes: a missing file
+/// is still a first run, but a malformed (corrupt) file fails CLOSED rather than resetting the
+/// anti-downgrade floor. <b>Advance</b> is monotonic:
 /// it never lowers the stored epoch and only unions in new revocations, and it is called <i>only after a
 /// verified update apply</i>, so an attacker cannot prime the store with a forged high epoch — a forged
 /// epoch fails signature verification (the epoch is in the signed bytes) before apply ever succeeds.</para>
@@ -44,29 +47,62 @@ public static class TrustStateStore
     public const int MaxEpoch = 1_000_000;
 
     /// <summary>
-    /// Loads the persisted trust state. A missing, empty, or malformed file yields a first-run state
-    /// (epoch 0, no revocations) rather than throwing — the store is advisory hardening layered on top of
-    /// the baked trust set, so an unreadable store must fail safe (no anti-downgrade), not fail closed.
+    /// Loads the persisted trust state on the ADVISORY path. A missing, empty, unreadable, or malformed
+    /// file yields a first-run state (epoch 0, no revocations) rather than throwing. This tolerance is
+    /// only safe where a rewrite immediately follows: <see cref="Advance"/> uses this read inside its
+    /// elevated read-modify-write, which runs only after a VERIFIED update apply and re-persists the
+    /// store — the self-healing write path. ENFORCEMENT decisions (the update trust gate) must use
+    /// <see cref="LoadValidated"/> instead, which fails CLOSED on a malformed store: silently treating
+    /// corruption as a first run there would wipe the anti-downgrade/revocation floor.
     /// </summary>
     public static TrustState Load(string path)
+    {
+        var result = LoadFailClosed(path);
+        return result.IsSuccess ? result.Value : new TrustState();
+    }
+
+    /// <summary>
+    /// Core load distinguishing the store's three conditions. MISSING or empty file: a legitimate
+    /// first run — success with epoch 0 and no revocations. UNREADABLE (I/O or access error):
+    /// degraded to first-run — the hardened store ACL prevents an unprivileged writer from forcing
+    /// this state, and failing closed on transient host I/O would brick updates. MALFORMED JSON:
+    /// fail CLOSED (<see cref="ErrorKind.SecurityError"/>) — a store that exists but does not parse
+    /// is evidence of tampering or corruption of the anti-downgrade/revocation floor, and silently
+    /// resetting it to epoch 0 would hand an attacker exactly the rollback (INT008) and un-revocation
+    /// (INT001) the store exists to prevent.
+    /// </summary>
+    internal static Result<TrustState> LoadFailClosed(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         if (!File.Exists(path))
             return new TrustState();
 
+        byte[] json;
         try
         {
-            var json = File.ReadAllBytes(path);
-            if (json.Length == 0)
-                return new TrustState();
+            json = File.ReadAllBytes(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new TrustState();
+        }
 
+        if (json.Length == 0)
+            return new TrustState();
+
+        try
+        {
             return JsonSerializer.Deserialize(json, TrustStateJsonContext.Default.TrustState)
                    ?? new TrustState();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (JsonException ex)
         {
-            return new TrustState();
+            return Result<TrustState>.Failure(ErrorKind.SecurityError,
+                $"The trust store file '{path}' exists but is malformed ({ex.Message}). Refusing to treat " +
+                "a corrupt anti-downgrade/revocation store as a first run (fail-closed): a silent reset to " +
+                "epoch 0 would wipe the anti-downgrade floor. Recovery: an administrator must delete the " +
+                "file from an elevated prompt so the next verified update re-creates it.");
         }
     }
 
@@ -145,6 +181,13 @@ public static class TrustStateStore
     /// An <b>administrator</b> must remove the directory (or reset its ACL + owner from an elevated prompt) so
     /// the elevated installer re-creates it hardened. Failing closed is the safe outcome: an attacker cannot
     /// push a downgrade/replay through the tampered store either.</para>
+    ///
+    /// <para><b>Corrupt store (fail-closed, distinct from missing).</b> A MISSING store file remains the
+    /// legitimate first run (epoch 0). But a store file that EXISTS and fails to parse fails CLOSED here
+    /// (via <see cref="LoadFailClosed"/>) rather than silently resetting to epoch 0 — a silent reset would
+    /// wipe the anti-downgrade epoch and local revocations, which is precisely the rollback this store
+    /// exists to prevent. Only the advisory <see cref="Load"/> (backing the elevated, self-healing
+    /// <see cref="Advance"/> write path) still tolerates a malformed file.</para>
     /// </summary>
     public static Result<TrustState> LoadValidated(string path)
     {
@@ -161,7 +204,7 @@ public static class TrustStateStore
                 "self-heal on the non-elevated read path.");
         }
 
-        return Load(path);
+        return LoadFailClosed(path);
     }
 
     /// <summary>

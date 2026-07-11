@@ -123,7 +123,10 @@ public sealed class TrustStateStoreTests
         // Administrators FullControl, Users read-only (no standard-user write). ACL hardening is a Windows
         // concept, so this test no-ops elsewhere.
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -240,7 +243,10 @@ public sealed class TrustStateStoreTests
         // (SeRestorePrivilege). Skip cleanly when the test host is not elevated — in production this path
         // only ever runs in the elevated companion.
         if (!OperatingSystem.IsWindows() || !IsElevatedWindows())
-            return;
+        {
+            Assert.Skip("Requires Windows and an elevated test host (ownership seizure needs an elevated token).");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -270,7 +276,10 @@ public sealed class TrustStateStoreTests
         // anti-downgrade decisions: LoadValidated fails closed (SecurityError) so the caller refuses the
         // update rather than silently trusting an attacker-writable epoch/revocation set.
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -299,7 +308,10 @@ public sealed class TrustStateStoreTests
         // now seizes ownership to Administrators (the directory was created owned by the test user), which
         // requires an elevated token — skip cleanly when the host is not elevated.
         if (!OperatingSystem.IsWindows() || !IsElevatedWindows())
-            return;
+        {
+            Assert.Skip("Requires Windows and an elevated test host (ownership seizure needs an elevated token).");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -332,7 +344,10 @@ public sealed class TrustStateStoreTests
         // epoch/revocation store was trusted. The whitelist rule must reject any write-class grant held by a
         // principal other than SYSTEM / BUILTIN\Administrators, so a targeted own-SID write is non-conforming.
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -356,7 +371,10 @@ public sealed class TrustStateStoreTests
         // foreign write ACE), a directory OWNED by a non-admin principal is non-conforming: the owner holds
         // implicit WRITE_DAC and can rewrite the DACL at any moment. The old check ignored the owner entirely.
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         // This test builds a directory owned by a genuinely non-admin principal (the current account's
         // individual SID). If the host process itself runs AS SYSTEM or under the Administrators group SID,
@@ -367,7 +385,10 @@ public sealed class TrustStateStoreTests
         var systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
         var adminsSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
         if (currentUser.Equals(systemSid) || currentUser.Equals(adminsSid))
-            return;
+        {
+            Assert.Skip("Host runs as SYSTEM/Administrators — no non-admin identity is available to construct the precondition.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -441,7 +462,10 @@ public sealed class TrustStateStoreTests
         // and this non-elevated read path cannot self-heal. The corrected text must name the administrator
         // recovery and must not carry the old misleading phrasing.
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         var path = TempStorePath();
         var dir = Path.GetDirectoryName(path)!;
@@ -455,6 +479,45 @@ public sealed class TrustStateStoreTests
             Assert.True(result.IsFailure, "a non-conforming store must fail closed");
             Assert.Contains("administrator", result.Error.Message, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Reset it with an elevated install", result.Error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            TryCleanup(path);
+        }
+    }
+
+    [Fact]
+    public void LoadValidated_MalformedJson_FailsClosed_WindowsElevatedOnly()
+    {
+        // End-to-end wiring of the corrupt-store fail-closed decision through the PUBLIC
+        // enforcement read: with a CONFORMING (hardened) directory — so the ACL anti-squat gate
+        // passes and cannot mask the decision — a malformed store file must still fail closed
+        // (SecurityError naming the malformed store), NOT silently reset to a first-run epoch 0.
+        // A silent reset would wipe the anti-downgrade/revocation floor; a missing file (see
+        // LoadValidated_AbsentStore_ReturnsFirstRunState) remains the only legitimate first run.
+        // Hardening the directory seizes ownership, so this needs an elevated host — skip otherwise
+        // (the ungated TrustStateStoreFailClosedTests cover the decision itself on every host).
+        if (!OperatingSystem.IsWindows() || !IsElevatedWindows())
+        {
+            Assert.Skip("Requires Windows and an elevated test host (ownership seizure needs an elevated token).");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
+
+        var path = TempStorePath();
+        var dir = Path.GetDirectoryName(path)!;
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(path, "{ this is not valid json ]");
+
+            var secured = TrustStateStore.EnsureSecuredDirectory(dir);
+            Assert.True(secured.IsSuccess, secured.IsFailure ? secured.Error.Message : null);
+
+            var result = TrustStateStore.LoadValidated(path);
+
+            Assert.True(result.IsFailure, "a malformed store behind a conforming ACL must fail closed");
+            Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+            Assert.Contains("malformed", result.Error.Message, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
