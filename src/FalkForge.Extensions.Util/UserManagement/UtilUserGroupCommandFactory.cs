@@ -262,9 +262,9 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("$ErrorActionPreference = 'Stop'\n");
         sb.Append("try {\n");
         sb.Append("  $__g = ").Append(CommandLine.PowerShellSingleQuote(g.Name)).Append('\n');
-        sb.Append("  $__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        AppendMarkerVars(sb, "  ", id);
         // Clear any stale marker from a previous run so the marker reflects ONLY what THIS run does.
-        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        AppendMarkerClear(sb, "  ");
         sb.Append("  $__existing = Get-LocalGroup -Name $__g -ErrorAction SilentlyContinue\n");
         sb.Append("  if ($null -ne $__existing) {\n");
         // Adopt an already-present group idempotently (never fail on collision, never trigger a destructive
@@ -278,7 +278,7 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("  } else {\n");
         sb.Append("    New-LocalGroup -Name $__g").Append(descArg).Append(" | Out-Null\n");
         // Record that THIS run created the group so the paired rollback may remove it.
-        sb.Append("    New-Item -ItemType File -Path $__marker -Force | Out-Null\n");
+        AppendMarkerWrite(sb, "    ");
         sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
@@ -288,14 +288,11 @@ internal static class UtilUserGroupCommandFactory
     /// <summary>Rollback for a group create: remove the group only if THIS run's create marker is present.</summary>
     private static string BuildGroupRollbackScript(GroupModel g, string id)
     {
-        var sb = new StringBuilder(280);
-        sb.Append("$__marker = ").Append(MarkerLiteral(id)).Append('\n');
-        sb.Append("if (Test-Path $__marker) {\n");
+        var sb = new StringBuilder(320);
+        AppendMarkerGateOpen(sb, id);
         sb.Append("  try { Remove-LocalGroup -Name ").Append(CommandLine.PowerShellSingleQuote(g.Name))
           .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
-        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
-        sb.Append("}\n");
-        sb.Append("exit 0\n");
+        AppendMarkerGateClose(sb);
         return sb.ToString();
     }
 
@@ -324,8 +321,8 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("  $__pw = if ($args.Count -ge 1) { $args[0] } else { '' }\n");
         sb.Append("  $__sec = if (-not [string]::IsNullOrEmpty($__pw)) { ConvertTo-SecureString $__pw -AsPlainText -Force } else { $null }\n");
         sb.Append("  $__u = ").Append(CommandLine.PowerShellSingleQuote(u.Name)).Append('\n');
-        sb.Append("  $__marker = ").Append(MarkerLiteral(id)).Append('\n');
-        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        AppendMarkerVars(sb, "  ", id);
+        AppendMarkerClear(sb, "  ");
         // Only apply account flags when this run creates the user or is authorized to modify it — never
         // silently mutate a pre-existing account we merely adopted.
         sb.Append("  $__apply = $false\n");
@@ -352,7 +349,7 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("    if ($null -eq $__sec) { throw \"Cannot create local user '$__u' without a password. ")
           .Append("Supply a PasswordProperty (SetSecureProperty) or a literal password.\" }\n");
         sb.Append("    New-LocalUser -Name $__u -Password $__sec").Append(descArg).Append(" | Out-Null\n");
-        sb.Append("    New-Item -ItemType File -Path $__marker -Force | Out-Null\n");
+        AppendMarkerWrite(sb, "    ");
         sb.Append("    $__apply = $true\n");
         sb.Append("  }\n");
 
@@ -361,12 +358,11 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("  if ($__apply) {\n");
         sb.Append("    $__adsi = [ADSI]('WinNT://./' + $__u + ',user')\n");
         sb.Append("    $__flags = [int]$__adsi.UserFlags.Value\n");
-        sb.Append("    if (").Append(Bool(u.PasswordNeverExpires))
-          .Append(") { $__flags = $__flags -bor 0x10000 } else { $__flags = $__flags -band (-bnot 0x10000) }\n");
-        sb.Append("    if (").Append(Bool(u.CanNotChangePassword))
-          .Append(") { $__flags = $__flags -bor 0x40 } else { $__flags = $__flags -band (-bnot 0x40) }\n");
-        sb.Append("    if (").Append(Bool(u.Disabled))
-          .Append(") { $__flags = $__flags -bor 0x2 } else { $__flags = $__flags -band (-bnot 0x2) }\n");
+        // The flags are compile-time booleans, so emit the resolved bit operation directly (no runtime
+        // if/else) — this also keeps the encoded command comfortably under the CustomAction.Target ceiling.
+        sb.Append("    $__flags = $__flags").Append(FlagOp(u.PasswordNeverExpires, "0x10000")).Append('\n');
+        sb.Append("    $__flags = $__flags").Append(FlagOp(u.CanNotChangePassword, "0x40")).Append('\n');
+        sb.Append("    $__flags = $__flags").Append(FlagOp(u.Disabled, "0x2")).Append('\n');
         sb.Append("    $__adsi.UserFlags = $__flags\n");
         if (u.PasswordExpired)
             sb.Append("    $__adsi.PasswordExpired = 1\n");
@@ -381,14 +377,11 @@ internal static class UtilUserGroupCommandFactory
     /// <summary>Rollback for a user create: remove the user only if THIS run's create marker is present.</summary>
     private static string BuildUserRollbackScript(UserModel u, string id)
     {
-        var sb = new StringBuilder(280);
-        sb.Append("$__marker = ").Append(MarkerLiteral(id)).Append('\n');
-        sb.Append("if (Test-Path $__marker) {\n");
+        var sb = new StringBuilder(320);
+        AppendMarkerGateOpen(sb, id);
         sb.Append("  try { Remove-LocalUser -Name ").Append(CommandLine.PowerShellSingleQuote(u.Name))
           .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
-        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
-        sb.Append("}\n");
-        sb.Append("exit 0\n");
+        AppendMarkerGateClose(sb);
         return sb.ToString();
     }
 
@@ -411,13 +404,13 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("try {\n");
         sb.Append("  $__g = ").Append(CommandLine.PowerShellSingleQuote(group)).Append('\n');
         sb.Append("  $__m = ").Append(CommandLine.PowerShellSingleQuote(member)).Append('\n');
-        sb.Append("  $__marker = ").Append(MarkerLiteral(id)).Append('\n');
-        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        AppendMarkerVars(sb, "  ", id);
+        AppendMarkerClear(sb, "  ");
         sb.Append("  $__has = Get-LocalGroupMember -Group $__g -Member $__m -ErrorAction SilentlyContinue\n");
         // Add only when absent, and mark that THIS run added it so rollback removes only what we added.
         sb.Append("  if ($null -eq $__has) {\n");
         sb.Append("    Add-LocalGroupMember -Group $__g -Member $__m\n");
-        sb.Append("    New-Item -ItemType File -Path $__marker -Force | Out-Null\n");
+        AppendMarkerWrite(sb, "    ");
         sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
@@ -428,15 +421,12 @@ internal static class UtilUserGroupCommandFactory
     private static string BuildMembershipRollbackScript(UserModel u, string group, string id)
     {
         string member = MemberName(u);
-        var sb = new StringBuilder(360);
-        sb.Append("$__marker = ").Append(MarkerLiteral(id)).Append('\n');
-        sb.Append("if (Test-Path $__marker) {\n");
+        var sb = new StringBuilder(400);
+        AppendMarkerGateOpen(sb, id);
         sb.Append("  try { Remove-LocalGroupMember -Group ").Append(CommandLine.PowerShellSingleQuote(group))
           .Append(" -Member ").Append(CommandLine.PowerShellSingleQuote(member))
           .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
-        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
-        sb.Append("}\n");
-        sb.Append("exit 0\n");
+        AppendMarkerGateClose(sb);
         return sb.ToString();
     }
 
@@ -482,19 +472,59 @@ internal static class UtilUserGroupCommandFactory
     // local account) never disagree about whether an account is local.
     private static bool IsLocal(string? domain) => UserValidator.IsLocalDomain(domain);
 
-    /// <summary>
-    /// A PowerShell expression yielding this step's per-run "we created it" marker path under the SYSTEM
-    /// temp directory. The create action writes the marker only when it actually creates the account/
-    /// membership; the paired rollback removes it only if the marker is present. Windows Installer queues a
-    /// rollback action before its deferred action runs and fires it on any later failure, so this run-time
-    /// marker — not a compile-time flag — is what keeps rollback from deleting a pre-existing (adopted)
-    /// account. <paramref name="stepId"/> is a validated MSI identifier (letters/digits/underscore), safe to
-    /// embed in the single-quoted literal.
-    /// </summary>
-    private static string MarkerLiteral(string stepId)
-        => string.Concat("(Join-Path $env:TEMP 'falkforge_ug_", stepId, ".created')");
+    // The per-run "we created it" marker lives in HKLM (writable only by administrators / SYSTEM), NOT a
+    // world-writable temp directory. Windows Installer queues a rollback action before its deferred action
+    // and fires it on any later failure, so this run-time marker — not a compile-time flag — is what keeps
+    // rollback from deleting a pre-existing (adopted) account. The store MUST be admin-only: it is a trust
+    // signal for a destructive SYSTEM action, so a location an unprivileged local user can write (e.g.
+    // C:\Windows\Temp) would let an attacker plant a marker and turn the SYSTEM rollback into a confused
+    // deputy that deletes a pre-existing principal. HKLM\SOFTWARE is not user-writable, closing that.
+    private const string MarkerKeyLiteral = "'HKLM:\\SOFTWARE\\FalkForge\\UserGroupMarkers'";
 
-    private static string Bool(bool value) => value ? "$true" : "$false";
+    /// <summary>The registry value name for a step's marker — its validated step id (letters/digits/underscore).</summary>
+    private static string MarkerNameLiteral(string stepId) => string.Concat("'", stepId, "'");
+
+    /// <summary>Emits the two variables (<c>$__mkey</c>, <c>$__mname</c>) the marker ops read.</summary>
+    private static void AppendMarkerVars(StringBuilder sb, string indent, string stepId)
+    {
+        sb.Append(indent).Append("$__mkey = ").Append(MarkerKeyLiteral).Append('\n');
+        sb.Append(indent).Append("$__mname = ").Append(MarkerNameLiteral(stepId)).Append('\n');
+    }
+
+    /// <summary>Clears any stale marker so the marker reflects only what THIS run does.</summary>
+    private static void AppendMarkerClear(StringBuilder sb, string indent)
+        => sb.Append(indent).Append("Remove-ItemProperty -Path $__mkey -Name $__mname -Force -ErrorAction SilentlyContinue\n");
+
+    /// <summary>Records that THIS run created the account/membership (admin-only HKLM value).</summary>
+    private static void AppendMarkerWrite(StringBuilder sb, string indent)
+    {
+        sb.Append(indent).Append("New-Item -Path $__mkey -Force | Out-Null\n");
+        sb.Append(indent).Append("New-ItemProperty -Path $__mkey -Name $__mname -Value 1 -Force | Out-Null\n");
+    }
+
+    /// <summary>
+    /// Opens a rollback script that removes something only if this run's marker is present, then consumes
+    /// it. The caller appends the removal command(s) inside the <c>if</c> before calling
+    /// <see cref="AppendMarkerGateClose"/>.
+    /// </summary>
+    private static void AppendMarkerGateOpen(StringBuilder sb, string stepId)
+    {
+        AppendMarkerVars(sb, string.Empty, stepId);
+        sb.Append("$__present = $false\n");
+        sb.Append("try { if ($null -ne (Get-ItemProperty -Path $__mkey -Name $__mname -ErrorAction Stop)) { $__present = $true } } catch { $__present = $false }\n");
+        sb.Append("if ($__present) {\n");
+    }
+
+    private static void AppendMarkerGateClose(StringBuilder sb)
+    {
+        sb.Append("  Remove-ItemProperty -Path $__mkey -Name $__mname -Force -ErrorAction SilentlyContinue\n");
+        sb.Append("}\n");
+        sb.Append("exit 0\n");
+    }
+
+    /// <summary>The compile-time-resolved bitwise op to set (<c>-bor</c>) or clear (<c>-band -bnot</c>) a user flag bit.</summary>
+    private static string FlagOp(bool set, string bit)
+        => set ? " -bor " + bit : " -band (-bnot " + bit + ")";
 
     private sealed record UserGroupPlan(
         IReadOnlyList<ExecutionStep> Steps,

@@ -124,21 +124,26 @@ public sealed class UtilUserGroupCommandFactoryTests
     }
 
     [Fact]
-    public void GroupCreate_Rollback_IsMarkerGated_SoOnlyRemovesWhatThisRunCreated()
+    public void GroupCreate_Rollback_IsMarkerGated_OnAnAdminOnlyRegistryStore()
     {
         // Both modes get a rollback, but it is gated on a per-run marker the create writes only when it
-        // actually creates the group — so a pre-existing (adopted) group is never deleted on rollback.
+        // actually creates the group — so a pre-existing (adopted) group is never deleted on rollback. The
+        // marker is an HKLM value (admin/SYSTEM-writable only), not a world-writable temp file, so a local
+        // non-admin cannot plant it to weaponise the SYSTEM rollback.
         foreach (bool update in new[] { false, true })
         {
             var group = new GroupModel { Name = "Ops", UpdateIfExists = update };
             var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
             Assert.NotNull(step.RollbackCommand);
             string rb = Decode(step.RollbackCommand!);
-            Assert.Contains("Test-Path $__marker", rb, StringComparison.Ordinal);
+            Assert.Contains("Get-ItemProperty -Path $__mkey", rb, StringComparison.Ordinal);
+            Assert.Contains("HKLM:\\SOFTWARE\\FalkForge\\UserGroupMarkers", rb, StringComparison.Ordinal);
             Assert.Contains("Remove-LocalGroup", rb, StringComparison.Ordinal);
 
-            // The create writes the marker only in the create-new branch.
-            Assert.Contains("New-Item -ItemType File -Path $__marker", Decode(step.InstallCommand), StringComparison.Ordinal);
+            // The create writes the marker only in the create-new branch, and only into HKLM.
+            string create = Decode(step.InstallCommand);
+            Assert.Contains("New-ItemProperty -Path $__mkey", create, StringComparison.Ordinal);
+            Assert.DoesNotContain("$env:TEMP", create, StringComparison.Ordinal);
         }
     }
 
@@ -149,11 +154,11 @@ public sealed class UtilUserGroupCommandFactoryTests
         var steps = UtilUserGroupCommandFactory.BuildSteps([new GroupModel { Name = "Ops" }], [user]);
 
         string userRb = Decode(Single(steps, "UUsr_svc").RollbackCommand!);
-        Assert.Contains("Test-Path $__marker", userRb, StringComparison.Ordinal);
+        Assert.Contains("Get-ItemProperty -Path $__mkey", userRb, StringComparison.Ordinal);
         Assert.Contains("Remove-LocalUser", userRb, StringComparison.Ordinal);
 
         string memRb = Decode(Single(steps, "UMem_svc_Ops").RollbackCommand!);
-        Assert.Contains("Test-Path $__marker", memRb, StringComparison.Ordinal);
+        Assert.Contains("Get-ItemProperty -Path $__mkey", memRb, StringComparison.Ordinal);
         Assert.Contains("Remove-LocalGroupMember", memRb, StringComparison.Ordinal);
     }
 
