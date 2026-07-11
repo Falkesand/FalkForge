@@ -52,6 +52,13 @@ public sealed class PackageModel
     public string? AboutUrl { get; init; }
     public string? UpdateUrl { get; init; }
     public string? LicenseFile { get; init; }
+
+    /// <summary>
+    /// Optional path to an icon file surfaced in Add/Remove Programs via the
+    /// <c>ARPPRODUCTICON</c> property. When set, the compiler adds the icon to
+    /// the MSI <c>Icon</c> table and points <c>ARPPRODUCTICON</c> at that row.
+    /// </summary>
+    public string? ProductIcon { get; init; }
     public IReadOnlyList<FileEntryModel> Files { get; init; } = [];
     public IReadOnlyList<DirectoryModel> Directories { get; init; } = [];
     public IReadOnlyList<FeatureModel> Features { get; init; } = [];

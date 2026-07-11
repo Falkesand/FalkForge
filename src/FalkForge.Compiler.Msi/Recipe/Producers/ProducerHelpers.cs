@@ -106,4 +106,58 @@ internal static class ProducerHelpers
         byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(bytes, 0, 4);
     }
+
+    /// <summary>
+    /// Computes the deterministic MSI <c>Icon.Name</c> primary key for an icon
+    /// source file path. The name is <c>Icon_{stableHash8}{extension}</c>: the
+    /// <c>Icon_</c> prefix guarantees a valid MSI identifier start (letter),
+    /// the hash of the path makes it deterministic and dedup-stable (identical
+    /// source path ⇒ identical name ⇒ a single Icon row shared by all
+    /// consumers), and the file extension is preserved because MSI convention
+    /// wants the Icon.Name to carry an extension-like suffix (e.g. <c>.exe</c>
+    /// or <c>.ico</c>) so the shell picks the right icon renderer. Every
+    /// character is a letter, digit, underscore, or dot, so the result is a
+    /// well-formed MSI identifier within the 72-char column width.
+    /// </summary>
+    internal static string ResolveIconName(string iconFilePath)
+    {
+        // Sanitize the extension: keep the leading dot, drop any non-alnum
+        // characters after it, lower-case for stability. Fall back to ".ico"
+        // when the source has no usable extension.
+        string rawExt = Path.GetExtension(iconFilePath);
+        string suffix = ".ico";
+        if (!string.IsNullOrEmpty(rawExt) && rawExt.Length > 1)
+        {
+            char[] buf = new char[rawExt.Length];
+            int len = 0;
+            buf[len++] = '.';
+            for (int i = 1; i < rawExt.Length; i++)
+            {
+                char c = char.ToLowerInvariant(rawExt[i]);
+                if (char.IsLetterOrDigit(c))
+                {
+                    buf[len++] = c;
+                }
+            }
+
+            if (len > 1)
+            {
+                suffix = new string(buf, 0, len);
+            }
+        }
+
+        return string.Concat("Icon_", StableHash4Wide(iconFilePath), suffix);
+    }
+
+    /// <summary>
+    /// Returns the first 8 bytes of the SHA-256 hash of <paramref name="input"/>
+    /// as 16 upper-case hex characters — a wider variant of
+    /// <see cref="StableHash4"/> used to keep Icon.Name collisions negligible
+    /// across distinct source paths.
+    /// </summary>
+    internal static string StableHash4Wide(string input)
+    {
+        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(bytes, 0, 8);
+    }
 }

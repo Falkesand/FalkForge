@@ -15,6 +15,18 @@ public sealed partial class PackageBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the product icon shown in Add/Remove Programs (the MSI
+    /// <c>ARPPRODUCTICON</c> property). The icon file is embedded in the MSI
+    /// <c>Icon</c> table at compile time.
+    /// </summary>
+    public PackageBuilder ProductIcon(string iconFilePath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(iconFilePath);
+        ProductIconFile = iconFilePath;
+        return this;
+    }
+
     public PackageBuilder EnableRestartManagerSupport()
     {
         EnableRestartManager = true;

@@ -16,8 +16,10 @@ public sealed class ShortcutTableProducerTests
         Assert.Equal("Shortcut", producer.Schema.Columns[0].Name);
         Assert.Single(producer.Schema.PrimaryKey);
         Assert.Equal(0, producer.Schema.PrimaryKey[0].Value);
-        Assert.Equal(2, producer.Schema.ForeignKeys.Length);
+        Assert.Equal(3, producer.Schema.ForeignKeys.Length);
         Assert.Equal("Directory", producer.Schema.ForeignKeys[0].TargetTable.Value);
         Assert.Equal("Component", producer.Schema.ForeignKeys[1].TargetTable.Value);
+        Assert.Equal("Icon", producer.Schema.ForeignKeys[2].TargetTable.Value);
+        Assert.Equal(8, producer.Schema.ForeignKeys[2].SourceColumn.Value);
     }
 }
