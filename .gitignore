@@ -78,6 +78,8 @@ StyleCopReport.xml
 *_h.h
 *.ilk
 *.meta
+# *.meta above (Visual Studio artifacts) also matches the FalkForge.Meta project directory — re-include it
+!src/FalkForge.Meta/
 *.obj
 *.iobj
 *.pch
