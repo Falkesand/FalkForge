@@ -226,6 +226,13 @@
           "FalkForge.Core": "[0.1.0-alpha.1, )"
         }
       },
+      "falkforge.extensions.dependency": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "FalkForge.Extensibility": "[0.1.0-alpha.1, )"
+        }
+      },
       "falkforge.extensions.driver": {
         "type": "Project",
         "dependencies": {

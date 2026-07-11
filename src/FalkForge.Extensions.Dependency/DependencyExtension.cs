@@ -19,6 +19,15 @@ public sealed class DependencyExtension : IFalkForgeExtension, IDryRunContributo
     {
         var contributor = new DependencyTableContributor(_providers, _consumers);
         registry.RegisterTableContributor(contributor);
+
+        // Blocking, install-time enforcement of version-range consumer requirements. This is a
+        // check, not a resource-creating action, so it is authored as AppSearch/RegLocator +
+        // LaunchCondition rows (evaluated by the standard LaunchConditions action, already
+        // scheduled early in both sequences) rather than routed through the deferred execution
+        // seam. See DependencyVersionCheckPlanner for the design rationale.
+        registry.RegisterTableContributor(new DependencyRegLocatorContributor(_consumers));
+        registry.RegisterTableContributor(new DependencyAppSearchContributor(_consumers));
+        registry.RegisterTableContributor(new DependencyLaunchConditionContributor(_consumers));
     }
 
     public void Provides(string key, Action<DependencyProviderBuilder> configure)

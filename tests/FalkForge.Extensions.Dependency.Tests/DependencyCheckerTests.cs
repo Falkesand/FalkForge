@@ -112,6 +112,32 @@ public sealed class DependencyCheckerTests
     }
 
     [Fact]
+    public void Check_ReturnsSatisfied_WhenInstalledProviderVersionIsMalformed()
+    {
+        // A provider registered on the machine with a non-parseable version string (e.g. written
+        // by an older/foreign installer) is tolerated, not flagged — Check() cannot compare
+        // against a range it cannot parse, so it skips enforcement rather than false-failing.
+        var providers = new List<DependencyProviderModel>
+        {
+            new() { Key = "SharedLib", Version = "not-a-version" }
+        };
+        var consumers = new List<DependencyConsumerModel>
+        {
+            new()
+            {
+                ProviderKey = "SharedLib",
+                ConsumerKey = "MyApp",
+                MinVersion = "1.0.0",
+                MinInclusive = true
+            }
+        };
+
+        var result = DependencyChecker.Check(providers, consumers);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public void Check_MultipleConsumers_ReturnsOnlyUnsatisfied()
     {
         var providers = new List<DependencyProviderModel>
