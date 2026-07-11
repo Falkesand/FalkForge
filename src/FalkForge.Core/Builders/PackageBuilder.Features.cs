@@ -9,9 +9,12 @@ public sealed partial class PackageBuilder
     {
         var builder = new FeatureBuilder(id);
         configure(builder);
-        // Lift feature-scoped files (and nested child-feature files) into the package file list
-        // before building the model — after Build() the builder is discarded.
+        // Lift feature-scoped files/services/registry entries (and nested child-feature ones)
+        // into the package's flat lists before building the model — after Build() the builder
+        // is discarded.
         _files.AddRange(builder.CollectFiles());
+        _services.AddRange(builder.CollectServices());
+        _registryEntries.AddRange(builder.CollectRegistryEntries());
         _features.Add(builder.Build());
         return this;
     }

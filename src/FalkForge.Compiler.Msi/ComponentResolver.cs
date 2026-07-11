@@ -107,11 +107,69 @@ public sealed class ComponentResolver
                 });
             }
 
+        InstallPath defaultDirectory = package.DefaultInstallDirectory
+            ?? KnownFolder.ProgramFiles / package.Manufacturer / package.Name;
+
+        var serviceFeatureComponents = new Dictionary<string, string>();
+        foreach (var service in package.Services)
+        {
+            if (service.FeatureRef is null)
+            {
+                continue;
+            }
+
+            var componentId = GenerateServiceComponentId(service.Name);
+            var componentGuid = GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"service-component::{service.Name}");
+
+            components.Add(new ResolvedComponent
+            {
+                Id = componentId,
+                Guid = componentGuid,
+                Directory = defaultDirectory,
+                KeyPath = string.Empty,
+                Files = [],
+                FeatureRef = service.FeatureRef
+            });
+            serviceFeatureComponents[service.Name] = componentId;
+        }
+
+        var registryFeatureComponents = new Dictionary<int, string>();
+        for (var i = 0; i < package.RegistryEntries.Count; i++)
+        {
+            var entry = package.RegistryEntries[i];
+            if (entry.FeatureRef is null || entry.ComponentId is not null)
+            {
+                // Feature-gating requires a FeatureRef; an explicit ComponentId is a stronger,
+                // user-authored override and always wins (see RegistryTableProducer).
+                continue;
+            }
+
+            var componentId = GenerateRegistryComponentId(i, entry);
+            var componentGuid = GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"registry-component::{i}::{entry.Root}::{entry.Key}::{entry.ValueName}");
+
+            components.Add(new ResolvedComponent
+            {
+                Id = componentId,
+                Guid = componentGuid,
+                Directory = defaultDirectory,
+                KeyPath = string.Empty,
+                Files = [],
+                FeatureRef = entry.FeatureRef
+            });
+            registryFeatureComponents[i] = componentId;
+        }
+
         return new ResolvedPackage
         {
             Package = package,
             Components = components,
-            Files = fileEntries
+            Files = fileEntries,
+            ServiceFeatureComponents = serviceFeatureComponents,
+            RegistryFeatureComponents = registryFeatureComponents
         };
     }
 
@@ -124,6 +182,30 @@ public sealed class ComponentResolver
     private static string GenerateFileId(string sanitizedFileName, string componentId)
     {
         var raw = $"F_{sanitizedFileName}_{StableHash(componentId)}";
+        return raw.Length > 72 ? raw[..72] : raw;
+    }
+
+    /// <summary>
+    /// Generates the deterministic component id for a feature-gated service that has no
+    /// file-based component to attach to. Keyed by service name only — MSI service names are
+    /// unique within a package, so no directory/feature disambiguator is needed.
+    /// </summary>
+    private static string GenerateServiceComponentId(string serviceName)
+    {
+        var sanitized = ProducerHelpers.SanitizeDirectoryId(serviceName);
+        var raw = $"C_SVC_{sanitized}_{StableHash(serviceName)}";
+        return raw.Length > 72 ? raw[..72] : raw;
+    }
+
+    /// <summary>
+    /// Generates the deterministic component id for a feature-gated registry entry that has no
+    /// explicit ComponentId. Keyed by list index plus root/key/value-name so two entries with
+    /// identical keys under different roots (or index) never collide.
+    /// </summary>
+    private static string GenerateRegistryComponentId(int index, RegistryEntryModel entry)
+    {
+        var hashInput = $"{index}|{entry.Root}|{entry.Key}|{entry.ValueName}";
+        var raw = $"C_REG_{index}_{StableHash(hashInput)}";
         return raw.Length > 72 ? raw[..72] : raw;
     }
 

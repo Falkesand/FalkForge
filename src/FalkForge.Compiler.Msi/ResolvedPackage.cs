@@ -1,3 +1,4 @@
+using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi;
@@ -7,6 +8,26 @@ public sealed class ResolvedPackage
     public required PackageModel Package { get; init; }
     public required IReadOnlyList<ResolvedComponent> Components { get; init; }
     public required IReadOnlyList<ResolvedFile> Files { get; init; }
+
+    /// <summary>
+    /// Maps a feature-gated <see cref="ServiceModel.Name"/> to the id of the synthesized
+    /// <see cref="ResolvedComponent"/> that carries its <see cref="ServiceModel.FeatureRef"/>.
+    /// Only services with a non-null FeatureRef get an entry — services without one keep the
+    /// legacy behavior of attaching to the component that owns their executable file (or the
+    /// package's default component) via <see cref="ServiceInstallTableProducer"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ServiceFeatureComponents { get; init; } =
+        new Dictionary<string, string>();
+
+    /// <summary>
+    /// Maps the list index of a feature-gated entry in <see cref="PackageModel.RegistryEntries"/>
+    /// to the id of the synthesized <see cref="ResolvedComponent"/> that carries its
+    /// <see cref="RegistryEntryModel.FeatureRef"/>. Only entries with a non-null FeatureRef and no
+    /// explicit <see cref="RegistryEntryModel.ComponentId"/> get an entry — an explicit
+    /// ComponentId always wins (see <see cref="RegistryTableProducer"/>).
+    /// </summary>
+    public IReadOnlyDictionary<int, string> RegistryFeatureComponents { get; init; } =
+        new Dictionary<int, string>();
 
     /// <summary>
     ///     Per-instance identifier assigned at construction time.

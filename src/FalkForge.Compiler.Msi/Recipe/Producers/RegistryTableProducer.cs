@@ -41,9 +41,9 @@ internal sealed class RegistryTableProducer : ITableProducer
             string regId = string.Create(
                 CultureInfo.InvariantCulture,
                 $"Reg_{index:D4}");
+            string componentId = ResolveComponentId(entry, index, resolved, defaultComponentId);
             index++;
 
-            string componentId = entry.ComponentId ?? defaultComponentId;
             string valueText = entry.Value?.ToString() ?? string.Empty;
 
             CellValue nameCell = entry.ValueName is null
@@ -61,6 +61,32 @@ internal sealed class RegistryTableProducer : ITableProducer
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Resolves the Component_ FK for a registry row. An explicit
+    /// <see cref="RegistryEntryModel.ComponentId"/> always wins (strongest, user-authored
+    /// override). Otherwise, an entry with a FeatureRef (declared via FeatureBuilder.Registry)
+    /// attaches to the dedicated component ComponentResolver synthesized for it — that component
+    /// carries the FeatureRef, which is what places it under the correct feature in
+    /// FeatureComponents. Without either, the entry falls back to the first resolved component
+    /// (or "MainComponent"), matching the legacy TableEmitter default.
+    /// </summary>
+    private static string ResolveComponentId(
+        RegistryEntryModel entry, int index, ResolvedPackage resolved, string defaultComponentId)
+    {
+        if (entry.ComponentId is not null)
+        {
+            return entry.ComponentId;
+        }
+
+        if (entry.FeatureRef is not null &&
+            resolved.RegistryFeatureComponents.TryGetValue(index, out string? featureComponentId))
+        {
+            return featureComponentId;
+        }
+
+        return defaultComponentId;
     }
 
     private static int MapRoot(RegistryRoot root)
