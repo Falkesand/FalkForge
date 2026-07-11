@@ -15,6 +15,13 @@ app.Configure(config =>
 
     config.Settings.Registrar.Register<IConsoleOutput, SpectreConsoleOutput>();
 
+    config.AddCommand<InitCommand>("init")
+        .WithDescription("Scaffold a starter installer project (csproj + fluent Program.cs + payload)")
+        .WithExample("init")
+        .WithExample("init", "-o", "./my-installer", "--name", "My App")
+        .WithExample("init", "--type", "bundle", "--name", "My Suite")
+        .WithExample("init", "--from-publish", "./bin/Release/net10.0/publish");
+
     config.AddCommand<BuildCommand>("build")
         .WithDescription("Compile an installer definition (.cs or .json) into MSI/Bundle")
         .WithExample("build", "installer.cs")

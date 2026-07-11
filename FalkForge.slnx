@@ -20,6 +20,7 @@
     <Project Path="src/FalkForge.Extensions.Sql/FalkForge.Extensions.Sql.csproj" />
     <Project Path="src/FalkForge.Extensions.Util/FalkForge.Extensions.Util.csproj" />
     <Project Path="src/FalkForge.Localization/FalkForge.Localization.csproj" />
+    <Project Path="src/FalkForge.Meta/FalkForge.Meta.csproj" />
     <Project Path="src/FalkForge.Platform/FalkForge.Platform.csproj" />
     <Project Path="src/FalkForge.Plugins.FileSystem/FalkForge.Plugins.FileSystem.csproj" />
     <Project Path="src/FalkForge.Plugins.Odbc/FalkForge.Plugins.Odbc.csproj" />
@@ -28,6 +29,7 @@
     <Project Path="src/FalkForge.Sdk/FalkForge.Sdk.csproj" />
     <Project Path="src/FalkForge.Signing.SignServer/FalkForge.Signing.SignServer.csproj" />
     <Project Path="src/FalkForge.Studio/FalkForge.Studio.csproj" />
+    <Project Path="src/FalkForge.Templates/FalkForge.Templates.csproj" />
     <Project Path="src/FalkForge.Testing/FalkForge.Testing.csproj" />
     <Project Path="src/FalkForge.Ui/FalkForge.Ui.csproj" />
     <Project Path="src/FalkForge.Ui.Abstractions/FalkForge.Ui.Abstractions.csproj" />

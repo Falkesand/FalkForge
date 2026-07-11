@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Template pack: `dotnet new install FalkForge.Templates` delivers the falkforge-msi and
+         falkforge-bundle project templates. The template content lives under content/ and is
+         packed verbatim — it is NEVER compiled as part of this solution (EnableDefaultItems
+         off), because it references the FalkForge meta-package by version token and only
+         compiles after `dotnet new` instantiation + restore. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>FalkForge.Templates</PackageId>
+    <PackageType>Template</PackageType>
+    <Description>Project templates for FalkForge: `dotnet new falkforge-msi` scaffolds a minimal single-file MSI installer project, `dotnet new falkforge-bundle` a self-extracting EXE bundle — each referencing the single FalkForge meta-package, ready to `dotnet run` into a real installer.</Description>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <!-- Content items already live under content\ in the source tree; pack them rooted at the
+         package root so the package layout is content/<shortName>/... (not content/content/...). -->
+    <ContentTargetFolders>.</ContentTargetFolders>
+    <!-- .template.config folders start with a dot and must still pack. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- NU5128: no lib/ per TFM by design — template packs carry only content. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="content\**\*" />
+  </ItemGroup>
+</Project>

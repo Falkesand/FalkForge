@@ -4,6 +4,8 @@
 # Packability is deny-by-default (IsPackable=false in the root Directory.Build.props);
 # every shippable project opts in, so packing the solution yields exactly the shippable
 # set: the fluent-API libraries, extensions, plugins, the FalkForge.Sdk MSBuild SDK,
+# the batteries-included FalkForge meta-package (one `dotnet add package FalkForge`),
+# the FalkForge.Templates template pack (`dotnet new falkforge-msi|falkforge-bundle`),
 # and the forge CLI as .NET global tool FalkForge.Tool.
 #
 # The output folder doubles as a LOCAL NUGET FEED — point a NuGet.config at it:

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Meta-package: ships NO library of its own, only dependency wiring. One
+         `dotnet add package FalkForge` transitively delivers the batteries-included authoring
+         set — fluent API, MSI + bundle compilers, localization, all extensions — plus the
+         engine runtime package whose build props land the NativeAOT engine in the consumer's
+         output so bundle builds are runnable with zero manual setup. The 26 granular packages
+         remain available for minimal footprints; this package is purely additive.
+         Deliberately excluded: the WPF UI stack (net10.0-windows, heavy; custom-UI authors
+         reference FalkForge.Ui explicitly), the experimental MSIX compiler, the decompiler,
+         plugins, SignServer remote signing, and the Testing utilities. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>FalkForge</PackageId>
+    <Description>FalkForge — batteries-included meta-package for authoring Windows installers in C#. One package reference brings the fluent API, the MSI and EXE-bundle compilers, localization, every FalkForge extension (Firewall, IIS, SQL, .NET, Util, Dependency, Driver, Http), and the NativeAOT bundle engine runtime — build a runnable installer with nothing else installed.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <!-- NU5128: no lib/ per TFM by design — this package carries only dependencies. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\FalkForge.Localization\FalkForge.Localization.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Util\FalkForge.Extensions.Util.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Dependency\FalkForge.Extensions.Dependency.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Firewall\FalkForge.Extensions.Firewall.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.DotNet\FalkForge.Extensions.DotNet.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Iis\FalkForge.Extensions.Iis.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Sql\FalkForge.Extensions.Sql.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Driver\FalkForge.Extensions.Driver.csproj" />
+    <ProjectReference Include="..\FalkForge.Extensions.Http\FalkForge.Extensions.Http.csproj" />
+    <!-- The engine runtime makes bundle output RUNNABLE for a plain PackageReference consumer:
+         its buildTransitive props copy the published NativeAOT engine to $(OutDir)engine\,
+         exactly where the bundle compiler's EngineStubLocator probes beside the host.
+         Mirrors the -NoEngine pack opt-out (see scripts/pack.ps1): when the engine is
+         deliberately not packed, the meta-package must not depend on a package that was
+         never produced. -->
+    <ProjectReference Include="..\FalkForge.Engine.Runtime\FalkForge.Engine.Runtime.csproj"
+                      Condition="'$(FalkForgePackEngine)' != 'false'" />
+  </ItemGroup>
+</Project>

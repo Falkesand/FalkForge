@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Peter Falkesand",
+  "classifications": [ "Windows", "Installer", "Bundle", "FalkForge" ],
+  "identity": "FalkForge.Bundle.CSharp",
+  "name": "FalkForge EXE bundle installer",
+  "shortName": "falkforge-bundle",
+  "description": "A self-extracting EXE bundle installer project using the FalkForge fluent API: builds an MSI and chains it into a bundle fronted by the NativeAOT FalkForge engine. dotnet run builds both.",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "FalkForgeBundleInstaller",
+  "preferNameDirectory": true,
+  "guids": [
+    "0C55B22A-3B23-45A4-A3F1-6A1E2F0D5B01",
+    "5D8E3A9C-7F14-4B06-9C2D-8E4A1B6F7C02"
+  ],
+  "symbols": {
+    "ProductName": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "Product name shown in the installer.",
+      "defaultValue": "My Application",
+      "replaces": "PRODUCT-NAME"
+    },
+    "FalkForgeVersion": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "Version of the FalkForge meta-package to reference.",
+      "defaultValue": "0.1.0-alpha.1",
+      "replaces": "FALKFORGE-VERSION"
+    }
+  }
+}

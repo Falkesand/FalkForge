@@ -12,10 +12,12 @@ dotnet publish -c Release  # NativeAOT for Engine + Elevation
 ```
 .NET 10, C# latest, nullable enabled, central package mgmt. SDK 10.0.103.
 
-## Solution (29 src + 26 test projects)
+## Solution (33 src + 26 test projects)
 | Project | Purpose |
 |---------|---------|
 | Core | Domain model, fluent API, validation |
+| Meta (`src/FalkForge.Meta`, PackageId `FalkForge`) | Batteries-included meta-package: no library, only deps — Core, both compilers, Localization, Extensibility, all 8 extensions, Engine.Runtime.win-x64. One `dotnet add package FalkForge` = working setup with runnable bundles. |
+| Templates (`FalkForge.Templates`, PackageType Template) | `dotnet new falkforge-msi` / `falkforge-bundle` project templates under `content/`; reference the meta-package; version default pinned to single-source by TemplatePackTests. |
 | Compiler.Msi | MSI/MSM/MSP/MST generation via msi.dll P/Invoke |
 | Compiler.Bundle | Self-extracting EXE bundle compiler |
 | Compiler.Msix | **[Experimental]** MSIX/.msixbundle compiler. Studio wired; CLI dispatch not implemented. Entry point: `InstallerMsix.BuildMsix()` / `BuildMsixBundle()`. |
@@ -62,6 +64,8 @@ Core (no deps)
 Engine exe:    Engine.Protocol + Platform.Windows + Compiler.Msi
 Elevation exe: Engine.Protocol + Platform.Windows
 Cli exe:       Core + Compiler.Msi/Bundle + Decompiler + Localization + Extensibility + Extensions.*
+Meta pkg (PackageId FalkForge): deps only — Core + Compiler.Msi/Bundle + Localization + Extensibility + Extensions.* + Engine.Runtime.win-x64
+Templates pkg: content-only template pack (dotnet new falkforge-msi|bundle) → scaffolded project references Meta pkg
 ```
 
 ## Key Patterns
@@ -198,7 +202,7 @@ LocalizationModel, LocalizationLoader (JSON), CultureFallbackChain (specific→p
 **WiX Burn** (Windows-only): WixBurnAccess (PE parser + UX cab extraction), IWixBurnAccess, WixManifestMapper (v3/v4 XML→BundleModel), WixBundleDecompiler, WixUnmappedFeature. WBD001-006, WMM001.
 
 ## CLI (`src/FalkForge.Cli/`)
-`forge` command (Spectre.Console). `forge build installer.csx|.json`, `forge validate`, `forge inspect` (Windows), `forge decompile` (Windows), `forge extract` (MSI/bundle), `forge bundle detach|reattach`, `forge winget` (generate WinGet manifest from MSI).
+`forge` command (Spectre.Console). `forge init` (scaffold starter project referencing the `FalkForge` meta-package; `--type msi|bundle`, `--name`, `--from-publish`, `--force`; content generation in `InitScaffolder`), `forge build installer.csx|.json`, `forge validate`, `forge inspect` (Windows), `forge decompile` (Windows), `forge extract` (MSI/bundle), `forge bundle detach|reattach`, `forge winget` (generate WinGet manifest from MSI).
 Program.cs, Commands/: Build (Roslyn+JSON), Validate, Inspect, Decompile (.msi→MsiDecompiler, .exe→FALKBUNDLE then WiX Burn), BundleDetach, BundleReattach
 Settings/: Build, Validate, Inspect, Decompile, BundleDetach, BundleReattach Settings
 ExitCodes (0=success, 1=validation, 2=compilation, 3=runtime), IConsoleOutput, SpectreConsoleOutput, ScriptLoader, MsiInspector, MsiInspectionResult

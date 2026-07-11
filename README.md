@@ -45,6 +45,31 @@ Installer integrity is where FalkForge goes further than the mainstream installe
 
 Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](documentation.html) (section 22, includes the plain-language security manual).
 
+## Get Started in a Minute
+
+Install the tool **or** add the one meta-package — never the 26 granular packages:
+
+```bash
+# Option 1 — the forge CLI scaffolds and builds installers
+dotnet tool install -g FalkForge.Tool
+forge init --name "My App"        # starter project (add --type bundle for an EXE bundle)
+dotnet run                        # -> My_App-1.0.0.msi
+
+# Option 2 — dotnet new templates
+dotnet new install FalkForge.Templates
+dotnet new falkforge-msi -n MyInstaller --ProductName "My App"
+cd MyInstaller && dotnet run
+
+# Option 3 — an existing project: ONE package brings everything
+dotnet add package FalkForge
+```
+
+The `FalkForge` meta-package transitively delivers the fluent API, the MSI and
+EXE-bundle compilers, localization, every extension, and the NativeAOT bundle
+engine runtime — so `dotnet run` on a scaffolded project produces a runnable
+installer with nothing else installed. The granular `FalkForge.*` packages
+remain available when you want a minimal footprint.
+
 ## Quick Start
 
 ```csharp
@@ -94,6 +119,7 @@ boundaries, built-in UI, and update feeds works the same way -- see
 ## CLI Tool
 
 ```
+forge init         Scaffold a starter installer project (csproj + Program.cs + payload)
 forge build        Build an installer from .csx or .json definition
 forge validate     Validate an installer definition
 forge inspect      Inspect a compiled MSI (Windows)
