@@ -247,6 +247,43 @@ public static class SqlRules
                         ModelPath.Root.Field("SqlDatabase").Field(db.Id),
                         "SQL015: A literal SQL password is embedded in plaintext in the MSI. " +
                         "Use PasswordProperty with SetSecureProperty, or Windows integrated authentication, instead."))),
+
+            // Fail-loud deferrals: surface the cases that are authored to run at install but are NOT yet
+            // executed, so an author is never silently misled into thinking work will happen.
+
+            new ValidationRule(
+                new RuleId("SQL019"),
+                Severity.Warning,
+                ModelSection.Extension_Sql,
+                "Database has no Server, so it is not executed at install",
+                "CreateOnInstall/DropOnUninstall run only for databases with a Server; a ConnectionString-only database is inspectable table data but is not executed.",
+                ctx => getDatabases()
+                    .Where(db => !string.IsNullOrWhiteSpace(db.Id)
+                                 && (db.CreateOnInstall || db.DropOnUninstall)
+                                 && string.IsNullOrWhiteSpace(db.Server))
+                    .Select(db => new Violation(
+                        new RuleId("SQL019"), Severity.Warning,
+                        ModelPath.Root.Field("SqlDatabase").Field(db.Id),
+                        $"SQL019: Database '{db.Id}' requests CreateOnInstall/DropOnUninstall but has no Server, " +
+                        "so it will NOT be executed at install (ConnectionString-only databases are table-only). " +
+                        "Set a Server to enable install-time execution."))),
+
+            new ValidationRule(
+                new RuleId("SQL020"),
+                Severity.Warning,
+                ModelSection.Extension_Sql,
+                "SourceFile script is not executed at install",
+                "Only inline SqlContent scripts are executed at install; a SourceFile script is inspectable table data but is not run.",
+                ctx => getScripts()
+                    .Where(s => !string.IsNullOrWhiteSpace(s.Id)
+                                && (s.ExecuteOnInstall || s.ExecuteOnReinstall || s.ExecuteOnUninstall)
+                                && string.IsNullOrWhiteSpace(s.SqlContent)
+                                && !string.IsNullOrWhiteSpace(s.SourceFile))
+                    .Select(s => new Violation(
+                        new RuleId("SQL020"), Severity.Warning,
+                        ModelPath.Root.Field("SqlScript").Field(s.Id),
+                        $"SQL020: Script '{s.Id}' uses SourceFile and will NOT be executed at install " +
+                        "(only inline SqlContent runs). Use InlineSql to execute it at install."))),
         ];
     }
 
