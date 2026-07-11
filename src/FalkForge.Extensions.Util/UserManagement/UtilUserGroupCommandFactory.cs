@@ -22,8 +22,9 @@ namespace FalkForge.Extensions.Util.UserManagement;
 /// the referenced secure MSI property (populated at run time via <c>SetSecureProperty</c>) into the
 /// deferred action, read here as <c>$args[0]</c> and immediately converted to a <c>SecureString</c> with
 /// <c>ConvertTo-SecureString</c>. The password is therefore never stored in the MSI, never echoed and
-/// never logged (the carrying properties are listed in <c>MsiHiddenProperties</c> by
-/// <see cref="UtilHiddenPropertiesContributor"/>). A <i>literal</i> password (discouraged, USR010-warned)
+/// never logged (each password-bearing create step declares the carrying properties via
+/// <see cref="ExecutionStep.HiddenProperties"/>, which the compiler aggregates into the single
+/// <c>MsiHiddenProperties</c> row). A <i>literal</i> password (discouraged, USR010-warned)
 /// is embedded in the SetProperty target instead — the contrast proves the secure path keeps the secret
 /// out of the MSI.</para>
 ///

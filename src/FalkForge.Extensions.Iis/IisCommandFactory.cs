@@ -33,8 +33,9 @@ namespace FalkForge.Extensions.Iis;
 /// through the seam's <see cref="ExecutionStep.CustomActionData"/> channel (an immediate <c>SetProperty</c>
 /// copies the value of the referenced secure MSI property into the deferred action, read here as
 /// <c>$args[0]</c> and applied directly to <c>ProcessModel.Password</c>). The password is never stored in
-/// the MSI; the carrying properties are listed in <c>MsiHiddenProperties</c> (see
-/// <see cref="IisHiddenPropertiesContributor"/>) so a verbose install log redacts them.</para>
+/// the MSI; each SpecificUser pool's create step declares the carrying properties via
+/// <see cref="ExecutionStep.HiddenProperties"/>, which the compiler aggregates into the single
+/// <c>MsiHiddenProperties</c> row so a verbose install log redacts them.</para>
 ///
 /// <para><b>Injection safety.</b> All author/environment values (pool + site names, physical paths, host
 /// headers, IPs, user names) are embedded either as PowerShell single-quoted literals via
