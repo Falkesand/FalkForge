@@ -93,6 +93,47 @@ public sealed class QuorumEvaluatorTests
         Assert.True(result.Satisfied, result.Diagnostic);
     }
 
+    // ── Augmenting-path matching (guards against a greedy-matcher regression) ─
+
+    [Fact]
+    public void DualRoleKeyOrderedFirst_AugmentingPathReassignsIt_LegitimateRotationAccepted()
+    {
+        // WHY THIS CASE EXISTS: every other case in this file also passes under a NAIVE GREEDY
+        // matcher, so a refactor from Kuhn augmenting-path matching to greedy would slip through
+        // green — and then FALSELY REJECT legitimate dual-role rotation bundles. Here a greedy
+        // matcher walks the slots in rule order and grabs the FIRST key holding the role: slot
+        // Release takes BB (release|recovery), leaving slot Recovery unfillable (AA is release-only)
+        // → false rejection. Real matching augments: BB is reassigned to Recovery, AA fills Release.
+        var collected = new[]
+        {
+            Sig("BB", TrustRole.Release | TrustRole.Recovery),
+            Sig("AA", TrustRole.Release)
+        };
+
+        var result = QuorumEvaluator.Evaluate(
+            collected, Rule(2, new RoleRequirement(TrustRole.Release, 1), new RoleRequirement(TrustRole.Recovery, 1)));
+
+        Assert.True(result.Satisfied, result.Diagnostic);
+    }
+
+    [Fact]
+    public void DualRoleKeyOrderedFirst_SymmetricOrdering_LegitimateRotationAccepted()
+    {
+        // Symmetric ordering of the case above (so neither slot order nor signature order can
+        // accidentally rescue a greedy matcher): greedy fills slot Recovery with BB first, leaving
+        // slot Release unfillable (AA is recovery-only); augmenting-path matching swaps them.
+        var collected = new[]
+        {
+            Sig("BB", TrustRole.Release | TrustRole.Recovery),
+            Sig("AA", TrustRole.Recovery)
+        };
+
+        var result = QuorumEvaluator.Evaluate(
+            collected, Rule(2, new RoleRequirement(TrustRole.Recovery, 1), new RoleRequirement(TrustRole.Release, 1)));
+
+        Assert.True(result.Satisfied, result.Diagnostic);
+    }
+
     // ── Wrong role ───────────────────────────────────────────────────────────
 
     [Fact]
