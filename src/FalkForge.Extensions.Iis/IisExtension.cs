@@ -25,19 +25,21 @@ public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
         ArgumentNullException.ThrowIfNull(registry);
 
         // Emit the configured application pools and web sites as inspectable custom MSI tables
-        // (IIsAppPool / IIsWebSite), plus a placeholder CustomAction that records the deferred
-        // "configure IIS" step. The placeholder action is intentionally never scheduled into an
-        // install sequence, so it does not execute.
-        //
-        // What is NOT yet implemented: install-time IIS management via
-        // Microsoft.Web.Administration (creating the pools/sites/bindings for real), certificate
-        // emission, and a dedicated multi-binding table. Those are follow-ups; the tables emitted
-        // here make the configuration present and inspectable in the compiled MSI so the extension
-        // is no longer a silent no-op.
+        // (IIsAppPool / IIsWebSite) for decompile/inspection record...
         registry.RegisterTableContributor(new IisAppPoolTableContributor(() => _appPools));
         registry.RegisterTableContributor(new IisWebSiteTableContributor(() => _webSites));
-        registry.RegisterTableContributor(
-            new IisConfigCustomActionContributor(() => _appPools.Count > 0 || _webSites.Count > 0));
+        // ...and make those tables LIVE: schedule deferred, elevated custom actions that create the
+        // application pools and web sites (with ALL their bindings) at install via
+        // Microsoft.Web.Administration, and remove them on uninstall (with rollback on a failed
+        // install). This replaces the former inert placeholder CustomAction.
+        registry.RegisterExecutionContributor(new IisExecutionContributor(() => _appPools, () => _webSites));
+        // Scrub any SpecificUser app-pool password carried through the CustomActionData channel from
+        // verbose MSI logs.
+        registry.RegisterTableContributor(new IisHiddenPropertiesContributor(() => _appPools, () => _webSites));
+
+        // Deferred to a follow-up (surfaced as fail-loud IIS013/IIS014 warnings so they are never a silent
+        // no-op): certificate emission + SSL-certificate binding, and sub-application/virtual-directory
+        // creation. The HTTPS binding entry itself is still written into the site configuration.
     }
 
     public IisExtension AddWebSite(Action<WebSiteBuilder> configure)

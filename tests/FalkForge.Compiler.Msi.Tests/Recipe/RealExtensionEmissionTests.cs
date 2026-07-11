@@ -140,7 +140,7 @@ public sealed class RealExtensionEmissionTests
     }
 
     [Fact]
-    public void IisExtension_EmitsAppPoolWebSiteAndPlaceholderCustomAction()
+    public void IisExtension_EmitsAppPoolWebSiteTablesAndLiveScheduledCustomActions()
     {
         using var scratch = new Scratch();
 
@@ -165,10 +165,17 @@ public sealed class RealExtensionEmissionTests
         Assert.Equal("DemoSite", siteRow[0]);
         Assert.Equal("8080", siteRow[1]);
 
-        // The deferred configure action is present (inspectable) but never scheduled.
+        // The tables are now LIVE: real deferred create actions are scheduled (the former inert
+        // "FalkForgeConfigureIis" placeholder is gone).
         var caRows = db.QueryRows("SELECT `Action` FROM `CustomAction`", 1);
         Assert.True(caRows.IsSuccess, caRows.IsFailure ? caRows.Error.Message : "");
-        Assert.Contains(caRows.Value, r => r[0] == "FalkForgeConfigureIis");
+        Assert.Contains(caRows.Value, r => r[0] == "IisPool_DemoPool");
+        Assert.Contains(caRows.Value, r => r[0] == "IisSite_DemoSite");
+        Assert.DoesNotContain(caRows.Value, r => r[0] == "FalkForgeConfigureIis");
+
+        var seqRows = db.QueryRows("SELECT `Action` FROM `InstallExecuteSequence` WHERE `Action`='IisSite_DemoSite'", 1);
+        Assert.True(seqRows.IsSuccess, seqRows.IsFailure ? seqRows.Error.Message : "");
+        Assert.Single(seqRows.Value); // genuinely scheduled, not inert
     }
 
     private static MsiDatabase Compile(Scratch scratch, string name, Action<MsiCompiler> attach)
