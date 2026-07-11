@@ -98,7 +98,10 @@ internal static class ExecutionStepEmitter
 
         int installSeq = InstallBandStart;
         int uninstallSeq = UninstallBandStart;
-        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        // Guards every emitted CustomAction primary key — not just the base step id — so a step "X"
+        // and a step "X_rb" (whose _rb / _d / _un variants would collide) fail loud here with a precise
+        // message instead of surfacing later as an opaque downstream PK violation.
+        var actionNames = new HashSet<string>(StringComparer.Ordinal);
 
         for (int i = 0; i < steps.Count; i++)
         {
@@ -111,75 +114,59 @@ internal static class ExecutionStepEmitter
                             $"(must match ^[A-Za-z_][A-Za-z0-9_]*$ and be at most {MaxActionIdLength} characters).");
             }
 
-            if (!seenIds.Add(step.Id))
-            {
-                return Fail($"Duplicate execution step id '{step.Id}'. Each step must have a unique id " +
-                            "so its custom actions have distinct primary keys.");
-            }
-
             if (string.IsNullOrEmpty(step.InstallCommand))
             {
                 return Fail($"Execution step '{step.Id}' has an empty InstallCommand.");
             }
 
-            string installName = step.Id;
-            string installCondition = step.InstallCondition ?? DefaultInstallCondition;
+            string installCondition = ComposeCondition(step.InstallCondition, DefaultInstallCondition);
             int flags = step.Elevated ? CustomActionType.NoImpersonate : 0;
+            int deferred = CustomActionType.ExeInDir | CustomActionType.InScript | flags;
 
             // ── (1) secret / late-bound data channel: immediate SetProperty before the deferred action.
+            // Source = deferred action name → the property SetProperty writes becomes that action's
+            // CustomActionData. Target = the formatted expression (e.g. "[DB_PASSWORD]"). Note: this
+            // channel feeds the INSTALL action only; a rollback/uninstall needing its own secret is not
+            // covered (documented on ExecutionStep) — fine for the current consumers.
             if (step.CustomActionData is { Length: > 0 } data)
             {
-                Result<Unit> lenData = GuardLength(step.Id, "CustomActionData", data);
-                if (lenData.IsFailure)
-                    return Result<ImmutableArray<IMsiTableContributor>>.Failure(lenData.Error);
-
-                // Source = deferred action name → the property SetProperty writes becomes that
-                // action's CustomActionData. Target = the formatted expression (e.g. "[DB_PASSWORD]").
-                caRows.Add(CustomActionRow($"{step.Id}_d", CustomActionType.SetProperty, installName, data));
-                seqRows.Add(SequenceRow($"{step.Id}_d", installSeq++, installCondition));
-                if (installSeq > InstallBandEnd)
-                    return BandExhausted(step.Id, install: true);
+                Result<ImmutableArray<IMsiTableContributor>>? failure = EmitAction(
+                    step, $"{step.Id}_d", "CustomActionData", data, CustomActionType.SetProperty,
+                    step.Id, installCondition, ref installSeq, InstallBandEnd, install: true,
+                    actionNames, caRows, seqRows);
+                if (failure is not null)
+                    return failure.Value;
             }
 
             // ── (2) rollback action (scheduled before the install action).
             if (step.RollbackCommand is { Length: > 0 } rollback)
             {
-                Result<Unit> lenRb = GuardLength(step.Id, "RollbackCommand", rollback);
-                if (lenRb.IsFailure)
-                    return Result<ImmutableArray<IMsiTableContributor>>.Failure(lenRb.Error);
-
-                int rbType = CustomActionType.ExeInDir | CustomActionType.InScript |
-                             CustomActionType.Rollback | flags;
-                caRows.Add(CustomActionRow($"{step.Id}_rb", rbType, DeferredSource, rollback));
-                seqRows.Add(SequenceRow($"{step.Id}_rb", installSeq++, installCondition));
-                if (installSeq > InstallBandEnd)
-                    return BandExhausted(step.Id, install: true);
+                Result<ImmutableArray<IMsiTableContributor>>? failure = EmitAction(
+                    step, $"{step.Id}_rb", "RollbackCommand", rollback, deferred | CustomActionType.Rollback,
+                    DeferredSource, installCondition, ref installSeq, InstallBandEnd, install: true,
+                    actionNames, caRows, seqRows);
+                if (failure is not null)
+                    return failure.Value;
             }
 
             // ── (3) deferred install action.
-            Result<Unit> lenInstall = GuardLength(step.Id, "InstallCommand", step.InstallCommand);
-            if (lenInstall.IsFailure)
-                return Result<ImmutableArray<IMsiTableContributor>>.Failure(lenInstall.Error);
-
-            int installType = CustomActionType.ExeInDir | CustomActionType.InScript | flags;
-            caRows.Add(CustomActionRow(installName, installType, DeferredSource, step.InstallCommand));
-            seqRows.Add(SequenceRow(installName, installSeq++, installCondition));
-            if (installSeq > InstallBandEnd)
-                return BandExhausted(step.Id, install: true);
+            Result<ImmutableArray<IMsiTableContributor>>? installFailure = EmitAction(
+                step, step.Id, "InstallCommand", step.InstallCommand, deferred,
+                DeferredSource, installCondition, ref installSeq, InstallBandEnd, install: true,
+                actionNames, caRows, seqRows);
+            if (installFailure is not null)
+                return installFailure.Value;
 
             // ── (4) deferred uninstall action (removal band).
             if (step.UninstallCommand is { Length: > 0 } uninstall)
             {
-                Result<Unit> lenUn = GuardLength(step.Id, "UninstallCommand", uninstall);
-                if (lenUn.IsFailure)
-                    return Result<ImmutableArray<IMsiTableContributor>>.Failure(lenUn.Error);
-
-                int unType = CustomActionType.ExeInDir | CustomActionType.InScript | flags;
-                string uninstallCondition = step.UninstallCondition ?? DefaultUninstallCondition;
-                caRows.Add(CustomActionRow($"{step.Id}_un", unType, DeferredSource, uninstall));
-                seqRows.Add(SequenceRow($"{step.Id}_un", uninstallSeq++, uninstallCondition));
-                if (uninstallSeq > UninstallBandEnd)
-                    return BandExhausted(step.Id, install: false);
+                string uninstallCondition = ComposeCondition(step.UninstallCondition, DefaultUninstallCondition);
+                Result<ImmutableArray<IMsiTableContributor>>? failure = EmitAction(
+                    step, $"{step.Id}_un", "UninstallCommand", uninstall, deferred,
+                    DeferredSource, uninstallCondition, ref uninstallSeq, UninstallBandEnd, install: false,
+                    actionNames, caRows, seqRows);
+                if (failure is not null)
+                    return failure.Value;
             }
         }
 
@@ -189,6 +176,48 @@ internal static class ExecutionStepEmitter
 
         return Result<ImmutableArray<IMsiTableContributor>>.Success(contributors);
     }
+
+    /// <summary>
+    /// Emits one custom action + its sequence row, guarding the command length and the action-name
+    /// uniqueness and advancing the sequence counter. Returns a non-null failure Result on any guard
+    /// violation, or <see langword="null"/> on success.
+    /// </summary>
+    private static Result<ImmutableArray<IMsiTableContributor>>? EmitAction(
+        ExecutionStep step,
+        string actionName,
+        string field,
+        string command,
+        int type,
+        string source,
+        string condition,
+        ref int seq,
+        int bandEnd,
+        bool install,
+        HashSet<string> actionNames,
+        List<MsiTableRow> caRows,
+        List<MsiTableRow> seqRows)
+    {
+        Result<Unit> length = GuardLength(step.Id, field, command);
+        if (length.IsFailure)
+            return Result<ImmutableArray<IMsiTableContributor>>.Failure(length.Error);
+
+        if (!actionNames.Add(actionName))
+        {
+            return Fail($"Execution step '{step.Id}' produces custom action name '{actionName}', which " +
+                        "collides with another action. Ensure step ids (and their _d / _rb / _un variants) " +
+                        "are unique across all execution contributors.");
+        }
+
+        caRows.Add(CustomActionRow(actionName, type, source, command));
+        seqRows.Add(SequenceRow(actionName, seq++, condition));
+        if (seq > bandEnd)
+            return BandExhausted(step.Id, install);
+
+        return null;
+    }
+
+    private static string ComposeCondition(string? explicitCondition, string defaultCondition)
+        => string.IsNullOrEmpty(explicitCondition) ? defaultCondition : explicitCondition;
 
     private static MsiTableRow CustomActionRow(string action, int type, string source, string target)
         => new MsiTableRow()

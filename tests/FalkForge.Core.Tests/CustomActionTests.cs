@@ -339,10 +339,12 @@ public sealed class CustomActionTests
     [Fact]
     public void CustomActionType_SchedulingFlags_HaveCorrectValues()
     {
+        // Real Windows Installer CustomAction Type bit values (msi.h): InScript is 0x400; the
+        // Rollback (0x100) and Commit (0x200) bits are meaningful only in combination with InScript.
         Assert.Equal(0x040, CustomActionType.Continue);
-        Assert.Equal(0x100, CustomActionType.InScript);
-        Assert.Equal(0x200, CustomActionType.Rollback);
-        Assert.Equal(0x400, CustomActionType.Commit);
+        Assert.Equal(0x400, CustomActionType.InScript);
+        Assert.Equal(0x100, CustomActionType.Rollback);
+        Assert.Equal(0x200, CustomActionType.Commit);
         Assert.Equal(0x800, CustomActionType.NoImpersonate);
     }
 
@@ -361,7 +363,6 @@ public sealed class CustomActionTests
 
         var type = package.CustomActions[0].Type;
         Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript, type);
-        Assert.Equal(0x101, type);
     }
 
     [Fact]
@@ -379,7 +380,6 @@ public sealed class CustomActionTests
 
         var type = package.CustomActions[0].Type;
         Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.Rollback, type);
-        Assert.Equal(0x301, type);
     }
 
     [Fact]
@@ -397,7 +397,6 @@ public sealed class CustomActionTests
 
         var type = package.CustomActions[0].Type;
         Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.Commit, type);
-        Assert.Equal(0x501, type);
     }
 
     [Fact]
@@ -415,7 +414,6 @@ public sealed class CustomActionTests
 
         var type = package.CustomActions[0].Type;
         Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.NoImpersonate, type);
-        Assert.Equal(0x901, type);
     }
 
     [Fact]
@@ -452,7 +450,6 @@ public sealed class CustomActionTests
         var type = package.CustomActions[0].Type;
         var expected = CustomActionType.ExeFromBinary | CustomActionType.InScript | CustomActionType.NoImpersonate;
         Assert.Equal(expected, type);
-        Assert.Equal(0x902, type);
     }
 
     [Fact]
@@ -478,7 +475,6 @@ public sealed class CustomActionTests
                      | CustomActionType.NoImpersonate
                      | CustomActionType.Continue;
         Assert.Equal(expected, type);
-        Assert.Equal(0xB41, type);
     }
 
     [Fact]
@@ -613,13 +609,13 @@ public sealed class CustomActionTests
 
         // Verify deferred action
         var deferred = package.CustomActions[1];
-        Assert.Equal(0x901, deferred.Type);
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.NoImpersonate, deferred.Type);
         Assert.Equal("InstallFiles", deferred.After);
         Assert.Equal("NOT Installed", deferred.Condition);
 
         // Verify rollback action
         var rollback = package.CustomActions[2];
-        Assert.Equal(0xB01, rollback.Type);
+        Assert.Equal(CustomActionType.DllFromBinary | CustomActionType.InScript | CustomActionType.Rollback | CustomActionType.NoImpersonate, rollback.Type);
         Assert.Equal("CA_DeferredAction", rollback.Before);
 
         // Validate the whole package

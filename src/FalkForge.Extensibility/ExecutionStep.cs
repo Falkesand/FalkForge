@@ -77,6 +77,13 @@ public sealed record ExecutionStep
     /// type-51 <c>SetProperty</c> action. This is the channel for secret / late-bound values;
     /// see the type remarks. When <see langword="null"/> (the default) no data channel is
     /// created and <see cref="InstallCommand"/> is fully self-contained.
+    /// <para>
+    /// <b>Contract.</b> This value is intentionally <i>not</i> escaped — it is meant to carry live
+    /// MSI Formatted tokens (<c>[PROPERTY]</c>), which is the whole point of the channel. Therefore
+    /// pass only a controlled property/token expression here, never raw untrusted text. The channel
+    /// feeds the <b>install</b> action only; a rollback or uninstall command that needs its own
+    /// late-bound value is not covered by this field.
+    /// </para>
     /// </summary>
     public string? CustomActionData { get; init; }
 

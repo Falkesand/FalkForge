@@ -22,11 +22,14 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 [SupportedOSPlatform("windows")]
 public sealed class ExecutionStepEmissionTests
 {
-    private const int InScript = 0x100;
-    private const int Rollback = 0x200;
-    private const int NoImpersonate = 0x800;
-    private const int ExeInDir = 34;
-    private const int SetProperty = 51;
+    // Assert against the real Windows Installer bit values from the production constants, not
+    // re-declared magic numbers — so a wrong bit in the emitter (or a regression in CustomActionType)
+    // makes these tests fail. CustomActionType.InScript is 0x400 (deferred), Rollback 0x100.
+    private const int InScript = CustomActionType.InScript;
+    private const int Rollback = CustomActionType.Rollback;
+    private const int NoImpersonate = CustomActionType.NoImpersonate;
+    private const int ExeInDir = CustomActionType.ExeInDir;
+    private const int SetProperty = CustomActionType.SetProperty;
 
     [Fact]
     public void ExecutionStep_BecomesDeferredElevatedActionWithRollback_SequencedInExecuteScript()
@@ -77,6 +80,29 @@ public sealed class ExecutionStepEmissionTests
         // Rollback must precede its install action so Windows Installer runs it in reverse on failure.
         Assert.True(sequence["FfProbe_rb"] < sequence["FfProbe"],
             "rollback action must be sequenced before the install action it undoes");
+    }
+
+    [Fact]
+    public void InstallCondition_FlowsToTheSequenceConditionColumn()
+    {
+        using var scratch = new Scratch();
+
+        var step = new ExecutionStep
+        {
+            Id = "FfCond",
+            InstallCommand = "powershell.exe -NoProfile -Command \"exit 0\"",
+            InstallCondition = "MYFEATURE=1",
+        };
+
+        var result = Compile(scratch, "ExecCondApp", new FakeExecutionExtension("Fake.Cond", step));
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        using var db = Open(result.Value);
+        var rows = db.QueryRows(
+            "SELECT `Action`, `Condition` FROM `InstallExecuteSequence` WHERE `Action`='FfCond'", 2);
+        Assert.True(rows.IsSuccess, $"query failed: {(rows.IsFailure ? rows.Error.Message : "")}");
+        var only = Assert.Single(rows.Value);
+        Assert.Equal("MYFEATURE=1", only[1]);
     }
 
     [Fact]
@@ -133,14 +159,15 @@ public sealed class ExecutionStepEmissionTests
         var sequence = QuerySequence(db);
 
         var install = actions["Fw_Web"];
-        Assert.Contains("New-NetFirewallRule", install.Target, StringComparison.Ordinal);
-        Assert.Contains("-Name 'Fw_Web'", install.Target, StringComparison.Ordinal);
-        Assert.Contains("-LocalPort '8080'", install.Target, StringComparison.Ordinal);
+        string installScript = DecodeEncoded(install.Target);
+        Assert.Contains("New-NetFirewallRule", installScript, StringComparison.Ordinal);
+        Assert.Contains("-Name 'Fw_Web'", installScript, StringComparison.Ordinal);
+        Assert.Contains("-LocalPort '8080'", installScript, StringComparison.Ordinal);
         Assert.True((install.Type & InScript) != 0 && (install.Type & NoImpersonate) != 0,
             "firewall install action must be deferred + SYSTEM");
 
-        Assert.Contains("Remove-NetFirewallRule", actions["Fw_Web_rb"].Target, StringComparison.Ordinal);
-        Assert.Contains("Remove-NetFirewallRule", actions["Fw_Web_un"].Target, StringComparison.Ordinal);
+        Assert.Contains("Remove-NetFirewallRule", DecodeEncoded(actions["Fw_Web_rb"].Target), StringComparison.Ordinal);
+        Assert.Contains("Remove-NetFirewallRule", DecodeEncoded(actions["Fw_Web_un"].Target), StringComparison.Ordinal);
 
         int init = sequence["InstallInitialize"];
         int finalize = sequence["InstallFinalize"];
@@ -175,9 +202,12 @@ public sealed class ExecutionStepEmissionTests
         var target = QueryCustomActions(db)["Fw_AllowRange"].Target;
 
         Assert.True(target.Length > 255, $"expected a >255-char command, got {target.Length}");
-        Assert.Contains("-RemotePort '1024-65535'", target, StringComparison.Ordinal);
-        Assert.Contains("-LocalAddress '192.168.1.10'", target, StringComparison.Ordinal);
-        Assert.EndsWith("\"", target, StringComparison.Ordinal); // closing quote intact ⇒ not truncated
+        // Decoding the full base64 and finding the trailing parameters proves the Target was neither
+        // truncated (a cut base64 would fail to decode / drop params) nor corrupted in the MSI.
+        string script = DecodeEncoded(target);
+        Assert.Contains("-RemotePort '1024-65535'", script, StringComparison.Ordinal);
+        Assert.Contains("-LocalAddress '192.168.1.10'", script, StringComparison.Ordinal);
+        Assert.EndsWith("-Profile Any", script, StringComparison.Ordinal); // last param intact ⇒ not truncated
     }
 
     /// <summary>
@@ -265,6 +295,15 @@ public sealed class ExecutionStepEmissionTests
             map[r[0] ?? ""] = int.Parse(r[1] ?? "0", CultureInfo.InvariantCulture);
 
         return map;
+    }
+
+    private static string DecodeEncoded(string target)
+    {
+        const string marker = "-EncodedCommand ";
+        int idx = target.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(idx >= 0, $"Target is not an -EncodedCommand invocation: {target}");
+        string base64 = target[(idx + marker.Length)..].Trim();
+        return System.Text.Encoding.Unicode.GetString(Convert.FromBase64String(base64));
     }
 
     private static PackageModel MinimalPackage(Scratch scratch, string name)
