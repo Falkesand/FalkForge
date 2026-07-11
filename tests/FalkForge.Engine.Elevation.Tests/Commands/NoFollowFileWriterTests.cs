@@ -95,7 +95,7 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
         var junctionPath = Path.Combine(_tempDir, "swappedParent");
         Directory.CreateDirectory(junctionTarget);
         if (!TryCreateJunction(junctionPath, junctionTarget))
-            return; // Skip when junction creation failed
+            Assert.Skip("Junction creation failed (mklink /J unavailable or filesystem without reparse-point support)");
 
         var result = NoFollowFileWriter.Write(
             junctionPath, Path.Combine(junctionPath, "evil.dll"), new byte[] { 0x4D, 0x5A });
@@ -119,7 +119,7 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
 
         var junctionPath = Path.Combine(_tempDir, "swappedAncestor");
         if (!TryCreateJunction(junctionPath, realRoot))
-            return; // Skip when junction creation failed
+            Assert.Skip("Junction creation failed (mklink /J unavailable or filesystem without reparse-point support)");
 
         var parentThroughJunction = Path.Combine(junctionPath, "sub");
 

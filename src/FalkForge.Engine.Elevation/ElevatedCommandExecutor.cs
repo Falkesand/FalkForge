@@ -12,6 +12,12 @@ public sealed class ElevatedCommandExecutor
         _commands = commands.ToDictionary(c => c.Name, StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// The registered command names. Test-support accessor (InternalsVisibleTo) used to pin the
+    /// SYSTEM-executable command surface — see ElevatedHostCommandSurfaceTests.
+    /// </summary>
+    internal IReadOnlyCollection<string> CommandNames => _commands.Keys;
+
     public ElevateResultMessage Execute(ElevateExecuteMessage message, Action<int>? onProgress = null)
     {
         if (!_commands.TryGetValue(message.CommandName, out var command))

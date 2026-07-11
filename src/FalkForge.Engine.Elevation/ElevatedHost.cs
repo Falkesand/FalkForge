@@ -36,6 +36,12 @@ public sealed class ElevatedHost : IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// The command names this host exposes for elevated (SYSTEM) execution. Test-support accessor
+    /// used to pin the attack surface — expanding the registered set must be a reviewed decision.
+    /// </summary>
+    internal IReadOnlyCollection<string> RegisteredCommandNames => _executor.CommandNames;
+
     internal ElevatedHost(PipeConnectionOptions pipeOptions, int parentPid, ElevatedCommandExecutor executor)
     {
         _pipeOptions = pipeOptions;
