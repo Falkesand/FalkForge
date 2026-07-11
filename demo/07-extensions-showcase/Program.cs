@@ -11,7 +11,6 @@ using FalkForge.Extensions.Sql.Builders;
 using FalkForge.Extensions.DotNet;
 using FalkForge.Extensions.Util;
 using FalkForge.Extensions.Util.XmlConfig;
-using FalkForge.Extensions.Util.QuietExec;
 
 // ============================================================================
 // Extensions Showcase
@@ -183,17 +182,22 @@ util.XmlConfig.Add(envConfig.Value);
 Console.WriteLine($"[Util] {util.Name} extension: 2 XmlConfig entries.");
 
 // -- Util Extension: QuietExec ------------------------------------------------
-// Defines a silent post-install command. The QuietExecModel describes the
-// command; at install time the engine executes it with no visible console window.
+// Defines a silent post-install command. AddQuietExec attaches it to the Util
+// extension so the compiler schedules it as a deferred, elevated custom action —
+// at install time it actually runs, with no visible console window.
 
-var quietExec = new QuietExecModel
+var quietExecResult = util.AddQuietExec(q => q
+    .Id("InitializeApp")
+    .Command("\"[INSTALLDIR]webapp.dll\" --init --environment [ENVIRONMENT]")
+    .WorkingDir("[INSTALLDIR]"));
+
+if (quietExecResult.IsFailure)
 {
-    Id = "InitializeApp",
-    CommandLine = "\"[INSTALLDIR]webapp.dll\" --init --environment [ENVIRONMENT]",
-    WorkingDirectory = "[INSTALLDIR]",
-};
+    Console.Error.WriteLine($"QuietExec: {quietExecResult.Error}");
+    return 1;
+}
 
-Console.WriteLine($"[Util] QuietExec: command '{quietExec.Id}' configured.");
+Console.WriteLine($"[Util] QuietExec: {util.QuietExecs.Count} command(s) configured.");
 
 // -- Package Definition -------------------------------------------------------
 // Assembles the MSI package with all application files. The configured extensions

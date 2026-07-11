@@ -52,6 +52,47 @@ public sealed class RemoveFolderExBuilder
             return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
                 "RFX002: RemoveFolderEx requires either Directory or Property.");
 
+        // Path-safety: a literal Directory is known at compile time, so an obviously-unsafe value (a
+        // drive root such as "C:\" or a UNC share root) fails the build loudly rather than compiling a
+        // step that would delete an entire volume as SYSTEM. A Property-driven path can't be checked
+        // here (its value is only known at run time) — RemoveFolderExCommandFactory applies the
+        // equivalent guard inside the generated script instead.
+        if (!string.IsNullOrWhiteSpace(_directory))
+        {
+            string full;
+            string root;
+            try
+            {
+                full = Path.GetFullPath(_directory);
+                root = Path.GetPathRoot(full) ?? string.Empty;
+            }
+            catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+            {
+                return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
+                    $"RFX003: RemoveFolderEx Directory '{_directory}' is not a valid path: {ex.Message}");
+            }
+
+            if (string.Equals(full.TrimEnd('\\'), root.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) || full == "\\")
+            {
+                return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
+                    "RFX003: RemoveFolderEx Directory must not resolve to a filesystem root (e.g. 'C:\\' or a " +
+                    "UNC share root); scope it to a specific subfolder.");
+            }
+        }
+
+        // The execution seam's CustomActionData channel (needed to resolve a live Property token) only
+        // feeds the deferred INSTALL action, not the uninstall one (see ExecutionStep remarks). A
+        // Property combined with uninstall-time removal would silently compile into a no-op uninstall
+        // action, so it is rejected here instead — fail loud, not silently broken.
+        if (!string.IsNullOrWhiteSpace(_property) &&
+            _installMode is RemoveFolderExInstallMode.Uninstall or RemoveFolderExInstallMode.Both)
+        {
+            return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
+                "RFX004: RemoveFolderEx Property cannot be combined with OnUninstall/OnBoth — the execution " +
+                "seam cannot resolve a live property value for the uninstall action. Use OnInstall, or use a " +
+                "literal Directory instead of Property.");
+        }
+
         return new RemoveFolderExModel
         {
             Id = _id,

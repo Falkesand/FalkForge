@@ -1,7 +1,11 @@
 using System.Collections.Immutable;
 using FalkForge.Extensibility;
+using FalkForge.Extensions.Util.FileShare;
+using FalkForge.Extensions.Util.InternetShortcut;
 using FalkForge.Extensions.Util.Odbc;
 using FalkForge.Extensions.Util.PerfCounter;
+using FalkForge.Extensions.Util.QuietExec;
+using FalkForge.Extensions.Util.RemoveFolderEx;
 using FalkForge.Extensions.Util.ScheduledTask;
 using FalkForge.Extensions.Util.XmlConfig;
 using FalkForge.Validation;
@@ -15,6 +19,10 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     private readonly PerfCounterTableContributor _perfCounterContributor = new();
     private readonly OdbcDriverTableContributor _odbcDriverContributor = new();
     private readonly OdbcDataSourceTableContributor _odbcDataSourceContributor = new();
+    private readonly List<QuietExecModel> _quietExecs = [];
+    private readonly List<RemoveFolderExModel> _removeFolderExes = [];
+    private readonly List<FileShareModel> _fileShares = [];
+    private readonly List<InternetShortcutModel> _internetShortcuts = [];
 
     public string Name => "Util";
 
@@ -23,6 +31,10 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     public PerfCounterTableContributor PerfCounters => _perfCounterContributor;
     public OdbcDriverTableContributor OdbcDrivers => _odbcDriverContributor;
     public OdbcDataSourceTableContributor OdbcDataSources => _odbcDataSourceContributor;
+    public IReadOnlyList<QuietExecModel> QuietExecs => _quietExecs;
+    public IReadOnlyList<RemoveFolderExModel> RemoveFolderExes => _removeFolderExes;
+    public IReadOnlyList<FileShareModel> FileShares => _fileShares;
+    public IReadOnlyList<InternetShortcutModel> InternetShortcuts => _internetShortcuts;
 
     public void AddScheduledTask(Action<ScheduledTaskBuilder> configure)
     {
@@ -80,6 +92,34 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         _odbcDataSourceContributor.Add(builder.Build());
     }
 
+    public Result<Unit> AddQuietExec(Action<QuietExecBuilder> configure)
+        => AddItem(new QuietExecBuilder(), configure, static b => b.Build(), _quietExecs);
+
+    public Result<Unit> AddRemoveFolderEx(Action<RemoveFolderExBuilder> configure)
+        => AddItem(new RemoveFolderExBuilder(), configure, static b => b.Build(), _removeFolderExes);
+
+    public Result<Unit> AddFileShare(Action<FileShareBuilder> configure)
+        => AddItem(new FileShareBuilder(), configure, static b => b.Build(), _fileShares);
+
+    public Result<Unit> AddInternetShortcut(Action<InternetShortcutBuilder> configure)
+        => AddItem(new InternetShortcutBuilder(), configure, static b => b.Build(), _internetShortcuts);
+
+    /// <summary>
+    /// Shared shape behind the four Add* sinks above: configure the builder, build it, and either
+    /// propagate a validation failure or store the resulting model.
+    /// </summary>
+    private static Result<Unit> AddItem<TBuilder, TModel>(
+        TBuilder builder, Action<TBuilder> configure, Func<TBuilder, Result<TModel>> build, List<TModel> target)
+    {
+        configure(builder);
+        Result<TModel> result = build(builder);
+        if (result.IsFailure)
+            return Result<Unit>.Failure(result.Error);
+
+        target.Add(result.Value);
+        return Unit.Value;
+    }
+
     public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
         intent switch
         {
@@ -111,6 +151,8 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(_perfCounterContributor);
         registry.RegisterTableContributor(_odbcDriverContributor);
         registry.RegisterTableContributor(_odbcDataSourceContributor);
+        registry.RegisterExecutionContributor(new UtilExecutionContributor(
+            () => _quietExecs, () => _removeFolderExes, () => _fileShares, () => _internetShortcuts));
     }
 
     /// <inheritdoc/>

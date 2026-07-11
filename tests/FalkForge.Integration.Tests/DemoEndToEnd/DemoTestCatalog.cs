@@ -66,11 +66,12 @@ public static class DemoTestCatalog
             BaseMsiTables),
 
         // 07-extensions-showcase: Firewall/IIS/SQL/DotNet/Util extensions configure models only at build
-        // time; no OS service contact during compilation. Payload files present in repo.
+        // time; no OS service contact during compilation. Payload files present in repo. Util's
+        // QuietExec is wired via AddQuietExec, so a deferred CustomAction row is genuinely scheduled.
         new("07-extensions-showcase",
             DemoProject("07-extensions-showcase", "07-extensions-showcase.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables),
+            WithExtra("CustomAction")),
 
         new("08-localization",
             DemoProject("08-localization", "08-localization.csproj"),
@@ -215,11 +216,13 @@ public static class DemoTestCatalog
             DemoOutputType.Msi,
             WithExtra("LaunchCondition")),
 
-        // 33-ext-util: UtilExtension configured but not wired into MSI builder → base tables only
+        // 33-ext-util: UtilExtension wired via .Use(util) — XmlConfig table plus the deferred
+        // CustomAction rows the QuietExec/FileShare/InternetShortcut/RemoveFolderEx execution
+        // contributor schedules.
         new("33-ext-util",
             DemoProject("33-ext-util", "33-ext-util.csproj"),
             DemoOutputType.Msi,
-            BaseMsiTables),
+            WithExtra("XmlConfig", "CustomAction")),
 
         // 34-ext-dependency: DependencyExtension configured but not wired into MSI builder → base tables only
         new("34-ext-dependency",
