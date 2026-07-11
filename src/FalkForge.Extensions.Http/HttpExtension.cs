@@ -2,7 +2,6 @@ using System.Runtime.Versioning;
 using FalkForge;
 using FalkForge.Extensibility;
 using FalkForge.Extensions.Http.Builders;
-using FalkForge.Extensions.Http.Compilation;
 using FalkForge.Extensions.Http.Models;
 using FalkForge.Extensions.Http.Validation;
 
@@ -62,7 +61,6 @@ public sealed class HttpExtension : IFalkForgeExtension, IDryRunContributor
     public void Register(IExtensionRegistry registry)
     {
         registry.RegisterDryRunContributor(this);
-        registry.RegisterTableContributor(new HttpCustomActionContributor(_reservations, _bindings));
-        registry.RegisterTableContributor(new HttpSequenceContributor(_reservations, _bindings));
+        registry.RegisterExecutionContributor(new HttpExecutionContributor(_reservations, _bindings));
     }
 }

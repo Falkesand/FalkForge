@@ -1,4 +1,4 @@
-using FalkForge.Extensions.Http.Compilation;
+using FalkForge.Extensibility;
 using Xunit;
 
 namespace FalkForge.Extensions.Http.Tests;
@@ -87,26 +87,28 @@ public sealed class HttpExtensionTests
     }
 
     [Fact]
-    public void Register_RegistersTwoTableContributors()
+    public void Register_RegistersNoTableContributors()
     {
+        // URL ACL reservations and SNI SSL bindings no longer author inert table data directly — they
+        // flow through the execution seam (ExecutionStepEmitter), which is the ONLY path that reaches
+        // the compiled MSI's CustomAction/InstallExecuteSequence tables now.
         var ext = new HttpExtension();
         var registry = new SpyExtensionRegistry();
 
         ext.Register(registry);
 
-        Assert.Equal(2, registry.TableContributors.Count);
+        Assert.Empty(registry.TableContributors);
     }
 
     [Fact]
-    public void Register_RegistersCustomActionAndSequenceContributors()
+    public void Register_RegistersExecutionContributor()
     {
         var ext = new HttpExtension();
         var registry = new SpyExtensionRegistry();
 
         ext.Register(registry);
 
-        Assert.Contains(registry.TableContributors, c => c.TableName == "CustomAction");
-        Assert.Contains(registry.TableContributors, c => c.TableName == "InstallExecuteSequence");
+        Assert.Single(registry.ExecutionContributors);
     }
 
     [Fact]
