@@ -204,7 +204,10 @@ public sealed class ComponentResolver
     /// <summary>
     /// Generates the deterministic component id for a feature-gated registry entry that has no
     /// explicit ComponentId. Keyed by list index plus root/key/value-name so two entries with
-    /// identical keys under different roots (or index) never collide.
+    /// identical keys under different roots (or index) never collide. Unlike
+    /// <see cref="GenerateServiceComponentId"/>, the hash stays last here because this id is
+    /// always short (a numeric index plus an 8-char hash) and can never reach the 72-char
+    /// truncation limit, so the hash is never at risk of being cut off.
     /// </summary>
     private static string GenerateRegistryComponentId(int index, RegistryEntryModel entry)
     {
