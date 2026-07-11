@@ -97,6 +97,23 @@ public sealed record EngineSessionOptions
     public bool AdvanceTrustStoreOnVerifiedApply { get; init; }
 
     /// <summary>
+    /// Full path to a VERIFIED elevation companion executable
+    /// (<c>FalkForge.Engine.Elevation.exe</c>) the session should launch for elevated commands,
+    /// taking precedence over the default probe beside the engine
+    /// (<c>AppContext.BaseDirectory</c>). Set by the self-extract bootstrapper AFTER
+    /// <c>BootstrapCompanionResolver</c> has proven the extracted companion's bytes bind to the
+    /// bundle manifest's declared (and, for signed bundles, ECDSA-covered) hash.
+    /// <para>
+    /// SECURITY: the companion runs elevated (SYSTEM for per-machine installs). Callers must only
+    /// ever set this to a path whose contents have been integrity-verified — never to an
+    /// unverified or attacker-influencable location. When null (or the file no longer exists),
+    /// the session falls back to the beside-the-engine probe; when neither yields a companion the
+    /// session runs without an elevation gateway (per-user behavior).
+    /// </para>
+    /// </summary>
+    public string? ElevationCompanionPath { get; init; }
+
+    /// <summary>
     /// The persisted anti-downgrade epoch loaded (and ACL-validated) by the bootstrapper on the
     /// require-signed update path. When non-null, the pipeline's apply-time integrity gate runs with the
     /// update-path trust policy: it resolves Update vs KeyChange from the signed epoch against this value

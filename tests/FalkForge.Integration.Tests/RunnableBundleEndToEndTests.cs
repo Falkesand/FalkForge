@@ -144,4 +144,74 @@ public sealed class RunnableBundleEndToEndTests : IDisposable
         Assert.True(File.Exists(extractedFile), $"expected extracted payload at {extractedFile}");
         Assert.Equal(payloadBytes, File.ReadAllBytes(extractedFile));
     }
+
+    [Fact]
+    public void DefaultBundleBuild_CarriesRealElevationCompanion_VerifiedByteForByte()
+    {
+        // A per-machine elevated install from a LONE distributed bundle exe requires the elevation
+        // companion to travel inside the bundle. This proves the default build embeds the REAL
+        // published FalkForge.Engine.Elevation.exe (resolved beside the published engine), that
+        // the running engine lists it, and that the extracted companion is byte-for-byte the
+        // published binary after its hash verification.
+        //
+        // A full per-machine INSTALL e2e is deliberately not included for the same reason as
+        // above: launching the elevated companion requires a UAC prompt and administrator rights
+        // and mutates machine state, which cannot run deterministically inside a unit-test host.
+        // The extract+verify path exercised here is the exact trust pipeline the bootstrapper
+        // wires before spawning the companion.
+        var enginePath = FindPublishedEngine();
+        Assert.SkipUnless(enginePath is not null,
+            "Published NativeAOT engine not found at artifacts/publish/engine — run scripts/publish.ps1 first. " +
+            "This gate exists because the runnable-bundle e2e requires the multi-minute NativeAOT publish.");
+
+        var companionPath = Path.Combine(
+            Path.GetDirectoryName(enginePath!)!, "FalkForge.Engine.Elevation.exe");
+        Assert.SkipUnless(File.Exists(companionPath),
+            "Published NativeAOT elevation companion not found beside the published engine — run " +
+            "scripts/publish.ps1 first (it publishes FalkForge.Engine.exe and FalkForge.Engine.Elevation.exe together).");
+
+        var payloadPath = Path.Combine(_tempDir, "app-payload.msi");
+        File.WriteAllBytes(payloadPath, new byte[16 * 1024]);
+
+        var model = new BundleModel
+        {
+            Name = "CompanionE2E",
+            Manufacturer = "Contoso",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = new List<BundlePackageModel>
+            {
+                new()
+                {
+                    Id = "MainMsi",
+                    SourcePath = payloadPath,
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "Main package"
+                }
+            }.AsReadOnly()
+        };
+
+        var compileResult = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "out-companion"));
+        Assert.True(compileResult.IsSuccess,
+            compileResult.IsFailure ? compileResult.Error.Message : null);
+        var bundlePath = compileResult.Value;
+
+        // The running engine reads its OWN TOC and lists the companion payload.
+        var (listExit, listOut, listErr) = RunProcess(bundlePath, "--extract-list");
+        Assert.True(listExit == 0, $"--extract-list failed (exit {listExit}). stderr: {listErr}");
+        Assert.Contains("FalkForge.Engine.Elevation.exe", listOut, StringComparison.Ordinal);
+
+        // Extraction streams + SHA-256-verifies; the companion that lands is the published binary.
+        var extractDir = Path.Combine(_tempDir, "extracted-companion");
+        var (extractExit, _, extractErr) = RunProcess(bundlePath, "--extract", extractDir);
+        Assert.True(extractExit == 0, $"--extract failed (exit {extractExit}). stderr: {extractErr}");
+
+        var extractedCompanion = Path.Combine(
+            extractDir, "FalkForge.Engine.Elevation.exe", "FalkForge.Engine.Elevation.exe.dat");
+        Assert.True(File.Exists(extractedCompanion),
+            $"expected extracted companion at {extractedCompanion}");
+        Assert.Equal(File.ReadAllBytes(companionPath), File.ReadAllBytes(extractedCompanion));
+    }
 }

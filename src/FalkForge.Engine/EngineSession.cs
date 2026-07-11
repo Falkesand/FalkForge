@@ -269,11 +269,34 @@ public sealed class EngineSession : IAsyncDisposable
         };
 
         // ── Elevation gateway ───────────────────────────────────────────────
+        // Companion resolution order: the bootstrapper-verified extracted companion
+        // (options.ElevationCompanionPath — its bytes were bound to the bundle manifest's
+        // declared/signed hash before it was handed here), then the classic probe beside the
+        // engine (the published-directory layout). Without a companion the session runs with no
+        // elevation gateway: the pipeline skips the Elevating phase and installs per-user — say
+        // so in the log instead of degrading silently.
         IElevatedCommandGateway? elevationGateway = null;
-        var companionExePath = Path.Combine(AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
-        if (OperatingSystem.IsWindows() && File.Exists(companionExePath))
+        string? companionExePath = null;
+        if (options.ElevationCompanionPath is { } verifiedCompanion && File.Exists(verifiedCompanion))
+        {
+            companionExePath = verifiedCompanion;
+        }
+        else
+        {
+            var probe = Path.Combine(AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
+            if (File.Exists(probe))
+                companionExePath = probe;
+        }
+
+        if (OperatingSystem.IsWindows() && companionExePath is not null)
         {
             elevationGateway = new NamedPipeElevationGateway(new ProcessLauncher(), companionExePath);
+        }
+        else
+        {
+            logger.Info("Engine",
+                "Elevation companion (FalkForge.Engine.Elevation.exe) not available — elevated " +
+                "(per-machine) installs are disabled for this session; continuing per-user.");
         }
 
         // ── Auto-update services ────────────────────────────────────────────
