@@ -8,7 +8,27 @@
     <ToolCommandName>forge</ToolCommandName>
     <PackageId>FalkForge.Tool</PackageId>
     <Description>forge — the FalkForge command-line tool: build, validate, inspect, decompile, migrate, verify, and sign Windows installers (MSI, MSIX, EXE bundles)</Description>
+    <!-- The tool CARRIES the published NativeAOT engine + elevation companion: .NET tool
+         packages cannot declare package dependencies, so the binaries pack into the tool
+         itself. Installed layout puts them in an engine\ subdirectory beside forge.dll — the
+         exact beside-host location EngineStubLocator probes — so a NuGet-installed forge
+         builds runnable bundles with zero manual setup. The binaries come from a fresh
+         publish at pack time (scripts/pack.ps1), never from git.
+         -p:FalkForgePackEngine=false packs an engine-less tool (consumers must then set
+         FALKFORGE_ENGINE_STUB themselves). -->
+    <FalkForgePackEngine Condition="'$(FalkForgePackEngine)' == ''">true</FalkForgePackEngine>
+    <FalkForgeEngineArtifactsDir Condition="'$(FalkForgeEngineArtifactsDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\publish\engine\</FalkForgeEngineArtifactsDir>
   </PropertyGroup>
+  <ItemGroup Condition="'$(FalkForgePackEngine)' == 'true'">
+    <None Include="$(FalkForgeEngineArtifactsDir)FalkForge.Engine.exe" Pack="true" PackagePath="tools/net10.0/any/engine" Visible="false" />
+    <None Include="$(FalkForgeEngineArtifactsDir)FalkForge.Engine.Elevation.exe" Pack="true" PackagePath="tools/net10.0/any/engine" Visible="false" />
+  </ItemGroup>
+  <!-- Fail LOUD when packing without the published binaries: a forge that silently cannot
+       produce a runnable bundle must never ship. -->
+  <Target Name="_FalkForgeRequireEngineBinaries" BeforeTargets="GenerateNuspec" Condition="'$(FalkForgePackEngine)' == 'true'">
+    <Error Condition="!Exists('$(FalkForgeEngineArtifactsDir)FalkForge.Engine.exe') or !Exists('$(FalkForgeEngineArtifactsDir)FalkForge.Engine.Elevation.exe')"
+           Text="FalkForge.Tool cannot pack a runnable forge: published NativeAOT engine binaries not found in '$(FalkForgeEngineArtifactsDir)'. Run scripts/pack.ps1 (which publishes them first), run scripts/publish.ps1, or point FalkForgeEngineArtifactsDir at a publish output. Pass -p:FalkForgePackEngine=false to deliberately pack an engine-less tool." />
+  </Target>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Cli.Tests" />
     <InternalsVisibleTo Include="FalkForge.Integration.Tests" />

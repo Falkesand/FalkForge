@@ -14,10 +14,35 @@
     <!-- MSBuild SDK packages carry only Sdk/*.props|targets; the placeholder
          netstandard2.0 assembly is build plumbing, not content. -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_FalkForgePackVersionProps</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="Sdk\Sdk.props" Pack="true" PackagePath="Sdk" />
     <None Include="Sdk\Sdk.targets" Pack="true" PackagePath="Sdk" />
   </ItemGroup>
+
+  <!-- Generates Sdk/FalkForgeVersion.props into the package at pack time: it pins the
+       FalkForge.Engine.Runtime.win-x64 version that Sdk.props implicitly references to THIS
+       package's version, without hardcoding the single-source version anywhere in the source
+       tree. (%24 keeps the consumer-side property reference literal in the written file.) -->
+  <Target Name="_FalkForgePackVersionProps">
+    <PropertyGroup>
+      <_FalkForgeVersionPropsFile>$(IntermediateOutputPath)FalkForgeVersion.props</_FalkForgeVersionPropsFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <_FalkForgeVersionPropsLine Include="&lt;Project&gt;" />
+      <_FalkForgeVersionPropsLine Include="  &lt;PropertyGroup&gt;" />
+      <_FalkForgeVersionPropsLine Include="    &lt;FalkForgeEngineRuntimeVersion Condition=&quot;'%24(FalkForgeEngineRuntimeVersion)' == ''&quot;&gt;$(PackageVersion)&lt;/FalkForgeEngineRuntimeVersion&gt;" />
+      <_FalkForgeVersionPropsLine Include="  &lt;/PropertyGroup&gt;" />
+      <_FalkForgeVersionPropsLine Include="&lt;/Project&gt;" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_FalkForgeVersionPropsFile)"
+                      Lines="@(_FalkForgeVersionPropsLine)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(_FalkForgeVersionPropsFile)" PackagePath="Sdk" />
+    </ItemGroup>
+  </Target>
 </Project>

@@ -1,0 +1,29 @@
+<Project>
+  <!-- FalkForge.Engine.Runtime.win-x64: lands the published NativeAOT engine and elevation
+       companion in the consuming project's build output under engine\ — one of the well-known
+       locations the FalkForge bundle compiler (EngineStubLocator) probes beside the host
+       application. A code-first installer (dotnet exec on the installer assembly with the
+       forge-build switch) therefore embeds the real engine with no environment variable and
+       no repo checkout.
+       FALKFORGE_ENGINE_STUB and an explicit EngineStubPath still override this — those
+       resolution sources are consulted first.
+
+       FalkForgeEngineDir is also consumed by the FalkForge SDK, which passes it to the
+       installer execution as FALKFORGE_ENGINE_STUB.
+
+       Set FalkForgeCopyEngineToOutput=false to keep the binaries out of the build output
+       (e.g. when resolving exclusively via FALKFORGE_ENGINE_STUB). -->
+  <PropertyGroup>
+    <FalkForgeEngineDir Condition="'$(FalkForgeEngineDir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\tools\engine'))</FalkForgeEngineDir>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(FalkForgeCopyEngineToOutput)' != 'false'">
+    <None Include="$(FalkForgeEngineDir)FalkForge.Engine.exe"
+          Link="engine\FalkForge.Engine.exe"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+    <None Include="$(FalkForgeEngineDir)FalkForge.Engine.Elevation.exe"
+          Link="engine\FalkForge.Engine.Elevation.exe"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+</Project>

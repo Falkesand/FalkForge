@@ -1,4 +1,25 @@
 <Project>
+  <!-- Written at pack time; carries the package version so the implicit engine-runtime
+       reference below matches this SDK. Absent when Sdk.props is consumed straight from the
+       source tree (dev/repo flow) — then no implicit reference is injected and the bundle
+       compiler's usual resolution (env var, beside host, repo walk-up) applies. -->
+  <Import Project="$(MSBuildThisFileDirectory)FalkForgeVersion.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)FalkForgeVersion.props')" />
+
+  <!-- The published NativeAOT engine ships as the RID-specific
+       FalkForge.Engine.Runtime.win-x64 package. The SDK references it implicitly so an SDK
+       consumer's bundle build embeds the real engine with zero manual setup (the package's
+       props copy the engine into the build output where the bundle compiler probes; the SDK
+       additionally passes FALKFORGE_ENGINE_STUB when executing the installer). Opt out with
+       <FalkForgeImplicitEngineRuntime>false</FalkForgeImplicitEngineRuntime>. win-x64 is the
+       only engine RID today: the binaries are payload for the TARGET machine — copied, never
+       executed, at build time — so the reference is valid on any build host. -->
+  <ItemGroup Condition="'$(FalkForgeImplicitEngineRuntime)' != 'false' and '$(FalkForgeEngineRuntimeVersion)' != ''">
+    <PackageReference Include="FalkForge.Engine.Runtime.win-x64"
+                      Version="$(FalkForgeEngineRuntimeVersion)"
+                      IsImplicitlyDefined="true" />
+  </ItemGroup>
+
   <PropertyGroup>
     <!-- FalkForge output type: Msi, Bundle, Module, Patch -->
     <FalkOutputType Condition="'$(FalkOutputType)' == ''">Msi</FalkOutputType>

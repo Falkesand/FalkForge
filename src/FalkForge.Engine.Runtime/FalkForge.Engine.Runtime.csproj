@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Packaging-only project: no consumable assembly. The package carries the published
+         NativeAOT FalkForge.Engine.exe + FalkForge.Engine.Elevation.exe so NuGet consumers
+         (forge tool users, FalkForge SDK / code-first builds) get runnable bundles without a
+         repo checkout or publish output of their own. The binaries are NEVER committed to
+         git — they come from a fresh NativeAOT publish at pack time (scripts/pack.ps1 runs
+         the publish first; see FalkForgeEngineArtifactsDir below). -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable Condition="'$(FalkForgePackEngine)' != 'false'">true</IsPackable>
+    <PackageId>FalkForge.Engine.Runtime.win-x64</PackageId>
+    <Description>FalkForge NativeAOT bundle engine runtime (win-x64): the published FalkForge.Engine.exe and FalkForge.Engine.Elevation.exe that the bundle compiler embeds as the self-extracting front of EXE bundles. Referenced (implicitly by the FalkForge SDK) so building an installer project yields a runnable bundle with no manual engine setup.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- NU5128: no lib/ per TFM by design — this package ships tooling payload, not assemblies. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- Where the freshly published engine binaries are taken from at pack time. Overridable
+         (-p:FalkForgeEngineArtifactsDir=...) for CI drops outside the default publish layout. -->
+    <FalkForgeEngineArtifactsDir Condition="'$(FalkForgeEngineArtifactsDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\publish\engine\</FalkForgeEngineArtifactsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- tools/ is a folder NuGet never wires into consumer compilation: the exes are payload,
+         not references. The build props below surface them to MSBuild consumers. -->
+    <None Include="$(FalkForgeEngineArtifactsDir)FalkForge.Engine.exe" Pack="true" PackagePath="tools/engine" Visible="false" />
+    <None Include="$(FalkForgeEngineArtifactsDir)FalkForge.Engine.Elevation.exe" Pack="true" PackagePath="tools/engine" Visible="false" />
+    <!-- Same props under build/ (direct package reference) and buildTransitive/ (package
+         acquired transitively, e.g. via the FalkForge SDK's implicit reference). -->
+    <None Include="build\FalkForge.Engine.Runtime.win-x64.props" Pack="true" PackagePath="build" />
+    <None Include="build\FalkForge.Engine.Runtime.win-x64.props" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
+  <!-- Fail LOUD when packing without the published binaries: a runtime package with a missing
+       or placeholder engine must never ship. -->
+  <Target Name="_FalkForgeRequireEngineBinaries" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('$(FalkForgeEngineArtifactsDir)FalkForge.Engine.exe') or !Exists('$(FalkForgeEngineArtifactsDir)FalkForge.Engine.Elevation.exe')"
+           Text="FalkForge.Engine.Runtime.win-x64 cannot pack: published NativeAOT engine binaries not found in '$(FalkForgeEngineArtifactsDir)'. Run scripts/pack.ps1 (which publishes them first), run scripts/publish.ps1, or point FalkForgeEngineArtifactsDir at a publish output. Pass -p:FalkForgePackEngine=false to deliberately skip this package." />
+  </Target>
+</Project>
