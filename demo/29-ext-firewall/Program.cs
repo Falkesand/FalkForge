@@ -17,9 +17,8 @@ firewall.AddRule(rule => rule
 
 Console.WriteLine("Firewall: 1 rule configured. Validation runs automatically during compilation.");
 
-// In production, extensions register automatically via the FalkForge SDK extension
-// pipeline during compilation. The package below shows the MSI structure; extension
-// tables are emitted by the SDK at build time.
+// Attach the extension to the compiler with .Use(...). This is what makes its
+// WixFirewallException table + rows emit into the compiled MSI.
 return Installer.Build(args, package =>
 {
     package.Name = "Firewall Demo";
@@ -29,4 +28,4 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/webapp.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "FirewallDemo"));
-}, new MsiCompiler());
+}, new MsiCompiler().Use(firewall));

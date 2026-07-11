@@ -49,11 +49,17 @@ The registry is short-lived: a fresh instance is created per `MsiAuthoring.Compi
 
 ### Contribution Interfaces
 
-- **`IMsiTableContributor`** — produces `IReadOnlyList<MsiTableRow>` for a specific MSI table (`TableName`). Rows are dictionaries of column-name → value. The current `CollectingExtensionRegistry` implementation **discards table contributors** (it has an empty `RegisterTableContributor` body); table data is contributed via Recipe Producers in `FalkForge.Compiler.Msi.Recipe.Producers` instead. Table contributors remain part of the contract for backward compatibility and for callers that wire their own `IExtensionRegistry`. `<TBD>` — there is no internal call path that consumes `IMsiTableContributor` rows in the current pipeline.
+- **`IMsiTableContributor`** — produces `IReadOnlyList<MsiTableRow>` for a specific MSI table (`TableName`). Rows are dictionaries of column-name → value. `MsiAuthoring`'s `CollectingExtensionRegistry` collects registered table contributors and routes them through `MsiRecipeBuilder` → `ExtensionTableEmitter` so their rows reach the compiled MSI. Two modes, chosen by table name:
+  - **Custom table** (name is not a built-in MSI table, e.g. `SqlDatabase`, `WixFirewallException`): the emitter issues `CREATE TABLE` from the contributor's **`WriteColumns`** schema and inserts the rows. A contributor that yields rows for a custom table with a `null`/empty `WriteColumns` **fails the build loudly** (`EXT001`) rather than silently dropping the rows.
+  - **Built-in table** (name matches a table the fixed pipeline already produces, e.g. `CustomAction`, `Registry`): the rows are mapped against that table's known columns and merged into it; `WriteColumns` is ignored.
+
+  Contributor order, row order, and column-declaration order are all authoritative, so emitted tables are deterministic for reproducible builds. Table and column identifiers are re-validated against the MSI identifier grammar before any SQL is built.
 
   `IMsiTableContributor` carries an optional **`ReadSchema`** property (`ITableReadSchema?`, default `null`) added in Cycle 4. When non-null, `MsiDecompiler` reads the contributor's custom table during decompile and stores rows in `MsiReadRecipe.ExtensionRows`. Without `ReadSchema`, custom tables are silently skipped on decompile. All four first-party contributors (Firewall, IIS, SQL, Dependency) populate `ReadSchema`. See `docs/decompile-pipeline.md` — "Adding extension read schemas" — for the implementation walkthrough.
 
-- **`IComponentContributor`** — `GetAdditionalFiles(ExtensionContext)` returns `FileEntryModel`s to merge into the package's component set. Same status as table contributors: the default registry collects but does not invoke them. `<TBD>`.
+  It also carries an optional **`WriteColumns`** property (`IReadOnlyList<ContributedColumn>?`, default `null`) — the write-side schema described above. Required for custom tables; ignored for built-in tables.
+
+- **`IComponentContributor`** — `GetAdditionalFiles(ExtensionContext)` returns `FileEntryModel`s to merge into the package's component set. The registry now **collects** these (no longer an empty body), but the recipe pipeline does not yet emit contributed components; when any are registered, `MsiAuthoring` logs a `Warning` (`EXT002`) so the drop is not silent. Full component-file merge is a follow-up.
 
 - **`IDryRunContributor`** — `GetDryRunActions(DryRunIntent)` returns descriptive `DryRunAction`s for `Install` / `Uninstall` / `Repair`. Used by callers that want a human-readable summary of side effects. The default `CollectingExtensionRegistry` accepts but discards them; concrete shipped extensions implement `IDryRunContributor` directly on the extension class so callers can iterate `extensions.OfType<IDryRunContributor>()`.
 
@@ -84,7 +90,7 @@ Read-only snapshot passed into validators and component contributors. `OutputDir
 4. After all extensions have registered, the compiler drains the registry:
    - Extension validation rules (contributed via `GetValidationRules()`) are merged into `ModelValidator` and run alongside core rules. Violations aggregate across all rules; any `Error`-severity violation fails the compile.
    - Dialog step builders feed `DialogStepRegistry` for DLG001 validation.
-5. Recipe producers run (`MsiRecipeBuilder` → `IMultiTableProducer` chain). Extensions cannot mutate the registry after `Register` has returned, because the registry instance leaves scope.
+5. Recipe producers run (`MsiRecipeBuilder` → `IMultiTableProducer` chain), and registered `IMsiTableContributor` rows are routed through `ExtensionTableEmitter` (custom tables created from `WriteColumns`, built-in tables merged). Extensions cannot mutate the registry after `Register` has returned, because the registry instance leaves scope.
 
 The entire activation sequence is **synchronous and single-threaded**.
 
@@ -179,7 +185,21 @@ public sealed class MyOrgExtension : IFalkForgeExtension
 
 Rules returned by `GetValidationRules()` are merged into the `ModelValidator` singleton registry during `MsiAuthoring.Compile`. They appear in `forge rules list` output, fire during `forge validate`, and are individually suppressible with `--ignore AT001`. See `docs/rules-as-data-architecture.md` for the full rule-authoring guide.
 
-Activation in a build host:
+Activation in a build host. The discoverable, fluent way is `MsiCompiler.Use(...)`:
+
+```csharp
+var util = new UtilExtension();
+// ... configure util ...
+
+// .Use(...) attaches the extension so its tables emit. It mutates and returns the
+// same compiler, so even a discarded result still attaches — you cannot accidentally
+// ship an installer that silently omits the extension.
+return Installer.Build(args, package => { /* ... */ },
+    new MsiCompiler().Use(util));
+```
+
+Multiple extensions attach in one call (`new MsiCompiler().Use(a, b, c)`) or by chaining
+(`.Use(a).Use(b)`). The constructor form is equivalent:
 
 ```csharp
 var compiler = new MsiCompiler(
@@ -340,7 +360,7 @@ var lookup = serviceRegistry.GetRequiredService<ILicenseLookup>();
 
 ## Open Items (cat-21 hardening)
 
-- `IComponentContributor` and `IMsiTableContributor` are accepted by `CollectingExtensionRegistry` but currently dropped on the floor — table data is contributed by Recipe Producers, not by extension contributors. `<TBD>` whether to wire them in or remove from the public contract.
+- `IMsiTableContributor` rows are now emitted into the compiled MSI (custom tables from `WriteColumns`, built-in tables merged). Remaining follow-ups: `IComponentContributor` is collected but its `GetAdditionalFiles` output is not yet merged (surfaced as `EXT002` Warning); the `ODBCDriver`/`ODBCDataSource` Util contributors have no `WriteColumns` yet (they are standard MSI tables needing their exact schema, and fail loud via `EXT001` if populated); IIS emits its configuration tables but install-time execution via `Microsoft.Web.Administration`, certificate emission, and a multi-binding table are not yet implemented.
 - No telemetry surfaces the active extension/plugin list at build / install time. Logging the `Name` + `Version` set on startup would simplify support triage.
 - No signature verification of extension assemblies. Trust is delegated to the NuGet supply chain.
 - No mechanism for an extension to declare a maximum host version (`MaxHostVersion`). Forward-incompatible breaks require coordinating a `Version` bump across all extensions.

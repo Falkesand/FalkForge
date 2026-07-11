@@ -23,9 +23,9 @@ iis.AddWebSite(site => site
 
 Console.WriteLine($"IIS: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site(s). Validation runs automatically during compilation.");
 
-// In production, extensions register automatically via the FalkForge SDK extension
-// pipeline during compilation. The package below shows the MSI structure; extension
-// tables are emitted by the SDK at build time.
+// Attach the extension to the compiler with .Use(...). This emits the IIsAppPool
+// and IIsWebSite configuration tables (plus a placeholder configure CustomAction)
+// into the compiled MSI.
 return Installer.Build(args, package =>
 {
     package.Name = "IIS Demo";
@@ -35,4 +35,4 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/webapp.dll")
         .To(KnownFolder.ProgramFiles / "Demo" / "IisDemo" / "wwwroot"));
-}, new MsiCompiler());
+}, new MsiCompiler().Use(iis));
