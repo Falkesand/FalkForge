@@ -78,11 +78,14 @@ public sealed class SignServerRotationRevocationE2ETests
     [Fact]
     public async Task Bundle_DualSignedByOldAndNewSignServerKeys_VerifiesUnderEveryRealisticTrustSet()
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var (runtimeAvailable, reason) = await SignServerPodSigningE2ETests.ContainerRuntime.TryEnsureConfiguredAsync();
         Assert.SkipUnless(runtimeAvailable, $"No Docker/Podman container runtime available: {reason}");
 
         await using var container = BuildContainer();
-        await container.StartAsync();
+        using (var startTimeout = new CancellationTokenSource(SignServerPodSigningE2ETests.ContainerStartTimeout))
+            await container.StartAsync(startTimeout.Token);
         await ProvisionWorkersAsync(container);
 
         var baseUrl = $"http://{container.Hostname}:{container.GetMappedPublicPort(SignServerHttpPort)}";
@@ -161,11 +164,14 @@ public sealed class SignServerRotationRevocationE2ETests
     [Fact]
     public async Task Bundle_SignedByRevokedSignServerKey_IsRejected_ButNonRevokedKeyStillVerifies()
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var (runtimeAvailable, reason) = await SignServerPodSigningE2ETests.ContainerRuntime.TryEnsureConfiguredAsync();
         Assert.SkipUnless(runtimeAvailable, $"No Docker/Podman container runtime available: {reason}");
 
         await using var container = BuildContainer();
-        await container.StartAsync();
+        using (var startTimeout = new CancellationTokenSource(SignServerPodSigningE2ETests.ContainerStartTimeout))
+            await container.StartAsync(startTimeout.Token);
         await ProvisionWorkersAsync(container);
 
         var baseUrl = $"http://{container.Hostname}:{container.GetMappedPublicPort(SignServerHttpPort)}";

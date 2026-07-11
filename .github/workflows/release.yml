@@ -35,7 +35,11 @@ jobs:
 
       # Full test suite must be green before any release artifact is published.
       # A test failure here aborts the workflow — no release is created.
+      # FALKFORGE_E2E=1 opts the release run into the heavyweight e2e tests that the
+      # fresh-clone default skips (see tests/FalkForge.Integration.Tests/E2EGate.cs).
       - name: Test (full suite)
+        env:
+          FALKFORGE_E2E: '1'
         run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults --blame-hang-timeout 120s
 
       # --- Publish NativeAOT artifacts ---

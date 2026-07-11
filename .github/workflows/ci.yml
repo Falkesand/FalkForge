@@ -94,7 +94,13 @@ jobs:
       # under MTP and left CI unable to NAME a failing test. Each test project writes its own
       # test-results.trx under its bin/<cfg>/<tfm>/TestResults folder, captured by the artifact upload
       # glob below. The dotnet-coverage wrapper is unchanged (CLR profiler attach around the whole run).
+      # FALKFORGE_E2E=1 opts CI into the heavyweight e2e tests (full demo-catalog builds,
+      # verify-rebuild ceremony) that a fresh-clone `dotnet test` skips by default so it
+      # finishes in minutes. The SignServer container e2e additionally requires a Linux
+      # container runtime, which windows-latest lacks — those skip here regardless.
       - name: Test with coverage
+        env:
+          FALKFORGE_E2E: '1'
         run: dotnet-coverage collect -f cobertura -o TestResults\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx'
 
       - name: Upload test results

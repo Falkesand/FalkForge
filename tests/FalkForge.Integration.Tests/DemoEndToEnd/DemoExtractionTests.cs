@@ -6,6 +6,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
+[Trait("Category", "E2E")]
 public sealed class DemoExtractionTests : IDisposable
 {
     private readonly DemoBuildFixture _fixture;
@@ -22,6 +23,8 @@ public sealed class DemoExtractionTests : IDisposable
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_ExtractionSucceeds(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
@@ -38,6 +41,8 @@ public sealed class DemoExtractionTests : IDisposable
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_ExtractionProducesFiles(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
@@ -55,6 +60,8 @@ public sealed class DemoExtractionTests : IDisposable
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_ExtractedFilesExistOnDisk(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
@@ -82,6 +89,8 @@ public sealed class DemoExtractionTests : IDisposable
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_ExtractPreservesFileCount(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);

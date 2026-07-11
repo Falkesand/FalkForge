@@ -5,6 +5,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
+[Trait("Category", "E2E")]
 public sealed class DemoCompilationTests
 {
     private readonly DemoBuildFixture _fixture;
@@ -15,6 +16,8 @@ public sealed class DemoCompilationTests
     [MemberData(nameof(DemoTestCatalog.AllDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Demo_ProducesOutputFile(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure)
             Assert.Skip($"Demo '{demo.Name}' requires external infrastructure (e.g. SQL Server/IIS) not available in this test environment.");
 

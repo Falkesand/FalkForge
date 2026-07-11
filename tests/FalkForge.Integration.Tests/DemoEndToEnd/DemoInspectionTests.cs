@@ -6,6 +6,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
+[Trait("Category", "E2E")]
 public sealed class DemoInspectionTests
 {
     private readonly DemoBuildFixture _fixture;
@@ -16,6 +17,8 @@ public sealed class DemoInspectionTests
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_HasValidMetadata(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
@@ -43,6 +46,8 @@ public sealed class DemoInspectionTests
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_ContainsRequiredTables(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure || demo.RequiredTables.Length == 0) return;
 
         var build = _fixture.GetOrBuild(demo);
