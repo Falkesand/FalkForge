@@ -124,14 +124,18 @@ public sealed class UtilExtensionTests
     }
 
     [Fact]
-    public void Register_RegistersExecutionContributor()
+    public void Register_RegistersExecutionContributors()
     {
         var extension = new UtilExtension();
         var registry = new TestExtensionRegistry();
 
         extension.Register(registry);
 
-        Assert.Single(registry.ExecutionContributors);
+        // Two execution contributors: the four non-secret features, plus a dedicated User/Group contributor
+        // (kept separate because it carries a password secret through the secure CustomActionData channel).
+        Assert.Equal(2, registry.ExecutionContributors.Count);
+        Assert.Contains(registry.ExecutionContributors, c => c is UtilExecutionContributor);
+        Assert.Contains(registry.ExecutionContributors, c => c is UtilUserGroupExecutionContributor);
     }
 
     [Fact]

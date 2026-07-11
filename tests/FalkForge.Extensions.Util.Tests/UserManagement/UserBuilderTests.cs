@@ -115,4 +115,82 @@ public sealed class UserBuilderTests
 
         Assert.Same(builder, returned);
     }
+
+    [Fact]
+    public void Build_WithPasswordProperty_NoLiteral_Succeeds()
+    {
+        var result = new UserBuilder()
+            .Name("TestUser")
+            .PasswordProperty("USERPASSWORD")
+            .Build();
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.Equal("USERPASSWORD", result.Value.PasswordProperty);
+        Assert.Null(result.Value.Password);
+    }
+
+    [Fact]
+    public void Build_WithBothPasswordAndPasswordProperty_ReturnsUSR011()
+    {
+        var result = new UserBuilder()
+            .Name("TestUser")
+            .Password("P@ssw0rd!")
+            .PasswordProperty("USERPASSWORD")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR011", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_WithInjectionInName_ReturnsUSR003()
+    {
+        var result = new UserBuilder()
+            .Name("bad;name")
+            .Password("P@ssw0rd!")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR003", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_MemberOf_StoresGroups()
+    {
+        var result = new UserBuilder()
+            .Name("TestUser")
+            .Password("P@ssw0rd!")
+            .MemberOf("Administrators")
+            .MemberOf("Ops")
+            .Build();
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.Equal(["Administrators", "Ops"], result.Value.Groups);
+    }
+
+    [Fact]
+    public void Build_MemberOf_InvalidGroupName_ReturnsUSR003()
+    {
+        var result = new UserBuilder()
+            .Name("TestUser")
+            .Password("P@ssw0rd!")
+            .MemberOf("bad|group")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR003", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_DomainUser_NoPassword_Succeeds()
+    {
+        // A domain-qualified user is a reference (never created locally), so USR002 must not fire.
+        var result = new UserBuilder()
+            .Name("svc")
+            .Domain("CONTOSO")
+            .MemberOf("Ops")
+            .Build();
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+    }
 }
