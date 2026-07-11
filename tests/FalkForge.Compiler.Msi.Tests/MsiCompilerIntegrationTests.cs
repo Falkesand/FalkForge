@@ -644,6 +644,231 @@ public sealed class MsiCompilerIntegrationTests
     }
 
     [Fact]
+    public void Compile_ServiceWithFailureActions_EmitsMsiServiceConfigFailureActionsRow()
+    {
+        // C3: ServiceBuilder.FailureActions(...) collects recovery/restart
+        // configuration onto ServiceModel.FailureActions, but nothing in
+        // FalkForge.Compiler.Msi emitted an MsiServiceConfigFailureActions row —
+        // service recovery (restart-on-crash) was silently lost.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "svc.exe");
+            File.WriteAllText(sourceFile, "fake service executable");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "FailureActionsApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "FailureActionsApp"));
+                p.Service("MyService", svc =>
+                {
+                    svc.DisplayName = "My Service";
+                    svc.Executable = "svc.exe";
+                    svc.FailureActions(fa =>
+                    {
+                        fa.OnFirstFailure = FailureAction.Restart;
+                        fa.OnSecondFailure = FailureAction.Restart;
+                        fa.OnSubsequentFailures = FailureAction.RunCommand;
+                        fa.ResetPeriod = TimeSpan.FromDays(2);
+                        fa.RestartDelay = TimeSpan.FromSeconds(45);
+                        fa.Command = "cmd.exe /c echo hi";
+                    });
+                });
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+            Assert.True(TableExists(db, "MsiServiceConfigFailureActions"));
+
+            var serviceComponentId = db.QueryRows("SELECT `Component_` FROM `ServiceInstall`", 1).Value
+                .Select(r => r[0]!)
+                .Single();
+
+            var row = db.QueryRows(
+                    "SELECT `Name`, `Event`, `ResetPeriod`, `RebootMessage`, `Command`, `Actions`, `DelayActions`, `Component_` FROM `MsiServiceConfigFailureActions`",
+                    8).Value
+                .Single();
+
+            Assert.Equal("MyService", row[0]);
+            Assert.Equal(172800, int.Parse(row[2]!, CultureInfo.InvariantCulture)); // 2 days in seconds
+            Assert.Null(row[3]); // no RebootMessage configured
+            Assert.Equal("cmd.exe /c echo hi", row[4]);
+            Assert.Equal("1[~]1[~]3", row[5]); // Restart, Restart, RunCommand
+            Assert.Equal("45000[~]45000[~]45000", row[6]); // all tiers share the 45s RestartDelay
+            Assert.Equal(serviceComponentId, row[7]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_ServiceWithoutFailureActions_DoesNotEmitMsiServiceConfigFailureActionsTable()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "svc.exe");
+            File.WriteAllText(sourceFile, "fake service executable");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "NoFailureActionsApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "NoFailureActionsApp"));
+                p.Service("MyService", svc =>
+                {
+                    svc.DisplayName = "My Service";
+                    svc.Executable = "svc.exe";
+                });
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+            Assert.False(TableExists(db, "MsiServiceConfigFailureActions"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_ServiceWithUserPermission_EmitsLockPermissionsRowKeyedByServiceInstallId()
+    {
+        // C4: ServiceBuilder.Permission(...) collects entries onto
+        // ServiceModel.Permissions, but only the top-level PackageModel.Permissions
+        // collection fed the LockPermissions producer — a permission set on a
+        // service never reached the MSI. The LockObject must be the service's
+        // ServiceInstall primary key ("SVC_" + sanitized name), not the raw
+        // service name ServiceBuilder stamps onto the in-memory model.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "svc.exe");
+            File.WriteAllText(sourceFile, "fake service executable");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "SvcPermApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SvcPermApp"));
+                p.Service("MyService", svc =>
+                {
+                    svc.DisplayName = "My Service";
+                    svc.Executable = "svc.exe";
+                    svc.Permission(perm =>
+                    {
+                        perm.Domain = "BUILTIN";
+                        perm.User = "Administrators";
+                        perm.Permission = 0x000F01FF;
+                    });
+                });
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+            Assert.True(TableExists(db, "LockPermissions"));
+
+            var serviceInstallId = db.QueryRows("SELECT `ServiceInstall` FROM `ServiceInstall`", 1).Value
+                .Select(r => r[0]!)
+                .Single();
+
+            var row = db.QueryRows(
+                    "SELECT `LockObject`, `Table`, `Domain`, `User`, `Permission` FROM `LockPermissions`", 5).Value
+                .Single();
+
+            Assert.Equal(serviceInstallId, row[0]);
+            Assert.Equal("ServiceInstall", row[1]);
+            Assert.Equal("BUILTIN", row[2]);
+            Assert.Equal("Administrators", row[3]);
+            Assert.Equal(0x000F01FF, int.Parse(row[4]!, CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_ServiceWithSddlPermission_EmitsMsiLockPermissionsExRowKeyedByServiceInstallId()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTest_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceFile = Path.Combine(tempDir, "svc.exe");
+            File.WriteAllText(sourceFile, "fake service executable");
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "SvcSddlPermApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SvcSddlPermApp"));
+                p.Service("MyService", svc =>
+                {
+                    svc.DisplayName = "My Service";
+                    svc.Executable = "svc.exe";
+                    svc.Permission(perm => perm.Sddl = "D:(A;;RPWP;;;WD)");
+                });
+            });
+
+            var fileSystem = new WindowsFileSystem();
+            var compileResult = new MsiCompiler(fileSystem).Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+            using var db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+            Assert.True(TableExists(db, "MsiLockPermissionsEx"));
+
+            var serviceInstallId = db.QueryRows("SELECT `ServiceInstall` FROM `ServiceInstall`", 1).Value
+                .Select(r => r[0]!)
+                .Single();
+
+            var row = db.QueryRows(
+                    "SELECT `LockObject`, `Table`, `SDDLText` FROM `MsiLockPermissionsEx`", 3).Value
+                .Single();
+
+            Assert.Equal(serviceInstallId, row[0]);
+            Assert.Equal("ServiceInstall", row[1]);
+            Assert.Equal("D:(A;;RPWP;;;WD)", row[2]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void Compile_InstallDirectory_LeafDirectoryNamedInstallDirNotGeneratedId()
     {
         // Bug: TableEmitter named the leaf install directory with a generated

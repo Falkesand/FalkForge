@@ -181,6 +181,40 @@ public sealed class MsiLockPermissionsExTableProducerTests
         Assert.IsType<CellValue.Null>(rows[1].Cells[4]);
     }
 
+    [Fact]
+    public void Produce_emits_row_for_service_sddl_permission_using_serviceinstall_id_not_raw_service_name()
+    {
+        // C4 (SDDL half): mirrors LockPermissionsTableProducerTests' User-driven
+        // case for the SDDL-driven path. ServiceBuilder.Permission(...) stamps
+        // the model's LockObject with the raw service name; the producer must
+        // recompute the effective LockObject as the ServiceInstall row's own
+        // synthesized primary key.
+        ServiceModel service = new()
+        {
+            Name = "MyService",
+            DisplayName = "My Service",
+            Executable = "svc.exe",
+            Permissions = new[]
+            {
+                new PermissionModel
+                {
+                    LockObject = "MyService",
+                    Table = "ServiceInstall",
+                    Sddl = "D:(A;;RPWP;;;WD)",
+                },
+            },
+        };
+        ResolvedPackage resolved = MakeResolved(Array.Empty<PermissionModel>(), new[] { service });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        RecipeRow row = Assert.Single(rows);
+        Assert.Equal("PRM_0000", ((CellValue.StringValue)row.Cells[0]).Value);
+        Assert.Equal("SVC_MyService", ((CellValue.StringValue)row.Cells[1]).Value);
+        Assert.Equal("ServiceInstall", ((CellValue.StringValue)row.Cells[2]).Value);
+        Assert.Equal("D:(A;;RPWP;;;WD)", ((CellValue.StringValue)row.Cells[3]).Value);
+    }
+
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
     {
         RecipeBuildContext context = new(
@@ -194,7 +228,9 @@ public sealed class MsiLockPermissionsExTableProducerTests
         return result.Value;
     }
 
-    private static ResolvedPackage MakeResolved(IReadOnlyList<PermissionModel> permissions)
+    private static ResolvedPackage MakeResolved(
+        IReadOnlyList<PermissionModel> permissions,
+        IReadOnlyList<ServiceModel>? services = null)
     {
         return new ResolvedPackage
         {
@@ -204,6 +240,7 @@ public sealed class MsiLockPermissionsExTableProducerTests
                 Manufacturer = "M",
                 Version = new Version(1, 0, 0),
                 Permissions = permissions,
+                Services = services ?? Array.Empty<ServiceModel>(),
             },
             Components = Array.Empty<ResolvedComponent>(),
             Files = Array.Empty<ResolvedFile>(),

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.IO;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
@@ -17,10 +16,8 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </summary>
 internal sealed class ServiceInstallTableProducer : ITableProducer
 {
-    private const string FallbackComponentId = "MainComponent";
     private const int ServiceTypeOwnProcess = 16;
     private const int ErrorControlNormal = 1;
-    private const int IdentifierMaxLength = 72;
     private const string DependencySeparator = "[~]";
 
     /// <summary>Static schema describing the <c>ServiceInstall</c> table layout.</summary>
@@ -35,20 +32,17 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
         TableId componentTable = WellKnownTableIds.Component;
         ResolvedPackage resolved = context.Resolved;
 
-        Dictionary<string, string> fileNameToComponent = BuildFileNameLookup(resolved);
-        string defaultComponentId =
-            resolved.Components.Count > 0
-                ? resolved.Components[0].Id
-                : FallbackComponentId;
+        Dictionary<string, string> fileNameToComponent = ServiceIdentity.BuildFileNameLookup(resolved);
+        string defaultComponentId = ServiceIdentity.DefaultComponentId(resolved);
 
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         foreach (ServiceModel service in resolved.Package.Services)
         {
             int startType = MapStartType(service.StartMode);
             string startName = ResolveStartName(service);
-            string componentId = ResolveComponentId(service, resolved, fileNameToComponent, defaultComponentId);
+            string componentId = ServiceIdentity.ResolveComponentId(service, resolved, fileNameToComponent, defaultComponentId);
 
-            string svcId = TruncateId($"SVC_{SanitizeId(service.Name)}");
+            string svcId = ServiceIdentity.ComputeServiceInstallId(service.Name);
             string? dependencies = BuildDependencyString(service);
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
@@ -71,46 +65,10 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
     }
 
-    /// <summary>
-    /// Resolves the Component_ FK for a service row. A service with an explicit FeatureRef
-    /// (declared via FeatureBuilder.Service) always attaches to the dedicated component
-    /// ComponentResolver synthesized for it — that component carries the FeatureRef, which is
-    /// what places it under the correct feature in FeatureComponents. Without a FeatureRef the
-    /// service falls back to the legacy convention: attach to whichever resolved component owns
-    /// a file with the same bare filename as the service executable, or the first resolved
-    /// component (or "MainComponent") when no match exists.
-    /// </summary>
-    private static string ResolveComponentId(
-        ServiceModel service,
-        ResolvedPackage resolved,
-        Dictionary<string, string> fileNameToComponent,
-        string defaultComponentId)
-    {
-        if (service.FeatureRef is not null &&
-            resolved.ServiceFeatureComponents.TryGetValue(service.Name, out string? featureComponentId))
-        {
-            return featureComponentId;
-        }
-
-        string executableFileName = Path.GetFileName(service.Executable ?? string.Empty);
-        return fileNameToComponent.TryGetValue(executableFileName, out string? matched)
-            ? matched
-            : defaultComponentId;
-    }
-
-    private static Dictionary<string, string> BuildFileNameLookup(ResolvedPackage resolved)
-    {
-        Dictionary<string, string> map = new(StringComparer.OrdinalIgnoreCase);
-        foreach (ResolvedComponent component in resolved.Components)
-        {
-            foreach (ResolvedFile file in component.Files)
-            {
-                map.TryAdd(file.FileName, component.Id);
-            }
-        }
-
-        return map;
-    }
+    // Component_ FK resolution and the file→component lookup it depends on live in
+    // ServiceIdentity now — shared with MsiServiceConfigFailureActionsTableProducer and the
+    // per-service LockPermissions/MsiLockPermissionsEx rows so every producer touching a given
+    // ServiceModel agrees on the same Component_ value.
 
     private static int MapStartType(ServiceStartMode startMode)
     {
@@ -161,23 +119,6 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
         }
 
         return null;
-    }
-
-    private static string SanitizeId(string name)
-    {
-        char[] sanitized = new char[name.Length];
-        for (int i = 0; i < name.Length; i++)
-        {
-            char c = name[i];
-            sanitized[i] = char.IsLetterOrDigit(c) || c == '_' || c == '.' ? c : '_';
-        }
-
-        return new string(sanitized);
-    }
-
-    private static string TruncateId(string id)
-    {
-        return id.Length > IdentifierMaxLength ? id[..IdentifierMaxLength] : id;
     }
 
     private static TableSchema BuildSchema()

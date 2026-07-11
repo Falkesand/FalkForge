@@ -16,6 +16,15 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <c>Permission</c>) with the nullable <c>Domain</c> column emitting
 /// <see cref="CellValue.Null"/> when the model leaves it unset.
 ///
+/// The input list is <see cref="ServicePermissionSource.EnumerateAll"/> rather
+/// than <see cref="PackageModel.Permissions"/> alone: it also walks each
+/// service's own <see cref="ServiceModel.Permissions"/> (fluent
+/// <c>ServiceBuilder.Permission(...)</c>), which package-level-only iteration
+/// silently dropped. Per-service entries use the enumeration's
+/// <c>EffectiveLockObject</c> — the service's synthesized ServiceInstall
+/// primary key — rather than <see cref="PermissionModel.LockObject"/>, which
+/// only holds the raw service name.
+///
 /// Note: a dedicated <c>MsiLockPermissionsExTableProducer</c> handles the
 /// SDDL-driven half of the same model list and is intentionally out of
 /// scope here so the two table producers partition the input cleanly.
@@ -31,15 +40,8 @@ internal sealed class LockPermissionsTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        IReadOnlyList<PermissionModel> permissions = context.Resolved.Package.Permissions;
-
-        if (permissions.Count == 0)
-        {
-            return Result<ImmutableArray<RecipeRow>>.Success(ImmutableArray<RecipeRow>.Empty);
-        }
-
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
-        foreach (PermissionModel perm in permissions)
+        foreach ((PermissionModel perm, string effectiveLockObject) in ServicePermissionSource.EnumerateAll(context.Resolved))
         {
             // Mirror the legacy EmitPermissions partition: SDDL entries flow
             // through MsiLockPermissionsExTableProducer; only the User-driven
@@ -63,7 +65,7 @@ internal sealed class LockPermissionsTableProducer : ITableProducer
             CellValue domainCell = new CellValue.StringValue(perm.Domain ?? string.Empty);
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
-                new CellValue.StringValue(perm.LockObject),
+                new CellValue.StringValue(effectiveLockObject),
                 new CellValue.StringValue(perm.Table),
                 domainCell,
                 new CellValue.StringValue(perm.User),
