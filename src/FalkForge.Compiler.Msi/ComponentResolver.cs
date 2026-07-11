@@ -130,7 +130,8 @@ public sealed class ComponentResolver
                 Directory = defaultDirectory,
                 KeyPath = string.Empty,
                 Files = [],
-                FeatureRef = service.FeatureRef
+                FeatureRef = service.FeatureRef,
+                Condition = service.ComponentCondition
             });
             serviceFeatureComponents[service.Name] = componentId;
         }
@@ -188,12 +189,15 @@ public sealed class ComponentResolver
     /// <summary>
     /// Generates the deterministic component id for a feature-gated service that has no
     /// file-based component to attach to. Keyed by service name only — MSI service names are
-    /// unique within a package, so no directory/feature disambiguator is needed.
+    /// unique within a package. The disambiguating hash is placed BEFORE the sanitized name so
+    /// that when the id exceeds the 72-char MSI identifier limit and gets truncated, the hash
+    /// (which carries the uniqueness) survives — two long service names sharing a truncated
+    /// prefix must never collapse onto the same component id.
     /// </summary>
     private static string GenerateServiceComponentId(string serviceName)
     {
         var sanitized = ProducerHelpers.SanitizeDirectoryId(serviceName);
-        var raw = $"C_SVC_{sanitized}_{StableHash(serviceName)}";
+        var raw = $"C_SVC_{StableHash(serviceName)}_{sanitized}";
         return raw.Length > 72 ? raw[..72] : raw;
     }
 
