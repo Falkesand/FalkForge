@@ -114,6 +114,18 @@ public sealed record EngineSessionOptions
     public string? ElevationCompanionPath { get; init; }
 
     /// <summary>
+    /// How the session resolves the elevation companion. The default
+    /// (<see cref="ElevationCompanionPolicy.AmbientAllowed"/>) preserves the plain-engine-run
+    /// behavior: probe beside the engine when no verified path is supplied. The self-extract
+    /// bootstrapper ALWAYS overrides this with <see cref="ElevationCompanionPolicy.VerifiedPath"/>
+    /// (manifest declares a companion, verified by <c>BootstrapCompanionResolver</c>) or
+    /// <see cref="ElevationCompanionPolicy.NoneDeclared"/> (manifest declares none), because in a
+    /// bundle bootstrap the manifest is authoritative and the ambient probe would let a planted
+    /// <c>FalkForge.Engine.Elevation.exe</c> beside the bundle exe be launched elevated unverified.
+    /// </summary>
+    public ElevationCompanionPolicy ElevationCompanionPolicy { get; init; }
+
+    /// <summary>
     /// The persisted anti-downgrade epoch loaded (and ACL-validated) by the bootstrapper on the
     /// require-signed update path. When non-null, the pipeline's apply-time integrity gate runs with the
     /// update-path trust policy: it resolves Update vs KeyChange from the signed epoch against this value

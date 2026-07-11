@@ -223,6 +223,40 @@ public static class SignedPayloadTocVerifier
                 signedHashes[file.Name] = file.Sha256;
         }
 
+        // Companion declaration ↔ signed set binding (INT012). The manifest's
+        // EngineCompanionSha256 is what the bootstrapper wires the SYSTEM-executing elevation
+        // companion from, but it is a plain manifest field — not part of the signed envelope
+        // bytes. Bind it DIRECTLY into the signed set: once a bundle is signed, the declaration
+        // and the envelope's companion entry must agree in both directions. Otherwise an attacker
+        // who strips the field silently downgrades the companion decision to per-user (the signed
+        // envelope proves the publisher shipped one), and one who edits it repoints the resolver —
+        // both are tamper, not a policy choice, so fail closed before anything is extracted.
+        var declaredCompanion = manifest.EngineCompanionSha256;
+        var hasSignedCompanion = signedHashes.TryGetValue(
+            EngineCompanionPayload.PackageId, out var signedCompanionHash);
+        if (!string.IsNullOrEmpty(declaredCompanion))
+        {
+            if (!hasSignedCompanion)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT012: The manifest declares an elevation companion ({declaredCompanion}) that is " +
+                    "not covered by the integrity signature. The companion executes elevated, so its " +
+                    "declaration must be inside the signed set — refusing to install.");
+
+            if (!string.Equals(declaredCompanion, signedCompanionHash, StringComparison.OrdinalIgnoreCase))
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT012: The manifest's declared elevation-companion hash ({declaredCompanion}) does " +
+                    $"not match the ECDSA-signed companion hash ({signedCompanionHash}). The declaration " +
+                    "was edited after signing — refusing to install.");
+        }
+        else if (hasSignedCompanion)
+        {
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                "INT012: The integrity signature covers an elevation companion " +
+                $"({EngineCompanionPayload.PackageId}) but the manifest declares none. The " +
+                "declaration was stripped after signing — a silent per-user downgrade of a signed " +
+                "companion is tamper, refusing to install.");
+        }
+
         foreach (var entry in tocEntries)
         {
             // Coverage extension (§5.4): once a bundle is signed, EVERY payload it will extract and

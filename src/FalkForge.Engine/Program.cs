@@ -682,10 +682,18 @@ internal static partial class Program
                 LogPath = programArgs?.LogPath,
                 MinimumLogLevel = programArgs?.MinimumLogLevel,
                 // The bootstrapper-extracted, hash-verified elevation companion (null when the
-                // bundle carries none — the session then probes beside the engine and otherwise
-                // runs per-user). This is what makes per-machine elevated installs work from a
-                // lone distributed bundle exe.
+                // bundle declares none). This is what makes per-machine elevated installs work
+                // from a lone distributed bundle exe.
                 ElevationCompanionPath = verifiedCompanionPath,
+                // In a bundle bootstrap the manifest is AUTHORITATIVE on the companion: declared →
+                // only the verified extracted path may be wired; not declared → per-user, full
+                // stop. Never AmbientAllowed here — the ambient probe beside the engine would let
+                // an attacker who plants FalkForge.Engine.Elevation.exe next to the bundle exe get
+                // an unverified SYSTEM launch, defeating a WithoutElevationCompanion() authoring
+                // choice even on a signed bundle.
+                ElevationCompanionPolicy = verifiedCompanionPath is not null
+                    ? ElevationCompanionPolicy.VerifiedPath
+                    : ElevationCompanionPolicy.NoneDeclared,
                 // C16: on the require-signed update path, advance the anti-downgrade/revocation store after a
                 // verified+completed apply. The advance is issued to the elevated companion from inside the
                 // pipeline (ApplyStep) — the store's ACL denies a non-elevated write, so the engine no longer
