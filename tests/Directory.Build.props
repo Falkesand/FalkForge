@@ -5,6 +5,14 @@
         <NoWarn>$(NoWarn);xUnit1051;MTP0001</NoWarn>
         <!-- xUnit v3 uses Microsoft Testing Platform; enable dotnet test integration -->
         <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+        <!-- Hang guard: every test host runs under the MTP hang-dump extension so a genuinely
+             stuck test FAILS loud (dump + host kill) after this long without test progress,
+             instead of hanging a plain `dotnet test` indefinitely. The classic VSTest
+             blame-hang-timeout switch never attaches under MTP; this is the MTP-native
+             equivalent and is baked in here so the cloner needs no flags. Override per run with
+             `dotnet test -p:FalkHangDumpTimeout=2m`. -->
+        <FalkHangDumpTimeout Condition="'$(FalkHangDumpTimeout)' == ''">10m</FalkHangDumpTimeout>
+        <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --hangdump --hangdump-timeout $(FalkHangDumpTimeout)</TestingPlatformCommandLineArguments>
     </PropertyGroup>
     <ItemGroup>
         <!-- MTP-native TRX reporter for every test project, so a CI run invoked with the
@@ -12,5 +20,7 @@
              Microsoft.Testing.Platform the classic VSTest trx logger never attaches, leaving
              CI unable to identify a failure. -->
         <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+        <!-- MTP-native hang guard (see FalkHangDumpTimeout above). -->
+        <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
     </ItemGroup>
 </Project>

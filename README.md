@@ -150,11 +150,37 @@ HMAC-SHA256 handshake security. MSI operations use direct `msi.dll` P/Invoke
 
 ```bash
 dotnet build                # 0 warnings required (TreatWarningsAsErrors)
-dotnet test                 # ~7,000+ tests
+dotnet test                 # fast default: ~7,000+ tests, minutes; heavyweight e2e skipped
 dotnet publish -c Release   # NativeAOT for Engine + Elevation
 ```
 
 **Requirements:** .NET 10 SDK (10.0.103+), Windows (for MSI compilation and P/Invoke)
+
+### Running the full end-to-end suite
+
+The default `dotnet test` skips the heavyweight end-to-end tests (building the entire
+60+ demo catalog via `dotnet run`, the `forge verify --rebuild` ceremony, and the live
+SignServer Docker-container tests) so a fresh clone gets a green run in minutes. Opt in
+with the `FALKFORGE_E2E` environment variable — CI always sets it:
+
+```powershell
+$env:FALKFORGE_E2E = '1'; dotnet test FalkForge.slnx   # PowerShell
+```
+
+```bash
+FALKFORGE_E2E=1 dotnet test FalkForge.slnx             # bash
+```
+
+Gated tests carry `[Trait("Category", "E2E")]` and skip through
+`tests/FalkForge.Integration.Tests/E2EGate.cs`, which documents the mechanism. Tests
+with additional external requirements still self-gate on those on top of the opt-in
+(e.g. the SignServer tests also need a Linux-capable Docker/Podman runtime, and the
+NuGet-consumer e2e needs the local feed produced by `scripts/pack.ps1`).
+
+A stuck test cannot hang the run indefinitely: every test project runs under the
+Microsoft.Testing.Platform hang-dump guard (see `tests/Directory.Build.props`), which
+dumps and kills a test host after 10 minutes without test progress
+(override: `dotnet test -p:FalkHangDumpTimeout=2m`).
 
 > **NuGet lock files:** The solution uses `RestorePackagesWithLockFile=true` (set in
 > `Directory.Build.props`). After adding or changing any package reference, regenerate the

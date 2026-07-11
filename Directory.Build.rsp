@@ -1,0 +1,11 @@
+# Auto-loaded by MSBuild for every dotnet build/test/run under this repo.
+#
+# Disable MSBuild worker-node reuse: with the default (/nodeReuse:true) every build spawns
+# up to CPU-count `dotnet.exe MSBuild.dll /nodemode:1` workers that idle for ~15 minutes
+# afterwards, and `dotnet build-server shutdown` only reaps nodes of the SDK it runs under —
+# on machines with several SDK installs the cross-SDK strays accumulate into dozens of
+# lingering dotnet.exe processes that look like orphaned test hosts after `dotnet test`.
+# Node startup costs milliseconds; a process-clean machine after every build is worth it.
+# (The demo e2e fixture sets MSBUILDDISABLENODEREUSE=1 for the same reason; this covers the
+# top-level build/test invocations too.)
+-nodeReuse:false

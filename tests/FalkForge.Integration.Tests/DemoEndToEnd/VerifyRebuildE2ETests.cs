@@ -23,6 +23,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 /// </summary>
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
+[Trait("Category", "E2E")]
 public sealed class VerifyRebuildE2ETests : IDisposable
 {
     // Pinned epoch matching DemoBuildFixture so the reproducible build is deterministic.
@@ -50,6 +51,8 @@ public sealed class VerifyRebuildE2ETests : IDisposable
     [Fact]
     public void Verify_Demo01ReproducibleRebuild_IsVerified()
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var shippedMsi = BuildDemo01("shipped");
 
         var output = new CapturingOutput();
@@ -71,6 +74,8 @@ public sealed class VerifyRebuildE2ETests : IDisposable
     [Fact]
     public void Verify_TamperedDemo01Artifact_IsMismatch()
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var shippedMsi = BuildDemo01("tampered");
 
         // Flip one byte deep inside the cabinet/stream region so the rebuild no longer matches.

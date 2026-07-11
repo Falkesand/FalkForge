@@ -60,9 +60,18 @@ public sealed class SignServerPodSigningE2ETests
         "WORKER11.SIGNATUREALGORITHM=SHA256withECDSA\\n" +
         "WORKER11.DISABLEKEYUSAGECOUNTER=true\\n";
 
+    /// <summary>
+    /// Upper bound on pulling the SignServer image + starting the container. Without a bound a
+    /// stalled registry pull or a wedged daemon hangs `dotnet test` indefinitely; with it the test
+    /// fails loud with an OperationCanceledException instead.
+    /// </summary>
+    internal static readonly TimeSpan ContainerStartTimeout = TimeSpan.FromMinutes(10);
+
     [Fact]
     public async Task Bundle_SignedByLiveSignServerPod_VerifiesWithTheEngineCodec()
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var (runtimeAvailable, reason) = await ContainerRuntime.TryEnsureConfiguredAsync();
         Assert.SkipUnless(runtimeAvailable, $"No Docker/Podman container runtime available: {reason}");
 
@@ -79,7 +88,8 @@ public sealed class SignServerPodSigningE2ETests
 
         try
         {
-            await container.StartAsync();
+            using (var startTimeout = new CancellationTokenSource(ContainerStartTimeout))
+                await container.StartAsync(startTimeout.Token);
             await ProvisionWorkerAsync(container);
 
             var baseUrl = $"http://{container.Hostname}:{container.GetMappedPublicPort(SignServerHttpPort)}";

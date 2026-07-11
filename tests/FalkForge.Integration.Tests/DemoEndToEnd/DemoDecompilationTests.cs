@@ -6,6 +6,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
+[Trait("Category", "E2E")]
 public sealed class DemoDecompilationTests
 {
     private readonly DemoBuildFixture _fixture;
@@ -16,6 +17,8 @@ public sealed class DemoDecompilationTests
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_DecompilesToValidPackageModel(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
@@ -42,6 +45,8 @@ public sealed class DemoDecompilationTests
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_DecompilesToValidCSharp(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
@@ -65,6 +70,8 @@ public sealed class DemoDecompilationTests
     [MemberData(nameof(DemoTestCatalog.BundleDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Bundle_DecompilesToValidBundleModel(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var build = _fixture.GetOrBuild(demo);
         if (!build.Succeeded) return;
 
@@ -83,6 +90,8 @@ public sealed class DemoDecompilationTests
     [MemberData(nameof(DemoTestCatalog.BundleDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Bundle_DecompilesToValidCSharp(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         var build = _fixture.GetOrBuild(demo);
         if (!build.Succeeded) return;
 

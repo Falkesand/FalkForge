@@ -22,6 +22,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 /// </summary>
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
+[Trait("Category", "E2E")]
 public sealed class DemoRoundTripTests
 {
     private readonly DemoBuildFixture _fixture;
@@ -45,6 +46,8 @@ public sealed class DemoRoundTripTests
     [MemberData(nameof(RoundTripMsiDemosData))]
     public void Msi_DecompileToRecipe_Succeeds(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         // Skip demos whose MSIs are known-empty due to a write-side bug outside Phase 14 scope.
         // FeatureBuilder._files are silently dropped in PackageBuilder.Feature(): files added via
         // feature.Files(...) never reach the compiled MSI. Tracked as a separate compiler fix.

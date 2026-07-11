@@ -7,6 +7,7 @@ namespace FalkForge.Integration.Tests.DemoEndToEnd;
 [Collection("DemoEndToEnd")]
 [SupportedOSPlatform("windows")]
 [Trait("Category", "ICE")]
+[Trait("Category", "E2E")]
 public sealed class DemoIceValidationTests
 {
     private readonly DemoBuildFixture _fixture;
@@ -17,6 +18,8 @@ public sealed class DemoIceValidationTests
     [MemberData(nameof(DemoTestCatalog.MsiDemosData), MemberType = typeof(DemoTestCatalog))]
     public void Msi_PassesIceValidation(DemoExpectation demo)
     {
+        E2EGate.SkipUnlessOptedIn();
+
         if (demo.RequiresInfrastructure) return;
 
         var build = _fixture.GetOrBuild(demo);
