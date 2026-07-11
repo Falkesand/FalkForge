@@ -29,6 +29,9 @@
     <!-- MTP-native TRX reporter: enables the report-trx switch so CI can NAME a failing test
          (the classic VSTest trx logger is a silent no-op under Microsoft.Testing.Platform). -->
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1" />
+    <!-- MTP-native hang guard: dumps + kills a test host stuck past the configured timeout
+         (wired for every test project in tests/Directory.Build.props). -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="1.9.1" />
     <!-- Container-backed end-to-end tests (Keyfactor SignServer pod); test-only, Docker/Podman-gated -->
     <PackageVersion Include="Testcontainers" Version="4.6.0" />
   </ItemGroup>

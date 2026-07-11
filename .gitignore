@@ -88,6 +88,8 @@ StyleCopReport.xml
 *.pgc
 *.pgd
 *.rsp
+# ...but the repo-level MSBuild response file is deliberate (disables node reuse)
+!Directory.Build.rsp
 *.sbr
 *.tlb
 *.tli
