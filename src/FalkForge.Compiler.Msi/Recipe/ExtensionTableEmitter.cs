@@ -276,9 +276,29 @@ internal static class ExtensionTableEmitter
         IStreamRegistry streams,
         ImmutableArray<RecipeRow>.Builder sink)
     {
+        // Column-name set for the "unknown field" guard below. Built once per call.
+        var columnNames = new HashSet<string>(columns.Length, StringComparer.Ordinal);
+        for (int col = 0; col < columns.Length; col++)
+            columnNames.Add(columns[col].Name);
+
         for (int r = 0; r < rows.Count; r++)
         {
             IReadOnlyDictionary<string, object?> fields = rows[r].Fields;
+
+            // Fail loud on a field that does not map to any column (typically a typo'd column
+            // name in the contributor's .Set(...)). Silently ignoring it would drop data — the
+            // exact class of silent failure this whole pipeline exists to prevent.
+            foreach (string key in fields.Keys)
+            {
+                if (!columnNames.Contains(key))
+                {
+                    return FalkForge.Result<Unit>.Failure(
+                        ErrorKind.CompilationError,
+                        $"Contributed table '{tableId.Value}' row {r} sets field '{key}', which does not match any " +
+                        "column of the table. Check the contributor's column names.");
+                }
+            }
+
             ImmutableArray<CellValue>.Builder cells = ImmutableArray.CreateBuilder<CellValue>(columns.Length);
 
             for (int col = 0; col < columns.Length; col++)
@@ -303,7 +323,16 @@ internal static class ExtensionTableEmitter
                 switch (column.Type)
                 {
                     case ColumnType.Integer:
-                        cells.Add(new CellValue.IntValue(Convert.ToInt32(raw, CultureInfo.InvariantCulture)));
+                        // 'present' guarantees raw is non-null here.
+                        if (!TryConvertInt(raw!, out int intValue))
+                        {
+                            return FalkForge.Result<Unit>.Failure(
+                                ErrorKind.CompilationError,
+                                $"Contributed table '{tableId.Value}' row {r} column '{column.Name}' value " +
+                                $"'{raw}' is not a valid 32-bit integer.");
+                        }
+
+                        cells.Add(new CellValue.IntValue(intValue));
                         break;
 
                     case ColumnType.Binary:
@@ -394,4 +423,31 @@ internal static class ExtensionTableEmitter
 
     private static bool IsValidIdentifier(string? name)
         => !string.IsNullOrWhiteSpace(name) && SafeIdentifierPattern.IsMatch(name);
+
+    /// <summary>
+    /// Converts a contributed integer-column value without throwing: exceptions would escape the
+    /// <see cref="FalkForge.Result{T}"/> convention the rest of the emitter follows. Accepts the
+    /// common contributor value shapes (int, bool, short/long in range) and a numeric string.
+    /// </summary>
+    private static bool TryConvertInt(object raw, out int value)
+    {
+        switch (raw)
+        {
+            case int i:
+                value = i;
+                return true;
+            case bool b:
+                value = b ? 1 : 0;
+                return true;
+            case short s:
+                value = s;
+                return true;
+            case long l when l is >= int.MinValue and <= int.MaxValue:
+                value = (int)l;
+                return true;
+            default:
+                return int.TryParse(
+                    raw.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        }
+    }
 }

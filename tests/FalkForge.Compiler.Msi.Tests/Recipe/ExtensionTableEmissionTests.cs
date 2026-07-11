@@ -117,6 +117,47 @@ public sealed class ExtensionTableEmissionTests
         Assert.Same(compiler, compiler.Use(extension));
     }
 
+    [Fact]
+    public void ContributorRow_WithUnknownField_FailsLoud()
+    {
+        using var scratch = new Scratch();
+
+        var writeColumns = new ContributedColumn[] { ContributedColumn.Key("Id") };
+        // "Bogus" is a typo — it maps to no column and must not be silently dropped.
+        var row = new MsiTableRow().Set("Id", "A").Set("Bogus", "lost");
+        var extension = new FakeExtension("Fake.UnknownField",
+            new FakeTableContributor("TypoTable", writeColumns, row));
+
+        var result = new MsiCompiler(new WindowsFileSystem()).Use(extension)
+            .Compile(MinimalPackage(scratch, "UnknownFieldApp"), scratch.OutputDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+        Assert.Contains("Bogus", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ContributorRow_WithNonNumericIntegerValue_FailsLoud()
+    {
+        using var scratch = new Scratch();
+
+        var writeColumns = new ContributedColumn[]
+        {
+            ContributedColumn.Key("Id"),
+            ContributedColumn.Int("Count"),
+        };
+        var row = new MsiTableRow().Set("Id", "A").Set("Count", "not-a-number");
+        var extension = new FakeExtension("Fake.BadInt",
+            new FakeTableContributor("BadIntTable", writeColumns, row));
+
+        var result = new MsiCompiler(new WindowsFileSystem()).Use(extension)
+            .Compile(MinimalPackage(scratch, "BadIntApp"), scratch.OutputDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+        Assert.Contains("Count", result.Error.Message, StringComparison.Ordinal);
+    }
+
     private static PackageModel MinimalPackage(Scratch scratch, string name)
     {
         var sourceFile = Path.Combine(scratch.SourceDir, "app.exe");

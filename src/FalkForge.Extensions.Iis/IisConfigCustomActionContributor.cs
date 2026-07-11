@@ -30,7 +30,8 @@ internal sealed class IisConfigCustomActionContributor(Func<bool> hasConfigurati
                 .Set("Action", "FalkForgeConfigureIis")
                 .Set("Type", 51) // property assignment — inert unless scheduled, and it is not scheduled
                 .Set("Source", "FALKFORGE_IIS_CONFIGURE")
-                .Set("Target", "1"),
+                .Set("Target", "1")
+                .Set("ExtendedType", 0), // parity with CustomActionTableProducer (writes 0, not NULL)
         ];
     }
 }
