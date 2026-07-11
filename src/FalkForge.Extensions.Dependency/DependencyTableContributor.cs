@@ -22,11 +22,26 @@ public sealed class DependencyTableContributor : IMsiTableContributor
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>();
-        var defaultComponent = ResolveDefaultComponent(context);
+
+        // Resolved lazily: only touched when a provider/consumer omits ComponentRef. Resolving it
+        // eagerly would throw for a zero-file package even when every row already carries an
+        // explicit ComponentRef and never needs the fallback.
+        string? defaultComponent = null;
+        var defaultComponentResolved = false;
+        string ResolveDefault()
+        {
+            if (!defaultComponentResolved)
+            {
+                defaultComponent = ResolveDefaultComponent(context);
+                defaultComponentResolved = true;
+            }
+
+            return defaultComponent!;
+        }
 
         foreach (var provider in _providers)
         {
-            var component = provider.ComponentRef ?? defaultComponent;
+            var component = provider.ComponentRef ?? ResolveDefault();
             var basePath = @$"SOFTWARE\Classes\Installer\Dependencies\{provider.Key}";
 
             rows.Add(new MsiTableRow()
@@ -57,7 +72,7 @@ public sealed class DependencyTableContributor : IMsiTableContributor
 
         foreach (var consumer in _consumers)
         {
-            var component = consumer.ComponentRef ?? defaultComponent;
+            var component = consumer.ComponentRef ?? ResolveDefault();
             var keyPath =
                 @$"SOFTWARE\Classes\Installer\Dependencies\{consumer.ProviderKey}\Dependents\{consumer.ConsumerKey}";
 

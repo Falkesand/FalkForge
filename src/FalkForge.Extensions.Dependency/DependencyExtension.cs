@@ -17,8 +17,29 @@ public sealed class DependencyExtension : IFalkForgeExtension, IDryRunContributo
 
     public void Register(IExtensionRegistry registry)
     {
+        ArgumentNullException.ThrowIfNull(registry);
+
         var contributor = new DependencyTableContributor(_providers, _consumers);
         registry.RegisterTableContributor(contributor);
+
+        // Blocking, install-time enforcement of version-range consumer requirements. This is an
+        // immediate, non-elevated CHECK, not a resource-creating action, so it is NOT routed
+        // through the deferred execution seam (Firewall/Sql/Iis/Http). It reads the provider's
+        // registered version via AppSearch/RegLocator, then an immediate JScript custom action
+        // performs a REAL component-wise version comparison (MSI condition operators only compare
+        // lexicographically) and a Type 19 action aborts with a message before InstallInitialize.
+        // The plan is computed once and shared across all contributors. See
+        // DependencyVersionCheckPlanner for the design rationale.
+        var checks = DependencyVersionCheckPlanner.Plan(_consumers);
+        if (checks.Count == 0)
+            return;
+
+        registry.RegisterTableContributor(new DependencyRegLocatorContributor(checks));
+        registry.RegisterTableContributor(new DependencyAppSearchContributor(checks));
+        registry.RegisterTableContributor(new DependencyBinaryContributor(checks));
+        registry.RegisterTableContributor(new DependencyCustomActionContributor(checks));
+        registry.RegisterTableContributor(new DependencySequenceContributor("InstallExecuteSequence", checks));
+        registry.RegisterTableContributor(new DependencySequenceContributor("InstallUISequence", checks));
     }
 
     public void Provides(string key, Action<DependencyProviderBuilder> configure)

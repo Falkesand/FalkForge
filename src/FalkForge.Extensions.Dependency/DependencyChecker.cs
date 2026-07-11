@@ -47,7 +47,14 @@ public static class DependencyChecker
         return unsatisfied;
     }
 
-    private static VersionRange BuildRange(DependencyConsumerModel consumer)
+    /// <summary>
+    ///     Builds the effective <see cref="VersionRange"/> for a consumer's version constraint.
+    ///     An unparseable <see cref="DependencyConsumerModel.MinVersion"/>/<see cref="DependencyConsumerModel.MaxVersion"/>
+    ///     is treated as "no bound", matching <see cref="Check"/>'s own tolerance. Internal so the
+    ///     compile-time MSI enforcement (<c>DependencyVersionCheckPlanner</c>) can reuse the exact
+    ///     same range semantics instead of re-deriving them.
+    /// </summary>
+    internal static VersionRange BuildRange(DependencyConsumerModel consumer)
     {
         var min = consumer.MinVersion is not null && Version.TryParse(consumer.MinVersion, out var parsedMin)
             ? parsedMin

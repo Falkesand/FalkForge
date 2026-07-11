@@ -149,6 +149,34 @@ public sealed class DependencyTableContributorTests
     }
 
     [Fact]
+    public void GetRows_NoFiles_AllRowsHaveExplicitComponentRef_DoesNotThrow()
+    {
+        // The default-component fallback must be resolved lazily: when every provider and
+        // consumer already carries an explicit ComponentRef, there is nothing to fall back to
+        // for, so a package with zero files (default component unresolvable) must still succeed.
+        var providers = new List<DependencyProviderModel>
+        {
+            new() { Key = "MyApp", Version = "1.0.0", ComponentRef = "ProviderComponent" }
+        };
+        var consumers = new List<DependencyConsumerModel>
+        {
+            new() { ProviderKey = "Lib", ConsumerKey = "MyApp", ComponentRef = "ConsumerComponent" }
+        };
+        var package = new PackageModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = new Version(1, 0, 0)
+        };
+        var sut = new DependencyTableContributor(providers, consumers);
+
+        var rows = sut.GetRows(CreateContext(package));
+
+        Assert.Equal("ProviderComponent", rows[0].Get("Component_"));
+        Assert.Equal("ConsumerComponent", rows[2].Get("Component_"));
+    }
+
+    [Fact]
     public void GetRows_NoFilesNoComponentRef_ThrowsInvalidOperationException()
     {
         var providers = new List<DependencyProviderModel>
