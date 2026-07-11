@@ -42,7 +42,8 @@ public static class MsiRecipeBuilder
         MsiRecipeBuildOptions options,
         IReadOnlyList<IMultiTableProducer> multiProducers,
         ExtensionContext? extensionContext = null,
-        IFalkLogger? logger = null)
+        IFalkLogger? logger = null,
+        IReadOnlyList<IExecutionContributor>? executionContributors = null)
     {
         if (multiProducers is null)
         {
@@ -51,7 +52,7 @@ public static class MsiRecipeBuilder
                 "Multi-table producers list cannot be null.");
         }
 
-        return BuildCore(resolved, contributors, options, multiProducers, extensionContext, logger);
+        return BuildCore(resolved, contributors, options, multiProducers, extensionContext, logger, executionContributors);
     }
 
     /// <summary>
@@ -72,7 +73,8 @@ public static class MsiRecipeBuilder
         MsiRecipeBuildOptions options,
         IReadOnlyList<IMultiTableProducer> multiProducers,
         ExtensionContext? extensionContext,
-        IFalkLogger? logger)
+        IFalkLogger? logger,
+        IReadOnlyList<IExecutionContributor>? executionContributors = null)
     {
         if (resolved is null)
         {
@@ -217,17 +219,55 @@ public static class MsiRecipeBuilder
         // byte-identical recipe/legacy parity for extension-less packages.
         ImmutableArray<RecipeTable> builtInTables = tableBuilder.ToImmutable();
         ImmutableArray<RecipeTable> extensionCustomTables = ImmutableArray<RecipeTable>.Empty;
-        if (contributors.Count > 0)
-        {
-            ExtensionContext emitContext = extensionContext ?? new ExtensionContext
-            {
-                Package = resolved.Package,
-                OutputDirectory = string.Empty,
-                SourceDirectory = string.Empty,
-            };
 
+        ExtensionContext emitContext = extensionContext ?? new ExtensionContext
+        {
+            Package = resolved.Package,
+            OutputDirectory = string.Empty,
+            SourceDirectory = string.Empty,
+        };
+
+        // Phase 5a.4: translate extension-contributed execution steps into synthetic CustomAction +
+        // InstallExecuteSequence contributors. This is what makes extension work actually RUN at
+        // install time (deferred, elevated custom actions) rather than only landing as inert table
+        // data. Steps from every contributor are gathered in registration order so ExecutionStepEmitter
+        // allocates sequence numbers from a single deterministic pool — multiple execution-contributing
+        // extensions in one package cannot collide. The synthetic contributors merge into the built-in
+        // CustomAction / InstallExecuteSequence tables through the same path as any other contributor.
+        IReadOnlyList<IMsiTableContributor> effectiveContributors = contributors;
+        if (executionContributors is { Count: > 0 })
+        {
+            var steps = new List<ExecutionStep>();
+            foreach (IExecutionContributor executionContributor in executionContributors)
+            {
+                IReadOnlyList<ExecutionStep> contributed = executionContributor.GetExecutionSteps(emitContext);
+                if (contributed is { Count: > 0 })
+                    steps.AddRange(contributed);
+            }
+
+            if (steps.Count > 0)
+            {
+                Result<ImmutableArray<IMsiTableContributor>> execResult =
+                    ExecutionStepEmitter.BuildContributors(steps);
+                if (execResult.IsFailure)
+                {
+                    logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
+                        $"Execution step emission failed: {execResult.Error.Message}",
+                        new Dictionary<string, string> { ["code"] = execResult.Error.Kind.ToString() });
+                    return Result<MsiDatabaseRecipe>.Failure(execResult.Error);
+                }
+
+                var merged = new List<IMsiTableContributor>(contributors.Count + execResult.Value.Length);
+                merged.AddRange(contributors);
+                merged.AddRange(execResult.Value);
+                effectiveContributors = merged;
+            }
+        }
+
+        if (effectiveContributors.Count > 0)
+        {
             Result<ExtensionTableEmitter.EmissionOutcome> emitResult = ExtensionTableEmitter.Emit(
-                contributors, builtInTables, emitContext, context.Streams, logger);
+                effectiveContributors, builtInTables, emitContext, context.Streams, logger);
             if (emitResult.IsFailure)
             {
                 logger?.Log(LogLevel.Error, "MsiRecipeBuilder",

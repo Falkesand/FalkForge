@@ -200,7 +200,8 @@ public static class MsiAuthoring
             options: new MsiRecipeBuildOptions(),
             multiProducers: [new CustomTablesProducer(), new DialogSetProducer()],
             extensionContext: extensionContext,
-            logger: logger);
+            logger: logger,
+            executionContributors: extensionRegistry.ExecutionContributors);
         if (recipeResult.IsFailure)
         {
             logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 4: recipe build failed: {recipeResult.Error.Message}",
@@ -513,6 +514,8 @@ public static class MsiAuthoring
 
         public List<IComponentContributor> ComponentContributors { get; } = [];
 
+        public List<IExecutionContributor> ExecutionContributors { get; } = [];
+
         public void RegisterDialogStep(IDialogStepBuilder builder)
             => DialogStepBuilders.Add(builder);
 
@@ -521,6 +524,9 @@ public static class MsiAuthoring
 
         public void RegisterComponentContributor(IComponentContributor contributor)
             => ComponentContributors.Add(contributor);
+
+        public void RegisterExecutionContributor(IExecutionContributor contributor)
+            => ExecutionContributors.Add(contributor);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
     }

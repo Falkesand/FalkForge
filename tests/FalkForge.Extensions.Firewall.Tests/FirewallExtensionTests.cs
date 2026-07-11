@@ -29,6 +29,17 @@ public sealed class FirewallExtensionTests
     }
 
     [Fact]
+    public void Register_RegistersExecutionContributor()
+    {
+        var extension = new FirewallExtension();
+        var registry = new TestExtensionRegistry();
+
+        extension.Register(registry);
+
+        Assert.Single(registry.ExecutionContributors);
+    }
+
+    [Fact]
     public void Register_TableContributor_HasCorrectTableName()
     {
         var extension = new FirewallExtension();
@@ -95,12 +106,16 @@ public sealed class FirewallExtensionTests
     {
         public List<IMsiTableContributor> TableContributors { get; } = [];
         public List<IComponentContributor> ComponentContributors { get; } = [];
+        public List<IExecutionContributor> ExecutionContributors { get; } = [];
 
         public void RegisterTableContributor(IMsiTableContributor contributor) =>
             TableContributors.Add(contributor);
 
         public void RegisterComponentContributor(IComponentContributor contributor) =>
             ComponentContributors.Add(contributor);
+
+        public void RegisterExecutionContributor(IExecutionContributor contributor) =>
+            ExecutionContributors.Add(contributor);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
         public void RegisterDialogStep(IDialogStepBuilder builder) { }
