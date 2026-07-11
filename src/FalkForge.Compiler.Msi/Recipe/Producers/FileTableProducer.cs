@@ -10,8 +10,10 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// Phase-4 scope: real cabinet-driven sequencing strategies arrive in later
 /// phases via <see cref="MsiRecipeBuildOptions.Sequencing"/>; for now the
 /// producer uses ordinal index. Version/Language are emitted as null since
-/// <see cref="ResolvedFile"/> exposes neither today; Attributes is set to
-/// 512 (msidbFileAttributesVital) to match the legacy emitter.
+/// <see cref="ResolvedFile"/> exposes neither today; Attributes carries
+/// 512 (msidbFileAttributesVital) only when <see cref="ResolvedFile.Vital"/>
+/// is true (the default, matching the legacy emitter) — a non-vital file
+/// lets a copy failure be skipped instead of aborting the install.
 /// The FileName column uses the MSI short|long format when the name requires
 /// 8.3 truncation — identical to the encoding in
 /// <see cref="TableEmitter.EmitFiles"/> so both pipelines produce the same
@@ -50,7 +52,7 @@ internal sealed class FileTableProducer : ITableProducer
                 new CellValue.IntValue(checked((int)file.FileSize)),
                 new CellValue.Null(),
                 new CellValue.Null(),
-                new CellValue.IntValue(FileAttributesVital),
+                new CellValue.IntValue(file.Vital ? FileAttributesVital : 0),
                 new CellValue.IntValue(sequence));
             rows.Add(new RecipeRow { Cells = cells });
             sequence++;

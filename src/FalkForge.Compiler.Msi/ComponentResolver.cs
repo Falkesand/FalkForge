@@ -53,7 +53,8 @@ public sealed class ComponentResolver
                         FileName = fileName,
                         FileSize = _fileSystem.GetFileSize(filePath),
                         ComponentId = componentId,
-                        FileId = GenerateFileId(sanitizedFileName, componentId)
+                        FileId = GenerateFileId(sanitizedFileName, componentId),
+                        Vital = file.Vital
                     };
 
                     fileEntries.Add(resolvedFile);
@@ -88,7 +89,8 @@ public sealed class ComponentResolver
                     FileName = file.FileName,
                     FileSize = _fileSystem.FileExists(fullPath) ? _fileSystem.GetFileSize(fullPath) : 0,
                     ComponentId = componentId,
-                    FileId = GenerateFileId(sanitizedFileName, componentId)
+                    FileId = GenerateFileId(sanitizedFileName, componentId),
+                    Vital = file.Vital
                 };
 
                 fileEntries.Add(resolvedFile);

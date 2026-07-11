@@ -8,6 +8,7 @@ public sealed class FileSetBuilder
     private string? _componentCondition;
     private bool _neverOverwrite;
     private bool _permanent;
+    private bool _vital = true;
     private InstallPath? _targetDirectory;
 
     public FileSetBuilder FromDirectory(string sourcePath)
@@ -40,6 +41,16 @@ public sealed class FileSetBuilder
         return this;
     }
 
+    /// <summary>
+    /// Marks every file in this set as non-vital: a copy failure during install is skipped
+    /// instead of aborting the install. Files are vital by default.
+    /// </summary>
+    public FileSetBuilder NotVital()
+    {
+        _vital = false;
+        return this;
+    }
+
     public FileSetBuilder ComponentCondition(string condition)
     {
         _componentCondition = condition;
@@ -65,6 +76,7 @@ public sealed class FileSetBuilder
                     IsKeyPath = files.Count == 0,
                     NeverOverwrite = _neverOverwrite,
                     Permanent = _permanent,
+                    Vital = _vital,
                     ComponentCondition = _componentCondition
                 });
             else
@@ -76,6 +88,7 @@ public sealed class FileSetBuilder
                     IsKeyPath = files.Count == 0,
                     NeverOverwrite = _neverOverwrite,
                     Permanent = _permanent,
+                    Vital = _vital,
                     ComponentCondition = _componentCondition
                 });
 
