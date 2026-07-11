@@ -28,11 +28,15 @@ public class MutualAuthHandshakeTests
 
     // A hand-rolled server that speaks the mutual handshake wire protocol with a chosen (possibly
     // malicious) strategy, then attempts to push an ElevateExecuteMessage{MsiInstall} attack payload.
+    // When <paramref name="holdOpen"/> is provided the server keeps its pipe end open until that
+    // task completes, so a test can assert on the client's connected state without racing the
+    // server's disposal (dispose breaks the client pipe and flips PipeClient.IsConnected to false).
     private static async Task RunRawServerAsync(
         string pipeName,
         byte[] clientSecret,
         ServerBehavior behavior,
-        CancellationToken ct)
+        CancellationToken ct,
+        Task? holdOpen = null)
     {
         await using var server = new NamedPipeServerStream(
             pipeName,
@@ -101,6 +105,11 @@ public class MutualAuthHandshakeTests
         {
             // Expected: a secure client closes the pipe after rejecting the handshake.
         }
+
+        // Keep the server's pipe end open until the test has finished asserting; returning here
+        // disposes the pipe (await using), which would asynchronously break the client's pipe.
+        if (holdOpen is not null)
+            await holdOpen.WaitAsync(ct);
     }
 
     private static async Task ReadExactAsync(Stream stream, byte[] buffer, CancellationToken ct)
@@ -239,7 +248,12 @@ public class MutualAuthHandshakeTests
         var secret = RandomNumberGenerator.GetBytes(32);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        var serverTask = RunRawServerAsync(pipeName, secret, ServerBehavior.Honest, cts.Token);
+        // Hold the server's pipe end open until the assertions below have run: if the server
+        // returned (and disposed its pipe) first, the client's receive loop would observe the
+        // broken pipe and flip IsConnected to false before the assertion — a scheduling race
+        // that flaked under full-suite load.
+        var assertionsDone = new TaskCompletionSource();
+        var serverTask = RunRawServerAsync(pipeName, secret, ServerBehavior.Honest, cts.Token, assertionsDone.Task);
 
         var options = new PipeConnectionOptions
         {
@@ -251,8 +265,16 @@ public class MutualAuthHandshakeTests
 
         var result = await client.ConnectAsync(cts.Token);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(client.IsConnected);
+        try
+        {
+            Assert.True(result.IsSuccess);
+            Assert.True(client.IsConnected);
+        }
+        finally
+        {
+            // Release the server even when an assertion throws, so its task never leaks.
+            assertionsDone.SetResult();
+        }
 
         try { await serverTask; } catch (Exception ex) when (ex is IOException or EndOfStreamException or OperationCanceledException) { }
     }
