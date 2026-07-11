@@ -17,5 +17,6 @@
     </ItemGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="FalkForge.Compiler.Bundle.Tests" />
+        <InternalsVisibleTo Include="FalkForge.Integration.Tests" />
     </ItemGroup>
 </Project>

@@ -155,9 +155,19 @@ File.WriteAllText(OutputFile, sb.ToString(), new UTF8Encoding(false));
 
     <Message Importance="high" Text="FalkForge: Generating $(FalkOutputType) installer..." />
 
+    <!-- Belt-and-braces beside the copy-to-output probe: the FalkForge.Engine.Runtime.win-x64
+         package sets FalkForgeEngineDir (its props file); surfacing it as FALKFORGE_ENGINE_STUB
+         makes the embedded-engine resolution explicit even when the package's copy-to-output
+         items are disabled. Empty when the runtime package is not referenced — then the bundle
+         compiler's usual resolution order applies unchanged. -->
+    <PropertyGroup>
+      <_FalkForgeExecEnvironment Condition="'$(FalkForgeEngineDir)' != ''">FALKFORGE_ENGINE_STUB=$(FalkForgeEngineDir)</_FalkForgeExecEnvironment>
+    </PropertyGroup>
+
     <!-- Execute the compiled installer project to generate the MSI/Bundle -->
     <Exec Command="dotnet exec &quot;$(_FalkForgeAssembly)&quot; --forge-build --output-dir &quot;$(FalkOutputDirectory)&quot; --output-type $(FalkOutputType) --compression $(FalkCompressionLevel) --platform $(FalkPlatform)"
           Condition="'$(FalkOutputType)' == 'Msi' or '$(FalkOutputType)' == 'Bundle'"
+          EnvironmentVariables="$(_FalkForgeExecEnvironment)"
           ConsoleToMsBuild="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="_FalkBuildOutput" />
     </Exec>
