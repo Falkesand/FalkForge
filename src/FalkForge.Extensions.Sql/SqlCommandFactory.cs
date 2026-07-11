@@ -48,6 +48,25 @@ internal static class SqlCommandFactory
         IReadOnlyList<SqlDatabaseModel> databases,
         IReadOnlyList<SqlScriptModel> scripts,
         IReadOnlyList<SqlStringModel> strings)
+        => BuildPlan(databases, scripts, strings).Steps;
+
+    /// <summary>
+    /// The names of every MSI property that carries a SQL password at run time — the secure source
+    /// property (<see cref="SqlDatabaseModel.PasswordProperty"/>) plus each deferred install action's
+    /// CustomActionData property (named after the action), which the type-51 <c>SetProperty</c> populates
+    /// with the resolved password. The SQL extension lists these in <c>MsiHiddenProperties</c> so their
+    /// values are scrubbed from a verbose MSI log — the author duty documented on <see cref="ExecutionStep"/>.
+    /// </summary>
+    internal static IReadOnlyList<string> CollectHiddenPropertyNames(
+        IReadOnlyList<SqlDatabaseModel> databases,
+        IReadOnlyList<SqlScriptModel> scripts,
+        IReadOnlyList<SqlStringModel> strings)
+        => BuildPlan(databases, scripts, strings).HiddenPropertyNames;
+
+    private static SqlExecutionPlan BuildPlan(
+        IReadOnlyList<SqlDatabaseModel> databases,
+        IReadOnlyList<SqlScriptModel> scripts,
+        IReadOnlyList<SqlStringModel> strings)
     {
         // Only databases with a Server are executable (ConnectionString-only databases may carry a runtime
         // property token and are out of scope for execution — they remain inspectable table data).
@@ -59,12 +78,17 @@ internal static class SqlCommandFactory
         }
 
         var steps = new List<ExecutionStep>();
+        var hidden = new HashSet<string>(StringComparer.Ordinal);
 
         // (1) Create databases first so scripts/strings can run against them.
         foreach (SqlDatabaseModel db in databases)
         {
             if (db.CreateOnInstall && executable.ContainsKey(db.Id))
-                steps.Add(BuildCreateStep(db));
+            {
+                ExecutionStep step = BuildCreateStep(db);
+                steps.Add(step);
+                RecordSecret(hidden, step, db);
+            }
         }
 
         // Normalise scripts + strings into a common, sequence-ordered work list.
@@ -74,20 +98,40 @@ internal static class SqlCommandFactory
         //     uninstall carries an inline uninstall command whose uninstall-band sequence — driven by this
         //     early list position — lands before the drop-database steps appended last.
         foreach (SqlWorkItem item in work.Where(w => w.ExecuteOnInstall))
-            steps.Add(BuildScriptStep(item, includeInstall: true));
+        {
+            ExecutionStep step = BuildScriptStep(item, includeInstall: true);
+            steps.Add(step);
+            RecordSecret(hidden, step, item.Database);
+        }
 
-        // (3) Uninstall-only script/string execution.
+        // (3) Uninstall-only script/string execution (integrated auth — no secret channel).
         foreach (SqlWorkItem item in work.Where(w => !w.ExecuteOnInstall && w.ExecuteOnUninstall))
             steps.Add(BuildScriptStep(item, includeInstall: false));
 
         // (4) Drop databases LAST so, on uninstall, they are removed after every uninstall script has run.
+        //     Drop uses integrated auth (the secure channel is install-only), so it carries no secret.
         foreach (SqlDatabaseModel db in databases)
         {
             if (db.DropOnUninstall && executable.ContainsKey(db.Id))
                 steps.Add(BuildDropStep(db));
         }
 
-        return steps;
+        return new SqlExecutionPlan(steps, hidden.OrderBy(n => n, StringComparer.Ordinal).ToList());
+    }
+
+    /// <summary>
+    /// When a step's install action carries a password (its CustomActionData holds the secret), record the
+    /// action's own property name — and the secure source property, if any — so both are scrubbed from
+    /// logs via MsiHiddenProperties.
+    /// </summary>
+    private static void RecordSecret(HashSet<string> hidden, ExecutionStep step, SqlDatabaseModel db)
+    {
+        if (string.IsNullOrEmpty(db.PasswordProperty) && string.IsNullOrEmpty(db.Password))
+            return; // integrated auth → the CustomActionData (if any) carries no secret.
+
+        hidden.Add(step.Id); // the deferred action's CustomActionData property holds the resolved password.
+        if (!string.IsNullOrEmpty(db.PasswordProperty))
+            hidden.Add(db.PasswordProperty!); // the secure source property populated via SetSecureProperty.
     }
 
     // ── database create / drop ──────────────────────────────────────────────
@@ -240,9 +284,11 @@ internal static class SqlCommandFactory
         sb.Append("    }\n");
         sb.Append("  } finally { $conn.Close(); $conn.Dispose() }\n");
         sb.Append("  exit 0\n");
-        // continueOnError only tolerates per-batch errors; a connection failure still fails the action
-        // (unless tolerant), so authors learn their server was unreachable rather than a silent success.
-        sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit ").Append(continueOnError ? "0" : "1").Append(" }\n");
+        // ContinueOnError tolerates per-batch SQL errors ONLY (handled inside the loop above). The outer
+        // catch fires for connection-open / decode failures, which are ALWAYS fatal — otherwise a
+        // misconfigured or unreachable server would report install success while nothing ran (a silent
+        // fail). So the outer catch always exits non-zero regardless of ContinueOnError.
+        sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
         return sb.ToString();
     }
 
@@ -382,6 +428,10 @@ internal static class SqlCommandFactory
         // onInstall only → emitter default ("NOT Installed"); when neither, the caller gates it off ("0").
         return onInstall ? null : "0";
     }
+
+    private sealed record SqlExecutionPlan(
+        IReadOnlyList<ExecutionStep> Steps,
+        IReadOnlyList<string> HiddenPropertyNames);
 
     private sealed record SqlWorkItem(
         string StepPrefix,

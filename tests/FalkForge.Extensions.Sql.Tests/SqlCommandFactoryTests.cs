@@ -168,10 +168,36 @@ public sealed class SqlCommandFactoryTests
 
         var steps = SqlCommandFactory.BuildSteps([db], [withCont, without], []);
 
-        // ContinueOnError wraps each batch in try/catch and never fails the action.
-        Assert.Contains("try { [void]$cmd.ExecuteNonQuery() } catch", Decode(Single(steps, "SqlScr_A").InstallCommand), StringComparison.Ordinal);
+        string withContScript = Decode(Single(steps, "SqlScr_A").InstallCommand);
+        // ContinueOnError wraps each batch in try/catch and never fails on a per-batch SQL error.
+        Assert.Contains("try { [void]$cmd.ExecuteNonQuery() } catch", withContScript, StringComparison.Ordinal);
+        // But a connection-open/decode failure (outer catch) is STILL fatal even with ContinueOnError —
+        // otherwise an unreachable server would report install success while nothing ran.
+        Assert.Contains("catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }", withContScript, StringComparison.Ordinal);
         // Without it, a batch failure propagates and fails the deferred action (exit 1).
         Assert.Contains("exit 1", Decode(Single(steps, "SqlScr_B").InstallCommand), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CollectHiddenPropertyNames_ForSqlAuth_IncludesSourceAndActionProperties()
+    {
+        var db = Db("Db", createOnInstall: true, user: "appLogin", passwordProperty: "SQLPASSWORD");
+        var str = new SqlStringModel { Id = "Seed", DatabaseRef = "Db", Sql = "SELECT 1", ExecuteOnInstall = true };
+
+        var hidden = SqlCommandFactory.CollectHiddenPropertyNames([db], [], [str]);
+
+        Assert.Contains("SQLPASSWORD", hidden);        // secure source property
+        Assert.Contains("SqlDb_Db", hidden);           // create action's CustomActionData property
+        Assert.Contains("SqlStr_Seed", hidden);        // string action's CustomActionData property
+    }
+
+    [Fact]
+    public void CollectHiddenPropertyNames_ForIntegratedAuth_IsEmpty()
+    {
+        var db = Db("Db", createOnInstall: true);
+        var str = new SqlStringModel { Id = "Seed", DatabaseRef = "Db", Sql = "SELECT 1", ExecuteOnInstall = true };
+
+        Assert.Empty(SqlCommandFactory.CollectHiddenPropertyNames([db], [], [str]));
     }
 
     [Fact]

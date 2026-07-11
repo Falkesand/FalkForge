@@ -22,14 +22,16 @@ public sealed class SqlExtensionTests
     }
 
     [Fact]
-    public void Register_RegistersThreeTableContributors()
+    public void Register_RegistersTableContributors_ThreeDataTablesPlusHiddenProperties()
     {
         var extension = new SqlExtension();
         var registry = new TestExtensionRegistry();
 
         extension.Register(registry);
 
-        Assert.Equal(3, registry.TableContributors.Count);
+        // SqlDatabase, SqlScript, SqlString + the MsiHiddenProperties contributor that scrubs SQL passwords.
+        Assert.Equal(4, registry.TableContributors.Count);
+        Assert.IsType<SqlHiddenPropertiesContributor>(registry.TableContributors[3]);
     }
 
     [Fact]

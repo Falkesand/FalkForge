@@ -91,6 +91,53 @@ public sealed class SqlExecutionEmissionTests
         // Nowhere in the compiled MSI is there a plaintext password — only the runtime property token.
         foreach (var (_, value) in AllCustomActionTargets(db))
             Assert.DoesNotContain("Password=", value, StringComparison.OrdinalIgnoreCase);
+
+        // The secret-carrying properties (source + deferred action) are listed in MsiHiddenProperties so a
+        // verbose msiexec /L*v install does not log the resolved password.
+        var hidden = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property`='MsiHiddenProperties'", 1);
+        Assert.True(hidden.IsSuccess, hidden.IsFailure ? hidden.Error.Message : "");
+        string hiddenList = Assert.Single(hidden.Value)[0] ?? "";
+        Assert.Contains("SQLPASSWORD", hiddenList, StringComparison.Ordinal);
+        Assert.Contains("SqlDb_AppDb", hiddenList, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IntegratedAuth_EmitsNoMsiHiddenPropertiesRow()
+    {
+        using var scratch = new Scratch();
+
+        var sql = new SqlExtension();
+        var dbRef = sql.DefineDatabase(db => db.Id("AppDb").Server(".").Database("FalkForgeExecDemo").CreateOnInstall());
+        Assert.True(dbRef.IsSuccess, dbRef.IsFailure ? dbRef.Error.Message : "");
+
+        using var db = Compile(scratch, "SqlExecIntegratedApp", sql);
+
+        var hidden = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property`='MsiHiddenProperties'", 1);
+        Assert.True(hidden.IsSuccess, hidden.IsFailure ? hidden.Error.Message : "");
+        Assert.Empty(hidden.Value); // integrated auth carries no secret → no row
+    }
+
+    [Fact]
+    public void UninstallScript_RunsBeforeDatabaseDrop_InCompiledSequence()
+    {
+        using var scratch = new Scratch();
+
+        var sql = new SqlExtension();
+        var dbRef = sql.DefineDatabase(db => db
+            .Id("AppDb").Server(".").Database("FalkForgeExecDemo").CreateOnInstall().DropOnUninstall());
+        Assert.True(dbRef.IsSuccess, dbRef.IsFailure ? dbRef.Error.Message : "");
+
+        var cleanup = new SqlScriptBuilder()
+            .Id("Cleanup").Database(dbRef.Value).InlineSql("DELETE FROM dbo.Widgets").ExecuteOnUninstall().Build();
+        Assert.True(cleanup.IsSuccess, cleanup.IsFailure ? cleanup.Error.Message : "");
+        sql.Scripts.Add(cleanup.Value);
+
+        using var db = Compile(scratch, "SqlExecUninstallOrderApp", sql);
+        var sequence = QuerySequence(db);
+
+        // On uninstall the cleanup script must run BEFORE the database is dropped.
+        Assert.True(sequence["SqlScr_Cleanup_un"] < sequence["SqlDbDrop_AppDb_un"],
+            "uninstall cleanup script must be sequenced before the database drop");
     }
 
     [Fact]

@@ -377,4 +377,28 @@ public sealed class SqlValidatorTests
         Assert.True(result.IsFailure);
         Assert.Contains("SQL018", result.Error.Message);
     }
+
+    [Fact]
+    public void ValidateCredentials_UserWithoutPassword_ReturnsSQL021()
+    {
+        // A User with no password would silently connect as SYSTEM (integrated) — an escalation, not the
+        // scoped SQL login the author asked for.
+        var model = CreateDatabase(user: "appLogin");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL021", result.Error.Message);
+    }
+
+    [Fact]
+    public void ValidateCredentials_LiteralPasswordWithDoubleQuote_ReturnsSQL022()
+    {
+        var model = CreateDatabase(user: "u", password: "se\"cret");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL022", result.Error.Message);
+    }
 }

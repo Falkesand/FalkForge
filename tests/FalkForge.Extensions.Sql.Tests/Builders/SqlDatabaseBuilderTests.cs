@@ -177,6 +177,35 @@ public sealed class SqlDatabaseBuilderTests
     }
 
     [Fact]
+    public void Build_WithUserButNoPassword_ReturnsSQL021()
+    {
+        var result = new SqlDatabaseBuilder()
+            .Id("db13")
+            .Server("[SQL_SERVER]")
+            .Database("AppDb")
+            .User("appLogin")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL021", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_WithLiteralPasswordContainingDoubleQuote_ReturnsSQL022()
+    {
+        var result = new SqlDatabaseBuilder()
+            .Id("db14")
+            .Server("[SQL_SERVER]")
+            .Database("AppDb")
+            .User("appLogin")
+            .Password("se\"cret")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL022", result.Error.Message);
+    }
+
+    [Fact]
     public void Build_WithNoCredentials_IsIntegratedAuth()
     {
         var result = new SqlDatabaseBuilder()

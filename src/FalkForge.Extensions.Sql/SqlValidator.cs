@@ -90,21 +90,39 @@ public static class SqlValidator
 
         bool hasProperty = !string.IsNullOrEmpty(model.PasswordProperty);
         bool hasLiteral = !string.IsNullOrEmpty(model.Password);
+        bool hasUser = !string.IsNullOrWhiteSpace(model.User);
 
         if (hasProperty && hasLiteral)
             return Result<Unit>.Failure(ErrorKind.Validation,
                 "SQL016: Specify either PasswordProperty (secure, recommended) or Password (literal), not both.");
 
-        if ((hasProperty || hasLiteral) && string.IsNullOrWhiteSpace(model.User))
+        if ((hasProperty || hasLiteral) && !hasUser)
             return Result<Unit>.Failure(ErrorKind.Validation,
                 "SQL017: SQL authentication requires a User when a password is supplied. " +
                 "Omit the password for Windows integrated authentication.");
+
+        // The inverse of SQL017: a User with no password would silently connect with Windows integrated
+        // authentication as the deferred action's SYSTEM account — MORE privilege than the scoped SQL login
+        // the author asked for. Reject it rather than silently escalate.
+        if (hasUser && !hasProperty && !hasLiteral)
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL021: User is set without a password, which would silently connect with Windows " +
+                "integrated authentication (as SYSTEM). Supply PasswordProperty (recommended) or Password, " +
+                "or omit User for intended integrated authentication.");
 
         if (hasProperty && !PublicPropertyPattern.IsMatch(model.PasswordProperty!))
             return Result<Unit>.Failure(ErrorKind.Validation,
                 $"SQL018: PasswordProperty '{model.PasswordProperty}' must be a public MSI property " +
                 "(uppercase letters, digits and underscore, starting with a letter) so it can be supplied " +
                 "securely at run time.");
+
+        // A literal password's value IS known at compile time (unlike a runtime secure property), so the
+        // one break in the double-quoted CustomActionData CLI transport — a literal double quote — is
+        // preventable here rather than corrupting the connection attempt at install time.
+        if (hasLiteral && model.Password!.Contains('"', StringComparison.Ordinal))
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "SQL022: A literal Password must not contain a double-quote character (it would break the " +
+                "install-time command-line transport). Use PasswordProperty for an arbitrary secret.");
 
         return Unit.Value;
     }

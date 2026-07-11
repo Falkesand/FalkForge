@@ -86,6 +86,17 @@ public sealed class SqlDatabaseBuilder
     /// Supplies the SQL-authentication password securely via the named MSI property, populated at run time
     /// through <c>IInstallerEngine.SetSecureProperty</c>. The password is never stored in the MSI. This is
     /// the recommended path; mutually exclusive with <see cref="Password"/>.
+    /// <para>
+    /// <b>Runtime exposure (honest limitations).</b> The password reaches the deferred custom action as
+    /// <c>CustomActionData</c>. The SQL extension automatically adds the carrying properties to
+    /// <c>MsiHiddenProperties</c> so their values are redacted from a verbose MSI log. Two residual
+    /// exposures remain, inherent to running the work via <c>powershell.exe</c> (an EXE custom action): the
+    /// resolved value is passed as a process command-line argument, so it is briefly visible to a local
+    /// process listing while the action runs; and the property name must be a public (uppercase) MSI
+    /// property. The value must also not contain a double-quote character (the command-line transport is
+    /// double-quoted). For a secret that cannot meet these constraints, prefer Windows integrated
+    /// authentication.
+    /// </para>
     /// </summary>
     public SqlDatabaseBuilder PasswordProperty(string propertyName)
     {
