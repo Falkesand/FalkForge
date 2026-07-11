@@ -73,6 +73,47 @@ public sealed class TrustStateStoreTests
     }
 
     [Fact]
+    public void Advance_ReadBlockedByForeignLock_Aborts_DoesNotLowerEpochOrDropRevocations()
+    {
+        // Epoch-loss-under-lock on the read-modify-write path: Advance reads the store, merges, and
+        // writes with SEPARATE file handles. A foreign handle that BLOCKS reads but SHARES writes
+        // (FileAccess.Read + FileShare.Write — openable by any local process, since the store ACL
+        // grants Users read) is the dangerous shape: a tolerant read degrades to first-run (epoch 0,
+        // no revocations) while the subsequent write still lands, PERSISTING the loss — the stored
+        // epoch is lowered and previously recorded revocations are dropped. Advance must ABORT
+        // (return a failure, write nothing) when it cannot read the current state; the floor must
+        // survive intact.
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows-only: relies on mandatory file-sharing semantics to simulate a foreign lock.");
+            return;
+        }
+
+        var path = PreProvisionedStorePath();
+        try
+        {
+            Assert.True(TrustStateStore.Advance(path, epoch: 5, revoked: new[] { "AABB" }).IsSuccess);
+
+            Result<Unit> advance;
+            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Write))
+            {
+                advance = TrustStateStore.Advance(path, epoch: 1, revoked: new[] { "CCDD" });
+            }
+
+            Assert.True(advance.IsFailure,
+                "an advance whose read of the current state is blocked must abort, not write a merged-from-nothing state");
+
+            var state = TrustStateStore.Load(path);
+            Assert.Equal(5, state.Epoch);
+            Assert.Contains("AABB", state.RevokedFingerprints);
+        }
+        finally
+        {
+            TryCleanup(path);
+        }
+    }
+
+    [Fact]
     public void Advance_MergesRevocations_Union()
     {
         var path = PreProvisionedStorePath();
