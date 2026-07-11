@@ -41,10 +41,13 @@ namespace FalkForge.Compiler.Msi.Recipe;
 ///
 /// <para>
 /// Deferred actions use <c>Source = "TARGETDIR"</c> — always present in the Directory table and
-/// resolved after <c>CostFinalize</c> — so no extra Directory row is needed (the interpreter,
-/// <c>powershell.exe</c>/<c>netsh.exe</c>, is resolved from the machine <c>PATH</c> in the SYSTEM
-/// context). Sequence numbers are drawn from empty gaps of the standard sequence so appended rows
-/// never collide with a baseline action.
+/// resolved after <c>CostFinalize</c> — so no extra Directory row is needed. <b>Security note for
+/// contributors:</b> because the action's working directory is <c>TARGETDIR</c> (author-controlled),
+/// the command it runs must invoke its interpreter by a <i>fully-qualified</i> path (e.g.
+/// <c>[SystemFolder]WindowsPowerShell\v1.0\powershell.exe</c>), never a bare exe name — a bare name
+/// is resolved by <c>CreateProcess</c> relative to the working directory before <c>PATH</c>, so a
+/// planted binary could run as <c>SYSTEM</c>. Sequence numbers are drawn from empty gaps of the
+/// standard sequence so appended rows never collide with a baseline action.
 /// </para>
 /// </summary>
 internal static class ExecutionStepEmitter
@@ -201,6 +204,11 @@ internal static class ExecutionStepEmitter
         if (length.IsFailure)
             return Result<ImmutableArray<IMsiTableContributor>>.Failure(length.Error);
 
+        // Check capacity BEFORE consuming a slot so the last slot in the band (bandEnd) is usable and
+        // a failure never names a step it already scheduled.
+        if (seq > bandEnd)
+            return BandExhausted(step.Id, install);
+
         if (!actionNames.Add(actionName))
         {
             return Fail($"Execution step '{step.Id}' produces custom action name '{actionName}', which " +
@@ -210,8 +218,6 @@ internal static class ExecutionStepEmitter
 
         caRows.Add(CustomActionRow(actionName, type, source, command));
         seqRows.Add(SequenceRow(actionName, seq++, condition));
-        if (seq > bandEnd)
-            return BandExhausted(step.Id, install);
 
         return null;
     }

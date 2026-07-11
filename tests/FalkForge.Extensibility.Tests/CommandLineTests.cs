@@ -23,6 +23,18 @@ public sealed class CommandLineTests
         => Assert.Throws<ArgumentException>(() => CommandLine.PowerShellSingleQuote("a\0b"));
 
     [Theory]
+    [InlineData("‘")] // left single quote
+    [InlineData("’")] // right single quote
+    [InlineData("‚")] // single low-9 quote
+    [InlineData("‛")] // single high-reversed-9 quote
+    public void PowerShellSingleQuote_RejectsUnicodeSingleQuoteVariants(string quote)
+    {
+        // PowerShell's tokenizer also treats these as string delimiters, so a lone one could terminate
+        // the literal — the public API's injection-safety claim depends on rejecting them.
+        Assert.Throws<ArgumentException>(() => CommandLine.PowerShellSingleQuote($"a{quote}; calc; b"));
+    }
+
+    [Theory]
     [InlineData("no brackets", "no brackets")]
     [InlineData("[X]", "[\\[]X[\\]]")]
     [InlineData("a[b]c", "a[\\[]b[\\]]c")]

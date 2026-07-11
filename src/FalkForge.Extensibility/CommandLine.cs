@@ -15,17 +15,24 @@ public static class CommandLine
     /// embedded single quotes. Inside a single-quoted literal PowerShell performs no expansion and
     /// no sub-expression / command evaluation, so once a value is quoted this way it cannot break
     /// out of the argument — semicolons, <c>$(...)</c>, back-ticks, ampersands and pipes are all
-    /// inert. The only character that must be excluded is the NUL terminator, which would truncate
-    /// the native command line; it is rejected loudly.
+    /// inert. Two character classes are rejected loudly rather than escaped: the NUL terminator
+    /// (which would truncate the native command line), and the Unicode "smart" single-quote family
+    /// (U+2018/2019/201A/201B), which PowerShell's tokenizer also honours as a string delimiter — a
+    /// lone one would otherwise terminate the literal and hand control back to the parser.
     /// </summary>
     /// <example><c>a'b</c> becomes <c>'a''b'</c>.</example>
     public static string PowerShellSingleQuote(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        if (value.Contains('\0', StringComparison.Ordinal))
+        foreach (char c in value)
         {
-            throw new ArgumentException(
-                "Value contains a NUL character and cannot be embedded in a command line.", nameof(value));
+            if (c is '\0' or '‘' or '’' or '‚' or '‛')
+            {
+                throw new ArgumentException(
+                    $"Value contains character U+{(int)c:X4}, which cannot be safely embedded in a " +
+                    "PowerShell single-quoted literal (NUL or a Unicode single-quote variant).",
+                    nameof(value));
+            }
         }
 
         return string.Concat("'", value.Replace("'", "''", StringComparison.Ordinal), "'");

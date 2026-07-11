@@ -83,6 +83,36 @@ public sealed class ExecutionStepEmissionTests
     }
 
     [Fact]
+    public void CollidingGeneratedActionNames_FailTheBuildLoudly()
+    {
+        using var scratch = new Scratch();
+
+        // Step "Coll" with a rollback emits actions "Coll" and "Coll_rb"; step "Coll_rb" emits "Coll_rb"
+        // too → a CustomAction primary-key collision that must fail loud with a precise message rather
+        // than surface later as an opaque downstream error.
+        var extension = new FakeExecutionExtension(
+            "Fake.Collide",
+            new ExecutionStep
+            {
+                Id = "Coll",
+                InstallCommand = "powershell.exe -NoProfile -Command \"exit 0\"",
+                RollbackCommand = "powershell.exe -NoProfile -Command \"exit 0\"",
+            },
+            new ExecutionStep
+            {
+                Id = "Coll_rb",
+                InstallCommand = "powershell.exe -NoProfile -Command \"exit 0\"",
+            });
+
+        var result = Compile(scratch, "ExecCollideApp", extension);
+
+        Assert.True(result.IsFailure, "colliding generated action names must fail the build");
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+        Assert.Contains("collides", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("Coll_rb", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InstallCondition_FlowsToTheSequenceConditionColumn()
     {
         using var scratch = new Scratch();
