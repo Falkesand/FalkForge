@@ -20,6 +20,10 @@ public sealed class SqlExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(Databases);
         registry.RegisterTableContributor(Scripts);
         registry.RegisterTableContributor(Strings);
+        // Make the SqlDatabase/SqlScript/SqlString tables LIVE: schedule deferred, elevated custom actions
+        // that create databases, run scripts/strings, and drop databases on uninstall.
+        registry.RegisterExecutionContributor(new SqlExecutionContributor(
+            () => Databases.Items, () => Scripts.Items, () => Strings.Items));
     }
 
     /// <inheritdoc/>
