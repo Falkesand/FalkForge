@@ -22,9 +22,22 @@ public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
 
     public void Register(IExtensionRegistry registry)
     {
-        // IIS extension is model-only at compile time.
-        // The actual IIS management happens via custom actions at install time
-        // using Microsoft.Web.Administration.
+        ArgumentNullException.ThrowIfNull(registry);
+
+        // Emit the configured application pools and web sites as inspectable custom MSI tables
+        // (IIsAppPool / IIsWebSite), plus a placeholder CustomAction that records the deferred
+        // "configure IIS" step. The placeholder action is intentionally never scheduled into an
+        // install sequence, so it does not execute.
+        //
+        // What is NOT yet implemented: install-time IIS management via
+        // Microsoft.Web.Administration (creating the pools/sites/bindings for real), certificate
+        // emission, and a dedicated multi-binding table. Those are follow-ups; the tables emitted
+        // here make the configuration present and inspectable in the compiled MSI so the extension
+        // is no longer a silent no-op.
+        registry.RegisterTableContributor(new IisAppPoolTableContributor(() => _appPools));
+        registry.RegisterTableContributor(new IisWebSiteTableContributor(() => _webSites));
+        registry.RegisterTableContributor(
+            new IisConfigCustomActionContributor(() => _appPools.Count > 0 || _webSites.Count > 0));
     }
 
     public IisExtension AddWebSite(Action<WebSiteBuilder> configure)

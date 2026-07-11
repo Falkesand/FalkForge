@@ -8,6 +8,20 @@ public sealed class XmlConfigTableContributor : IMsiTableContributor
 
     public string TableName => "XmlConfig";
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Id"),
+        ContributedColumn.Text("File"),
+        ContributedColumn.Text("XPath"),
+        ContributedColumn.Int("Action"),
+        ContributedColumn.Text("ElementName"),
+        ContributedColumn.Text("AttributeName"),
+        ContributedColumn.Text("Value"),
+        ContributedColumn.Int("Sequence"),
+        ContributedColumn.Text("Component_", 72),
+    ];
+
     /// <summary>Exposes the registered XmlConfig models for validation.</summary>
     public IReadOnlyList<XmlConfigModel> Items => _entries;
 

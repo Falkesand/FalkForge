@@ -196,9 +196,10 @@ var quietExec = new QuietExecModel
 Console.WriteLine($"[Util] QuietExec: command '{quietExec.Id}' configured.");
 
 // -- Package Definition -------------------------------------------------------
-// Assembles the MSI package with all application files. In production the
-// extensions above are registered via the SDK's extension pipeline, emitting
-// their custom MSI tables during compilation.
+// Assembles the MSI package with all application files. The configured extensions
+// are attached to the compiler with .Use(...) at the bottom of this file, which is
+// what emits their custom MSI tables (WixFirewallException, IIsAppPool/IIsWebSite,
+// SqlDatabase/SqlScript, XmlConfig) during compilation.
 
 return Installer.Build(args, package =>
 {
@@ -227,4 +228,4 @@ return Installer.Build(args, package =>
             .To(KnownFolder.ProgramFiles / "Contoso" / "ExtensionsShowcase"));
     });
 
-}, new MsiCompiler(new WindowsFileSystem()));
+}, new MsiCompiler(new WindowsFileSystem()).Use(firewall, iis, sql, dotnet, util));

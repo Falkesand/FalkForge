@@ -33,4 +33,6 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "DotNetDemo"));
-}, new MsiCompiler());
+    // Attach the extension with .Use(...). The .NET extension is detection-only (it
+    // contributes no MSI tables); the launch condition above does the gating.
+}, new MsiCompiler().Use(dotnet));

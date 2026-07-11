@@ -87,6 +87,19 @@ public static class MsiAuthoring
                 .ToArray();
             if (extensionRules.Length > 0)
                 ModelValidator.RegisterExtensionRules(extensionRules);
+
+            // IComponentContributor is collected but not yet consumed by the recipe pipeline
+            // (merging additional files requires a PackageModel rebuild that is out of scope
+            // for this change). Surface a Warning rather than dropping it silently so an author
+            // relying on GetAdditionalFiles is not misled by a green build. Table contributors
+            // ARE routed through the recipe below.
+            if (extensionRegistry.ComponentContributors.Count > 0)
+            {
+                logger?.Log(LogLevel.Warning, "MsiAuthoring",
+                    $"{extensionRegistry.ComponentContributors.Count} IComponentContributor(s) were registered but the " +
+                    "MSI recipe pipeline does not yet emit contributed components; their GetAdditionalFiles output is ignored.",
+                    new Dictionary<string, string> { ["code"] = "EXT002" });
+            }
         }
 
         // Step 1.5: Validate the package (core + extension rules). Produces the same error
@@ -171,13 +184,22 @@ public static class MsiAuthoring
         // handles user-defined dynamic-schema tables (one RecipeTable per
         // CustomTableModel). DialogSetProducer emits all MSI UI dialog tables
         // (Dialog, Control, ControlEvent, ControlCondition, EventMapping,
-        // TextStyle, UIText) when a DialogSet is active. No other contributors
-        // wired in yet — phase 11 will route IMsiTableContributor through here.
+        // TextStyle, UIText) when a DialogSet is active. Extension-registered
+        // IMsiTableContributor rows are routed through MsiRecipeBuilder →
+        // ExtensionTableEmitter (custom tables created, built-in tables merged).
+        ExtensionContext extensionContext = new()
+        {
+            Package = package,
+            OutputDirectory = outputPath,
+            SourceDirectory = Directory.GetCurrentDirectory(),
+        };
+
         Result<MsiDatabaseRecipe> recipeResult = MsiRecipeBuilder.Build(
             resolved,
-            contributors: Array.Empty<IMsiTableContributor>(),
+            contributors: extensionRegistry.TableContributors,
             options: new MsiRecipeBuildOptions(),
             multiProducers: [new CustomTablesProducer(), new DialogSetProducer()],
+            extensionContext: extensionContext,
             logger: logger);
         if (recipeResult.IsFailure)
         {
@@ -480,17 +502,26 @@ public static class MsiAuthoring
 
     /// <summary>
     /// <see cref="IExtensionRegistry"/> implementation that collects registered
-    /// extension contributions (dialog step builders) for batch processing.
+    /// extension contributions (table contributors, component contributors, dialog
+    /// step builders) for batch processing after every extension has registered.
     /// </summary>
     private sealed class CollectingExtensionRegistry : IExtensionRegistry
     {
         public List<IDialogStepBuilder> DialogStepBuilders { get; } = [];
 
+        public List<IMsiTableContributor> TableContributors { get; } = [];
+
+        public List<IComponentContributor> ComponentContributors { get; } = [];
+
         public void RegisterDialogStep(IDialogStepBuilder builder)
             => DialogStepBuilders.Add(builder);
 
-        public void RegisterTableContributor(IMsiTableContributor contributor) { }
-        public void RegisterComponentContributor(IComponentContributor contributor) { }
+        public void RegisterTableContributor(IMsiTableContributor contributor)
+            => TableContributors.Add(contributor);
+
+        public void RegisterComponentContributor(IComponentContributor contributor)
+            => ComponentContributors.Add(contributor);
+
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
     }
 }

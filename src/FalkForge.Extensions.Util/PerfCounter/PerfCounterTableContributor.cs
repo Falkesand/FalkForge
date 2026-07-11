@@ -8,6 +8,17 @@ public sealed class PerfCounterTableContributor : IMsiTableContributor
 
     public string TableName => "FalkForgePerfCounter";
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Id"),
+        ContributedColumn.Text("CategoryName"),
+        ContributedColumn.Text("CounterName"),
+        ContributedColumn.Int("CounterType"),
+        ContributedColumn.Text("CategoryHelp"),
+        ContributedColumn.Text("CounterHelp"),
+    ];
+
     public void Add(PerfCounterModel counter) => _counters.Add(counter);
 
     public IReadOnlyList<PerfCounterModel> Counters => _counters;

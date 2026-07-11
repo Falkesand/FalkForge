@@ -36,9 +36,8 @@ if (script.IsFailure)
 sql.Scripts.Add(script.Value);
 Console.WriteLine("SQL: 1 database, 1 script configured.");
 
-// In production, extensions register automatically via the FalkForge SDK extension
-// pipeline during compilation. The package below shows the MSI structure; extension
-// tables are emitted by the SDK at build time.
+// Attach the extension to the compiler with .Use(...). This emits the SqlDatabase
+// and SqlScript tables + rows into the compiled MSI.
 return Installer.Build(args, package =>
 {
     package.Name = "SQL Demo";
@@ -49,4 +48,4 @@ return Installer.Build(args, package =>
         .Add("payload/app.exe")
         .Add("payload/schema.sql")
         .To(KnownFolder.ProgramFiles / "Demo" / "SqlDemo"));
-}, new MsiCompiler());
+}, new MsiCompiler().Use(sql));
