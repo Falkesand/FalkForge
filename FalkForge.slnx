@@ -29,6 +29,7 @@
     <Project Path="src/FalkForge.Sdk/FalkForge.Sdk.csproj" />
     <Project Path="src/FalkForge.Signing.SignServer/FalkForge.Signing.SignServer.csproj" />
     <Project Path="src/FalkForge.Studio/FalkForge.Studio.csproj" />
+    <Project Path="src/FalkForge.Templates/FalkForge.Templates.csproj" />
     <Project Path="src/FalkForge.Testing/FalkForge.Testing.csproj" />
     <Project Path="src/FalkForge.Ui/FalkForge.Ui.csproj" />
     <Project Path="src/FalkForge.Ui.Abstractions/FalkForge.Ui.Abstractions.csproj" />

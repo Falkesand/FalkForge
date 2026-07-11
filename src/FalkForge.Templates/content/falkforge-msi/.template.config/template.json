@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Peter Falkesand",
+  "classifications": [ "Windows", "Installer", "MSI", "FalkForge" ],
+  "identity": "FalkForge.Msi.CSharp",
+  "name": "FalkForge MSI installer",
+  "shortName": "falkforge-msi",
+  "description": "A minimal single-file MSI installer project using the FalkForge fluent API. dotnet run builds the MSI.",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "FalkForgeMsiInstaller",
+  "preferNameDirectory": true,
+  "symbols": {
+    "ProductName": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "Product name shown in the installer.",
+      "defaultValue": "My Application",
+      "replaces": "PRODUCT-NAME"
+    },
+    "FalkForgeVersion": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "Version of the FalkForge meta-package to reference.",
+      "defaultValue": "0.1.0-alpha.1",
+      "replaces": "FALKFORGE-VERSION"
+    }
+  }
+}

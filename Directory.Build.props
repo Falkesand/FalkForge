@@ -9,7 +9,10 @@
              When bumping, also update ExpectedVersion in
              tests/FalkForge.Core.Tests/VersionSingleSourceTests.cs and
              tests/FalkForge.Cli.Tests/VersionInfoTests.cs — those tests pin this value
-             so a version change is always a deliberate, reviewed act.
+             so a version change is always a deliberate, reviewed act — and the
+             FalkForgeVersion defaultValue in both
+             src/FalkForge.Templates/content/*/.template.config/template.json files
+             (kept in sync by FalkForge.Integration.Tests/TemplatePackTests.cs).
              ============================================================================ -->
         <VersionPrefix>0.1.0</VersionPrefix>
         <VersionSuffix>alpha.1</VersionSuffix>
