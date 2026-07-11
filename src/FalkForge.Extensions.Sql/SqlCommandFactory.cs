@@ -48,25 +48,6 @@ internal static class SqlCommandFactory
         IReadOnlyList<SqlDatabaseModel> databases,
         IReadOnlyList<SqlScriptModel> scripts,
         IReadOnlyList<SqlStringModel> strings)
-        => BuildPlan(databases, scripts, strings).Steps;
-
-    /// <summary>
-    /// The names of every MSI property that carries a SQL password at run time — the secure source
-    /// property (<see cref="SqlDatabaseModel.PasswordProperty"/>) plus each deferred install action's
-    /// CustomActionData property (named after the action), which the type-51 <c>SetProperty</c> populates
-    /// with the resolved password. The SQL extension lists these in <c>MsiHiddenProperties</c> so their
-    /// values are scrubbed from a verbose MSI log — the author duty documented on <see cref="ExecutionStep"/>.
-    /// </summary>
-    internal static IReadOnlyList<string> CollectHiddenPropertyNames(
-        IReadOnlyList<SqlDatabaseModel> databases,
-        IReadOnlyList<SqlScriptModel> scripts,
-        IReadOnlyList<SqlStringModel> strings)
-        => BuildPlan(databases, scripts, strings).HiddenPropertyNames;
-
-    private static SqlExecutionPlan BuildPlan(
-        IReadOnlyList<SqlDatabaseModel> databases,
-        IReadOnlyList<SqlScriptModel> scripts,
-        IReadOnlyList<SqlStringModel> strings)
     {
         // Only databases with a Server are executable (ConnectionString-only databases may carry a runtime
         // property token and are out of scope for execution — they remain inspectable table data).
@@ -78,17 +59,12 @@ internal static class SqlCommandFactory
         }
 
         var steps = new List<ExecutionStep>();
-        var hidden = new HashSet<string>(StringComparer.Ordinal);
 
         // (1) Create databases first so scripts/strings can run against them.
         foreach (SqlDatabaseModel db in databases)
         {
             if (db.CreateOnInstall && executable.ContainsKey(db.Id))
-            {
-                ExecutionStep step = BuildCreateStep(db);
-                steps.Add(step);
-                RecordSecret(hidden, step, db);
-            }
+                steps.Add(BuildCreateStep(db));
         }
 
         // Normalise scripts + strings into a common, sequence-ordered work list.
@@ -98,11 +74,7 @@ internal static class SqlCommandFactory
         //     uninstall carries an inline uninstall command whose uninstall-band sequence — driven by this
         //     early list position — lands before the drop-database steps appended last.
         foreach (SqlWorkItem item in work.Where(w => w.ExecuteOnInstall))
-        {
-            ExecutionStep step = BuildScriptStep(item, includeInstall: true);
-            steps.Add(step);
-            RecordSecret(hidden, step, item.Database);
-        }
+            steps.Add(BuildScriptStep(item, includeInstall: true));
 
         // (3) Uninstall-only script/string execution (integrated auth — no secret channel).
         foreach (SqlWorkItem item in work.Where(w => !w.ExecuteOnInstall && w.ExecuteOnUninstall))
@@ -116,22 +88,23 @@ internal static class SqlCommandFactory
                 steps.Add(BuildDropStep(db));
         }
 
-        return new SqlExecutionPlan(steps, hidden.OrderBy(n => n, StringComparer.Ordinal).ToList());
+        return steps;
     }
 
     /// <summary>
-    /// When a step's install action carries a password (its CustomActionData holds the secret), record the
-    /// action's own property name — and the secure source property, if any — so both are scrubbed from
-    /// logs via MsiHiddenProperties.
+    /// The secret-carrying property names a password-bearing install step declares so the compiler scrubs
+    /// them from a verbose MSI log via the aggregated <c>MsiHiddenProperties</c> row: the deferred action's
+    /// own CustomActionData property (<paramref name="stepId"/>, which the type-51 <c>SetProperty</c>
+    /// populates with the resolved password) plus the secure source property, if any. Empty for integrated
+    /// authentication (no secret flows through the channel).
     /// </summary>
-    private static void RecordSecret(HashSet<string> hidden, ExecutionStep step, SqlDatabaseModel db)
+    private static IReadOnlyList<string> SecretNames(string stepId, SqlDatabaseModel db)
     {
         if (string.IsNullOrEmpty(db.PasswordProperty) && string.IsNullOrEmpty(db.Password))
-            return; // integrated auth → the CustomActionData (if any) carries no secret.
-
-        hidden.Add(step.Id); // the deferred action's CustomActionData property holds the resolved password.
-        if (!string.IsNullOrEmpty(db.PasswordProperty))
-            hidden.Add(db.PasswordProperty!); // the secure source property populated via SetSecureProperty.
+            return [];
+        return string.IsNullOrEmpty(db.PasswordProperty)
+            ? [stepId]
+            : [stepId, db.PasswordProperty!];
     }
 
     // ── database create / drop ──────────────────────────────────────────────
@@ -143,14 +116,16 @@ internal static class SqlCommandFactory
         string dropScript = BuildDatabaseDdlScript(db, "master", DatabaseDropTsql(), fromArgs: false, tolerant: true);
 
         string? customActionData = InstallPasswordChannel(db);
+        string id = SqlStepId.Make("SqlDb_", db.Id);
         return new ExecutionStep
         {
-            Id = SqlStepId.Make("SqlDb_", db.Id),
+            Id = id,
             InstallCommand = customActionData is null
                 ? SqlPowerShellEncoder.Encode(createScript)
                 : SqlPowerShellEncoder.EncodeWithTrailingArgument(createScript, "[CustomActionData]"),
             CustomActionData = customActionData,
             RollbackCommand = SqlPowerShellEncoder.Encode(dropScript),
+            HiddenProperties = SecretNames(id, db),
         };
     }
 
@@ -203,13 +178,17 @@ internal static class SqlCommandFactory
                 BuildScriptExecScript(db, pwExpr: null, item.ContinueOnError, fromCustomActionData: false, inlineSql: item.Sql));
         }
 
+        string id = SqlStepId.Make(item.StepPrefix, item.Id);
         return new ExecutionStep
         {
-            Id = SqlStepId.Make(item.StepPrefix, item.Id),
+            Id = id,
             InstallCommand = installCommand,
             CustomActionData = customActionData,
             InstallCondition = installCondition,
             UninstallCommand = uninstallCommand,
+            // Only the install action rides the secure CustomActionData channel; an uninstall-only step uses
+            // integrated auth and carries no secret to scrub.
+            HiddenProperties = includeInstall ? SecretNames(id, db) : [],
         };
     }
 
@@ -428,10 +407,6 @@ internal static class SqlCommandFactory
         // onInstall only → emitter default ("NOT Installed"); when neither, the caller gates it off ("0").
         return onInstall ? null : "0";
     }
-
-    private sealed record SqlExecutionPlan(
-        IReadOnlyList<ExecutionStep> Steps,
-        IReadOnlyList<string> HiddenPropertyNames);
 
     private sealed record SqlWorkItem(
         string StepPrefix,

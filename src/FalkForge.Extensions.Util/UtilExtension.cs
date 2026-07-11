@@ -174,9 +174,10 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(_odbcDataSourceContributor);
         registry.RegisterExecutionContributor(new UtilExecutionContributor(
             () => _quietExecs, () => _removeFolderExes, () => _fileShares, () => _internetShortcuts));
-        // User/Group management: a separate execution contributor (it carries a password secret) plus the
-        // hidden-properties contributor that scrubs that secret from verbose MSI logs.
-        registry.RegisterTableContributor(new UtilHiddenPropertiesContributor(() => _users));
+        // User/Group management: a separate execution contributor (it carries a password secret). Each
+        // password-bearing user-create step declares its ExecutionStep.HiddenProperties; the compiler
+        // aggregates those across all extensions into a single MsiHiddenProperties row that scrubs the
+        // user password from verbose MSI logs.
         registry.RegisterExecutionContributor(new UtilUserGroupExecutionContributor(
             () => _groups, () => _users));
     }
