@@ -19,7 +19,10 @@ public sealed class ElevationProbeTests
     public void IsElevated_DoesNotThrow_OnWindows()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: ElevationProbe P/Invokes the Windows process token.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         // Act — must not throw; result may be true or false depending on UAC context
         bool result = ElevationProbe.IsElevated();
@@ -38,7 +41,10 @@ public sealed class ElevationProbeTests
     public void IsElevated_MatchesWindowsIdentity_OnWindows()
     {
         if (!OperatingSystem.IsWindows())
-            return;
+        {
+            Assert.Skip("Windows-only: ElevationProbe P/Invokes the Windows process token.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
 
         // Arrange — reference implementation via WindowsPrincipal
         using WindowsIdentity identity = WindowsIdentity.GetCurrent();

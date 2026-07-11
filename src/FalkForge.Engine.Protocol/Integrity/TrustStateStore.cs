@@ -8,8 +8,13 @@ using System.Text.Json;
 /// <summary>
 /// Load/advance helpers for the persisted anti-downgrade/revocation store (C14 Stage 2, §6.2/§6.3).
 ///
-/// <para><b>Load</b> tolerates a missing or unreadable file — the first run (or a wiped store) is treated
-/// as epoch 0 with no revocations, which is the safe pre-rotation baseline. <b>Advance</b> is monotonic:
+/// <para><b>Load</b> (advisory/diagnostic only) tolerates a missing, unreadable, or malformed file — the
+/// first run (or a wiped store) is treated as epoch 0 with no revocations, the safe pre-rotation baseline.
+/// The ENFORCEMENT read (<see cref="LoadValidated"/>) distinguishes: a missing file is still a first run,
+/// but an UNREADABLE file (after a bounded retry) or a malformed (corrupt) file fails CLOSED rather than
+/// resetting the anti-downgrade floor. <b>Advance</b> reads through <see cref="LoadForAdvance"/>, which
+/// ABORTS the advance when the store cannot be read (writing a state merged from a wrongly-empty read
+/// would lower the floor) but self-heals a malformed file. <b>Advance</b> is monotonic:
 /// it never lowers the stored epoch and only unions in new revocations, and it is called <i>only after a
 /// verified update apply</i>, so an attacker cannot prime the store with a forged high epoch — a forged
 /// epoch fails signature verification (the epoch is in the signed bytes) before apply ever succeeds.</para>
@@ -44,36 +49,160 @@ public static class TrustStateStore
     public const int MaxEpoch = 1_000_000;
 
     /// <summary>
-    /// Loads the persisted trust state. A missing, empty, or malformed file yields a first-run state
-    /// (epoch 0, no revocations) rather than throwing — the store is advisory hardening layered on top of
-    /// the baked trust set, so an unreadable store must fail safe (no anti-downgrade), not fail closed.
+    /// Loads the persisted trust state on the ADVISORY (diagnostic) path. A missing, empty, unreadable,
+    /// or malformed file yields a first-run state (epoch 0, no revocations) rather than throwing.
+    /// This tolerance must never back a security decision or a store WRITE: ENFORCEMENT decisions
+    /// (the update trust gate) use <see cref="LoadValidated"/>, which fails CLOSED on an unreadable or
+    /// malformed store, and <see cref="Advance"/> uses <see cref="LoadForAdvance"/>, which aborts the
+    /// advance when the store cannot be read — silently treating an unreadable/corrupt store as a first
+    /// run on either of those paths would wipe the anti-downgrade/revocation floor.
     /// </summary>
     public static TrustState Load(string path)
+    {
+        var result = LoadFailClosed(path);
+        return result.IsSuccess ? result.Value : new TrustState();
+    }
+
+    /// <summary>
+    /// Delays (ms) between read attempts when the store exists but the read fails with an I/O or access
+    /// error: 5 attempts spread over ~1.4 s. Long enough to ride out a benign transient lock (an AV
+    /// scanner, backup agent, or another engine instance holding the file briefly — such holds are
+    /// typically well under a second on a sub-kilobyte JSON file), short enough not to hang the update
+    /// gate noticeably. The reader also opens with <see cref="FileShare.ReadWrite"/> +
+    /// <see cref="FileShare.Delete"/>, so only a handle that refuses to share READ blocks it at all.
+    /// </summary>
+    private static ReadOnlySpan<int> ReadRetryDelaysMs => [150, 250, 400, 600];
+
+    /// <summary>
+    /// Core load distinguishing the store's three conditions. MISSING or empty file: a legitimate
+    /// first run — success with epoch 0 and no revocations. UNREADABLE (I/O or access error): retried
+    /// over a bounded backoff (<see cref="ReadRetryDelaysMs"/>) to absorb benign transient locks, then
+    /// FAIL CLOSED (<see cref="ErrorKind.SecurityError"/>) — the hardened store ACL stops an unprivileged
+    /// WRITER, but it grants Users read, so any local process can hold the file open with an exclusive
+    /// share and force this read to fail; degrading that to first-run would let such a process silently
+    /// wipe the anti-downgrade floor for the duration of its lock. Failing closed converts that vector
+    /// into an update REFUSAL (residual: a local process can still DoS updates while it holds the lock —
+    /// safe, visible, and recoverable). MALFORMED JSON: fail CLOSED — a store that exists but does not
+    /// parse is evidence of tampering or corruption of the anti-downgrade/revocation floor, and silently
+    /// resetting it to epoch 0 would hand an attacker exactly the rollback (INT008) and un-revocation
+    /// (INT001) the store exists to prevent.
+    /// </summary>
+    internal static Result<TrustState> LoadFailClosed(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         if (!File.Exists(path))
             return new TrustState();
 
+        var read = ReadStoreBytesWithRetry(path);
+        if (read.IsFailure)
+            return Result<TrustState>.Failure(read.Error);
+
+        return ParseFailClosed(path, read.Value);
+    }
+
+    /// <summary>
+    /// Read backing <see cref="Advance"/>'s elevated read-modify-write. MISSING or empty file: first run
+    /// (epoch 0). MALFORMED file: tolerated as first-run — the advance immediately REWRITES the store,
+    /// so this is the self-healing path for corruption. UNREADABLE file (I/O or access error persisting
+    /// through the bounded retry): FAILURE — the advance must ABORT rather than proceed, because merging
+    /// into a wrongly-empty first-run state and PERSISTING it would lower the stored epoch and drop
+    /// recorded revocations (a foreign handle that blocks reads but shares writes makes exactly that
+    /// sequence succeed). Corruption self-heals; an unreadable store must never be overwritten.
+    /// </summary>
+    internal static Result<TrustState> LoadForAdvance(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        if (!File.Exists(path))
+            return new TrustState();
+
+        var read = ReadStoreBytesWithRetry(path);
+        if (read.IsFailure)
+            return Result<TrustState>.Failure(read.Error);
+
+        var parsed = ParseFailClosed(path, read.Value);
+        return parsed.IsSuccess ? parsed : new TrustState(); // malformed → self-heal via the rewrite
+    }
+
+    /// <summary>Parses store bytes; empty = first run, malformed = fail closed (see <see cref="LoadFailClosed"/>).</summary>
+    private static Result<TrustState> ParseFailClosed(string path, byte[] json)
+    {
+        if (json.Length == 0)
+            return new TrustState();
+
         try
         {
-            var json = File.ReadAllBytes(path);
-            if (json.Length == 0)
-                return new TrustState();
-
             return JsonSerializer.Deserialize(json, TrustStateJsonContext.Default.TrustState)
                    ?? new TrustState();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (JsonException ex)
         {
-            return new TrustState();
+            return Result<TrustState>.Failure(ErrorKind.SecurityError,
+                $"The trust store file '{path}' exists but is malformed ({ex.Message}). Refusing to treat " +
+                "a corrupt anti-downgrade/revocation store as a first run (fail-closed): a silent reset to " +
+                "epoch 0 would wipe the anti-downgrade floor. Recovery: an administrator must delete the " +
+                "file from an elevated prompt so the next verified update re-creates it.");
+        }
+    }
+
+    /// <summary>
+    /// Reads the store bytes, retrying I/O and access failures over the bounded
+    /// <see cref="ReadRetryDelaysMs"/> backoff, then failing (<see cref="ErrorKind.SecurityError"/>)
+    /// rather than degrading. A file deleted between the caller's existence check and the open is
+    /// reported as empty (the legitimate missing-store first-run signal, and deletion requires a
+    /// privileged writer under the hardened ACL). Opens with the widest share
+    /// (<see cref="FileShare.ReadWrite"/> + <see cref="FileShare.Delete"/>) so only a foreign handle
+    /// that refuses to share read — an exclusive lock — can make the open fail at all.
+    /// </summary>
+    private static Result<byte[]> ReadStoreBytesWithRetry(string path)
+    {
+        var attempt = 0;
+        while (true)
+        {
+            try
+            {
+                using var stream = new FileStream(
+                    path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var length = stream.Length;
+                if (length == 0)
+                    return Array.Empty<byte>();
+
+                var buffer = new byte[length];
+                stream.ReadExactly(buffer);
+                return buffer;
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return Array.Empty<byte>();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= ReadRetryDelaysMs.Length)
+                {
+                    return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                        $"The trust store file '{path}' exists but could not be read after " +
+                        $"{ReadRetryDelaysMs.Length + 1} attempts ({ex.Message}). Another process may be " +
+                        "holding it with an exclusive lock. Refusing to treat an unreadable " +
+                        "anti-downgrade/revocation store as a first run (fail-closed): a silent reset to " +
+                        "epoch 0 would wipe the anti-downgrade floor for as long as the lock is held. " +
+                        "Retry once the file is readable; if this persists, an administrator should " +
+                        "identify the process locking the file.");
+                }
+
+                Thread.Sleep(ReadRetryDelaysMs[attempt]);
+                attempt++;
+            }
         }
     }
 
     /// <summary>
     /// Advances the store after a verified update apply: raises the stored epoch to
     /// <c>max(current, <paramref name="epoch"/>)</c> (never lowers it) and unions in
-    /// <paramref name="revoked"/>. Creates the store directory if needed.
+    /// <paramref name="revoked"/>. Creates the store directory if needed. ABORTS (returns a failure,
+    /// writes nothing) when the current store exists but cannot be read after the bounded retry
+    /// (<see cref="LoadForAdvance"/>): proceeding would merge into a wrongly-empty state and persist a
+    /// lowered floor. A malformed store is still self-healed (read as first-run, then rewritten).
     /// </summary>
     public static Result<Unit> Advance(string path, int epoch, IReadOnlyList<string> revoked)
     {
@@ -91,7 +220,15 @@ public static class TrustStateStore
                 $"epoch ({MaxEpoch}). An out-of-range epoch would permanently lock out all future updates (INT008).");
         }
 
-        var state = Load(path);
+        // ABORT on an unreadable store: Advance reads, merges, and writes with SEPARATE handles, so a
+        // foreign handle that blocks reads but shares writes would otherwise make a tolerant read see
+        // first-run (epoch 0) while the write still lands — persisting a lowered epoch and dropping
+        // recorded revocations. Never write a state derived from a read that could not see the floor.
+        var loaded = LoadForAdvance(path);
+        if (loaded.IsFailure)
+            return Result<Unit>.Failure(loaded.Error);
+
+        var state = loaded.Value;
 
         // Monotonic: never roll the epoch backwards, even if a stale caller passes a lower value.
         if (epoch > state.Epoch)
@@ -145,6 +282,16 @@ public static class TrustStateStore
     /// An <b>administrator</b> must remove the directory (or reset its ACL + owner from an elevated prompt) so
     /// the elevated installer re-creates it hardened. Failing closed is the safe outcome: an attacker cannot
     /// push a downgrade/replay through the tampered store either.</para>
+    ///
+    /// <para><b>Corrupt or unreadable store (fail-closed, distinct from missing).</b> A MISSING store file
+    /// remains the legitimate first run (epoch 0). But a store file that EXISTS and fails to parse — or
+    /// that cannot be READ after a bounded retry (e.g. a local process holding it with an exclusive lock;
+    /// Users have read access, so any local process can) — fails CLOSED here (via
+    /// <see cref="LoadFailClosed"/>) rather than silently resetting to epoch 0: a silent reset would wipe
+    /// the anti-downgrade epoch and local revocations, which is precisely the rollback this store exists
+    /// to prevent. Residual: a lock-holding local process can DoS updates while it holds the lock — a
+    /// refusal, not a floor wipe. Only the advisory <see cref="Load"/> still tolerates a malformed file;
+    /// the elevated <see cref="Advance"/> self-heals corruption but aborts on an unreadable store.</para>
     /// </summary>
     public static Result<TrustState> LoadValidated(string path)
     {
@@ -161,7 +308,7 @@ public static class TrustStateStore
                 "self-heal on the non-elevated read path.");
         }
 
-        return Load(path);
+        return LoadFailClosed(path);
     }
 
     /// <summary>

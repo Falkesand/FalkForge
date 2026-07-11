@@ -70,6 +70,68 @@ public sealed class FileWriteCommandTests : IDisposable
     }
 
     [Fact]
+    public void Execute_RejectsTargetOutsideAllowedRoots_NothingWritten()
+    {
+        // The containment policy (ElevatedPathPolicy.FileWriteRoots + IsAllowedPath) is the ONLY
+        // thing standing between an elevated (SYSTEM) FileWrite and an arbitrary write anywhere on
+        // disk. Every positive test in this class writes under %TEMP% — which IS under an allowed
+        // root (the user profile) — so without this negative the containment check could be removed
+        // and no test would fail. System32 is the canonical forbidden target (DLL planting as SYSTEM).
+        var targetPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            $"falkforge-allowlist-test-{Guid.NewGuid():N}.dll");
+        var payload = BuildPayload(targetPath, new byte[] { 0x4D, 0x5A });
+
+        try
+        {
+            var result = _command.Execute(payload);
+
+            Assert.True(result.IsFailure, "an elevated write outside every allowed root must be rejected");
+            Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+            // It must be the allowlist/containment policy that rejects — not an incidental I/O error.
+            Assert.Contains("outside allowed directories", result.Error.Message);
+            Assert.False(File.Exists(targetPath), "no file may be created outside the allowed roots");
+        }
+        finally
+        {
+            // Defense-in-depth cleanup: if a regression allowed the write AND the host is elevated,
+            // do not leave the planted file behind.
+            try { File.Delete(targetPath); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort */ }
+        }
+    }
+
+    [Fact]
+    public void Execute_RejectsDotDotTraversalEscapingAllowedRoot_NothingWritten()
+    {
+        // A '..'-laden path whose textual prefix sits under an allowed root but which NORMALIZES to
+        // a location outside every allowed root must be rejected. The command normalizes via
+        // Path.GetFullPath BEFORE the containment check, so the containment check on the normalized
+        // path is the guard that must hold here (a raw-string ".." scan alone cannot catch this,
+        // because normalization has already removed the ".." segments).
+        var traversalPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            "..", "Windows", "System32", $"falkforge-traversal-test-{Guid.NewGuid():N}.dll");
+        var normalizedTarget = Path.GetFullPath(traversalPath);
+        var payload = BuildPayload(traversalPath, new byte[] { 0x4D, 0x5A });
+
+        try
+        {
+            var result = _command.Execute(payload);
+
+            Assert.True(result.IsFailure, "a traversal path normalizing outside every allowed root must be rejected");
+            Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+            Assert.Contains("outside allowed directories", result.Error.Message);
+            Assert.False(File.Exists(normalizedTarget), "no file may be created at the traversal's real target");
+        }
+        finally
+        {
+            try { File.Delete(normalizedTarget); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort */ }
+        }
+    }
+
+    [Fact]
     public void Execute_RejectsDirectoryJunction()
     {
         var junctionTarget = Path.Combine(_tempDir, "junctionTarget");
@@ -86,7 +148,7 @@ public sealed class FileWriteCommandTests : IDisposable
         proc.WaitForExit(5_000);
 
         if (!Directory.Exists(junctionPath))
-            return; // Skip if junction creation failed
+            Assert.Skip("Junction creation failed (mklink /J unavailable or filesystem without reparse-point support)");
 
         var targetPath = Path.Combine(junctionPath, "evil.dll");
         var payload = BuildPayload(targetPath, new byte[] { 0x4D, 0x5A });
@@ -119,7 +181,7 @@ public sealed class FileWriteCommandTests : IDisposable
         proc.WaitForExit(5_000);
 
         if (!Directory.Exists(ancestorJunction))
-            return; // Skip if junction creation failed (e.g., filesystem without reparse support)
+            Assert.Skip("Junction creation failed (mklink /J unavailable or filesystem without reparse-point support)");
 
         // The target sits UNDER a not-yet-existing subdirectory of the ancestor junction.
         var targetPath = Path.Combine(ancestorJunction, "sub", "evil.dll");
