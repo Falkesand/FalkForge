@@ -16,7 +16,7 @@ public sealed class DemoCompilationTests
     public void Demo_ProducesOutputFile(DemoExpectation demo)
     {
         if (demo.RequiresInfrastructure)
-            return;
+            Assert.Skip($"Demo '{demo.Name}' requires external infrastructure (e.g. SQL Server/IIS) not available in this test environment.");
 
         var result = _fixture.GetOrBuild(demo);
 
