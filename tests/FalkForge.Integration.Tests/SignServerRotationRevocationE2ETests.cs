@@ -109,7 +109,7 @@ public sealed class SignServerRotationRevocationE2ETests
             });
 
             var model = BuildModel(tempDir, "RotationBundle", oldKeyProvider, newKeyProvider);
-            var compileResult = await new BundleCompiler().CompileAsync(model, Path.Combine(tempDir, "out"));
+            var compileResult = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(model, Path.Combine(tempDir, "out"));
             Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
 
             var manifest = ExtractManifest(compileResult.Value);
@@ -194,12 +194,12 @@ public sealed class SignServerRotationRevocationE2ETests
             // Two separately signed bundles — one per key — so revoking the first key's fingerprint can be
             // shown to leave the second bundle's (different key's) verification untouched.
             var revokedBundleModel = BuildModel(tempDir, "RevokedKeyBundle", revokedKeyProvider);
-            var revokedCompile = await new BundleCompiler().CompileAsync(
+            var revokedCompile = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(
                 revokedBundleModel, Path.Combine(tempDir, "revoked-out"));
             Assert.True(revokedCompile.IsSuccess, revokedCompile.IsFailure ? revokedCompile.Error.Message : null);
 
             var goodBundleModel = BuildModel(tempDir, "GoodKeyBundle", goodKeyProvider);
-            var goodCompile = await new BundleCompiler().CompileAsync(
+            var goodCompile = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(
                 goodBundleModel, Path.Combine(tempDir, "good-out"));
             Assert.True(goodCompile.IsSuccess, goodCompile.IsFailure ? goodCompile.Error.Message : null);
 

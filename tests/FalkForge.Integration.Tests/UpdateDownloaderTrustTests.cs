@@ -110,7 +110,7 @@ public sealed class UpdateDownloaderTrustTests
                 .Integrity(i => { })
                 .Chain(c => c.MsiPackage(msiPath, p => p.Id("AppMsi").Version("2.0.0")))
                 .Build();
-            var signedBuild = new BundleCompiler().Compile(signedModel, Path.Combine(dir, "signed"));
+            var signedBuild = new BundleCompiler { AllowPlaceholderStub = true }.Compile(signedModel, Path.Combine(dir, "signed"));
             Assert.True(signedBuild.IsSuccess, signedBuild.IsFailure ? signedBuild.Error.Message : null);
             var signedBundle = signedBuild.Value;
             var trustedFp = SignedBundleFingerprint(signedBundle);
@@ -125,7 +125,7 @@ public sealed class UpdateDownloaderTrustTests
                 .UseSilentUI()
                 .Chain(c => c.MsiPackage(msiPath, p => p.Id("AppMsi").Version("2.0.0")))
                 .Build();
-            var unsignedBuild = new BundleCompiler().Compile(unsignedModel, Path.Combine(dir, "unsigned"));
+            var unsignedBuild = new BundleCompiler { AllowPlaceholderStub = true }.Compile(unsignedModel, Path.Combine(dir, "unsigned"));
             Assert.True(unsignedBuild.IsSuccess, unsignedBuild.IsFailure ? unsignedBuild.Error.Message : null);
             var unsignedBundle = unsignedBuild.Value;
 

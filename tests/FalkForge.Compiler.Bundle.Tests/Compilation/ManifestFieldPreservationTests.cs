@@ -67,7 +67,7 @@ public sealed class ManifestFieldPreservationTests : IDisposable
             },
             preuiPath: preuiPath);
 
-        var deltaCompiler = new DeltaBundleCompiler();
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
         var result = deltaCompiler.Compile(newModel, Path.Combine(_tempDir, "delta_output"), oldBundlePath);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
 
@@ -98,7 +98,7 @@ public sealed class ManifestFieldPreservationTests : IDisposable
             preuiPath: preuiPath,
             integrity: new IntegrityConfiguration());
 
-        var result = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "signed_output"));
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, "signed_output"));
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
 
         var manifest = ExtractManifest(result.Value);
@@ -110,7 +110,7 @@ public sealed class ManifestFieldPreservationTests : IDisposable
 
     private string CompileFull(BundleModel model, string outputDirName)
     {
-        var result = new BundleCompiler().Compile(model, Path.Combine(_tempDir, outputDirName));
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, outputDirName));
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
         return result.Value;
     }

@@ -97,7 +97,7 @@ public sealed class BundleCompilerAsyncSigningTests : IDisposable
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var model = ModelWithAsyncProvider(key);
 
-        var result = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "sync"));
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, "sync"));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
@@ -110,7 +110,7 @@ public sealed class BundleCompilerAsyncSigningTests : IDisposable
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var model = ModelWithAsyncProvider(key);
 
-        var result = await new BundleCompiler().CompileAsync(model, Path.Combine(_tempDir, "async"));
+        var result = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(model, Path.Combine(_tempDir, "async"));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var manifest = ExtractManifest(result.Value);
@@ -152,7 +152,7 @@ public sealed class BundleCompilerAsyncSigningTests : IDisposable
             Integrity = null
         };
 
-        var result = await new BundleCompiler().CompileAsync(model, Path.Combine(_tempDir, "async-unsigned"));
+        var result = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(model, Path.Combine(_tempDir, "async-unsigned"));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.Null(ExtractManifest(result.Value).ManifestSignature);

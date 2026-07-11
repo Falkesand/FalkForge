@@ -100,7 +100,7 @@ public sealed class SignServerPodSigningE2ETests
                 using var provider = new SignServerSignatureProvider(config);
                 var model = BuildModel(tempDir, provider);
 
-                var compileResult = await new BundleCompiler().CompileAsync(model, Path.Combine(tempDir, "out"));
+                var compileResult = await new BundleCompiler { AllowPlaceholderStub = true }.CompileAsync(model, Path.Combine(tempDir, "out"));
                 Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
 
                 var manifest = ExtractManifest(compileResult.Value);

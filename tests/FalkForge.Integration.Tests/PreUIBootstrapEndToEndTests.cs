@@ -144,7 +144,7 @@ public sealed class PreUIBootstrapEndToEndTests
 
             // ── Step 3: compile ───────────────────────────────────────────────
             var outputDir = Path.Combine(tempDir, "output");
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var compileResult = compiler.Compile(model, outputDir);
             Assert.True(compileResult.IsSuccess,
                 $"Bundle compilation failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
@@ -235,7 +235,7 @@ public sealed class PreUIBootstrapEndToEndTests
                 .Build();
 
             var outputDir = Path.Combine(tempDir, "output");
-            var compiler = new BundleCompiler();
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
             var compileResult = compiler.Compile(model, outputDir);
             Assert.True(compileResult.IsSuccess);
 

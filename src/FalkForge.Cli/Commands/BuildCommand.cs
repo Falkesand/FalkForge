@@ -182,7 +182,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
             {
                 var bundleResult = await CompileSignedBundleAsync(
                     compileResult.Value, package, outputPath, resolvedSigning.Provider,
-                    resolvedSigning.PqProvider, cancellationToken).ConfigureAwait(false);
+                    resolvedSigning.PqProvider, settings.NoEngine, cancellationToken).ConfigureAwait(false);
                 if (bundleResult.IsFailure)
                 {
                     _console.WriteError(bundleResult.Error.Message);
@@ -190,7 +190,8 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
                 }
 
                 _console.MarkupLine($"[green]Signed bundle created:[/] {Markup.Escape(bundleResult.Value)}");
-                _console.MarkupLine("[yellow]Note: this signed bundle uses a design-time placeholder engine stub and is NOT a runnable installer — its manifest signature verifies, but do not distribute it as an installer.[/]");
+                if (settings.NoEngine)
+                    _console.MarkupLine("[yellow]Note: --no-engine embedded a design-time placeholder engine stub; this bundle is NOT a runnable installer — its manifest signature verifies, but do not distribute it as an installer.[/]");
             }
 
             if (settings.GenerateWinGet)
@@ -217,6 +218,9 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     /// a genuinely asynchronous provider (e.g. SignServer) signs without blocking a thread. A
     /// non-null <paramref name="pqProvider"/> makes the bundle HYBRID-signed: the ML-DSA companion
     /// signs the same manifest message and the envelope carries both entries (classical first).
+    /// By default the bundle embeds the resolved published NativeAOT engine (a runnable
+    /// installer); <paramref name="allowPlaceholderStub"/> (the --no-engine flag) opts into the
+    /// non-runnable design-time placeholder instead.
     /// </summary>
     private static async Task<Result<string>> CompileSignedBundleAsync(
         string msiPath,
@@ -224,6 +228,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         string outputPath,
         ISignatureProvider provider,
         ISignatureProvider? pqProvider,
+        bool allowPlaceholderStub,
         CancellationToken cancellationToken)
     {
         var bundle = new BundleBuilder()
@@ -242,7 +247,8 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
             })
             .Build();
 
-        return await new BundleCompiler().CompileAsync(bundle, outputPath, cancellationToken).ConfigureAwait(false);
+        return await new BundleCompiler { AllowPlaceholderStub = allowPlaceholderStub }
+            .CompileAsync(bundle, outputPath, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

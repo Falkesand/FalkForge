@@ -63,7 +63,7 @@ public sealed class BundleCompilerSbomTests : IDisposable
     {
         var model = BuildModel(new SbomOptions());
         var outDir = Path.Combine(_tempDir, "out1");
-        var compiler = new BundleCompiler();
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
 
         var result = compiler.Compile(model, outDir);
 
@@ -81,7 +81,7 @@ public sealed class BundleCompilerSbomTests : IDisposable
     {
         var model = BuildModel(new SbomOptions());
         var outDir = Path.Combine(_tempDir, "out2");
-        var compiler = new BundleCompiler();
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
 
         var result = compiler.Compile(model, outDir);
         Assert.True(result.IsSuccess);
@@ -107,7 +107,7 @@ public sealed class BundleCompilerSbomTests : IDisposable
     {
         var model = BuildModel(sbomOptions: null);
         var outDir = Path.Combine(_tempDir, "out3");
-        var compiler = new BundleCompiler();
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
 
         var result = compiler.Compile(model, outDir);
         Assert.True(result.IsSuccess);
@@ -144,7 +144,7 @@ public sealed class BundleCompilerSbomTests : IDisposable
         };
 
         var outDir = Path.Combine(_tempDir, "out4");
-        var compiler = new BundleCompiler();
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
 
         var result = compiler.Compile(model, outDir);
         Assert.True(result.IsSuccess);

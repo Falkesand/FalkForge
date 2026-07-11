@@ -9,7 +9,28 @@ public sealed class BundleCompiler
     private readonly ManifestGenerator _manifestGenerator = new();
     private readonly BundleValidator _validator = new();
 
+    /// <summary>
+    /// Explicit path to the engine executable to embed as the bundle's self-extracting front.
+    /// When set it wins over all default resolution — and it MUST exist; a configured-but-missing
+    /// stub fails the build instead of silently degrading. When null the compiler resolves the
+    /// published NativeAOT engine via <see cref="EngineStubLocator"/>.
+    /// </summary>
     public string? EngineStubPath { get; set; }
+
+    /// <summary>
+    /// Explicit opt-in to the design-time placeholder stub (an empty PE front). The output is
+    /// NOT a runnable installer — it exists for signing/verification tooling and tests that must
+    /// not depend on a published NativeAOT engine. The opt-in is hermetic: ambient resolution
+    /// (environment variable, publish output) is never consulted.
+    /// </summary>
+    public bool AllowPlaceholderStub { get; set; }
+
+    /// <summary>
+    /// Test seam for default engine resolution. Production code keeps the default
+    /// (<see cref="EngineStubLocator.Resolve()"/>); tests inject a deterministic resolver so the
+    /// default-path policy can be asserted without depending on machine state.
+    /// </summary>
+    internal Func<Result<string>> EngineStubResolver { get; set; } = EngineStubLocator.Resolve;
 
     /// <summary>
     /// Compiles the bundle synchronously. Signing runs through the sync bridge, which fails loud (SGN010)
@@ -143,8 +164,14 @@ public sealed class BundleCompiler
     private Result<string> Finish(
         BundleModel model, string outputPath, InstallerManifest manifest, List<PayloadEntry> payloads)
     {
-        // Step 4: Create stub (minimal placeholder -- in production, this is the pre-compiled NativeAOT engine binary)
-        var stubPath = CreateStub(outputPath);
+        // Step 4: Create stub — the resolved NativeAOT engine by default; the empty design-time
+        // placeholder only via the explicit AllowPlaceholderStub opt-in. Fails loud otherwise.
+        var stubResult = EngineStubLocator.CreateStubFile(
+            outputPath, EngineStubPath, AllowPlaceholderStub, EngineStubResolver);
+        if (stubResult.IsFailure)
+            return Result<string>.Failure(stubResult.Error);
+
+        var stubPath = stubResult.Value;
 
         // Step 5: Embed payloads
         var outputFilePath = Path.Combine(outputPath, $"{model.Name}.exe");
@@ -171,22 +198,5 @@ public sealed class BundleCompiler
             return Result<string>.Failure(sbomResult.Error);
 
         return outputFilePath;
-    }
-
-    private string CreateStub(string outputDir)
-    {
-        Directory.CreateDirectory(outputDir);
-
-        if (EngineStubPath is not null && File.Exists(EngineStubPath))
-        {
-            var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
-            File.Copy(EngineStubPath, stubPath, overwrite: true);
-            return stubPath;
-        }
-
-        // Fallback: empty placeholder (design-time / test)
-        var fallbackPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
-        File.WriteAllBytes(fallbackPath, []);
-        return fallbackPath;
     }
 }

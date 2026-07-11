@@ -24,7 +24,24 @@ public sealed class DeltaBundleCompiler
     /// </summary>
     private const int CopyBufferSize = 64 * 1024;
 
+    /// <summary>
+    /// Explicit path to the engine executable to embed as the bundle's self-extracting front.
+    /// Same policy as <see cref="BundleCompiler.EngineStubPath"/>: set → must exist; null →
+    /// default resolution via <see cref="EngineStubLocator"/>.
+    /// </summary>
     public string? EngineStubPath { get; set; }
+
+    /// <summary>
+    /// Explicit opt-in to the design-time placeholder stub. Same policy as
+    /// <see cref="BundleCompiler.AllowPlaceholderStub"/>: the output is NOT a runnable installer.
+    /// </summary>
+    public bool AllowPlaceholderStub { get; set; }
+
+    /// <summary>
+    /// Test seam for default engine resolution — mirrors
+    /// <see cref="BundleCompiler.EngineStubResolver"/>.
+    /// </summary>
+    internal Func<Result<string>> EngineStubResolver { get; set; } = EngineStubLocator.Resolve;
 
     /// <summary>
     /// Test seam: overrides the parent directory under which the per-compile <c>falkdelta_*</c>
@@ -206,8 +223,14 @@ public sealed class DeltaBundleCompiler
 
             manifest = integrityResult.Value;
 
-            // Step 8: Create stub
-            var stubPath = CreateStub(outputPath);
+            // Step 8: Create stub — same policy as BundleCompiler (real engine by default,
+            // placeholder only via explicit opt-in, fail loud otherwise).
+            var stubResult = EngineStubLocator.CreateStubFile(
+                outputPath, EngineStubPath, AllowPlaceholderStub, EngineStubResolver);
+            if (stubResult.IsFailure)
+                return Result<string>.Failure(stubResult.Error);
+
+            var stubPath = stubResult.Value;
 
             // Step 9: Embed payloads (delta or full)
             var outputFilePath = Path.Combine(outputPath, $"{model.Name}.exe");
@@ -400,21 +423,5 @@ public sealed class DeltaBundleCompiler
     {
         try { File.Delete(path); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort cleanup */ }
-    }
-
-    private string CreateStub(string outputDir)
-    {
-        Directory.CreateDirectory(outputDir);
-
-        if (EngineStubPath is not null && File.Exists(EngineStubPath))
-        {
-            var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
-            File.Copy(EngineStubPath, stubPath, overwrite: true);
-            return stubPath;
-        }
-
-        var fallbackPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
-        File.WriteAllBytes(fallbackPath, []);
-        return fallbackPath;
     }
 }

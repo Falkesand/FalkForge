@@ -128,7 +128,7 @@ public sealed class DeltaApplicatorTests : IDisposable
 
         var model = CreateModel("DeltaApp", packageId, newPayloadPath);
         var outputDir = Path.Combine(_tempDir, "v2_delta");
-        var deltaResult = new DeltaBundleCompiler().Compile(model, outputDir, basisBundle);
+        var deltaResult = new DeltaBundleCompiler { AllowPlaceholderStub = true }.Compile(model, outputDir, basisBundle);
         Assert.True(deltaResult.IsSuccess, deltaResult.IsFailure ? deltaResult.Error.Message : "");
 
         var extract = BundleReader.Extract(deltaResult.Value);
@@ -144,7 +144,7 @@ public sealed class DeltaApplicatorTests : IDisposable
         var payloadPath = WritePayload(payloadData, $"{name}_payload.bin");
         var model = CreateModel(name, packageId, payloadPath);
         var outputDir = Path.Combine(_tempDir, $"{name}_bundle");
-        var result = new BundleCompiler().Compile(model, outputDir);
+        var result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, outputDir);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
         return result.Value;
     }

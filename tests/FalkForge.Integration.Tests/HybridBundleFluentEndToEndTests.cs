@@ -63,7 +63,7 @@ public sealed class HybridBundleFluentEndToEndTests : IDisposable
             .Chain(chain => chain.MsiPackage(payloadPath, pkg => pkg.Id("AppMsi").Version("1.0.0")))
             .Build();
 
-        var buildResult = new BundleCompiler().Compile(model, Path.Combine(_tempDir, "out"));
+        var buildResult = new BundleCompiler { AllowPlaceholderStub = true }.Compile(model, Path.Combine(_tempDir, "out"));
         Assert.True(buildResult.IsSuccess, buildResult.IsFailure ? buildResult.Error.Message : null);
 
         // 3. The compiled bundle's envelope carries both entries, classical first, correct identities.

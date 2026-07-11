@@ -65,7 +65,7 @@ public sealed class DeltaBundleCompilerManifestPolymorphismTests : IDisposable
         };
 
         var v1OutputDir = Path.Combine(_tempDir, "v1");
-        var v1Result = new BundleCompiler().Compile(v1Model, v1OutputDir);
+        var v1Result = new BundleCompiler { AllowPlaceholderStub = true }.Compile(v1Model, v1OutputDir);
         Assert.True(v1Result.IsSuccess,
             $"v1 compile failed: {(v1Result.IsFailure ? v1Result.Error.Message : "")}");
 
@@ -99,7 +99,7 @@ public sealed class DeltaBundleCompilerManifestPolymorphismTests : IDisposable
         };
 
         var v2OutputDir = Path.Combine(_tempDir, "v2");
-        var deltaResult = new DeltaBundleCompiler().Compile(v2Model, v2OutputDir, v1Result.Value);
+        var deltaResult = new DeltaBundleCompiler { AllowPlaceholderStub = true }.Compile(v2Model, v2OutputDir, v1Result.Value);
 
         Assert.True(deltaResult.IsSuccess,
             $"Delta compile failed reading v1 manifest with polymorphic chain: " +
