@@ -35,6 +35,13 @@ public sealed class DemoBuildFixture : IDisposable
         stubBytes[1] = (byte)'Z';
         File.WriteAllBytes(_engineStubPath, stubBytes);
 
+        // Mirror the publish layout: the elevation companion lives beside the engine. A runnable
+        // bundle embeds it as a trust-covered payload by default, so an engine without a companion
+        // beside it would (deliberately) fail the demo build loud.
+        File.WriteAllBytes(
+            Path.Combine(engineStubDir, Engine.Protocol.Bundle.EngineCompanionPayload.PackageId),
+            [(byte)'M', (byte)'Z', 0xE1, 0xE7]);
+
         // Force-killed test runs skip Dispose, leaving falk-demo-e2e-* roots in %TEMP%.
         // Self-heal on next run: delete sibling roots older than 24 hours (best-effort, never throw).
         try

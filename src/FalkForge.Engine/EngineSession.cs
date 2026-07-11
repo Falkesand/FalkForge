@@ -59,6 +59,14 @@ public sealed class EngineSession : IAsyncDisposable
     internal IFalkLogger? Logger => _logger;
 
     /// <summary>
+    /// Test-visible accessor for the session's elevation gateway (null when the session runs
+    /// per-user with no elevation). Exposed via
+    /// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so companion
+    /// policy tests can assert whether a companion was wired without starting it.
+    /// </summary>
+    internal IElevatedCommandGateway? ElevationGateway => _elevationGateway;
+
+    /// <summary>
     /// The session correlation id stamped on every log entry emitted by this session.
     /// The same id is propagated to the UI channel (via <see cref="IUiChannel.SetSessionCorrelationId"/>)
     /// and to the elevated companion (via <see cref="IElevatedCommandGateway.SetCorrelationId"/>)
@@ -269,11 +277,46 @@ public sealed class EngineSession : IAsyncDisposable
         };
 
         // ── Elevation gateway ───────────────────────────────────────────────
+        // Companion resolution is policy-driven (ElevationCompanionPolicy): the
+        // bootstrapper-verified extracted companion (options.ElevationCompanionPath — its bytes
+        // were bound to the bundle manifest's declared/signed hash before it was handed here)
+        // always wins; the classic probe beside the engine (the published-directory layout) is
+        // consulted ONLY under AmbientAllowed (a plain engine run). In a bundle bootstrap the
+        // manifest is authoritative: NoneDeclared skips the ambient probe entirely so a planted
+        // FalkForge.Engine.Elevation.exe beside the bundle exe is never launched elevated, and a
+        // VerifiedPath whose file has vanished degrades to per-user rather than substituting the
+        // unverified ambient binary. Without a companion the session runs with no elevation
+        // gateway: the pipeline skips the Elevating phase and installs per-user — say so in the
+        // log instead of degrading silently.
         IElevatedCommandGateway? elevationGateway = null;
-        var companionExePath = Path.Combine(AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
-        if (OperatingSystem.IsWindows() && File.Exists(companionExePath))
+        string? companionExePath = null;
+        if (options.ElevationCompanionPath is { } verifiedCompanion && File.Exists(verifiedCompanion))
+        {
+            companionExePath = verifiedCompanion;
+        }
+        else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.AmbientAllowed)
+        {
+            var probe = Path.Combine(AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
+            if (File.Exists(probe))
+                companionExePath = probe;
+        }
+
+        if (OperatingSystem.IsWindows() && companionExePath is not null)
         {
             elevationGateway = new NamedPipeElevationGateway(new ProcessLauncher(), companionExePath);
+        }
+        else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.NoneDeclared)
+        {
+            logger.Info("Engine",
+                "Bundle manifest declares no elevation companion — the ambient probe beside the " +
+                "engine is skipped (the manifest is authoritative in a bundle bootstrap); elevated " +
+                "(per-machine) installs are disabled for this session; continuing per-user.");
+        }
+        else
+        {
+            logger.Info("Engine",
+                "Elevation companion (FalkForge.Engine.Elevation.exe) not available — elevated " +
+                "(per-machine) installs are disabled for this session; continuing per-user.");
         }
 
         // ── Auto-update services ────────────────────────────────────────────

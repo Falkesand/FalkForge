@@ -55,4 +55,22 @@ public sealed record InstallerManifest
     /// Empty array means no pre-UI prerequisites (the default; back-compat with older bundles).
     /// </summary>
     public PreUIPackageInfo[] PreUIPackages { get; init; } = [];
+
+    /// <summary>
+    /// SHA-256 (hex) of the elevation companion payload embedded in the bundle under the reserved
+    /// TOC id <see cref="FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId"/>.
+    /// <para>
+    /// The companion executes elevated (SYSTEM for per-machine installs), so the bootstrapper binds
+    /// the extracted companion to this declared hash before ever wiring it for elevation, and —
+    /// when the bundle is integrity-signed — the companion's hash is additionally inside the ECDSA
+    /// signature envelope, so post-signing tamper is rejected before extraction like any payload.
+    /// </para>
+    /// <para>
+    /// Null means the bundle carries no companion (older bundles, per-user-only authoring via
+    /// <c>OmitElevationCompanion</c>, or design-time placeholder builds); the engine then falls
+    /// back to per-user behavior instead of elevating. Unknown to older engines, which skip the
+    /// field on deserialization — backward compatible in both directions.
+    /// </para>
+    /// </summary>
+    public string? EngineCompanionSha256 { get; init; }
 }

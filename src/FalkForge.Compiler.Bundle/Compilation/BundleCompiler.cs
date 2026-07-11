@@ -21,9 +21,21 @@ public sealed class BundleCompiler
     /// Explicit opt-in to the design-time placeholder stub (an empty PE front). The output is
     /// NOT a runnable installer — it exists for signing/verification tooling and tests that must
     /// not depend on a published NativeAOT engine. The opt-in is hermetic: ambient resolution
-    /// (environment variable, publish output) is never consulted.
+    /// (environment variable, publish output) is never consulted. A placeholder bundle embeds no
+    /// engine, so it embeds no elevation companion either (unless
+    /// <see cref="ElevationCompanionPath"/> is set explicitly).
     /// </summary>
     public bool AllowPlaceholderStub { get; set; }
+
+    /// <summary>
+    /// Explicit path to the elevation companion executable
+    /// (<c>FalkForge.Engine.Elevation.exe</c>) to embed as a trust-covered payload. When set it
+    /// wins over all default resolution — and it MUST exist; a configured-but-missing companion
+    /// fails the build. When null the compiler resolves the published companion via
+    /// <see cref="ElevationCompanionLocator"/> (environment variable, then beside the engine
+    /// being embedded). See <see cref="BundleModel.OmitElevationCompanion"/> for the opt-out.
+    /// </summary>
+    public string? ElevationCompanionPath { get; set; }
 
     /// <summary>
     /// Test seam for default engine resolution. Production code keeps the default
@@ -153,7 +165,17 @@ public sealed class BundleCompiler
             });
         }
 
-        return (manifest, payloads);
+        // Step 3c: Embed the elevation companion as a trust-covered payload (reserved TOC id,
+        // hash declared in the manifest, inside the signature envelope when Integrity is on).
+        // Added BEFORE signing so the companion — which executes as SYSTEM — is covered by the
+        // exact same payload-trust chain as every installable payload.
+        var companionResult = ElevationCompanionAppender.Append(
+            payloads, manifest, model, ElevationCompanionPath, EngineStubPath, AllowPlaceholderStub,
+            EngineStubResolver);
+        if (companionResult.IsFailure)
+            return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(companionResult.Error);
+
+        return (companionResult.Value, payloads);
     }
 
     /// <summary>

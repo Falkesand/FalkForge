@@ -35,6 +35,7 @@ public sealed class BundleBuilder
     private IntegrityConfiguration? _integrity;
     private bool _isDryRun;
     private string? _deltaBaseBundlePath;
+    private bool _omitElevationCompanion;
 
     public BundleBuilder Name(string name)
     {
@@ -332,6 +333,19 @@ public sealed class BundleBuilder
     }
 
     /// <summary>
+    /// Opts this bundle out of embedding the elevation companion
+    /// (<c>FalkForge.Engine.Elevation.exe</c>). By default a runnable bundle carries the companion
+    /// as a trust-covered payload so per-machine (elevated) installs work from a lone distributed
+    /// exe. Call this for a bundle authored per-user-only to save the payload bytes; the engine
+    /// then falls back to per-user behavior instead of elevating.
+    /// </summary>
+    public BundleBuilder WithoutElevationCompanion()
+    {
+        _omitElevationCompanion = true;
+        return this;
+    }
+
+    /// <summary>
     /// Marks this bundle as a dry-run installer. The engine Apply phase will
     /// simulate package execution instead of running real installers.
     /// </summary>
@@ -389,7 +403,8 @@ public sealed class BundleBuilder
             SbomOptions = _sbomOptions,
             Integrity = _integrity,
             IsDryRun = _isDryRun,
-            PreUIPackages = _preUIPackages.AsReadOnly()
+            PreUIPackages = _preUIPackages.AsReadOnly(),
+            OmitElevationCompanion = _omitElevationCompanion
         };
     }
 }

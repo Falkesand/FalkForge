@@ -428,6 +428,161 @@ public sealed class SignedPayloadTocVerifierTests
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
     }
 
+    // ── Companion declaration ↔ signed set binding (INT012) ────────────────────────────────
+    //
+    // InstallerManifest.EngineCompanionSha256 is the field the bootstrapper wires the
+    // SYSTEM-executing elevation companion from, but it is a plain manifest field — not part of
+    // the ECDSA-signed envelope bytes. Without a direct assertion, an attacker can edit or strip
+    // the field on a signed bundle while the envelope still covers the real companion: every
+    // TOC↔signature check passes, and the companion decision silently downgrades (per-user or a
+    // wrong hash) instead of failing loud. These tests pin the DIRECT binding: signed envelope
+    // covers a companion entry ⇔ manifest declares the same hash.
+
+    /// <summary>
+    /// Builds a signed manifest whose envelope covers an "AppMsi" payload and (optionally) the
+    /// reserved companion entry, with the manifest's companion DECLARATION set independently —
+    /// so declaration and signed set can be put in deliberate disagreement.
+    /// </summary>
+    private static InstallerManifest SignedManifestWithCompanion(
+        ECDsa key, string? declaredCompanionSha256, string? signedCompanionSha256)
+    {
+        var files = new List<ManifestFileEntry>
+        {
+            new() { Name = "AppMsi", Sha256 = HashA }
+        };
+        if (signedCompanionSha256 is not null)
+            files.Add(new ManifestFileEntry
+            {
+                Name = EngineCompanionPayload.PackageId,
+                Sha256 = signedCompanionSha256
+            });
+
+        var envelope = IntegrityEnvelopeCodec.Sign(files, key);
+
+        return new InstallerManifest
+        {
+            Name = "T",
+            Manufacturer = "M",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = "AppMsi",
+                    Type = PackageType.MsiPackage,
+                    DisplayName = "AppMsi",
+                    SourcePath = "AppMsi.msi",
+                    Sha256Hash = HashA
+                }
+            ],
+            EngineCompanionSha256 = declaredCompanionSha256,
+            ManifestSignature = IntegrityEnvelopeCodec.Serialize(envelope)
+        };
+    }
+
+    private const string CompanionHash = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+
+    [Fact]
+    public void SignedBundle_CompanionDeclaredAndCovered_Accepts()
+    {
+        // The legitimate build: appender declares the hash, signer covers the same hash.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithCompanion(key, CompanionHash, CompanionHash);
+
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[]
+        {
+            FullEntry("AppMsi", HashA),
+            FullEntry(EngineCompanionPayload.PackageId, CompanionHash)
+        }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void SignedBundle_CompanionDeclarationStripped_WhileEnvelopeCoversCompanion_Rejected_Int012()
+    {
+        // Attacker strips EngineCompanionSha256 from the signed manifest. The envelope still
+        // covers the real companion (the signature proves the publisher shipped one), so a
+        // missing declaration is TAMPER — the install must abort, not silently downgrade the
+        // companion to per-user.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithCompanion(key, declaredCompanionSha256: null, CompanionHash);
+
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[]
+        {
+            FullEntry("AppMsi", HashA),
+            FullEntry(EngineCompanionPayload.PackageId, CompanionHash)
+        }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure, "a stripped companion declaration on a signed bundle must abort, not downgrade");
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SignedBundle_CompanionDeclarationEdited_Rejected_Int012()
+    {
+        // Attacker rewrites the declared hash (hoping to point the bootstrapper's resolver at a
+        // different payload) while leaving the signed envelope intact. Declaration must equal the
+        // signed companion hash — anything else is tamper.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithCompanion(key, declaredCompanionSha256: HashB, CompanionHash);
+
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[]
+        {
+            FullEntry("AppMsi", HashA),
+            FullEntry(EngineCompanionPayload.PackageId, CompanionHash)
+        }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SignedBundle_DeclaredCompanionNotInSignedSet_Rejected_Int012()
+    {
+        // The manifest declares a companion the signature never covered (an injected declaration
+        // on a companion-free signed bundle). The declaration is a trust decision — it must sit
+        // inside the signed set, exactly like every executing payload.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithCompanion(key, CompanionHash, signedCompanionSha256: null);
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UnsignedBundle_CompanionDeclared_PassesThrough_NoSignedSetToCheck()
+    {
+        // Unsigned bundles have no signed set to bind the declaration to — behavior unchanged
+        // (the bootstrapper's resolver still binds declaration ↔ TOC ↔ bytes on its own).
+        var manifest = new InstallerManifest
+        {
+            Name = "T",
+            Manufacturer = "M",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = [],
+            EngineCompanionSha256 = CompanionHash,
+            ManifestSignature = null
+        };
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry(EngineCompanionPayload.PackageId, CompanionHash) }, NoTrust);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
     [Fact]
     public void InvalidSignature_Rejected()
     {
