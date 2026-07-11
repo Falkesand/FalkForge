@@ -61,6 +61,14 @@ public sealed class FileShareBuilder
         if (string.IsNullOrWhiteSpace(_directory))
             return Result<FileShareModel>.Failure(ErrorKind.Validation, "FSH003: FileShare Directory is required.");
 
+        // The Directory (shared path) is emitted as a live, double-quoted trailing argument to the
+        // deferred action (so an MSI Formatted token like [INSTALLDIR] resolves at install time). A
+        // double quote is an illegal Windows path character and would break out of that quoting, so
+        // reject it as defense in depth against a malformed author value.
+        if (_directory.Contains('"', StringComparison.Ordinal))
+            return Result<FileShareModel>.Failure(ErrorKind.Validation,
+                "FSH004: FileShare Directory must not contain a double-quote character.");
+
         return new FileShareModel
         {
             Id = _id,

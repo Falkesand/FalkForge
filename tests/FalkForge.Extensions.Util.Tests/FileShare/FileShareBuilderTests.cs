@@ -79,4 +79,19 @@ public sealed class FileShareBuilderTests
         Assert.True(result.IsSuccess);
         Assert.Equal("Shared folder for data", result.Value.Description);
     }
+
+    [Fact]
+    public void Build_WithDoubleQuoteInDirectory_ReturnsFailure()
+    {
+        // The shared path is emitted as a live double-quoted trailing CLI argument, so a double quote
+        // (illegal in Windows paths) is rejected as defense in depth against quote breakout.
+        var result = new FileShareBuilder()
+            .Id("share1")
+            .Name("MyShare")
+            .Directory("C:\\Bad\"Path")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("FSH004", result.Error.Message);
+    }
 }
