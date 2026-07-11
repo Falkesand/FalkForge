@@ -63,5 +63,6 @@
     <Project Path="tests/FalkForge.Extensibility.Tests/FalkForge.Extensibility.Tests.csproj" />
     <Project Path="tests/FalkForge.Platform.Windows.Tests/FalkForge.Platform.Windows.Tests.csproj" />
     <Project Path="tests/FalkForge.Signing.SignServer.Tests/FalkForge.Signing.SignServer.Tests.csproj" />
+    <Project Path="tests/FalkForge.SignServer.E2E.Tests/FalkForge.SignServer.E2E.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Plain net10.0 ON PURPOSE (unlike FalkForge.Integration.Tests, which is net10.0-windows and
+         drags in Windows-only projects): these tests spin a LINUX SignServer container via
+         Testcontainers, so CI runs them on an ubuntu runner with a native Linux Docker daemon.
+         Everything they need (Core, Compiler.Bundle, Engine.Protocol, Signing.SignServer) is
+         cross-platform. Keep this project free of net10.0-windows references. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- The test sources moved here verbatim from FalkForge.Integration.Tests and keep that
+         namespace, as does the linked E2EGate.cs below. -->
+    <RootNamespace>FalkForge.Integration.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Testcontainers" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Shared FALKFORGE_E2E opt-in gate — linked, not copied, so the parsing rule stays single-source
+         (it is pinned by E2EGateTests in FalkForge.Integration.Tests). -->
+    <Compile Include="..\FalkForge.Integration.Tests\E2EGate.cs" Link="E2EGate.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Signing.SignServer\FalkForge.Signing.SignServer.csproj" />
+  </ItemGroup>
+</Project>
