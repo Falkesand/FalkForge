@@ -203,6 +203,53 @@ public sealed class InitCommandTests : IDisposable
     }
 
     [Fact]
+    public void Execute_FromPublishEqualsOutputDirectory_RefusesInsteadOfNestingPayloadIntoItself()
+    {
+        // Plausible first-run mistake: `forge init --from-publish .` executed inside the publish
+        // folder with the default output directory. The payload target (outDir/payload) would sit
+        // inside the copy source, so a live recursive copy re-picks freshly copied files and
+        // runs away into payload/payload/... nesting. The command must refuse loudly instead.
+        File.WriteAllText(Path.Combine(_tempDir, "app.exe.txt"), "app");
+
+        var (exitCode, console) = Run(new InitSettings
+        {
+            OutputDir = _tempDir,
+            Name = "App",
+            FromPublish = _tempDir
+        });
+
+        Assert.Equal(ExitCodes.ValidationFailure, exitCode);
+        Assert.Contains(console.Errors, e =>
+            e.Contains("--from-publish", StringComparison.Ordinal) &&
+            e.Contains("separate", StringComparison.Ordinal));
+        Assert.False(Directory.Exists(Path.Combine(_tempDir, "payload")),
+            "a refused init must not copy anything — and must never nest payload into itself");
+        Assert.False(File.Exists(Path.Combine(_tempDir, "App.csproj")),
+            "a refused init must not leave a partial scaffold behind");
+    }
+
+    [Fact]
+    public void Execute_FromPublishAncestorOfOutputDirectory_Refuses()
+    {
+        // Same footgun one level up: the output directory nested anywhere inside the publish
+        // source still places the payload target inside the enumerated tree.
+        File.WriteAllText(Path.Combine(_tempDir, "app.exe.txt"), "app");
+        var projectDir = Path.Combine(_tempDir, "installer");
+
+        var (exitCode, console) = Run(new InitSettings
+        {
+            OutputDir = projectDir,
+            Name = "App",
+            FromPublish = _tempDir
+        });
+
+        Assert.Equal(ExitCodes.ValidationFailure, exitCode);
+        Assert.Contains(console.Errors, e => e.Contains("--from-publish", StringComparison.Ordinal));
+        Assert.False(Directory.Exists(Path.Combine(projectDir, "payload")),
+            "a refused init must not copy anything");
+    }
+
+    [Fact]
     public void Execute_FromPublishMissingDirectory_FailsLoud()
     {
         var (exitCode, console) = Run(new InitSettings

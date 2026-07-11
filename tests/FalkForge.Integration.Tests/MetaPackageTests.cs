@@ -43,6 +43,29 @@ public sealed class MetaPackageTests
         "FalkForge.Engine.Runtime.win-x64"
     ];
 
+    /// <summary>
+    /// Packages the meta-package must NEVER depend on — the deliberate exclusions documented on
+    /// <see cref="ExpectedDependencyIds"/>. Pinned so an accidental ProjectReference add (dragging
+    /// the WPF UI stack, the experimental MSIX compiler, the decompiler, plugins, SignServer,
+    /// test utilities, Studio, or the engine/elevation executables into every batteries-included
+    /// consumer) fails red instead of silently bloating the onboarding package.
+    /// </summary>
+    private static readonly string[] ExcludedDependencyIds =
+    [
+        "FalkForge.Ui",
+        "FalkForge.Ui.Abstractions",
+        "FalkForge.Compiler.Msix",
+        "FalkForge.Decompiler",
+        "FalkForge.Plugins.Sql",
+        "FalkForge.Plugins.Odbc",
+        "FalkForge.Plugins.FileSystem",
+        "FalkForge.Signing.SignServer",
+        "FalkForge.Testing",
+        "FalkForge.Studio",
+        "FalkForge.Engine",
+        "FalkForge.Engine.Elevation"
+    ];
+
     private static string? FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -122,6 +145,13 @@ public sealed class MetaPackageTests
         {
             Assert.True(declared.Contains(expected),
                 $"meta-package must depend on {expected}; declared: [{string.Join(", ", declared)}]");
+        }
+
+        foreach (var excluded in ExcludedDependencyIds)
+        {
+            Assert.False(declared.Contains(excluded),
+                $"meta-package must NOT depend on {excluded} — it is a deliberate exclusion " +
+                $"(see ExcludedDependencyIds); declared: [{string.Join(", ", declared)}]");
         }
 
         // Every dependency must pin the same single-source version as the meta-package itself,

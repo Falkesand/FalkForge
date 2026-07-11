@@ -64,6 +64,8 @@ Core (no deps)
 Engine exe:    Engine.Protocol + Platform.Windows + Compiler.Msi
 Elevation exe: Engine.Protocol + Platform.Windows
 Cli exe:       Core + Compiler.Msi/Bundle + Decompiler + Localization + Extensibility + Extensions.*
+Meta pkg (PackageId FalkForge): deps only — Core + Compiler.Msi/Bundle + Localization + Extensibility + Extensions.* + Engine.Runtime.win-x64
+Templates pkg: content-only template pack (dotnet new falkforge-msi|bundle) → scaffolded project references Meta pkg
 ```
 
 ## Key Patterns

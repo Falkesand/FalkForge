@@ -36,6 +36,18 @@ public sealed class InitCommand : Command<InitSettings>
                 _console.WriteError($"--from-publish directory not found: {publishDir}");
                 return ExitCodes.RuntimeError;
             }
+
+            // Footgun guard: if the output directory sits inside (or equals) the publish
+            // directory, the payload target would be nested inside the copy source and the
+            // recursive copy would re-pick its own output (payload/payload/... runaway).
+            if (IsSameDirectoryOrAncestor(publishDir, outDir))
+            {
+                _console.WriteError(
+                    $"The --from-publish directory ({publishDir}) contains the output " +
+                    $"directory ({outDir}), so the payload copy would recurse into itself. " +
+                    "Publish to a separate folder or choose a different --output.");
+                return ExitCodes.ValidationFailure;
+            }
         }
 
         var productName = ResolveProductName(settings.Name, outDir);
@@ -121,10 +133,28 @@ public sealed class InitCommand : Command<InitSettings>
         return sanitized.Length == 0 ? "MyInstaller" : sanitized;
     }
 
+    /// <summary>
+    /// True when <paramref name="candidateAncestor"/> is the same directory as
+    /// <paramref name="candidateDescendant"/> or one of its ancestors. Both arguments must
+    /// already be full paths. Ordinal-ignore-case: Windows paths are case-insensitive, and for
+    /// this guard a false positive merely refuses a pathological layout.
+    /// </summary>
+    private static bool IsSameDirectoryOrAncestor(string candidateAncestor, string candidateDescendant)
+    {
+        var ancestor = Path.TrimEndingDirectorySeparator(candidateAncestor);
+        var descendant = Path.TrimEndingDirectorySeparator(candidateDescendant);
+        return string.Equals(ancestor, descendant, StringComparison.OrdinalIgnoreCase) ||
+               descendant.StartsWith(ancestor + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void CopyDirectory(string sourceDir, string targetDir)
     {
+        // Snapshot the source file list BEFORE creating the target directory: if the target were
+        // ever nested inside the source (defense in depth behind the --from-publish guard above),
+        // a live enumeration would re-pick freshly copied files and nest without bound.
+        var sourceFiles = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
         Directory.CreateDirectory(targetDir);
-        foreach (var sourceFile in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+        foreach (var sourceFile in sourceFiles)
         {
             var relative = Path.GetRelativePath(sourceDir, sourceFile);
             var targetFile = Path.Combine(targetDir, relative);
