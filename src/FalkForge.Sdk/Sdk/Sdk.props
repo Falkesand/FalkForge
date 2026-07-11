@@ -1,4 +1,15 @@
 <Project>
+  <!-- When this SDK is the project's SDK (<Project Sdk="FalkForge.Sdk/x.y.z">), chain
+       Microsoft.NET.Sdk so the project restores and compiles like a normal C# project —
+       without the chain the build would be a silent no-op (no restore, no compile targets).
+       Skipped when Microsoft.NET.Sdk is already in play (an <Sdk> element or a direct
+       import inside a Microsoft.NET.Sdk project), where chaining would double-import.
+       The marker property tells Sdk.targets to chain the matching targets. -->
+  <PropertyGroup Condition="'$(UsingMicrosoftNETSdk)' != 'true'">
+    <_FalkForgeSdkChainsNetSdk>true</_FalkForgeSdkChainsNetSdk>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" Condition="'$(_FalkForgeSdkChainsNetSdk)' == 'true'" />
+
   <!-- Written at pack time; carries the package version so the implicit engine-runtime
        reference below matches this SDK. Absent when Sdk.props is consumed straight from the
        source tree (dev/repo flow) — then no implicit reference is injected and the bundle
