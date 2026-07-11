@@ -13,6 +13,8 @@ public sealed class FirewallExtension : IFalkForgeExtension, IDryRunContributor
     public void Register(IExtensionRegistry registry)
     {
         registry.RegisterTableContributor(TableContributor);
+        registry.RegisterExecutionContributor(
+            new FirewallExecutionContributor(() => TableContributor.Rules));
     }
 
     public void AddRule(Action<FirewallRuleBuilder> configure)
