@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace FalkForge.Extensions.Util.RemoveFolderEx;
 
 public sealed class RemoveFolderExBuilder
@@ -63,8 +65,7 @@ public sealed class RemoveFolderExBuilder
             // returns the build process's current directory on that drive (often NOT the root), which
             // would let a "C:" literal slip past the resolve-to-root check below. The runtime guard in
             // RemoveFolderExCommandFactory rejects the same shape independently.
-            if (System.Text.RegularExpressions.Regex.IsMatch(
-                    _directory.Trim(), @"^[A-Za-z]:\\?$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromMilliseconds(100)))
+            if (Regex.IsMatch(_directory.Trim(), @"^[A-Za-z]:\\?$", RegexOptions.None, TimeSpan.FromMilliseconds(100)))
             {
                 return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
                     "RFX003: RemoveFolderEx Directory must not be a drive root (e.g. 'C:' or 'C:\\'); scope it " +
