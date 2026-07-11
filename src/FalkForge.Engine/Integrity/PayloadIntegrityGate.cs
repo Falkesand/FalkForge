@@ -136,22 +136,26 @@ internal static class PayloadIntegrityGate
                 return Result<Unit>.Failure(trust.Error);
         }
 
-        // Direction 1 — signed → manifest: every signed entry must bind to a manifest package
-        // whose hash matches the signed hash the cache enforces against payload bytes.
+        // Direction 1 — signed → manifest: every signed entry must bind to a manifest-carried
+        // payload whose hash matches the signed hash the cache enforces against payload bytes.
+        // The build-time signer covers EVERY embedded payload, so the lookup spans all three
+        // places the manifest carries one: installable Packages, pre-UI prerequisites
+        // (PreUIPackages), and the elevation companion (EngineCompanionSha256) — the latter two
+        // execute too (the companion as SYSTEM), so a signed entry for them must bind, not INT002.
         foreach (var entry in envelope.Files)
         {
             if (string.IsNullOrEmpty(entry.Name))
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
                     "INT003: Manifest integrity envelope has an entry with an empty name.");
 
-            var package = FindPackage(manifest, entry.Name);
-            if (package is null)
+            var manifestHash = FindCoveredPayloadHash(manifest, entry.Name);
+            if (manifestHash is null)
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
                     $"INT002: Signed integrity entry '{entry.Name}' has no matching package in the manifest.");
 
-            if (!string.Equals(package.Sha256Hash, entry.Sha256, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(manifestHash, entry.Sha256, StringComparison.OrdinalIgnoreCase))
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                    $"INT002: Integrity hash mismatch for '{entry.Name}'. Signed {entry.Sha256}, manifest has {package.Sha256Hash}.");
+                    $"INT002: Integrity hash mismatch for '{entry.Name}'. Signed {entry.Sha256}, manifest has {manifestHash}.");
         }
 
         // Direction 2 — manifest → signed (set coverage): once a manifest is signed, EVERY
@@ -180,13 +184,28 @@ internal static class PayloadIntegrityGate
         return false;
     }
 
-    private static PackageInfo? FindPackage(InstallerManifest manifest, string id)
+    /// <summary>
+    /// Resolves the manifest-declared hash for a signed payload id across every place the
+    /// manifest carries one: installable packages, pre-UI prerequisites, and the elevation
+    /// companion (whose reserved id binds to <see cref="InstallerManifest.EngineCompanionSha256"/>).
+    /// Returns null when the manifest carries no payload under that id.
+    /// </summary>
+    private static string? FindCoveredPayloadHash(InstallerManifest manifest, string id)
     {
         foreach (var package in manifest.Packages)
         {
             if (string.Equals(package.Id, id, StringComparison.Ordinal))
-                return package;
+                return package.Sha256Hash;
         }
+
+        foreach (var preUI in manifest.PreUIPackages)
+        {
+            if (string.Equals(preUI.Id, id, StringComparison.Ordinal))
+                return preUI.Sha256Hash;
+        }
+
+        if (string.Equals(id, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, StringComparison.Ordinal))
+            return manifest.EngineCompanionSha256;
 
         return null;
     }

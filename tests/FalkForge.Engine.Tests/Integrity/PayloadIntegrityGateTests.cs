@@ -235,6 +235,128 @@ public sealed class PayloadIntegrityGateTests
         Assert.Contains("INT009", result.Error.Message, StringComparison.Ordinal);
     }
 
+    private static InstallerManifest ManifestWithCoveredExtras(
+        string? signature,
+        string? companionSha256 = null,
+        PreUIPackageInfo[]? preUIPackages = null,
+        params PackageInfo[] packages)
+        => new()
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = packages,
+            ManifestSignature = signature,
+            EngineCompanionSha256 = companionSha256,
+            PreUIPackages = preUIPackages ?? []
+        };
+
+    private static PreUIPackageInfo PreUI(string id, string sha256)
+        => new()
+        {
+            Id = id,
+            DisplayName = id,
+            SourcePath = id,
+            Sha256Hash = sha256,
+            Arguments = "/quiet"
+        };
+
+    [Fact]
+    public void Verify_SignedCompanionEntry_BindsToManifestDeclaredHash_ReturnsSuccess()
+    {
+        // The elevation companion is a signed payload but not an installable package: its hash
+        // lives in InstallerManifest.EngineCompanionSha256, not in Packages. The gate must bind
+        // the signed companion entry to that declared hash instead of failing INT002 — the
+        // companion executes as SYSTEM, so it must stay INSIDE the signed set, never outside it.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key,
+            ("A", "AABB"),
+            (FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, "C0DE"));
+        var manifest = ManifestWithCoveredExtras(
+            sig, companionSha256: "C0DE", packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void Verify_SignedCompanionEntry_ManifestDeclaresDifferentHash_ReturnsInt002()
+    {
+        // Post-signing tamper of the manifest's companion declaration must be rejected: the
+        // signed hash is the source of truth for the SYSTEM-executing companion's bytes.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key,
+            ("A", "AABB"),
+            (FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, "C0DE"));
+        var manifest = ManifestWithCoveredExtras(
+            sig, companionSha256: "BEEF", packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Verify_SignedCompanionEntry_ManifestDeclaresNoCompanion_ReturnsInt002()
+    {
+        // An envelope entry for the companion with no manifest declaration to bind to is a
+        // contract violation (e.g. the declaration was stripped after signing) — fail closed.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key,
+            ("A", "AABB"),
+            (FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, "C0DE"));
+        var manifest = ManifestWithCoveredExtras(
+            sig, companionSha256: null, packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Verify_SignedPreUIEntry_BindsToPreUIPackageHash_ReturnsSuccess()
+    {
+        // Embedded pre-UI prerequisites are signed payloads carried in PreUIPackages, not in
+        // Packages. The build-time signer covers them, so the gate must bind their signed
+        // entries there — a signed Integrity() bundle with a pre-UI prerequisite previously
+        // failed INT002 at apply time because the gate only consulted Packages.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"), ("DotNetRuntime", "D07E"));
+        var manifest = ManifestWithCoveredExtras(
+            sig,
+            preUIPackages: [PreUI("DotNetRuntime", "D07E")],
+            packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void Verify_SignedPreUIEntry_HashMismatch_ReturnsInt002()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"), ("DotNetRuntime", "D07E"));
+        var manifest = ManifestWithCoveredExtras(
+            sig,
+            preUIPackages: [PreUI("DotNetRuntime", "BEEF")],
+            packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Verify_HashComparisonIsCaseInsensitive()
     {
