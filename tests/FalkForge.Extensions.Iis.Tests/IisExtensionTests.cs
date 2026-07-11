@@ -109,15 +109,20 @@ public sealed class IisExtensionTests
     });
 
     [Fact]
-    public void Register_DoesNotThrow()
+    public void Register_RegistersTableContributors_SoIisConfigReachesTheMsi()
     {
         var extension = new IisExtension();
+        extension.AddAppPool(pool => pool.Id("P").Name("Pool"));
+        extension.AddWebSite(site => site.Id("S").Description("Site").Directory("[INSTALLDIR]").Binding(80));
         var registry = new TestExtensionRegistry();
 
         extension.Register(registry);
 
-        // IIS extension is model-only; Register is a no-op for now — assert registry still intact.
-        Assert.NotNull(registry);
+        // IIS is no longer a silent no-op: it contributes the IIsAppPool + IIsWebSite custom
+        // tables and a placeholder CustomAction so its configuration is present in the compiled MSI.
+        Assert.Contains(registry.TableContributors, c => c.TableName == "IIsAppPool");
+        Assert.Contains(registry.TableContributors, c => c.TableName == "IIsWebSite");
+        Assert.Contains(registry.TableContributors, c => c.TableName == "CustomAction");
     }
 
     [Fact]

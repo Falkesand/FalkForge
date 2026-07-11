@@ -10,6 +10,16 @@ public sealed class DriverTableContributor : IMsiTableContributor
 
     public string TableName => "FalkDriverPackage";
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Action"),
+        ContributedColumn.Int("Type"),
+        ContributedColumn.Text("Source", 72),
+        ContributedColumn.Text("Target"),
+        ContributedColumn.Text("Condition"),
+    ];
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>();

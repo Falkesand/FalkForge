@@ -12,6 +12,18 @@ public sealed class SqlStringTableContributor : IMsiTableContributor
     /// <inheritdoc/>
     public ITableReadSchema? ReadSchema => SqlTableReadSchemas.String;
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Id"),
+        ContributedColumn.Text("Database_", 72),
+        ContributedColumn.Text("Sql"),
+        ContributedColumn.Int("ExecuteOnInstall"),
+        ContributedColumn.Int("ExecuteOnUninstall"),
+        ContributedColumn.Int("Sequence"),
+        ContributedColumn.Int("ContinueOnError"),
+    ];
+
     /// <summary>Exposes the registered SqlString models for validation.</summary>
     public IReadOnlyList<SqlStringModel> Items => _entries;
 

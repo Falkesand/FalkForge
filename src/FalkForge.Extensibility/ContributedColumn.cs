@@ -51,4 +51,16 @@ public sealed class ContributedColumn
 
     /// <summary>Whether this column participates in the table's primary key.</summary>
     public bool PrimaryKey { get; init; }
+
+    /// <summary>Creates a non-nullable primary-key string column (MSI identifier width by default).</summary>
+    public static ContributedColumn Key(string name, int width = 72)
+        => new() { Name = name, Type = ContributedColumnType.String, Width = width, PrimaryKey = true };
+
+    /// <summary>Creates a string column. Nullable by default so optional model fields never fail the build.</summary>
+    public static ContributedColumn Text(string name, int width = 255, bool nullable = true)
+        => new() { Name = name, Type = ContributedColumnType.String, Width = width, Nullable = nullable };
+
+    /// <summary>Creates a non-nullable 32-bit integer column.</summary>
+    public static ContributedColumn Int(string name)
+        => new() { Name = name, Type = ContributedColumnType.Int32 };
 }

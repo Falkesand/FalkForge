@@ -8,6 +8,20 @@ public sealed class ScheduledTaskTableContributor : IMsiTableContributor
 
     public string TableName => "FalkForgeScheduledTask";
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Id"),
+        ContributedColumn.Text("Name"),
+        ContributedColumn.Text("Command"),
+        ContributedColumn.Text("Arguments"),
+        ContributedColumn.Text("WorkingDirectory"),
+        ContributedColumn.Int("TriggerType"),
+        ContributedColumn.Text("Schedule"),
+        ContributedColumn.Text("RunAsUser"),
+        ContributedColumn.Int("RunElevated"),
+    ];
+
     public void Add(ScheduledTaskModel task) => _tasks.Add(task);
 
     public IReadOnlyList<ScheduledTaskModel> Tasks => _tasks;

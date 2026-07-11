@@ -12,6 +12,22 @@ public sealed class SqlScriptTableContributor : IMsiTableContributor
     /// <inheritdoc/>
     public ITableReadSchema? ReadSchema => SqlTableReadSchemas.Script;
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Id"),
+        ContributedColumn.Text("Database_", 72),
+        ContributedColumn.Text("SourceFile"),
+        ContributedColumn.Text("SqlContent"),
+        ContributedColumn.Int("ExecuteOnInstall"),
+        ContributedColumn.Int("ExecuteOnReinstall"),
+        ContributedColumn.Int("ExecuteOnUninstall"),
+        ContributedColumn.Text("RollbackSourceFile"),
+        ContributedColumn.Int("Sequence"),
+        ContributedColumn.Int("ContinueOnError"),
+        ContributedColumn.Text("Component_", 72),
+    ];
+
     /// <summary>Exposes the registered script models for validation.</summary>
     public IReadOnlyList<SqlScriptModel> Items => _entries;
 

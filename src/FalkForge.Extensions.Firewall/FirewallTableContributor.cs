@@ -13,6 +13,22 @@ public sealed class FirewallTableContributor : IMsiTableContributor
     /// <inheritdoc/>
     public ITableReadSchema? ReadSchema => FirewallTableReadSchema.Instance;
 
+    /// <inheritdoc/>
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Name"),
+        ContributedColumn.Text("RemoteAddresses"),
+        ContributedColumn.Text("Port", 64),
+        ContributedColumn.Int("Protocol"),
+        ContributedColumn.Text("Program"),
+        ContributedColumn.Int("Profile"),
+        ContributedColumn.Int("Direction"),
+        ContributedColumn.Int("Action"),
+        ContributedColumn.Text("Component_", 72),
+        ContributedColumn.Text("Description"),
+        ContributedColumn.Text("Condition"),
+    ];
+
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
         var rows = new List<MsiTableRow>();
