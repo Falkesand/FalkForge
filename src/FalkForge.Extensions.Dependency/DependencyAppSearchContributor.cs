@@ -10,11 +10,11 @@ namespace FalkForge.Extensions.Dependency;
 /// </summary>
 internal sealed class DependencyAppSearchContributor : IMsiTableContributor
 {
-    private readonly IReadOnlyList<DependencyConsumerModel> _consumers;
+    private readonly IReadOnlyList<DependencyVersionCheck> _checks;
 
-    internal DependencyAppSearchContributor(IReadOnlyList<DependencyConsumerModel> consumers)
+    internal DependencyAppSearchContributor(IReadOnlyList<DependencyVersionCheck> checks)
     {
-        _consumers = consumers;
+        _checks = checks;
     }
 
     public string TableName => "AppSearch";
@@ -27,12 +27,11 @@ internal sealed class DependencyAppSearchContributor : IMsiTableContributor
 
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
-        var plan = DependencyVersionCheckPlanner.Plan(_consumers);
-        if (plan.Count == 0)
+        if (_checks.Count == 0)
             return [];
 
-        var rows = new List<MsiTableRow>(plan.Count);
-        foreach (var check in plan)
+        var rows = new List<MsiTableRow>(_checks.Count);
+        foreach (var check in _checks)
         {
             rows.Add(new MsiTableRow()
                 .Set("Property", check.PropertyName)

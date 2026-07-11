@@ -5,19 +5,19 @@ namespace FalkForge.Extensions.Dependency;
 /// <summary>
 ///     Contributes <c>RegLocator</c> rows so the MSI engine's built-in <c>AppSearch</c> standard
 ///     action reads each version-constrained consumer's provider version (a raw REG_SZ value)
-///     into a property, before <c>LaunchConditions</c> evaluates it. <c>RegLocator</c> is not a
-///     built-in table in this compiler's producer pipeline, so these rows are emitted as a
+///     into a property, before the version-check custom action evaluates it. <c>RegLocator</c> is
+///     not a built-in table in this compiler's producer pipeline, so these rows are emitted as a
 ///     custom table via <see cref="WriteColumns"/> — the resulting schema matches the Windows
 ///     Installer SDK's fixed <c>RegLocator</c> table layout exactly, which is what makes the
 ///     table meaningful to the real MSI engine at install time.
 /// </summary>
 internal sealed class DependencyRegLocatorContributor : IMsiTableContributor
 {
-    private readonly IReadOnlyList<DependencyConsumerModel> _consumers;
+    private readonly IReadOnlyList<DependencyVersionCheck> _checks;
 
-    internal DependencyRegLocatorContributor(IReadOnlyList<DependencyConsumerModel> consumers)
+    internal DependencyRegLocatorContributor(IReadOnlyList<DependencyVersionCheck> checks)
     {
-        _consumers = consumers;
+        _checks = checks;
     }
 
     public string TableName => "RegLocator";
@@ -33,12 +33,11 @@ internal sealed class DependencyRegLocatorContributor : IMsiTableContributor
 
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
     {
-        var plan = DependencyVersionCheckPlanner.Plan(_consumers);
-        if (plan.Count == 0)
+        if (_checks.Count == 0)
             return [];
 
-        var rows = new List<MsiTableRow>(plan.Count);
-        foreach (var check in plan)
+        var rows = new List<MsiTableRow>(_checks.Count);
+        foreach (var check in _checks)
         {
             rows.Add(new MsiTableRow()
                 .Set("Signature_", check.SignatureName)

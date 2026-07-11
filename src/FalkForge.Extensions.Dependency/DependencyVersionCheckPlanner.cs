@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace FalkForge.Extensions.Dependency;
 
@@ -11,15 +13,41 @@ namespace FalkForge.Extensions.Dependency;
 ///     <para>
 ///     For every consumer with a version-range constraint, the planner reuses
 ///     <see cref="DependencyChecker.BuildRange"/> to derive the exact same effective range the
-///     design-time checker would compute (including its "unparseable bound = no bound"
-///     tolerance), then renders it into a synthetic AppSearch property name, the provider's
-///     registry key path (matching <see cref="DependencyTableContributor"/>'s layout exactly),
-///     an MSI LaunchCondition string using the engine's native dotted-version comparison
-///     operators, and a formatted abort message.
+///     design-time checker would compute, then renders it into: a synthetic AppSearch property
+///     name, the provider's registry key path (matching <see cref="DependencyTableContributor"/>'s
+///     layout exactly), and an immediate JScript custom action that reads the property and does a
+///     REAL component-wise numeric comparison. MSI condition-expression operators compare
+///     lexicographically (so <c>"10.0.0.0" &gt;= "9.0.0.0"</c> is false), which is why the check
+///     cannot be a static LaunchCondition and must run code — the JScript mirrors
+///     <see cref="VersionRange.IsSatisfiedBy"/>.
+///     </para>
+///     <para>
+///     Identifiers are salted with a content hash of <c>ProviderKey|ConsumerKey</c> rather than a
+///     positional index so two <see cref="DependencyExtension"/> instances in one package cannot
+///     collide on <c>FALKDEP0</c> (only a genuinely duplicate requirement collides, which is a
+///     real authoring error worth surfacing).
+///     </para>
+///     <para>
+///     Version-comparison fidelity note: <see cref="VersionRange"/> uses
+///     <see cref="Version.CompareTo(Version)"/>, where an unspecified Build/Revision sorts as -1
+///     (below 0). The emitted JScript treats a missing component of the runtime-read value as 0.
+///     The compile-time bounds are normalized to four zero-filled components, so the only
+///     divergence is a provider that publishes a 2- or 3-part version string sitting exactly on an
+///     exclusive boundary — an edge case where treating missing components as 0 is the more
+///     intuitive behavior.
 ///     </para>
 /// </summary>
 internal static class DependencyVersionCheckPlanner
 {
+    // Sequence numbers: after AppSearch (50) / LaunchConditions (100) which populate the property,
+    // and well before InstallInitialize (1500) which is where the install begins committing.
+    private const int FirstEvalSequence = 101;
+
+    // CustomAction.Target is a CHAR(255) column; a longer message would fail msi.dll insertion.
+    // The abort message is display-only, so a defensive cap (cosmetic truncation) is preferable to
+    // a build failure when provider/consumer keys are very long.
+    private const int MaxMessageLength = 255;
+
     internal static IReadOnlyList<DependencyVersionCheck> Plan(IReadOnlyList<DependencyConsumerModel> consumers)
     {
         if (consumers.Count == 0)
@@ -35,41 +63,85 @@ internal static class DependencyVersionCheckPlanner
 
             var range = DependencyChecker.BuildRange(consumer);
             if (range.MinVersion is null && range.MaxVersion is null)
-                continue; // Both bounds were unparseable; nothing meaningful to compare.
+                continue; // Both bounds were unparseable; DEP008 flags this at author time.
 
-            var property = $"FALKDEP{index}";
-            var signature = $"FalkDepSig{index}";
+            var suffix = Suffix(consumer);
+            var property = "FALKDEP" + suffix;
+            var failProperty = "FALKDEPF" + suffix;
+            var signature = "FalkDepSig" + suffix;
+            var binaryName = "FalkDepBin" + suffix;
+            var evalAction = "FalkDepChk" + suffix;
+            var abortAction = "FalkDepErr" + suffix;
             var keyPath = @$"SOFTWARE\Classes\Installer\Dependencies\{consumer.ProviderKey}";
 
-            var condition = BuildCondition(property, range);
+            var script = BuildScript(property, failProperty, range);
             var message = BuildMessage(consumer, range, property);
+            var evalSeq = FirstEvalSequence + (index * 2);
+            var abortSeq = evalSeq + 1;
 
-            plan.Add(new DependencyVersionCheck(property, signature, keyPath, condition, message));
+            plan.Add(new DependencyVersionCheck(
+                property,
+                failProperty,
+                signature,
+                keyPath,
+                binaryName,
+                Encoding.UTF8.GetBytes(script),
+                evalAction,
+                evalSeq,
+                abortAction,
+                abortSeq,
+                message));
             index++;
         }
 
         return plan;
     }
 
-    private static string BuildCondition(string property, VersionRange range)
+    /// <summary>
+    ///     Stable 8-hex-char content hash of the provider+consumer keys, used to salt the synthetic
+    ///     MSI identifiers so they are unique per requirement and collision-free across multiple
+    ///     extension instances.
+    /// </summary>
+    private static string Suffix(DependencyConsumerModel consumer)
     {
-        // Present-check first: an undefined MSI property (registry value absent) formats as
-        // empty string, so this term alone rejects a missing provider regardless of range.
-        var parts = new List<string>(3) { $"{property}<>\"\"" };
+        var material = $"{consumer.ProviderKey} {consumer.ConsumerKey}";
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(Encoding.UTF8.GetBytes(material), hash);
+        return Convert.ToHexStringLower(hash[..4]);
+    }
+
+    /// <summary>
+    ///     Builds the immediate-JScript body: reads the property, performs a component-wise numeric
+    ///     comparison identical to <see cref="VersionRange.IsSatisfiedBy"/>, and sets the fail
+    ///     property when unsatisfied (including the missing-provider case where the property reads
+    ///     as empty). Only numeric bounds and controlled identifiers are interpolated — no
+    ///     user-authored free text reaches the script body, so there is no code-injection surface.
+    /// </summary>
+    private static string BuildScript(string property, string failProperty, VersionRange range)
+    {
+        var sb = new StringBuilder(512);
+        sb.Append("var v=Session.Property(\"").Append(property).Append("\");var f=0;");
+        sb.Append("function A(s){var p=(\"\"+s).split(\".\");var r=[0,0,0,0];")
+          .Append("for(var i=0;i<4;i++){var n=parseInt(p[i],10);r[i]=isNaN(n)?0:n;}return r;}");
+        sb.Append("function C(a,b){for(var i=0;i<4;i++){if(a[i]<b[i])return -1;if(a[i]>b[i])return 1;}return 0;}");
+        sb.Append("if(v==\"\"){f=1;}else{var c=A(v);");
 
         if (range.MinVersion is not null)
         {
-            var op = range.MinInclusive ? ">=" : ">";
-            parts.Add($"{property}{op}\"{FormatVersion(range.MinVersion)}\"");
+            // Inclusive min: fail if current < min (C < 0). Exclusive min: fail if current <= min (C <= 0).
+            var op = range.MinInclusive ? "<0" : "<=0";
+            sb.Append("if(C(c,A(\"").Append(FormatVersion(range.MinVersion)).Append("\"))").Append(op).Append(")f=1;");
         }
 
         if (range.MaxVersion is not null)
         {
-            var op = range.MaxInclusive ? "<=" : "<";
-            parts.Add($"{property}{op}\"{FormatVersion(range.MaxVersion)}\"");
+            // Inclusive max: fail if current > max (C > 0). Exclusive max: fail if current >= max (C >= 0).
+            var op = range.MaxInclusive ? ">0" : ">=0";
+            sb.Append("if(C(c,A(\"").Append(FormatVersion(range.MaxVersion)).Append("\"))").Append(op).Append(")f=1;");
         }
 
-        return string.Join(" AND ", parts);
+        sb.Append("}if(f){Session.Property(\"").Append(failProperty).Append("\")=\"1\";}");
+        return sb.ToString();
     }
 
     private static string BuildMessage(DependencyConsumerModel consumer, VersionRange range, string property)
@@ -78,17 +150,19 @@ internal static class DependencyVersionCheckPlanner
         var consumerKey = EscapeFormattedText(consumer.ConsumerKey);
         var rangeText = FormatRangeText(range);
 
-        return
-            $"This installation requires dependency provider '{providerKey}' (required by '{consumerKey}') " +
-            $"registered in version range {rangeText}, but the detected version was '[{property}]' " +
-            "(blank means the provider is not registered on this system). Install or upgrade the " +
-            "required provider, then run this installer again.";
+        var message =
+            $"Dependency '{providerKey}' (required by '{consumerKey}') must be installed in version " +
+            $"range {rangeText}; the detected version was '[{property}]' (blank means not installed). " +
+            "Install or upgrade the required provider, then run this installer again.";
+
+        return message.Length <= MaxMessageLength
+            ? message
+            : message[..(MaxMessageLength - 1)] + "…";
     }
 
     /// <summary>
     ///     Normalizes a <see cref="Version"/> to a full four-part string (missing Build/Revision
-    ///     become 0) so both operands of the MSI condition are unambiguously version-shaped for
-    ///     the engine's dotted-version comparison mode.
+    ///     become 0) so the JScript comparison operands are unambiguous.
     /// </summary>
     private static string FormatVersion(Version version)
         => new Version(
@@ -118,8 +192,8 @@ internal static class DependencyVersionCheckPlanner
 
     /// <summary>
     ///     Escapes MSI formatted-text bracket metacharacters so a provider/consumer key cannot be
-    ///     crafted to inject a spurious <c>[Property]</c> reference into the LaunchCondition
-    ///     Description shown to the user (OWASP: no injection via authored identifiers).
+    ///     crafted to inject a spurious <c>[Property]</c> reference into the abort message shown to
+    ///     the user (OWASP: no injection via authored identifiers).
     /// </summary>
     private static string EscapeFormattedText(string value)
         => value.Replace("[", "[\\[]", StringComparison.Ordinal).Replace("]", "[\\]]", StringComparison.Ordinal);

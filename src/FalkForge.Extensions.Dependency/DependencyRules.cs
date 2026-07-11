@@ -103,6 +103,16 @@ public static class DependencyRules
                         new RuleId("DEP007"), Severity.Error,
                         ModelPath.Root.Field("DependencyConsumer"),
                         "Dependency consumer key must not be empty."))),
+
+            new ValidationRule(
+                new RuleId("DEP008"),
+                Severity.Error,
+                ModelSection.Extension_Dependency,
+                "Dependency consumer version bounds must be valid System.Version strings",
+                "A specified MinVersion or MaxVersion must parse as System.Version — an unparseable "
+                + "bound would otherwise be silently treated as 'no bound', under-enforcing the "
+                + "requirement at install time without any diagnostic.",
+                ctx => getConsumers().SelectMany(ValidateVersionBoundsParse)),
         ];
     }
 
@@ -119,6 +129,23 @@ public static class DependencyRules
                 ModelPath.Root.Field("DependencyConsumer").Field(consumer.ProviderKey ?? string.Empty),
                 $"Dependency consumer for provider '{consumer.ProviderKey}' has MinVersion '{consumer.MinVersion}' greater than MaxVersion '{consumer.MaxVersion}'.");
         }
+    }
+
+    private static IEnumerable<Violation> ValidateVersionBoundsParse(DependencyConsumerModel consumer)
+    {
+        if (consumer.MinVersion is not null && !System.Version.TryParse(consumer.MinVersion, out _))
+            yield return new Violation(
+                new RuleId("DEP008"), Severity.Error,
+                ModelPath.Root.Field("DependencyConsumer").Field(consumer.ProviderKey ?? string.Empty),
+                $"Dependency consumer for provider '{consumer.ProviderKey}' has invalid MinVersion "
+                + $"'{consumer.MinVersion}'. Must be a valid System.Version (e.g. '1.0.0.0').");
+
+        if (consumer.MaxVersion is not null && !System.Version.TryParse(consumer.MaxVersion, out _))
+            yield return new Violation(
+                new RuleId("DEP008"), Severity.Error,
+                ModelPath.Root.Field("DependencyConsumer").Field(consumer.ProviderKey ?? string.Empty),
+                $"Dependency consumer for provider '{consumer.ProviderKey}' has invalid MaxVersion "
+                + $"'{consumer.MaxVersion}'. Must be a valid System.Version (e.g. '1.0.0.0').");
     }
 
     private static IEnumerable<Violation> ValidateProviderKeyChars(DependencyProviderModel provider)
