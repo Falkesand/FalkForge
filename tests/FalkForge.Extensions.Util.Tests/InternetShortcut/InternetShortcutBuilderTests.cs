@@ -50,4 +50,20 @@ public sealed class InternetShortcutBuilderTests
         Assert.Equal("favicon.ico", result.Value.IconFile);
         Assert.Equal(0, result.Value.IconIndex);
     }
+
+    [Fact]
+    public void Build_WithDoubleQuoteInDirectory_ReturnsFailure()
+    {
+        // The directory is emitted as a live double-quoted trailing CLI argument, so a double quote
+        // (illegal in Windows paths) is rejected as defense in depth against quote breakout.
+        var result = new InternetShortcutBuilder()
+            .Id("isc1")
+            .Name("Company Website")
+            .Target("https://example.com")
+            .Directory("C:\\Bad\"Path")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("ISC005", result.Error.Message);
+    }
 }

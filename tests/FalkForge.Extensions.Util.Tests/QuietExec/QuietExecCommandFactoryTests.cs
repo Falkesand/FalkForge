@@ -1,14 +1,15 @@
-using System.Text;
 using FalkForge.Extensions.Util.QuietExec;
 using Xunit;
 
 namespace FalkForge.Extensions.Util.Tests.QuietExec;
 
 /// <summary>
-/// Command-generation tests for <see cref="QuietExecCommandFactory"/>. Commands run in a deferred,
-/// elevated (SYSTEM) custom action; the author's command line is trusted (it is their own install
-/// step), but the transport itself must not be corruptible by anything the command line legitimately
-/// contains (quotes, brackets, ampersands, ...).
+/// Command-generation tests for <see cref="QuietExecCommandFactory"/>. The author's command line runs
+/// in a deferred, elevated (SYSTEM) custom action. Unlike the other Util factories it is emitted with
+/// its MSI Formatted tokens LIVE (not base64-encoded), because the command is fully author-supplied and
+/// must be able to reference install-time properties such as <c>[INSTALLDIR]</c> / <c>[ENVIRONMENT]</c>
+/// — which the installer only resolves if they are visible in the CustomAction.Target (i.e. outside any
+/// base64 blob).
 /// </summary>
 public sealed class QuietExecCommandFactoryTests
 {
@@ -27,76 +28,60 @@ public sealed class QuietExecCommandFactoryTests
             RollbackCommandLine = rollbackCommandLine,
         };
 
-    private static string DecodeScript(string command)
-    {
-        const string marker = "-EncodedCommand ";
-        int idx = command.IndexOf(marker, StringComparison.Ordinal);
-        Assert.True(idx >= 0, $"command is not an -EncodedCommand invocation: {command}");
-        string base64 = command[(idx + marker.Length)..].Trim();
-        return Encoding.Unicode.GetString(Convert.FromBase64String(base64));
-    }
-
     [Fact]
-    public void BasicCommand_ProducesEncodedInstallCommand()
+    public void BasicCommand_RunsViaFullyQualifiedCmd_WithNoBase64()
     {
         var steps = QuietExecCommandFactory.BuildSteps([Model()]);
 
         var step = Assert.Single(steps);
         Assert.Equal("Qe_Provision", step.Id);
 
-        string install = DecodeScript(step.InstallCommand);
-        Assert.Contains("$Env:ComSpec /c 'setup.exe /quiet'", install, StringComparison.Ordinal);
-        Assert.Contains("exit $LASTEXITCODE", install, StringComparison.Ordinal);
+        // The command is NOT base64-encoded; the author's command line is visible verbatim in the Target.
+        Assert.Equal("[SystemFolder]cmd.exe /s /c setup.exe /quiet", step.InstallCommand);
+        Assert.DoesNotContain("-EncodedCommand", step.InstallCommand, StringComparison.Ordinal);
         Assert.Null(step.RollbackCommand);
         Assert.Null(step.UninstallCommand);
     }
 
     [Fact]
-    public void WorkingDirectory_EmitsSetLocationBeforeCommand()
+    public void MsiFormattedTokens_SurviveLiveInTheTarget_SoTheInstallerCanResolveThem()
     {
-        var steps = QuietExecCommandFactory.BuildSteps([Model(workingDirectory: @"C:\Program Files\App")]);
+        // This is the regression guard for the bug where base64-encoding buried [INSTALLDIR] so the
+        // installer never substituted it. The tokens must appear as literal bracket text in the Target.
+        var steps = QuietExecCommandFactory.BuildSteps(
+            [Model(commandLine: "\"[INSTALLDIR]app.exe\" --env [ENVIRONMENT]", workingDirectory: "[INSTALLDIR]")]);
 
-        string install = DecodeScript(steps[0].InstallCommand);
-        Assert.Contains(@"Set-Location -LiteralPath 'C:\Program Files\App'", install, StringComparison.Ordinal);
-        Assert.True(
-            install.IndexOf("Set-Location", StringComparison.Ordinal) <
-            install.IndexOf("$Env:ComSpec", StringComparison.Ordinal),
-            "Set-Location must run before the command");
+        string install = steps[0].InstallCommand;
+        Assert.Contains("[INSTALLDIR]", install, StringComparison.Ordinal);
+        Assert.Contains("[ENVIRONMENT]", install, StringComparison.Ordinal);
+        Assert.Contains("cd /d \"[INSTALLDIR]\" &&", install, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void RollbackCommandLine_ProducesEncodedRollbackCommand()
+    public void WorkingDirectory_EmitsCdBeforeCommand()
+    {
+        var steps = QuietExecCommandFactory.BuildSteps([Model(workingDirectory: @"C:\Program Files\App")]);
+
+        string install = steps[0].InstallCommand;
+        Assert.Contains(@"cd /d ""C:\Program Files\App"" && setup.exe /quiet", install, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RollbackCommandLine_ProducesRollbackCommand()
     {
         var steps = QuietExecCommandFactory.BuildSteps([Model(rollbackCommandLine: "undo.exe /quiet")]);
 
         Assert.NotNull(steps[0].RollbackCommand);
-        string rollback = DecodeScript(steps[0].RollbackCommand!);
-        Assert.Contains("$Env:ComSpec /c 'undo.exe /quiet'", rollback, StringComparison.Ordinal);
+        Assert.Equal("[SystemFolder]cmd.exe /s /c undo.exe /quiet", steps[0].RollbackCommand);
     }
 
     [Fact]
-    public void EncodedCommand_TransportCarriesNoQuoteOrShellMetacharacters()
+    public void InterpreterIsFullyQualified_NotABareCmdExe()
     {
-        var steps = QuietExecCommandFactory.BuildSteps([Model(commandLine: "a'\"; calc; [X] & B")]);
-        string command = steps[0].InstallCommand;
-
-        const string marker = "-EncodedCommand ";
-        string payload = command[(command.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..];
-        Assert.DoesNotContain('"', payload);
-        Assert.DoesNotContain('\'', payload);
-        Assert.DoesNotContain('[', payload);
-        Assert.DoesNotContain(';', payload);
-        Assert.Matches("^[A-Za-z0-9+/=]+$", payload);
-    }
-
-    [Fact]
-    public void SingleQuoteInCommandLine_IsDoubledSoItCannotBreakOutOfTheLiteral()
-    {
-        var malicious = "a'; Start-Process calc.exe; '";
-        var steps = QuietExecCommandFactory.BuildSteps([Model(commandLine: malicious)]);
-
-        string install = DecodeScript(steps[0].InstallCommand);
-        Assert.Contains("'a''; Start-Process calc.exe; '''", install, StringComparison.Ordinal);
+        // Bare "cmd.exe" would be resolved relative to the action's working directory (TARGETDIR) before
+        // PATH → a planted cmd.exe could run as SYSTEM. The absolute [SystemFolder] path closes that.
+        var install = QuietExecCommandFactory.BuildSteps([Model()])[0].InstallCommand;
+        Assert.StartsWith("[SystemFolder]cmd.exe /s /c ", install, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -104,13 +89,6 @@ public sealed class QuietExecCommandFactoryTests
     {
         var steps = QuietExecCommandFactory.BuildSteps([Model(id: "provision step-1!")]);
         Assert.Equal("Qe_provision_step_1_", steps[0].Id);
-    }
-
-    [Fact]
-    public void InterpreterIsFullyQualified_NotABarePowershellExe()
-    {
-        var install = QuietExecCommandFactory.BuildSteps([Model()])[0].InstallCommand;
-        Assert.StartsWith("[SystemFolder]WindowsPowerShell\\v1.0\\powershell.exe", install, StringComparison.Ordinal);
     }
 
     [Fact]

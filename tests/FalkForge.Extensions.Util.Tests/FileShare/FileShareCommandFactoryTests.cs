@@ -6,8 +6,10 @@ namespace FalkForge.Extensions.Util.Tests.FileShare;
 
 /// <summary>
 /// Command-generation tests for <see cref="FileShareCommandFactory"/>. Commands run in a deferred,
-/// elevated (SYSTEM) custom action, so the share name, path, description and grant account names are
-/// all untrusted-input surfaces that must be safely single-quoted before reaching the script.
+/// elevated (SYSTEM) custom action, so the share name, description and grant account names are
+/// untrusted-input surfaces that must be safely single-quoted before reaching the script. The shared
+/// path is passed as a LIVE double-quoted trailing argument outside the base64 payload so an MSI
+/// Formatted token like <c>[INSTALLDIR]</c> resolves at install time.
 /// </summary>
 public sealed class FileShareCommandFactoryTests
 {
@@ -31,8 +33,16 @@ public sealed class FileShareCommandFactoryTests
         const string marker = "-EncodedCommand ";
         int idx = command.IndexOf(marker, StringComparison.Ordinal);
         Assert.True(idx >= 0, $"command is not an -EncodedCommand invocation: {command}");
-        string base64 = command[(idx + marker.Length)..].Trim();
+        int argStart = command.IndexOf(" \"", idx, StringComparison.Ordinal);
+        string base64 = (argStart >= 0 ? command[(idx + marker.Length)..argStart] : command[(idx + marker.Length)..]).Trim();
         return Encoding.Unicode.GetString(Convert.FromBase64String(base64));
+    }
+
+    private static string TrailingArg(string command)
+    {
+        int argStart = command.IndexOf(" \"", StringComparison.Ordinal);
+        Assert.True(argStart >= 0, $"command has no trailing argument: {command}");
+        return command[(argStart + 2)..].TrimEnd('"');
     }
 
     [Fact]
@@ -45,12 +55,23 @@ public sealed class FileShareCommandFactoryTests
 
         string install = DecodeScript(step.InstallCommand);
         Assert.Contains("New-SmbShare -Name 'AppData'", install, StringComparison.Ordinal);
-        Assert.Contains(@"-Path 'C:\Data'", install, StringComparison.Ordinal);
+        Assert.Contains("-Path $args[0]", install, StringComparison.Ordinal);
+        Assert.Equal(@"C:\Data", TrailingArg(step.InstallCommand));
 
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
+        // Remove keys only on the share name, so those actions carry no trailing directory argument.
+        Assert.DoesNotContain(" \"", step.RollbackCommand!, StringComparison.Ordinal);
         Assert.Contains("Remove-SmbShare -Name 'AppData'", DecodeScript(step.RollbackCommand!), StringComparison.Ordinal);
         Assert.Contains("Remove-SmbShare -Name 'AppData'", DecodeScript(step.UninstallCommand!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DirectoryToken_SurvivesLiveInTheTrailingArgument()
+    {
+        // Regression guard: [INSTALLDIR] must reach the Target as literal bracket text (outside base64).
+        var steps = FileShareCommandFactory.BuildSteps([Model(directory: "[INSTALLDIR]share")]);
+        Assert.EndsWith(" \"[INSTALLDIR]share\"", steps[0].InstallCommand, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,17 +103,15 @@ public sealed class FileShareCommandFactoryTests
     }
 
     [Fact]
-    public void EncodedCommand_TransportCarriesNoQuoteOrShellMetacharacters()
+    public void EncodedScriptSegment_CarriesNoQuoteOrShellMetacharacters()
     {
         var steps = FileShareCommandFactory.BuildSteps([Model(name: "a'\"; calc; [X] & B")]);
         string command = steps[0].InstallCommand;
 
         const string marker = "-EncodedCommand ";
-        string payload = command[(command.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..];
-        Assert.DoesNotContain('"', payload);
-        Assert.DoesNotContain('\'', payload);
-        Assert.DoesNotContain('[', payload);
-        Assert.DoesNotContain(';', payload);
+        int start = command.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
+        int end = command.IndexOf(" \"", start, StringComparison.Ordinal);
+        string payload = command[start..end];
         Assert.Matches("^[A-Za-z0-9+/=]+$", payload);
     }
 
@@ -104,14 +123,6 @@ public sealed class FileShareCommandFactoryTests
 
         string install = DecodeScript(steps[0].InstallCommand);
         Assert.Contains("-Name 'a''; Start-Process calc.exe; '''", install, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DirectoryWithSpacesAndQuote_IsQuotedSafely()
-    {
-        var steps = FileShareCommandFactory.BuildSteps([Model(directory: @"C:\Program' Files\Share")]);
-        string install = DecodeScript(steps[0].InstallCommand);
-        Assert.Contains("-Path 'C:\\Program'' Files\\Share'", install, StringComparison.Ordinal);
     }
 
     [Fact]

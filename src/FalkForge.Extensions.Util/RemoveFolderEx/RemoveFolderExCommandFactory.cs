@@ -51,12 +51,23 @@ internal static class RemoveFolderExCommandFactory
             string? installCondition = null;
             if (onInstall)
             {
-                string formattedExpr = model.Property is { Length: > 0 } prop
-                    ? string.Concat("[", prop, "]")
-                    : CommandLine.MsiFormatEscape(model.Directory ?? string.Empty);
-                customActionData = formattedExpr;
-                installCommand = UtilPowerShellEncoder.EncodeWithTrailingArgument(
-                    BuildGuardedRemoveScript("$args[0]"), "[CustomActionData]");
+                if (model.Property is { Length: > 0 } prop)
+                {
+                    // A live property token ([PROP]) is only known at run time → route it through the
+                    // install-only CustomActionData channel (an immediate SetProperty formats it into the
+                    // deferred action's CustomActionData, read here as $args[0]). RFX004 guarantees Property
+                    // is install-only, so no uninstall action needs this value.
+                    customActionData = string.Concat("[", prop, "]");
+                    installCommand = UtilPowerShellEncoder.EncodeWithTrailingArgument(
+                        BuildGuardedRemoveScript("$args[0]"), "[CustomActionData]");
+                }
+                else
+                {
+                    // A literal Directory is known at compile time → bake it single-quoted directly, with
+                    // no CustomActionData / SetProperty indirection needed (matches the uninstall branch).
+                    installCommand = UtilPowerShellEncoder.Encode(
+                        BuildGuardedRemoveScript(CommandLine.PowerShellSingleQuote(model.Directory!)));
+                }
             }
             else
             {
@@ -94,12 +105,23 @@ internal static class RemoveFolderExCommandFactory
     private static string BuildGuardedRemoveScript(string pathExpression)
         => "$p = " + pathExpression + "\n" +
            "if ([string]::IsNullOrWhiteSpace($p)) { Write-Error 'RemoveFolderEx: refusing to remove an empty path'; exit 1 }\n" +
+           // Reject a bare drive spec ('C:' or 'C:\') BEFORE GetFullPath: GetFullPath('C:') returns the
+           // process's current directory on that drive (here TARGETDIR), not the root, so it would slip
+           // past the $full-equals-$root check below and delete the working directory.
+           "if ($p.Trim() -match '^[A-Za-z]:\\\\?$') {\n" +
+           "    Write-Error (\"RemoveFolderEx: refusing to remove drive root '\" + $p + \"'\")\n" +
+           "    exit 1\n" +
+           "}\n" +
            "$full = [System.IO.Path]::GetFullPath($p)\n" +
            "$root = [System.IO.Path]::GetPathRoot($full)\n" +
            "if ($full.TrimEnd('\\') -ieq $root.TrimEnd('\\') -or $full -eq '\\') {\n" +
            "    Write-Error (\"RemoveFolderEx: refusing to remove root or unsafe path '\" + $full + \"'\")\n" +
            "    exit 1\n" +
            "}\n" +
+           // -Recurse -Force removes the tree. Note: on Windows PowerShell this can follow a directory
+           // junction/reparse point placed inside the target; the path guard above bounds the TOP of the
+           // tree to a non-root, author-or-property-supplied folder, which is the boundary that matters
+           // for a SYSTEM-context delete.
            "Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction SilentlyContinue\n" +
            "exit 0";
 }

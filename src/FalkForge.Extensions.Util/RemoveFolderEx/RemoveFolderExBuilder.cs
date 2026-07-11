@@ -59,6 +59,18 @@ public sealed class RemoveFolderExBuilder
         // equivalent guard inside the generated script instead.
         if (!string.IsNullOrWhiteSpace(_directory))
         {
+            // Reject a bare drive spec ('C:' or 'C:\') explicitly BEFORE GetFullPath: GetFullPath('C:')
+            // returns the build process's current directory on that drive (often NOT the root), which
+            // would let a "C:" literal slip past the resolve-to-root check below. The runtime guard in
+            // RemoveFolderExCommandFactory rejects the same shape independently.
+            if (System.Text.RegularExpressions.Regex.IsMatch(
+                    _directory.Trim(), @"^[A-Za-z]:\\?$", System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromMilliseconds(100)))
+            {
+                return Result<RemoveFolderExModel>.Failure(ErrorKind.Validation,
+                    "RFX003: RemoveFolderEx Directory must not be a drive root (e.g. 'C:' or 'C:\\'); scope it " +
+                    "to a specific subfolder.");
+            }
+
             string full;
             string root;
             try

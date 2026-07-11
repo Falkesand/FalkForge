@@ -58,6 +58,14 @@ public sealed class InternetShortcutBuilder
             return Result<InternetShortcutModel>.Failure(ErrorKind.Validation,
                 "ISC004: InternetShortcut Directory is required.");
 
+        // The Directory is emitted as a live, double-quoted trailing argument to the deferred action
+        // (so an MSI Formatted token like [INSTALLDIR] resolves at install time). A double quote is an
+        // illegal Windows path character and would break out of that quoting, so reject it as defense in
+        // depth against a malformed author value.
+        if (_directory.Contains('"', StringComparison.Ordinal))
+            return Result<InternetShortcutModel>.Failure(ErrorKind.Validation,
+                "ISC005: InternetShortcut Directory must not contain a double-quote character.");
+
         return new InternetShortcutModel
         {
             Id = _id,

@@ -6,8 +6,9 @@ namespace FalkForge.Extensions.Util.Tests.RemoveFolderEx;
 
 /// <summary>
 /// Command-generation tests for <see cref="RemoveFolderExCommandFactory"/>: the live-token
-/// (CustomActionData) install path, the literal-directory install/uninstall path, and the runtime
-/// path-safety guard that refuses to delete a root path regardless of source.
+/// (CustomActionData) install path used only for a <c>Property</c> reference, the literal-directory
+/// install/uninstall path (baked directly, no CustomActionData), and the runtime path-safety guard
+/// that refuses to delete a root path regardless of source.
 /// </summary>
 public sealed class RemoveFolderExCommandFactoryTests
 {
@@ -52,19 +53,21 @@ public sealed class RemoveFolderExCommandFactoryTests
     }
 
     [Fact]
-    public void LiteralDirectory_OnBoth_ProducesInstallAndUninstallCommands()
+    public void LiteralDirectory_OnBoth_BakesLiteralDirectly_NoCustomActionData()
     {
         var steps = RemoveFolderExCommandFactory.BuildSteps(
             [Model(directory: @"C:\Data\Temp", mode: RemoveFolderExInstallMode.Both)]);
 
         var step = Assert.Single(steps);
         Assert.NotEqual("0", step.InstallCondition);
-        Assert.Equal(@"C:\Data\Temp", step.CustomActionData);
+        // A literal directory is known at compile time → baked single-quoted, no CustomActionData / no
+        // extra SetProperty action.
+        Assert.Null(step.CustomActionData);
         Assert.NotNull(step.UninstallCommand);
 
         string install = DecodeScript(step.InstallCommand);
-        Assert.Contains("$p = $args[0]", install, StringComparison.Ordinal);
-        Assert.EndsWith("\"[CustomActionData]\"", step.InstallCommand, StringComparison.Ordinal);
+        Assert.Contains(@"$p = 'C:\Data\Temp'", install, StringComparison.Ordinal);
+        Assert.DoesNotContain("[CustomActionData]", step.InstallCommand, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,16 +80,9 @@ public sealed class RemoveFolderExCommandFactoryTests
         Assert.Equal("[LOGFOLDER]", step.CustomActionData);
         Assert.Null(step.UninstallCommand);
         Assert.EndsWith("\"[CustomActionData]\"", step.InstallCommand, StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public void LiteralDirectoryWithBrackets_IsMsiFormatEscapedInCustomActionData()
-    {
-        var steps = RemoveFolderExCommandFactory.BuildSteps(
-            [Model(directory: @"C:\Data\[weird]", mode: RemoveFolderExInstallMode.Install)]);
-
-        // MsiFormatEscape neutralizes stray brackets so they cannot be mistaken for a live token.
-        Assert.Equal(@"C:\Data\[\[]weird[\]]", steps[0].CustomActionData);
+        string install = DecodeScript(step.InstallCommand);
+        Assert.Contains("$p = $args[0]", install, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -109,6 +105,20 @@ public sealed class RemoveFolderExCommandFactoryTests
         Assert.Contains("GetFullPath", install, StringComparison.Ordinal);
         Assert.Contains("GetPathRoot", install, StringComparison.Ordinal);
         Assert.Contains("refusing to remove root or unsafe path", install, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GuardedScript_RefusesBareDriveSpecAtRuntime()
+    {
+        // A Property resolving to a bare drive ("C:") would make GetFullPath return the current dir on
+        // that drive (TARGETDIR), slipping past the resolve-to-root check — so the script rejects a bare
+        // drive spec explicitly before GetFullPath.
+        var steps = RemoveFolderExCommandFactory.BuildSteps(
+            [Model(property: "INSTALLFOLDER", mode: RemoveFolderExInstallMode.Install)]);
+
+        string install = DecodeScript(steps[0].InstallCommand);
+        Assert.Contains("[A-Za-z]:", install, StringComparison.Ordinal);
+        Assert.Contains("refusing to remove drive root", install, StringComparison.Ordinal);
     }
 
     [Fact]

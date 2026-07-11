@@ -5,16 +5,32 @@ namespace FalkForge.Extensions.Util.QuietExec;
 
 /// <summary>
 /// Turns <see cref="QuietExecModel"/> definitions into <see cref="ExecutionStep"/>s that run the
-/// author's command line at install time via a deferred, elevated action, mirroring
-/// <c>FirewallCommandFactory</c>. The command line is author-supplied (their own install step, not
-/// attacker-controlled), but is still transported through the injection-proof <c>-EncodedCommand</c>
-/// base64 channel rather than spliced onto a raw process command line — the base64 alphabet contains
-/// no quote, space, or MSI-Formatted metacharacter, so nothing the command legitimately contains (it
-/// may itself have any of those) can corrupt the <c>CustomAction.Target</c> field or trigger an
-/// unintended property substitution.
+/// author's command line at install time via a deferred, elevated custom action.
+///
+/// <para><b>Why this factory does NOT base64-encode the command (unlike the other three Util factories
+/// and <c>FirewallCommandFactory</c>).</b> The base64 <c>-EncodedCommand</c> transport is injection
+/// armor for <i>untrusted</i> field values (a firewall rule name, a share account) — it hides the
+/// payload from the MSI Formatted grammar. But a QuietExec command line is <i>fully author-supplied</i>
+/// (it is the author's own install step, exactly like WiX's <c>util:QuietExecute</c>), and its whole
+/// purpose is to reference install-time MSI properties such as <c>[INSTALLDIR]</c> or
+/// <c>[ENVIRONMENT]</c>. Those tokens are resolved by the installer when it formats a deferred action's
+/// <c>CustomAction.Target</c> at schedule time — the same mechanism that resolves the
+/// <c>[SystemFolder]</c> prefix every Util/Firewall command relies on. If the command were
+/// base64-encoded the tokens would be buried inside an opaque <c>[A-Za-z0-9+/=]</c> blob, the installer
+/// would never see them, and the command would run with the literal text <c>[INSTALLDIR]</c> — a
+/// silently broken install. So the command line is emitted with its MSI Formatted tokens <b>live</b>
+/// and run through the OS-fully-qualified <c>[SystemFolder]cmd.exe</c> (never a bare <c>cmd.exe</c>,
+/// which <c>CreateProcess</c> would resolve relative to the deferred action's <c>TARGETDIR</c> working
+/// directory before <c>PATH</c> — a binary-planting escalation). Because the command is author-trusted,
+/// running it verbatim is by design; no untrusted value is spliced in for an attacker to exploit.</para>
 /// </summary>
 internal static class QuietExecCommandFactory
 {
+    // cmd.exe by its fully-qualified [SystemFolder] path — resolved by MSI when the deferred action's
+    // Target is formatted at schedule time. A bare "cmd.exe" would be a binary-planting vector (see type
+    // remarks). "/s /c" keeps cmd's quote handling predictable for a fully-quoted command line.
+    private const string CmdPrefix = "[SystemFolder]cmd.exe /s /c ";
+
     internal static IReadOnlyList<ExecutionStep> BuildSteps(IReadOnlyList<QuietExecModel> models)
     {
         var steps = new List<ExecutionStep>(models.Count);
@@ -25,9 +41,9 @@ internal static class QuietExecCommandFactory
             steps.Add(new ExecutionStep
             {
                 Id = stepId,
-                InstallCommand = UtilPowerShellEncoder.Encode(BuildRunScript(model.CommandLine, model.WorkingDirectory)),
+                InstallCommand = BuildCommand(model.CommandLine, model.WorkingDirectory),
                 RollbackCommand = model.RollbackCommandLine is { Length: > 0 } rollback
-                    ? UtilPowerShellEncoder.Encode(BuildRunScript(rollback, model.WorkingDirectory))
+                    ? BuildCommand(rollback, model.WorkingDirectory)
                     : null,
                 InstallCondition = ComposeInstallCondition(model.Condition),
             });
@@ -36,23 +52,23 @@ internal static class QuietExecCommandFactory
         return steps;
     }
 
-    private static string BuildRunScript(string commandLine, string? workingDirectory)
+    /// <summary>
+    /// Composes the deferred action's command line: <c>[SystemFolder]cmd.exe /s /c</c> plus the author's
+    /// command, optionally prefixed with a <c>cd /d</c> into the working directory. MSI Formatted tokens
+    /// in both the command and the working directory are left live so the installer resolves them at
+    /// schedule time. No escaping is applied — the command is author-trusted (see type remarks).
+    /// </summary>
+    private static string BuildCommand(string commandLine, string? workingDirectory)
     {
-        var sb = new StringBuilder(128);
+        var sb = new StringBuilder(CmdPrefix, CmdPrefix.Length + commandLine.Length + 32);
         if (!string.IsNullOrEmpty(workingDirectory))
         {
-            sb.Append("Set-Location -LiteralPath ")
-                .Append(CommandLine.PowerShellSingleQuote(workingDirectory))
-                .Append('\n');
+            // cd /d changes drive+directory; on failure && short-circuits so the command does not run in
+            // the wrong location. The working directory is quoted to tolerate spaces.
+            sb.Append("cd /d \"").Append(workingDirectory).Append("\" && ");
         }
 
-        // $Env:ComSpec is the OS-set, fully-qualified path to cmd.exe (never resolved relative to the
-        // deferred action's TARGETDIR working directory the way a bare "cmd.exe" would be). Handing the
-        // whole command line to cmd.exe as ONE single-quoted PowerShell argument mirrors WiX's QuietExec:
-        // the author's command line is interpreted exactly as they wrote it, not re-split by an extra
-        // shell layer.
-        sb.Append("& $Env:ComSpec /c ").Append(CommandLine.PowerShellSingleQuote(commandLine)).Append('\n');
-        sb.Append("exit $LASTEXITCODE");
+        sb.Append(commandLine);
         return sb.ToString();
     }
 

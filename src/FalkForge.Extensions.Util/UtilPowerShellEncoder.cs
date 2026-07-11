@@ -21,14 +21,23 @@ internal static class UtilPowerShellEncoder
         => EncodedCommandPrefix + Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
 
     /// <summary>
-    /// Encodes <paramref name="script"/> and appends <paramref name="trailingArgument"/> as a literal,
-    /// double-quoted CLI argument after the base64 payload. The trailing argument is bound to the
-    /// decoded script's <c>$args</c> automatic variable at run time — this is how a value that can only
-    /// be known at MSI Formatted-substitution time (e.g. the literal token <c>[CustomActionData]</c>)
-    /// reaches a script that was otherwise fully baked at compile time. Double-quoting keeps the
-    /// argument intact across embedded spaces; the caller must ensure the substituted value cannot
-    /// itself contain a double quote (true for filesystem paths — <c>"</c> is an illegal Windows path
-    /// character — but not true for arbitrary text).
+    /// Encodes <paramref name="script"/> and appends <paramref name="trailingArgument"/> as a
+    /// double-quoted CLI argument <b>outside</b> the base64 payload, bound to the decoded script's
+    /// <c>$args[0]</c> at run time. Placing the argument outside the base64 is the whole point: the
+    /// installer formats the <c>CustomAction.Target</c> field at schedule time, so an MSI Formatted
+    /// token here (e.g. <c>[INSTALLDIR]</c> or a directory property) is resolved to its real value while
+    /// the surrounding script stays quoting-safe inside the blob. This is how a directory that is only
+    /// known at install time reaches a script that was otherwise fully baked at compile time — and,
+    /// because each of an execution step's install / rollback / uninstall actions carries its own
+    /// independently-formatted Target, it resolves for all three, unlike the install-only
+    /// <c>CustomActionData</c> channel.
+    /// <para>
+    /// <b>Contract.</b> The trailing argument is double-quoted, so the caller MUST ensure the value it
+    /// resolves to cannot contain a double quote. Every caller passes a <i>path-shaped</i> value (a
+    /// directory, or a directory-typed MSI property), and <c>"</c> is an illegal Windows path character,
+    /// so the invariant holds; the feature builders additionally reject a literal <c>"</c> in an
+    /// author-supplied directory as defense in depth. Never pass free-form text here.
+    /// </para>
     /// </summary>
     internal static string EncodeWithTrailingArgument(string script, string trailingArgument)
         => Encode(script) + " \"" + trailingArgument + "\"";

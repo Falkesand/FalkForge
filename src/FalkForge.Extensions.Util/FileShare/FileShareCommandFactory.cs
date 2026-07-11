@@ -6,10 +6,19 @@ namespace FalkForge.Extensions.Util.FileShare;
 /// <summary>
 /// Turns <see cref="FileShareModel"/> definitions into <see cref="ExecutionStep"/>s that create (and
 /// later remove) an SMB file share via the built-in <c>SmbShare</c> PowerShell module, mirroring
-/// <c>FirewallCommandFactory</c>. Every author-supplied value (share name, path, description, grant
-/// account names) is embedded as a single-quoted PowerShell literal via
+/// <c>FirewallCommandFactory</c>. Every author-supplied literal (share name, description, grant account
+/// names) is embedded as a single-quoted PowerShell literal via
 /// <see cref="CommandLine.PowerShellSingleQuote"/> before the script is transported through the
 /// injection-proof <c>-EncodedCommand</c> base64 channel.
+///
+/// <para><b>Directory resolution.</b> The share's <see cref="FileShareModel.Directory"/> (the shared
+/// path) is routinely an MSI Formatted token such as <c>[INSTALLDIR]</c>, resolved only at install
+/// time. It is therefore passed as a <b>live</b> double-quoted trailing argument OUTSIDE the base64
+/// script (<see cref="UtilPowerShellEncoder.EncodeWithTrailingArgument"/>) and read as <c>$args[0]</c>
+/// for <c>New-SmbShare -Path</c>, so the installer resolves it when it formats the create action's
+/// Target. A path is <c>"</c>-free, keeping the double-quoted transport safe; the builder additionally
+/// rejects a literal <c>"</c> in the directory. Remove (rollback/uninstall) keys only on the share
+/// <see cref="FileShareModel.Name"/>, so it needs no directory argument.</para>
 /// </summary>
 internal static class FileShareCommandFactory
 {
@@ -24,7 +33,7 @@ internal static class FileShareCommandFactory
             steps.Add(new ExecutionStep
             {
                 Id = stepId,
-                InstallCommand = UtilPowerShellEncoder.Encode(BuildCreateScript(model)),
+                InstallCommand = UtilPowerShellEncoder.EncodeWithTrailingArgument(BuildCreateScript(model), model.Directory),
                 RollbackCommand = UtilPowerShellEncoder.Encode(BuildRemoveScript(quotedName)),
                 UninstallCommand = UtilPowerShellEncoder.Encode(BuildRemoveScript(quotedName)),
             });
@@ -36,8 +45,9 @@ internal static class FileShareCommandFactory
     private static string BuildCreateScript(FileShareModel model)
     {
         var sb = new StringBuilder(160);
+        // $args[0] carries the resolved shared path (the live trailing argument).
         sb.Append("New-SmbShare -Name ").Append(CommandLine.PowerShellSingleQuote(model.Name));
-        sb.Append(" -Path ").Append(CommandLine.PowerShellSingleQuote(model.Directory));
+        sb.Append(" -Path $args[0]");
         if (!string.IsNullOrEmpty(model.Description))
             sb.Append(" -Description ").Append(CommandLine.PowerShellSingleQuote(model.Description));
 

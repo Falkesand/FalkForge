@@ -19,6 +19,18 @@ namespace FalkForge.Extensions.Util.InternetShortcut;
 /// <c>PackageModel.IniFiles</c> count — the exact "inert data" trap this whole seam exists to close.
 /// The execution seam is therefore the only reachable mechanism: a deferred PowerShell action writes
 /// the file directly, with the same injection-safety treatment as every other Util command.</para>
+///
+/// <para><b>Directory resolution.</b> The <see cref="InternetShortcutModel.Directory"/> is where the
+/// <c>.url</c> lands and is routinely an MSI Formatted token such as <c>[INSTALLDIR]</c> or
+/// <c>[DesktopFolder]</c>, whose value is only known at install time. It is therefore passed as a
+/// <b>live</b> double-quoted trailing argument OUTSIDE the base64 script (see
+/// <see cref="UtilPowerShellEncoder.EncodeWithTrailingArgument"/>), so the installer resolves it when it
+/// formats each action's Target — and because the create, rollback and remove actions each carry the
+/// same trailing directory argument, all three target the same resolved folder. A directory is
+/// path-shaped (no <c>"</c>), keeping the double-quoted transport safe; the builder additionally rejects
+/// a literal <c>"</c> in the directory. The <see cref="InternetShortcutModel.Name"/>,
+/// <see cref="InternetShortcutModel.Target"/> URL and <see cref="InternetShortcutModel.IconFile"/> are
+/// treated as literals baked (single-quoted) into the base64 script — they are not MSI-Formatted.</para>
 /// </summary>
 internal static class InternetShortcutCommandFactory
 {
@@ -32,9 +44,9 @@ internal static class InternetShortcutCommandFactory
             steps.Add(new ExecutionStep
             {
                 Id = stepId,
-                InstallCommand = UtilPowerShellEncoder.Encode(BuildCreateScript(model)),
-                RollbackCommand = UtilPowerShellEncoder.Encode(BuildRemoveScript(model)),
-                UninstallCommand = UtilPowerShellEncoder.Encode(BuildRemoveScript(model)),
+                InstallCommand = UtilPowerShellEncoder.EncodeWithTrailingArgument(BuildCreateScript(model), model.Directory),
+                RollbackCommand = UtilPowerShellEncoder.EncodeWithTrailingArgument(BuildRemoveScript(model), model.Directory),
+                UninstallCommand = UtilPowerShellEncoder.EncodeWithTrailingArgument(BuildRemoveScript(model), model.Directory),
             });
         }
 
@@ -43,13 +55,14 @@ internal static class InternetShortcutCommandFactory
 
     private static string BuildCreateScript(InternetShortcutModel model)
     {
-        string quotedDir = CommandLine.PowerShellSingleQuote(model.Directory);
+        // $args[0] carries the resolved target directory (the live trailing argument).
         string quotedFileName = CommandLine.PowerShellSingleQuote(model.Name + ".url");
 
         var lines = new List<string>
         {
-            "if (!(Test-Path -LiteralPath " + quotedDir + ")) { New-Item -ItemType Directory -Path " + quotedDir + " -Force | Out-Null }",
-            "$path = Join-Path -Path " + quotedDir + " -ChildPath " + quotedFileName,
+            "$dir = $args[0]",
+            "if (!(Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }",
+            "$path = Join-Path -Path $dir -ChildPath " + quotedFileName,
             "$lines = @('[InternetShortcut]', " + CommandLine.PowerShellSingleQuote("URL=" + model.Target) + ")",
         };
 
@@ -60,15 +73,18 @@ internal static class InternetShortcutCommandFactory
                 "IconIndex=" + model.IconIndex.ToString(CultureInfo.InvariantCulture)));
         }
 
-        lines.Add("Set-Content -LiteralPath $path -Value $lines -Encoding ASCII");
+        // -Encoding Default (the system ANSI code page) rather than ASCII so a non-ASCII URL or Name is
+        // written in the local code page instead of being silently replaced with '?'. .url files are
+        // read as ANSI by the shell.
+        lines.Add("Set-Content -LiteralPath $path -Value $lines -Encoding Default");
         return string.Join('\n', lines);
     }
 
     private static string BuildRemoveScript(InternetShortcutModel model)
     {
-        string quotedDir = CommandLine.PowerShellSingleQuote(model.Directory);
         string quotedFileName = CommandLine.PowerShellSingleQuote(model.Name + ".url");
-        return "$path = Join-Path -Path " + quotedDir + " -ChildPath " + quotedFileName + "\n" +
+        return "$dir = $args[0]\n" +
+               "$path = Join-Path -Path $dir -ChildPath " + quotedFileName + "\n" +
                "Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue";
     }
 }

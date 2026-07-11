@@ -42,15 +42,37 @@ public sealed class UtilExecutionEmissionTests
         var install = actions["Qe_Provision"];
         Assert.True((install.Type & InScript) != 0 && (install.Type & NoImpersonate) != 0,
             "QuietExec install action must be deferred + SYSTEM");
-        Assert.Contains("setup.exe /quiet", DecodeEncoded(install.Target), StringComparison.Ordinal);
+        // QuietExec is emitted with a LIVE command (not base64) so MSI Formatted tokens resolve; the
+        // command runs via the fully-qualified [SystemFolder]cmd.exe.
+        Assert.StartsWith("[SystemFolder]cmd.exe", install.Target, StringComparison.Ordinal);
+        Assert.Contains("setup.exe /quiet", install.Target, StringComparison.Ordinal);
 
         Assert.True((actions["Qe_Provision_rb"].Type & CustomActionType.Rollback) != 0);
-        Assert.Contains("undo.exe /quiet", DecodeEncoded(actions["Qe_Provision_rb"].Target), StringComparison.Ordinal);
+        Assert.Contains("undo.exe /quiet", actions["Qe_Provision_rb"].Target, StringComparison.Ordinal);
 
         int init = sequence["InstallInitialize"];
         int finalize = sequence["InstallFinalize"];
         Assert.InRange(sequence["Qe_Provision"], init + 1, finalize - 1);
         Assert.True(sequence["Qe_Provision_rb"] < sequence["Qe_Provision"]);
+    }
+
+    [Fact]
+    public void QuietExec_MsiFormattedTokens_SurviveLiveInCompiledTarget()
+    {
+        using var scratch = new Scratch();
+
+        var util = new UtilExtension();
+        var result = util.AddQuietExec(q => q
+            .Id("Warmup").Command("\"[INSTALLDIR]app.exe\" --env [ENVIRONMENT]").WorkingDir("[INSTALLDIR]"));
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+        using var db = Compile(scratch, "UtilQuietExecTokenApp", util);
+        string target = QueryCustomActions(db)["Qe_Warmup"].Target;
+
+        // The regression guard: [INSTALLDIR]/[ENVIRONMENT] must remain literal bracket text in the
+        // compiled Target so the installer resolves them at run time — not be buried inside base64.
+        Assert.Contains("[INSTALLDIR]", target, StringComparison.Ordinal);
+        Assert.Contains("[ENVIRONMENT]", target, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -128,6 +150,8 @@ public sealed class UtilExecutionEmissionTests
         var install = actions["Fsh_Data"];
         Assert.Contains("New-SmbShare", DecodeEncoded(install.Target), StringComparison.Ordinal);
         Assert.True((install.Type & InScript) != 0 && (install.Type & NoImpersonate) != 0);
+        // The shared path rides a live trailing argument (outside base64) so a token would resolve.
+        Assert.EndsWith("\"C:\\ProgramData\\UtilExecTest\\Share\"", install.Target, StringComparison.Ordinal);
 
         Assert.Contains("Remove-SmbShare", DecodeEncoded(actions["Fsh_Data_rb"].Target), StringComparison.Ordinal);
         Assert.Contains("Remove-SmbShare", DecodeEncoded(actions["Fsh_Data_un"].Target), StringComparison.Ordinal);
@@ -154,6 +178,10 @@ public sealed class UtilExecutionEmissionTests
         var install = actions["Isc_Home"];
         Assert.Contains("Set-Content", DecodeEncoded(install.Target), StringComparison.Ordinal);
         Assert.True((install.Type & InScript) != 0 && (install.Type & NoImpersonate) != 0);
+        // The target directory rides a live trailing argument (outside base64) so a token would resolve;
+        // all three actions target the same directory so uninstall removes what install created.
+        Assert.EndsWith("\"C:\\ProgramData\\UtilExecTest\"", install.Target, StringComparison.Ordinal);
+        Assert.EndsWith("\"C:\\ProgramData\\UtilExecTest\"", actions["Isc_Home_un"].Target, StringComparison.Ordinal);
 
         Assert.Contains("Remove-Item", DecodeEncoded(actions["Isc_Home_rb"].Target), StringComparison.Ordinal);
         Assert.Contains("Remove-Item", DecodeEncoded(actions["Isc_Home_un"].Target), StringComparison.Ordinal);
