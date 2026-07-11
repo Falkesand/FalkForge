@@ -61,6 +61,13 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
         bytes[2] = 0xFA;
         bytes[3] = 0x1C;
         File.WriteAllBytes(path, bytes);
+
+        // Mirror the publish layout: the elevation companion lives beside the engine. A runnable
+        // bundle embeds it as a trust-covered payload by default, so an engine without a companion
+        // beside it would (deliberately) fail the build loud.
+        var companionPath = Path.Combine(
+            _tempDir, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId);
+        File.WriteAllBytes(companionPath, [(byte)'M', (byte)'Z', 0xE1, 0xE7]);
         return path;
     }
 
@@ -93,9 +100,12 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
         Assert.Equal(0x1C, prefix[3]);
 
         // The bundle must still be readable — the payload TOC survives a real PE front.
+        // Two entries: the authored payload plus the default-embedded elevation companion.
         var content = PayloadEmbedder.Extract(result.Value);
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
-        Assert.Single(content.Value.TocEntries);
+        Assert.Contains(content.Value.TocEntries, e => e.PackageId == "payload.msi");
+        Assert.Contains(content.Value.TocEntries,
+            e => e.PackageId == FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId);
     }
 
     [Fact]

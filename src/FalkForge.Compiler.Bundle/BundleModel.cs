@@ -48,4 +48,14 @@ public sealed class BundleModel
     /// Empty list means no pre-UI prerequisites (the default).
     /// </summary>
     public IReadOnlyList<PreUIPackageModel> PreUIPackages { get; init; } = [];
+
+    /// <summary>
+    /// Explicit opt-out from embedding the elevation companion
+    /// (<c>FalkForge.Engine.Elevation.exe</c>) as a trust-covered payload. By default a runnable
+    /// bundle (one embedding a real engine) carries the companion so per-machine (elevated)
+    /// installs work from a lone distributed exe; a bundle authored per-user-only can opt out via
+    /// <see cref="Builders.BundleBuilder.WithoutElevationCompanion"/> to save the payload bytes.
+    /// The engine then falls back to per-user behavior instead of elevating.
+    /// </summary>
+    public bool OmitElevationCompanion { get; init; }
 }

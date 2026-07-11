@@ -38,6 +38,13 @@ public sealed class DeltaBundleCompiler
     public bool AllowPlaceholderStub { get; set; }
 
     /// <summary>
+    /// Explicit path to the elevation companion executable to embed. Same policy as
+    /// <see cref="BundleCompiler.ElevationCompanionPath"/>: set → must exist; null → default
+    /// resolution via <see cref="ElevationCompanionLocator"/>.
+    /// </summary>
+    public string? ElevationCompanionPath { get; set; }
+
+    /// <summary>
     /// Test seam for default engine resolution — mirrors
     /// <see cref="BundleCompiler.EngineStubResolver"/>.
     /// </summary>
@@ -130,6 +137,17 @@ public sealed class DeltaBundleCompiler
                 ContainerId = package.ContainerId
             });
         }
+
+        // Step 4b: Embed the elevation companion exactly as the full compiler does (BundleCompiler
+        // Step 3c) — appended BEFORE signing so the SYSTEM-executing companion stays inside the
+        // signed payload-trust chain; participates in delta diffing like any other payload.
+        var companionResult = ElevationCompanionAppender.Append(
+            payloads, manifest, model, ElevationCompanionPath, EngineStubPath, AllowPlaceholderStub,
+            EngineStubResolver);
+        if (companionResult.IsFailure)
+            return Result<string>.Failure(companionResult.Error);
+
+        manifest = companionResult.Value;
 
         var orderedPayloads = payloads
             .OrderBy(p => p.ContainerId ?? string.Empty)

@@ -288,6 +288,11 @@ public sealed class BuildCommandSigningTests : IDisposable
         engineBytes[0] = (byte)'M';
         engineBytes[1] = (byte)'Z';
         File.WriteAllBytes(enginePath, engineBytes);
+        // Mirror the publish layout: the elevation companion lives beside the engine so the
+        // default build can embed it as a trust-covered payload.
+        File.WriteAllBytes(
+            Path.Combine(engineDir, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId),
+            [(byte)'M', (byte)'Z', 0xE1, 0xE7]);
         Environment.SetEnvironmentVariable(EngineStubLocator.EnvironmentVariableName, enginePath);
         _envVarsToClear.Add(EngineStubLocator.EnvironmentVariableName);
 
