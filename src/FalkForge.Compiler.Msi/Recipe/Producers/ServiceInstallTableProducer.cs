@@ -46,11 +46,7 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
         {
             int startType = MapStartType(service.StartMode);
             string startName = ResolveStartName(service);
-            string executableFileName = Path.GetFileName(service.Executable ?? string.Empty);
-            string componentId =
-                fileNameToComponent.TryGetValue(executableFileName, out string? matched)
-                    ? matched
-                    : defaultComponentId;
+            string componentId = ResolveComponentId(service, resolved, fileNameToComponent, defaultComponentId);
 
             string svcId = TruncateId($"SVC_{SanitizeId(service.Name)}");
             string? dependencies = BuildDependencyString(service);
@@ -73,6 +69,33 @@ internal sealed class ServiceInstallTableProducer : ITableProducer
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Resolves the Component_ FK for a service row. A service with an explicit FeatureRef
+    /// (declared via FeatureBuilder.Service) always attaches to the dedicated component
+    /// ComponentResolver synthesized for it — that component carries the FeatureRef, which is
+    /// what places it under the correct feature in FeatureComponents. Without a FeatureRef the
+    /// service falls back to the legacy convention: attach to whichever resolved component owns
+    /// a file with the same bare filename as the service executable, or the first resolved
+    /// component (or "MainComponent") when no match exists.
+    /// </summary>
+    private static string ResolveComponentId(
+        ServiceModel service,
+        ResolvedPackage resolved,
+        Dictionary<string, string> fileNameToComponent,
+        string defaultComponentId)
+    {
+        if (service.FeatureRef is not null &&
+            resolved.ServiceFeatureComponents.TryGetValue(service.Name, out string? featureComponentId))
+        {
+            return featureComponentId;
+        }
+
+        string executableFileName = Path.GetFileName(service.Executable ?? string.Empty);
+        return fileNameToComponent.TryGetValue(executableFileName, out string? matched)
+            ? matched
+            : defaultComponentId;
     }
 
     private static Dictionary<string, string> BuildFileNameLookup(ResolvedPackage resolved)
