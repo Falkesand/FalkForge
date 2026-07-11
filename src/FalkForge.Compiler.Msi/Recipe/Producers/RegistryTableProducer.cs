@@ -44,7 +44,13 @@ internal sealed class RegistryTableProducer : ITableProducer
             string componentId = ResolveComponentId(entry, index, resolved, defaultComponentId);
             index++;
 
-            string valueText = entry.Value?.ToString() ?? string.Empty;
+            Result<string> valueResult = EncodeValue(entry);
+            if (valueResult.IsFailure)
+            {
+                return Result<ImmutableArray<RecipeRow>>.Failure(valueResult.Error);
+            }
+
+            string valueText = valueResult.Value;
 
             CellValue nameCell = entry.ValueName is null
                 ? new CellValue.Null()
@@ -87,6 +93,121 @@ internal sealed class RegistryTableProducer : ITableProducer
         }
 
         return defaultComponentId;
+    }
+
+    /// <summary>
+    /// Encodes <see cref="RegistryEntryModel.Value"/> per <see cref="RegistryEntryModel.ValueType"/>
+    /// using the Windows Installer <c>Registry</c> table's type-prefix convention: no prefix (or a
+    /// doubled leading <c>#</c> to escape a literal one) for REG_SZ, <c>#%</c> for REG_EXPAND_SZ,
+    /// <c>#</c>+decimal for REG_DWORD, <c>#x</c>+hex for REG_BINARY, and <c>[~]</c>-delimited
+    /// substrings for REG_MULTI_SZ. REG_QWORD has no native representation in this table, so a
+    /// QWord entry fails the compile rather than being silently mis-encoded (see the comment on
+    /// <c>RegistryKeyBuilder</c> for why no fluent QWord helper is offered).
+    /// </summary>
+    private static Result<string> EncodeValue(RegistryEntryModel entry)
+    {
+        switch (entry.ValueType)
+        {
+            case RegistryValueType.String:
+                return Result<string>.Success(EscapeLiteralHash(ValueAsString(entry)));
+
+            case RegistryValueType.ExpandString:
+                return Result<string>.Success("#%" + ValueAsString(entry));
+
+            case RegistryValueType.DWord:
+                if (!TryToInt32(entry.Value, out int dword))
+                {
+                    return Result<string>.Failure(new Error(ErrorKind.Validation,
+                        $"Registry entry '{entry.Key}\\{entry.ValueName}' declares RegistryValueType.DWord " +
+                        "but its value is not a 32-bit integer."));
+                }
+
+                return Result<string>.Success("#" + dword.ToString(CultureInfo.InvariantCulture));
+
+            case RegistryValueType.Binary:
+                if (entry.Value is not byte[] bytes)
+                {
+                    return Result<string>.Failure(new Error(ErrorKind.Validation,
+                        $"Registry entry '{entry.Key}\\{entry.ValueName}' declares RegistryValueType.Binary " +
+                        "but its value is not a byte[]."));
+                }
+
+                return Result<string>.Success("#x" + Convert.ToHexString(bytes));
+
+            case RegistryValueType.MultiString:
+                if (entry.Value is not IReadOnlyList<string> values)
+                {
+                    return Result<string>.Failure(new Error(ErrorKind.Validation,
+                        $"Registry entry '{entry.Key}\\{entry.ValueName}' declares RegistryValueType.MultiString " +
+                        "but its value is not a string list."));
+                }
+
+                return Result<string>.Success(EncodeMultiString(values));
+
+            case RegistryValueType.QWord:
+                return Result<string>.Failure(new Error(ErrorKind.NotSupported,
+                    $"Registry entry '{entry.Key}\\{entry.ValueName}' uses RegistryValueType.QWord. The MSI " +
+                    "Registry table has no native 64-bit integer encoding (only REG_SZ, REG_EXPAND_SZ, " +
+                    "REG_MULTI_SZ, REG_DWORD, and REG_BINARY are representable). Encode the value as " +
+                    "RegistryValueType.Binary (8 little-endian bytes, e.g. via BitConverter.GetBytes) instead."));
+
+            default:
+                return Result<string>.Failure(new Error(ErrorKind.NotSupported,
+                    $"Registry entry '{entry.Key}\\{entry.ValueName}' has an unrecognized RegistryValueType " +
+                    $"'{entry.ValueType}'."));
+        }
+    }
+
+    private static string ValueAsString(RegistryEntryModel entry)
+    {
+        return entry.Value as string ?? entry.Value?.ToString() ?? string.Empty;
+    }
+
+    /// <summary>
+    /// A REG_SZ value that legitimately starts with <c>#</c> must be escaped with a second
+    /// leading <c>#</c> — otherwise the Windows Installer runtime reads the leading <c>#</c> as
+    /// the start of one of the special type prefixes (<c>#x</c>, <c>#%</c>, <c>#&lt;int&gt;</c>)
+    /// and mis-parses the value.
+    /// </summary>
+    private static string EscapeLiteralHash(string value)
+    {
+        return value.Length > 0 && value[0] == '#' ? "#" + value : value;
+    }
+
+    /// <summary>
+    /// REG_MULTI_SZ entries are joined with the <c>[~]</c> delimiter (no leading/trailing
+    /// delimiter for a non-empty list). A zero-entry multi-string is written as a bare
+    /// <c>[~]</c> so the Windows Installer runtime still recognizes it as REG_MULTI_SZ rather
+    /// than an empty REG_SZ. The joined string is hash-escaped for the same reason single
+    /// string values are: it is still parsed by the same type-prefix sniffing rule.
+    /// </summary>
+    private static string EncodeMultiString(IReadOnlyList<string> values)
+    {
+        return values.Count == 0 ? "[~]" : EscapeLiteralHash(string.Join("[~]", values));
+    }
+
+    private static bool TryToInt32(object? value, out int result)
+    {
+        switch (value)
+        {
+            case int i:
+                result = i;
+                return true;
+            case null:
+                result = 0;
+                return false;
+            default:
+                try
+                {
+                    result = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+                    return true;
+                }
+                catch (Exception ex) when (ex is FormatException or OverflowException or InvalidCastException)
+                {
+                    result = 0;
+                    return false;
+                }
+        }
     }
 
     private static int MapRoot(RegistryRoot root)
