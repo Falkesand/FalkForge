@@ -47,9 +47,8 @@ if (errors.Count > 0)
 
 Console.WriteLine($"Driver extension: {errors.Count} errors, 2 drivers configured.");
 
-// In production, extensions register automatically via the FalkForge SDK extension
-// pipeline during compilation. The package below shows the MSI structure; extension
-// tables are emitted by the SDK at build time.
+// Attach the extension to the compiler with .Use(...). This emits the FalkDriverPackage
+// table + rows into the compiled MSI.
 return Installer.Build(args, package =>
 {
     package.Name = "Driver Install Demo";
@@ -62,4 +61,4 @@ return Installer.Build(args, package =>
         .Add("payload/printer.inf")
         .NeverOverwrite()
         .To(KnownFolder.ProgramFiles / "Demo" / "DriverDemo"));
-}, new MsiCompiler());
+}, new MsiCompiler().Use(driver));

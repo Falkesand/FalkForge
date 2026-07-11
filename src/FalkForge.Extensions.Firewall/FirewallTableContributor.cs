@@ -27,6 +27,8 @@ public sealed class FirewallTableContributor : IMsiTableContributor
         ContributedColumn.Text("Component_", 72),
         ContributedColumn.Text("Description"),
         ContributedColumn.Text("Condition"),
+        ContributedColumn.Text("RemotePort", 64),
+        ContributedColumn.Text("LocalAddress"),
     ];
 
     public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
@@ -46,7 +48,9 @@ public sealed class FirewallTableContributor : IMsiTableContributor
                 .Set("Action", MapAction(rule.Action))
                 .Set("Component_", rule.ComponentRef)
                 .Set("Description", rule.Description)
-                .Set("Condition", rule.Condition);
+                .Set("Condition", rule.Condition)
+                .Set("RemotePort", rule.RemotePort)
+                .Set("LocalAddress", rule.LocalAddress);
 
             rows.Add(row);
         }
