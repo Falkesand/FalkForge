@@ -94,7 +94,12 @@ the binaries where the existing probes already look:
 
 Packing fails **loud** when the published binaries are missing (a runtime package or
 tool with a placeholder engine must never ship); `-NoEngine` /
-`-p:FalkForgePackEngine=false` is the explicit opt-out. Only win-x64 exists today —
+`-p:FalkForgePackEngine=false` is the explicit opt-out. Note that a feed packed with
+`-NoEngine` omits `FalkForge.Engine.Runtime.win-x64` entirely, so a
+`<Project Sdk="FalkForge.Sdk/x.y.z">` consumer restoring from it hits NU1101 on the
+SDK's implicit engine-runtime reference — set
+`<FalkForgeImplicitEngineRuntime>false</FalkForgeImplicitEngineRuntime>` (fine when a
+runnable bundle isn't needed, e.g. MSI-only projects). Only win-x64 exists today —
 the engine is the bundle front for the TARGET machine, so the package works from any
 build host, but non-win-x64 target engines are a future task. The engine binaries are
 deliberately NOT checked into git — packing always consumes a fresh publish output,

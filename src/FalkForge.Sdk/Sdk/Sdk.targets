@@ -1,4 +1,10 @@
 <Project>
+  <!-- Second half of the Microsoft.NET.Sdk chain started in Sdk.props: only when this SDK is
+       the project's SDK (marker set by Sdk.props). A direct import of this file inside a
+       Microsoft.NET.Sdk project (the repo/demo flow) leaves the marker unset and imports
+       nothing extra. -->
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" Condition="'$(_FalkForgeSdkChainsNetSdk)' == 'true'" />
+
   <PropertyGroup>
     <!-- The compiled installer project assembly -->
     <_FalkForgeAssembly>$(TargetPath)</_FalkForgeAssembly>
