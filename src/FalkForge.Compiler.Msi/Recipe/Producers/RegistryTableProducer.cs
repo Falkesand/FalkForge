@@ -175,17 +175,40 @@ internal sealed class RegistryTableProducer : ITableProducer
     }
 
     /// <summary>
-    /// REG_MULTI_SZ entries are joined with the <c>[~]</c> delimiter (no leading/trailing
-    /// delimiter for a non-empty list). A zero-entry multi-string is written as a bare
-    /// <c>[~]</c> so the Windows Installer runtime still recognizes it as REG_MULTI_SZ rather
-    /// than an empty REG_SZ. The joined string is hash-escaped for the same reason single
-    /// string values are: it is still parsed by the same type-prefix sniffing rule.
+    /// REG_MULTI_SZ entries are joined with the <c>[~]</c> delimiter. The Windows Installer
+    /// runtime types a Registry value as REG_MULTI_SZ <b>solely</b> by the presence of a
+    /// <c>[~]</c> sequence in the Value field (there is no separate type column), so the encoding
+    /// must guarantee at least one <c>[~]</c> even when the list has a single element — otherwise
+    /// a one-string multi-string silently installs as REG_SZ. Cases:
+    /// <list type="bullet">
+    ///   <item>Empty list — a bare <c>[~]</c> sentinel (empty REG_MULTI_SZ).</item>
+    ///   <item>Single element — wrapped as <c>[~]value[~]</c> so the marker is always present;
+    ///     on a fresh install (no pre-existing value) this yields the single-element list.</item>
+    ///   <item>Two or more elements — joined as <c>a[~]b[~]c</c> (the documented REG_MULTI_SZ
+    ///     "replace" form).</item>
+    /// </list>
+    /// Segment content is written verbatim (no hash-escaping): the <c>[~]</c> marker already
+    /// forces the multi-string type, and doubling a leading <c>#</c> would instead downgrade the
+    /// value back to REG_SZ. A first segment that itself begins with a bare <c>#</c> type-prefix
+    /// character is a rare, unsupported edge case.
     /// </summary>
     private static string EncodeMultiString(IReadOnlyList<string> values)
     {
-        return values.Count == 0 ? "[~]" : EscapeLiteralHash(string.Join("[~]", values));
+        return values.Count switch
+        {
+            0 => "[~]",
+            1 => "[~]" + values[0] + "[~]",
+            _ => string.Join("[~]", values),
+        };
     }
 
+    /// <summary>
+    /// Coerces the boxed <see cref="RegistryEntryModel.Value"/> to a 32-bit integer for REG_DWORD
+    /// encoding. Only integral CLR types are accepted; a floating-point or <c>decimal</c> value is
+    /// rejected rather than rounded (e.g. <c>5.5</c> must fail loud, not silently become <c>6</c>),
+    /// and a value outside <see cref="int"/> range fails via the caught <see cref="OverflowException"/>.
+    /// Strings, <see cref="bool"/>, and other non-integral types are rejected outright.
+    /// </summary>
     private static bool TryToInt32(object? value, out int result)
     {
         switch (value)
@@ -193,20 +216,20 @@ internal sealed class RegistryTableProducer : ITableProducer
             case int i:
                 result = i;
                 return true;
-            case null:
-                result = 0;
-                return false;
-            default:
+            case byte or sbyte or short or ushort or uint or long or ulong:
                 try
                 {
                     result = Convert.ToInt32(value, CultureInfo.InvariantCulture);
                     return true;
                 }
-                catch (Exception ex) when (ex is FormatException or OverflowException or InvalidCastException)
+                catch (OverflowException)
                 {
                     result = 0;
                     return false;
                 }
+            default:
+                result = 0;
+                return false;
         }
     }
 

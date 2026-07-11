@@ -47,6 +47,7 @@ public sealed class RegistryValueEncodingIntegrationTests
                     k.DWord("Count", 5);
                     k.Binary("Blob", [0x0A, 0xFF]);
                     k.MultiString("List", ["alpha", "beta"]);
+                    k.MultiString("Single", ["solo"]);
                     k.ExpandString("Root", "%SystemRoot%\\App");
                     k.Value("Hashy", "#literal");
                 }));
@@ -65,6 +66,9 @@ public sealed class RegistryValueEncodingIntegrationTests
             Assert.Equal("#5", valuesByName["Count"]);
             Assert.Equal("#x0AFF", valuesByName["Blob"]);
             Assert.Equal("alpha[~]beta", valuesByName["List"]);
+            // A single-element multi-string MUST still carry the [~] marker, otherwise the MSI
+            // runtime (which types the value solely by the presence of [~]) stores it as REG_SZ.
+            Assert.Equal("[~]solo[~]", valuesByName["Single"]);
             Assert.Equal("#%%SystemRoot%\\App", valuesByName["Root"]);
             Assert.Equal("##literal", valuesByName["Hashy"]);
         }
@@ -112,6 +116,52 @@ public sealed class RegistryValueEncodingIntegrationTests
 
             Assert.True(compileResult.IsFailure);
             Assert.Contains("QWord", compileResult.Error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Compile_DWordRegistryValueWithNonIntegralValue_FailsLoud()
+    {
+        // WHY: RegistryValueType.DWord promises a 32-bit integer. If a non-integral value
+        // (here a boxed double) reaches the producer, silently rounding it to the nearest int
+        // would corrupt the installed value with no signal — the same fail-silently defect this
+        // fix targets. The public RegistryKeyBuilder.DWord(string, int) helper cannot reach this
+        // (it is strongly typed to int), so this is authored at the model level to guard the
+        // producer's own type check. It must reject rather than round.
+        var package = new PackageModel
+        {
+            Name = "RegBadDWordApp",
+            Manufacturer = "TestCorp",
+            Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(),
+            ProductCode = Guid.NewGuid(),
+            RegistryEntries =
+            [
+                new RegistryEntryModel
+                {
+                    Root = RegistryRoot.LocalMachine,
+                    Key = @"Software\TestCorp\RegBadDWordApp",
+                    ValueName = "Rounded",
+                    Value = 5.5d,
+                    ValueType = RegistryValueType.DWord,
+                },
+            ],
+        };
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiRegBadDWord_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var compiler = new MsiCompiler(new WindowsFileSystem());
+            var compileResult = compiler.Compile(package, tempDir);
+
+            Assert.True(compileResult.IsFailure);
+            Assert.Contains("32-bit integer", compileResult.Error.Message, StringComparison.Ordinal);
         }
         finally
         {

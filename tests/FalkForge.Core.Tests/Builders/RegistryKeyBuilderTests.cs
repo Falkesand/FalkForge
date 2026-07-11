@@ -65,6 +65,20 @@ public sealed class RegistryKeyBuilderTests
     }
 
     [Fact]
+    public void MultiString_SingleElement_StillStoresStringArrayAndMultiStringType()
+    {
+        // A one-element multi-string is an ordinary call; the model must still carry
+        // MultiString so the compiler emits the [~] marker (guarding against a REG_SZ downgrade).
+        var builder = new RegistryKeyBuilder(RegistryRoot.LocalMachine, @"Software\Acme");
+
+        builder.MultiString("Solo", ["only"]);
+
+        RegistryEntryModel entry = Assert.Single(builder.Build());
+        Assert.Equal(RegistryValueType.MultiString, entry.ValueType);
+        Assert.Equal(new[] { "only" }, entry.Value);
+    }
+
+    [Fact]
     public void Value_DefaultsToStringType()
     {
         var builder = new RegistryKeyBuilder(RegistryRoot.LocalMachine, @"Software\Acme");
