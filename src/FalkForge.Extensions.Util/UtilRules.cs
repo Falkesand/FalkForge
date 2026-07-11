@@ -1,25 +1,44 @@
 using System.Collections.Immutable;
+using FalkForge.Extensions.Util.UserManagement;
 using FalkForge.Extensions.Util.XmlConfig;
 using FalkForge.Validation;
 
 namespace FalkForge.Extensions.Util;
 
 /// <summary>
-/// Rules-as-data for the Util extension (XCF001–XCF009).
-/// Rules close over the XmlConfig list owned by the extension instance.
-/// USR001-USR002 are runtime-only (no stored model) and cannot be expressed as static ValidationRules.
+/// Rules-as-data for the Util extension (XCF001–XCF009, USR010).
+/// Rules close over the XmlConfig / User lists owned by the extension instance.
+/// USR001-USR003/USR011 are enforced at build time by <see cref="UserManagement.UserValidator"/> (a
+/// failed <c>AddUser</c> returns them) and cannot be re-expressed as static ValidationRules.
 /// </summary>
 public static class UtilRules
 {
     private const int MaxXPathLength = 4096;
 
     /// <summary>
-    /// Builds the set of <see cref="ValidationRule"/> instances for the XmlConfig sub-system.
+    /// Builds the set of <see cref="ValidationRule"/> instances for the XmlConfig and User sub-systems.
     /// </summary>
-    public static ImmutableArray<ValidationRule> Build(Func<IReadOnlyList<XmlConfigModel>> getXmlConfigs)
+    public static ImmutableArray<ValidationRule> Build(
+        Func<IReadOnlyList<XmlConfigModel>> getXmlConfigs,
+        Func<IReadOnlyList<UserModel>> getUsers)
     {
         return
         [
+            // Security warning: a literal user password is embedded in plaintext in the MSI.
+            new ValidationRule(
+                new RuleId("USR010"),
+                Severity.Warning,
+                ModelSection.Extension_Util,
+                "Literal user password embedded in the MSI",
+                "A literal user password is embedded in plaintext in the compiled MSI.",
+                ctx => getUsers()
+                    .Where(u => !string.IsNullOrWhiteSpace(u.Name) && !string.IsNullOrEmpty(u.Password))
+                    .Select(u => new Violation(
+                        new RuleId("USR010"), Severity.Warning,
+                        ModelPath.Root.Field("User").Field(u.Name),
+                        $"USR010: User '{u.Name}' embeds a literal password in plaintext in the MSI. " +
+                        "Use PasswordProperty with SetSecureProperty instead."))),
+
             new ValidationRule(
                 new RuleId("XCF001"),
                 Severity.Error,

@@ -47,4 +47,55 @@ public sealed class UserValidatorTests
 
         Assert.True(result.IsSuccess);
     }
+
+    [Fact]
+    public void Validate_PasswordProperty_NewLocalUser_ReturnsSuccess()
+    {
+        var result = UserValidator.Validate("TestUser", null, "USERPASSWORD", domain: null, updateIfExists: false);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Validate_BothCredentials_ReturnsUSR011()
+    {
+        var result = UserValidator.Validate("TestUser", "P@ssw0rd!", "USERPASSWORD", domain: null, updateIfExists: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR011", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_InvalidNameCharacters_ReturnsUSR003()
+    {
+        var result = UserValidator.Validate("bad:name", "P@ssw0rd!", null, null, updateIfExists: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR003", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_DomainUser_NoCredential_ReturnsSuccess()
+    {
+        // Domain accounts are references (never created), so no credential is required.
+        var result = UserValidator.Validate("svc", null, null, "CONTOSO", updateIfExists: false);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Theory]
+    [InlineData("Good.Name")]
+    [InlineData("O'Brien")]
+    [InlineData("svc_account")]
+    public void IsValidAccountName_AcceptsLegalNames(string name)
+        => Assert.True(UserValidator.IsValidAccountName(name));
+
+    [Theory]
+    [InlineData("bad;name")]
+    [InlineData("bad|name")]
+    [InlineData("bad\\name")]
+    [InlineData("   ")]
+    [InlineData("...")]
+    public void IsValidAccountName_RejectsIllegalNames(string name)
+        => Assert.False(UserValidator.IsValidAccountName(name));
 }

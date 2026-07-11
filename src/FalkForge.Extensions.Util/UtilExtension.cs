@@ -7,6 +7,7 @@ using FalkForge.Extensions.Util.PerfCounter;
 using FalkForge.Extensions.Util.QuietExec;
 using FalkForge.Extensions.Util.RemoveFolderEx;
 using FalkForge.Extensions.Util.ScheduledTask;
+using FalkForge.Extensions.Util.UserManagement;
 using FalkForge.Extensions.Util.XmlConfig;
 using FalkForge.Validation;
 
@@ -23,6 +24,8 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     private readonly List<RemoveFolderExModel> _removeFolderExes = [];
     private readonly List<FileShareModel> _fileShares = [];
     private readonly List<InternetShortcutModel> _internetShortcuts = [];
+    private readonly List<GroupModel> _groups = [];
+    private readonly List<UserModel> _users = [];
 
     public string Name => "Util";
 
@@ -35,6 +38,8 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     public IReadOnlyList<RemoveFolderExModel> RemoveFolderExes => _removeFolderExes;
     public IReadOnlyList<FileShareModel> FileShares => _fileShares;
     public IReadOnlyList<InternetShortcutModel> InternetShortcuts => _internetShortcuts;
+    public IReadOnlyList<GroupModel> Groups => _groups;
+    public IReadOnlyList<UserModel> Users => _users;
 
     public void AddScheduledTask(Action<ScheduledTaskBuilder> configure)
     {
@@ -105,6 +110,22 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         => AddItem(new InternetShortcutBuilder(), configure, static b => b.Build(), _internetShortcuts);
 
     /// <summary>
+    /// Defines a local group created on install and (optionally) removed on uninstall. The group is
+    /// created by a deferred, elevated (SYSTEM) custom action via the execution seam.
+    /// </summary>
+    public Result<Unit> AddGroup(Action<GroupBuilder> configure)
+        => AddItem(new GroupBuilder(), configure, static b => b.Build(), _groups);
+
+    /// <summary>
+    /// Defines a local user account created/updated on install and (optionally) removed on uninstall,
+    /// including group memberships. The account is created by a deferred, elevated (SYSTEM) custom action;
+    /// a password supplied via <see cref="UserBuilder.PasswordProperty"/> is carried securely and never
+    /// stored in the MSI. This is the most security-sensitive Util feature.
+    /// </summary>
+    public Result<Unit> AddUser(Action<UserBuilder> configure)
+        => AddItem(new UserBuilder(), configure, static b => b.Build(), _users);
+
+    /// <summary>
     /// Shared shape behind the four Add* sinks above: configure the builder, build it, and either
     /// propagate a validation failure or store the resulting model.
     /// </summary>
@@ -153,9 +174,14 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(_odbcDataSourceContributor);
         registry.RegisterExecutionContributor(new UtilExecutionContributor(
             () => _quietExecs, () => _removeFolderExes, () => _fileShares, () => _internetShortcuts));
+        // User/Group management: a separate execution contributor (it carries a password secret) plus the
+        // hidden-properties contributor that scrubs that secret from verbose MSI logs.
+        registry.RegisterTableContributor(new UtilHiddenPropertiesContributor(() => _users));
+        registry.RegisterExecutionContributor(new UtilUserGroupExecutionContributor(
+            () => _groups, () => _users));
     }
 
     /// <inheritdoc/>
     public ImmutableArray<ValidationRule> GetValidationRules()
-        => UtilRules.Build(() => _xmlConfigContributor.Items);
+        => UtilRules.Build(() => _xmlConfigContributor.Items, () => _users);
 }
