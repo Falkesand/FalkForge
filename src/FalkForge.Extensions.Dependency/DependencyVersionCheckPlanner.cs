@@ -1,6 +1,6 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using FalkForge.Extensibility;
 
 namespace FalkForge.Extensions.Dependency;
 
@@ -36,12 +36,31 @@ namespace FalkForge.Extensions.Dependency;
 ///     exclusive boundary — an edge case where treating missing components as 0 is the more
 ///     intuitive behavior.
 ///     </para>
+///     <para>
+///     Runtime prerequisites and fail-closed behavior: the evaluator is an immediate JScript
+///     custom action, so it requires the Windows Script Host (present and enabled by default). On
+///     a hardened image where script custom actions are disabled by policy, the action errors and
+///     the install aborts — i.e. the gate fails <b>closed</b> (blocks) rather than silently
+///     allowing an unverified dependency, which is the safe direction for a dependency gate. The
+///     evaluator also fails closed when the provider's registered version is missing or
+///     unparseable (treated as 0.0.0.0); this is deliberately stricter than the design-time
+///     <see cref="DependencyChecker"/>, which is lenient toward an unparseable version because it
+///     operates on the already-validated authored provider model rather than arbitrary machine
+///     registry state.
+///     </para>
 /// </summary>
 internal static class DependencyVersionCheckPlanner
 {
     // Sequence numbers: after AppSearch (50) / LaunchConditions (100) which populate the property,
-    // and well before InstallInitialize (1500) which is where the install begins committing.
+    // and strictly below InstallInitialize (1500) which is where the install begins committing.
     private const int FirstEvalSequence = 101;
+
+    // Every eval/abort pair must land below this ceiling so the abort can never be scheduled at or
+    // past InstallInitialize (which would let the install commit before the gate fires). The offset
+    // wraps within [FirstEvalSequence, SequenceCeiling) for pathological consumer counts; since the
+    // Action column is the primary key, a wrapped (duplicate) Sequence only makes ordering among
+    // checks ambiguous — every check still runs before commit, preserving the safety guarantee.
+    private const int SequenceCeiling = 1400;
 
     // CustomAction.Target is a CHAR(255) column; a longer message would fail msi.dll insertion.
     // The abort message is display-only, so a defensive cap (cosmetic truncation) is preferable to
@@ -76,7 +95,11 @@ internal static class DependencyVersionCheckPlanner
 
             var script = BuildScript(property, failProperty, range);
             var message = BuildMessage(consumer, range, property);
-            var evalSeq = FirstEvalSequence + (index * 2);
+
+            // Two consecutive slots per check, wrapped below SequenceCeiling to guarantee the
+            // before-commit invariant regardless of consumer count.
+            var span = SequenceCeiling - FirstEvalSequence - 1; // even count of usable slots
+            var evalSeq = FirstEvalSequence + ((index * 2) % span);
             var abortSeq = evalSeq + 1;
 
             plan.Add(new DependencyVersionCheck(
@@ -146,18 +169,25 @@ internal static class DependencyVersionCheckPlanner
 
     private static string BuildMessage(DependencyConsumerModel consumer, VersionRange range, string property)
     {
-        var providerKey = EscapeFormattedText(consumer.ProviderKey);
-        var consumerKey = EscapeFormattedText(consumer.ConsumerKey);
+        // MSI Formatted-text escaping so an authored key containing '[' or ']' cannot inject a
+        // spurious [Property] token. CommandLine.MsiFormatEscape is single-pass — a naive
+        // two-Replace escaper re-mangles the brackets it just introduced.
+        var providerKey = CommandLine.MsiFormatEscape(consumer.ProviderKey);
+        var consumerKey = CommandLine.MsiFormatEscape(consumer.ConsumerKey);
+
+        // The range text is deliberately bracket-free (worded, not interval notation): a literal
+        // '[' would be parsed as the start of a Formatted property token and would swallow the
+        // '[{property}]' detected-version substitution that follows.
         var rangeText = FormatRangeText(range);
 
         var message =
-            $"Dependency '{providerKey}' (required by '{consumerKey}') must be installed in version " +
-            $"range {rangeText}; the detected version was '[{property}]' (blank means not installed). " +
+            $"Dependency '{providerKey}' (required by '{consumerKey}') must be installed with a version " +
+            $"{rangeText}; the detected version was '[{property}]' (blank means not installed). " +
             "Install or upgrade the required provider, then run this installer again.";
 
         return message.Length <= MaxMessageLength
             ? message
-            : message[..(MaxMessageLength - 1)] + "…";
+            : message[..(MaxMessageLength - 1)] + ".";
     }
 
     /// <summary>
@@ -171,30 +201,28 @@ internal static class DependencyVersionCheckPlanner
             Math.Max(version.Build, 0),
             Math.Max(version.Revision, 0)).ToString(4);
 
+    /// <summary>
+    ///     Renders the effective range as bracket-free English (never MSI interval notation, whose
+    ///     <c>[</c>/<c>)</c> characters would be mis-parsed as Formatted property tokens).
+    /// </summary>
     private static string FormatRangeText(VersionRange range)
     {
-        if (range.MinVersion is not null && range.MaxVersion is not null)
-        {
-            var open = range.MinInclusive ? '[' : '(';
-            var close = range.MaxInclusive ? ']' : ')';
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "{0}{1}, {2}{3}",
-                open, FormatVersion(range.MinVersion), FormatVersion(range.MaxVersion), close);
-        }
+        var minPhrase = BoundPhrase(range.MinVersion, range.MinInclusive, "at least ", "greater than ");
+        var maxPhrase = BoundPhrase(range.MaxVersion, range.MaxInclusive, "at most ", "less than ");
 
-        if (range.MinVersion is not null)
-            return (range.MinInclusive ? "at least " : "greater than ") + FormatVersion(range.MinVersion);
+        if (minPhrase is not null && maxPhrase is not null)
+            return $"{minPhrase} and {maxPhrase}";
 
-        // range.MaxVersion is guaranteed non-null here — Plan() skips consumers with both bounds null.
-        return (range.MaxInclusive ? "at most " : "less than ") + FormatVersion(range.MaxVersion!);
+        // Exactly one bound is present here — Plan() skips consumers with both bounds null.
+        return minPhrase ?? maxPhrase!;
     }
 
-    /// <summary>
-    ///     Escapes MSI formatted-text bracket metacharacters so a provider/consumer key cannot be
-    ///     crafted to inject a spurious <c>[Property]</c> reference into the abort message shown to
-    ///     the user (OWASP: no injection via authored identifiers).
-    /// </summary>
-    private static string EscapeFormattedText(string value)
-        => value.Replace("[", "[\\[]", StringComparison.Ordinal).Replace("]", "[\\]]", StringComparison.Ordinal);
+    private static string? BoundPhrase(Version? bound, bool inclusive, string inclusiveWord, string exclusiveWord)
+    {
+        if (bound is null)
+            return null;
+
+        var word = inclusive ? inclusiveWord : exclusiveWord;
+        return word + FormatVersion(bound);
+    }
 }

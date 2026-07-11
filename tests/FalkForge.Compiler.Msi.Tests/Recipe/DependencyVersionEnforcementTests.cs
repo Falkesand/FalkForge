@@ -76,19 +76,26 @@ public sealed class DependencyVersionEnforcementTests
         Assert.StartsWith("FalkDepChk", evalAction, StringComparison.Ordinal);
         Assert.StartsWith("FalkDepErr", abortAction, StringComparison.Ordinal);
 
-        // The abort message names the provider, the consumer, and shows the detected version token.
+        // The abort message names the provider, the consumer, describes the range in bracket-free
+        // words, and shows the detected version token. The range must NOT use MSI interval notation
+        // ('[1.0, 2.0)') because a literal '[' would be parsed as a Formatted property token and
+        // swallow the '[property]' substitution — so the only '[' in the message is that one token.
         string message = abortRow[3]!;
         Assert.Contains("Acme.Foo", message, StringComparison.Ordinal);
         Assert.Contains("Acme.App", message, StringComparison.Ordinal);
         Assert.Contains($"[{property}]", message, StringComparison.Ordinal);
+        Assert.Contains("at least 1.0.0.0 and less than 2.0.0.0", message, StringComparison.Ordinal);
+        Assert.Equal(1, message.Count(ch => ch == '['));
 
         // The JScript comparison body is stored in the Binary table and reads the property and
         // compares against the (four-part-normalized) bounds — the real numeric comparison MSI
-        // conditions cannot do.
+        // conditions cannot do. Assert the exact comparison OPERATORS, not just the bounds, so an
+        // inclusive/exclusive inversion is caught structurally (this package: MinInclusive →
+        // fail-if-less-than "<0"; MaxExclusive → fail-if-at-or-above ">=0").
         string script = ReadBinaryScript(db, binaryName);
         Assert.Contains($"Session.Property(\"{property}\")", script, StringComparison.Ordinal);
-        Assert.Contains("1.0.0.0", script, StringComparison.Ordinal);
-        Assert.Contains("2.0.0.0", script, StringComparison.Ordinal);
+        Assert.Contains("A(\"1.0.0.0\"))<0)", script, StringComparison.Ordinal);
+        Assert.Contains("A(\"2.0.0.0\"))>=0)", script, StringComparison.Ordinal);
 
         // Sequenced after AppSearch and before commit in BOTH sequences. InstallExecuteSequence's
         // commit point is InstallInitialize; InstallUISequence has no InstallInitialize action —
@@ -102,6 +109,34 @@ public sealed class DependencyVersionEnforcementTests
         Assert.StartsWith("FALKDEPF", abortSeqCondition, StringComparison.Ordinal);
         var evalSeqCondition = QuerySequenceCondition(db, "InstallExecuteSequence", evalAction);
         Assert.Equal("REMOVE<>\"ALL\"", evalSeqCondition);
+    }
+
+    [Fact]
+    public void VersionRangeConsumer_ExclusiveMinInclusiveMax_EmitsInvertedOperators()
+    {
+        using var scratch = new Scratch();
+
+        var dependency = new DependencyExtension();
+        dependency.Requires("Acme.Foo", consumer => consumer
+            .ConsumerKey("Acme.App")
+            .ComponentRef("MainComponent")
+            .MinVersion("1.0.0.0").MinExclusive()
+            .MaxVersion("2.0.0.0").MaxInclusive());
+
+        using var db = Compile(scratch, "DepEnforceInvApp", c => c.Use(dependency));
+
+        var caRows = db.QueryRows("SELECT `Type`, `Source` FROM `CustomAction`", 2);
+        Assert.True(caRows.IsSuccess, caRows.IsFailure ? caRows.Error.Message : "");
+        string binaryName = Assert.Single(caRows.Value, r => r[0] == "5")[1]!;
+        string script = ReadBinaryScript(db, binaryName);
+
+        // MinExclusive → fail-if-at-or-below "<=0"; MaxInclusive → fail-if-above ">0".
+        // The opposite of the inclusive-min/exclusive-max case — proves the operator wiring, not
+        // just the presence of the bound literals.
+        Assert.Contains("A(\"1.0.0.0\"))<=0)", script, StringComparison.Ordinal);
+        Assert.Contains("A(\"2.0.0.0\"))>0)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("))<0)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("))>=0)", script, StringComparison.Ordinal);
     }
 
     [Fact]
