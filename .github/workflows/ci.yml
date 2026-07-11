@@ -96,8 +96,9 @@ jobs:
       # glob below. The dotnet-coverage wrapper is unchanged (CLR profiler attach around the whole run).
       # FALKFORGE_E2E=1 opts CI into the heavyweight e2e tests (full demo-catalog builds,
       # verify-rebuild ceremony) that a fresh-clone `dotnet test` skips by default so it
-      # finishes in minutes. The SignServer container e2e additionally requires a Linux
-      # container runtime, which windows-latest lacks — those skip here regardless.
+      # finishes in minutes. The SignServer container e2e (FalkForge.SignServer.E2E.Tests)
+      # additionally requires a Linux container runtime, which windows-latest lacks — those
+      # skip here and run for real in the dedicated signserver-e2e job on ubuntu-latest below.
       - name: Test with coverage
         env:
           FALKFORGE_E2E: '1'
@@ -124,6 +125,44 @@ jobs:
         with:
           name: coverage-report
           path: CoverageReport/
+          if-no-files-found: warn
+
+  # SignServer container e2e: FalkForge.SignServer.E2E.Tests spins a live keyfactor/signserver-ce
+  # LINUX container via Testcontainers, so it needs a Linux Docker daemon — which windows-latest
+  # does not have. This dedicated ubuntu-latest job (Docker preinstalled, /var/run/docker.sock
+  # native) is the only place in CI these tests actually RUN; on the windows job above they
+  # self-skip. The project targets plain net10.0 and references only cross-platform projects
+  # (Core, Compiler.Bundle, Engine.Protocol, Signing.SignServer), so building just this project
+  # on Linux never touches the net10.0-windows parts of the solution. Runs in parallel with
+  # build-and-test, so it does not slow the main job.
+  signserver-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # Scoped to the one cross-platform e2e project — the full slnx does not build on Linux
+      # (net10.0-windows projects). The project IS the filter: it contains exactly the two
+      # SignServer container e2e classes (SignServerPodSigningE2ETests,
+      # SignServerRotationRevocationE2ETests), so no trait/FQN filter can drift out of sync.
+      # FALKFORGE_E2E=1 opts past the heavyweight-e2e gate; the Docker runtime gate then
+      # resolves the runner's native Linux daemon. TRX via the MTP-native reporter, same as
+      # the windows job.
+      - name: Run SignServer container e2e
+        env:
+          FALKFORGE_E2E: '1'
+        run: dotnet test tests/FalkForge.SignServer.E2E.Tests/FalkForge.SignServer.E2E.Tests.csproj -c Release -v minimal -- --report-trx --report-trx-filename signserver-e2e.trx
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: signserver-e2e-test-results
+          path: tests/FalkForge.SignServer.E2E.Tests/bin/**/TestResults/**
           if-no-files-found: warn
 
   code-quality:
