@@ -276,9 +276,10 @@ internal static class UtilUserGroupCommandFactory
             sb.Append("    # group already present; adopt unchanged\n");
 
         sb.Append("  } else {\n");
-        sb.Append("    New-LocalGroup -Name $__g").Append(descArg).Append(" | Out-Null\n");
-        // Record that THIS run created the group so the paired rollback may remove it.
+        // Record intent BEFORE creating so a failure that happens AFTER the group is created still leaves the
+        // marker for rollback to clean up (fail-safe). If the create fails, rollback's removal simply no-ops.
         AppendMarkerWrite(sb, "    ");
+        sb.Append("    New-LocalGroup -Name $__g").Append(descArg).Append(" | Out-Null\n");
         sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
@@ -348,8 +349,9 @@ internal static class UtilUserGroupCommandFactory
         // create a passwordless local account, which would be a standing credential-free logon target.
         sb.Append("    if ($null -eq $__sec) { throw \"Cannot create local user '$__u' without a password. ")
           .Append("Supply a PasswordProperty (SetSecureProperty) or a literal password.\" }\n");
-        sb.Append("    New-LocalUser -Name $__u -Password $__sec").Append(descArg).Append(" | Out-Null\n");
+        // Record intent BEFORE creating (fail-safe: a failure after New-LocalUser still lets rollback clean up).
         AppendMarkerWrite(sb, "    ");
+        sb.Append("    New-LocalUser -Name $__u -Password $__sec").Append(descArg).Append(" | Out-Null\n");
         sb.Append("    $__apply = $true\n");
         sb.Append("  }\n");
 
@@ -409,8 +411,9 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("  $__has = Get-LocalGroupMember -Group $__g -Member $__m -ErrorAction SilentlyContinue\n");
         // Add only when absent, and mark that THIS run added it so rollback removes only what we added.
         sb.Append("  if ($null -eq $__has) {\n");
-        sb.Append("    Add-LocalGroupMember -Group $__g -Member $__m\n");
+        // Record intent BEFORE adding (fail-safe: a failure after the add still lets rollback clean up).
         AppendMarkerWrite(sb, "    ");
+        sb.Append("    Add-LocalGroupMember -Group $__g -Member $__m\n");
         sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
