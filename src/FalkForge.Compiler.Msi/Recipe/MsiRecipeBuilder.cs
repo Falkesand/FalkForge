@@ -13,10 +13,11 @@ namespace FalkForge.Compiler.Msi.Recipe;
 ///
 /// Phase 4 wires in the built-in producers (Property, Directory, Feature,
 /// Component, File, FeatureComponents, FeatureCondition, Upgrade, Media,
-/// Registry, RemoveRegistry, ServiceInstall, ServiceControl, Shortcut,
-/// Environment, Font, LaunchCondition, IniFile, RemoveIniFile, CreateFolder,
-/// DuplicateFile, Binary, CustomAction, LockPermissions*, MsiLockPermissionsEx*,
-/// MIME, ProgId, Extension, Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb,
+/// Registry, RemoveRegistry, ServiceInstall, ServiceControl,
+/// MsiServiceConfigFailureActions*, Shortcut, Environment, Font,
+/// LaunchCondition, IniFile, RemoveIniFile, CreateFolder, DuplicateFile,
+/// Binary, CustomAction, LockPermissions*, MsiLockPermissionsEx*, MIME,
+/// ProgId, Extension, Class, TypeLib, MsiAssembly, MsiAssemblyName, Verb,
 /// MoveFile, RemoveFile, InstallUISequence, InstallExecuteSequence).
 /// Most producers emit one <see cref="RecipeTable"/> even when the source data
 /// is empty. Producers whose <see cref="TableSchema.EmitWhenEmpty"/> is
@@ -113,6 +114,10 @@ public static class MsiRecipeBuilder
         // All producers whose tables appear unconditionally in legacy are listed in the
         // same order; LockPermissions and MsiLockPermissionsEx are at the end with
         // EmitWhenEmpty=false so they are suppressed when no permission entries exist.
+        // MsiServiceConfigFailureActionsTableProducer has no legacy counterpart (issue C3
+        // fix) — it is slotted next to the other service producers and is likewise
+        // EmitWhenEmpty=false so packages without ServiceBuilder.FailureActions(...) are
+        // unaffected.
         ITableProducer[] producers =
         {
             new DirectoryTableProducer(),
@@ -126,6 +131,7 @@ public static class MsiRecipeBuilder
             new ShortcutTableProducer(),
             new ServiceInstallTableProducer(),
             new ServiceControlTableProducer(),
+            new MsiServiceConfigFailureActionsTableProducer(),
             new UpgradeTableProducer(),
             new LaunchConditionTableProducer(),
             new InstallExecuteSequenceTableProducer(),
@@ -389,6 +395,7 @@ public static class MsiRecipeBuilder
             "RemoveRegistry" => MsiTableDefinitions.CreateRemoveRegistryTable,
             "ServiceInstall" => MsiTableDefinitions.CreateServiceInstallTable,
             "ServiceControl" => MsiTableDefinitions.CreateServiceControlTable,
+            "MsiServiceConfigFailureActions" => MsiTableDefinitions.CreateMsiServiceConfigFailureActionsTable,
             "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
             "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
             "Font" => MsiTableDefinitions.CreateFontTable,

@@ -41,6 +41,9 @@ internal static class MsiTableDefinitions
     internal const string CreateServiceControlTable =
         "CREATE TABLE `ServiceControl` (`ServiceControl` CHAR(72) NOT NULL, `Name` CHAR(255) NOT NULL, `Event` SHORT NOT NULL, `Arguments` CHAR(255), `Wait` SHORT, `Component_` CHAR(72) NOT NULL PRIMARY KEY `ServiceControl`)";
 
+    internal const string CreateMsiServiceConfigFailureActionsTable =
+        "CREATE TABLE `MsiServiceConfigFailureActions` (`MsiServiceConfigFailureActions` CHAR(72) NOT NULL, `Name` CHAR(255) NOT NULL, `Event` LONG NOT NULL, `ResetPeriod` LONG, `RebootMessage` CHAR(255), `Command` CHAR(255), `Actions` CHAR(255), `DelayActions` CHAR(255), `Component_` CHAR(72) NOT NULL PRIMARY KEY `MsiServiceConfigFailureActions`)";
+
     internal const string CreateUpgradeTable =
         "CREATE TABLE `Upgrade` (`UpgradeCode` CHAR(38) NOT NULL, `VersionMin` CHAR(20), `VersionMax` CHAR(20), `Language` CHAR(255), `Attributes` LONG NOT NULL, `Remove` CHAR(255), `ActionProperty` CHAR(72) NOT NULL PRIMARY KEY `UpgradeCode`, `VersionMin`, `VersionMax`, `Language`, `Attributes`)";
 

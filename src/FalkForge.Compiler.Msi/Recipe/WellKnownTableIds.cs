@@ -43,6 +43,7 @@ internal static class WellKnownTableIds
     internal static readonly TableId MsiAssembly = TableId.Create("MsiAssembly").Value;
     internal static readonly TableId MsiAssemblyName = TableId.Create("MsiAssemblyName").Value;
     internal static readonly TableId MsiLockPermissionsEx = TableId.Create("MsiLockPermissionsEx").Value;
+    internal static readonly TableId MsiServiceConfigFailureActions = TableId.Create("MsiServiceConfigFailureActions").Value;
     internal static readonly TableId ProgId = TableId.Create("ProgId").Value;
     internal static readonly TableId Property = TableId.Create("Property").Value;
     internal static readonly TableId Registry = TableId.Create("Registry").Value;

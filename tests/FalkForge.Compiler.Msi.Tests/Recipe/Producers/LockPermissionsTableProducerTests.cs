@@ -201,6 +201,75 @@ public sealed class LockPermissionsTableProducerTests
         Assert.Equal("Everyone", ((CellValue.StringValue)row.Cells[3]).Value);
     }
 
+    [Fact]
+    public void Produce_emits_row_for_service_permission_using_serviceinstall_id_not_raw_service_name()
+    {
+        // C4: ServiceBuilder.Permission(...) collects entries onto
+        // ServiceModel.Permissions, but only PackageModel.Permissions fed this
+        // producer, so a permission authored on a service was silently dropped.
+        // ServiceBuilder stamps PermissionModel.LockObject with the raw service
+        // name (see ServiceBuilderPermissionTests) — the producer must recompute
+        // the effective LockObject as the synthesized ServiceInstall primary key
+        // ("SVC_" + sanitized name), which is what the ServiceInstall table
+        // actually uses as its row key, not the plain service name.
+        ServiceModel service = new()
+        {
+            Name = "MyService",
+            DisplayName = "My Service",
+            Executable = "svc.exe",
+            Permissions = new[]
+            {
+                new PermissionModel
+                {
+                    LockObject = "MyService",
+                    Table = "ServiceInstall",
+                    Domain = "BUILTIN",
+                    User = "Administrators",
+                    Permission = 0x000F01FF,
+                },
+            },
+        };
+        ResolvedPackage resolved = MakeResolved(Array.Empty<PermissionModel>(), new[] { service });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        RecipeRow row = Assert.Single(rows);
+        Assert.Equal("SVC_MyService", ((CellValue.StringValue)row.Cells[0]).Value);
+        Assert.Equal("ServiceInstall", ((CellValue.StringValue)row.Cells[1]).Value);
+        Assert.Equal("BUILTIN", ((CellValue.StringValue)row.Cells[2]).Value);
+        Assert.Equal("Administrators", ((CellValue.StringValue)row.Cells[3]).Value);
+        Assert.Equal(0x000F01FF, ((CellValue.IntValue)row.Cells[4]).Value);
+    }
+
+    [Fact]
+    public void Produce_emits_both_package_level_and_service_level_permissions()
+    {
+        PermissionModel packageLevel = new()
+        {
+            LockObject = "INSTALLDIR",
+            Table = "CreateFolder",
+            User = "Everyone",
+            Permission = 1,
+        };
+        ServiceModel service = new()
+        {
+            Name = "Svc",
+            DisplayName = "Svc",
+            Executable = "svc.exe",
+            Permissions = new[]
+            {
+                new PermissionModel { LockObject = "Svc", Table = "ServiceInstall", User = "Users", Permission = 2 },
+            },
+        };
+        ResolvedPackage resolved = MakeResolved(new[] { packageLevel }, new[] { service });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Equal(2, rows.Length);
+        Assert.Equal("INSTALLDIR", ((CellValue.StringValue)rows[0].Cells[0]).Value);
+        Assert.Equal("SVC_Svc", ((CellValue.StringValue)rows[1].Cells[0]).Value);
+    }
+
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
     {
         RecipeBuildContext context = new(
@@ -214,7 +283,9 @@ public sealed class LockPermissionsTableProducerTests
         return result.Value;
     }
 
-    private static ResolvedPackage MakeResolved(IReadOnlyList<PermissionModel> permissions)
+    private static ResolvedPackage MakeResolved(
+        IReadOnlyList<PermissionModel> permissions,
+        IReadOnlyList<ServiceModel>? services = null)
     {
         return new ResolvedPackage
         {
@@ -224,6 +295,7 @@ public sealed class LockPermissionsTableProducerTests
                 Manufacturer = "M",
                 Version = new Version(1, 0, 0),
                 Permissions = permissions,
+                Services = services ?? Array.Empty<ServiceModel>(),
             },
             Components = Array.Empty<ResolvedComponent>(),
             Files = Array.Empty<ResolvedFile>(),

@@ -24,6 +24,17 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// legacy emitter writes a literal null and the producer pins that
 /// literal so a future field addition does not silently change MSI
 /// behaviour.
+///
+/// The input list is <see cref="ServicePermissionSource.EnumerateAll"/> rather
+/// than <see cref="PackageModel.Permissions"/> alone: it also walks each
+/// service's own <see cref="ServiceModel.Permissions"/> (fluent
+/// <c>ServiceBuilder.Permission(...)</c>), which package-level-only iteration
+/// silently dropped. Per-service entries use the enumeration's
+/// <c>EffectiveLockObject</c> — the service's synthesized ServiceInstall
+/// primary key — rather than <see cref="PermissionModel.LockObject"/>, which
+/// only holds the raw service name. The <c>PRM_NNNN</c> index counter still
+/// walks the combined list in package-then-service order, so existing
+/// package-only packages keep their legacy numbering byte-for-byte.
 /// </summary>
 internal sealed class MsiLockPermissionsExTableProducer : ITableProducer
 {
@@ -36,17 +47,16 @@ internal sealed class MsiLockPermissionsExTableProducer : ITableProducer
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        IReadOnlyList<PermissionModel> permissions = context.Resolved.Package.Permissions;
-
-        if (permissions.Count == 0)
+        List<(PermissionModel Permission, string EffectiveLockObject)> permissions = new();
+        foreach ((PermissionModel Permission, string EffectiveLockObject) entry in ServicePermissionSource.EnumerateAll(context.Resolved))
         {
-            return Result<ImmutableArray<RecipeRow>>.Success(ImmutableArray<RecipeRow>.Empty);
+            permissions.Add(entry);
         }
 
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         for (int index = 0; index < permissions.Count; index++)
         {
-            PermissionModel perm = permissions[index];
+            (PermissionModel perm, string effectiveLockObject) = permissions[index];
             if (string.IsNullOrEmpty(perm.Sddl))
             {
                 // User-driven entries belong to LockPermissions; their input
@@ -61,7 +71,7 @@ internal sealed class MsiLockPermissionsExTableProducer : ITableProducer
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(permId),
-                new CellValue.StringValue(perm.LockObject),
+                new CellValue.StringValue(effectiveLockObject),
                 new CellValue.StringValue(perm.Table),
                 new CellValue.StringValue(perm.Sddl),
                 new CellValue.Null());
