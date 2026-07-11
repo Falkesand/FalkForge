@@ -89,11 +89,19 @@ public sealed class UtilUserGroupExecutionEmissionTests
         Assert.Equal("[USERPASSWORD]", setProp.Target);
         Assert.True(sequence["UUsr_svcFalk_d"] < sequence["UUsr_svcFalk"]);
 
-        // Nowhere in the compiled MSI is there a plaintext password — only the runtime property token.
-        foreach (var (_, value) in AllCustomActionTargets(db))
+        // The deferred user-create action converts the password to a SecureString and reads it from the
+        // secure CustomActionData channel — the secret is never baked into the script body.
+        string userScript = DecodeEncoded(actions["UUsr_svcFalk"].Target);
+        Assert.Contains("ConvertTo-SecureString", userScript, StringComparison.Ordinal);
+        Assert.Contains("[CustomActionData]", actions["UUsr_svcFalk"].Target, StringComparison.Ordinal);
+
+        // The only place the secret is referenced anywhere in the MSI is the runtime property token in the
+        // type-51 SetProperty target — never a resolved plaintext value baked into any CustomAction.
+        foreach (var (action, value) in AllCustomActionTargets(db))
         {
-            Assert.DoesNotContain("-AsPlainText -Force } else", value, StringComparison.Ordinal); // sanity: script present but no literal secret
-            Assert.DoesNotContain("hunter2", value, StringComparison.OrdinalIgnoreCase);
+            if (action == "UUsr_svcFalk_d")
+                continue; // the SetProperty target legitimately holds the [USERPASSWORD] token
+            Assert.DoesNotContain("USERPASSWORD", value, StringComparison.Ordinal);
         }
 
         // The secret-carrying properties (source + deferred action) are listed in MsiHiddenProperties so a

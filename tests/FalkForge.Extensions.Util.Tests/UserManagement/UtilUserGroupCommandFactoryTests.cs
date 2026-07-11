@@ -96,6 +96,65 @@ public sealed class UtilUserGroupCommandFactoryTests
         Assert.True(m < u && u < g, "uninstall order (list position) must be membership -> user -> group");
     }
 
+    [Fact]
+    public void NewUser_WithNoResolvedPassword_FailsLoud_NeverCreatesPasswordlessAccount()
+    {
+        // An UpdateIfExists user with no credential still creates a NEW account when absent at run time. The
+        // create branch must fail loud instead of falling back to -NoPassword (a passwordless SYSTEM account).
+        var user = new UserModel { Name = "svc", Password = null, UpdateIfExists = true };
+
+        var step = Single(UtilUserGroupCommandFactory.BuildSteps([], [user]), "UUsr_svc");
+        string script = Decode(step.InstallCommand);
+        Assert.DoesNotContain("-NoPassword", script, StringComparison.Ordinal);
+        Assert.Contains("throw", script, StringComparison.Ordinal);
+        Assert.Contains("without a password", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GroupCreate_NotUpdateIfExists_ThrowsOnPreExisting_SoRollbackOnlyRemovesWhatWeCreated()
+    {
+        var group = new GroupModel { Name = "Ops" }; // UpdateIfExists = false
+
+        var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
+        string script = Decode(step.InstallCommand);
+        Assert.Contains("already exists", script, StringComparison.Ordinal);
+        Assert.Contains("throw", script, StringComparison.Ordinal);
+
+        // Because create fails loud on a pre-existing group, the paired rollback (which removes the group) is
+        // safe — it only ever runs after WE created the group.
+        Assert.NotNull(step.RollbackCommand);
+        Assert.Contains("Remove-LocalGroup", Decode(step.RollbackCommand!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GroupCreate_UpdateIfExists_HasNoRollback_SoNeverDeletesAPreExistingGroup()
+    {
+        var group = new GroupModel { Name = "Ops", UpdateIfExists = true };
+
+        var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
+        Assert.Null(step.RollbackCommand);
+    }
+
+    [Fact]
+    public void RemovalScripts_LogFailures_RatherThanSwallowSilently()
+    {
+        var group = new GroupModel { Name = "Ops", RemoveOnUninstall = true };
+
+        var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrpD_Ops");
+        Assert.NotNull(step.UninstallCommand);
+        Assert.Contains("Error.WriteLine", Decode(step.UninstallCommand!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DirectlyConstructedModel_WithInvalidName_ThrowsLoud()
+    {
+        // Defense in depth: a model built directly (bypassing the builder validators) with an injection name
+        // must not silently reach a SYSTEM-context script.
+        var group = new GroupModel { Name = "bad;name" };
+
+        Assert.Throws<InvalidOperationException>(() => UtilUserGroupCommandFactory.BuildSteps([group], []));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static ExecutionStep Single(IReadOnlyList<ExecutionStep> steps, string id)

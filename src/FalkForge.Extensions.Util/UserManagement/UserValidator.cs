@@ -24,6 +24,8 @@ public static class UserValidator
     ///             user (domain-qualified users are references, not created, so they are exempt).
     ///     USR003: Name contains characters not allowed in a Windows account name.
     ///     USR011: Password and PasswordProperty are mutually exclusive.
+    ///     USR012: A literal password contains a double-quote or control character (unsupported by the
+    ///             command-line credential transport).
     /// </summary>
     public static Result<bool> Validate(
         string name, string? password, string? passwordProperty, string? domain, bool updateIfExists)
@@ -40,6 +42,15 @@ public static class UserValidator
             return Result<bool>.Failure(
                 ErrorKind.Validation,
                 "USR011: Password and PasswordProperty are mutually exclusive; choose one.");
+
+        // The password rides a double-quoted command-line argument to the deferred action; a literal that
+        // contains a double quote (or a control character) would be truncated/mangled at run time, silently
+        // giving a privileged account the wrong credential. Reject it at author time.
+        if (!string.IsNullOrEmpty(password) && ContainsUnsupportedPasswordChar(password!))
+            return Result<bool>.Failure(
+                ErrorKind.Validation,
+                "USR012: A literal password must not contain a double-quote or control character. " +
+                "Use PasswordProperty (SetSecureProperty) for such a value.");
 
         bool isLocal = string.IsNullOrWhiteSpace(domain);
         bool hasCredential = !string.IsNullOrWhiteSpace(password) || !string.IsNullOrWhiteSpace(passwordProperty);
@@ -70,6 +81,17 @@ public static class UserValidator
         foreach (char c in name)
         {
             if (c is not ('.' or ' '))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsUnsupportedPasswordChar(string password)
+    {
+        foreach (char c in password)
+        {
+            if (c == '"' || char.IsControl(c))
                 return true;
         }
 

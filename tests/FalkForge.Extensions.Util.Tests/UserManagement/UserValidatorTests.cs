@@ -75,6 +75,15 @@ public sealed class UserValidatorTests
     }
 
     [Fact]
+    public void Validate_LiteralPasswordWithDoubleQuote_ReturnsUSR012()
+    {
+        var result = UserValidator.Validate("svc", "pa\"ss", null, null, updateIfExists: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR012", result.Error.Message);
+    }
+
+    [Fact]
     public void Validate_DomainUser_NoCredential_ReturnsSuccess()
     {
         // Domain accounts are references (never created), so no credential is required.

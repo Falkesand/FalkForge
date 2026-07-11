@@ -56,6 +56,12 @@ internal static class UtilUserGroupCommandFactory
 
     private static UserGroupPlan BuildPlan(IReadOnlyList<GroupModel> groups, IReadOnlyList<UserModel> users)
     {
+        // Defense in depth: UserModel/GroupModel are public and can be constructed directly (bypassing the
+        // builder's USR003/GRP002 validation). Every name reaches a SYSTEM-context command line (and the
+        // WinNT ADSI moniker), so re-assert the account-name grammar here and fail loud rather than emit a
+        // step for an unvalidated name. Unreachable via the public AddUser/AddGroup sinks, which validate.
+        Guard(groups, users);
+
         var steps = new List<ExecutionStep>();
         var hidden = new HashSet<string>(StringComparer.Ordinal);
 
@@ -118,6 +124,34 @@ internal static class UtilUserGroupCommandFactory
         return new UserGroupPlan(steps, hidden.OrderBy(n => n, StringComparer.Ordinal).ToList());
     }
 
+    /// <summary>
+    /// Re-asserts the Windows account-name grammar on every group name, user name and referenced group so a
+    /// directly-constructed model (which bypasses the builder validators) can never smuggle an ADSI-moniker
+    /// or command-line metacharacter into a SYSTEM-context script. Throws loudly; never silently drops.
+    /// </summary>
+    private static void Guard(IReadOnlyList<GroupModel> groups, IReadOnlyList<UserModel> users)
+    {
+        foreach (GroupModel g in groups)
+            Require(g.Name, "group");
+
+        foreach (UserModel u in users)
+        {
+            Require(u.Name, "user");
+            foreach (string group in u.Groups)
+                Require(group, "group membership");
+        }
+    }
+
+    private static void Require(string name, string kind)
+    {
+        if (!UserValidator.IsValidAccountName(name))
+        {
+            throw new InvalidOperationException(
+                $"Invalid {kind} name '{name}': not a valid Windows account name. " +
+                "Names must be supplied through UtilExtension.AddUser/AddGroup, which validate them.");
+        }
+    }
+
     private static void RecordSecret(HashSet<string> hidden, ExecutionStep step, UserModel u)
     {
         if (string.IsNullOrEmpty(u.PasswordProperty) && string.IsNullOrEmpty(u.Password))
@@ -133,9 +167,11 @@ internal static class UtilUserGroupCommandFactory
     private static ExecutionStep BuildGroupCreateStep(GroupModel g)
     {
         string createScript = BuildGroupCreateScript(g);
-        // Roll back a failed install by removing the group we just created — but only when the author did
-        // NOT ask to tolerate a pre-existing group (UpdateIfExists), because deleting a group that was
-        // already present would be destructive.
+        // Rollback removes the group ONLY when !UpdateIfExists. In that mode the create script throws if the
+        // group already exists (it never adopts a pre-existing group), so reaching the created state proves
+        // we created it — deleting it on rollback is safe. In UpdateIfExists mode the group may have
+        // pre-existed, so we deliberately do NOT delete on rollback: a freshly-created group orphaned by a
+        // failed install is an acceptable trade-off against destroying a group that was already present.
         string? rollback = g.UpdateIfExists ? null : UtilPowerShellEncoder.Encode(BuildGroupRemoveScript(g));
 
         return new ExecutionStep
@@ -161,13 +197,23 @@ internal static class UtilUserGroupCommandFactory
     {
         string createScript = BuildUserCreateScript(u);
         string? customActionData = InstallPasswordChannel(u);
-        // Roll back a failed install by removing the user we created — only when not UpdateIfExists (a
-        // pre-existing user may have merely been modified, so deleting it on rollback would be wrong).
+        // Rollback removes the user ONLY when !UpdateIfExists. In that mode the create script throws if the
+        // user already exists (never adopts one), so reaching the created state proves we created it. In
+        // UpdateIfExists mode the account may have pre-existed, so we deliberately do NOT delete on rollback
+        // (same trade-off as the group step): orphaning a freshly-created account beats deleting one that
+        // was already present.
         string? rollback = u.UpdateIfExists ? null : UtilPowerShellEncoder.Encode(BuildUserRemoveScript(u));
 
         return new ExecutionStep
         {
             Id = UtilStepId.Make("UUsr_", u.Name),
+            // The resolved password reaches $args[0] as the double-quoted trailing argument. Like the SQL
+            // extension (a documented limitation of the EXE-custom-action transport), the value MUST be
+            // quote-free: a literal password is rejected at author time if it contains a double quote
+            // (USR012), and a PasswordProperty value supplied via SetSecureProperty is likewise expected to
+            // be quote-free. Because the value lands in $args (not re-parsed as PowerShell switches), a
+            // quote-free password cannot inject; a value with a quote would merely be truncated/mangled, so
+            // it is disallowed rather than silently corrupting a privileged account's credential.
             InstallCommand = customActionData is null
                 ? UtilPowerShellEncoder.Encode(createScript)
                 : UtilPowerShellEncoder.EncodeWithTrailingArgument(createScript, "[CustomActionData]"),
@@ -208,25 +254,35 @@ internal static class UtilUserGroupCommandFactory
 
     private static string BuildGroupCreateScript(GroupModel g)
     {
-        var sb = new StringBuilder(256);
+        string descArg = string.IsNullOrEmpty(g.Description)
+            ? string.Empty
+            : " -Description " + CommandLine.PowerShellSingleQuote(g.Description!);
+
+        var sb = new StringBuilder(320);
         sb.Append("$ErrorActionPreference = 'Stop'\n");
         sb.Append("try {\n");
         sb.Append("  $__g = ").Append(CommandLine.PowerShellSingleQuote(g.Name)).Append('\n');
-        sb.Append("  if (-not (Get-LocalGroup -Name $__g -ErrorAction SilentlyContinue)) {\n");
-        sb.Append("    New-LocalGroup -Name $__g");
-        if (!string.IsNullOrEmpty(g.Description))
-            sb.Append(" -Description ").Append(CommandLine.PowerShellSingleQuote(g.Description!));
-        sb.Append(" | Out-Null\n");
-        sb.Append("  }");
-        if (g.UpdateIfExists && !string.IsNullOrEmpty(g.Description))
+        sb.Append("  $__existing = Get-LocalGroup -Name $__g -ErrorAction SilentlyContinue\n");
+        sb.Append("  if ($null -ne $__existing) {\n");
+        if (g.UpdateIfExists)
         {
-            sb.Append(" else {\n");
-            sb.Append("    Set-LocalGroup -Name $__g -Description ")
-              .Append(CommandLine.PowerShellSingleQuote(g.Description!)).Append('\n');
-            sb.Append("  }");
+            // Adopt the pre-existing group (optionally refreshing its description). No rollback removal is
+            // emitted for this mode, so adoption never leads to deleting a group we did not create.
+            if (!string.IsNullOrEmpty(g.Description))
+                sb.Append("    Set-LocalGroup -Name $__g").Append(descArg).Append('\n');
+            else
+                sb.Append("    # group already present; nothing to change\n");
+        }
+        else
+        {
+            // Fail loud rather than silently adopt: this guarantees the paired rollback (which removes the
+            // group) only ever targets a group THIS install created.
+            sb.Append("    throw \"Local group '$__g' already exists; enable UpdateIfExists to adopt it.\"\n");
         }
 
-        sb.Append('\n');
+        sb.Append("  } else {\n");
+        sb.Append("    New-LocalGroup -Name $__g").Append(descArg).Append(" | Out-Null\n");
+        sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
         return sb.ToString();
@@ -234,10 +290,10 @@ internal static class UtilUserGroupCommandFactory
 
     private static string BuildGroupRemoveScript(GroupModel g)
     {
-        var sb = new StringBuilder(160);
+        var sb = new StringBuilder(200);
         sb.Append("try { Remove-LocalGroup -Name ")
           .Append(CommandLine.PowerShellSingleQuote(g.Name))
-          .Append(" -ErrorAction SilentlyContinue } catch { }\n");
+          .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
         sb.Append("exit 0\n");
         return sb.ToString();
     }
@@ -270,9 +326,12 @@ internal static class UtilUserGroupCommandFactory
         }
 
         sb.Append("  } else {\n");
-        sb.Append("    if ($null -ne $__sec) { New-LocalUser -Name $__u -Password $__sec")
-          .Append(descArg).Append(" | Out-Null }\n");
-        sb.Append("    else { New-LocalUser -Name $__u -NoPassword").Append(descArg).Append(" | Out-Null }\n");
+        // Creating a NEW local account: a password is mandatory. If none reached us (secure property unset
+        // at run time, or an UpdateIfExists user that turned out to be absent), fail loud — never silently
+        // create a passwordless local account, which would be a standing credential-free logon target.
+        sb.Append("    if ($null -eq $__sec) { throw \"Cannot create local user '$__u' without a password. ")
+          .Append("Supply a PasswordProperty (SetSecureProperty) or a literal password.\" }\n");
+        sb.Append("    New-LocalUser -Name $__u -Password $__sec").Append(descArg).Append(" | Out-Null\n");
         sb.Append("  }\n");
 
         // Account flags via the WinNT ADSI provider — uniform for create and update, and covering flags the
@@ -297,10 +356,10 @@ internal static class UtilUserGroupCommandFactory
 
     private static string BuildUserRemoveScript(UserModel u)
     {
-        var sb = new StringBuilder(160);
+        var sb = new StringBuilder(200);
         sb.Append("try { Remove-LocalUser -Name ")
           .Append(CommandLine.PowerShellSingleQuote(u.Name))
-          .Append(" -ErrorAction SilentlyContinue } catch { }\n");
+          .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
         sb.Append("exit 0\n");
         return sb.ToString();
     }
@@ -323,11 +382,11 @@ internal static class UtilUserGroupCommandFactory
     private static string BuildMembershipRemoveScript(UserModel u, string group)
     {
         string member = MemberName(u);
-        var sb = new StringBuilder(200);
+        var sb = new StringBuilder(240);
         sb.Append("try { Remove-LocalGroupMember -Group ")
           .Append(CommandLine.PowerShellSingleQuote(group))
           .Append(" -Member ").Append(CommandLine.PowerShellSingleQuote(member))
-          .Append(" -ErrorAction SilentlyContinue } catch { }\n");
+          .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
         sb.Append("exit 0\n");
         return sb.ToString();
     }
