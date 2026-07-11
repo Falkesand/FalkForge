@@ -226,6 +226,34 @@
           "FalkForge.Core": "[0.1.0-alpha.1, )"
         }
       },
+      "falkforge.extensions.firewall": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "FalkForge.Extensibility": "[0.1.0-alpha.1, )"
+        }
+      },
+      "falkforge.extensions.iis": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "FalkForge.Extensibility": "[0.1.0-alpha.1, )"
+        }
+      },
+      "falkforge.extensions.sql": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "FalkForge.Extensibility": "[0.1.0-alpha.1, )"
+        }
+      },
+      "falkforge.extensions.util": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "FalkForge.Extensibility": "[0.1.0-alpha.1, )"
+        }
+      },
       "falkforge.localization": {
         "type": "Project",
         "dependencies": {
