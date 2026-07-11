@@ -111,28 +111,50 @@ public sealed class UtilUserGroupCommandFactoryTests
     }
 
     [Fact]
-    public void GroupCreate_NotUpdateIfExists_ThrowsOnPreExisting_SoRollbackOnlyRemovesWhatWeCreated()
+    public void GroupCreate_IsIdempotent_AdoptsPreExisting_WithoutThrowing()
     {
         var group = new GroupModel { Name = "Ops" }; // UpdateIfExists = false
 
         var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
         string script = Decode(step.InstallCommand);
-        Assert.Contains("already exists", script, StringComparison.Ordinal);
-        Assert.Contains("throw", script, StringComparison.Ordinal);
-
-        // Because create fails loud on a pre-existing group, the paired rollback (which removes the group) is
-        // safe — it only ever runs after WE created the group.
-        Assert.NotNull(step.RollbackCommand);
-        Assert.Contains("Remove-LocalGroup", Decode(step.RollbackCommand!), StringComparison.Ordinal);
+        // Never fails on collision — a create that threw on a pre-existing group would TRIGGER the
+        // already-queued rollback and delete that pre-existing group. It adopts instead.
+        Assert.DoesNotContain("already exists", script, StringComparison.Ordinal);
+        Assert.Contains("Get-LocalGroup -Name $__g", script, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void GroupCreate_UpdateIfExists_HasNoRollback_SoNeverDeletesAPreExistingGroup()
+    public void GroupCreate_Rollback_IsMarkerGated_SoOnlyRemovesWhatThisRunCreated()
     {
-        var group = new GroupModel { Name = "Ops", UpdateIfExists = true };
+        // Both modes get a rollback, but it is gated on a per-run marker the create writes only when it
+        // actually creates the group — so a pre-existing (adopted) group is never deleted on rollback.
+        foreach (bool update in new[] { false, true })
+        {
+            var group = new GroupModel { Name = "Ops", UpdateIfExists = update };
+            var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
+            Assert.NotNull(step.RollbackCommand);
+            string rb = Decode(step.RollbackCommand!);
+            Assert.Contains("Test-Path $__marker", rb, StringComparison.Ordinal);
+            Assert.Contains("Remove-LocalGroup", rb, StringComparison.Ordinal);
 
-        var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
-        Assert.Null(step.RollbackCommand);
+            // The create writes the marker only in the create-new branch.
+            Assert.Contains("New-Item -ItemType File -Path $__marker", Decode(step.InstallCommand), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void UserAndMembership_Rollbacks_AreMarkerGated()
+    {
+        var user = new UserModel { Name = "svc", Password = "P@ssw0rd!", Groups = ["Ops"] };
+        var steps = UtilUserGroupCommandFactory.BuildSteps([new GroupModel { Name = "Ops" }], [user]);
+
+        string userRb = Decode(Single(steps, "UUsr_svc").RollbackCommand!);
+        Assert.Contains("Test-Path $__marker", userRb, StringComparison.Ordinal);
+        Assert.Contains("Remove-LocalUser", userRb, StringComparison.Ordinal);
+
+        string memRb = Decode(Single(steps, "UMem_svc_Ops").RollbackCommand!);
+        Assert.Contains("Test-Path $__marker", memRb, StringComparison.Ordinal);
+        Assert.Contains("Remove-LocalGroupMember", memRb, StringComparison.Ordinal);
     }
 
     [Fact]

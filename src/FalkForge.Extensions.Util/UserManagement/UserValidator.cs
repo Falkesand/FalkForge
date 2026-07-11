@@ -52,7 +52,7 @@ public static class UserValidator
                 "USR012: A literal password must not contain a double-quote or control character. " +
                 "Use PasswordProperty (SetSecureProperty) for such a value.");
 
-        bool isLocal = string.IsNullOrWhiteSpace(domain);
+        bool isLocal = IsLocalDomain(domain);
         bool hasCredential = !string.IsNullOrWhiteSpace(password) || !string.IsNullOrWhiteSpace(passwordProperty);
         if (isLocal && !updateIfExists && !hasCredential)
             return Result<bool>.Failure(
@@ -86,6 +86,16 @@ public static class UserValidator
 
         return false;
     }
+
+    /// <summary>
+    /// True when <paramref name="domain"/> denotes the local machine — empty/whitespace, <c>.</c>, or
+    /// <c>localhost</c>. Anything else is treated as a domain reference (never created locally). Shared by
+    /// the validator and the command factory so author-time and execution-time decisions agree.
+    /// </summary>
+    public static bool IsLocalDomain(string? domain)
+        => string.IsNullOrWhiteSpace(domain)
+           || string.Equals(domain, ".", StringComparison.Ordinal)
+           || string.Equals(domain, "localhost", StringComparison.OrdinalIgnoreCase);
 
     private static bool ContainsUnsupportedPasswordChar(string password)
     {

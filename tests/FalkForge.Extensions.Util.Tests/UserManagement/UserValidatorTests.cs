@@ -92,6 +92,29 @@ public sealed class UserValidatorTests
         Assert.True(result.IsSuccess);
     }
 
+    [Fact]
+    public void Validate_DotDomain_IsLocal_NoCredential_ReturnsUSR002()
+    {
+        // "." denotes the local machine, so it is a NEW local account and needs a credential — the same
+        // predicate the command factory uses when deciding to emit a create step.
+        var result = UserValidator.Validate("svc", null, null, ".", updateIfExists: false);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("USR002", result.Error.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(".")]
+    [InlineData("localhost")]
+    public void IsLocalDomain_TreatsMachineReferencesAsLocal(string? domain)
+        => Assert.True(UserValidator.IsLocalDomain(domain));
+
+    [Fact]
+    public void IsLocalDomain_TreatsNamedDomainAsRemote()
+        => Assert.False(UserValidator.IsLocalDomain("CONTOSO"));
+
     [Theory]
     [InlineData("Good.Name")]
     [InlineData("O'Brien")]

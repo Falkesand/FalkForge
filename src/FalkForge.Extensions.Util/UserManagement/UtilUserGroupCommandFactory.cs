@@ -166,19 +166,18 @@ internal static class UtilUserGroupCommandFactory
 
     private static ExecutionStep BuildGroupCreateStep(GroupModel g)
     {
-        string createScript = BuildGroupCreateScript(g);
-        // Rollback removes the group ONLY when !UpdateIfExists. In that mode the create script throws if the
-        // group already exists (it never adopts a pre-existing group), so reaching the created state proves
-        // we created it — deleting it on rollback is safe. In UpdateIfExists mode the group may have
-        // pre-existed, so we deliberately do NOT delete on rollback: a freshly-created group orphaned by a
-        // failed install is an acceptable trade-off against destroying a group that was already present.
-        string? rollback = g.UpdateIfExists ? null : UtilPowerShellEncoder.Encode(BuildGroupRemoveScript(g));
-
+        string id = UtilStepId.Make("UGrp_", g.Name);
         return new ExecutionStep
         {
-            Id = UtilStepId.Make("UGrp_", g.Name),
-            InstallCommand = UtilPowerShellEncoder.Encode(createScript),
-            RollbackCommand = rollback,
+            Id = id,
+            InstallCommand = UtilPowerShellEncoder.Encode(BuildGroupCreateScript(g, id)),
+            // Rollback is gated on a per-run marker the create script writes ONLY when it actually creates a
+            // NEW group. Windows Installer schedules a rollback action BEFORE its paired deferred action and
+            // fires it on ANY later failure — a compile-time flag cannot make rollback safe, because the
+            // rollback is already queued by the time the create runs (and fires even when the create itself
+            // fails). The run-time marker makes rollback remove a group only when this run created it, so a
+            // pre-existing (adopted) group is never deleted, in either UpdateIfExists mode.
+            RollbackCommand = UtilPowerShellEncoder.Encode(BuildGroupRollbackScript(g, id)),
         };
     }
 
@@ -195,18 +194,13 @@ internal static class UtilUserGroupCommandFactory
 
     private static ExecutionStep BuildUserCreateStep(UserModel u)
     {
-        string createScript = BuildUserCreateScript(u);
+        string id = UtilStepId.Make("UUsr_", u.Name);
+        string createScript = BuildUserCreateScript(u, id);
         string? customActionData = InstallPasswordChannel(u);
-        // Rollback removes the user ONLY when !UpdateIfExists. In that mode the create script throws if the
-        // user already exists (never adopts one), so reaching the created state proves we created it. In
-        // UpdateIfExists mode the account may have pre-existed, so we deliberately do NOT delete on rollback
-        // (same trade-off as the group step): orphaning a freshly-created account beats deleting one that
-        // was already present.
-        string? rollback = u.UpdateIfExists ? null : UtilPowerShellEncoder.Encode(BuildUserRemoveScript(u));
 
         return new ExecutionStep
         {
-            Id = UtilStepId.Make("UUsr_", u.Name),
+            Id = id,
             // The resolved password reaches $args[0] as the double-quoted trailing argument. Like the SQL
             // extension (a documented limitation of the EXE-custom-action transport), the value MUST be
             // quote-free: a literal password is rejected at author time if it contains a double quote
@@ -218,7 +212,8 @@ internal static class UtilUserGroupCommandFactory
                 ? UtilPowerShellEncoder.Encode(createScript)
                 : UtilPowerShellEncoder.EncodeWithTrailingArgument(createScript, "[CustomActionData]"),
             CustomActionData = customActionData,
-            RollbackCommand = rollback,
+            // Marker-gated rollback (see BuildGroupCreateStep): removes the user only when this run created it.
+            RollbackCommand = UtilPowerShellEncoder.Encode(BuildUserRollbackScript(u, id)),
         };
     }
 
@@ -234,12 +229,17 @@ internal static class UtilUserGroupCommandFactory
     // ── membership add / remove ─────────────────────────────────────────────
 
     private static ExecutionStep BuildMembershipAddStep(UserModel u, string group)
-        => new()
+    {
+        string id = UtilStepId.Make("UMem_", u.Name + "_" + group);
+        return new ExecutionStep
         {
-            Id = UtilStepId.Make("UMem_", u.Name + "_" + group),
-            InstallCommand = UtilPowerShellEncoder.Encode(BuildMembershipAddScript(u, group)),
-            RollbackCommand = UtilPowerShellEncoder.Encode(BuildMembershipRemoveScript(u, group)),
+            Id = id,
+            InstallCommand = UtilPowerShellEncoder.Encode(BuildMembershipAddScript(u, group, id)),
+            // Marker-gated rollback: removes the membership only when this run actually added it, so a
+            // membership that pre-existed (user already in the group) is never stripped on rollback.
+            RollbackCommand = UtilPowerShellEncoder.Encode(BuildMembershipRollbackScript(u, group, id)),
         };
+    }
 
     private static ExecutionStep BuildMembershipRemoveStep(UserModel u, string group)
         => new()
@@ -252,42 +252,54 @@ internal static class UtilUserGroupCommandFactory
 
     // ── PowerShell script generation ────────────────────────────────────────
 
-    private static string BuildGroupCreateScript(GroupModel g)
+    private static string BuildGroupCreateScript(GroupModel g, string id)
     {
         string descArg = string.IsNullOrEmpty(g.Description)
             ? string.Empty
             : " -Description " + CommandLine.PowerShellSingleQuote(g.Description!);
 
-        var sb = new StringBuilder(320);
+        var sb = new StringBuilder(384);
         sb.Append("$ErrorActionPreference = 'Stop'\n");
         sb.Append("try {\n");
         sb.Append("  $__g = ").Append(CommandLine.PowerShellSingleQuote(g.Name)).Append('\n');
+        sb.Append("  $__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        // Clear any stale marker from a previous run so the marker reflects ONLY what THIS run does.
+        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
         sb.Append("  $__existing = Get-LocalGroup -Name $__g -ErrorAction SilentlyContinue\n");
         sb.Append("  if ($null -ne $__existing) {\n");
-        if (g.UpdateIfExists)
-        {
-            // Adopt the pre-existing group (optionally refreshing its description). No rollback removal is
-            // emitted for this mode, so adoption never leads to deleting a group we did not create.
-            if (!string.IsNullOrEmpty(g.Description))
-                sb.Append("    Set-LocalGroup -Name $__g").Append(descArg).Append('\n');
-            else
-                sb.Append("    # group already present; nothing to change\n");
-        }
+        // Adopt an already-present group idempotently (never fail on collision, never trigger a destructive
+        // rollback). UpdateIfExists additionally refreshes the description; without it the group is left
+        // untouched. No marker is written, so rollback will not remove a group we merely adopted.
+        if (g.UpdateIfExists && !string.IsNullOrEmpty(g.Description))
+            sb.Append("    Set-LocalGroup -Name $__g").Append(descArg).Append('\n');
         else
-        {
-            // Fail loud rather than silently adopt: this guarantees the paired rollback (which removes the
-            // group) only ever targets a group THIS install created.
-            sb.Append("    throw \"Local group '$__g' already exists; enable UpdateIfExists to adopt it.\"\n");
-        }
+            sb.Append("    # group already present; adopt unchanged\n");
 
         sb.Append("  } else {\n");
         sb.Append("    New-LocalGroup -Name $__g").Append(descArg).Append(" | Out-Null\n");
+        // Record that THIS run created the group so the paired rollback may remove it.
+        sb.Append("    New-Item -ItemType File -Path $__marker -Force | Out-Null\n");
         sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
         return sb.ToString();
     }
 
+    /// <summary>Rollback for a group create: remove the group only if THIS run's create marker is present.</summary>
+    private static string BuildGroupRollbackScript(GroupModel g, string id)
+    {
+        var sb = new StringBuilder(280);
+        sb.Append("$__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        sb.Append("if (Test-Path $__marker) {\n");
+        sb.Append("  try { Remove-LocalGroup -Name ").Append(CommandLine.PowerShellSingleQuote(g.Name))
+          .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
+        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        sb.Append("}\n");
+        sb.Append("exit 0\n");
+        return sb.ToString();
+    }
+
+    /// <summary>Unconditional group removal used on uninstall (author opted in via RemoveOnUninstall).</summary>
     private static string BuildGroupRemoveScript(GroupModel g)
     {
         var sb = new StringBuilder(200);
@@ -298,9 +310,13 @@ internal static class UtilUserGroupCommandFactory
         return sb.ToString();
     }
 
-    private static string BuildUserCreateScript(UserModel u)
+    private static string BuildUserCreateScript(UserModel u, string id)
     {
-        var sb = new StringBuilder(1024);
+        string descArg = string.IsNullOrEmpty(u.Description)
+            ? string.Empty
+            : " -Description " + CommandLine.PowerShellSingleQuote(u.Description!);
+
+        var sb = new StringBuilder(1200);
         sb.Append("$ErrorActionPreference = 'Stop'\n");
         sb.Append("try {\n");
         // The password rides $args[0] (the secure CustomActionData channel) and is converted to a
@@ -308,10 +324,11 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("  $__pw = if ($args.Count -ge 1) { $args[0] } else { '' }\n");
         sb.Append("  $__sec = if (-not [string]::IsNullOrEmpty($__pw)) { ConvertTo-SecureString $__pw -AsPlainText -Force } else { $null }\n");
         sb.Append("  $__u = ").Append(CommandLine.PowerShellSingleQuote(u.Name)).Append('\n');
-        string descArg = string.IsNullOrEmpty(u.Description)
-            ? string.Empty
-            : " -Description " + CommandLine.PowerShellSingleQuote(u.Description!);
-
+        sb.Append("  $__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        // Only apply account flags when this run creates the user or is authorized to modify it — never
+        // silently mutate a pre-existing account we merely adopted.
+        sb.Append("  $__apply = $false\n");
         sb.Append("  $__existing = Get-LocalUser -Name $__u -ErrorAction SilentlyContinue\n");
         sb.Append("  if ($null -ne $__existing) {\n");
         if (u.UpdateIfExists)
@@ -319,10 +336,13 @@ internal static class UtilUserGroupCommandFactory
             sb.Append("    if ($null -ne $__sec) { Set-LocalUser -Name $__u -Password $__sec }\n");
             if (!string.IsNullOrEmpty(u.Description))
                 sb.Append("    Set-LocalUser -Name $__u").Append(descArg).Append('\n');
+            sb.Append("    $__apply = $true\n");
         }
         else
         {
-            sb.Append("    throw \"Local user '$__u' already exists; enable UpdateIfExists to modify it.\"\n");
+            // Adopt idempotently: leave a pre-existing account untouched (enable UpdateIfExists to modify).
+            // No marker is written, so rollback never deletes a user we did not create.
+            sb.Append("    # user already present; adopt unchanged\n");
         }
 
         sb.Append("  } else {\n");
@@ -332,28 +352,47 @@ internal static class UtilUserGroupCommandFactory
         sb.Append("    if ($null -eq $__sec) { throw \"Cannot create local user '$__u' without a password. ")
           .Append("Supply a PasswordProperty (SetSecureProperty) or a literal password.\" }\n");
         sb.Append("    New-LocalUser -Name $__u -Password $__sec").Append(descArg).Append(" | Out-Null\n");
+        sb.Append("    New-Item -ItemType File -Path $__marker -Force | Out-Null\n");
+        sb.Append("    $__apply = $true\n");
         sb.Append("  }\n");
 
-        // Account flags via the WinNT ADSI provider — uniform for create and update, and covering flags the
-        // Set-LocalUser cmdlet does not expose (cannot-change-password, disable, force-expire).
-        sb.Append("  $__adsi = [ADSI]('WinNT://./' + $__u + ',user')\n");
-        sb.Append("  $__flags = [int]$__adsi.UserFlags.Value\n");
-        sb.Append("  if (").Append(Bool(u.PasswordNeverExpires))
+        // Account flags via the WinNT ADSI provider — covering flags the Set-LocalUser cmdlet does not
+        // expose (cannot-change-password, disable, force-expire). Applied only when authorized (see above).
+        sb.Append("  if ($__apply) {\n");
+        sb.Append("    $__adsi = [ADSI]('WinNT://./' + $__u + ',user')\n");
+        sb.Append("    $__flags = [int]$__adsi.UserFlags.Value\n");
+        sb.Append("    if (").Append(Bool(u.PasswordNeverExpires))
           .Append(") { $__flags = $__flags -bor 0x10000 } else { $__flags = $__flags -band (-bnot 0x10000) }\n");
-        sb.Append("  if (").Append(Bool(u.CanNotChangePassword))
+        sb.Append("    if (").Append(Bool(u.CanNotChangePassword))
           .Append(") { $__flags = $__flags -bor 0x40 } else { $__flags = $__flags -band (-bnot 0x40) }\n");
-        sb.Append("  if (").Append(Bool(u.Disabled))
+        sb.Append("    if (").Append(Bool(u.Disabled))
           .Append(") { $__flags = $__flags -bor 0x2 } else { $__flags = $__flags -band (-bnot 0x2) }\n");
-        sb.Append("  $__adsi.UserFlags = $__flags\n");
+        sb.Append("    $__adsi.UserFlags = $__flags\n");
         if (u.PasswordExpired)
-            sb.Append("  $__adsi.PasswordExpired = 1\n");
-        sb.Append("  $__adsi.SetInfo()\n");
+            sb.Append("    $__adsi.PasswordExpired = 1\n");
+        sb.Append("    $__adsi.SetInfo()\n");
+        sb.Append("  }\n");
 
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
         return sb.ToString();
     }
 
+    /// <summary>Rollback for a user create: remove the user only if THIS run's create marker is present.</summary>
+    private static string BuildUserRollbackScript(UserModel u, string id)
+    {
+        var sb = new StringBuilder(280);
+        sb.Append("$__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        sb.Append("if (Test-Path $__marker) {\n");
+        sb.Append("  try { Remove-LocalUser -Name ").Append(CommandLine.PowerShellSingleQuote(u.Name))
+          .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
+        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        sb.Append("}\n");
+        sb.Append("exit 0\n");
+        return sb.ToString();
+    }
+
+    /// <summary>Unconditional user removal used on uninstall (author opted in via RemoveOnUninstall).</summary>
     private static string BuildUserRemoveScript(UserModel u)
     {
         var sb = new StringBuilder(200);
@@ -364,21 +403,49 @@ internal static class UtilUserGroupCommandFactory
         return sb.ToString();
     }
 
-    private static string BuildMembershipAddScript(UserModel u, string group)
+    private static string BuildMembershipAddScript(UserModel u, string group, string id)
     {
         string member = MemberName(u);
-        var sb = new StringBuilder(320);
+        var sb = new StringBuilder(420);
         sb.Append("$ErrorActionPreference = 'Stop'\n");
         sb.Append("try {\n");
         sb.Append("  $__g = ").Append(CommandLine.PowerShellSingleQuote(group)).Append('\n');
         sb.Append("  $__m = ").Append(CommandLine.PowerShellSingleQuote(member)).Append('\n');
+        sb.Append("  $__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
         sb.Append("  $__has = Get-LocalGroupMember -Group $__g -Member $__m -ErrorAction SilentlyContinue\n");
-        sb.Append("  if ($null -eq $__has) { Add-LocalGroupMember -Group $__g -Member $__m }\n");
+        // Add only when absent, and mark that THIS run added it so rollback removes only what we added.
+        sb.Append("  if ($null -eq $__has) {\n");
+        sb.Append("    Add-LocalGroupMember -Group $__g -Member $__m\n");
+        sb.Append("    New-Item -ItemType File -Path $__marker -Force | Out-Null\n");
+        sb.Append("  }\n");
         sb.Append("  exit 0\n");
         sb.Append("} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
         return sb.ToString();
     }
 
+    /// <summary>Rollback for a membership add: remove the membership only if THIS run added it.</summary>
+    private static string BuildMembershipRollbackScript(UserModel u, string group, string id)
+    {
+        string member = MemberName(u);
+        var sb = new StringBuilder(360);
+        sb.Append("$__marker = ").Append(MarkerLiteral(id)).Append('\n');
+        sb.Append("if (Test-Path $__marker) {\n");
+        sb.Append("  try { Remove-LocalGroupMember -Group ").Append(CommandLine.PowerShellSingleQuote(group))
+          .Append(" -Member ").Append(CommandLine.PowerShellSingleQuote(member))
+          .Append(" -ErrorAction SilentlyContinue } catch { [Console]::Error.WriteLine($_.Exception.Message) }\n");
+        sb.Append("  Remove-Item $__marker -Force -ErrorAction SilentlyContinue\n");
+        sb.Append("}\n");
+        sb.Append("exit 0\n");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Unconditional membership removal used on uninstall. Deliberately not marker-gated: on uninstall the
+    /// author has opted to remove the account/membership, and removing a user from a privileged group is a
+    /// desirable escalation-cleanup even if the membership happened to pre-exist. (A rollback, by contrast,
+    /// must only undo what this run did — hence the separate marker-gated rollback script.)
+    /// </summary>
     private static string BuildMembershipRemoveScript(UserModel u, string group)
     {
         string member = MemberName(u);
@@ -410,11 +477,22 @@ internal static class UtilUserGroupCommandFactory
     private static string MemberName(UserModel u)
         => IsLocal(u.Domain) ? u.Name : string.Concat(u.Domain, "\\", u.Name);
 
-    private static bool IsLocal(string? domain)
-        => string.IsNullOrWhiteSpace(domain)
-           || string.Equals(domain, ".", StringComparison.Ordinal)
-           || string.Equals(domain, "localhost", StringComparison.OrdinalIgnoreCase)
-           || string.Equals(domain, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+    // Shares the single "is local" predicate with UserValidator so that author-time validation (which
+    // requires a credential for a new local account, USR002) and execution (which emits a create step for a
+    // local account) never disagree about whether an account is local.
+    private static bool IsLocal(string? domain) => UserValidator.IsLocalDomain(domain);
+
+    /// <summary>
+    /// A PowerShell expression yielding this step's per-run "we created it" marker path under the SYSTEM
+    /// temp directory. The create action writes the marker only when it actually creates the account/
+    /// membership; the paired rollback removes it only if the marker is present. Windows Installer queues a
+    /// rollback action before its deferred action runs and fires it on any later failure, so this run-time
+    /// marker — not a compile-time flag — is what keeps rollback from deleting a pre-existing (adopted)
+    /// account. <paramref name="stepId"/> is a validated MSI identifier (letters/digits/underscore), safe to
+    /// embed in the single-quoted literal.
+    /// </summary>
+    private static string MarkerLiteral(string stepId)
+        => string.Concat("(Join-Path $env:TEMP 'falkforge_ug_", stepId, ".created')");
 
     private static string Bool(bool value) => value ? "$true" : "$false";
 
