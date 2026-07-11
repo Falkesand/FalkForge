@@ -15,8 +15,10 @@ namespace FalkForge.Extensions.Iis;
 /// <para><b>Execution vehicle.</b> Every step runs Windows PowerShell (invoked by its fully-qualified
 /// <c>[SystemFolder]</c> path, transported base64 via <c>-EncodedCommand</c>) which drives IIS through
 /// <c>Microsoft.Web.Administration</c> (in-box wherever the Web Server role is installed). Using the
-/// in-process management API rather than <c>appcmd.exe</c> keeps a <c>SpecificUser</c> app-pool password off
-/// every child-process command line.</para>
+/// in-process management API rather than <c>appcmd.exe</c> applies a <c>SpecificUser</c> app-pool password
+/// directly to <c>ProcessModel.Password</c> without spawning a further child process for the secret (it
+/// still transits <c>powershell.exe</c>'s own command line as <c>$args[0]</c>, the same as every value on
+/// this transport — see the credentials note below).</para>
 ///
 /// <para><b>IIS is a prerequisite.</b> Each generated script first checks for the <c>W3SVC</c> service and
 /// the management assembly; if IIS is not installed the deferred action <b>fails loud</b> (non-zero exit

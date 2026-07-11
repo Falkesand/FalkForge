@@ -74,12 +74,16 @@ public sealed class AppPoolBuilder
     /// <see cref="Identity(AppPoolIdentityType,string,string)"/> overload.
     /// <para>
     /// <b>Runtime exposure (honest limitations).</b> The resolved password reaches the deferred custom
-    /// action as <c>CustomActionData</c> and is set on the app-pool <c>ProcessModel.Password</c> in-process
-    /// (via <c>Microsoft.Web.Administration</c>), so — unlike an <c>appcmd</c> command line — it is never
-    /// placed on a child process command line. The IIS extension adds the carrying properties to
-    /// <c>MsiHiddenProperties</c> so their values are redacted from a verbose MSI log. The property name must
-    /// be a public (uppercase) MSI property, and the value must not contain a double-quote character (the
-    /// EXE custom-action transport is double-quoted).
+    /// action as <c>CustomActionData</c> (read as <c>$args[0]</c>) and is applied to the app-pool
+    /// <c>ProcessModel.Password</c> in-process via <c>Microsoft.Web.Administration</c>, so no <i>further</i>
+    /// child process (such as <c>appcmd.exe</c>) is spawned with the secret. Two residual exposures remain,
+    /// inherent to running the work via <c>powershell.exe</c> (an EXE custom action): the resolved value is
+    /// passed as a command-line argument to <c>powershell.exe</c> itself, so it is briefly visible to a local
+    /// process listing while the action runs; and the property name must be a public (uppercase) MSI
+    /// property. The IIS extension adds the carrying properties to <c>MsiHiddenProperties</c> so their values
+    /// are redacted from a verbose MSI log, and the password is never stored in the MSI. The value must also
+    /// not contain a double-quote character (the command-line transport is double-quoted). For a secret that
+    /// cannot meet these constraints, prefer a non-SpecificUser identity.
     /// </para>
     /// </summary>
     public AppPoolBuilder IdentitySecure(AppPoolIdentityType type, string userName, string passwordProperty)

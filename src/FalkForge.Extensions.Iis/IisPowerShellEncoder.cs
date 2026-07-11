@@ -14,8 +14,12 @@ namespace FalkForge.Extensions.Iis;
 /// <para>The generated scripts drive IIS through <c>Microsoft.Web.Administration</c>
 /// (<c>%windir%\system32\inetsrv\Microsoft.Web.Administration.dll</c>), which is present on any machine
 /// where the Web Server (IIS) role is installed — the extension's documented prerequisite. Using the
-/// in-process management API rather than <c>appcmd.exe</c> keeps a <c>SpecificUser</c> app-pool password
-/// off every child-process command line: it is applied directly to <c>ProcessModel.Password</c>.</para>
+/// in-process management API rather than <c>appcmd.exe</c> means a <c>SpecificUser</c> app-pool password is
+/// applied directly to <c>ProcessModel.Password</c> without spawning a <i>further</i> child process for the
+/// secret. (The value still reaches <c>powershell.exe</c> itself as <c>$args[0]</c> via the
+/// <c>[CustomActionData]</c> transport — the same channel every other value uses — so it is briefly visible
+/// on that process's command line; it is never stored in the MSI and is scrubbed from verbose logs via
+/// <c>MsiHiddenProperties</c>.)</para>
 /// </summary>
 internal static class IisPowerShellEncoder
 {
