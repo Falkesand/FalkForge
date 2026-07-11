@@ -225,4 +225,52 @@ public sealed class FileSetBuilderTests
         Assert.True(package.Files[0].NeverOverwrite);
         Assert.True(package.Files[0].Permanent);
     }
+
+    [Fact]
+    public void Vital_DefaultsToTrue()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("app.exe")
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.True(package.Files[0].Vital);
+    }
+
+    [Fact]
+    public void NotVital_ClearsVitalOnEveryFileInTheSet()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f
+                .Add("optional.dll")
+                .Add("optional-readme.txt")
+                .NotVital()
+                .To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.False(package.Files[0].Vital);
+        Assert.False(package.Files[1].Vital);
+    }
+
+    [Fact]
+    public void NotVital_DoesNotAffectOtherFileSets()
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App";
+            p.Manufacturer = "Corp";
+            p.Files(f => f.Add("app.exe").To(KnownFolder.ProgramFiles / "App"));
+            p.Files(f => f.Add("optional.dll").NotVital().To(KnownFolder.ProgramFiles / "App"));
+        });
+
+        Assert.True(package.Files[0].Vital);
+        Assert.False(package.Files[1].Vital);
+    }
 }
