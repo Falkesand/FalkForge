@@ -338,7 +338,7 @@ internal static class SqlCommandFactory
     private static List<SqlWorkItem> BuildWorkList(
         IReadOnlyList<SqlScriptModel> scripts,
         IReadOnlyList<SqlStringModel> strings,
-        IReadOnlyDictionary<string, SqlDatabaseModel> executable)
+        Dictionary<string, SqlDatabaseModel> executable)
     {
         var work = new List<SqlWorkItem>();
 
