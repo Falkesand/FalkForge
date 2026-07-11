@@ -157,6 +157,32 @@ public sealed class ForeignKeyValidatorTests
         Assert.True(result.IsSuccess);
     }
 
+    [Fact]
+    public void Validate_with_present_icon_table_and_dangling_shortcut_icon_fails()
+    {
+        // Now that IconTableProducer emits the Icon table, a Shortcut.Icon_ that
+        // references a non-existent Icon.Name must fail loud instead of being
+        // deferred. The deferral only applies when the target table is absent.
+        RecipeTable icon = MakeStringPkTable("Icon", ImmutableArray<ForeignKeySpec>.Empty, "Icon_present.ico");
+        TableId iconTable = TableId.Create("Icon").Value;
+        ImmutableArray<ForeignKeySpec> fks = ImmutableArray.Create(new ForeignKeySpec
+        {
+            SourceColumn = new ColumnIndex(1),
+            TargetTable = iconTable,
+        });
+        RecipeTable shortcut = MakeFkTableNullableFkColumn(
+            "Shortcut",
+            fks,
+            ("Sc1", new CellValue.ForeignKey(iconTable, "Icon_absent.ico")));
+
+        Result<Unit> result = ForeignKeyValidator.Validate(ImmutableArray.Create(icon, shortcut));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Icon", result.Error.Message, System.StringComparison.Ordinal);
+        Assert.Contains("Icon_absent.ico", result.Error.Message, System.StringComparison.Ordinal);
+    }
+
     private static RecipeTable MakeStringPkTable(
         string tableName,
         ImmutableArray<ForeignKeySpec> foreignKeys,

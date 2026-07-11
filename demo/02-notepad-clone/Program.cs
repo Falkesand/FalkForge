@@ -44,7 +44,10 @@ return Installer.Build(args, package =>
     // Startup shortcut — launches on Windows login
     package.Shortcut("FalkPad Startup", "falkpad.exe")
         .WithArguments("--minimized")
-        .WithWorkingDirectory(@"[ProgramFilesFolder]Falk Software\FalkPad")
+        // WkDir is a Directory-table key, not a Formatted path: INSTALLDIR
+        // resolves to this product's install folder. A bracketed path would be
+        // rejected by SHC004 and ignored.
+        .WithWorkingDirectory("INSTALLDIR")
         .OnStartup();
 
     // Registry entries

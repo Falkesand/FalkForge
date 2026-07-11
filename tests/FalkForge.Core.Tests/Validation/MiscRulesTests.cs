@@ -108,6 +108,52 @@ public sealed class MiscRulesTests
         Assert.Empty(MiscRules.Shc003_LocationsWarning.Evaluate(Ctx(pkg)));
     }
 
+    // ── SHC004 — Shortcut WorkingDirectory identifier warning ───────────────
+
+    [Fact]
+    public void Shc004_formatted_path_working_directory_yields_warning()
+    {
+        // The exact realistic mistake: a bracketed Formatted path (as used for
+        // Target) is not a Directory-table key and would be silently ignored.
+        var pkg = Base(shortcuts: [new ShortcutModel
+        {
+            Name = "A",
+            TargetFile = "a.exe",
+            Locations = [ShortcutLocation.Startup],
+            WorkingDirectory = @"[ProgramFilesFolder]Falk Software\App"
+        }]);
+        var violations = MiscRules.Shc004_WorkingDirectoryIdentifier.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("SHC004", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Shc004_directory_identifier_working_directory_yields_no_violations()
+    {
+        var pkg = Base(shortcuts: [new ShortcutModel
+        {
+            Name = "A",
+            TargetFile = "a.exe",
+            Locations = [ShortcutLocation.Startup],
+            WorkingDirectory = "INSTALLDIR"
+        }]);
+        Assert.Empty(MiscRules.Shc004_WorkingDirectoryIdentifier.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Shc004_absent_working_directory_yields_no_violations()
+    {
+        var pkg = Base(shortcuts: [new ShortcutModel
+        {
+            Name = "A",
+            TargetFile = "a.exe",
+            Locations = [ShortcutLocation.Startup]
+        }]);
+        Assert.Empty(MiscRules.Shc004_WorkingDirectoryIdentifier.Evaluate(Ctx(pkg)));
+    }
+
     // ── FNT001 — Font FileName required ─────────────────────────────────────
 
     [Fact]

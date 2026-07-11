@@ -12,7 +12,7 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe.Producers;
 public sealed class ProgIdTableProducerTests
 {
     [Fact]
-    public void Schema_has_six_columns_progid_pk_no_foreign_keys()
+    public void Schema_has_six_columns_progid_pk_and_icon_foreign_key()
     {
         ProgIdTableProducer producer = new();
 
@@ -28,10 +28,12 @@ public sealed class ProgIdTableProducerTests
         Assert.Single(producer.Schema.PrimaryKey);
         Assert.Equal(0, producer.Schema.PrimaryKey[0].Value);
 
-        // The DDL declares no foreign keys — ProgId_Parent and Class_ are
-        // self-referential / Class table links that MSI keeps implicit by
-        // naming convention.
-        Assert.Empty(producer.Schema.ForeignKeys);
+        // ProgId_Parent and Class_ links stay implicit by MSI naming convention,
+        // but Icon_ (column 4) is a declared FK into the Icon table so a dangling
+        // file-association icon fails loud once the Icon table is emitted.
+        Assert.Single(producer.Schema.ForeignKeys);
+        Assert.Equal(4, producer.Schema.ForeignKeys[0].SourceColumn.Value);
+        Assert.Equal("Icon", producer.Schema.ForeignKeys[0].TargetTable.Value);
     }
 
     [Fact]

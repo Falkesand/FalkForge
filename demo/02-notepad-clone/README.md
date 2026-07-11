@@ -45,7 +45,7 @@ package.Shortcut("FalkPad", "falkpad.exe")
 // Startup shortcut — launches on Windows login with arguments and working directory
 package.Shortcut("FalkPad Startup", "falkpad.exe")
     .WithArguments("--minimized")
-    .WithWorkingDirectory(@"[ProgramFilesFolder]Falk Software\FalkPad")
+    .WithWorkingDirectory("INSTALLDIR") // a Directory-table key, not a Formatted path
     .OnStartup();
 
 // Registry entries — string values, DWord, default value, and MSI property references
@@ -83,7 +83,8 @@ dotnet build demo/02-notepad-clone
   by `package.Registry()` may be left behind.
 - `OnStartup()` places a shortcut in the Windows Startup folder so the application launches automatically at login.
 - `WithArguments()` passes command-line arguments to the shortcut target. `WithWorkingDirectory()` sets the working
-  directory for the launched process.
+  directory for the launched process; its value must be a Directory-table key (e.g. `INSTALLDIR`), not a bracketed
+  Formatted path — a non-identifier value is reported by SHC004 and ignored.
 - `MajorUpgrade` with default options removes older versions before installing. `Downgrade.Block` prevents installing an
   older version over a newer one.
 - Start menu shortcuts use a subfolder via `.OnStartMenu("Falk Software")`.

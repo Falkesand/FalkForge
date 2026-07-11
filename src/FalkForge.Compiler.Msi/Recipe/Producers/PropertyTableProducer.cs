@@ -56,6 +56,15 @@ internal sealed class PropertyTableProducer : ITableProducer
             props["MSIRMSHUTDOWN"] = "2";
         }
 
+        // ARPPRODUCTICON points Add/Remove Programs at an Icon table row. The
+        // value must equal the Icon.Name that IconTableProducer emits for the
+        // same source path — both derive it via ProducerHelpers.ResolveIconName,
+        // so they agree without an ordering dependency.
+        if (package.ProductIcon is { Length: > 0 } productIcon)
+        {
+            props["ARPPRODUCTICON"] = ProducerHelpers.ResolveIconName(productIcon);
+        }
+
         foreach (PropertyModel property in package.Properties)
         {
             if (property.Value is null)

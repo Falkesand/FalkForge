@@ -67,6 +67,7 @@ public sealed partial class PackageBuilder
     public string? AboutUrl { get; set; }
     public string? UpdateUrl { get; set; }
     public string? LicenseFile { get; set; }
+    public string? ProductIconFile { get; set; }
     public bool EnableRestartManager { get; set; }
     public int CabinetThreadCount { get; set; }
 
@@ -117,6 +118,7 @@ public sealed partial class PackageBuilder
             AboutUrl = AboutUrl,
             UpdateUrl = UpdateUrl,
             LicenseFile = LicenseFile,
+            ProductIcon = ProductIconFile,
             Files = _files,
             Features = features,
             Shortcuts = _shortcuts,

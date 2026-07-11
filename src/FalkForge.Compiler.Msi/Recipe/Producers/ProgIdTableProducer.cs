@@ -87,12 +87,18 @@ internal sealed class ProgIdTableProducer : ITableProducer
                 ? new CellValue.Null()
                 : new CellValue.StringValue(assoc.Description);
 
+            // Icon_ resolves to the shared Icon.Name emitted by IconTableProducer
+            // for the same source path; null when the association has no icon.
+            CellValue iconCell = assoc.IconFile is { Length: > 0 } iconFile
+                ? new CellValue.ForeignKey(WellKnownTableIds.Icon, ProducerHelpers.ResolveIconName(iconFile))
+                : new CellValue.Null();
+
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(assoc.ProgId),
                 new CellValue.Null(),
                 new CellValue.Null(),
                 descriptionCell,
-                new CellValue.Null(),
+                iconCell,
                 new CellValue.IntValue(assoc.IconIndex));
             rows.Add(new RecipeRow { Cells = cells });
             emittedProgIds.Add(assoc.ProgId);
@@ -147,7 +153,13 @@ internal sealed class ProgIdTableProducer : ITableProducer
             Name = WellKnownTableIds.ProgId,
             Columns = columns,
             PrimaryKey = ImmutableArray.Create(new ColumnIndex(0)),
-            ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
+            // Icon_ (column 4) references Icon.Name. Nullable: only validated when
+            // the Icon table is emitted (i.e. some icon was authored).
+            ForeignKeys = ImmutableArray.Create(new ForeignKeySpec
+            {
+                SourceColumn = new ColumnIndex(4),
+                TargetTable = WellKnownTableIds.Icon,
+            }),
         };
     }
 }

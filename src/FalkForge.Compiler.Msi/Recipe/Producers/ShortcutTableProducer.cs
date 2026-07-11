@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Globalization;
 using FalkForge.Models;
@@ -30,16 +31,34 @@ internal sealed class ShortcutTableProducer : ITableProducer
 
         TableId directoryTable = WellKnownTableIds.Directory;
         TableId componentTable = WellKnownTableIds.Component;
+        TableId iconTable = WellKnownTableIds.Icon;
         ResolvedPackage resolved = context.Resolved;
         string defaultComponentId =
             resolved.Components.Count > 0
                 ? resolved.Components[0].Id
                 : FallbackComponentId;
 
+        // Directory ids already emitted by DirectoryTableProducer (which runs
+        // first). WkDir must be a Directory table key, so an authored
+        // WorkingDirectory is only honoured when it names one of these ids;
+        // otherwise it falls back to the INSTALLDIR default. This never writes a
+        // raw path into WkDir.
+        FrozenSet<string> directoryIds = BuildDirectoryIdSet(context, directoryTable);
+
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         int index = 0;
         foreach (ShortcutModel shortcut in resolved.Package.Shortcuts)
         {
+            // Icon_ resolves to the shared Icon.Name emitted by IconTableProducer
+            // for the same source path; IconIndex is meaningful only alongside an
+            // icon, so both stay null when no icon is authored.
+            (CellValue iconCell, CellValue iconIndexCell) = shortcut.IconFile is { Length: > 0 } iconFile
+                ? ((CellValue)new CellValue.ForeignKey(iconTable, ProducerHelpers.ResolveIconName(iconFile)),
+                    (CellValue)new CellValue.IntValue(shortcut.IconIndex))
+                : ((CellValue)new CellValue.Null(), (CellValue)new CellValue.Null());
+
+            string workingDirectoryId = ResolveWorkingDirectoryId(shortcut.WorkingDirectory, directoryIds);
+
             foreach (ShortcutLocation location in shortcut.Locations)
             {
                 string directoryId = ResolveDirectoryId(location, shortcut);
@@ -59,16 +78,52 @@ internal sealed class ShortcutTableProducer : ITableProducer
                     shortcut.Arguments is null ? new CellValue.Null() : new CellValue.StringValue(shortcut.Arguments),
                     shortcut.Description is null ? new CellValue.Null() : new CellValue.StringValue(shortcut.Description),
                     new CellValue.Null(),
-                    // Icon column: Icon table not yet a producer; declared as FK once IconTableProducer lands.
+                    iconCell,
+                    iconIndexCell,
                     new CellValue.Null(),
-                    new CellValue.Null(),
-                    new CellValue.Null(),
-                    new CellValue.StringValue(DefaultWorkingDirectory));
+                    new CellValue.StringValue(workingDirectoryId));
                 rows.Add(new RecipeRow { Cells = cells });
             }
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Resolves an authored <see cref="ShortcutModel.WorkingDirectory"/> to a
+    /// Directory table key. Empty input keeps the INSTALLDIR default; a value
+    /// that names an existing Directory id is used verbatim; anything else falls
+    /// back to the default rather than writing a raw path into WkDir (which MSI
+    /// requires to be a Directory key).
+    /// </summary>
+    private static string ResolveWorkingDirectoryId(string? workingDirectory, FrozenSet<string> directoryIds)
+    {
+        if (string.IsNullOrEmpty(workingDirectory))
+        {
+            return DefaultWorkingDirectory;
+        }
+
+        return directoryIds.Contains(workingDirectory) ? workingDirectory : DefaultWorkingDirectory;
+    }
+
+    private static FrozenSet<string> BuildDirectoryIdSet(RecipeBuildContext context, TableId directoryTable)
+    {
+        if (!context.BuiltTables.TryGetValue(directoryTable, out ImmutableArray<RecipeRow> directoryRows))
+        {
+            return FrozenSet<string>.Empty;
+        }
+
+        HashSet<string> ids = new(directoryRows.Length, StringComparer.Ordinal);
+        foreach (RecipeRow row in directoryRows)
+        {
+            // Directory id is column 0, always a StringValue (see DirectoryTableProducer).
+            if (row.Cells.Length > 0 && row.Cells[0] is CellValue.StringValue idCell)
+            {
+                ids.Add(idCell.Value);
+            }
+        }
+
+        return ids.ToFrozenSet(StringComparer.Ordinal);
     }
 
     private static string ResolveDirectoryId(ShortcutLocation location, ShortcutModel shortcut)
@@ -88,6 +143,7 @@ internal sealed class ShortcutTableProducer : ITableProducer
     {
         TableId directoryTable = WellKnownTableIds.Directory;
         TableId componentTable = WellKnownTableIds.Component;
+        TableId iconTable = WellKnownTableIds.Icon;
         ImmutableArray<RecipeColumn> columns = ImmutableArray.Create(
             RecipeColumn.String("Shortcut", 72),
             RecipeColumn.String("Directory_", 72),
@@ -117,6 +173,13 @@ internal sealed class ShortcutTableProducer : ITableProducer
                 {
                     SourceColumn = new ColumnIndex(3),
                     TargetTable = componentTable,
+                },
+                // Icon_ (column 8) references Icon.Name. Nullable: only validated
+                // when the Icon table is emitted (i.e. some icon was authored).
+                new ForeignKeySpec
+                {
+                    SourceColumn = new ColumnIndex(8),
+                    TargetTable = iconTable,
                 }),
         };
     }

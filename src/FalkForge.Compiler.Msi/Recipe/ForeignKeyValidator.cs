@@ -9,9 +9,11 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// is handed to the executor. For every cell in a column listed in a table's
 /// <see cref="RecipeTable.ForeignKeys"/>, the validator checks that the
 /// referenced primary key exists in the target table. Missing target tables
-/// are treated as deferred checks (the Icon table, for example, is not yet a
-/// producer in phase 5) and skipped silently — phase 9's byte-diff harness
-/// catches any real downstream issue.
+/// are treated as deferred checks and skipped silently — this covers
+/// conditionally-emitted tables (e.g. the Icon table, which
+/// <see cref="Producers.IconTableProducer"/> suppresses when no icon is
+/// authored) whose nullable FK columns then legitimately hold <c>Null</c>.
+/// When such a table IS present, its FK cells are fully enforced.
 /// </summary>
 internal static class ForeignKeyValidator
 {

@@ -70,6 +70,7 @@ public static partial class MiscRules
             Shc001_NameRequired,
             Shc002_TargetFileRequired,
             Shc003_LocationsWarning,
+            Shc004_WorkingDirectoryIdentifier,
             Fnt001_FileNameRequired,
             Fas001_ExtensionRequired,
             Fas002_ProgIdRequired,
