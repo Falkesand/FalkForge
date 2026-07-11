@@ -13,6 +13,9 @@ public sealed class SqlDatabaseBuilder
     private string _id = string.Empty;
     private string? _instance;
     private string? _server;
+    private string? _user;
+    private string? _password;
+    private string? _passwordProperty;
 
     public SqlDatabaseBuilder Id(string id)
     {
@@ -68,6 +71,39 @@ public sealed class SqlDatabaseBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the SQL Server login name for SQL authentication. Combine with <see cref="PasswordProperty"/>
+    /// (secure, recommended) or <see cref="Password"/> (literal, discouraged). Omit entirely for Windows
+    /// integrated authentication.
+    /// </summary>
+    public SqlDatabaseBuilder User(string user)
+    {
+        _user = user;
+        return this;
+    }
+
+    /// <summary>
+    /// Supplies the SQL-authentication password securely via the named MSI property, populated at run time
+    /// through <c>IInstallerEngine.SetSecureProperty</c>. The password is never stored in the MSI. This is
+    /// the recommended path; mutually exclusive with <see cref="Password"/>.
+    /// </summary>
+    public SqlDatabaseBuilder PasswordProperty(string propertyName)
+    {
+        _passwordProperty = propertyName;
+        return this;
+    }
+
+    /// <summary>
+    /// Supplies a literal SQL-authentication password. <b>Discouraged</b> — the literal is embedded in
+    /// plaintext in the compiled MSI (SQL015 warning). Prefer <see cref="PasswordProperty"/> or integrated
+    /// authentication. Mutually exclusive with <see cref="PasswordProperty"/>.
+    /// </summary>
+    public SqlDatabaseBuilder Password(string password)
+    {
+        _password = password;
+        return this;
+    }
+
     public Result<SqlDatabaseModel> Build()
     {
         var model = new SqlDatabaseModel
@@ -80,7 +116,10 @@ public sealed class SqlDatabaseBuilder
             CreateOnInstall = _createOnInstall,
             DropOnUninstall = _dropOnUninstall,
             ConfirmOverwrite = _confirmOverwrite,
-            ComponentRef = _componentRef
+            ComponentRef = _componentRef,
+            User = _user,
+            PasswordProperty = _passwordProperty,
+            Password = _password
         };
 
         var validationResult = SqlValidator.ValidateDatabase(model);
@@ -94,6 +133,13 @@ public sealed class SqlDatabaseBuilder
             if (credCheck.IsFailure)
                 Console.Error.WriteLine($"[FalkForge Warning] {credCheck.Error.Message}");
         }
+
+        // SQL015: non-blocking warning — a literal password is embedded in plaintext in the MSI. Mirrors
+        // the REG007/CTB011 posture: allowed, but the author is steered to PasswordProperty/integrated auth.
+        if (SqlValidator.HasLiteralPassword(model))
+            Console.Error.WriteLine(
+                "[FalkForge Warning] SQL015: A literal SQL password is embedded in plaintext in the MSI. " +
+                "Use PasswordProperty with SetSecureProperty, or Windows integrated authentication, instead.");
 
         return model;
     }

@@ -233,6 +233,20 @@ public static class SqlRules
                         new RuleId("SQL014"), Severity.Warning,
                         ModelPath.Root.Field("SqlDatabase").Field(db.Id),
                         "SQL014: ConnectionString contains a plaintext password. Use Integrated Security=true or Azure AD authentication instead."))),
+
+            new ValidationRule(
+                new RuleId("SQL015"),
+                Severity.Warning,
+                ModelSection.Extension_Sql,
+                "Literal SQL password embedded in the MSI",
+                "A literal SQL-authentication password is embedded in plaintext in the MSI. Use PasswordProperty with SetSecureProperty, or Windows integrated authentication.",
+                ctx => getDatabases()
+                    .Where(db => !string.IsNullOrWhiteSpace(db.Id) && SqlValidator.HasLiteralPassword(db))
+                    .Select(db => new Violation(
+                        new RuleId("SQL015"), Severity.Warning,
+                        ModelPath.Root.Field("SqlDatabase").Field(db.Id),
+                        "SQL015: A literal SQL password is embedded in plaintext in the MSI. " +
+                        "Use PasswordProperty with SetSecureProperty, or Windows integrated authentication, instead."))),
         ];
     }
 
