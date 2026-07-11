@@ -70,12 +70,23 @@ public static class IisValidator
             return Result<Unit>.Failure(ErrorKind.Validation,
                 $"IIS006: AppPool '{pool.Name}' uses SpecificUser identity but no UserName specified.");
 
-        if (pool.IdentityType == AppPoolIdentityType.SpecificUser && string.IsNullOrWhiteSpace(pool.Password))
+        // A SpecificUser identity needs a password, supplied EITHER securely via PasswordProperty
+        // (recommended) OR as a literal Password (discouraged, IIS012). Missing both is an error.
+        if (pool.IdentityType == AppPoolIdentityType.SpecificUser
+            && string.IsNullOrWhiteSpace(pool.Password)
+            && string.IsNullOrWhiteSpace(pool.PasswordProperty))
             return Result<Unit>.Failure(ErrorKind.Validation,
-                $"IIS009: AppPool '{pool.Name}' uses SpecificUser identity but no Password specified.");
+                $"IIS009: AppPool '{pool.Name}' uses SpecificUser identity but no Password or PasswordProperty specified.");
 
         return Unit.Value;
     }
+
+    /// <summary>
+    /// True when the app pool carries a <b>literal</b> SpecificUser password (embedded in plaintext in the
+    /// MSI) rather than the secure <see cref="AppPoolModel.PasswordProperty"/> channel — the IIS012 trigger.
+    /// </summary>
+    public static bool HasLiteralPassword(AppPoolModel pool)
+        => !string.IsNullOrEmpty(pool.Password);
 
     public static Result<Unit> ValidateCertificates(IReadOnlyList<CertificateModel> certificates)
     {

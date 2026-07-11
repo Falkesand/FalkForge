@@ -94,10 +94,12 @@ public sealed class IisExtensionTests
     }
 
     [Fact]
-    public void GetValidationRules_ReturnsElevenRules()
+    public void GetValidationRules_ReturnsFourteenRules()
     {
         var extension = new IisExtension();
-        Assert.Equal(11, extension.GetValidationRules().Length);
+        // IIS001-011 plus the runtime-era rules: IIS012 (literal password), IIS013 (cert/https deferred),
+        // IIS014 (web-application deferred).
+        Assert.Equal(14, extension.GetValidationRules().Length);
     }
 
     private static PackageModel MinimalPackage() => InstallerTestHost.BuildPackage(p =>
@@ -109,7 +111,7 @@ public sealed class IisExtensionTests
     });
 
     [Fact]
-    public void Register_RegistersTableContributors_SoIisConfigReachesTheMsi()
+    public void Register_RegistersTablesAndExecutionContributor_SoIisRunsAtInstall()
     {
         var extension = new IisExtension();
         extension.AddAppPool(pool => pool.Id("P").Name("Pool"));
@@ -118,11 +120,13 @@ public sealed class IisExtensionTests
 
         extension.Register(registry);
 
-        // IIS is no longer a silent no-op: it contributes the IIsAppPool + IIsWebSite custom
-        // tables and a placeholder CustomAction so its configuration is present in the compiled MSI.
+        // Inspectable data tables...
         Assert.Contains(registry.TableContributors, c => c.TableName == "IIsAppPool");
         Assert.Contains(registry.TableContributors, c => c.TableName == "IIsWebSite");
-        Assert.Contains(registry.TableContributors, c => c.TableName == "CustomAction");
+        // ...and the execution contributor that makes them LIVE (without it the tables are inert). The old
+        // inert placeholder CustomAction contributor is gone — real actions come from the execution seam.
+        Assert.Single(registry.ExecutionContributors);
+        Assert.DoesNotContain(registry.TableContributors, c => c.TableName == "CustomAction");
     }
 
     [Fact]
@@ -141,12 +145,16 @@ public sealed class IisExtensionTests
     {
         public List<IMsiTableContributor> TableContributors { get; } = [];
         public List<IComponentContributor> ComponentContributors { get; } = [];
+        public List<IExecutionContributor> ExecutionContributors { get; } = [];
 
         public void RegisterTableContributor(IMsiTableContributor contributor) =>
             TableContributors.Add(contributor);
 
         public void RegisterComponentContributor(IComponentContributor contributor) =>
             ComponentContributors.Add(contributor);
+
+        public void RegisterExecutionContributor(IExecutionContributor contributor) =>
+            ExecutionContributors.Add(contributor);
 
         public void RegisterDryRunContributor(IDryRunContributor contributor) { }
         public void RegisterDialogStep(IDialogStepBuilder builder) { }

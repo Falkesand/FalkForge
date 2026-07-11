@@ -132,15 +132,16 @@ public static class IisRules
                 new RuleId("IIS009"),
                 Severity.Error,
                 ModelSection.Extension_Iis,
-                "SpecificUser AppPool must have a Password",
-                "AppPools using SpecificUser identity must specify a Password.",
+                "SpecificUser AppPool must have a Password or PasswordProperty",
+                "AppPools using SpecificUser identity must specify a Password or a PasswordProperty.",
                 ctx => getAppPools()
                     .Where(p => p.IdentityType == AppPoolIdentityType.SpecificUser
-                                && string.IsNullOrWhiteSpace(p.Password))
+                                && string.IsNullOrWhiteSpace(p.Password)
+                                && string.IsNullOrWhiteSpace(p.PasswordProperty))
                     .Select(p => new Violation(
                         new RuleId("IIS009"), Severity.Error,
                         ModelPath.Root.Field("AppPool").Field(p.Name ?? string.Empty),
-                        $"IIS009: AppPool '{p.Name}' uses SpecificUser identity but no Password specified."))),
+                        $"IIS009: AppPool '{p.Name}' uses SpecificUser identity but no Password or PasswordProperty specified."))),
 
             new ValidationRule(
                 new RuleId("IIS010"),
@@ -157,6 +158,56 @@ public static class IisRules
                 "Binding references an undefined Certificate",
                 "CertificateRef in bindings must resolve to a defined Certificate.",
                 ctx => ValidateCertRefs(getWebSites(), getCertificates())),
+
+            // Security warning: a literal SpecificUser password is embedded in plaintext in the MSI.
+            new ValidationRule(
+                new RuleId("IIS012"),
+                Severity.Warning,
+                ModelSection.Extension_Iis,
+                "Literal IIS app-pool password embedded in the MSI",
+                "A literal SpecificUser password is embedded in plaintext in the MSI. Use IdentitySecure(...) with a PasswordProperty populated by SetSecureProperty instead.",
+                ctx => getAppPools()
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Name) && IisValidator.HasLiteralPassword(p))
+                    .Select(p => new Violation(
+                        new RuleId("IIS012"), Severity.Warning,
+                        ModelPath.Root.Field("AppPool").Field(p.Name ?? string.Empty),
+                        $"IIS012: AppPool '{p.Name}' embeds a literal password in plaintext in the MSI. " +
+                        "Use IdentitySecure(...) with a PasswordProperty populated by SetSecureProperty instead."))),
+
+            // Fail-loud deferrals: surface configuration that is authored but whose install-time execution is
+            // NOT yet wired in this core branch, so an author is never silently misled into thinking it runs.
+
+            new ValidationRule(
+                new RuleId("IIS013"),
+                Severity.Warning,
+                ModelSection.Extension_Iis,
+                "HTTPS/certificate binding runtime is not wired",
+                "Certificate emission and SSL-certificate binding are deferred; an HTTPS/certificate binding is created without an SSL certificate at install.",
+                ctx => getWebSites().SelectMany(s =>
+                    s.Bindings
+                        .Where(b => string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase)
+                                    || !string.IsNullOrWhiteSpace(b.CertificateRef))
+                        .Select(b => new Violation(
+                            new RuleId("IIS013"), Severity.Warning,
+                            ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("Binding"),
+                            $"IIS013: HTTPS/certificate binding on site '{s.Description}' is authored, but certificate " +
+                            "emission and SSL-certificate binding are NOT yet wired at install; the binding is skipped " +
+                            "at runtime. Bind the certificate out-of-band, or apply it in a follow-up.")))),
+
+            new ValidationRule(
+                new RuleId("IIS014"),
+                Severity.Warning,
+                ModelSection.Extension_Iis,
+                "WebApplication runtime is not wired",
+                "Sub-application (WebApplication) creation is deferred; only the root site, its bindings, and its app pool are created at install.",
+                ctx => getWebSites()
+                    .Where(s => s.WebApplications.Count > 0)
+                    .Select(s => new Violation(
+                        new RuleId("IIS014"), Severity.Warning,
+                        ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty),
+                        $"IIS014: WebSite '{s.Description}' authors sub-application(s), but WebApplication creation is " +
+                        "NOT yet wired at install; only the root site, bindings, and app pool are created. " +
+                        "Create sub-applications out-of-band, or apply them in a follow-up."))),
         ];
     }
 
