@@ -66,16 +66,32 @@ internal sealed class MsiServiceConfigFailureActionsTableProducer : ITableProduc
                 continue;
             }
 
+            // ResetPeriod and RestartDelay are TimeSpan on the model but MSI's ResetPeriod
+            // (seconds) and DelayActions (milliseconds) columns are 32-bit. Fail loud on a
+            // value that would silently wrap to a negative/garbage duration rather than
+            // writing a corrupt row — consistent with the "fail loud" working principle.
+            Result<int> resetPeriodSeconds = ToInt32Duration(
+                failureActions.ResetPeriod.TotalSeconds, service.Name, "ResetPeriod", "seconds");
+            if (resetPeriodSeconds.IsFailure)
+            {
+                return Result<ImmutableArray<RecipeRow>>.Failure(resetPeriodSeconds.Error);
+            }
+
+            Result<(string Actions, string DelayActions)> encoded = EncodeActions(failureActions, service.Name);
+            if (encoded.IsFailure)
+            {
+                return Result<ImmutableArray<RecipeRow>>.Failure(encoded.Error);
+            }
+
             string componentId = ServiceIdentity.ResolveComponentId(service, resolved, fileNameToComponent, defaultComponentId);
             string rowId = ServiceIdentity.TruncateId($"SCF_{ServiceIdentity.SanitizeId(service.Name)}");
-            (string actions, string delayActions) = EncodeActions(failureActions);
-            int resetPeriodSeconds = (int)failureActions.ResetPeriod.TotalSeconds;
+            (string actions, string delayActions) = encoded.Value;
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(rowId),
                 new CellValue.StringValue(service.Name),
                 new CellValue.IntValue(EventInstallAndReinstall),
-                new CellValue.IntValue(resetPeriodSeconds),
+                new CellValue.IntValue(resetPeriodSeconds.Value),
                 failureActions.RebootMessage is null ? new CellValue.Null() : new CellValue.StringValue(failureActions.RebootMessage),
                 failureActions.Command is null ? new CellValue.Null() : new CellValue.StringValue(failureActions.Command),
                 new CellValue.StringValue(actions),
@@ -87,20 +103,45 @@ internal sealed class MsiServiceConfigFailureActionsTableProducer : ITableProduc
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
     }
 
-    private static (string Actions, string DelayActions) EncodeActions(ServiceFailureActionsModel model)
+    private static Result<(string Actions, string DelayActions)> EncodeActions(
+        ServiceFailureActionsModel model,
+        string serviceName)
     {
         Span<FailureAction> tiers = [model.OnFirstFailure, model.OnSecondFailure, model.OnSubsequentFailures];
+
+        Result<int> delayMs = ToInt32Duration(
+            model.RestartDelay.TotalMilliseconds, serviceName, "RestartDelay", "milliseconds");
+        if (delayMs.IsFailure)
+        {
+            return Result<(string, string)>.Failure(delayMs.Error);
+        }
+
         string[] actionCodes = new string[FailureTierCount];
         string[] delayCodes = new string[FailureTierCount];
-        int delayMs = (int)model.RestartDelay.TotalMilliseconds;
 
         for (int i = 0; i < tiers.Length; i++)
         {
             actionCodes[i] = MapAction(tiers[i]).ToString(CultureInfo.InvariantCulture);
-            delayCodes[i] = (tiers[i] == FailureAction.None ? 0 : delayMs).ToString(CultureInfo.InvariantCulture);
+            delayCodes[i] = (tiers[i] == FailureAction.None ? 0 : delayMs.Value).ToString(CultureInfo.InvariantCulture);
         }
 
-        return (string.Join(ListSeparator, actionCodes), string.Join(ListSeparator, delayCodes));
+        return Result<(string, string)>.Success(
+            (string.Join(ListSeparator, actionCodes), string.Join(ListSeparator, delayCodes)));
+    }
+
+    private static Result<int> ToInt32Duration(double value, string serviceName, string field, string unit)
+    {
+        // The MSI column is a signed 32-bit integer; a negative or oversized duration cannot
+        // be represented and would corrupt the row if cast silently.
+        if (value < 0 || value > int.MaxValue)
+        {
+            return Result<int>.Failure(new Error(
+                ErrorKind.CompilationError,
+                $"Service '{serviceName}' {field} of {value:0} {unit} is out of range for the " +
+                $"MSI MsiServiceConfigFailureActions table (0..{int.MaxValue} {unit})."));
+        }
+
+        return Result<int>.Success((int)value);
     }
 
     private static int MapAction(FailureAction action) => action switch

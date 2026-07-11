@@ -148,6 +148,65 @@ public sealed class MsiServiceConfigFailureActionsTableProducerTests
         Assert.IsType<CellValue.Null>(row.Cells[5]);
     }
 
+    [Fact]
+    public void Produce_fails_loud_when_reset_period_exceeds_int32_seconds()
+    {
+        // ResetPeriod is a TimeSpan on the model but the MSI ResetPeriod column is a signed
+        // 32-bit integer count of seconds. A value that would silently wrap to a negative
+        // duration must fail the compile rather than corrupt the row.
+        ServiceModel service = new()
+        {
+            Name = "OverflowService",
+            DisplayName = "Overflow Service",
+            Executable = "svc.exe",
+            FailureActions = new ServiceFailureActionsModel
+            {
+                OnFirstFailure = FailureAction.Restart,
+                ResetPeriod = TimeSpan.FromSeconds((double)int.MaxValue + 1),
+            },
+        };
+        ResolvedPackage resolved = MakeResolved(new[] { service });
+        RecipeBuildContext context = new(
+            resolved,
+            new MsiRecipeBuildOptions(),
+            new NoOpFileSequencer(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeRow>> result = new MsiServiceConfigFailureActionsTableProducer().Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+        Assert.Contains("ResetPeriod", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Produce_fails_loud_when_restart_delay_exceeds_int32_milliseconds()
+    {
+        ServiceModel service = new()
+        {
+            Name = "OverflowDelayService",
+            DisplayName = "Overflow Delay Service",
+            Executable = "svc.exe",
+            FailureActions = new ServiceFailureActionsModel
+            {
+                OnFirstFailure = FailureAction.Restart,
+                RestartDelay = TimeSpan.FromMilliseconds((double)int.MaxValue + 1),
+            },
+        };
+        ResolvedPackage resolved = MakeResolved(new[] { service });
+        RecipeBuildContext context = new(
+            resolved,
+            new MsiRecipeBuildOptions(),
+            new NoOpFileSequencer(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeRow>> result = new MsiServiceConfigFailureActionsTableProducer().Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+        Assert.Contains("RestartDelay", result.Error.Message, StringComparison.Ordinal);
+    }
+
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
     {
         RecipeBuildContext context = new(

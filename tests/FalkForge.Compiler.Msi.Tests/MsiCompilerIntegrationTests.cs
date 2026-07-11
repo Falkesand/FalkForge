@@ -698,6 +698,7 @@ public sealed class MsiCompilerIntegrationTests
                 .Single();
 
             Assert.Equal("MyService", row[0]);
+            Assert.Equal(5, int.Parse(row[1]!, CultureInfo.InvariantCulture)); // install(1) | reinstall(4)
             Assert.Equal(172800, int.Parse(row[2]!, CultureInfo.InvariantCulture)); // 2 days in seconds
             Assert.Null(row[3]); // no RebootMessage configured
             Assert.Equal("cmd.exe /c echo hi", row[4]);
