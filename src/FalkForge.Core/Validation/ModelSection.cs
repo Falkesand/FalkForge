@@ -15,6 +15,7 @@ public enum ModelSection
     Shortcut,
     CustomAction,
     CustomTable,
+    CustomDialog,
     Sequence,
     MajorUpgrade,
     Property,

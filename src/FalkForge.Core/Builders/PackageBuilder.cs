@@ -153,6 +153,7 @@ public sealed partial class PackageBuilder
             Downgrade = _downgrade,
             DialogSet = _dialogSet,
             DialogCustomization = _dialogCustomization?.ToModel(),
+            CustomDialogs = _customDialogs,
             CabinetThreadCount = CabinetThreadCount,
             LocalizationData = _localizationData,
             ReproducibleOptions = _reproducibleOptions,

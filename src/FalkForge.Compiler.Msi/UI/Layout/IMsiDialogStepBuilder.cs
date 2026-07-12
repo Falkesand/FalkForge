@@ -9,18 +9,22 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// </summary>
 /// <remarks>
 /// <para>
-/// RFC Cycle 6, step 16. Extension authors register an <see cref="IDialogStepBuilder"/>
-/// via <see cref="FalkForge.Extensibility.IExtensionRegistry.RegisterDialogStep"/>. When
-/// a registered builder also implements <see cref="IMsiDialogStepBuilder"/>, the template
-/// pipeline invokes <see cref="Build"/> during compilation to obtain the full
-/// <see cref="MsiDialogModel"/>. Builders that implement only <see cref="IDialogStepBuilder"/>
-/// participate in DLG001 name-resolution but cannot supply dialog layout — their step name
-/// passes validation but no dialog is emitted for them.
+/// Extension authors register an <see cref="IDialogStepBuilder"/> via
+/// <see cref="FalkForge.Extensibility.IExtensionRegistry.RegisterDialogStep"/> and reference it
+/// from <c>DialogCustomization.InsertStep(stepName, after:)</c>. When a registered builder also
+/// implements <see cref="IMsiDialogStepBuilder"/>, <c>DialogSetProducer</c> invokes
+/// <see cref="Build"/> during compilation and emits the resulting dialog into the MSI UI tables.
+/// A builder that implements only <see cref="IDialogStepBuilder"/> passes DLG001 name-resolution
+/// but supplies no layout, so no dialog is emitted for it.
 /// </para>
 /// <para>
-/// This interface is internal to <c>FalkForge.Compiler.Msi</c>. External extension
-/// assemblies that need a full dialog must take a project reference to
-/// <c>FalkForge.Compiler.Msi</c> and implement this interface directly.
+/// This interface is internal to <c>FalkForge.Compiler.Msi</c> because it exposes the internal
+/// <see cref="MsiDialogModel"/>. Most authors do not need it: to author a complete custom dialog
+/// from application code, use the public
+/// <see cref="FalkForge.Builders.PackageBuilder.AddCustomDialog(string, System.Action{FalkForge.Builders.CustomDialogBuilder})"/>
+/// API, which requires no reference to this assembly. This interface exists for extensions that
+/// take a project reference to <c>FalkForge.Compiler.Msi</c> and want to contribute a reusable,
+/// named dialog step insertable via <c>InsertStep</c>.
 /// </para>
 /// </remarks>
 internal interface IMsiDialogStepBuilder : IDialogStepBuilder

@@ -76,8 +76,15 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
 
         PackageModel package = context.Resolved.Package;
 
-        // Legacy early-return: no UI actions + no dialog set = skip table entirely.
-        if (package.UISequenceActions.Count == 0 && package.DialogSet == MsiDialogSet.None)
+        // Custom dialogs that opt into the install-UI sequence (via SequenceNumber) act like an
+        // additional dialog-flow source, so the baseline UI sequence must exist for them too.
+        (string Action, int Sequence)[] customEntryRows = GetCustomDialogEntryRows(package);
+
+        // Legacy early-return: no UI actions + no dialog set + no sequenced custom dialog =
+        // skip table entirely.
+        if (package.UISequenceActions.Count == 0
+            && package.DialogSet == MsiDialogSet.None
+            && customEntryRows.Length == 0)
         {
             return Result<ImmutableArray<RecipeRow>>.Success(ImmutableArray<RecipeRow>.Empty);
         }
@@ -88,7 +95,7 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
 
         // Build the full baseline. Capacity is exact to avoid re-allocation.
         List<(string Action, int Sequence)> actions =
-            new(7 + dialogFlowRows.Length + package.UISequenceActions.Count)
+            new(7 + dialogFlowRows.Length + customEntryRows.Length + package.UISequenceActions.Count)
         {
             ("AppSearch",         SeqAppSearch),
             ("LaunchConditions",  SeqLaunchConditions),
@@ -104,6 +111,14 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
         for (int i = 0; i < dialogFlowRows.Length; i++)
         {
             actions.Add(dialogFlowRows[i]);
+        }
+
+        // Append author-scheduled custom-dialog entries (Dialog is the Action, its
+        // SequenceNumber is the sequence). InstallUISequence is keyed on Action, so
+        // duplicate sequence numbers are legal; DLG012 guarantees unique dialog Ids.
+        for (int i = 0; i < customEntryRows.Length; i++)
+        {
+            actions.Add(customEntryRows[i]);
         }
 
         // Merge user actions, resolving relative positions against the running list.
@@ -186,6 +201,32 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
     }
 
     // ── Dialog-flow helpers (mirror DialogEmitter.EmitInstallUISequence) ─────
+
+    /// <summary>
+    /// Returns an <c>InstallUISequence</c> row for every custom dialog that opted into the
+    /// sequence via <see cref="CustomDialogModel.SequenceNumber"/>. The dialog Id is the Action
+    /// and the sequence number is written verbatim (the standard first-dialog slot is 1100).
+    /// </summary>
+    private static (string Action, int Sequence)[] GetCustomDialogEntryRows(PackageModel package)
+    {
+        IReadOnlyList<CustomDialogModel> customDialogs = package.CustomDialogs;
+        if (customDialogs.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<(string, int)>(customDialogs.Count);
+        for (int i = 0; i < customDialogs.Count; i++)
+        {
+            CustomDialogModel d = customDialogs[i];
+            if (d.SequenceNumber is { } seq)
+            {
+                result.Add((d.Id, seq));
+            }
+        }
+
+        return result.ToArray();
+    }
 
     /// <summary>
     /// Returns the three dialog-flow rows (firstDialog at 1100, ProgressDlg at 1200,

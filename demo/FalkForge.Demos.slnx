@@ -74,6 +74,7 @@
         <Project Path="12-custom-ui-vstyle/12-custom-ui-vstyle.csproj" />
         <Project Path="13-glass-ui/13-glass-ui.csproj" />
         <Project Path="14-lifecycle-hooks/14-lifecycle-hooks.csproj" />
+        <Project Path="65-custom-dialog/65-custom-dialog.csproj" />
     </Folder>
     <Folder Name="/multi-project/">
         <Project Path="06-product-suite/app-installer/app-installer.csproj" />

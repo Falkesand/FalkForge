@@ -194,11 +194,17 @@ public static class MsiAuthoring
             SourceDirectory = Directory.GetCurrentDirectory(),
         };
 
+        // Drain MSI-capable extension dialog step builders so DialogSetProducer can emit any
+        // InsertStep-referenced extension dialogs (not just validate their names).
+        var msiDialogStepBuilders = extensionRegistry.DialogStepBuilders
+            .OfType<FalkForge.Compiler.Msi.UI.Layout.IMsiDialogStepBuilder>()
+            .ToList();
+
         Result<MsiDatabaseRecipe> recipeResult = MsiRecipeBuilder.Build(
             resolved,
             contributors: extensionRegistry.TableContributors,
             options: new MsiRecipeBuildOptions(),
-            multiProducers: [new CustomTablesProducer(), new DialogSetProducer()],
+            multiProducers: [new CustomTablesProducer(), new DialogSetProducer(msiDialogStepBuilders)],
             extensionContext: extensionContext,
             logger: logger,
             executionContributors: extensionRegistry.ExecutionContributors);

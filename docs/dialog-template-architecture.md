@@ -70,7 +70,8 @@ sequence before calling `Compose`.
 | `PlacedControl` | `Compiler.Msi/UI/Layout/PlacedControl.cs` | One control in a region: `Name`, `Type` (MSI control type string), `TextOrLocKey`, `Property`, optional `OverrideX/Y/Width/Height`. |
 | `DialogComposer` | `Compiler.Msi/UI/Layout/DialogComposer.cs` | Pure static class. `Compose(content, layout)` / `Compose(content, layout, customization?)` → `MsiDialogModel`. Applies region policies, then applies customization overrides (banner bitmap, header icon, button labels, window title). |
 | `IMsiDialogStepBuilder` | `Compiler.Msi/UI/Layout/IMsiDialogStepBuilder.cs` | Internal compiler-side interface extending `IDialogStepBuilder`. Adds `Build(DialogBuildContext) → MsiDialogModel`. Stock builders and extension builders that need full layout implement this. |
-| `DialogStepRegistry` | `Compiler.Msi/UI/Layout/DialogStepRegistry.cs` | Mutable during registration, frozen (`FrozenDictionary`) before template pipeline. `Register(IMsiDialogStepBuilder)`, `RegisterExtensionBuilder(IDialogStepBuilder)`, `TryGet(name)`, `Freeze()`. |
+| `DialogStepRegistry` | `Compiler.Msi/UI/Layout/DialogStepRegistry.cs` | Mutable during registration, frozen before template pipeline. `Register(IMsiDialogStepBuilder)`, `RegisterExtensionBuilder(IDialogStepBuilder)`, `Contains(name)` (DLG001 name-resolution, MSI-capable *or* name-only), `TryGet(name)` (MSI-capable builders only, for emission), `Freeze()`. There is no throwing placeholder for name-only builders — an unresolved name-only step is simply not emitted. |
+| `CustomDialogTranslator` | `Compiler.Msi/UI/CustomDialogTranslator.cs` | Internal bridge that translates a public `CustomDialogModel` (from `FalkForge.Core`) into an internal `MsiDialogModel`. The real "build" path for the public `AddCustomDialog` API. |
 | `DialogBuildContext` | `Compiler.Msi/UI/Layout/DialogBuildContext.cs` | Immutable context passed to each `IMsiDialogStepBuilder.Build` call: `Customization` + `StepRegistry`. `ForTest(customization)` factory for unit tests. |
 | `DialogFlowContext` | `Compiler.Msi/UI/Layout/DialogFlowContext.cs` | Navigation targets for a builder: `NextDialog`, `BackDialog`, `CancelDialog`. Passed into builder `Build` overloads so templates wire the chain. |
 | `DialogCustomization` | `Core/Models/DialogCustomization.cs` | Public fluent builder. Methods: `BannerBitmap`, `DialogBitmap`, `HeaderIcon`, `WindowTitle`, `OverrideButtonLabel`, `SuppressDialog`, `InsertStep`. Freezes to `DialogCustomizationModel` via internal `ToModel()`. |
@@ -237,7 +238,50 @@ PackageBuilder.Create("MyApp", "1.0.0", "Acme Corp")
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |
 | `OverrideButtonLabel(button, label)` | Rewrites matching `PushButton.Text` via `DialogButtonNames.Map` |
 | `SuppressDialog(dialog)` | Removes the stock dialog from the sequence (DLG002 validates navigation) |
-| `InsertStep(stepName, after)` | Splices an extension step after the named stock dialog (DLG001 validates name) |
+| `InsertStep(stepName, after)` | Splices an extension-contributed dialog step into the flow (DLG001 validates the name). When the named step resolves to an `IMsiDialogStepBuilder`, `DialogSetProducer` calls its `Build` and emits the dialog into the MSI UI tables. |
+
+---
+
+## Public Custom Dialog Authoring (`AddCustomDialog`)
+
+Application authors do **not** need an extension or a reference to `FalkForge.Compiler.Msi` to
+author a complete custom MSI dialog. `PackageBuilder.AddCustomDialog(id, dlg => …)` (in
+`FalkForge.Core`) builds a dialog from scratch with direct control over size, title, attributes,
+every control, its events, its conditions, and tab order:
+
+```csharp
+package.AddCustomDialog("LicenseKeyDlg", dlg => dlg
+    .Title("Enter your license key")
+    .Sequence(1100)                       // show as the first install-UI screen
+    .FirstControl("KeyEdit")
+    .Text("Prompt", 20, 20, 330, 20, "Please enter your license key:")
+    .Edit("KeyEdit", 20, 50, 330, 18, property: "LICENSEKEY", b => b.Next("Next"))
+    .PushButton("Next", 280, 240, 66, 17, "Next", b => b
+        .EndDialog("Return")              // ControlEvent: proceed with the install
+        .DisableWhen("LICENSEKEY = \"\"")));// ControlCondition: gate the button
+```
+
+How it flows:
+
+- The fluent builders live in `FalkForge.Core` and produce a public `CustomDialogModel`
+  (`Models/CustomDialogModel.cs`), stored on `PackageModel.CustomDialogs`. The raw MSI dialog
+  model stays internal to `FalkForge.Compiler.Msi`.
+- At compile time `DialogSetProducer` translates each `CustomDialogModel` into the internal
+  `MsiDialogModel` via `CustomDialogTranslator` and emits `Dialog` / `Control` / `ControlEvent` /
+  `ControlCondition` rows — **in addition to** any active stock `MsiDialogSet` (custom dialogs are
+  emitted even when `DialogSet` is `None`).
+- `Sequence(n)` places the dialog in the `InstallUISequence` table at sequence `n` (the standard
+  first-dialog slot is 1100), making it an install-UI entry point. Without it, a custom dialog is
+  reachable only from another dialog's `NewDialog` / `SpawnDialog` event.
+- Invalid authoring fails loud at validation time (rules **DLG010–DLG019**): empty/ill-formed
+  dialog or control ids, duplicate ids, a dangling `Control_Next`, a data-bound control (Edit,
+  CheckBox, …) with no property, or a `FirstControl`/`DefaultControl`/`CancelControl` that names a
+  control not on the dialog. See demo `65-custom-dialog`.
+
+**Deferred:** control types that require a companion table (RadioButtonGroup → `RadioButton`,
+ComboBox → `ComboBox`, ListBox → `ListBox`) can be authored via `.Control(type, …)` so their
+`Control` row is emitted, but their option rows are not auto-generated — supply those via a custom
+table.
 
 ---
 
