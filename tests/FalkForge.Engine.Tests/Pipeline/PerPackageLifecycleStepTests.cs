@@ -102,11 +102,8 @@ public sealed class PerPackageLifecycleStepTests
         Assert.Equal(InstallState.NotInstalled, evt.State);
     }
 
-    [Fact]
-    public async Task DetectStep_EmitsDetectRelatedBundle_AndPopulatesContext()
-    {
-        var upgradeCode = "{ABCDEF01-0000-0000-0000-000000000001}";
-        var manifest = new InstallerManifest
+    private static InstallerManifest ManifestWithRelatedBundle(string upgradeCode) =>
+        new()
         {
             Name = "TestApp",
             Manufacturer = "Acme",
@@ -118,6 +115,8 @@ public sealed class PerPackageLifecycleStepTests
             RelatedBundles = [new RelatedBundleEntry { BundleId = upgradeCode, Relation = RelatedBundleRelation.Upgrade }]
         };
 
+    private static MockRegistry RegistryWithInstalledBundle(string upgradeCode)
+    {
         var registry = new MockRegistry();
         registry.SetStringValue(
             RegistryRoot.LocalMachine,
@@ -129,6 +128,15 @@ public sealed class PerPackageLifecycleStepTests
             @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OldApp",
             "DisplayVersion",
             "0.9.0");
+        return registry;
+    }
+
+    [Fact]
+    public async Task DetectStep_EmitsDetectRelatedBundle_WithoutPopulatingContext()
+    {
+        var upgradeCode = "{ABCDEF01-0000-0000-0000-000000000001}";
+        var manifest = ManifestWithRelatedBundle(upgradeCode);
+        var registry = RegistryWithInstalledBundle(upgradeCode);
 
         await using var channel = new FakeUiChannel();
         var ctx = new PipelineContext();
@@ -142,8 +150,36 @@ public sealed class PerPackageLifecycleStepTests
         Assert.Equal(RelatedBundleRelation.Upgrade, evt.Relation);
         Assert.Equal("0.9.0", evt.InstalledVersion);
 
-        // The detected related bundle is threaded into the context for the planner.
-        Assert.Single(ctx.RelatedBundles);
+        // The event is OBSERVATIONAL: the detected related bundle must NOT be written into the
+        // context. Populating it would activate the planner's related-bundle uninstall path, which
+        // synthesizes an empty-SourcePath Uninstall action that aborts the apply. Detection here
+        // notifies the UI only and must not change what the planner does.
+        Assert.Empty(ctx.RelatedBundles);
+    }
+
+    [Fact]
+    public async Task DetectThenPlan_WithDetectedRelatedBundle_ProducesNoExtraUninstallAction()
+    {
+        // Regression guard: a manifest declaring an Upgrade-relation related bundle that IS installed
+        // on the machine must still plan a single Install action for its own package — the observational
+        // related-bundle detection must not inject a related-bundle Uninstall action into the plan.
+        var upgradeCode = "{ABCDEF01-0000-0000-0000-000000000002}";
+        var manifest = ManifestWithRelatedBundle(upgradeCode);
+        var registry = RegistryWithInstalledBundle(upgradeCode);
+
+        await using var channel = new FakeUiChannel();
+        var ctx = new PipelineContext();
+
+        var detect = new DetectStep(manifest, registry, channel);
+        Assert.True((await detect.ExecuteAsync(ctx, CancellationToken.None)).IsSuccess);
+
+        var plan = new PlanStep(new Planner(), channel);
+        Assert.True((await plan.ExecuteAsync(ctx, InstallRequest(), CancellationToken.None)).IsSuccess);
+
+        Assert.NotNull(ctx.Plan);
+        var action = Assert.Single(ctx.Plan!.Actions);
+        Assert.Equal("Pkg1", action.PackageId);
+        Assert.Equal(PlanActionType.Install, action.ActionType);
     }
 
     [Fact]

@@ -67,13 +67,19 @@ internal sealed class DetectStep : IDetectStep
                     ct);
             }
 
-            // Related-bundle detection: populate the context (consumed by the planner) and emit a
-            // per-related-bundle notification for each match. Best-effort — a detection failure is
-            // logged and does not fail the detect phase.
+            // Related-bundle detection: emit a per-related-bundle notification for each match.
+            // Best-effort — a detection failure is logged and does not fail the detect phase.
+            //
+            // IMPORTANT: this is OBSERVATIONAL only — we intentionally do NOT write the results into
+            // ctx.RelatedBundles. Feeding the planner would activate Planner.AddRelatedBundleUninstalls,
+            // which synthesizes an Uninstall PlanAction with an empty SourcePath for Upgrade-relation
+            // bundles; BundleExecutor then rejects that empty path and aborts the whole apply. Related-
+            // bundle *uninstall* execution is a separate, unimplemented feature. Keeping the context
+            // empty preserves the engine's existing plan/apply behavior (this event stream adds
+            // notifications, never changes what gets installed).
             var relatedResult = detector.DetectRelatedBundles(_manifest);
             if (relatedResult.IsSuccess)
             {
-                ctx.RelatedBundles = relatedResult.Value;
                 foreach (var bundle in relatedResult.Value)
                 {
                     await _uiChannel.SendAsync(

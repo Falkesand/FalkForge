@@ -106,6 +106,12 @@ public abstract class InstallerPage : INotifyPropertyChanged
     // These fire interleaved with the phase-level hooks above when the engine surfaces
     // granular events (see IPackageLifecycleEvents). Default implementations are no-ops so
     // existing pages are unaffected. See the fire-order table in documentation.html.
+    //
+    // DELIVERY: best-effort notifications — the shell does NOT await the returned Task, and with
+    // the cross-process EngineClient these are raised on the engine's message-receive thread. A
+    // hook that updates WPF-bound state must marshal to the UI thread itself (e.g. via
+    // Application.Current.Dispatcher). Keep them lightweight; use OnApplyCompleteAsync (awaited)
+    // for work that must finish before the installer advances.
 
     /// <summary>
     ///     Called once per package after its detection completes, between

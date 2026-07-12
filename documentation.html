@@ -5620,7 +5620,8 @@ pages.Add&lt;WelcomePage&gt;()      // Page 0 (shown first)
       return <code>Task</code>, not <code>Task&lt;bool&gt;</code>, so they never pretend to gate what
       they cannot.)</li>
   </ul>
-  <p>The hooks fire in exactly this order (parenthesised groups repeat once per package / bundle):</p>
+  <p>The hooks fire in this order (parenthesised groups repeat once per package / bundle; see the
+    delivery-semantics note below for the ordering guarantee's scope):</p>
   <pre><code>OnDetectBeginAsync
   &rarr; (per package)        OnDetectPackageCompleteAsync
   &rarr; (per related bundle) OnDetectRelatedBundleAsync
@@ -5634,9 +5635,22 @@ OnApplyCompleteAsync
   &rarr; (Complete: page auto-advances)</code></pre>
   <p>
     Only the current page receives these callbacks. Per-package hooks are dispatched as the engine
-    emits the corresponding events over the pipe, so they are naturally interleaved between the
-    phase-level begin and complete hooks. Default implementations are no-ops, so existing pages that
-    override only the phase hooks are unaffected.
+    emits the corresponding events, so they are naturally interleaved between the phase-level begin
+    and complete hooks. Default implementations are no-ops, so existing pages that override only the
+    phase hooks are unaffected.
+  </p>
+  <p>
+    <strong>Delivery semantics (read before overriding).</strong> Per-package hooks are best-effort
+    notifications: unlike the phase-level hooks, their returned <code>Task</code> is <em>not</em>
+    awaited by the shell. The relative order shown above &mdash; and the interleaving with the phase
+    hooks &mdash; holds for <em>synchronous</em> hook bodies; a hook that performs genuinely
+    asynchronous work does not delay the surrounding phase. With the cross-process engine
+    (<code>EngineClient</code>) these callbacks are raised on the engine's message-receive thread, so
+    a hook that updates WPF-bound state <strong>must marshal to the UI thread itself</strong>
+    (e.g. <code>Application.Current.Dispatcher.Invoke(...)</code>) &mdash; the shell does not marshal
+    them for you. Keep per-package hooks lightweight (logging, progress annotation); use the awaited
+    phase-level <code>OnApplyCompleteAsync</code> for work that must complete before the installer
+    advances.
   </p>
   <table class="api-table">
     <thead>

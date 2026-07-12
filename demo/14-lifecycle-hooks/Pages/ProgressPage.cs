@@ -1,3 +1,4 @@
+using System.Windows;
 using FalkForge;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui;
@@ -22,6 +23,16 @@ public sealed class ProgressPage : InstallerPage<ProgressView>
 
     private void AddStatus(string message)
     {
+        // The per-package granular hooks are raised on the engine's message-receive thread (not the
+        // UI thread), so marshal to the dispatcher before touching the bound StatusLog property.
+        // The phase-level hooks already run on the UI thread; Dispatcher.Invoke is a no-op there.
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => AddStatus(message));
+            return;
+        }
+
         StatusLog += $"[{DateTime.Now:HH:mm:ss}] {message}\n";
     }
 
