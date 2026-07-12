@@ -106,6 +106,21 @@ public sealed class LayoutManager
                         ErrorKind.LayoutError,
                         $"SHA-256 hash mismatch for {package.Id}: expected {package.Sha256Hash}, got {hash}");
                 }
+
+                // Defense-in-depth: enforce a publisher pin even for a locally-sourced payload. A pin
+                // is authored on the package, not the transport, so a pinned package staged from a
+                // local file must still satisfy it — no fail-open just because it was not downloaded.
+                var localPinResult = PayloadSignaturePinVerifier.Verify(
+                    _authenticodeValidator,
+                    targetPath,
+                    package.AuthenticodeThumbprint,
+                    package.RemotePayloadCertificatePublicKey,
+                    package.Id);
+                if (localPinResult.IsFailure)
+                {
+                    TryDeleteFile(targetPath);
+                    return Result<Unit>.Failure(localPinResult.Error);
+                }
             }
             else
             {

@@ -87,7 +87,12 @@ public sealed class PackageCache
                 package.RemotePayloadCertificatePublicKey,
                 package.Id);
             if (pinResult.IsFailure)
+            {
+                // Fail closed symmetrically with CachePackage: a payload that fails the pin must not
+                // be left behind in the cache where a later step could pick it up.
+                TryDeleteFile(targetPath);
                 return Result<string>.Failure(pinResult.Error);
+            }
 
             return targetPath;
         }
@@ -109,5 +114,12 @@ public sealed class PackageCache
         using var stream = File.OpenRead(filePath);
         var hashBytes = SHA256.HashData(stream);
         return Convert.ToHexString(hashBytes);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { /* best effort cleanup */ }
+        catch (UnauthorizedAccessException) { /* best effort cleanup */ }
     }
 }
