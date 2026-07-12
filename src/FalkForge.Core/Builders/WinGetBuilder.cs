@@ -17,6 +17,8 @@ public sealed class WinGetBuilder
     private string? _releaseNotesUrl;
     private string? _privacyUrl;
     private string _manifestVersion = "1.9.0";
+    private WinGetInstallerType _installerType = WinGetInstallerType.Msi;
+    private readonly List<WinGetLocale> _locales = [];
 
     public WinGetBuilder PackageIdentifier(string id)
     {
@@ -78,6 +80,31 @@ public sealed class WinGetBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the installer type emitted in the manifest. Defaults to
+    /// <see cref="WinGetInstallerType.Msi"/>; use <see cref="WinGetInstallerType.Exe"/> for
+    /// FalkForge bundles.
+    /// </summary>
+    public WinGetBuilder InstallerType(WinGetInstallerType type)
+    {
+        _installerType = type;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds an additional locale entry, producing a separate locale manifest file
+    /// (e.g. Contoso.App.locale.sv-SE.yaml) alongside the default en-US locale manifest.
+    /// </summary>
+    public WinGetBuilder Locale(Action<WinGetLocaleBuilder> configure)
+    {
+        var builder = new WinGetLocaleBuilder();
+        configure(builder);
+        WinGetLocale? locale = builder.Build();
+        if (locale is not null)
+            _locales.Add(locale);
+        return this;
+    }
+
     internal WinGetConfig? Build()
     {
         if (_packageIdentifier is null || _license is null || _shortDescription is null)
@@ -94,7 +121,9 @@ public sealed class WinGetBuilder
             ReleaseNotes = _releaseNotes,
             ReleaseNotesUrl = _releaseNotesUrl,
             PrivacyUrl = _privacyUrl,
-            ManifestVersion = _manifestVersion
+            ManifestVersion = _manifestVersion,
+            InstallerType = _installerType,
+            Locales = _locales.Count > 0 ? _locales.ToArray() : null
         };
     }
 }
