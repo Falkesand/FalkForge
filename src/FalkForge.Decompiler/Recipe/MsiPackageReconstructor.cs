@@ -13,6 +13,9 @@ public static class MsiPackageReconstructor
 {
     private static readonly Version DefaultVersion = new(1, 0, 0);
 
+    /// <summary>msidbFileAttributesVital — File.Attributes bit that marks a file vital.</summary>
+    private const int FileAttributesVital = 512;
+
     /// <summary>
     /// Extracts package-level metadata (name, version, manufacturer, codes, scope)
     /// from a <see cref="PropertySet"/>. Used both by the full
@@ -121,6 +124,9 @@ public static class MsiPackageReconstructor
                 TargetDirectory = installPath,
                 FileName = longName,
                 IsKeyPath = isKeyPath,
+                // msidbFileAttributesVital (512) SET means the file is vital; CLEAR means non-vital.
+                // FileTableProducer emits the bit only for vital files, so the inverse is a bit test.
+                Vital = (f.Attributes & FileAttributesVital) != 0,
                 ComponentId = f.Component_,
                 ComponentCondition = condition
             });
@@ -356,30 +362,84 @@ public static class MsiPackageReconstructor
         _ => RegistryRoot.LocalMachine
     };
 
+    /// <summary>
+    /// Exact inverse of <c>RegistryTableProducer.EncodeValue</c>. Decodes the Windows Installer
+    /// <c>Registry.Value</c> type-prefix convention back into a typed
+    /// (<see cref="object"/>, <see cref="RegistryValueType"/>) pair:
+    /// <list type="bullet">
+    ///   <item><c>[~]</c>-delimited → REG_MULTI_SZ (<see cref="List{String}"/>), covering the
+    ///     producer's <c>[~]</c> (empty), <c>[~]value[~]</c> (single) and <c>a[~]b[~]c</c> (multi) forms.</item>
+    ///   <item><c>#x</c>+hex → REG_BINARY (<see cref="T:System.Byte[]"/>).</item>
+    ///   <item><c>#%</c>+text → REG_EXPAND_SZ.</item>
+    ///   <item><c>##</c>+text → REG_SZ whose literal value begins with '#' (producer doubles a leading '#').</item>
+    ///   <item><c>#</c>+decimal → REG_DWORD (<see cref="int"/>).</item>
+    ///   <item>no prefix → REG_SZ.</item>
+    /// </list>
+    /// The <c>[~]</c> test comes first because REG_MULTI_SZ is typed solely by that delimiter's
+    /// presence (there is no separate type column); the <c>#x</c>/<c>#%</c>/<c>##</c> tests precede
+    /// the bare <c>#</c> DWORD test so those two-character prefixes are never mis-read as a decimal.
+    /// </summary>
     private static (object? Value, RegistryValueType Type) ParseRegistryValue(string? rawValue)
     {
         if (rawValue is null)
             return (null, RegistryValueType.String);
 
-        // MSI uses prefix markers for registry value types.
-        // Check #% before # to avoid ambiguity with decimal DWORDs.
-        if (rawValue.StartsWith("#%", StringComparison.Ordinal))
-            return (rawValue[2..], RegistryValueType.ExpandString);
+        if (rawValue.Contains("[~]", StringComparison.Ordinal))
+        {
+            List<string> parts = rawValue.Split("[~]", StringSplitOptions.RemoveEmptyEntries).ToList();
+            return (parts, RegistryValueType.MultiString);
+        }
 
         if (rawValue.StartsWith("#x", StringComparison.Ordinal))
         {
-            if (int.TryParse(rawValue.AsSpan(2), System.Globalization.NumberStyles.HexNumber, null, out var hexVal))
-                return (hexVal, RegistryValueType.DWord);
+            if (TryParseHex(rawValue.AsSpan(2), out var bytes))
+                return (bytes, RegistryValueType.Binary);
+            // Malformed hex — keep the raw text rather than silently dropping the value.
+            return (rawValue, RegistryValueType.String);
         }
-        else if (rawValue.StartsWith('#'))
+
+        if (rawValue.StartsWith("#%", StringComparison.Ordinal))
+            return (rawValue[2..], RegistryValueType.ExpandString);
+
+        if (rawValue.StartsWith("##", StringComparison.Ordinal))
+            return (rawValue[1..], RegistryValueType.String);
+
+        if (rawValue.StartsWith('#'))
         {
-            if (int.TryParse(rawValue.AsSpan(1), out var intVal))
+            if (int.TryParse(rawValue.AsSpan(1), System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var intVal))
                 return (intVal, RegistryValueType.DWord);
+            // A leading '#' that is neither a type prefix nor a decimal DWORD — treat as literal text.
+            return (rawValue, RegistryValueType.String);
         }
-        else if (rawValue.StartsWith("[~]", StringComparison.Ordinal))
-            return (rawValue[3..], RegistryValueType.MultiString);
 
         return (rawValue, RegistryValueType.String);
+    }
+
+    /// <summary>
+    /// Parses the hex payload of a <c>#x</c> REG_BINARY value. Requires an even length and
+    /// only ASCII hex digits (the producer writes <see cref="Convert.ToHexString(byte[])"/>);
+    /// returns <see langword="false"/> for anything malformed so the caller can preserve the raw text.
+    /// </summary>
+    private static bool TryParseHex(ReadOnlySpan<char> hex, out byte[] bytes)
+    {
+        if ((hex.Length & 1) != 0)
+        {
+            bytes = [];
+            return false;
+        }
+
+        foreach (char c in hex)
+        {
+            if (!char.IsAsciiHexDigit(c))
+            {
+                bytes = [];
+                return false;
+            }
+        }
+
+        bytes = Convert.FromHexString(hex);
+        return true;
     }
 
     // ── Service helpers ───────────────────────────────────────────────────────

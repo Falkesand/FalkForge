@@ -10,12 +10,27 @@ public sealed class MockMsiTableAccess : IMsiTableAccess
 {
     private readonly Dictionary<string, List<string?[]>> _tables = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _tableQueryFailures = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<string>> _tableColumns = new(StringComparer.Ordinal);
     private readonly Dictionary<int, string?> _summaryProperties = [];
     private bool _disposed;
 
     public MockMsiTableAccess WithTable(string tableName, List<string?[]> rows)
     {
         _tables[tableName] = rows;
+        return this;
+    }
+
+    /// <summary>
+    /// Restricts the set of columns the named table is allowed to expose, mirroring a real
+    /// MSI whose table shape predates newer columns. A <see cref="QueryTable"/> that requests
+    /// any column outside this set fails — exactly as a Windows Installer <c>SELECT</c> of an
+    /// unknown column does — so tests can exercise back-compat fallbacks for tables that
+    /// gained trailing columns. When a table has no recorded column set, all requested columns
+    /// are accepted (unchanged legacy behavior).
+    /// </summary>
+    public MockMsiTableAccess WithTableColumns(string tableName, params string[] columns)
+    {
+        _tableColumns[tableName] = new HashSet<string>(columns, StringComparer.OrdinalIgnoreCase);
         return this;
     }
 
@@ -46,6 +61,17 @@ public sealed class MockMsiTableAccess : IMsiTableAccess
 
         if (_tableQueryFailures.TryGetValue(tableName, out var failMessage))
             return Result<List<string?[]>>.Failure(ErrorKind.CompilationError, failMessage);
+
+        if (_tableColumns.TryGetValue(tableName, out var validColumns))
+        {
+            foreach (var column in columns)
+            {
+                if (!validColumns.Contains(column))
+                    return Result<List<string?[]>>.Failure(
+                        ErrorKind.CompilationError,
+                        $"Column '{column}' does not exist in table '{tableName}'.");
+            }
+        }
 
         return rows;
     }
