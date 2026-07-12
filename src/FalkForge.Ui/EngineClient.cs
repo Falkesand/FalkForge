@@ -269,7 +269,16 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
         // Apply/Shutdown call that races in right after this method reads the (now-stale) TCS
         // fields still needs to observe the disconnect via FailIfPipeAlreadyClosed. Complete
         // whichever TCS is currently armed so an in-flight caller doesn't hang indefinitely.
+        //
+        // This thread and an arm-site thread each write one field and read the other
+        // (write _pipeClosed / read *Tcs here; write *Tcs / read _pipeClosed there) — the
+        // classic store-buffering pattern. `volatile` alone only gives acquire/release, which
+        // does not rule out both reads observing stale values under x86 store-buffer
+        // reordering. A full StoreLoad fence on both sides (here and in
+        // FailIfPipeAlreadyClosed) is required so the write below is globally visible before
+        // the read across, guaranteeing at least one side observes the other's update.
         _pipeClosed = true;
+        Interlocked.MemoryBarrier();
         var ex = new PipeDisconnectedException();
         _detectTcs?.TrySetException(ex);
         _planTcs?.TrySetException(ex);
@@ -281,9 +290,12 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     ///     If the pipe already closed before <paramref name="tcs"/> was armed, complete it
     ///     immediately instead of leaving it to rely on the caller's own cancellation token.
     ///     Closes the lost-wakeup window where OnPipeClosed fires against a not-yet-published TCS.
+    ///     Must be called immediately after publishing <paramref name="tcs"/> to its field — see
+    ///     the fence note in <see cref="OnPipeClosed"/> for why the barrier below is required.
     /// </summary>
     private void FailIfPipeAlreadyClosed<T>(TaskCompletionSource<T> tcs)
     {
+        Interlocked.MemoryBarrier();
         if (_pipeClosed) tcs.TrySetException(new PipeDisconnectedException());
     }
 
