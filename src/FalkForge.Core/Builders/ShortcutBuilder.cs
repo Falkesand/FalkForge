@@ -10,6 +10,7 @@ public sealed class ShortcutBuilder
     private readonly string _targetFile;
     private string? _arguments;
     private string? _description;
+    private bool _hasEmittedLocation;
     private string? _iconFile;
     private int _iconIndex;
     private string? _startMenuSubfolder;
@@ -32,6 +33,7 @@ public sealed class ShortcutBuilder
     {
         _locations.Add(ShortcutLocation.Desktop);
         _onAdd(BuildCurrent());
+        _hasEmittedLocation = true;
         return this;
     }
 
@@ -40,6 +42,7 @@ public sealed class ShortcutBuilder
         _locations.Add(ShortcutLocation.StartMenu);
         _startMenuSubfolder = subfolder;
         _onAdd(BuildCurrent());
+        _hasEmittedLocation = true;
         return this;
     }
 
@@ -47,23 +50,27 @@ public sealed class ShortcutBuilder
     {
         _locations.Add(ShortcutLocation.Startup);
         _onAdd(BuildCurrent());
+        _hasEmittedLocation = true;
         return this;
     }
 
     public ShortcutBuilder WithArguments(string arguments)
     {
+        ThrowIfLocationAlreadyEmitted(nameof(WithArguments));
         _arguments = arguments;
         return this;
     }
 
     public ShortcutBuilder WithDescription(string description)
     {
+        ThrowIfLocationAlreadyEmitted(nameof(WithDescription));
         _description = description;
         return this;
     }
 
     public ShortcutBuilder WithIcon(string iconFile, int iconIndex = 0)
     {
+        ThrowIfLocationAlreadyEmitted(nameof(WithIcon));
         _iconFile = iconFile;
         _iconIndex = iconIndex;
         return this;
@@ -71,8 +78,25 @@ public sealed class ShortcutBuilder
 
     public ShortcutBuilder WithWorkingDirectory(string workingDirectory)
     {
+        ThrowIfLocationAlreadyEmitted(nameof(WithWorkingDirectory));
         _workingDirectory = workingDirectory;
         return this;
+    }
+
+    /// <summary>
+    ///     Each On*() call builds and emits a <see cref="ShortcutModel"/> immediately (there is no
+    ///     terminal Build() call in this fluent chain), so a With*() call placed after the last
+    ///     On*() call would silently configure a shortcut that is never built. Fail loud instead of
+    ///     dropping the configuration: With*() must be called before the first On*() call.
+    /// </summary>
+    private void ThrowIfLocationAlreadyEmitted(string methodName)
+    {
+        if (_hasEmittedLocation)
+            throw new InvalidOperationException(
+                $"ShortcutBuilder.{methodName}() was called after OnDesktop()/OnStartMenu()/OnStartup() " +
+                "already emitted a shortcut. Each On*() call builds and adds its shortcut immediately, so " +
+                $"a With*() call afterward would be silently dropped. Call {methodName}() before the first " +
+                "On*() call in the chain.");
     }
 
     private ShortcutModel BuildCurrent()
