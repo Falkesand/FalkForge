@@ -18,6 +18,7 @@ public sealed class PreUIPackageBuilder
     private PreUIPayloadMode _payloadMode = PreUIPayloadMode.Embedded;
     private PreUIRemotePayload? _remotePayload;
     private readonly List<SearchCondition> _searchConditions = [];
+    private readonly Dictionary<int, ExitCodeBehavior> _exitCodes = new();
 
     /// <param name="sourcePath">
     /// Path to the installer executable on the build machine.
@@ -102,6 +103,16 @@ public sealed class PreUIPackageBuilder
         return this;
     }
 
+    /// <summary>
+    /// Overrides the engine's standard exit-code handling for this prerequisite's process.
+    /// Standard handling applies to any exit code without an explicit override.
+    /// </summary>
+    public PreUIPackageBuilder ExitCode(int code, ExitCodeBehavior behavior)
+    {
+        _exitCodes[code] = behavior;
+        return this;
+    }
+
     /// <summary>Builds and returns the immutable <see cref="PreUIPackageModel"/>.</summary>
     public PreUIPackageModel Build()
     {
@@ -114,7 +125,8 @@ public sealed class PreUIPackageBuilder
             RebootBehavior = _rebootBehavior,
             PayloadMode = _payloadMode,
             RemotePayload = _remotePayload,
-            SearchConditions = _searchConditions.AsReadOnly()
+            SearchConditions = _searchConditions.AsReadOnly(),
+            ExitCodes = _exitCodes.Count > 0 ? new Dictionary<int, ExitCodeBehavior>(_exitCodes) : null
         };
     }
 }

@@ -85,4 +85,35 @@ public sealed class PreUIPackageBuilderTests
         Assert.Equal(SearchConditionType.RegistryValue, model.SearchConditions[0].Type);
         Assert.Equal(SearchConditionType.FileExists, model.SearchConditions[1].Type);
     }
+
+    [Fact]
+    public void PreUIPackageBuilder_NoExitCode_ModelHasNullExitCodes()
+    {
+        var builder = new PreUIPackageBuilder("prereq.exe")
+            .Id("TestPrereq")
+            .DisplayName("Test")
+            .Arguments("/q");
+
+        var model = builder.Build();
+
+        Assert.Null(model.ExitCodes);
+    }
+
+    [Fact]
+    public void PreUIPackageBuilder_ExitCode_PopulatesExitCodesMap()
+    {
+        var builder = new PreUIPackageBuilder("prereq.exe")
+            .Id("TestPrereq")
+            .DisplayName("Test")
+            .Arguments("/q")
+            .ExitCode(3010, ExitCodeBehavior.ScheduleReboot)
+            .ExitCode(1641, ExitCodeBehavior.RebootRequired);
+
+        var model = builder.Build();
+
+        Assert.NotNull(model.ExitCodes);
+        Assert.Equal(2, model.ExitCodes.Count);
+        Assert.Equal(ExitCodeBehavior.ScheduleReboot, model.ExitCodes[3010]);
+        Assert.Equal(ExitCodeBehavior.RebootRequired, model.ExitCodes[1641]);
+    }
 }

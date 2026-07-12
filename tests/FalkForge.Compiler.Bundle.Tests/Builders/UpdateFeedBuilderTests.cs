@@ -74,4 +74,25 @@ public sealed class UpdateFeedBuilderTests
         Assert.False(config.ShowDownloadErrors);
         Assert.False(config.PromptBeforeAutoUpdate);
     }
+
+    [Fact]
+    public void UpdateFeed_UiKnobs_FlowToBuiltModel()
+    {
+        var model = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .UpdateFeed(
+                "https://updates.example.com/feed.json",
+                UpdatePolicy.AutoUpdate,
+                allowResume: true,
+                showDownloadProgress: false,
+                showDownloadErrors: true,
+                promptBeforeAutoUpdate: true)
+            .Build();
+
+        Assert.NotNull(model.UpdateFeed);
+        Assert.False(model.UpdateFeed.ShowDownloadProgress);
+        Assert.True(model.UpdateFeed.ShowDownloadErrors);
+        Assert.True(model.UpdateFeed.PromptBeforeAutoUpdate);
+    }
 }

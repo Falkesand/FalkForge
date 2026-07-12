@@ -144,11 +144,29 @@ public sealed class BundleBuilder
         return this;
     }
 
+    /// <param name="feedUrl">Update feed URL.</param>
+    /// <param name="policy">Whether updates are notify-only, prompted, or auto-downloaded.</param>
+    /// <param name="allowResume">Whether interrupted downloads may resume from a partial file.</param>
+    /// <param name="showDownloadProgress">Whether the UI shows a download progress indicator.</param>
+    /// <param name="showDownloadErrors">Whether download failures are surfaced to the user.</param>
+    /// <param name="promptBeforeAutoUpdate">
+    /// Whether an <see cref="UpdatePolicy.AutoUpdate"/> feed still prompts the user before
+    /// launching the downloaded update, rather than applying it silently.
+    /// </param>
     public BundleBuilder UpdateFeed(string feedUrl, UpdatePolicy policy = UpdatePolicy.NotifyOnly,
-        bool allowResume = true)
+        bool allowResume = true, bool showDownloadProgress = true, bool showDownloadErrors = false,
+        bool promptBeforeAutoUpdate = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(feedUrl);
-        _updateFeed = new UpdateFeedConfig { FeedUrl = feedUrl, Policy = policy, AllowResumeDownload = allowResume };
+        _updateFeed = new UpdateFeedConfig
+        {
+            FeedUrl = feedUrl,
+            Policy = policy,
+            AllowResumeDownload = allowResume,
+            ShowDownloadProgress = showDownloadProgress,
+            ShowDownloadErrors = showDownloadErrors,
+            PromptBeforeAutoUpdate = promptBeforeAutoUpdate
+        };
         return this;
     }
 

@@ -35,6 +35,7 @@ public sealed partial class PackageBuilder
     private readonly List<PropertyModel> _properties = [];
     private readonly List<RegistryEntryModel> _registryEntries = [];
     private readonly List<RemoveFileModel> _removeFiles = [];
+    private readonly List<RemoveIniFileModel> _removeIniFiles = [];
     private readonly List<RemoveRegistryModel> _removeRegistryEntries = [];
     private readonly List<ServiceControlModel> _serviceControls = [];
     private readonly List<ServiceModel> _services = [];
@@ -131,6 +132,7 @@ public sealed partial class PackageBuilder
             Properties = _properties,
             LaunchConditions = _launchConditions,
             IniFiles = _iniFiles,
+            RemoveIniFiles = _removeIniFiles,
             Permissions = _permissions,
             FileAssociations = _fileAssociations,
             CustomActions = _customActions,
