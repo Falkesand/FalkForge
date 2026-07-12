@@ -230,6 +230,11 @@ public sealed class OnboardingEndToEndTests : IDisposable
         Assert.True(inspection.IsSuccess,
             inspection.IsFailure ? inspection.Error.Message : null);
         Assert.Equal(expectedProductName, inspection.Value.ProductName);
+
+        // The scaffolded MSI carries the Start Menu shortcut the scaffold now emits — a
+        // Shortcut table entry, not just a string in the source that never made it through
+        // compilation.
+        Assert.Contains("Shortcut", inspection.Value.TableNames);
     }
 
     private void AssertRunnableSelfExtractingBundle(string bundlePath, string msiPath)

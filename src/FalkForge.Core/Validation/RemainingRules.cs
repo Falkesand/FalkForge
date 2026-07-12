@@ -6,7 +6,7 @@ namespace FalkForge.Validation;
 
 /// <summary>
 /// Built-in rules for remaining model sections:
-/// Custom actions (CA001-005), Assemblies (ASM001-003),
+/// Custom actions (CA001-006), Assemblies (ASM001-003),
 /// MediaTemplate (MDT001-004), Signing (SGN001-003),
 /// MajorUpgrade (MUP001, MUP003), Downgrade (DNG001-002).
 /// </summary>
@@ -122,6 +122,71 @@ public static partial class RemainingRules
                     violations.Add(new Violation(new RuleId("CA005"), Severity.Warning,
                         ModelPath.Root.Field("CustomActions").Index(i).Field("Type"),
                         $"Custom action '{ca.Id}' has NoImpersonate set but is not a deferred/rollback/commit action. NoImpersonate only applies to in-script actions."));
+            }
+            return violations.ToImmutable();
+        });
+
+    /// <summary>
+    /// CA006 — Custom action defined but never scheduled (warning).
+    /// <para>
+    /// A custom action created via <c>PackageBuilder.CustomAction(id, ...)</c> only ever runs if
+    /// Windows Installer is told when to run it — the classic WiX/MSI trap is authoring the
+    /// action and forgetting to place it in a sequence, leaving an orphaned
+    /// <c>CustomAction</c> table row that never executes.
+    /// </para>
+    /// <para>
+    /// "Scheduled" here means the action's Id appears in <see cref="PackageModel.ExecuteSequenceActions"/>
+    /// or <see cref="PackageModel.UISequenceActions"/> — the two lists <c>PackageBuilder.ExecuteSequence(...)</c>
+    /// / <c>.UISequence(...)</c> populate, and the only source <c>InstallExecuteSequenceTableProducer</c> /
+    /// <c>InstallUISequenceTableProducer</c> read when emitting sequence rows. The legacy
+    /// <see cref="CustomActionModel.Sequence"/>/<see cref="CustomActionModel.After"/>/
+    /// <see cref="CustomActionModel.Before"/> fields are intentionally NOT treated as scheduling —
+    /// the current compiler never projects them onto a sequence table (see
+    /// <c>CustomActionTableProducer</c>'s remarks), so a package that sets only those fields and
+    /// skips <c>ExecuteSequence(...)</c>/<c>UISequence(...)</c> genuinely has an unscheduled action.
+    /// </para>
+    /// <para>
+    /// This rule only sees what <see cref="PackageModel"/> carries, so it naturally avoids two
+    /// false-positive sources without special-casing them: extension-contributed custom actions
+    /// (Firewall, IIS, SQL, ...) are scheduled by a separate compiler-level execution-contributor
+    /// pipeline and never populate <see cref="PackageModel.CustomActions"/> in the first place, and
+    /// dialog <c>ControlEvent</c> rows (e.g. a checkbox's <c>DoAction</c>) are synthesized later
+    /// during MSI dialog composition and are not part of the package model either. A type-51
+    /// <c>SetProperty</c> action used purely to compute a value later tested by a condition is
+    /// unremarkable here too — once it is scheduled via <c>ExecuteSequence</c>/<c>UISequence</c> it
+    /// satisfies this rule like any other action; nothing else is required of it.
+    /// </para>
+    /// </summary>
+    public static readonly ValidationRule Ca006_DefinedButNeverScheduled = new(
+        new RuleId("CA006"),
+        Severity.Warning,
+        ModelSection.CustomAction,
+        "Custom action never scheduled",
+        "A custom action defined via CustomAction(...) but never referenced by ExecuteSequence(...) " +
+        "or UISequence(...) never runs.",
+        static ctx =>
+        {
+            if (ctx.Package.CustomActions.Count == 0)
+                return [];
+
+            var scheduled = new HashSet<string>(
+                ctx.Package.ExecuteSequenceActions.Count + ctx.Package.UISequenceActions.Count,
+                StringComparer.Ordinal);
+            foreach (var action in ctx.Package.ExecuteSequenceActions)
+                scheduled.Add(action.ActionName);
+            foreach (var action in ctx.Package.UISequenceActions)
+                scheduled.Add(action.ActionName);
+
+            var violations = ImmutableArray.CreateBuilder<Violation>();
+            for (var i = 0; i < ctx.Package.CustomActions.Count; i++)
+            {
+                var ca = ctx.Package.CustomActions[i];
+                if (!scheduled.Contains(ca.Id))
+                    violations.Add(new Violation(new RuleId("CA006"), Severity.Warning,
+                        ModelPath.Root.Field("CustomActions").Index(i).Field("Id"),
+                        $"Custom action '{ca.Id}' is defined but never scheduled via ExecuteSequence(...) " +
+                        "or UISequence(...) — Windows Installer will never run it. Reference its Id from " +
+                        "PackageBuilder.ExecuteSequence(...)/.UISequence(...), or remove it if unused."));
             }
             return violations.ToImmutable();
         });
@@ -388,6 +453,7 @@ public static partial class RemainingRules
         Ca003_SourceRefRequired,
         Ca004_RollbackCommitExclusive,
         Ca005_NoImpersonateRequiresInScript,
+        Ca006_DefinedButNeverScheduled,
         Asm001_FileRefRequired,
         Asm002_GacPublicKeyTokenWarning,
         Asm003_VersionFormat,

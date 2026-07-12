@@ -424,12 +424,18 @@ return Installer.Build(args, pkg =>
 
     // ──────────────────────────────────────────────────────────────────
     // Custom action: SetProperty for APEX_VERSION
+    // CustomActionBuilder's After/Before/Condition properties are metadata only — the
+    // compiler reads scheduling exclusively from ExecuteSequence(...)/UISequence(...), so
+    // the action is placed there below to actually run.
     // ──────────────────────────────────────────────────────────────────
     pkg.CustomAction("SetApexVersion", ca =>
     {
         ca.SetProperty("APEX_VERSION", "2025.1.0");
-        ca.After = "CostFinalize";
     });
+
+    pkg.ExecuteSequence(seq => seq
+        .Action("SetApexVersion")
+        .After("CostFinalize"));
 
     // ──────────────────────────────────────────────────────────────────
     // Major upgrade

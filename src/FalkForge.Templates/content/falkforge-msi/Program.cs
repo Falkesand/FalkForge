@@ -16,4 +16,10 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .FromDirectory("payload")
         .To(KnownFolder.ProgramFiles / "My Company" / "PRODUCT-NAME"));
+
+    // Start Menu shortcut. TargetFile is a payload file name (not a full path — the
+    // compiler resolves it against the installed folder above); update it to match your
+    // application's real executable once you replace payload/ with your app.
+    package.Shortcut("PRODUCT-NAME", "PRODUCT-NAME.exe")
+        .OnStartMenu();
 }, new MsiCompiler());

@@ -19,8 +19,6 @@ return Installer.Build(args, package =>
     package.CustomAction("CheckSystemRequirements", ca =>
     {
         ca.DllFromBinary("CustomActionsDll", "CheckRequirements");
-        ca.After = "CostFinalize";
-        ca.Condition = Condition.IsInstalling.ToString();
     });
 
     // --- Type 2: EXE-based custom action (embedded EXE) ---
@@ -30,14 +28,12 @@ return Installer.Build(args, package =>
         ca.Target = "--setup --silent";
         ca.Deferred();
         ca.NoImpersonate();
-        ca.After = "InstallFiles";
     });
 
     // --- Type 51: SetProperty custom action ---
     package.CustomAction("SetInstallMode", ca =>
     {
         ca.SetProperty("INSTALL_MODE", "standard");
-        ca.Condition = Condition.IsInstalling.ToString();
     });
 
     // --- Deferred + rollback pair ---
@@ -46,7 +42,6 @@ return Installer.Build(args, package =>
         ca.SetProperty("CONFIGURE_CMD", @"[ProgramFilesFolder]Demo\CustomActionDemo\app.exe --configure");
         ca.Deferred();
         ca.NoImpersonate();
-        ca.After = "InstallFiles";
     });
 
     package.CustomAction("UndoConfigureApp", ca =>
@@ -54,7 +49,6 @@ return Installer.Build(args, package =>
         ca.SetProperty("UNDO_CMD", @"[ProgramFilesFolder]Demo\CustomActionDemo\app.exe --unconfigure");
         ca.Rollback();
         ca.NoImpersonate();
-        ca.Before = "ConfigureApp";
     });
 
     // --- Commit action (runs only on successful install completion) ---
@@ -63,7 +57,6 @@ return Installer.Build(args, package =>
         ca.SetProperty("NOTIFY_CMD", @"[ProgramFilesFolder]Demo\CustomActionDemo\app.exe --notify-complete");
         ca.Commit();
         ca.NoImpersonate();
-        ca.After = "ConfigureApp";
     });
 
     // --- ContinueOnError (installer proceeds even if this CA fails) ---
@@ -72,6 +65,26 @@ return Installer.Build(args, package =>
         ca.SetProperty("TELEMETRY_CMD", @"[ProgramFilesFolder]Demo\CustomActionDemo\app.exe --telemetry");
         ca.Deferred();
         ca.ContinueOnError();
-        ca.After = "NotifySuccess";
     });
+
+    // Schedule every custom action above — CustomActionBuilder's After/Before/Condition
+    // properties are metadata only; the compiler reads scheduling exclusively from
+    // ExecuteSequence(...)/UISequence(...), so each action must be placed here to run.
+    package.ExecuteSequence(seq => seq
+        .Action("CheckSystemRequirements")
+            .After("CostFinalize")
+            .Condition(Condition.IsInstalling)
+        .Action("SetInstallMode")
+            .After("CostFinalize")
+            .Condition(Condition.IsInstalling)
+        .Action("UndoConfigureApp")
+            .Before("ConfigureApp")
+        .Action("ConfigureApp")
+            .After("InstallFiles")
+        .Action("RunSetupTool")
+            .After("InstallFiles")
+        .Action("NotifySuccess")
+            .After("ConfigureApp")
+        .Action("OptionalTelemetry")
+            .After("NotifySuccess"));
 }, new MsiCompiler());

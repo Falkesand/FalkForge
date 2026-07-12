@@ -177,10 +177,16 @@ return Installer.Build(args, p =>
     p.MajorUpgrade(_ => { });
     p.Downgrade(d => d.Block("A newer version of Falk Developer Toolkit is already installed."));
 
-    // Custom action: SetProperty FALK_VERSION = "5.0.0" after InstallValidate
+    // Custom action: SetProperty FALK_VERSION = "5.0.0" after InstallValidate.
+    // CustomActionBuilder's After/Before/Condition properties are metadata only — the
+    // compiler reads scheduling exclusively from ExecuteSequence(...)/UISequence(...), so the
+    // action is placed there below to actually run.
     p.CustomAction("SetFalkVersion", ca =>
     {
         ca.SetProperty("FALK_VERSION", "5.0.0");
-        ca.After = "InstallValidate";
     });
+
+    p.ExecuteSequence(seq => seq
+        .Action("SetFalkVersion")
+        .After("InstallValidate"));
 }, new MsiCompiler());

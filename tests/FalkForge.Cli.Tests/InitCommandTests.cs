@@ -97,6 +97,12 @@ public sealed class InitCommandTests : IDisposable
         Assert.Contains("Installer.Build(args", program, StringComparison.Ordinal);
         Assert.Contains("new MsiCompiler()", program, StringComparison.Ordinal);
         Assert.Contains("\"My App\"", program, StringComparison.Ordinal);
+
+        // A Start Menu shortcut is the most common first ask — scaffold it so
+        // `forge init && dotnet run` produces an installer a user can actually launch from
+        // the Start Menu, not just files dropped in Program Files.
+        Assert.Contains("""package.Shortcut("My App", "My App.exe")""", program, StringComparison.Ordinal);
+        Assert.Contains(".OnStartMenu()", program, StringComparison.Ordinal);
     }
 
     [Fact]
