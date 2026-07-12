@@ -124,22 +124,34 @@ public sealed class CustomDialogControlBuilder
 
     /// <summary>Navigates to another dialog in place (a <c>NewDialog</c> event).</summary>
     public CustomDialogControlBuilder NavigateTo(string dialogId, string? condition = null)
-        => PublishEvent("NewDialog", dialogId, condition);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dialogId);
+        return PublishEvent("NewDialog", dialogId, condition);
+    }
 
     /// <summary>Opens a modal child dialog (a <c>SpawnDialog</c> event).</summary>
     public CustomDialogControlBuilder SpawnDialog(string dialogId, string? condition = null)
-        => PublishEvent("SpawnDialog", dialogId, condition);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dialogId);
+        return PublishEvent("SpawnDialog", dialogId, condition);
+    }
 
     /// <summary>
     /// Ends the dialog with the given exit code (an <c>EndDialog</c> event). Valid arguments:
     /// <c>Return</c>, <c>Exit</c>, <c>Retry</c>, <c>Ignore</c>.
     /// </summary>
     public CustomDialogControlBuilder EndDialog(string exitCode = "Return", string? condition = null)
-        => PublishEvent("EndDialog", exitCode, condition);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exitCode);
+        return PublishEvent("EndDialog", exitCode, condition);
+    }
 
     /// <summary>Runs a custom action (a <c>DoAction</c> event).</summary>
     public CustomDialogControlBuilder DoAction(string actionName, string? condition = null)
-        => PublishEvent("DoAction", actionName, condition);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actionName);
+        return PublishEvent("DoAction", actionName, condition);
+    }
 
     /// <summary>Assigns a value to an MSI property (a <c>[Property]</c> event).</summary>
     public CustomDialogControlBuilder SetProperty(string property, string value, string? condition = null)

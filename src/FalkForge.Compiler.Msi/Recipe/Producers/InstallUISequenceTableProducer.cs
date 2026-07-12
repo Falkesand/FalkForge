@@ -203,20 +203,6 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
     // ── Dialog-flow helpers (mirror DialogEmitter.EmitInstallUISequence) ─────
 
     /// <summary>
-    /// Returns the three dialog-flow rows (firstDialog at 1100, ProgressDlg at 1200,
-    /// ExitDlg at 1310) when <paramref name="package"/> has an active
-    /// <see cref="MsiDialogSet"/>. Returns an empty array for
-    /// <see cref="MsiDialogSet.None"/>.
-    /// </summary>
-    /// <remarks>
-    /// The dialog list is obtained from the template, then filtered using the same
-    /// support-dialog exclusion set as the legacy
-    /// <c>DialogEmitter.EmitInstallUISequence</c> (deleted in Phase 9): Cancel and Browse dialogs are
-    /// excluded from the first-dialog search. Conditions are written as empty string
-    /// for all three rows — matching the legacy <c>DialogEmitter</c> (deleted in Phase 9) which called
-    /// <c>SetString(field, "")</c> for dialog-flow row conditions.
-    /// </remarks>
-    /// <summary>
     /// Returns an <c>InstallUISequence</c> row for every custom dialog that opted into the
     /// sequence via <see cref="CustomDialogModel.SequenceNumber"/>. The dialog Id is the Action
     /// and the sequence number is written verbatim (the standard first-dialog slot is 1100).
@@ -242,6 +228,20 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
         return result.ToArray();
     }
 
+    /// <summary>
+    /// Returns the three dialog-flow rows (firstDialog at 1100, ProgressDlg at 1200,
+    /// ExitDlg at 1310) when <paramref name="package"/> has an active
+    /// <see cref="MsiDialogSet"/>. Returns an empty array for
+    /// <see cref="MsiDialogSet.None"/>.
+    /// </summary>
+    /// <remarks>
+    /// The dialog list is obtained from the template, then filtered using the same
+    /// support-dialog exclusion set as the legacy
+    /// <c>DialogEmitter.EmitInstallUISequence</c> (deleted in Phase 9): Cancel and Browse dialogs are
+    /// excluded from the first-dialog search. Conditions are written as empty string
+    /// for all three rows — matching the legacy <c>DialogEmitter</c> (deleted in Phase 9) which called
+    /// <c>SetString(field, "")</c> for dialog-flow row conditions.
+    /// </remarks>
     private static (string Action, int Sequence)[] GetDialogFlowRows(PackageModel package)
     {
         if (package.DialogSet == MsiDialogSet.None)

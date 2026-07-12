@@ -277,6 +277,98 @@ public static partial class CustomDialogRules
             return v.ToImmutable();
         });
 
+    // MSI event verbs whose Argument is a required target (dialog / action / exit code).
+    private static readonly FrozenSet<string> ArgumentRequiredEvents =
+        FrozenSet.Create(StringComparer.Ordinal,
+            "NewDialog", "SpawnDialog", "DoAction", "EndDialog");
+
+    /// <summary>DLG020 — A control event verb must be non-empty.</summary>
+    public static readonly ValidationRule Dlg020_EventVerbRequired = new(
+        new RuleId("DLG020"),
+        Severity.Error,
+        ModelSection.CustomDialog,
+        "Custom dialog control event verb required",
+        "Every control event must name an MSI event verb (NewDialog, EndDialog, DoAction, [Property], …).",
+        static ctx =>
+        {
+            var v = ImmutableArray.CreateBuilder<Violation>();
+            for (var i = 0; i < ctx.Package.CustomDialogs.Count; i++)
+            {
+                var d = ctx.Package.CustomDialogs[i];
+                for (var j = 0; j < d.Controls.Count; j++)
+                {
+                    var c = d.Controls[j];
+                    for (var e = 0; e < c.Events.Count; e++)
+                    {
+                        if (string.IsNullOrWhiteSpace(c.Events[e].Event))
+                            v.Add(new Violation(new RuleId("DLG020"), Severity.Error,
+                                DialogPath(i).Field("Controls").Index(j).Field("Events").Index(e).Field("Event"),
+                                $"Custom dialog '{d.Id}' control '{c.Name}' has a control event with no event verb."));
+                    }
+                }
+            }
+            return v.ToImmutable();
+        });
+
+    /// <summary>DLG021 — NewDialog / SpawnDialog / DoAction / EndDialog events must carry a non-empty argument.</summary>
+    public static readonly ValidationRule Dlg021_EventArgumentRequired = new(
+        new RuleId("DLG021"),
+        Severity.Error,
+        ModelSection.CustomDialog,
+        "Custom dialog control event missing required argument",
+        "NewDialog and SpawnDialog need a target dialog, DoAction needs an action, and EndDialog needs an exit code.",
+        static ctx =>
+        {
+            var v = ImmutableArray.CreateBuilder<Violation>();
+            for (var i = 0; i < ctx.Package.CustomDialogs.Count; i++)
+            {
+                var d = ctx.Package.CustomDialogs[i];
+                for (var j = 0; j < d.Controls.Count; j++)
+                {
+                    var c = d.Controls[j];
+                    for (var e = 0; e < c.Events.Count; e++)
+                    {
+                        var ev = c.Events[e];
+                        if (!string.IsNullOrWhiteSpace(ev.Event)
+                            && ArgumentRequiredEvents.Contains(ev.Event)
+                            && string.IsNullOrWhiteSpace(ev.Argument))
+                            v.Add(new Violation(new RuleId("DLG021"), Severity.Error,
+                                DialogPath(i).Field("Controls").Index(j).Field("Events").Index(e).Field("Argument"),
+                                $"Custom dialog '{d.Id}' control '{c.Name}' has a '{ev.Event}' event with no argument."));
+                    }
+                }
+            }
+            return v.ToImmutable();
+        });
+
+    /// <summary>DLG022 — A control condition expression must be non-empty.</summary>
+    public static readonly ValidationRule Dlg022_ConditionExpressionRequired = new(
+        new RuleId("DLG022"),
+        Severity.Error,
+        ModelSection.CustomDialog,
+        "Custom dialog control condition expression required",
+        "A control condition must carry a non-empty MSI condition expression.",
+        static ctx =>
+        {
+            var v = ImmutableArray.CreateBuilder<Violation>();
+            for (var i = 0; i < ctx.Package.CustomDialogs.Count; i++)
+            {
+                var d = ctx.Package.CustomDialogs[i];
+                for (var j = 0; j < d.Controls.Count; j++)
+                {
+                    var c = d.Controls[j];
+                    for (var k = 0; k < c.Conditions.Count; k++)
+                    {
+                        if (string.IsNullOrWhiteSpace(c.Conditions[k].Condition))
+                            v.Add(new Violation(new RuleId("DLG022"), Severity.Error,
+                                DialogPath(i).Field("Controls").Index(j).Field("Conditions").Index(k).Field("Condition"),
+                                $"Custom dialog '{d.Id}' control '{c.Name}' has a control condition with no expression."));
+                    }
+                }
+            }
+            return v.ToImmutable();
+        });
+
     private static void CheckRef(
         ImmutableArray<Violation>.Builder v, HashSet<string> names,
         string dialogId, string? reference, string field, ModelPath path)
@@ -299,5 +391,8 @@ public static partial class CustomDialogRules
         Dlg017_NextControlExists,
         Dlg018_PropertyRequired,
         Dlg019_DialogControlRefsExist,
+        Dlg020_EventVerbRequired,
+        Dlg021_EventArgumentRequired,
+        Dlg022_ConditionExpressionRequired,
     ];
 }

@@ -3,6 +3,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Recipe.Producers;
+using FalkForge.Compiler.Msi.UI;
+using FalkForge.Compiler.Msi.UI.Layout;
 using FalkForge.Models;
 using Xunit;
 
@@ -142,6 +144,53 @@ public sealed class DialogSetProducerCustomDialogTests
             Str(r.Cells[1]) == "Next" &&
             Str(r.Cells[2]) == "Disable" &&
             Str(r.Cells[3]) == "LICENSEKEY = \"\"");
+    }
+
+    private sealed class StubStepBuilder : IMsiDialogStepBuilder
+    {
+        public string Name => "ExtStep";
+
+        public MsiDialogModel Build(DialogBuildContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var model = new MsiDialogModel { Name = Name, FirstControl = "Body" };
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Body", Type = MsiControlType.Text, X = 10, Y = 10, Width = 100, Height = 20, Text = "x",
+            });
+            return model;
+        }
+    }
+
+    [Fact]
+    public void Inserted_extension_step_referenced_twice_emits_a_single_dialog_row()
+    {
+        // Same step inserted at two anchors must not duplicate the Dialog PK.
+        var customization = new DialogCustomizationModel
+        {
+            InsertedSteps = ImmutableArray.Create(
+                new InsertedDialogStep("ExtStep", StockDialog.Welcome),
+                new InsertedDialogStep("ExtStep", StockDialog.License)),
+        };
+        var package = new PackageModel
+        {
+            Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.None,
+            DialogCustomization = customization,
+        };
+
+        var ctx = new RecipeBuildContext(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new MsiRecipeBuildOptions(),
+            new NoOpFileSequencer(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeTable>> result =
+            new DialogSetProducer([new StubStepBuilder()]).Produce(ctx);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        RecipeTable dialog = Table(result.Value, "Dialog");
+        Assert.Equal(1, dialog.Rows.Count(r => Str(r.Cells[0]) == "ExtStep"));
     }
 
     [Fact]

@@ -82,6 +82,36 @@ public sealed class CustomDialogValidationTests
     }
 
     [Fact]
+    public void Empty_event_verb_fails_loud_with_DLG020()
+    {
+        // A hand-built model with an empty event verb would otherwise throw an opaque
+        // ArgumentException in the translator; DLG020 catches it as a loud validation error.
+        var button = new CustomDialogControlModel
+        {
+            Name = "Ok", Type = CustomControlType.PushButton,
+            X = 10, Y = 10, Width = 50, Height = 17, Text = "Ok",
+            Events = [new CustomDialogControlEventModel { Event = "", Argument = "Return" }],
+        };
+        var report = ModelValidator.Inspect(PackageWith(new CustomDialogModel { Id = "MyDlg", Controls = [button] }));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG020");
+    }
+
+    [Fact]
+    public void NewDialog_event_without_a_target_fails_loud_with_DLG021()
+    {
+        var button = new CustomDialogControlModel
+        {
+            Name = "Next", Type = CustomControlType.PushButton,
+            X = 10, Y = 10, Width = 50, Height = 17, Text = "Next",
+            Events = [new CustomDialogControlEventModel { Event = "NewDialog", Argument = "" }],
+        };
+        var report = ModelValidator.Inspect(PackageWith(new CustomDialogModel { Id = "MyDlg", Controls = [button] }));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG021");
+    }
+
+    [Fact]
     public void VolumeCostList_without_a_property_does_not_trigger_DLG018()
     {
         // The MSI Control table Property column is not used for VolumeCostList, so a missing

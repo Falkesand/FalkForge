@@ -120,18 +120,11 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
 
         PackageModel package = context.Resolved.Package;
         MsiDialogSet dialogSet = package.DialogSet;
-        bool hasCustomDialogs = package.CustomDialogs.Count > 0;
-
-        // No stock dialog set and no authored custom dialogs → emit nothing.
-        if (dialogSet == MsiDialogSet.None && !hasCustomDialogs)
-        {
-            return Result<ImmutableArray<RecipeTable>>.Success(
-                ImmutableArray<RecipeTable>.Empty);
-        }
 
         // Compose the dialog set: stock template dialogs first (when a stock set is active),
-        // then author-defined custom dialogs translated into the same internal model. The
-        // fixed TextStyle/UIText rows below are emitted whenever any dialog is present.
+        // then author-defined custom dialogs translated into the same internal model, then any
+        // extension-contributed dialog steps referenced by DialogCustomization.InsertStep. The
+        // fixed TextStyle/UIText rows below are emitted whenever the composed set is non-empty.
         var dialogs = new List<MsiDialogModel>();
         if (dialogSet != MsiDialogSet.None)
         {
@@ -144,8 +137,14 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             dialogs.Add(CustomDialogTranslator.Translate(package.CustomDialogs[cd]));
         }
 
-        // Emit extension-contributed dialog steps referenced by DialogCustomization.InsertStep.
         AppendInsertedExtensionStepDialogs(package, dialogs);
+
+        // Nothing to emit → no UI tables (matches the legacy "no UI = no tables" behaviour).
+        if (dialogs.Count == 0)
+        {
+            return Result<ImmutableArray<RecipeTable>>.Success(
+                ImmutableArray<RecipeTable>.Empty);
+        }
 
         // Resolve !(loc.X) references in control text, mirroring DialogEmitter.BuildStringResolver.
         Result<Unit> resolveResult = ResolveLocalizationRefs(dialogs, package);
