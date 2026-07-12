@@ -16,7 +16,7 @@ public sealed partial class PackageBuilder
 
     public ShortcutBuilder Shortcut(string name, string targetFile)
     {
-        var builder = new ShortcutBuilder(name, targetFile, this);
+        var builder = new ShortcutBuilder(name, targetFile, AddShortcut);
         return builder;
     }
 

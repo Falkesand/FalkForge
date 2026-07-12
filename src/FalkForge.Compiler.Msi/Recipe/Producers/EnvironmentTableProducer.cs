@@ -49,16 +49,37 @@ internal sealed class EnvironmentTableProducer : ITableProducer
             string envId = string.Create(CultureInfo.InvariantCulture, $"ENV_{index:D4}");
             string encodedName = EnvironmentEncoding.EncodeName(envVar.Name, envVar.Action, envVar.IsSystem);
             string encodedValue = EnvironmentEncoding.EncodeValue(envVar.Value, envVar.Action, envVar.Separator);
+            string componentId = ResolveComponentId(envVar, index, resolved, defaultComponentId);
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(envId),
                 new CellValue.StringValue(encodedName),
                 new CellValue.StringValue(encodedValue),
-                new CellValue.ForeignKey(componentTable, defaultComponentId));
+                new CellValue.ForeignKey(componentTable, componentId));
             rows.Add(new RecipeRow { Cells = cells });
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Resolves the Component_ FK for an environment-variable row. An entry with a FeatureRef
+    /// (declared via FeatureBuilder.EnvironmentVariable(...)) attaches to the dedicated component
+    /// ComponentResolver synthesized for it — that component carries the FeatureRef, which is
+    /// what places it under the correct feature in FeatureComponents. Without one, the entry
+    /// falls back to the first resolved component (or "MainComponent"), matching the legacy
+    /// default.
+    /// </summary>
+    private static string ResolveComponentId(
+        EnvironmentVariableModel envVar, int index, ResolvedPackage resolved, string defaultComponentId)
+    {
+        if (envVar.FeatureRef is not null &&
+            resolved.EnvironmentFeatureComponents.TryGetValue(index, out string? featureComponentId))
+        {
+            return featureComponentId;
+        }
+
+        return defaultComponentId;
     }
 
     private static TableSchema BuildSchema()

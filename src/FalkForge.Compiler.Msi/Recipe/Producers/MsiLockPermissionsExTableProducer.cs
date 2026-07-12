@@ -20,10 +20,13 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// reproduces that input-index synthesis exactly to keep recipes byte-for-byte
 /// compatible with the legacy MSI on hand-curated permission lists.
 ///
-/// Note: PermissionModel has no field for the <c>Condition</c> column; the
-/// legacy emitter writes a literal null and the producer pins that
-/// literal so a future field addition does not silently change MSI
-/// behaviour.
+/// Note: the <c>Condition</c> column stays a literal null for entries with no
+/// <see cref="PermissionModel.FeatureRef"/>, matching the legacy emitter and keeping the
+/// fallback path byte-identical. A feature-gated entry (declared via
+/// <c>FeatureBuilder.Permission(...)</c>) instead encodes the standard MSI feature-state
+/// condition <c>&amp;FeatureId=3</c> — the only column this table offers for gating a row's
+/// execution, since <c>MsiLockPermissionsEx</c> has no <c>Component_</c>/<c>Feature_</c> column
+/// of its own.
 ///
 /// The input list is <see cref="ServicePermissionSource.EnumerateAll"/> rather
 /// than <see cref="PackageModel.Permissions"/> alone: it also walks each
@@ -69,12 +72,21 @@ internal sealed class MsiLockPermissionsExTableProducer : ITableProducer
                 CultureInfo.InvariantCulture,
                 $"PRM_{index:D4}");
 
+            // A FeatureRef (declared via FeatureBuilder.Permission(...)) is encoded as the
+            // standard MSI feature-state condition "&FeatureId=3" ("feature installed locally") —
+            // the only column MsiLockPermissionsEx offers for gating a row's execution, since the
+            // table has no Component_/Feature_ column of its own. Ungated entries keep the
+            // pre-existing literal null so the fallback path stays byte-identical.
+            CellValue conditionCell = perm.FeatureRef is null
+                ? new CellValue.Null()
+                : new CellValue.StringValue($"&{perm.FeatureRef}=3");
+
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(permId),
                 new CellValue.StringValue(effectiveLockObject),
                 new CellValue.StringValue(perm.Table),
                 new CellValue.StringValue(perm.Sddl),
-                new CellValue.Null());
+                conditionCell);
             rows.Add(new RecipeRow { Cells = cells });
         }
 

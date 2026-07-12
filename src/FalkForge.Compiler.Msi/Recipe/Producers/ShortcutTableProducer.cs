@@ -47,8 +47,10 @@ internal sealed class ShortcutTableProducer : ITableProducer
 
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
         int index = 0;
-        foreach (ShortcutModel shortcut in resolved.Package.Shortcuts)
+        for (int shortcutIndex = 0; shortcutIndex < resolved.Package.Shortcuts.Count; shortcutIndex++)
         {
+            ShortcutModel shortcut = resolved.Package.Shortcuts[shortcutIndex];
+
             // Icon_ resolves to the shared Icon.Name emitted by IconTableProducer
             // for the same source path; IconIndex is meaningful only alongside an
             // icon, so both stay null when no icon is authored.
@@ -58,6 +60,7 @@ internal sealed class ShortcutTableProducer : ITableProducer
                 : ((CellValue)new CellValue.Null(), (CellValue)new CellValue.Null());
 
             string workingDirectoryId = ResolveWorkingDirectoryId(shortcut.WorkingDirectory, directoryIds);
+            string componentId = ResolveComponentId(shortcut, shortcutIndex, resolved, defaultComponentId);
 
             foreach (ShortcutLocation location in shortcut.Locations)
             {
@@ -73,7 +76,7 @@ internal sealed class ShortcutTableProducer : ITableProducer
                     new CellValue.StringValue(shortcutId),
                     new CellValue.ForeignKey(directoryTable, directoryId),
                     new CellValue.StringValue(shortcut.Name),
-                    new CellValue.ForeignKey(componentTable, defaultComponentId),
+                    new CellValue.ForeignKey(componentTable, componentId),
                     new CellValue.StringValue(target),
                     shortcut.Arguments is null ? new CellValue.Null() : new CellValue.StringValue(shortcut.Arguments),
                     shortcut.Description is null ? new CellValue.Null() : new CellValue.StringValue(shortcut.Description),
@@ -87,6 +90,25 @@ internal sealed class ShortcutTableProducer : ITableProducer
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Resolves the Component_ FK for a shortcut row. An entry with a FeatureRef (declared via
+    /// FeatureBuilder.Shortcut(...)) attaches to the dedicated component ComponentResolver
+    /// synthesized for it — that component carries the FeatureRef, which is what places it under
+    /// the correct feature in FeatureComponents. Without one, the entry falls back to the first
+    /// resolved component (or "MainComponent"), matching the legacy default.
+    /// </summary>
+    private static string ResolveComponentId(
+        ShortcutModel shortcut, int index, ResolvedPackage resolved, string defaultComponentId)
+    {
+        if (shortcut.FeatureRef is not null &&
+            resolved.ShortcutFeatureComponents.TryGetValue(index, out string? featureComponentId))
+        {
+            return featureComponentId;
+        }
+
+        return defaultComponentId;
     }
 
     /// <summary>

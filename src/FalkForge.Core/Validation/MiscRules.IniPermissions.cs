@@ -92,6 +92,30 @@ public static partial class MiscRules
                     $"Permission for '{p.LockObject}' has invalid Table '{p.Table}'. Valid tables: File, Registry, CreateFolder, ServiceInstall.")
                 : null));
 
+    /// <summary>
+    /// PRM005 — A non-SDDL (User/Domain) permission cannot be feature-gated. The MSI
+    /// <c>LockPermissions</c> table (where User/Domain-driven permissions land) has no
+    /// <c>Condition</c> or <c>Component_</c>/<c>Feature_</c> column, so a FeatureRef declared via
+    /// <c>FeatureBuilder.Permission(...)</c> on such an entry has no honest compiled
+    /// representation. Only SDDL-driven permissions (routed to <c>MsiLockPermissionsEx</c>, which
+    /// does have a <c>Condition</c> column) can be feature-gated.
+    /// </summary>
+    public static readonly ValidationRule Prm005_FeatureRefRequiresSddl = new(
+        new RuleId("PRM005"),
+        Severity.Error,
+        ModelSection.Package,
+        "Feature-gated permission requires SDDL",
+        "A permission entry with a FeatureRef must use SDDL — MSI's LockPermissions (User/Domain) "
+            + "table has no Condition or Component column to honor feature gating.",
+        static ctx => ValidationCollectionHelper.ValidateCollection(ctx.Package.Permissions,
+            static (p, i) => p.FeatureRef is not null && string.IsNullOrEmpty(p.Sddl)
+                ? new Violation(new RuleId("PRM005"), Severity.Error,
+                    ModelPath.Root.Field("Permissions").Index(i),
+                    $"Permission for '{p.LockObject}' declares FeatureRef '{p.FeatureRef}' but has no SDDL. " +
+                    "MSI's LockPermissions (User/Domain) table has no Condition or Component column, so " +
+                    "only SDDL-driven permissions (MsiLockPermissionsEx) can be feature-gated.")
+                : null));
+
     /// <summary>PRM004 — Cannot mix SDDL and User/Domain permissions in the same package.</summary>
     public static readonly ValidationRule Prm004_NoMixedPermissionTypes = ValidationRule.Single(
         new RuleId("PRM004"),
