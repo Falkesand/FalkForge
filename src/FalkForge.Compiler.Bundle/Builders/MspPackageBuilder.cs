@@ -4,17 +4,12 @@ using FalkForge.Engine.Protocol.Manifest;
 
 public sealed class MspPackageBuilder
 {
-    private readonly Dictionary<int, ExitCodeBehavior> _exitCodes = new();
-    private readonly List<SearchCondition> _searchConditions = new();
+    private readonly ChainPackageOptions _chainOptions = new();
     private readonly string _sourcePath;
-    private string? _containerId;
-    private DetectionMode _detectionMode = Engine.Protocol.Manifest.DetectionMode.Default;
     private string _displayName;
     private string _id;
     private string? _installCondition;
     private string? _patchCode;
-    private bool _permanent;
-    private RemotePayloadModel? _remotePayload;
     private string? _targetProductCode;
     private bool _vital = true;
     private string? _slipstreamTargetId;
@@ -71,49 +66,43 @@ public sealed class MspPackageBuilder
 
     public MspPackageBuilder Container(string containerId)
     {
-        _containerId = containerId;
+        _chainOptions.SetContainer(containerId);
         return this;
     }
 
     public MspPackageBuilder Container(ContainerRef containerRef)
     {
-        return Container(containerRef.Id);
+        _chainOptions.SetContainer(containerRef);
+        return this;
     }
 
     public MspPackageBuilder RemotePayload(string url, string sha256, long size)
     {
-        _remotePayload = new RemotePayloadModel
-        {
-            DownloadUrl = url,
-            Sha256Hash = sha256,
-            Size = size
-        };
+        _chainOptions.SetRemotePayload(url, sha256, size);
         return this;
     }
 
     public MspPackageBuilder ExitCode(int code, ExitCodeBehavior behavior)
     {
-        _exitCodes[code] = behavior;
+        _chainOptions.SetExitCode(code, behavior);
         return this;
     }
 
     public MspPackageBuilder DetectionMode(DetectionMode mode)
     {
-        _detectionMode = mode;
+        _chainOptions.SetDetectionMode(mode);
         return this;
     }
 
     public MspPackageBuilder SearchCondition(Action<SearchConditionBuilder> configure)
     {
-        var builder = new SearchConditionBuilder();
-        configure(builder);
-        _searchConditions.Add(builder.Build());
+        _chainOptions.AddSearchCondition(configure);
         return this;
     }
 
     public MspPackageBuilder Permanent(bool permanent = true)
     {
-        _permanent = permanent;
+        _chainOptions.SetPermanent(permanent);
         return this;
     }
 
@@ -130,12 +119,12 @@ public sealed class MspPackageBuilder
             TargetProductCode = _targetProductCode,
             InstallCondition = _installCondition,
             SlipstreamTargetId = _slipstreamTargetId,
-            ContainerId = _containerId,
-            RemotePayload = _remotePayload,
-            ExitCodes = new Dictionary<int, ExitCodeBehavior>(_exitCodes),
-            DetectionMode = _detectionMode,
-            SearchConditions = _searchConditions.ToArray(),
-            Permanent = _permanent
+            ContainerId = _chainOptions.ContainerId,
+            RemotePayload = _chainOptions.RemotePayload,
+            ExitCodes = new Dictionary<int, ExitCodeBehavior>(_chainOptions.ExitCodes),
+            DetectionMode = _chainOptions.DetectionMode,
+            SearchConditions = _chainOptions.SearchConditions.ToArray(),
+            Permanent = _chainOptions.Permanent
         };
     }
 }
