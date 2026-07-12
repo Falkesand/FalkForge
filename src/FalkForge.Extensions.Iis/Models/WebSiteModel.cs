@@ -10,4 +10,5 @@ public sealed class WebSiteModel
     public bool AutoStart { get; init; } = true;
     public int ConnectionTimeout { get; init; } = 120;
     public IReadOnlyList<WebApplicationModel> WebApplications { get; init; } = [];
+    public IReadOnlyList<WebVirtualDirectoryModel> VirtualDirectories { get; init; } = [];
 }

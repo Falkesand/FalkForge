@@ -94,12 +94,12 @@ public sealed class IisExtensionTests
     }
 
     [Fact]
-    public void GetValidationRules_ReturnsFourteenRules()
+    public void GetValidationRules_ReturnsFifteenRules()
     {
         var extension = new IisExtension();
         // IIS001-011 plus the runtime-era rules: IIS012 (literal password), IIS013 (cert/https deferred),
-        // IIS014 (web-application deferred).
-        Assert.Equal(14, extension.GetValidationRules().Length);
+        // IIS014 (web-application deferred), IIS015 (virtual directory targeting a non-root application).
+        Assert.Equal(15, extension.GetValidationRules().Length);
     }
 
     private static PackageModel MinimalPackage() => InstallerTestHost.BuildPackage(p =>

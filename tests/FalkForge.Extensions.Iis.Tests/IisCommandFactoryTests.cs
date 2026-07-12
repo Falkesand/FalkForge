@@ -133,6 +133,101 @@ public sealed class IisCommandFactoryTests
         Assert.Contains("*:8081:b.example", script, StringComparison.Ordinal);
     }
 
+    // ── virtual directories ──────────────────────────────────────────────────
+
+    [Fact]
+    public void MaliciousVdirAlias_IsSingleQuotedLiteral_CannotBreakOut()
+    {
+        const string evil = "/reports'; Remove-Item C:\\ -Recurse #";
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: evil, dir: "[INSTALLDIR]reports") };
+
+        string script = DecodeInstall(Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V"));
+
+        Assert.Contains("reports''; Remove-Item C:\\ -Recurse #'", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("['/reports'; Remove-Item", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VdirPhysicalPath_RidesCustomActionDataChannel_NotBakedIntoScript()
+    {
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: "/reports", dir: "[INSTALLDIR]reports") };
+        ExecutionStep step = Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V");
+
+        Assert.Equal("[INSTALLDIR]reports", step.CustomActionData);
+        string script = DecodeInstall(step);
+        Assert.Contains("$__arg", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("[INSTALLDIR]reports", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VdirCreatedAfterSite_InGeneratedStepOrder()
+    {
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: "/reports", dir: "[INSTALLDIR]reports") };
+
+        var ids = IisCommandFactory.BuildSteps([], sites).Select(s => s.Id).ToList();
+
+        Assert.True(ids.IndexOf("IisSite_S") < ids.IndexOf("IisVDir_V"));
+    }
+
+    [Fact]
+    public void VdirWithoutWebApplication_TargetsRootApplication()
+    {
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: "/reports", dir: "[INSTALLDIR]reports") };
+
+        string script = DecodeInstall(Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V"));
+
+        Assert.Contains("$__site.Applications['/']", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VdirWithWebApplication_TargetsNamedApplication()
+    {
+        var vdir = new WebVirtualDirectoryModel { Id = "V", Alias = "/reports", Directory = "[INSTALLDIR]reports", WebApplication = "/api" };
+        var sites = new[] { new WebSiteModel { Id = "S", Description = "Site", Directory = "[INSTALLDIR]", Bindings = [new WebBindingModel { Port = 80 }], VirtualDirectories = [vdir] } };
+
+        string script = DecodeInstall(Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V"));
+
+        Assert.Contains("$__site.Applications['/api']", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VdirCreateScript_GuardsIisPrerequisite_FailLoud()
+    {
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: "/reports", dir: "[INSTALLDIR]reports") };
+
+        string script = DecodeInstall(Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V"));
+
+        Assert.Contains("W3SVC", script, StringComparison.Ordinal);
+        Assert.Contains("throw", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VdirCreateScript_ThrowsLoud_WhenParentApplicationMissing()
+    {
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: "/reports", dir: "[INSTALLDIR]reports") };
+
+        string script = DecodeInstall(Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V"));
+
+        // Fail loud (never a silent no-op) when the parent application does not exist at install time.
+        Assert.Contains("$__app = $__site.Applications['/']", script, StringComparison.Ordinal);
+        Assert.Contains("if ($null -eq $__app) { throw", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VdirRemoveScript_IsToleratedAndRemovesFromParentApplication()
+    {
+        var sites = new[] { SiteWithVdir("S", "Site", vdirId: "V", alias: "/reports", dir: "[INSTALLDIR]reports") };
+        ExecutionStep step = Single(IisCommandFactory.BuildSteps([], sites), "IisVDir_V");
+
+        Assert.NotNull(step.RollbackCommand);
+        Assert.NotNull(step.UninstallCommand);
+
+        string removeScript = DecodeEncodedScript(step.RollbackCommand!);
+        Assert.Contains("VirtualDirectories.Remove", removeScript, StringComparison.Ordinal);
+        // Tolerant: a missing site/application must not fail the rollback/uninstall action.
+        Assert.Contains("catch { [Console]::Error.WriteLine($_.Exception.Message); exit 0 }", removeScript, StringComparison.Ordinal);
+    }
+
     // ── validator / rules ────────────────────────────────────────────────────
 
     [Fact]
@@ -167,6 +262,27 @@ public sealed class IisCommandFactoryTests
         Assert.Contains("LiteralPool", iis012[0].Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void IIS015_Fires_ForVirtualDirectoryTargetingNonRootApplication_NotForRootApplication()
+    {
+        var subApp = new WebVirtualDirectoryModel { Id = "V1", Alias = "/reports", Directory = "[INSTALLDIR]reports", WebApplication = "/api" };
+        var rootApp = new WebVirtualDirectoryModel { Id = "V2", Alias = "/logs", Directory = "[INSTALLDIR]logs" };
+        var site = new WebSiteModel
+        {
+            Id = "S", Description = "Site", Directory = "[INSTALLDIR]",
+            Bindings = [new WebBindingModel { Port = 80 }],
+            VirtualDirectories = [subApp, rootApp],
+        };
+
+        var engine = new FalkForge.Validation.ValidationEngine(
+            new FalkForge.Validation.RuleRegistry(IisRules.Build(() => [site], () => [], () => [])));
+        var report = engine.Run(MinimalPackage());
+
+        var iis015 = report.Violations.Where(v => v.RuleId.Value == "IIS015").ToList();
+        Assert.Single(iis015); // only the /api-targeting vdir trips it, not the root-application one
+        Assert.Contains("/reports", iis015[0].Message, StringComparison.Ordinal);
+    }
+
     private static FalkForge.Models.PackageModel MinimalPackage() => FalkForge.Testing.InstallerTestHost.BuildPackage(p =>
     {
         p.Name = "App";
@@ -196,15 +312,25 @@ public sealed class IisCommandFactoryTests
         Password = password,
     };
 
+    private static WebSiteModel SiteWithVdir(string siteId, string desc, string vdirId, string alias, string dir) => new()
+    {
+        Id = siteId,
+        Description = desc,
+        Directory = "[INSTALLDIR]",
+        Bindings = [new WebBindingModel { Port = 80 }],
+        VirtualDirectories = [new WebVirtualDirectoryModel { Id = vdirId, Alias = alias, Directory = dir }],
+    };
+
     private static ExecutionStep Single(IReadOnlyList<ExecutionStep> steps, string id)
         => steps.Single(s => s.Id == id);
 
-    private static string DecodeInstall(ExecutionStep step)
+    private static string DecodeInstall(ExecutionStep step) => DecodeEncodedScript(step.InstallCommand);
+
+    private static string DecodeEncodedScript(string target)
     {
         const string marker = "-EncodedCommand ";
-        string target = step.InstallCommand;
         int idx = target.IndexOf(marker, StringComparison.Ordinal);
-        Assert.True(idx >= 0, $"InstallCommand is not an -EncodedCommand invocation: {target}");
+        Assert.True(idx >= 0, $"Command is not an -EncodedCommand invocation: {target}");
         int end = target.IndexOf(" \"", idx, StringComparison.Ordinal);
         string base64 = (end >= 0 ? target[(idx + marker.Length)..end] : target[(idx + marker.Length)..]).Trim();
         return Encoding.Unicode.GetString(Convert.FromBase64String(base64));

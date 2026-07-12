@@ -45,8 +45,13 @@ namespace FalkForge.Extensions.Iis;
 ///
 /// <para><b>Scope / deferrals (fail-loud, warned via IIS013/IIS014).</b> HTTPS/certificate bindings are
 /// written into the site configuration but the SSL certificate itself is <i>not</i> bound at install
-/// (certificate emission is a follow-up). Sub-applications (<see cref="WebSiteModel.WebApplications"/>) and
-/// virtual directories are not created at install. The IIS validator surfaces both as warnings.</para>
+/// (certificate emission is a follow-up). Sub-applications (<see cref="WebSiteModel.WebApplications"/>) are
+/// not created at install — the IIS validator surfaces this as a warning (IIS014). Virtual directories
+/// (<see cref="WebSiteModel.VirtualDirectories"/>) ARE live: each is created under its parent application
+/// (the site's root application, <c>/</c>, by default — the only application guaranteed to exist) once its
+/// site has been created, and removed on uninstall. A virtual directory authored under a non-root parent
+/// application is warned (IIS015): the referenced application does not exist at install, so the deferred
+/// create action fails loud rather than silently no-opping.</para>
 /// </summary>
 internal static class IisCommandFactory
 {
@@ -73,13 +78,22 @@ internal static class IisCommandFactory
             steps.Add(BuildPoolCreateStep(pool));
         }
 
-        // (2) Create web sites (install real + uninstall remove). Sites created after pools.
+        // (2) Create web sites (install real + uninstall remove). Sites created after pools. Each site's
+        // virtual directories are created immediately after their parent site (they need it to exist).
         foreach (WebSiteModel site in sites)
         {
             if (string.IsNullOrWhiteSpace(site.Description) || site.Bindings.Count == 0)
                 continue;
 
             steps.Add(BuildSiteStep(site, poolNamesById));
+
+            foreach (WebVirtualDirectoryModel vdir in site.VirtualDirectories)
+            {
+                if (string.IsNullOrWhiteSpace(vdir.Alias) || string.IsNullOrWhiteSpace(vdir.Directory))
+                    continue;
+
+                steps.Add(BuildVdirStep(site, vdir));
+            }
         }
 
         // (3) Remove application pools LAST on uninstall (after their sites are gone). Install row gated off.
@@ -166,6 +180,75 @@ internal static class IisCommandFactory
             UninstallCommand = IisPowerShellEncoder.Encode(removeScript),
         };
     }
+
+    // ── virtual directory create / remove ────────────────────────────────────
+
+    private static ExecutionStep BuildVdirStep(WebSiteModel site, WebVirtualDirectoryModel vdir)
+    {
+        // The physical path rides the CustomActionData channel, same as the site's own physical path —
+        // an MSI Formatted token (e.g. [INSTALLDIR]) is resolved at schedule time, outside the base64 blob.
+        string createScript = BuildVdirCreateScript(site, vdir);
+        string removeScript = BuildVdirRemoveScript(site, vdir);
+
+        return new ExecutionStep
+        {
+            Id = IisStepId.Make("IisVDir_", vdir.Id),
+            InstallCommand = IisPowerShellEncoder.EncodeWithTrailingArgument(createScript, "[CustomActionData]"),
+            CustomActionData = vdir.Directory,
+            RollbackCommand = IisPowerShellEncoder.Encode(removeScript),
+            UninstallCommand = IisPowerShellEncoder.Encode(removeScript),
+        };
+    }
+
+    private static string BuildVdirCreateScript(WebSiteModel site, WebVirtualDirectoryModel vdir)
+    {
+        string siteName = CommandLine.PowerShellSingleQuote(site.Description);
+        string appAlias = CommandLine.PowerShellSingleQuote(ParentApplicationAlias(vdir));
+        string vdirAlias = CommandLine.PowerShellSingleQuote(vdir.Alias);
+
+        var body = new StringBuilder(384);
+        body.Append("  $__site = $__mgr.Sites[").Append(siteName).Append("]\n");
+        body.Append("  if ($null -eq $__site) { throw 'FalkForge IIS: parent site not found while creating virtual directory.' }\n");
+        body.Append("  $__app = $__site.Applications[").Append(appAlias).Append("]\n");
+        // Fail loud rather than silently no-op: sub-application creation is deferred (IIS014/IIS015), so a
+        // virtual directory targeting anything other than the root application ('/') will not find its
+        // parent here unless that application was created out-of-band.
+        body.Append("  if ($null -eq $__app) { throw 'FalkForge IIS: parent application not found for virtual directory " +
+                    "(sub-application creation is not wired at install; target the root application \"/\", or create " +
+                    "the parent application out-of-band).' }\n");
+        body.Append("  $__existing = $__app.VirtualDirectories[").Append(vdirAlias).Append("]\n");
+        body.Append("  if ($null -ne $__existing) { $__app.VirtualDirectories.Remove($__existing) }\n");
+        body.Append("  [void]$__app.VirtualDirectories.Add(").Append(vdirAlias).Append(", $__arg)\n");
+
+        return WrapScript(body.ToString(), tolerant: false, readsArg: true);
+    }
+
+    private static string BuildVdirRemoveScript(WebSiteModel site, WebVirtualDirectoryModel vdir)
+    {
+        string siteName = CommandLine.PowerShellSingleQuote(site.Description);
+        string appAlias = CommandLine.PowerShellSingleQuote(ParentApplicationAlias(vdir));
+        string vdirAlias = CommandLine.PowerShellSingleQuote(vdir.Alias);
+
+        var body = new StringBuilder(320);
+        body.Append("  $__site = $__mgr.Sites[").Append(siteName).Append("]\n");
+        body.Append("  if ($null -ne $__site) {\n");
+        body.Append("    $__app = $__site.Applications[").Append(appAlias).Append("]\n");
+        body.Append("    if ($null -ne $__app) {\n");
+        body.Append("      $__existing = $__app.VirtualDirectories[").Append(vdirAlias).Append("]\n");
+        body.Append("      if ($null -ne $__existing) { $__app.VirtualDirectories.Remove($__existing) }\n");
+        body.Append("    }\n");
+        body.Append("  }\n");
+
+        return WrapScript(body.ToString(), tolerant: true, readsArg: false);
+    }
+
+    /// <summary>
+    /// The vdir's parent application alias: the authored <see cref="WebVirtualDirectoryModel.WebApplication"/>
+    /// when set, otherwise the site's root application (<c>/</c>) — the only application guaranteed to exist
+    /// at install time, since sub-application creation is not yet wired (IIS014).
+    /// </summary>
+    private static string ParentApplicationAlias(WebVirtualDirectoryModel vdir)
+        => string.IsNullOrWhiteSpace(vdir.WebApplication) ? "/" : vdir.WebApplication;
 
     // ── PowerShell script generation ─────────────────────────────────────────
 

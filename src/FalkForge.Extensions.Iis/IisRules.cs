@@ -199,15 +199,36 @@ public static class IisRules
                 Severity.Warning,
                 ModelSection.Extension_Iis,
                 "WebApplication runtime is not wired",
-                "Sub-application (WebApplication) creation is deferred; only the root site, its bindings, and its app pool are created at install.",
+                "Sub-application (WebApplication) creation is deferred; only the root site, its bindings, its app pool, and any virtual directories are created at install.",
                 ctx => getWebSites()
                     .Where(s => s.WebApplications.Count > 0)
                     .Select(s => new Violation(
                         new RuleId("IIS014"), Severity.Warning,
                         ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty),
                         $"IIS014: WebSite '{s.Description}' authors sub-application(s), but WebApplication creation is " +
-                        "NOT yet wired at install; only the root site, bindings, and app pool are created. " +
-                        "Create sub-applications out-of-band, or apply them in a follow-up."))),
+                        "NOT yet wired at install; only the root site, bindings, app pool, and virtual directories are " +
+                        "created. Create sub-applications out-of-band, or apply them in a follow-up."))),
+
+            // Fail-loud deferral for virtual directories targeting a non-root parent application: virtual
+            // directories ARE created at install, but only under the root application ("/"), since
+            // sub-application creation itself is still deferred (IIS014).
+            new ValidationRule(
+                new RuleId("IIS015"),
+                Severity.Warning,
+                ModelSection.Extension_Iis,
+                "Virtual directory targets a non-root parent application that is not created",
+                "A virtual directory references a parent WebApplication other than the site root ('/'); WebApplication creation is deferred (IIS014), so the referenced application will not exist at install and the virtual directory's deferred create action fails loud.",
+                ctx => getWebSites().SelectMany(s =>
+                    s.VirtualDirectories
+                        .Where(v => !string.IsNullOrWhiteSpace(v.WebApplication) && v.WebApplication != "/")
+                        .Select(v => new Violation(
+                            new RuleId("IIS015"), Severity.Warning,
+                            ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("VirtualDirectory").Field(v.Alias ?? string.Empty),
+                            $"IIS015: Virtual directory '{v.Alias}' on site '{s.Description}' targets parent application " +
+                            $"'{v.WebApplication}', but WebApplication creation is NOT yet wired at install (IIS014) — " +
+                            "only the root application ('/') exists automatically, so this virtual directory will fail " +
+                            "to create at install. Target the root application, or create the parent application " +
+                            "out-of-band.")))),
         ];
     }
 

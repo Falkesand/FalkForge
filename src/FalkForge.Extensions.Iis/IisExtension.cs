@@ -38,8 +38,10 @@ public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterExecutionContributor(new IisExecutionContributor(() => _appPools, () => _webSites));
 
         // Deferred to a follow-up (surfaced as fail-loud IIS013/IIS014 warnings so they are never a silent
-        // no-op): certificate emission + SSL-certificate binding, and sub-application/virtual-directory
-        // creation. The HTTPS binding entry itself is still written into the site configuration.
+        // no-op): certificate emission + SSL-certificate binding, and sub-application creation. The HTTPS
+        // binding entry itself is still written into the site configuration. Virtual directories, by
+        // contrast, ARE live: IisCommandFactory creates each one (under its parent application, defaulting
+        // to the site root "/") once its site exists, and removes it on uninstall.
     }
 
     public IisExtension AddWebSite(Action<WebSiteBuilder> configure)
