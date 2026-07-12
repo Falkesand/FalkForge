@@ -102,6 +102,65 @@ public abstract class InstallerPage : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
+    // ── Per-package / per-related-bundle lifecycle hooks (observational; no veto) ─────────
+    // These fire interleaved with the phase-level hooks above when the engine surfaces
+    // granular events (see IPackageLifecycleEvents). Default implementations are no-ops so
+    // existing pages are unaffected. See the fire-order table in documentation.html.
+
+    /// <summary>
+    ///     Called once per package after its detection completes, between
+    ///     <see cref="OnDetectBeginAsync"/> and <see cref="OnDetectCompleteAsync"/>.
+    ///     Observational — the package cannot be vetoed here.
+    /// </summary>
+    protected internal virtual Task OnDetectPackageCompleteAsync(PackageDetectInfo info)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Called once per related bundle detected on the machine, after the per-package
+    ///     detection notifications and before <see cref="OnDetectCompleteAsync"/>.
+    /// </summary>
+    protected internal virtual Task OnDetectRelatedBundleAsync(RelatedBundleInfo info)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Called once per package as its planning begins, between
+    ///     <see cref="OnPlanBeginAsync"/> and <see cref="OnPlanCompleteAsync"/>. Observational.
+    /// </summary>
+    protected internal virtual Task OnPlanPackageBeginAsync(PackagePlanInfo info)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Called once per package after its planning completes. Observational.
+    /// </summary>
+    protected internal virtual Task OnPlanPackageCompleteAsync(PackagePlanInfo info)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Called once per package immediately before it is applied, between
+    ///     <see cref="OnApplyBeginAsync"/> and <see cref="OnApplyCompleteAsync"/>. Observational.
+    /// </summary>
+    protected internal virtual Task OnApplyPackageBeginAsync(PackageApplyBeginInfo info)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Called once per package immediately after it is applied. Observational.
+    ///     <see cref="PackageApplyCompleteInfo.Succeeded"/> reflects the package outcome.
+    /// </summary>
+    protected internal virtual Task OnApplyPackageCompleteAsync(PackageApplyCompleteInfo info)
+    {
+        return Task.CompletedTask;
+    }
+
     /// <summary>Called when an update is detected and background download is starting.</summary>
     protected virtual Task OnUpdateAvailableAsync(string version, string? releaseNotes)
     {

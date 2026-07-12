@@ -49,6 +49,21 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     () => HandleUpdateReadyAsync(version, localPath));
             };
         }
+
+        // Per-package / per-related-bundle lifecycle notifications (observational). Forwarded to
+        // the active page's granular hooks. Raised by the engine interleaved with the phase-level
+        // Detect/Plan/Apply round-trips, so they fire between the corresponding phase hooks. Any
+        // engine that surfaces IPackageLifecycleEvents participates (production EngineClient and
+        // test doubles alike). Fire-and-forget dispatch mirrors the update-event handlers above.
+        if (engine is IPackageLifecycleEvents lifecycle)
+        {
+            lifecycle.PackageDetected += info => _ = CurrentPage?.OnDetectPackageCompleteAsync(info);
+            lifecycle.RelatedBundleDetected += info => _ = CurrentPage?.OnDetectRelatedBundleAsync(info);
+            lifecycle.PackagePlanBeginning += info => _ = CurrentPage?.OnPlanPackageBeginAsync(info);
+            lifecycle.PackagePlanCompleted += info => _ = CurrentPage?.OnPlanPackageCompleteAsync(info);
+            lifecycle.PackageApplyBeginning += info => _ = CurrentPage?.OnApplyPackageBeginAsync(info);
+            lifecycle.PackageApplyCompleted += info => _ = CurrentPage?.OnApplyPackageCompleteAsync(info);
+        }
     }
 
     public ICommand NextCommand { get; }

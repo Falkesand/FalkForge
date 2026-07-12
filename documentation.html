@@ -5600,6 +5600,72 @@ pages.Add&lt;WelcomePage&gt;()      // Page 0 (shown first)
     </tbody>
   </table>
 
+  <!-- 11.5.1 Engine Lifecycle Hooks & Fire Order -->
+  <h3>11.5.1 Engine Lifecycle Hooks &amp; Fire Order</h3>
+  <p>
+    Beyond the navigation hooks above, an <code>InstallerPage</code> can override <strong>engine
+    lifecycle hooks</strong> that fire while the engine runs the Detect &rarr; Plan &rarr; Apply
+    sequence (triggered when a page returns <code>PageResult.Install</code>,
+    <code>PageResult.Uninstall</code>, or <code>PageResult.Repair</code>). There are two granularities:
+  </p>
+  <ul>
+    <li><strong>Phase-level hooks</strong> &mdash; one pair per phase (begin / complete). The three
+      <em>begin</em> hooks return <code>Task&lt;bool&gt;</code>; returning <code>false</code>
+      <strong>cancels the whole operation</strong> at that phase boundary (nothing further runs).</li>
+    <li><strong>Per-package / per-related-bundle hooks</strong> &mdash; fire once per package (and per
+      detected related bundle), interleaved inside the corresponding phase, matching WiX&nbsp;Burn
+      bootstrapper granularity. These are <strong>observational</strong>: they notify the page but
+      <strong>cannot veto or skip</strong> a package. (A per-package veto would require a bidirectional
+      per-package handshake through the engine pipe, which is not wired end-to-end; the hooks therefore
+      return <code>Task</code>, not <code>Task&lt;bool&gt;</code>, so they never pretend to gate what
+      they cannot.)</li>
+  </ul>
+  <p>The hooks fire in exactly this order (parenthesised groups repeat once per package / bundle):</p>
+  <pre><code>OnDetectBeginAsync
+  &rarr; (per package)        OnDetectPackageCompleteAsync
+  &rarr; (per related bundle) OnDetectRelatedBundleAsync
+OnDetectCompleteAsync
+OnPlanBeginAsync
+  &rarr; (per package)        OnPlanPackageBeginAsync &rarr; OnPlanPackageCompleteAsync
+OnPlanCompleteAsync
+OnApplyBeginAsync
+  &rarr; (per package)        OnApplyPackageBeginAsync &rarr; OnApplyPackageCompleteAsync
+OnApplyCompleteAsync
+  &rarr; (Complete: page auto-advances)</code></pre>
+  <p>
+    Only the current page receives these callbacks. Per-package hooks are dispatched as the engine
+    emits the corresponding events over the pipe, so they are naturally interleaved between the
+    phase-level begin and complete hooks. Default implementations are no-ops, so existing pages that
+    override only the phase hooks are unaffected.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Hook (all <code>virtual</code>)</th><th>Signature</th><th>Argument</th><th>Fires</th><th>Veto?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>OnDetectBeginAsync</code></td><td><code>Task&lt;bool&gt;</code></td><td>&mdash;</td><td>Before detection starts.</td><td>Yes &mdash; <code>false</code> cancels the operation.</td></tr>
+      <tr><td><code>OnDetectPackageCompleteAsync</code></td><td><code>Task</code></td><td><code>PackageDetectInfo</code> (PackageId, State, Version?)</td><td>Once per package, in manifest chain order, as detection completes.</td><td>No (observational).</td></tr>
+      <tr><td><code>OnDetectRelatedBundleAsync</code></td><td><code>Task</code></td><td><code>RelatedBundleInfo</code> (BundleId, Relation, InstalledVersion)</td><td>Once per related bundle found on the machine, after the per-package detect notifications.</td><td>No (observational).</td></tr>
+      <tr><td><code>OnDetectCompleteAsync</code></td><td><code>Task</code></td><td><code>DetectResult</code></td><td>After detection completes.</td><td>No.</td></tr>
+      <tr><td><code>OnPlanBeginAsync</code></td><td><code>Task&lt;bool&gt;</code></td><td><code>InstallAction</code></td><td>Before planning starts.</td><td>Yes &mdash; <code>false</code> cancels the operation.</td></tr>
+      <tr><td><code>OnPlanPackageBeginAsync</code></td><td><code>Task</code></td><td><code>PackagePlanInfo</code> (PackageId, DisplayName, PlannedAction)</td><td>Once per package as its planning begins.</td><td>No (observational).</td></tr>
+      <tr><td><code>OnPlanPackageCompleteAsync</code></td><td><code>Task</code></td><td><code>PackagePlanInfo</code></td><td>Once per package after its planning completes.</td><td>No (observational).</td></tr>
+      <tr><td><code>OnPlanCompleteAsync</code></td><td><code>Task</code></td><td><code>PlanResult</code></td><td>After planning completes.</td><td>No.</td></tr>
+      <tr><td><code>OnApplyBeginAsync</code></td><td><code>Task&lt;bool&gt;</code></td><td>&mdash;</td><td>Before applying starts.</td><td>Yes &mdash; <code>false</code> cancels the operation.</td></tr>
+      <tr><td><code>OnApplyPackageBeginAsync</code></td><td><code>Task</code></td><td><code>PackageApplyBeginInfo</code> (PackageId, DisplayName)</td><td>Once per package, in execution order, immediately before its installer runs.</td><td>No (observational).</td></tr>
+      <tr><td><code>OnApplyPackageCompleteAsync</code></td><td><code>Task</code></td><td><code>PackageApplyCompleteInfo</code> (PackageId, DisplayName, Succeeded)</td><td>Once per package immediately after its installer returns (including the failing package that aborts the apply).</td><td>No (observational).</td></tr>
+      <tr><td><code>OnApplyCompleteAsync</code></td><td><code>Task</code></td><td><code>ApplyResult</code></td><td>After apply completes.</td><td>No.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <strong>Implementation note.</strong> Per-package events are surfaced by engines that implement
+    <code>IPackageLifecycleEvents</code> (the production <code>EngineClient</code> does). The
+    engine emits the granular events as it detects / plans / executes each package; the shell forwards
+    each to the active page's hook. Planning is computed as a whole, so
+    <code>OnPlanPackageBeginAsync</code>/<code>Complete</code> are derived from the resulting plan in
+    chain order. See demo <code>14-lifecycle-hooks</code> for a page that logs every hook.
+  </p>
+
   <!-- 11.6 InstallerPage<TView> -->
   <h3>11.6 InstallerPage&lt;TView&gt;</h3>
   <p>

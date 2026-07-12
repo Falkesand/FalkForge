@@ -143,6 +143,21 @@ internal sealed class PlanStep : IPlanStep
 
         ctx.Plan = planResult.Value;
 
+        // Per-package plan notifications, derived from the completed plan in chain order.
+        // The planner computes the plan as a whole; these observational Begin/Complete pairs
+        // report each package's planned action to the UI in order.
+        foreach (var action in planResult.Value.Actions)
+        {
+            var plannedAction = action.ActionType.ToString();
+            var displayName = action.Package.DisplayName ?? action.PackageId;
+            await _uiChannel.SendAsync(
+                new PipelineEvent.PlanPackageBegin(action.PackageId, displayName, plannedAction),
+                ct);
+            await _uiChannel.SendAsync(
+                new PipelineEvent.PlanPackageComplete(action.PackageId, displayName, plannedAction),
+                ct);
+        }
+
         await _uiChannel.SendAsync(
             new PipelineEvent.Log(LogLevel.Info,
                 $"Plan created: {planResult.Value.Actions.Count} action(s)"),

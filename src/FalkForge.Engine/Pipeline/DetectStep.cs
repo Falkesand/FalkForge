@@ -58,6 +58,38 @@ internal sealed class DetectStep : IDetectStep
             var detection = detector.Detect(_manifest);
             ctx.Detection = detection;
 
+            // Per-package detection notifications, emitted in manifest chain order between the
+            // overall Detecting phase-change and the aggregate detection log. Observational.
+            foreach (var package in detector.DetectPackageStates(_manifest))
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.DetectPackageComplete(package.PackageId, package.State, package.Version),
+                    ct);
+            }
+
+            // Related-bundle detection: populate the context (consumed by the planner) and emit a
+            // per-related-bundle notification for each match. Best-effort — a detection failure is
+            // logged and does not fail the detect phase.
+            var relatedResult = detector.DetectRelatedBundles(_manifest);
+            if (relatedResult.IsSuccess)
+            {
+                ctx.RelatedBundles = relatedResult.Value;
+                foreach (var bundle in relatedResult.Value)
+                {
+                    await _uiChannel.SendAsync(
+                        new PipelineEvent.DetectRelatedBundle(
+                            bundle.BundleId, bundle.Relation, bundle.InstalledVersion),
+                        ct);
+                }
+            }
+            else
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        $"Related-bundle detection failed and was skipped: {relatedResult.Error.Message}"),
+                    ct);
+            }
+
             await _uiChannel.SendAsync(
                 new PipelineEvent.Log(LogLevel.Info,
                     $"Detection complete: state={detection.State}, version={detection.CurrentVersion ?? "none"}"),

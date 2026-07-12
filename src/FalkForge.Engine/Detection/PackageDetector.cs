@@ -130,6 +130,33 @@ public sealed class PackageDetector
         return results;
     }
 
+    /// <summary>
+    /// Detects each package in manifest chain order, returning its identifier, installation
+    /// state, and installed version (for MSI packages with a resolvable ProductCode; null
+    /// otherwise). Used to emit per-package detection notifications to the UI.
+    /// </summary>
+    public IReadOnlyList<PackageDetectionInfo> DetectPackageStates(InstallerManifest manifest)
+    {
+        var results = new List<PackageDetectionInfo>(manifest.Packages.Length);
+        foreach (var package in manifest.Packages)
+        {
+            var state = DetectPackage(package);
+            string? version = null;
+            if (package.Type == PackageType.MsiPackage)
+            {
+                var productCode = package.Properties.GetValueOrDefault("ProductCode");
+                if (productCode is not null)
+                {
+                    version = _msiDetector.GetInstalledVersion(productCode);
+                }
+            }
+
+            results.Add(new PackageDetectionInfo(package.Id, state, version));
+        }
+
+        return results;
+    }
+
     public Result<IReadOnlyList<RelatedBundleInfo>> DetectRelatedBundles(InstallerManifest manifest)
     {
         return _relatedBundleDetector.Detect(manifest.RelatedBundles, _registry);

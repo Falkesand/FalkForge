@@ -7,7 +7,7 @@ using FalkForge.Ui.Abstractions;
 
 namespace FalkForge.Ui;
 
-public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
+public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IAsyncDisposable
 {
     private readonly List<FeatureState> _features = [];
     private readonly Subject<EnginePhase> _phase = new();
@@ -153,6 +153,13 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public event Action<int, long, long>? UpdateDownloadProgress;
     public event Action<string, string?>? UpdateReady;
 
+    public event Action<PackageDetectInfo>? PackageDetected;
+    public event Action<RelatedBundleInfo>? RelatedBundleDetected;
+    public event Action<PackagePlanInfo>? PackagePlanBeginning;
+    public event Action<PackagePlanInfo>? PackagePlanCompleted;
+    public event Action<PackageApplyBeginInfo>? PackageApplyBeginning;
+    public event Action<PackageApplyCompleteInfo>? PackageApplyCompleted;
+
     public Task<Result<Unit>> ConnectAsync(CancellationToken ct = default)
     {
         return _pipe.ConnectAsync(ct);
@@ -204,6 +211,35 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
 
             case UpdateReadyMessage m:
                 UpdateReady?.Invoke(m.Version, m.LocalPath);
+                break;
+
+            case DetectPackageCompleteMessage m:
+                PackageDetected?.Invoke(new PackageDetectInfo(m.PackageId, m.State, m.Version));
+                break;
+
+            case DetectRelatedBundleMessage m:
+                RelatedBundleDetected?.Invoke(
+                    new RelatedBundleInfo(m.BundleId, m.Relation, m.InstalledVersion));
+                break;
+
+            case PlanPackageBeginMessage m:
+                PackagePlanBeginning?.Invoke(
+                    new PackagePlanInfo(m.PackageId, m.DisplayName, m.PlannedAction));
+                break;
+
+            case PlanPackageCompleteMessage m:
+                PackagePlanCompleted?.Invoke(
+                    new PackagePlanInfo(m.PackageId, m.DisplayName, m.PlannedAction));
+                break;
+
+            case ApplyPackageBeginMessage m:
+                PackageApplyBeginning?.Invoke(
+                    new PackageApplyBeginInfo(m.PackageId, m.DisplayName));
+                break;
+
+            case ApplyPackageCompleteMessage m:
+                PackageApplyCompleted?.Invoke(
+                    new PackageApplyCompleteInfo(m.PackageId, m.DisplayName, m.Succeeded));
                 break;
 
             case ErrorMessage error:
