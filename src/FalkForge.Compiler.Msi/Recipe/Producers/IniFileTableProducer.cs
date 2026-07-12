@@ -9,10 +9,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <see cref="PackageModel.IniFiles"/> and emits one row per entry,
 /// mirroring <see cref="Tables.TableEmitter"/>'s <c>EmitIniFiles</c>:
 /// each row is keyed on a synthesized <c>INI_NNNN</c> identifier matching
-/// the legacy emitter, the <see cref="IniFileAction"/> enum projects to
-/// its underlying integer, and every entry binds to the first resolved
-/// component (or <c>"MainComponent"</c>) since the legacy emitter does
-/// not honour a per-entry component reference.
+/// the legacy emitter, and the <see cref="IniFileAction"/> enum projects to
+/// its underlying integer. An ungated entry binds to the first resolved
+/// component (or <c>"MainComponent"</c>), matching the legacy emitter; a
+/// feature-gated entry (declared via <c>FeatureBuilder.IniFile(...)</c>)
+/// instead binds to the dedicated component ComponentResolver synthesized
+/// for it — see <see cref="ResolveComponentId"/>.
 /// </summary>
 internal sealed class IniFileTableProducer : ITableProducer
 {

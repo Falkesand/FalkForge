@@ -12,8 +12,11 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// Variable name and value strings are pre-encoded via
 /// <see cref="EnvironmentEncoding"/> so the legacy install-time encoding
 /// (system/user prefix, action sigils, separator handling) is preserved.
-/// Synthesises sequential <c>ENV_NNNN</c> identifiers and falls back to the
-/// first resolved component (or <c>"MainComponent"</c>).
+/// Synthesises sequential <c>ENV_NNNN</c> identifiers. An ungated entry falls
+/// back to the first resolved component (or <c>"MainComponent"</c>); a
+/// feature-gated entry (declared via <c>FeatureBuilder.EnvironmentVariable(...)</c>)
+/// instead binds to the dedicated component ComponentResolver synthesized for
+/// it — see <see cref="ResolveComponentId"/>.
 /// </summary>
 internal sealed class EnvironmentTableProducer : ITableProducer
 {
