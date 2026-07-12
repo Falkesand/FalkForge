@@ -170,6 +170,25 @@ public sealed class NamedPipeUiChannel : IUiChannel
 
         PipelineEvent.Failed(var kind, var message) => new ErrorMessage { Kind = kind, Message = message },
 
+        PipelineEvent.DetectComplete(var state, var version, var features) => new DetectCompleteMessage
+        {
+            State = state,
+            CurrentVersion = version,
+            Features = features,
+        },
+
+        PipelineEvent.PlanComplete(var totalDiskSpace, var packageIds) => new PlanCompleteMessage
+        {
+            TotalDiskSpaceRequired = totalDiskSpace,
+            PackageIds = packageIds,
+        },
+
+        PipelineEvent.ApplyComplete(var exitCode, var errorMessage) => new ApplyCompleteMessage
+        {
+            ExitCode = exitCode,
+            ErrorMessage = errorMessage,
+        },
+
         PipelineEvent.RollbackStep(var step) => new LogMessage
         {
             Level = step.Succeeded ? LogLevel.Info : LogLevel.Warning,

@@ -1,6 +1,8 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
+using FalkForge.Engine.Detection;
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
@@ -124,18 +126,18 @@ public sealed class EngineSessionPlanOnlyTests
 
         public StubInstallerPipeline(IUiChannel channel) => _channel = channel;
 
-        public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
+        public async Task<Result<DetectionResult>> DetectAsync(CancellationToken ct)
         {
             DetectCalled = true;
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
-            return Unit.Value;
+            return new DetectionResult(InstallState.NotInstalled, null, []);
         }
 
-        public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+        public async Task<Result<InstallPlan>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
         {
             PlanCalled = true;
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Planning), ct);
-            return Unit.Value;
+            return new InstallPlan { Actions = [] };
         }
 
         public Task<Result<Unit>> ElevateAsync(CancellationToken ct) => Task.FromResult<Result<Unit>>(Unit.Value);

@@ -76,6 +76,13 @@ public sealed class PipelineRunner
                             await SendShutdownAsync(ct);
                             return 1;
                         }
+
+                        // Answer the UI's Detect request with the completion event it awaits. Without
+                        // this the UI's DetectAsync never returns and the installer hangs at Detect.
+                        var detection = detectResult.Value;
+                        await _uiChannel.SendAsync(
+                            new PipelineEvent.DetectComplete(
+                                detection.State, detection.CurrentVersion, detection.Features), ct);
                         break;
 
                     case UiRequest.Plan planReq:
@@ -90,6 +97,16 @@ public sealed class PipelineRunner
                             await SendShutdownAsync(ct);
                             return 1;
                         }
+
+                        // Answer the UI's Plan request with the completion event it awaits, before the
+                        // (optional) elevation phase runs — matching the legacy EngineHost order so the
+                        // UI's PlanAsync returns and the user can proceed to confirm the install.
+                        var plan = planResult.Value;
+                        var packageIds = new string[plan.Actions.Count];
+                        for (var i = 0; i < plan.Actions.Count; i++)
+                            packageIds[i] = plan.Actions[i].PackageId;
+                        await _uiChannel.SendAsync(
+                            new PipelineEvent.PlanComplete(plan.TotalDiskSpaceRequired, packageIds), ct);
 
                         // Plan-only mode: export the plan and exit without applying.
                         if (_isPlanOnly)
@@ -142,7 +159,10 @@ public sealed class PipelineRunner
                             return 1;
                         }
 
-                        // Apply succeeded: send Completing + Shutdown phase events
+                        // Answer the UI's Apply request with the completion event it awaits, then send
+                        // the Completing + Shutdown phase events.
+                        await _uiChannel.SendAsync(
+                            new PipelineEvent.ApplyComplete(0, null), ct);
                         await _uiChannel.SendAsync(
                             new PipelineEvent.PhaseChanged(EnginePhase.Completing), ct);
                         await SendShutdownAsync(ct);

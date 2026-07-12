@@ -1,6 +1,8 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
+using FalkForge.Engine.Detection;
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Tests.Logging;
 using FalkForge.Testing;
@@ -49,18 +51,22 @@ public sealed class PipelineRunnerTests
             _applyResult = applyResult ?? Result<Unit>.Success(Unit.Value);
         }
 
-        public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
+        public async Task<Result<DetectionResult>> DetectAsync(CancellationToken ct)
         {
             DetectCalled = true;
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
-            return _detectResult;
+            return _detectResult.IsFailure
+                ? Result<DetectionResult>.Failure(_detectResult.Error)
+                : new DetectionResult(InstallState.NotInstalled, null, []);
         }
 
-        public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+        public async Task<Result<InstallPlan>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
         {
             PlanCalled = true;
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Planning), ct);
-            return _planResult;
+            return _planResult.IsFailure
+                ? Result<InstallPlan>.Failure(_planResult.Error)
+                : new InstallPlan { Actions = [] };
         }
 
         public Task<Result<Unit>> ElevateAsync(CancellationToken ct)
@@ -143,6 +149,48 @@ public sealed class PipelineRunnerTests
         Assert.Contains(EnginePhase.Applying, phases);
         Assert.Contains(EnginePhase.Completing, phases);
         Assert.Contains(EnginePhase.Shutdown, phases);
+    }
+
+    /// <summary>
+    /// Regression guard for the installer deadlock: each phase's success MUST emit its
+    /// phase-complete event (DetectComplete → PlanComplete → ApplyComplete) in order. The UI's
+    /// request/response protocol (DetectAsync/PlanAsync/ApplyAsync) only returns when the matching
+    /// *Complete arrives; without these emissions the real cross-process UI hangs at "Detecting…".
+    /// </summary>
+    [Fact]
+    public async Task FullInstall_EmitsDetectPlanApplyComplete_InOrder()
+    {
+        var channel = new FakeUiChannel();
+        await using var pipeline = new StubInstallerPipeline(channel);
+        var runner = new PipelineRunner(pipeline, channel);
+
+        channel.EnqueueRequest(new UiRequest.Detect());
+        channel.EnqueueRequest(DefaultPlan());
+        channel.EnqueueRequest(new UiRequest.Apply());
+        channel.Complete();
+
+        var exitCode = await runner.RunAsync(CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+
+        // The three completion events must all be present, exactly once, in Detect→Plan→Apply order.
+        var completionKinds = channel.SentEvents
+            .Where(e => e is PipelineEvent.DetectComplete
+                     or PipelineEvent.PlanComplete
+                     or PipelineEvent.ApplyComplete)
+            .Select(e => e.GetType().Name)
+            .ToList();
+
+        Assert.Equal(
+            ["DetectComplete", "PlanComplete", "ApplyComplete"],
+            completionKinds);
+
+        // ApplyComplete reports success (exit 0), and it precedes the Completing phase change so the
+        // UI's ApplyAsync returns before the shell observes the terminal phase.
+        var apply = Assert.IsType<PipelineEvent.ApplyComplete>(
+            channel.SentEvents.Single(e => e is PipelineEvent.ApplyComplete));
+        Assert.Equal(0, apply.ExitCode);
+        Assert.Null(apply.ErrorMessage);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -573,16 +621,16 @@ public sealed class PipelineRunnerTests
             _cts = cts;
         }
 
-        public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
+        public async Task<Result<DetectionResult>> DetectAsync(CancellationToken ct)
         {
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
-            return Unit.Value;
+            return new DetectionResult(InstallState.NotInstalled, null, []);
         }
 
-        public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+        public async Task<Result<InstallPlan>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
         {
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Planning), ct);
-            return Unit.Value;
+            return new InstallPlan { Actions = [] };
         }
 
         public Task<Result<Unit>> ElevateAsync(CancellationToken ct) =>

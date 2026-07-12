@@ -2,8 +2,10 @@ namespace FalkForge.Engine.Tests.Pipeline;
 
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
+using FalkForge.Engine.Detection;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
+using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Tests.Logging;
 using FalkForge.Testing;
@@ -149,16 +151,20 @@ public sealed class PipelineRunnerMetricsTests
             _applyResult = applyResult ?? Result<Unit>.Success(Unit.Value);
         }
 
-        public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
+        public async Task<Result<DetectionResult>> DetectAsync(CancellationToken ct)
         {
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
-            return _detectResult;
+            return _detectResult.IsFailure
+                ? Result<DetectionResult>.Failure(_detectResult.Error)
+                : new DetectionResult(InstallState.NotInstalled, null, []);
         }
 
-        public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+        public async Task<Result<InstallPlan>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
         {
             await _channel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Planning), ct);
-            return _planResult;
+            return _planResult.IsFailure
+                ? Result<InstallPlan>.Failure(_planResult.Error)
+                : new InstallPlan { Actions = [] };
         }
 
         public Task<Result<Unit>> ElevateAsync(CancellationToken ct)
