@@ -648,6 +648,8 @@
           <a href="#ext-http">10.7 HTTP Extension</a>
           <a href="#ext-driver">10.8 Driver Extension</a>
           <a href="#ext-com">10.9 COM Registration</a>
+          <a href="#ext-authoring-arch">10.10 How Extensions Work</a>
+          <a href="#ext-authoring-guide">10.11 Writing Your Own Extension</a>
         </div>
       </div>
 
@@ -4856,6 +4858,7 @@ public sealed class BundleCompiler
     <tbody>
       <tr><td><code>RegisterTableContributor(IMsiTableContributor contributor)</code></td><td><code>void</code></td><td>Registers an MSI table contributor.</td></tr>
       <tr><td><code>RegisterComponentContributor(IComponentContributor contributor)</code></td><td><code>void</code></td><td>Registers a component contributor.</td></tr>
+      <tr><td><code>RegisterExecutionContributor(IExecutionContributor contributor)</code></td><td><code>void</code></td><td>Registers an install-time execution contributor. Its <code>ExecutionStep</code> declarations become deferred, elevated custom actions so the contributor's work actually runs at install time. See <a href="#ext-authoring-arch">10.10 How Extensions Work</a>.</td></tr>
       <tr><td><code>RegisterDryRunContributor(IDryRunContributor contributor)</code></td><td><code>void</code></td><td>Registers a dry-run contributor used by <code>forge build --dry-run</code> and <code>forge validate</code>.</td></tr>
       <tr><td><code>RegisterDialogStep(IDialogStepBuilder builder)</code></td><td><code>void</code></td><td>Registers an extension-contributed dialog step. The step becomes available for insertion via <code>DialogCustomization.InsertStep(name, after:)</code>. <code>DLG001</code> will not fire for names registered here.</td></tr>
     </tbody>
@@ -4888,8 +4891,26 @@ public sealed class BundleCompiler
       <tr><th>Member</th><th>Type</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>TableName</code></td><td><code>string</code></td><td>Name of the custom MSI table to populate.</td></tr>
+      <tr><td><code>TableName</code></td><td><code>string</code></td><td>Name of the MSI table to populate &mdash; either an existing built-in table (e.g. <code>Registry</code>, <code>CustomAction</code>) or a new custom table.</td></tr>
       <tr><td><code>GetRows(ExtensionContext context)</code></td><td><code>IReadOnlyList&lt;MsiTableRow&gt;</code></td><td>Returns rows to insert into the table.</td></tr>
+      <tr><td><code>WriteColumns</code></td><td><code>IReadOnlyList&lt;ContributedColumn&gt;?</code></td><td>Column schema for a <em>custom</em> (non-built-in) table, used to emit its <code>CREATE TABLE</code> statement. <code>null</code> by default. Required whenever <code>TableName</code> is not a built-in table &mdash; a contributor that yields rows for an unknown table without this schema fails the build loudly (<code>EXT001</code>) instead of dropping the rows. Ignored when <code>TableName</code> names a built-in table, since the compiler already knows its columns.</td></tr>
+      <tr><td><code>ReadSchema</code></td><td><code>ITableReadSchema?</code></td><td>Optional read-side schema so the decompile path can read this contributor's custom table back into <code>MsiReadRecipe.ExtensionRows</code>. <code>null</code> by default, in which case the table is silently skipped during decompile.</td></tr>
+    </tbody>
+  </table>
+
+  <h4>IExecutionContributor</h4>
+  <p>
+    The counterpart to <code>IMsiTableContributor</code>: where a table contributor puts <em>data</em>
+    into the compiled MSI, an execution contributor makes that data <em>live</em> by scheduling the work
+    that acts on it at install time. See <a href="#ext-authoring-arch">10.10 How Extensions Work</a> for
+    the full mechanics.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Member</th><th>Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>GetExecutionSteps(ExtensionContext context)</code></td><td><code>IReadOnlyList&lt;ExecutionStep&gt;</code></td><td>Returns the execution steps this contributor wants scheduled. Called once during compilation; an empty list contributes nothing.</td></tr>
     </tbody>
   </table>
 
@@ -5885,7 +5906,7 @@ public class CompletePage : InstallerPage&lt;CompleteView&gt;
   </div>
 
 <!-- 11.11 Property Passing -->
-<h3>11.11 Property Passing</h3>
+<h3 id="property-passing">11.11 Property Passing</h3>
 <p>
     Custom pages can send properties to MSI packages via the engine. Regular properties use
     <code>SetProperty</code>; credentials and secrets use <code>SetSecureProperty</code> with
@@ -6255,6 +6276,456 @@ Installer.Build(args, package =&gt;
             .Include("ContosoWidget.dll")
             .Include("ContosoEngine.exe")
             .Include("Contoso.tlb"))));</code></pre>
+
+  <!-- 10.10 How Extensions Work -->
+  <h3 id="ext-authoring-arch">10.10 How Extensions Work</h3>
+  <p>
+    An extension is a class implementing <code>IFalkForgeExtension</code>
+    (<code>src/FalkForge.Extensibility/IFalkForgeExtension.cs</code>): a <code>Name</code>, and a
+    <code>Register(IExtensionRegistry registry)</code> callback where it hands the compiler its
+    contributions. <code>MsiCompiler.Compile</code> drives registration through
+    <code>ExtensionRegistration.Register</code>, which rejects a duplicate <code>Name</code> or an
+    unsupported <code>MinHostVersion</code> with a <code>PluginCompatibilityException</code> before
+    <code>Register</code> is even called.
+  </p>
+  <p>
+    <code>IExtensionRegistry</code> offers five ways to contribute (10.1 above has the full member
+    tables). Four of them shape the compiled MSI and are covered below; the fifth,
+    <code>RegisterDryRunContributor(IDryRunContributor)</code>, feeds <code>forge build --dry-run</code>
+    and <code>forge validate</code> with a human-readable preview of what an install/uninstall would do
+    and is not part of the compiled output. Each of the four below solves a different problem:
+  </p>
+
+  <h4>1. IMsiTableContributor &mdash; inspectable data</h4>
+  <p>
+    Contributes rows that land in an MSI table. The compiler (<code>ExtensionTableEmitter</code>,
+    <code>src/FalkForge.Compiler.Msi/Recipe/ExtensionTableEmitter.cs</code>) routes each contributor by
+    <code>TableName</code>, in one of two modes:
+  </p>
+  <ul>
+    <li>
+      <strong>Merge into a built-in table</strong> &mdash; <code>TableName</code> matches a table the
+      built-in pipeline already produces (<code>Registry</code>, <code>CustomAction</code>, &hellip;).
+      Rows are appended after the built-in rows, mapped against that table's known column set.
+      <code>WriteColumns</code> is ignored here; the compiler already knows the schema. The
+      <code>Dependency</code> extension's provider/consumer keys work this way &mdash; they merge
+      straight into <code>Registry</code>.
+    </li>
+    <li>
+      <strong>Create a new custom table</strong> &mdash; <code>TableName</code> is not built-in. The
+      contributor <em>must</em> declare its columns via <code>WriteColumns</code>
+      (<code>IReadOnlyList&lt;ContributedColumn&gt;</code>) so the compiler can emit the
+      <code>CREATE TABLE</code> statement. <code>ContributedColumn</code> has three factories &mdash;
+      <code>Key(name, width = 72)</code> for a non-nullable primary-key string column,
+      <code>Text(name, width = 255, nullable = true)</code> for a string column, and
+      <code>Int(name)</code> for a non-nullable 32-bit integer &mdash; plus a <code>Type</code> enum
+      (<code>String</code>/<code>Int16</code>/<code>Int32</code>/<code>Binary</code>) and
+      <code>Nullable</code>/<code>PrimaryKey</code> flags for anything the factories don't cover.
+      Column order is authoritative and drives deterministic, reproducible-build column layout.
+      Firewall's <code>WixFirewallException</code> table is the reference example.
+    </li>
+  </ul>
+  <p>
+    Both modes read row data from a plain <code>MsiTableRow</code> (a <code>Set(column, value)</code> /
+    <code>Get(column)</code> bag) and fail the build loudly, never silently, on a bad row: a field that
+    doesn't match any declared column, a missing value for a non-nullable column, or an integer column
+    fed something that isn't convertible to <code>int</code> are all compile errors, not dropped data.
+  </p>
+
+  <h4>2. IComponentContributor &mdash; additional files (collected, not yet wired)</h4>
+  <p>
+    <code>GetAdditionalFiles(ExtensionContext context)</code> is meant to let an extension add extra
+    <code>FileEntryModel</code>s to the package. Be aware of its current status, honestly: the MSI recipe
+    pipeline collects registered <code>IComponentContributor</code> instances but does not yet merge
+    their output into the compiled package &mdash; doing so requires rebuilding the resolved
+    <code>PackageModel</code>, which is out of scope for the current pipeline. If you register one, the
+    compiler does not fail the build or drop it silently; it logs a <code>Warning</code> (code
+    <code>EXT002</code>) so you are not misled by a green build. No shipped extension (Firewall, SQL,
+    IIS, HTTP, Dependency, Util, Driver, .NET) currently uses this interface.
+  </p>
+
+  <h4>3. IExecutionContributor + ExecutionStep &mdash; the runtime execution seam</h4>
+  <p>
+    This is the piece a first-time extension author most often misses, and the crux of the whole system:
+    <strong>native MSI tables like <code>File</code>, <code>Registry</code>, <code>ServiceInstall</code>,
+    and <code>Shortcut</code> run automatically</strong>, because Windows Installer's own standard actions
+    (<code>InstallFiles</code>, <code>WriteRegistryValues</code>, <code>StartServices</code>,
+    <code>CreateShortcuts</code>, &hellip;) know how to interpret them. <strong>An extension's custom
+    table does not</strong> &mdash; <code>WixFirewallException</code> or <code>SqlDatabase</code> rows
+    are just data sitting in the MSI until something executes them. <code>IExecutionContributor</code> is
+    that "something": it is the reusable seam that turns extension configuration into custom actions
+    Windows Installer actually runs.
+  </p>
+  <p>
+    Register an instance via <code>IExtensionRegistry.RegisterExecutionContributor</code>. Its
+    <code>GetExecutionSteps(ExtensionContext context)</code> returns a list of
+    <code>ExecutionStep</code> records (<code>src/FalkForge.Extensibility/ExecutionStep.cs</code>), which
+    <code>ExecutionStepEmitter</code> (<code>src/FalkForge.Compiler.Msi/Recipe/ExecutionStepEmitter.cs</code>)
+    turns into <code>CustomAction</code> and <code>InstallExecuteSequence</code> rows &mdash; itself just
+    another <code>IMsiTableContributor</code>, so the generated rows flow through the same
+    <code>ExtensionTableEmitter</code> path as any other contributor. The compiler gathers steps from
+    every registered execution contributor in registration order and allocates sequence numbers from a
+    single deterministic pool, so multiple extensions (Firewall, SQL, IIS, HTTP, Util, &hellip;)
+    contributing execution in the same package never collide.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>ExecutionStep member</th><th>Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Id</code></td><td><code>string</code></td><td>Required. Base name of the generated custom action(s) (<code>Id</code>, <code>Id_d</code>, <code>Id_rb</code>, <code>Id_un</code>). Must be a valid MSI identifier, short enough to leave room for those suffixes. A duplicate <code>Id</code> across contributors fails the build loudly.</td></tr>
+      <tr><td><code>InstallCommand</code></td><td><code>string</code></td><td>Required. The full command line run on install &mdash; deferred and elevated, in the <code>InstallExecuteSequence</code> between <code>InstallInitialize</code> and <code>InstallFinalize</code>. Runs as <code>SYSTEM</code> for a per-machine install.</td></tr>
+      <tr><td><code>RollbackCommand</code></td><td><code>string?</code></td><td>Optional. Undoes <code>InstallCommand</code> if a later step fails. Scheduled immediately before the install action so Windows Installer runs it automatically, in reverse, on failure.</td></tr>
+      <tr><td><code>UninstallCommand</code></td><td><code>string?</code></td><td>Optional. Runs when the product is removed.</td></tr>
+      <tr><td><code>CustomActionData</code></td><td><code>string?</code></td><td>Optional. The secret / late-bound data channel &mdash; see below.</td></tr>
+      <tr><td><code>InstallCondition</code></td><td><code>string?</code></td><td>MSI condition gating install (and rollback). Defaults to <code>NOT Installed</code>.</td></tr>
+      <tr><td><code>UninstallCondition</code></td><td><code>string?</code></td><td>MSI condition gating uninstall. Defaults to <code>REMOVE~="ALL"</code>.</td></tr>
+      <tr><td><code>Elevated</code></td><td><code>bool</code></td><td>Default <code>true</code>. Marks the generated actions no-impersonate (SYSTEM context), required to modify machine state. Set <code>false</code> only for work that must run as the installing user.</td></tr>
+      <tr><td><code>HiddenProperties</code></td><td><code>IReadOnlyList&lt;string&gt;</code></td><td>Default empty. Property names carrying a secret this step introduces &mdash; see below.</td></tr>
+    </tbody>
+  </table>
+
+  <h4>The secure secret channel</h4>
+  <p>
+    Never bake a credential literal into <code>InstallCommand</code> &mdash; a deferred action's command
+    line is visible on the process command line and in a verbose <code>msiexec /L*v</code> log. Instead
+    set <code>CustomActionData</code> to a <em>formatted</em> expression such as
+    <code>"[DB_PASSWORD]"</code>. The emitter generates an immediate type-51 <code>SetProperty</code>
+    custom action (named <code>Id_d</code>) that copies the run-time value of that property into the
+    deferred action's own <code>CustomActionData</code>, which the deferred action reads in-process (the
+    SQL extension reads it as <code>$args[0]</code> in its PowerShell script). The value is supplied at
+    run time &mdash; typically via <code>IInstallerEngine.SetSecureProperty</code> from a custom UI page
+    (see <a href="#property-passing">11.11 Property Passing</a>) &mdash; and is <strong>never stored in the
+    MSI</strong>. This channel feeds the <strong>install</strong> action only; rollback and uninstall
+    commands needing their own secret are not covered by it (SQL's rollback/uninstall use integrated
+    Windows authentication for exactly this reason). The extension author lists the source property
+    (and the generated <code>Id_d</code>/<code>Id</code> property) in <code>HiddenProperties</code> so
+    it is scrubbed from a verbose install log. The compiler aggregates <code>HiddenProperties</code> from
+    every execution step of every extension in the package into a single, deterministic
+    <code>MsiHiddenProperties</code> property row &mdash; an extension must not author its own
+    <code>MsiHiddenProperties</code> row (two would collide on the same primary key).
+  </p>
+
+  <h4>CommandLine escaping helpers</h4>
+  <p>
+    <code>FalkForge.Extensibility.CommandLine</code> (<code>src/FalkForge.Extensibility/CommandLine.cs</code>)
+    provides the two escaping primitives every execution contributor should route untrusted values
+    through, because the generated actions run elevated:
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>PowerShellSingleQuote(string value)</code></td><td>Wraps a value as a PowerShell single-quoted literal (doubling embedded quotes) so it cannot break out into script/command evaluation. Rejects an embedded NUL or a Unicode "smart quote" character, which PowerShell's tokenizer also treats as a delimiter.</td></tr>
+      <tr><td><code>MsiFormatEscape(string value)</code></td><td>Escapes <code>[</code>/<code>]</code> so a value placed in an MSI <em>Formatted</em> field (like <code>CustomAction.Target</code>) can't be mistaken for a live <code>[PROPERTY]</code> substitution token.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Beyond that, the shipped extensions (Firewall, SQL, IIS, Util) all transport their actual script
+    body via <code>powershell.exe -EncodedCommand &lt;base64(UTF-16LE script)&gt;</code>, invoked by the
+    fully-qualified <code>[SystemFolder]WindowsPowerShell\v1.0\powershell.exe</code> path rather than a
+    bare executable name &mdash; because a deferred action's working directory is <code>TARGETDIR</code>
+    (author-controlled), and <code>CreateProcess</code> resolves a bare name relative to the working
+    directory <em>before</em> <code>PATH</code>, so a planted <code>powershell.exe</code> in the install
+    directory could otherwise run as <code>SYSTEM</code>. The base64 alphabet contains no shell
+    metacharacter and none of the MSI Formatted specials (<code>[ ] { } ~</code>), closing off both
+    injection surfaces at once. There is currently no shared helper for this encoding step in
+    <code>FalkForge.Extensibility</code> &mdash; each extension (see <code>FirewallCommandFactory.Encode</code>,
+    <code>SqlPowerShellEncoder.Encode</code>) defines its own, following this same shape. New extensions
+    should do the same rather than passing a raw script or a bare interpreter name.
+  </p>
+
+  <h4>4. RegisterDialogStep &mdash; reserving an install-UI step name</h4>
+  <p>
+    An extension can reserve an install-UI step name via
+    <code>IExtensionRegistry.RegisterDialogStep(IDialogStepBuilder builder)</code>, a public interface
+    with a single <code>Name</code> member. The registered <code>Name</code> becomes referenceable from
+    <code>DialogCustomization.InsertStep(name, after:)</code> and satisfies <code>DLG001</code>
+    name-resolution validation, but implementing only <code>IDialogStepBuilder</code> supplies no visual
+    layout &mdash; no dialog is actually emitted for it. Emitting real layout requires implementing
+    <code>IMsiDialogStepBuilder</code> (<code>src/FalkForge.Compiler.Msi/UI/Layout/IMsiDialogStepBuilder.cs</code>,
+    which extends <code>IDialogStepBuilder</code> with <code>Build(DialogBuildContext)</code>) &mdash; but
+    that interface, its <code>DialogBuildContext</code> parameter, and its <code>MsiDialogModel</code>
+    return type are all declared <code>internal</code> to <code>FalkForge.Compiler.Msi</code>, and that
+    assembly's <code>InternalsVisibleTo</code> is granted only to
+    <code>FalkForge.Compiler.Msi.Tests</code> and <code>FalkForge.Decompiler</code> &mdash; not to any
+    extension assembly. In practice this means <strong>no extension living in a separate assembly (which
+    includes every shipped extension: Firewall, SQL, IIS, HTTP, &hellip;) can implement
+    <code>IMsiDialogStepBuilder</code> today</strong>; only code compiled directly into
+    <code>FalkForge.Compiler.Msi</code> can. For virtually every real authoring need,
+    <code>PackageBuilder.AddCustomDialog(id, dlg =&gt; &hellip;)</code>
+    (see <a href="#dialog-templates">14. MSI Dialog Templates</a>) is the right tool: it authors a
+    complete custom dialog directly from application code, with no extension plumbing and no assembly
+    visibility constraint.
+  </p>
+
+  <h4>Diagnostics</h4>
+  <p>
+    Two extension-pipeline codes exist today (this is the complete list &mdash; there is no
+    <code>EXT003</code> or higher yet):
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Code</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>EXT001</code></td><td>An <code>IMsiTableContributor</code> produced rows for a table that is not built-in, but declared no <code>WriteColumns</code> schema. Compile error &mdash; the rows cannot be emitted without a schema.</td></tr>
+      <tr><td><code>EXT002</code></td><td>One or more <code>IComponentContributor</code>s were registered, but the recipe pipeline does not yet consume <code>GetAdditionalFiles</code>. Non-fatal <code>Warning</code>, logged so the omission isn't silent.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    A row whose field doesn't match any declared column, or that omits a value for a non-nullable
+    column, also fails the build with a descriptive <code>CompilationError</code> &mdash; those don't
+    currently carry a dedicated <code>EXT&hellip;</code> code, just a precise message naming the table,
+    row index, and column.
+  </p>
+
+  <h4>Attaching an extension to a build</h4>
+  <p>
+    Registering contributions only takes effect once the extension is attached to the compiler with
+    <code>MsiCompiler.Use</code>:
+  </p>
+  <pre><code class="language-csharp">var sql = new SqlExtension();
+sql.DefineDatabase(db =&gt; db.Id("AppDb").Server(".").Database("Demo").CreateOnInstall());
+
+return Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(sql));
+
+// Multiple extensions:
+new MsiCompiler().Use(sql, firewall, dependency);</code></pre>
+  <p>
+    <code>Use</code> mutates and returns the same compiler instance, so even a discarded return value
+    still attaches the extension. The failure mode to watch for is the opposite mistake: configuring an
+    extension object (<code>sql.DefineDatabase(&hellip;)</code>) but never passing it to
+    <code>.Use(&hellip;)</code> &mdash; the extension's <code>Register</code> callback is never invoked,
+    so none of its tables or execution steps reach the compiled MSI, and nothing about a green build
+    warns you. If it feels like your extension's configuration "didn't do anything," check <code>.Use</code>
+    first.
+  </p>
+
+  <!-- 10.11 Writing Your Own Extension -->
+  <h3 id="ext-authoring-guide">10.11 Writing Your Own Extension</h3>
+  <p>
+    A worked, end-to-end example: a small <code>Audit</code> extension that records install/uninstall
+    events. It uses both contributor kinds from 10.10 &mdash; an <code>IMsiTableContributor</code> for an
+    inspectable record, and an <code>IExecutionContributor</code> to make that record real by appending a
+    line to a log file at install time and removing it at uninstall. Every type and method referenced
+    below is a real member documented in 10.1 and 10.10.
+  </p>
+
+  <h4>1. Define the extension's public surface</h4>
+  <pre><code class="language-csharp">using FalkForge.Extensibility;
+
+namespace Contoso.Installer.Extensions;
+
+public sealed class AuditExtension : IFalkForgeExtension
+{
+    private readonly List<(string Id, string Message)> _entries = [];
+
+    public string Name => "Contoso.Audit";
+
+    public void Register(IExtensionRegistry registry)
+    {
+        registry.RegisterTableContributor(new AuditTableContributor(_entries));
+        registry.RegisterExecutionContributor(new AuditExecutionContributor(_entries));
+    }
+
+    /// &lt;summary&gt;Records an audit entry that is written into the compiled MSI and appended to the
+    /// machine audit log at install time.&lt;/summary&gt;
+    public void LogEntry(string id, string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        _entries.Add((id, message));
+    }
+}</code></pre>
+
+  <h4>2. Contribute inspectable table data</h4>
+  <p>
+    <code>AuditEntry</code> is not a built-in MSI table, so the contributor must declare
+    <code>WriteColumns</code>:
+  </p>
+  <pre><code class="language-csharp">using FalkForge.Extensibility;
+
+namespace Contoso.Installer.Extensions;
+
+internal sealed class AuditTableContributor(IReadOnlyList<(string Id, string Message)> entries)
+    : IMsiTableContributor
+{
+    public string TableName => "AuditEntry";
+
+    public IReadOnlyList<ContributedColumn> WriteColumns { get; } =
+    [
+        ContributedColumn.Key("Id"),
+        ContributedColumn.Text("Message"),
+    ];
+
+    public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context)
+        => entries
+            .Select(e => new MsiTableRow().Set("Id", e.Id).Set("Message", e.Message))
+            .ToList();
+}</code></pre>
+
+  <h4>3. Make it live with an execution contributor</h4>
+  <p>
+    Without this step the <code>AuditEntry</code> rows would just sit in the MSI &mdash; this is the
+    seam described in 10.10 that actually appends to the log file. It follows the same
+    fully-qualified-interpreter-path + base64 <code>-EncodedCommand</code> pattern as the shipped
+    extensions, and quotes the author-supplied message with <code>CommandLine.PowerShellSingleQuote</code>
+    because it is untrusted input reaching a <code>SYSTEM</code>-elevated command line:
+  </p>
+  <pre><code class="language-csharp">using System.Text;
+using FalkForge.Extensibility;
+
+namespace Contoso.Installer.Extensions;
+
+internal sealed class AuditExecutionContributor(IReadOnlyList<(string Id, string Message)> entries)
+    : IExecutionContributor
+{
+    private const string LogPath = @"C:\ProgramData\Contoso\audit.log";
+
+    public IReadOnlyList<ExecutionStep> GetExecutionSteps(ExtensionContext context)
+    {
+        var steps = new List<ExecutionStep>(entries.Count);
+        foreach (var (id, message) in entries)
+        {
+            string line = $"{DateTime.UtcNow:O}  {message}";
+            string appendScript =
+                $"Add-Content -Path {CommandLine.PowerShellSingleQuote(LogPath)} " +
+                $"-Value {CommandLine.PowerShellSingleQuote(line)}";
+
+            steps.Add(new ExecutionStep
+            {
+                Id = $"Audit_{id}",
+                InstallCommand = Encode(appendScript),
+                UninstallCommand = Encode(
+                    $"Remove-Item -Path {CommandLine.PowerShellSingleQuote(LogPath)} -ErrorAction SilentlyContinue"),
+            });
+        }
+
+        return steps;
+    }
+
+    // No shared encoder ships in FalkForge.Extensibility today (see 10.10) — every extension defines
+    // its own, matching this exact shape: fully-qualified interpreter path + base64 UTF-16LE script.
+    private static string Encode(string script)
+        => "[SystemFolder]WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -NonInteractive -EncodedCommand " +
+           Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+}</code></pre>
+  <div class="note">
+    <strong>Credentials:</strong> if your extension needs a password or other secret at install time
+    (a database connection, a service account), do not interpolate it into the script like
+    <code>message</code> above. Follow the SQL extension's pattern instead: pass
+    <code>CustomActionData = "[YOUR_SECRET_PROPERTY]"</code> on the <code>ExecutionStep</code>, read it
+    inside the script as the first argument, and list both the generated step id and the source
+    property in <code>HiddenProperties</code>. See <a href="#ext-authoring-arch">10.10</a> and
+    <code>src/FalkForge.Extensions.Sql/SqlCommandFactory.cs</code> for the full pattern.
+  </div>
+
+  <h4>4. Attach it to a build</h4>
+  <pre><code class="language-csharp">var audit = new AuditExtension();
+audit.LogEntry("Install", "Contoso App 1.0.0 installed");
+
+return Installer.Build(args, p =&gt; p
+    .Name("Contoso App")
+    .UpgradeCode(Guid.Parse("6C3F2B1A-9D4E-4A7C-8B5D-1E2F3A4B5C6D"))
+    .Version("1.0.0")
+    .Feature("Main", f =&gt; f
+        .Files(files =&gt; files
+            .Source(@"bin\Release\")
+            .Include("ContosoApp.exe"))),
+    new MsiCompiler().Use(audit));</code></pre>
+
+  <h4>5. Test it</h4>
+  <p>
+    Two levels are worth testing, mirroring how the shipped extensions are tested
+    (<code>tests/FalkForge.Extensions.Firewall.Tests/</code>,
+    <code>tests/FalkForge.Compiler.Msi.Tests/Recipe/ExecutionStepEmissionTests.cs</code>).
+  </p>
+  <p><strong>a) Registration, without compiling anything.</strong> A minimal in-test
+    <code>IExtensionRegistry</code> double proves <code>Register</code> hands the compiler exactly the
+    contributors you expect:</p>
+  <pre><code class="language-csharp">[Fact]
+public void Register_RegistersTableAndExecutionContributor()
+{
+    var extension = new AuditExtension();
+    var registry = new FakeExtensionRegistry();
+
+    extension.Register(registry);
+
+    Assert.Single(registry.TableContributors);
+    Assert.Equal("AuditEntry", registry.TableContributors[0].TableName);
+    Assert.Single(registry.ExecutionContributors);
+}
+
+private sealed class FakeExtensionRegistry : IExtensionRegistry
+{
+    public List<IMsiTableContributor> TableContributors { get; } = [];
+    public List<IExecutionContributor> ExecutionContributors { get; } = [];
+
+    public void RegisterTableContributor(IMsiTableContributor c) =&gt; TableContributors.Add(c);
+    public void RegisterComponentContributor(IComponentContributor c) { }
+    public void RegisterExecutionContributor(IExecutionContributor c) =&gt; ExecutionContributors.Add(c);
+    public void RegisterDryRunContributor(IDryRunContributor c) { }
+    public void RegisterDialogStep(IDialogStepBuilder b) { }
+}</code></pre>
+  <p><strong>b) The compiled MSI, structurally.</strong> On Windows, compile through the real pipeline
+    and query the resulting tables with <code>MsiDatabase</code>
+    (<code>src/FalkForge.Compiler.Msi/MsiDatabase.cs</code>) &mdash; the same technique
+    <code>ExecutionStepEmissionTests</code> uses to prove Firewall's rule becomes a real deferred action:</p>
+  <pre><code class="language-csharp">[Fact]
+[SupportedOSPlatform("windows")]
+public void AuditEntry_EmitsCustomTableRowAndDeferredInstallAction()
+{
+    string root = Path.Combine(Path.GetTempPath(), $"AuditTest_{Guid.NewGuid():N}");
+    string sourceFile = Path.Combine(root, "source", "AuditTestApp.exe");
+    string outputDir = Path.Combine(root, "output");
+    Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
+    Directory.CreateDirectory(outputDir);
+    File.WriteAllText(sourceFile, "test payload");
+
+    var audit = new AuditExtension();
+    audit.LogEntry("Install", "test entry");
+
+    var package = InstallerTestHost.BuildPackage(p =&gt;
+    {
+        p.Name = "AuditTestApp";
+        p.Manufacturer = "Contoso";
+        p.Version = new Version(1, 0, 0);
+        p.Files(f =&gt; f.Add(sourceFile).To(KnownFolder.ProgramFiles / "Contoso" / "AuditTestApp"));
+    });
+
+    var result = new MsiCompiler(new WindowsFileSystem()).Use(audit).Compile(package, outputDir);
+    Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+    using var db = MsiDatabase.Open(result.Value, readOnly: true).Value;
+
+    var tableRows = db.QueryRows("SELECT `Id`, `Message` FROM `AuditEntry`", 2).Value;
+    Assert.Contains(tableRows, r =&gt; r[0] == "Install" &amp;&amp; r[1] == "test entry");
+
+    var actions = db.QueryRows("SELECT `Action` FROM `CustomAction` WHERE `Action`='Audit_Install'", 1).Value;
+    Assert.Single(actions);
+}</code></pre>
+  <p>
+    For the full accounting of what a deferred/elevated custom action row looks like (type bits,
+    <code>Source</code>/<code>Target</code>, sequencing between <code>InstallInitialize</code> and
+    <code>InstallFinalize</code>, rollback ordering), read
+    <code>tests/FalkForge.Compiler.Msi.Tests/Recipe/ExecutionStepEmissionTests.cs</code> directly &mdash;
+    it exercises every <code>ExecutionStep</code> field against a real compiled MSI.
+  </p>
+
+  <h4>Real, shipped exemplars to read next</h4>
+  <table class="api-table">
+    <thead>
+      <tr><th>Pattern</th><th>Extension</th><th>Files</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Simplest end-to-end execution seam (no secrets)</td><td>Firewall</td><td><code>src/FalkForge.Extensions.Firewall/FirewallExtension.cs</code>, <code>FirewallTableContributor.cs</code>, <code>FirewallExecutionContributor.cs</code>, <code>FirewallCommandFactory.cs</code></td></tr>
+      <tr><td>Secret-credential channel (SQL auth password)</td><td>SQL</td><td><code>src/FalkForge.Extensions.Sql/SqlExtension.cs</code>, <code>SqlExecutionContributor.cs</code>, <code>SqlCommandFactory.cs</code></td></tr>
+      <tr><td>Merge into a built-in table + immediate (non-deferred) check, no execution seam</td><td>Dependency</td><td><code>src/FalkForge.Extensions.Dependency/DependencyExtension.cs</code>, <code>DependencyTableContributor.cs</code>, <code>DependencyVersionCheckPlanner.cs</code></td></tr>
+    </tbody>
+  </table>
+
 <!-- ============================================================ -->
 <!-- Section 12: Engine Architecture                              -->
 <!-- ============================================================ -->
