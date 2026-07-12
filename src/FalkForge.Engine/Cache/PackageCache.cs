@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Cache;
 
 using System.Security.Cryptography;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Platform.Windows;
 
@@ -35,15 +36,20 @@ public sealed class PackageCache
                     $"SHA-256 mismatch for {package.Id}: expected {package.Sha256Hash}, got {hash}");
             }
 
-            // Verify Authenticode signature if thumbprint is specified
-            if (package.AuthenticodeThumbprint is not null && _authenticodeValidator is not null)
+            // Verify Authenticode publisher pins (certificate thumbprint and/or remote-payload
+            // public-key pin). Verification runs against targetPath — the exact bytes that will be
+            // installed — so there is no TOCTOU gap between the SHA-256 check and the signature check.
+            // A pin present without a validator fails closed (see PayloadSignaturePinVerifier).
+            var pinResult = PayloadSignaturePinVerifier.Verify(
+                _authenticodeValidator,
+                targetPath,
+                package.AuthenticodeThumbprint,
+                package.RemotePayloadCertificatePublicKey,
+                package.Id);
+            if (pinResult.IsFailure)
             {
-                var signatureResult = _authenticodeValidator.ValidateSignature(sourceFilePath, package.AuthenticodeThumbprint);
-                if (signatureResult.IsFailure)
-                {
-                    File.Delete(targetPath);
-                    return Result<string>.Failure(signatureResult.Error);
-                }
+                File.Delete(targetPath);
+                return Result<string>.Failure(pinResult.Error);
             }
 
             return targetPath;
@@ -70,7 +76,21 @@ public sealed class PackageCache
         var targetPath = _layout.GetPayloadPath(bundleId, package.Id, fileName);
 
         if (string.Equals(Path.GetFullPath(downloadedFilePath), Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
+        {
+            // The download already landed at the cache path, so there is nothing to copy — but a
+            // pinned payload must still be signature-verified in place, otherwise routing through this
+            // fast path would silently bypass the publisher pin that CachePackage enforces.
+            var pinResult = PayloadSignaturePinVerifier.Verify(
+                _authenticodeValidator,
+                targetPath,
+                package.AuthenticodeThumbprint,
+                package.RemotePayloadCertificatePublicKey,
+                package.Id);
+            if (pinResult.IsFailure)
+                return Result<string>.Failure(pinResult.Error);
+
             return targetPath;
+        }
 
         return CachePackage(bundleId, package, downloadedFilePath);
     }

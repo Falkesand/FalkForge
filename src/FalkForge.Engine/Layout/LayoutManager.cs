@@ -3,15 +3,19 @@ namespace FalkForge.Engine.Layout;
 using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Engine.Download;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Platform.Windows;
 
 public sealed class LayoutManager
 {
     private readonly PayloadDownloader _downloader;
+    private readonly IAuthenticodeValidator? _authenticodeValidator;
 
-    public LayoutManager(PayloadDownloader downloader)
+    public LayoutManager(PayloadDownloader downloader, IAuthenticodeValidator? authenticodeValidator = null)
     {
         _downloader = downloader;
+        _authenticodeValidator = authenticodeValidator;
     }
 
     public async Task<Result<Unit>> CreateLayoutAsync(
@@ -66,6 +70,22 @@ public sealed class LayoutManager
 
                 if (downloadResult.IsFailure)
                     return Result<Unit>.Failure(downloadResult.Error);
+
+                // Publisher pin enforcement on the freshly downloaded bytes: after SHA-256 the
+                // engine additionally requires a valid Authenticode signature from the pinned
+                // publisher. Verified in place on the downloaded target (no TOCTOU). Fails closed
+                // when a pin is set but no validator is available (non-Windows build).
+                var pinResult = PayloadSignaturePinVerifier.Verify(
+                    _authenticodeValidator,
+                    targetPath,
+                    package.AuthenticodeThumbprint,
+                    package.RemotePayloadCertificatePublicKey,
+                    package.Id);
+                if (pinResult.IsFailure)
+                {
+                    TryDeleteFile(targetPath);
+                    return Result<Unit>.Failure(pinResult.Error);
+                }
             }
             else if (File.Exists(package.SourcePath))
             {

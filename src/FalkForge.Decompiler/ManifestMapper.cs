@@ -46,7 +46,8 @@ internal static class ManifestMapper
                 {
                     DownloadUrl = pkg.DownloadUrl,
                     Sha256Hash = toc.Sha256Hash,
-                    Size = toc.OriginalSize
+                    Size = toc.OriginalSize,
+                    CertificatePublicKey = pkg.RemotePayloadCertificatePublicKey
                 }
                 : null;
 
@@ -145,7 +146,8 @@ internal static class ManifestMapper
                 {
                     DownloadUrl = pkg.DownloadUrl,
                     Sha256Hash = pkg.Sha256Hash,
-                    Size = 0
+                    Size = 0,
+                    CertificatePublicKey = pkg.RemotePayloadCertificatePublicKey
                 }
                 : null,
             ContainerId = pkg.ContainerId

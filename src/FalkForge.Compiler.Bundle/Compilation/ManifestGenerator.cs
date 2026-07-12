@@ -49,6 +49,7 @@ public sealed class ManifestGenerator
                 PatchCode = pkg.PatchCode,
                 TargetProductCode = pkg.TargetProductCode,
                 DownloadUrl = pkg.RemotePayload?.DownloadUrl,
+                RemotePayloadCertificatePublicKey = pkg.RemotePayload?.CertificatePublicKey,
                 ContainerId = pkg.ContainerId,
                 AuthenticodeThumbprint = pkg.AuthenticodeThumbprint,
                 IsPrerequisite = pkg.IsPrerequisite,

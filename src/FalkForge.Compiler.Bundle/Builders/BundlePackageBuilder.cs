@@ -77,13 +77,25 @@ public sealed class BundlePackageBuilder
         return this;
     }
 
-    public BundlePackageBuilder RemotePayload(string url, string sha256, long size)
+    /// <param name="url">HTTPS download URL of the remote payload.</param>
+    /// <param name="sha256">Expected SHA-256 (hex) of the downloaded bytes.</param>
+    /// <param name="size">Expected size in bytes.</param>
+    /// <param name="certificatePublicKey">
+    /// Optional publisher pin: the SHA-256 hash (hex, 64 chars) of the signer certificate's
+    /// SubjectPublicKeyInfo. When set, the engine additionally requires the downloaded payload to be
+    /// validly Authenticode-signed by this publisher key (in addition to the SHA-256 check) and
+    /// aborts the install on an unsigned/invalid/wrong-signer payload. Unlike a certificate
+    /// thumbprint, this pin survives certificate reissuance with the same key pair — the right fit
+    /// for a remote payload whose bytes may update but whose publisher is fixed.
+    /// </param>
+    public BundlePackageBuilder RemotePayload(string url, string sha256, long size, string? certificatePublicKey = null)
     {
         _remotePayload = new RemotePayloadModel
         {
             DownloadUrl = url,
             Sha256Hash = sha256,
-            Size = size
+            Size = size,
+            CertificatePublicKey = certificatePublicKey
         };
         return this;
     }

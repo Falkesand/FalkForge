@@ -590,6 +590,34 @@ public sealed class BundleCSharpEmitterTests
     }
 
     [Fact]
+    public void Emit_PackageWithRemotePayloadPin_EmitsCertificatePublicKeyArgument()
+    {
+        var pin = new string('A', 64);
+        var model = CreateMinimalBundle(chain:
+        [
+            new PackageChainItem(new BundlePackageModel
+            {
+                Id = "remote",
+                Type = BundlePackageType.ExePackage,
+                DisplayName = "Remote Package",
+                SourcePath = "remote.exe",
+                RemotePayload = new RemotePayloadModel
+                {
+                    DownloadUrl = "https://example.com/remote.exe",
+                    Sha256Hash = "abc123def456",
+                    Size = 1048576,
+                    CertificatePublicKey = pin
+                }
+            })
+        ]);
+
+        var source = BundleCSharpEmitter.Emit(model);
+
+        // The publisher pin must survive decompile round-trip, not be silently dropped.
+        Assert.Contains($"p.RemotePayload(\"https://example.com/remote.exe\", \"abc123def456\", 1048576, \"{pin}\");", source);
+    }
+
+    [Fact]
     public void Emit_PackageWithExitCodes_EmitsExitCodes()
     {
         var model = CreateMinimalBundle(chain:

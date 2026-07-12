@@ -53,7 +53,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
     {
         var missing = Path.Combine(_tempDir, "does-not-exist.exe");
 
-        var result = _validator.ValidateSignature(missing, expectedThumbprint: null);
+        var result = _validator.ValidateSignature(missing, expectedThumbprint: null, expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
@@ -66,7 +66,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
         var unsigned = Path.Combine(_tempDir, "unsigned.bin");
         File.WriteAllBytes(unsigned, new byte[] { 0x4D, 0x5A, 0x00, 0x01, 0x02, 0x03 });
 
-        var result = _validator.ValidateSignature(unsigned, expectedThumbprint: null);
+        var result = _validator.ValidateSignature(unsigned, expectedThumbprint: null, expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
@@ -86,7 +86,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
         bytes[bytes.Length / 2] ^= 0xFF;
         File.WriteAllBytes(tampered, bytes);
 
-        var result = _validator.ValidateSignature(tampered, expectedThumbprint: null);
+        var result = _validator.ValidateSignature(tampered, expectedThumbprint: null, expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
@@ -99,7 +99,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
         if (signed is null)
             Assert.Skip("No embedded-signed reference file (dotnet.exe) found on this machine — positive-path test skipped.");
 
-        var result = _validator.ValidateSignature(signed, expectedThumbprint: null);
+        var result = _validator.ValidateSignature(signed, expectedThumbprint: null, expectedPublicKeyHash: null);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
     }
@@ -114,9 +114,72 @@ public sealed class AuthenticodeValidatorTests : IDisposable
         // Trust verification passes, but the pinned thumbprint does not match the signer —
         // pinning must layer on top of (not bypass) a successful WinVerifyTrust result.
         var result = _validator.ValidateSignature(
-            signed, expectedThumbprint: "0000000000000000000000000000000000000000");
+            signed, expectedThumbprint: "0000000000000000000000000000000000000000", expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void ValidateSignature_EmbeddedSignedFile_MatchingPublicKeyPin_Succeeds()
+    {
+        var signed = EmbeddedSignedFile();
+        if (signed is null)
+            Assert.Skip("No embedded-signed reference file (dotnet.exe) found on this machine — positive-path test skipped.");
+
+        // Compute the SPKI SHA-256 pin from the reference file's own signer, then feed it back:
+        // a self-consistent pin must pass on top of a successful WinVerifyTrust result.
+        var expectedPin = SignerPublicKeyPin(signed);
+
+        var result = _validator.ValidateSignature(signed, expectedThumbprint: null, expectedPublicKeyHash: expectedPin);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void ValidateSignature_EmbeddedSignedFile_WrongPublicKeyPin_ReturnsSecurityError()
+    {
+        var signed = EmbeddedSignedFile();
+        if (signed is null)
+            Assert.Skip("No embedded-signed reference file (dotnet.exe) found on this machine — positive-path test skipped.");
+
+        // Trust verification passes, but the pinned public key does not match the signer —
+        // the public-key pin must layer on top of (not bypass) a successful WinVerifyTrust result.
+        var wrongPin = new string('A', 64);
+
+        var result = _validator.ValidateSignature(signed, expectedThumbprint: null, expectedPublicKeyHash: wrongPin);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void ValidateSignature_UnsignedFile_WithPublicKeyPin_ReturnsSecurityError()
+    {
+        // An unsigned file must fail WinVerifyTrust before the public-key pin is even consulted:
+        // a pin can never rescue an unsigned payload (fail-closed).
+        var unsigned = Path.Combine(_tempDir, "unsigned-pin.bin");
+        File.WriteAllBytes(unsigned, new byte[] { 0x4D, 0x5A, 0x00, 0x01, 0x02, 0x03 });
+
+        var result = _validator.ValidateSignature(
+            unsigned, expectedThumbprint: null, expectedPublicKeyHash: new string('A', 64));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    /// <summary>
+    /// Extracts the SHA-256 (hex) of the signer certificate's SubjectPublicKeyInfo from a
+    /// signed file — the same computation the validator performs — so the positive-path test
+    /// pins the file against its own genuine signer.
+    /// </summary>
+    private static string SignerPublicKeyPin(string signedFilePath)
+    {
+#pragma warning disable SYSLIB0057 // CreateFromSignedFile is obsolete
+        using var baseCert = System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(signedFilePath);
+#pragma warning restore SYSLIB0057
+        using var cert = new System.Security.Cryptography.X509Certificates.X509Certificate2(baseCert);
+        var spki = cert.PublicKey.ExportSubjectPublicKeyInfo();
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(spki));
     }
 }

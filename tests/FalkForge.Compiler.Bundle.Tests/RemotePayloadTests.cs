@@ -80,4 +80,37 @@ public sealed class RemotePayloadTests
 
         Assert.Null(model.CertificatePublicKey);
     }
+
+    [Fact]
+    public void BundlePackageBuilder_RemotePayload_SetsCertificatePublicKeyPin()
+    {
+        var pin = new string('A', 64);
+        var builder = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Chain(c => c.MsiPackage("remote.msi", p => p
+                .Id("RemoteMsi")
+                .DisplayName("Remote MSI")
+                .RemotePayload("https://example.com/remote.msi", "AABBCCDD", 1024, pin)))
+            .Build();
+
+        var package = builder.Packages[0];
+        Assert.NotNull(package.RemotePayload);
+        Assert.Equal(pin, package.RemotePayload.CertificatePublicKey);
+    }
+
+    [Fact]
+    public void BundlePackageBuilder_RemotePayload_WithoutPin_LeavesCertificatePublicKeyNull()
+    {
+        var builder = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Chain(c => c.MsiPackage("remote.msi", p => p
+                .Id("RemoteMsi")
+                .DisplayName("Remote MSI")
+                .RemotePayload("https://example.com/remote.msi", "AABBCCDD", 1024)))
+            .Build();
+
+        Assert.Null(builder.Packages[0].RemotePayload!.CertificatePublicKey);
+    }
 }
