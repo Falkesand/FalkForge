@@ -83,20 +83,27 @@ public sealed class MigrationBundlePayloadFailureTests : IDisposable
     }
 
     /// <summary>
-    /// Flips bytes in the gzip payload region of a FALKBUNDLE so its SHA-256 integrity check
-    /// fails, without touching the footer magic, TOC, or manifest (so decompilation still works).
-    /// The payload region sits after the leading stub/magic/manifest and before the TOC.
+    /// Flips the final byte of the gzip payload region of a FALKBUNDLE so its SHA-256 integrity
+    /// check fails, without touching the footer magic, TOC, or manifest (so decompilation still
+    /// works). The bundle layout is
+    /// <c>[stub][magic][manifestLen][manifest][payloads][TOC][magic][tocOffset:int64]</c>, so the
+    /// last 8 bytes hold <c>tocOffset</c> — the exact end of the compressed payload region.
+    /// Corrupting <c>tocOffset - 1</c> is guaranteed to land inside a payload's SHA-256-covered
+    /// bytes regardless of stub or manifest size (a fixed "middle third" offset silently drifted
+    /// out of the payload region whenever the manifest grew, e.g. a new optional PackageInfo field).
     /// </summary>
     private static void CorruptCompressedPayloadRegion(string bundlePath)
     {
         var bytes = File.ReadAllBytes(bundlePath);
 
-        // Flip a run of bytes in the middle third of the file. The footer (last 24 bytes) and
-        // the very start (PE stub) are left intact; the middle covers the embedded payload.
-        var start = bytes.Length / 3;
-        var end = Math.Min(bytes.Length - 24, start + 16);
-        for (var i = start; i < end; i++)
-            bytes[i] ^= 0xFF;
+        // Footer trailer is the little-endian int64 TOC offset (BinaryWriter/BitConverter agree on
+        // this machine's endianness); it marks the first byte after the last payload.
+        var tocOffset = BitConverter.ToInt64(bytes, bytes.Length - sizeof(long));
+
+        // Defensive: a well-formed bundle always has at least one payload byte before the TOC.
+        Assert.InRange(tocOffset, 1, bytes.Length - 1);
+
+        bytes[tocOffset - 1] ^= 0xFF;
 
         File.WriteAllBytes(bundlePath, bytes);
     }

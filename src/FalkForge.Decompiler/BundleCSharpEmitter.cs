@@ -363,7 +363,12 @@ internal static class BundleCSharpEmitter
         if (package.RemotePayload is not null)
         {
             var rp = package.RemotePayload;
-            appendLine($"p.RemotePayload({Quote(rp.DownloadUrl)}, {Quote(rp.Sha256Hash)}, {rp.Size.ToString(CultureInfo.InvariantCulture)});");
+            var remotePayloadArgs = $"{Quote(rp.DownloadUrl)}, {Quote(rp.Sha256Hash)}, {rp.Size.ToString(CultureInfo.InvariantCulture)}";
+            // Preserve the publisher public-key pin on round-trip; dropping it would silently
+            // downgrade a decompiled bundle's security posture.
+            if (rp.CertificatePublicKey is not null)
+                remotePayloadArgs += $", {Quote(rp.CertificatePublicKey)}";
+            appendLine($"p.RemotePayload({remotePayloadArgs});");
         }
 
         foreach (var exitCode in package.ExitCodes)

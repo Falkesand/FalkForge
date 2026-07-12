@@ -146,6 +146,154 @@ public sealed class LayoutManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateLayoutAsync_RemotePayloadWithPin_ValidSignature_Succeeds()
+    {
+        var content = "pinned remote payload"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var package = new PackageInfo
+        {
+            Id = "Remote",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Remote Package",
+            SourcePath = "remote.msi",
+            Sha256Hash = hash,
+            DownloadUrl = "https://example.com/remote.msi",
+            RemotePayloadCertificatePublicKey = new string('A', 64)
+        };
+        var manifest = CreateManifest(package);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var validator = new Mocks.MockAuthenticodeValidator().ReturnsSuccess();
+        var manager = new LayoutManager(downloader, validator);
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, validator.CallCount);
+        Assert.Equal(package.RemotePayloadCertificatePublicKey, validator.LastPublicKeyHash);
+        // Verified in place against the downloaded target file — no TOCTOU gap.
+        Assert.Equal(Path.Combine(_layoutDir, "remote.msi"), validator.LastFilePath);
+    }
+
+    [Fact]
+    public async Task CreateLayoutAsync_RemotePayloadWithPin_InvalidSignature_FailsClosedAndDeletesPayload()
+    {
+        var content = "pinned remote payload"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var package = new PackageInfo
+        {
+            Id = "Remote",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Remote Package",
+            SourcePath = "remote.msi",
+            Sha256Hash = hash,
+            DownloadUrl = "https://example.com/remote.msi",
+            RemotePayloadCertificatePublicKey = new string('B', 64)
+        };
+        var manifest = CreateManifest(package);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        var validator = new Mocks.MockAuthenticodeValidator().ReturnsFailure("public-key pin mismatch");
+        var manager = new LayoutManager(downloader, validator);
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        // Fail closed: a payload that fails the pin must not remain staged in the layout.
+        Assert.False(File.Exists(Path.Combine(_layoutDir, "remote.msi")));
+    }
+
+    [Fact]
+    public async Task CreateLayoutAsync_RemotePayloadWithPin_NoValidator_FailsClosed()
+    {
+        var content = "pinned remote payload"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var package = new PackageInfo
+        {
+            Id = "Remote",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Remote Package",
+            SourcePath = "remote.msi",
+            Sha256Hash = hash,
+            DownloadUrl = "https://example.com/remote.msi",
+            RemotePayloadCertificatePublicKey = new string('C', 64)
+        };
+        var manifest = CreateManifest(package);
+        var handler = new MockHttpHandler(content, HttpStatusCode.OK);
+        using var client = new HttpClient(handler);
+        var downloader = new PayloadDownloader(client);
+        // No validator supplied (e.g. a non-Windows engine build): a set pin must fail closed.
+        var manager = new LayoutManager(downloader);
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.False(File.Exists(Path.Combine(_layoutDir, "remote.msi")));
+    }
+
+    [Fact]
+    public async Task CreateLayoutAsync_LocalSourceWithPin_NoValidator_FailsClosed()
+    {
+        // A pin is authored on the package but the payload is staged from a LOCAL source (no
+        // DownloadUrl). The pin is a property of the package, not the transport, so it must still be
+        // enforced — and with no validator available it fails closed rather than fail open.
+        var content = "local pinned payload"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var sourcePath = Path.Combine(_sourceDir, "local.msi");
+        File.WriteAllBytes(sourcePath, content);
+        var package = new PackageInfo
+        {
+            Id = "Local",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Local Package",
+            SourcePath = sourcePath,
+            Sha256Hash = hash,
+            RemotePayloadCertificatePublicKey = new string('A', 64)
+        };
+        var manifest = CreateManifest(package);
+        var manager = CreateManager();
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.False(File.Exists(Path.Combine(_layoutDir, "local.msi")));
+    }
+
+    [Fact]
+    public async Task CreateLayoutAsync_LocalSourceWithPin_ValidSignature_Succeeds()
+    {
+        var content = "local pinned payload"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var sourcePath = Path.Combine(_sourceDir, "local.msi");
+        File.WriteAllBytes(sourcePath, content);
+        var package = new PackageInfo
+        {
+            Id = "Local",
+            Type = PackageType.MsiPackage,
+            DisplayName = "Local Package",
+            SourcePath = sourcePath,
+            Sha256Hash = hash,
+            RemotePayloadCertificatePublicKey = new string('A', 64)
+        };
+        var manifest = CreateManifest(package);
+        using var client = new HttpClient();
+        var downloader = new PayloadDownloader(client);
+        var validator = new Mocks.MockAuthenticodeValidator().ReturnsSuccess();
+        var manager = new LayoutManager(downloader, validator);
+
+        var result = await manager.CreateLayoutAsync(manifest, _layoutDir, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, validator.CallCount);
+        Assert.Equal(package.RemotePayloadCertificatePublicKey, validator.LastPublicKeyHash);
+    }
+
+    [Fact]
     public async Task CreateLayoutAsync_MissingSourceNoUrl_ReturnsFailure()
     {
         var package = CreatePackage("Missing", @"C:\nonexistent\app.msi", "AABB");

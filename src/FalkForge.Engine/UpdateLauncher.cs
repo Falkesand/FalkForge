@@ -63,7 +63,7 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
         // user's machine (CVE class: CWE-494 Download of Code Without Integrity Check).
         if (_authenticodeValidator is not null)
         {
-            var sigResult = _authenticodeValidator.ValidateSignature(updatePath, _expectedThumbprint);
+            var sigResult = _authenticodeValidator.ValidateSignature(updatePath, _expectedThumbprint, expectedPublicKeyHash: null);
             if (sigResult.IsFailure)
                 return Result<Unit>.Failure(new Error(ErrorKind.SecurityError,
                     $"UPD006: Update bundle rejected — signature invalid: {sigResult.Error.Message}"));

@@ -11,7 +11,7 @@ public sealed class AuthenticodeValidationTests
     {
         var validator = new MockAuthenticodeValidator().ReturnsSuccess();
 
-        var result = validator.ValidateSignature("test.msi", "ABC123");
+        var result = validator.ValidateSignature("test.msi", "ABC123", expectedPublicKeyHash: null);
 
         Assert.True(result.IsSuccess);
     }
@@ -21,7 +21,7 @@ public sealed class AuthenticodeValidationTests
     {
         var validator = new MockAuthenticodeValidator().ReturnsFailure("Invalid signature");
 
-        var result = validator.ValidateSignature("test.msi", "ABC123");
+        var result = validator.ValidateSignature("test.msi", "ABC123", expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
@@ -34,7 +34,7 @@ public sealed class AuthenticodeValidationTests
         var validator = new MockAuthenticodeValidator()
             .ReturnsFailure("Certificate thumbprint mismatch");
 
-        var result = validator.ValidateSignature("test.msi", "WRONG_THUMBPRINT");
+        var result = validator.ValidateSignature("test.msi", "WRONG_THUMBPRINT", expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Contains("thumbprint mismatch", result.Error.Message);
@@ -45,7 +45,7 @@ public sealed class AuthenticodeValidationTests
     {
         var validator = new MockAuthenticodeValidator().ReturnsSuccess();
 
-        var result = validator.ValidateSignature("test.msi", null);
+        var result = validator.ValidateSignature("test.msi", null, expectedPublicKeyHash: null);
 
         Assert.True(result.IsSuccess);
         Assert.Null(validator.LastThumbprint);
@@ -57,7 +57,7 @@ public sealed class AuthenticodeValidationTests
         var validator = new MockAuthenticodeValidator()
             .ReturnsFailure("File not found");
 
-        var result = validator.ValidateSignature("nonexistent.msi", null);
+        var result = validator.ValidateSignature("nonexistent.msi", null, expectedPublicKeyHash: null);
 
         Assert.True(result.IsFailure);
         Assert.Contains("File not found", result.Error.Message);

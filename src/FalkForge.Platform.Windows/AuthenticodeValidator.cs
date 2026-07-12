@@ -8,7 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 [SupportedOSPlatform("windows")]
 public sealed class AuthenticodeValidator : IAuthenticodeValidator
 {
-    public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint)
+    public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint, string? expectedPublicKeyHash)
     {
         if (!File.Exists(filePath))
             return Result<Unit>.Failure(ErrorKind.FileNotFound, $"File not found: {filePath}");
@@ -17,26 +17,48 @@ public sealed class AuthenticodeValidator : IAuthenticodeValidator
         // file hash against the embedded signature AND that the signer chains to a trusted root.
         // X509Certificate.CreateFromSignedFile alone does NEITHER — it only extracts the signer
         // certificate, so a tampered or self-signed file would pass. Trust must be established
-        // before we look at the thumbprint.
+        // before we look at any pin.
         var trustResult = VerifyTrust(filePath);
         if (trustResult.IsFailure)
             return trustResult;
 
         // Step 2 (optional): pin the publisher identity on top of a successful trust check.
-        if (expectedThumbprint is null)
+        // No pin requested — a valid signature is sufficient.
+        if (expectedThumbprint is null && expectedPublicKeyHash is null)
             return Unit.Value;
 
         try
         {
+            // Load the signer certificate exactly once and evaluate every requested pin against it.
 #pragma warning disable SYSLIB0057 // CreateFromSignedFile is obsolete
             using var baseCert = X509Certificate.CreateFromSignedFile(filePath);
 #pragma warning restore SYSLIB0057
             using var cert = new X509Certificate2(baseCert);
-            if (!string.Equals(cert.Thumbprint, expectedThumbprint, StringComparison.OrdinalIgnoreCase))
+
+            if (expectedThumbprint is not null &&
+                !string.Equals(cert.Thumbprint, expectedThumbprint, StringComparison.OrdinalIgnoreCase))
             {
                 return Result<Unit>.Failure(ErrorKind.SecurityError,
                     $"Certificate thumbprint mismatch. Expected: {expectedThumbprint}, Actual: {cert.Thumbprint}");
             }
+
+            if (expectedPublicKeyHash is not null)
+            {
+                // Pin the signer's SubjectPublicKeyInfo (SHA-256), not the whole certificate. This
+                // ties trust to the publisher's key pair, so a reissued certificate with the same key
+                // still matches while a different signer is rejected.
+                var spki = cert.PublicKey.ExportSubjectPublicKeyInfo();
+                var actualPublicKeyHash = Convert.ToHexString(SHA256.HashData(spki));
+                if (!string.Equals(actualPublicKeyHash, expectedPublicKeyHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Do not echo the actual key hash into the failure — the pinned value the author
+                    // supplied is what they need to reconcile, and leaking the observed signer key adds
+                    // nothing but noise to the security log.
+                    return Result<Unit>.Failure(ErrorKind.SecurityError,
+                        $"Certificate public-key pin mismatch for '{filePath}': signer public key does not match the pinned value.");
+                }
+            }
+
             return Unit.Value;
         }
         catch (CryptographicException ex)

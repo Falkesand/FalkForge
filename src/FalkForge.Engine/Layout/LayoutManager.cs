@@ -3,15 +3,19 @@ namespace FalkForge.Engine.Layout;
 using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Engine.Download;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Platform.Windows;
 
 public sealed class LayoutManager
 {
     private readonly PayloadDownloader _downloader;
+    private readonly IAuthenticodeValidator? _authenticodeValidator;
 
-    public LayoutManager(PayloadDownloader downloader)
+    public LayoutManager(PayloadDownloader downloader, IAuthenticodeValidator? authenticodeValidator = null)
     {
         _downloader = downloader;
+        _authenticodeValidator = authenticodeValidator;
     }
 
     public async Task<Result<Unit>> CreateLayoutAsync(
@@ -66,6 +70,14 @@ public sealed class LayoutManager
 
                 if (downloadResult.IsFailure)
                     return Result<Unit>.Failure(downloadResult.Error);
+
+                // Publisher pin enforcement on the freshly downloaded bytes: after SHA-256 the
+                // engine additionally requires a valid Authenticode signature from the pinned
+                // publisher. Verified in place on the downloaded target (no TOCTOU). Fails closed
+                // when a pin is set but no validator is available (non-Windows build).
+                var pinResult = VerifyPinOrDelete(package, targetPath);
+                if (pinResult.IsFailure)
+                    return pinResult;
             }
             else if (File.Exists(package.SourcePath))
             {
@@ -86,6 +98,13 @@ public sealed class LayoutManager
                         ErrorKind.LayoutError,
                         $"SHA-256 hash mismatch for {package.Id}: expected {package.Sha256Hash}, got {hash}");
                 }
+
+                // Defense-in-depth: enforce a publisher pin even for a locally-sourced payload. A pin
+                // is authored on the package, not the transport, so a pinned package staged from a
+                // local file must still satisfy it — no fail-open just because it was not downloaded.
+                var localPinResult = VerifyPinOrDelete(package, targetPath);
+                if (localPinResult.IsFailure)
+                    return localPinResult;
             }
             else
             {
@@ -115,6 +134,29 @@ public sealed class LayoutManager
         {
             return Result<Unit>.Failure(ErrorKind.LayoutError, $"Failed to write layout manifest: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Enforces the package's Authenticode publisher pin against the staged file, deleting it and
+    /// surfacing the failure when the pin is not satisfied (fail-closed). Returns success when no
+    /// pin is authored. Shared by the remote-download and local-copy branches so both apply the
+    /// identical fail-closed check against the exact staged bytes (no TOCTOU).
+    /// </summary>
+    private Result<Unit> VerifyPinOrDelete(PackageInfo package, string targetPath)
+    {
+        var pinResult = PayloadSignaturePinVerifier.Verify(
+            _authenticodeValidator,
+            targetPath,
+            package.AuthenticodeThumbprint,
+            package.RemotePayloadCertificatePublicKey,
+            package.Id);
+        if (pinResult.IsFailure)
+        {
+            TryDeleteFile(targetPath);
+            return Result<Unit>.Failure(pinResult.Error);
+        }
+
+        return Unit.Value;
     }
 
     private static string ComputeSha256(string filePath)

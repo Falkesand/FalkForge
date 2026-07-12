@@ -18,20 +18,20 @@ public sealed class UpdateLauncherAuthenticodeTests
 
     private sealed class AlwaysValidValidator : IAuthenticodeValidator
     {
-        public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint)
+        public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint, string? expectedPublicKeyHash)
             => Unit.Value;
     }
 
     private sealed class AlwaysInvalidValidator : IAuthenticodeValidator
     {
-        public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint)
+        public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint, string? expectedPublicKeyHash)
             => Result<Unit>.Failure(ErrorKind.SecurityError,
                 $"File is not signed or has invalid signature: {filePath}");
     }
 
     private sealed class ThumbprintMismatchValidator : IAuthenticodeValidator
     {
-        public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint)
+        public Result<Unit> ValidateSignature(string filePath, string? expectedThumbprint, string? expectedPublicKeyHash)
         {
             if (expectedThumbprint is not null &&
                 !string.Equals(expectedThumbprint, "AABBCC", StringComparison.OrdinalIgnoreCase))
