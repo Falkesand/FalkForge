@@ -6,7 +6,9 @@ and logs every lifecycle phase to a visible status log.
 
 ## What This Demonstrates
 
-- All five lifecycle hook pairs: Detect, Plan, Apply (begin/complete)
+- All three phase-level lifecycle hook pairs: Detect, Plan, Apply (begin/complete)
+- The per-package / per-related-bundle granular hooks (WiX Burn bootstrapper granularity),
+  logged once per package as it is detected, planned, and applied
 - Passing user-collected configuration to MSI properties via `Engine.SetProperty`
 - Secure property passing via `Engine.SetSecureProperty` using named pipes (never on command line)
 - Sensitive data handling with `GetPassword` and `SharedState.SetSensitive`
@@ -18,13 +20,35 @@ and logs every lifecycle phase to a visible status log.
 ## Key API Calls
 
 ```csharp
-// Lifecycle hooks (override in any InstallerPage)
+// Phase-level lifecycle hooks (override in any InstallerPage).
+// The three *Begin hooks return Task<bool>; returning false cancels the operation.
 protected override Task<bool> OnDetectBeginAsync()       // Return false to cancel
 protected override Task OnDetectCompleteAsync(DetectResult result)
 protected override Task<bool> OnPlanBeginAsync(InstallAction action)
 protected override Task OnPlanCompleteAsync(PlanResult result)
 protected override Task<bool> OnApplyBeginAsync()
 protected override Task OnApplyCompleteAsync(ApplyResult result)
+
+// Per-package / per-related-bundle granular hooks (observational, cannot veto a package).
+// Fire interleaved inside the matching phase, once per package/bundle, in chain order.
+protected override Task OnDetectPackageCompleteAsync(PackageDetectInfo info)
+protected override Task OnDetectRelatedBundleAsync(RelatedBundleInfo info)
+protected override Task OnPlanPackageBeginAsync(PackagePlanInfo info)
+protected override Task OnPlanPackageCompleteAsync(PackagePlanInfo info)
+protected override Task OnApplyPackageBeginAsync(PackageApplyBeginInfo info)
+protected override Task OnApplyPackageCompleteAsync(PackageApplyCompleteInfo info)
+
+// Documented fire order:
+//   OnDetectBeginAsync
+//     -> (per package) OnDetectPackageCompleteAsync
+//     -> (per related bundle) OnDetectRelatedBundleAsync
+//   OnDetectCompleteAsync
+//   OnPlanBeginAsync
+//     -> (per package) OnPlanPackageBeginAsync -> OnPlanPackageCompleteAsync
+//   OnPlanCompleteAsync
+//   OnApplyBeginAsync
+//     -> (per package) OnApplyPackageBeginAsync -> OnApplyPackageCompleteAsync
+//   OnApplyCompleteAsync
 
 // Pass properties to MSI packages during Plan phase
 Engine.SetProperty("DBSERVER", dbServer);

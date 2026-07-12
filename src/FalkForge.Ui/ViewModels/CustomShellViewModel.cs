@@ -49,6 +49,28 @@ internal sealed class CustomShellViewModel : INotifyPropertyChanged
                     () => HandleUpdateReadyAsync(version, localPath));
             };
         }
+
+        // Per-package / per-related-bundle lifecycle notifications (observational). Forwarded to
+        // the active page's granular hooks. Raised by the engine interleaved with the phase-level
+        // Detect/Plan/Apply round-trips, so they fire between the corresponding phase hooks. Any
+        // engine that surfaces IPackageLifecycleEvents participates (production EngineClient and
+        // test doubles alike).
+        //
+        // These are best-effort notifications: the returned Task is intentionally not awaited (an
+        // Action-typed event cannot be awaited), matching the observational contract. With the
+        // cross-process EngineClient the events are raised on the pipe's message-receive thread, so
+        // a hook that touches WPF-bound state must marshal to the UI thread itself (see the hook
+        // docs). Relative ordering of the per-package callbacks — and their interleaving with the
+        // phase hooks — holds for synchronous hook bodies, which is the documented contract.
+        if (engine is IPackageLifecycleEvents lifecycle)
+        {
+            lifecycle.PackageDetected += info => _ = CurrentPage?.OnDetectPackageCompleteAsync(info);
+            lifecycle.RelatedBundleDetected += info => _ = CurrentPage?.OnDetectRelatedBundleAsync(info);
+            lifecycle.PackagePlanBeginning += info => _ = CurrentPage?.OnPlanPackageBeginAsync(info);
+            lifecycle.PackagePlanCompleted += info => _ = CurrentPage?.OnPlanPackageCompleteAsync(info);
+            lifecycle.PackageApplyBeginning += info => _ = CurrentPage?.OnApplyPackageBeginAsync(info);
+            lifecycle.PackageApplyCompleted += info => _ = CurrentPage?.OnApplyPackageCompleteAsync(info);
+        }
     }
 
     public ICommand NextCommand { get; }

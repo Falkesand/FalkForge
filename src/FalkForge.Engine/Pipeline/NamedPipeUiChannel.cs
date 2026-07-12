@@ -200,6 +200,53 @@ public sealed class NamedPipeUiChannel : IUiChannel
                 LocalPath = localPath
             },
 
+        PipelineEvent.DetectPackageComplete(var packageId, var state, var version) =>
+            new DetectPackageCompleteMessage
+            {
+                PackageId = packageId,
+                State = state,
+                Version = version
+            },
+
+        PipelineEvent.DetectRelatedBundle(var bundleId, var relation, var installedVersion) =>
+            new DetectRelatedBundleMessage
+            {
+                BundleId = bundleId,
+                Relation = relation,
+                InstalledVersion = installedVersion
+            },
+
+        PipelineEvent.PlanPackageBegin(var packageId, var displayName, var plannedAction) =>
+            new PlanPackageBeginMessage
+            {
+                PackageId = packageId,
+                DisplayName = displayName,
+                PlannedAction = plannedAction
+            },
+
+        PipelineEvent.PlanPackageComplete(var packageId, var displayName, var plannedAction) =>
+            new PlanPackageCompleteMessage
+            {
+                PackageId = packageId,
+                DisplayName = displayName,
+                PlannedAction = plannedAction
+            },
+
+        PipelineEvent.ApplyPackageBegin(var packageId, var displayName) =>
+            new ApplyPackageBeginMessage
+            {
+                PackageId = packageId,
+                DisplayName = displayName
+            },
+
+        PipelineEvent.ApplyPackageComplete(var packageId, var displayName, var succeeded) =>
+            new ApplyPackageCompleteMessage
+            {
+                PackageId = packageId,
+                DisplayName = displayName,
+                Succeeded = succeeded
+            },
+
         _ => null
     };
 

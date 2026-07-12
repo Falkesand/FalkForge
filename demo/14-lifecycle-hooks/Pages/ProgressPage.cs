@@ -1,3 +1,4 @@
+using System.Windows;
 using FalkForge;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui;
@@ -22,6 +23,16 @@ public sealed class ProgressPage : InstallerPage<ProgressView>
 
     private void AddStatus(string message)
     {
+        // The per-package granular hooks are raised on the engine's message-receive thread (not the
+        // UI thread), so marshal to the dispatcher before touching the bound StatusLog property.
+        // The phase-level hooks already run on the UI thread; Dispatcher.Invoke is a no-op there.
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => AddStatus(message));
+            return;
+        }
+
         StatusLog += $"[{DateTime.Now:HH:mm:ss}] {message}\n";
     }
 
@@ -44,6 +55,23 @@ public sealed class ProgressPage : InstallerPage<ProgressView>
     {
         AddStatus(">> Detect phase starting...");
         return Task.FromResult(true);
+    }
+
+    // Per-package granular hook: fires once for each package as detection completes,
+    // interleaved between OnDetectBeginAsync and OnDetectCompleteAsync. Observational.
+    protected override Task OnDetectPackageCompleteAsync(PackageDetectInfo info)
+    {
+        var version = info.Version is not null ? $" (installed {info.Version})" : "";
+        AddStatus($"   - Detected package '{info.PackageId}': {info.State}{version}");
+        return Task.CompletedTask;
+    }
+
+    // Per-related-bundle granular hook: fires once per related bundle found on the machine.
+    protected override Task OnDetectRelatedBundleAsync(RelatedBundleInfo info)
+    {
+        AddStatus($"   - Related bundle '{info.BundleId}': {info.Relation} " +
+                  $"(installed {info.InstalledVersion})");
+        return Task.CompletedTask;
     }
 
     protected override Task OnDetectCompleteAsync(DetectResult result)
@@ -103,11 +131,39 @@ public sealed class ProgressPage : InstallerPage<ProgressView>
         return Task.CompletedTask;
     }
 
+    // Per-package granular plan hooks: fire once per package around its planning, interleaved
+    // between OnPlanBeginAsync and OnPlanCompleteAsync. Observational.
+    protected override Task OnPlanPackageBeginAsync(PackagePlanInfo info)
+    {
+        AddStatus($"   - Planning '{info.DisplayName}' ({info.PlannedAction})...");
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnPlanPackageCompleteAsync(PackagePlanInfo info)
+    {
+        AddStatus($"   - Planned '{info.DisplayName}'");
+        return Task.CompletedTask;
+    }
+
     protected override Task<bool> OnApplyBeginAsync()
     {
         AddStatus(">> Apply phase starting...");
         AddStatus("   Pre-flight validation passed");
         return Task.FromResult(true);
+    }
+
+    // Per-package granular apply hooks: fire once per package around its execution, interleaved
+    // between OnApplyBeginAsync and OnApplyCompleteAsync. Observational.
+    protected override Task OnApplyPackageBeginAsync(PackageApplyBeginInfo info)
+    {
+        AddStatus($"   - Installing '{info.DisplayName}'...");
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnApplyPackageCompleteAsync(PackageApplyCompleteInfo info)
+    {
+        AddStatus($"   - {(info.Succeeded ? "Installed" : "FAILED")} '{info.DisplayName}'");
+        return Task.CompletedTask;
     }
 
     protected override Task OnApplyCompleteAsync(ApplyResult result)

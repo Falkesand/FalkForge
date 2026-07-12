@@ -125,6 +125,13 @@ internal sealed class ApplyStep : IApplyStep
                     $"{action.ActionType} {action.Package.DisplayName ?? action.PackageId}"),
                 ct);
 
+            // Per-package apply notification: emitted immediately before the package's installer
+            // runs, in execution (chain) order. Observational.
+            await _uiChannel.SendAsync(
+                new PipelineEvent.ApplyPackageBegin(
+                    action.PackageId, action.Package.DisplayName ?? action.PackageId),
+                ct);
+
             // Build per-package progress relay that maps [0–100] to the slice
             // of overall progress this package occupies.
             var sliceStart = percent;
@@ -141,6 +148,13 @@ internal sealed class ApplyStep : IApplyStep
 
             var result = await _executor.ExecuteAsync(
                 action, ctx.IsDryRun, ctx.DryRunLogPath, ct, packageProgress);
+
+            // Per-package apply completion notification, emitted before any early-return on
+            // failure so the UI always sees the outcome of the package it was told had begun.
+            await _uiChannel.SendAsync(
+                new PipelineEvent.ApplyPackageComplete(
+                    action.PackageId, action.Package.DisplayName ?? action.PackageId, result.IsSuccess),
+                ct);
 
             if (result.IsFailure)
                 return Result<Unit>.Failure(result.Error);

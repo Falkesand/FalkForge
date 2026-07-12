@@ -28,6 +28,47 @@ public abstract record PipelineEvent
     public sealed record RollbackStep(RollbackStepResult Step) : PipelineEvent;
 
     /// <summary>
+    /// Detection completed for a single package during the Detect phase. Emitted once per
+    /// package in manifest chain order. Observational — the UI cannot veto a package here.
+    /// </summary>
+    public sealed record DetectPackageComplete(
+        string PackageId,
+        InstallState State,
+        string? Version) : PipelineEvent;
+
+    /// <summary>
+    /// A related bundle was detected on the machine during the Detect phase (e.g. an older
+    /// version eligible for upgrade). Emitted once per detected related bundle.
+    /// </summary>
+    public sealed record DetectRelatedBundle(
+        string BundleId,
+        RelatedBundleRelation Relation,
+        string InstalledVersion) : PipelineEvent;
+
+    /// <summary>Planning is about to begin for a single package. Observational.</summary>
+    public sealed record PlanPackageBegin(
+        string PackageId,
+        string DisplayName,
+        string PlannedAction) : PipelineEvent;
+
+    /// <summary>Planning has completed for a single package. Observational.</summary>
+    public sealed record PlanPackageComplete(
+        string PackageId,
+        string DisplayName,
+        string PlannedAction) : PipelineEvent;
+
+    /// <summary>Applying (executing) a single package is about to begin. Observational.</summary>
+    public sealed record ApplyPackageBegin(
+        string PackageId,
+        string DisplayName) : PipelineEvent;
+
+    /// <summary>Applying (executing) a single package has completed. Observational.</summary>
+    public sealed record ApplyPackageComplete(
+        string PackageId,
+        string DisplayName,
+        bool Succeeded) : PipelineEvent;
+
+    /// <summary>
     /// An update is available for this installer. Emitted by <see cref="DetectStep"/>
     /// when the manifest has an update feed and a newer version is found.
     /// </summary>
