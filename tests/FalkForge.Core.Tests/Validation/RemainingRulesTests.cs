@@ -197,6 +197,64 @@ public sealed class RemainingRulesTests
         Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(Base())));
     }
 
+    [Fact]
+    public void Ca006_one_of_two_actions_unscheduled_flags_only_that_one()
+    {
+        // Guards against a per-CA check that over-reports (flags the scheduled action too)
+        // or under-reports (misses the orphan) once more than one custom action is in play.
+        var pkg = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(), ProductCode = Guid.NewGuid(),
+            CustomActions =
+            [
+                new CustomActionModel { Id = "ScheduledCA", Type = 1, SourceRef = "Ref" },
+                new CustomActionModel { Id = "OrphanCA", Type = 1, SourceRef = "Ref" }
+            ],
+            ExecuteSequenceActions =
+            [
+                new SequenceActionModel
+                {
+                    ActionName = "ScheduledCA",
+                    Table = SequenceTable.InstallExecuteSequence,
+                    Position = new ActionPosition.AfterAction("InstallFiles")
+                }
+            ]
+        };
+        var violations = RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)).ToList();
+
+        var violation = Assert.Single(violations);
+        Assert.Contains("OrphanCA", violation.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Ca006_case_mismatched_schedule_reference_still_yields_warning()
+    {
+        // MSI action identifiers are case-sensitive (the compiler's own reference resolution
+        // uses StringComparison.Ordinal), so a schedule entry that differs only in case from the
+        // CustomAction's Id does not actually schedule it. Pins the deliberate Ordinal choice in
+        // Ca006_DefinedButNeverScheduled against a well-meaning switch to OrdinalIgnoreCase.
+        var pkg = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(), ProductCode = Guid.NewGuid(),
+            CustomActions = [new CustomActionModel { Id = "OrphanCA", Type = 1, SourceRef = "Ref" }],
+            ExecuteSequenceActions =
+            [
+                new SequenceActionModel
+                {
+                    ActionName = "orphanca", // case mismatch — does not schedule "OrphanCA"
+                    Table = SequenceTable.InstallExecuteSequence,
+                    Position = new ActionPosition.AfterAction("InstallFiles")
+                }
+            ]
+        };
+        var violations = RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("CA006", violations[0].RuleId.Value);
+    }
+
     // ── ASM001 — Assembly FileRef required ───────────────────────────────────
 
     [Fact]
