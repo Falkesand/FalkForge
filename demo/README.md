@@ -150,6 +150,12 @@ narratively instead of as a reference table.
 | 62 | Require-Signed Updates | ~167 | Update-trust authoring: `Integrity().Epoch()/.Revoke()` + `UpdateFeed()`; require-signed, anti-downgrade, revocation |
 | 63 | Hybrid Post-Quantum Signing | ~248 | Dual-signs with ECDSA P-256 + ML-DSA-65 (FIPS 204) via `HybridKey()`; companion pin makes the strip attack fail (INT011) |
 
+### Capstone (64)
+
+| #  | Name                | Lines | Description                                                      |
+|----|---------------------|-------|-------------------------------------------------------------------|
+| 64 | AcmeSuite Enterprise | ~330 | The "put it all together" walkthrough: Server/Client/Tools feature tree, a service gated to Server, feature-gated registry, IIS (secure app-pool identity) + SQL (secure login) in one MSI (multi-secret aggregation), a custom action scheduled via `ExecuteSequence`, shortcuts + file association, wrapped in a signed, auto-updating bundle |
+
 ## JSON Demo Index
 
 | #  | File                | Description                                            | Dialog Set  |
@@ -788,6 +794,23 @@ Pins MSI timestamps to `SOURCE_DATE_EPOCH` via `Reproducible()` so two builds of
 ### 58 -- Project References
 
 Packages one project's build output from another project without hardcoding a `bin/` path. The FalkForge MSBuild SDK's source generator emits `obj/ProjectOutputs.g.cs` for any `ProjectReference` to a project declaring a `FalkOutputType`, giving the installer a strongly-typed `ProjectOutputs.<Name>` constant that MSBuild keeps in sync with the actual build output -- instead of a literal path that silently goes stale across configuration or target-framework changes.
+
+### 64 -- AcmeSuite Enterprise (Capstone)
+
+The "put it all together" walkthrough. Every other demo isolates one capability; this one composes the whole enterprise stack the way a real product ships it, so you can see the pieces working together:
+
+- A three-tier **feature tree** (Server / Client / Tools) the user selects at install time.
+- A **Windows service** gated to the Server feature via `FeatureBuilder.Service(...)` -- the compiler stamps the service's component under Server, so it is only laid down when Server is selected.
+- **Registry** configuration: shared product keys at package scope, plus per-feature keys under Server and Tools.
+- **IIS** application pool + web site + binding, with the app-pool running as a specific user whose password is supplied securely at run time via `IdentitySecure(...)` / a `PasswordProperty` -- never stored in the MSI.
+- **SQL Server** database + schema script, authenticating with a SQL login whose password likewise flows through a secure `PasswordProperty`.
+- A **custom action** scheduled the only correct way -- through `ExecuteSequence(...)` (the `CustomActionBuilder.After/Before` fields are inert).
+- Start-menu **shortcuts** and a **file association** under the Client feature.
+- The MSI, together with a prerequisite runtime MSI, wrapped into a self-extracting **EXE bundle** that is code-signed (`Integrity()`, ECDSA payload integrity) and wired to an auto-**update feed** (`UpdateFeed(...)`).
+
+Using **both** the IIS secure password and the SQL secure password in one package is deliberate: it exercises the aggregation of every secret property name into a single `MsiHiddenProperties` row. Before that fix each secret-bearing extension authored its own row keyed on the same primary key and the build failed on a duplicate PK -- so the fact this demo builds at all is the proof the multi-secret story now works end to end.
+
+Honest scope: `dotnet run` only *builds* the MSI + signed bundle. Actually creating the IIS site, SQL database and Windows service happens when the MSI is installed on an elevated host with IIS and SQL Server present. The IIS HTTPS/certificate binding is left as configuration only (certificate provisioning is a documented IIS-extension follow-up). See the underlying MSI concepts in the manual's Concepts section and the [MSI Basics](../docs/tutorials/msi-basics.html) tutorial.
 
 ### JSON 01-05 -- Core MSI Features
 

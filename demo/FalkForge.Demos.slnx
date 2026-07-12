@@ -117,5 +117,6 @@
         <Project Path="03-client-server/03-client-server.csproj" />
         <Project Path="05-enterprise-suite/05-enterprise-suite.csproj" />
         <Project Path="07-extensions-showcase/07-extensions-showcase.csproj" />
+        <Project Path="64-acmesuite-enterprise/64-acmesuite-enterprise.csproj" />
     </Folder>
 </Solution>
