@@ -33,18 +33,104 @@ internal sealed class FeatureComponentsTableProducer : ITableProducer
                 ? resolved.Package.Features[0].Id
                 : FallbackFeatureId;
 
+        // Explicit feature->component wiring authored on FeatureModel.ComponentRefs. The decompiler
+        // populates this from an existing MSI's FeatureComponents table; without it a decompile ->
+        // recompile round trip would silently drop the mapping (the reconstructed components carry
+        // no FeatureRef, so they would all collapse onto the default feature). Walk the whole
+        // feature tree so nested child features contribute too.
+        var explicitRefs = new List<(string Feature, string Component)>();
+        CollectComponentRefs(resolved.Package.Features, explicitRefs);
+
+        // Dangling ComponentRefs must fail the build loudly rather than surfacing later as an
+        // opaque MSI foreign-key error (or, worse, silently vanishing).
+        if (explicitRefs.Count > 0)
+        {
+            var componentIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ResolvedComponent component in resolved.Components)
+            {
+                componentIds.Add(component.Id);
+            }
+
+            foreach ((string feature, string componentRef) in explicitRefs)
+            {
+                if (!componentIds.Contains(componentRef))
+                {
+                    return Result<ImmutableArray<RecipeRow>>.Failure(
+                        ErrorKind.Validation,
+                        $"Feature '{feature}' references component '{componentRef}' via ComponentRefs, " +
+                        "but no component with that id exists in the package.");
+                }
+            }
+        }
+
+        // A component explicitly claimed by a ComponentRefs entry must not also receive the
+        // default-feature fallback below — otherwise it would be linked under both the default
+        // feature and its declared feature.
+        var claimedByRefs = new HashSet<string>(StringComparer.Ordinal);
+        foreach ((string _, string componentRef) in explicitRefs)
+        {
+            claimedByRefs.Add(componentRef);
+        }
+
+        // (Feature_, Component_) is the FeatureComponents primary key; dedup so an overlap between
+        // the FeatureRef-derived path and an explicit ComponentRefs entry pointing at the same
+        // feature yields exactly one row instead of a duplicate-key failure.
+        var emitted = new HashSet<(string Feature, string Component)>();
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>();
+
+        void AddRow(string featureId, string componentId)
+        {
+            if (!emitted.Add((featureId, componentId)))
+            {
+                return;
+            }
+
+            rows.Add(new RecipeRow
+            {
+                Cells = ImmutableArray.Create<CellValue>(
+                    new CellValue.ForeignKey(featureTable, featureId),
+                    new CellValue.ForeignKey(componentTable, componentId)),
+            });
+        }
+
         foreach (ResolvedComponent component in resolved.Components)
         {
-            string featureId = component.FeatureRef ?? defaultFeatureId;
+            if (component.FeatureRef is not null)
+            {
+                AddRow(component.FeatureRef, component.Id);
+            }
+            else if (!claimedByRefs.Contains(component.Id))
+            {
+                AddRow(defaultFeatureId, component.Id);
+            }
 
-            ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
-                new CellValue.ForeignKey(featureTable, featureId),
-                new CellValue.ForeignKey(componentTable, component.Id));
-            rows.Add(new RecipeRow { Cells = cells });
+            // A FeatureRef-less component claimed by ComponentRefs is emitted below under its
+            // declared feature(s) rather than the default.
+        }
+
+        foreach ((string feature, string componentRef) in explicitRefs)
+        {
+            AddRow(feature, componentRef);
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    private static void CollectComponentRefs(
+        IReadOnlyList<FeatureModel> features, List<(string Feature, string Component)> into)
+    {
+        foreach (FeatureModel feature in features)
+        {
+            foreach (string componentId in feature.ComponentRefs)
+            {
+                into.Add((feature.Id, componentId));
+            }
+
+            if (feature.Children.Count > 0)
+            {
+                CollectComponentRefs(feature.Children, into);
+            }
+        }
     }
 
     private static TableSchema BuildSchema()

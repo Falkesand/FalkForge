@@ -21,8 +21,14 @@ internal static class EnvironmentEncoding
     ///     append/prepend also schedules the variable for removal on uninstall, matching
     ///     the established WiX behavior for these actions.
     /// </summary>
-    internal static string EncodeName(string variableName, EnvironmentVariableAction action, bool isSystem)
-        => EnvironmentNameEncoder.Encode(action, isSystem, variableName);
+    /// <param name="part">
+    ///     WiX-style value placement (<see cref="EnvironmentVariablePart"/>: all/first/last). When
+    ///     non-null it is the authoritative axis and overrides <paramref name="action"/>; when null,
+    ///     <paramref name="action"/> drives the emitted prefix.
+    /// </param>
+    internal static string EncodeName(
+        string variableName, EnvironmentVariableAction action, bool isSystem, string? part = null)
+        => EnvironmentNameEncoder.Encode(ResolveAction(action, part), isSystem, variableName);
 
     /// <summary>
     ///     Encodes the MSI Environment table Value column.
@@ -31,16 +37,54 @@ internal static class EnvironmentEncoding
     ///     For <see cref="EnvironmentVariableAction.Prepend"/>: <c>&lt;value&gt;&lt;separator&gt;[~]</c>.
     ///     Default separator is <c>;</c>.
     /// </summary>
-    internal static string EncodeValue(string value, EnvironmentVariableAction action, string? separator)
+    /// <param name="part">
+    ///     WiX-style value placement (<see cref="EnvironmentVariablePart"/>: all/first/last). When
+    ///     non-null it is the authoritative placement axis and overrides <paramref name="action"/>;
+    ///     when null, <paramref name="action"/> drives placement.
+    /// </param>
+    internal static string EncodeValue(
+        string value, EnvironmentVariableAction action, string? separator, string? part = null)
     {
         var sep = separator ?? ";";
 
-        return action switch
+        return ResolveAction(action, part) switch
         {
             EnvironmentVariableAction.Set => value,
             EnvironmentVariableAction.Append => $"[~]{sep}{value}",
             EnvironmentVariableAction.Prepend => $"{value}{sep}[~]",
             _ => value
         };
+    }
+
+    /// <summary>
+    ///     Maps the WiX-style <see cref="EnvironmentVariableModel.Part"/> string onto the internal
+    ///     <see cref="EnvironmentVariableAction"/> used for both Name-prefix and Value encoding.
+    ///     <c>Part</c> wins when set (all→Set, first→Prepend, last→Append); an unrecognised or null
+    ///     value falls back to the caller's <paramref name="action"/>. Comparison is ordinal and
+    ///     case-insensitive (no culture-sensitive casing).
+    /// </summary>
+    private static EnvironmentVariableAction ResolveAction(EnvironmentVariableAction action, string? part)
+    {
+        if (part is null)
+        {
+            return action;
+        }
+
+        if (string.Equals(part, EnvironmentVariablePart.All, StringComparison.OrdinalIgnoreCase))
+        {
+            return EnvironmentVariableAction.Set;
+        }
+
+        if (string.Equals(part, EnvironmentVariablePart.First, StringComparison.OrdinalIgnoreCase))
+        {
+            return EnvironmentVariableAction.Prepend;
+        }
+
+        if (string.Equals(part, EnvironmentVariablePart.Last, StringComparison.OrdinalIgnoreCase))
+        {
+            return EnvironmentVariableAction.Append;
+        }
+
+        return action;
     }
 }

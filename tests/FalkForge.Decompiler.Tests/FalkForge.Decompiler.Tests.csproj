@@ -8,6 +8,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
     <ProjectReference Include="..\..\src\FalkForge.Decompiler\FalkForge.Decompiler.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Firewall\FalkForge.Extensions.Firewall.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Sql\FalkForge.Extensions.Sql.csproj" />
