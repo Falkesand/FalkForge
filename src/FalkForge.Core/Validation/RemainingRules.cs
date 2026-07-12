@@ -135,15 +135,17 @@ public static partial class RemainingRules
     /// <c>CustomAction</c> table row that never executes.
     /// </para>
     /// <para>
-    /// "Scheduled" here means the action's Id appears in <see cref="PackageModel.ExecuteSequenceActions"/>
-    /// or <see cref="PackageModel.UISequenceActions"/> — the two lists <c>PackageBuilder.ExecuteSequence(...)</c>
-    /// / <c>.UISequence(...)</c> populate, and the only source <c>InstallExecuteSequenceTableProducer</c> /
-    /// <c>InstallUISequenceTableProducer</c> read when emitting sequence rows. The legacy
-    /// <see cref="CustomActionModel.Sequence"/>/<see cref="CustomActionModel.After"/>/
-    /// <see cref="CustomActionModel.Before"/> fields are intentionally NOT treated as scheduling —
-    /// the current compiler never projects them onto a sequence table (see
-    /// <c>CustomActionTableProducer</c>'s remarks), so a package that sets only those fields and
-    /// skips <c>ExecuteSequence(...)</c>/<c>UISequence(...)</c> genuinely has an unscheduled action.
+    /// "Scheduled" here means one of: (a) the action's Id appears in
+    /// <see cref="PackageModel.ExecuteSequenceActions"/> or <see cref="PackageModel.UISequenceActions"/>
+    /// — the two lists <c>PackageBuilder.ExecuteSequence(...)</c> / <c>.UISequence(...)</c> populate;
+    /// or (b) the action carries inline scheduling via <see cref="CustomActionModel.Sequence"/>,
+    /// <see cref="CustomActionModel.After"/>, or <see cref="CustomActionModel.Before"/>. Inline
+    /// scheduling is now honoured: <c>InstallExecuteSequenceTableProducer</c> projects those fields
+    /// onto <c>InstallExecuteSequence</c> (see its remarks), so an action pinned with only
+    /// <c>.After(...)</c> genuinely runs and must not be flagged. A lone
+    /// <see cref="CustomActionModel.Condition"/> with no After/Before/Sequence position does NOT
+    /// schedule — a condition has nothing to gate without a slot — so such an action is still
+    /// (correctly) reported as unscheduled.
     /// </para>
     /// <para>
     /// This rule only sees what <see cref="PackageModel"/> carries, so it naturally avoids two
@@ -181,7 +183,7 @@ public static partial class RemainingRules
             for (var i = 0; i < ctx.Package.CustomActions.Count; i++)
             {
                 var ca = ctx.Package.CustomActions[i];
-                if (!scheduled.Contains(ca.Id))
+                if (!scheduled.Contains(ca.Id) && !HasInlineSchedule(ca))
                     violations.Add(new Violation(new RuleId("CA006"), Severity.Warning,
                         ModelPath.Root.Field("CustomActions").Index(i).Field("Id"),
                         $"Custom action '{ca.Id}' is defined but never scheduled via ExecuteSequence(...) " +
@@ -190,6 +192,19 @@ public static partial class RemainingRules
             }
             return violations.ToImmutable();
         });
+
+    /// <summary>
+    /// True when a custom action pins its own execute-sequence slot inline via
+    /// <see cref="CustomActionModel.Sequence"/>, <see cref="CustomActionModel.After"/>, or
+    /// <see cref="CustomActionModel.Before"/>. Mirrors the compiler's
+    /// <c>InstallExecuteSequenceTableProducer.ResolveInlinePosition</c> precedent so CA006 and the
+    /// emitter agree on what counts as "scheduled". A lone <see cref="CustomActionModel.Condition"/>
+    /// is deliberately excluded — a condition with no slot schedules nothing.
+    /// </summary>
+    private static bool HasInlineSchedule(CustomActionModel ca) =>
+        ca.Sequence is not null
+        || !string.IsNullOrWhiteSpace(ca.After)
+        || !string.IsNullOrWhiteSpace(ca.Before);
 
     // ── Assemblies ────────────────────────────────────────────────────────────
 

@@ -55,6 +55,17 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </para>
 ///
 /// <para>
+/// Inline-scheduled custom actions are also merged here: a custom action that carries
+/// <see cref="CustomActionModel.After"/>/<see cref="CustomActionModel.Before"/>/
+/// <see cref="CustomActionModel.Sequence"/> (set via the fluent <c>CustomActionBuilder</c>)
+/// is projected onto this table through the SAME <see cref="ActionPosition"/> resolution,
+/// so <c>ca => ca.Exe(...).After("InstallFiles")</c> schedules identically to an explicit
+/// <c>ExecuteSequence(...)</c> call. Explicit <see cref="PackageModel.ExecuteSequenceActions"/>
+/// entries are authoritative: if the same action is scheduled BOTH ways it is emitted exactly
+/// once (explicit wins), never double-inserted. See <see cref="ResolveInlinePosition"/>.
+/// </para>
+///
+/// <para>
 /// Condition cells: baseline actions emit <see cref="CellValue.StringValue"/> with
 /// an empty string to match the legacy <c>TableEmitter</c> which calls
 /// <c>SetString(field, "")</c> for every baseline row — empty string and null differ
@@ -123,7 +134,7 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         // + user actions. Pre-size avoids re-allocation in the common case.
         int conditionalBudget = EstimateConditionalActionCount(package);
         List<(string Action, int Sequence)> actions =
-            new(21 + conditionalBudget + package.ExecuteSequenceActions.Count)
+            new(21 + conditionalBudget + package.ExecuteSequenceActions.Count + package.CustomActions.Count)
             {
                 ("AppSearch",            SeqAppSearch),
                 ("LaunchConditions",     SeqLaunchConditions),
@@ -225,15 +236,24 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
 
         // ── Merge user execute-sequence actions ───────────────────────────────
         IReadOnlyList<SequenceActionModel> userActions = package.ExecuteSequenceActions;
+        IReadOnlyList<CustomActionModel> customActions = package.CustomActions;
 
-        // Build the occupied-sequence set once before the merge loop so that
+        // Build the occupied-sequence set once before the merge loops so that
         // EnsureUniqueSequence is O(1) per call instead of O(n) per call.
-        // Without this, N user actions would rebuild the set N times → O(n²) total.
-        HashSet<int> occupiedSequences = new(actions.Count + userActions.Count);
+        // Without this, N actions would rebuild the set N times → O(n²) total.
+        HashSet<int> occupiedSequences = new(actions.Count + userActions.Count + customActions.Count);
         for (int i = 0; i < actions.Count; i++)
         {
             occupiedSequences.Add(actions[i].Sequence);
         }
+
+        // Membership + condition maps span BOTH explicit ExecuteSequence(...) actions and
+        // inline-scheduled custom actions, so the row-emission pass below resolves the
+        // Condition cell identically regardless of which API scheduled the action.
+        HashSet<string> scheduledActionNames =
+            new(userActions.Count + customActions.Count, StringComparer.Ordinal);
+        Dictionary<string, string?> conditionByName =
+            new(userActions.Count + customActions.Count, StringComparer.Ordinal);
 
         for (int i = 0; i < userActions.Count; i++)
         {
@@ -242,21 +262,47 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
             seq = EnsureUniqueSequence(seq, occupiedSequences);
             occupiedSequences.Add(seq); // claim the sequence before processing next action
             actions.Add((ua.ActionName, seq));
+            scheduledActionNames.Add(ua.ActionName);
+            conditionByName[ua.ActionName] = ua.Condition;
+        }
+
+        // ── Merge inline-scheduled custom actions ─────────────────────────────
+        // A custom action can pin its own execute-sequence slot directly on the fluent
+        // CustomActionBuilder via .After/.Before/.Sequence (+ optional .Condition). Those are
+        // projected onto InstallExecuteSequence here using the SAME ActionPosition machinery
+        // as explicit ExecuteSequence(...) actions, so inline scheduling is behaviourally
+        // identical to calling ExecuteSequence(...) for that action.
+        //
+        // Dedup / authority: explicit ExecuteSequence(...) entries WIN. Because they claimed
+        // their names in scheduledActionNames above, a custom action scheduled BOTH inline AND
+        // via ExecuteSequence(...) is skipped here (scheduledActionNames.Add returns false) —
+        // guaranteeing exactly one InstallExecuteSequence row per action. This matters beyond
+        // aesthetics: the table's primary key is Action, so a duplicate row is an outright
+        // insert failure, not a silent no-op. Explicit is authoritative because it is the more
+        // deliberate, table-qualified API and lets a caller override an inline default.
+        for (int i = 0; i < customActions.Count; i++)
+        {
+            CustomActionModel ca = customActions[i];
+            ActionPosition? position = ResolveInlinePosition(ca);
+            if (position is null)
+            {
+                continue; // no inline scheduling on this action
+            }
+
+            if (!scheduledActionNames.Add(ca.Id))
+            {
+                continue; // already scheduled (explicit wins, or duplicate inline id) — one row only
+            }
+
+            int seq = ResolveSequenceNumber(position, actions);
+            seq = EnsureUniqueSequence(seq, occupiedSequences);
+            occupiedSequences.Add(seq);
+            actions.Add((ca.Id, seq));
+            conditionByName[ca.Id] = ca.Condition;
         }
 
         // Sort ascending by sequence — matches legacy actions.Sort call.
         actions.Sort(static (a, b) => a.Sequence.CompareTo(b.Sequence));
-
-        // Build user action lookup sets for condition cell resolution.
-        // O(n) per HashSet; user action list is always small.
-        HashSet<string> userActionNames = new(userActions.Count, StringComparer.Ordinal);
-        Dictionary<string, string?> conditionByName =
-            new(userActions.Count, StringComparer.Ordinal);
-        for (int i = 0; i < userActions.Count; i++)
-        {
-            userActionNames.Add(userActions[i].ActionName);
-            conditionByName[userActions[i].ActionName] = userActions[i].Condition;
-        }
 
         // Emit rows into an ImmutableArray builder pre-sized to exact count.
         ImmutableArray<RecipeRow>.Builder rows =
@@ -267,15 +313,15 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
             (string actionName, int sequence) = actions[i];
 
             CellValue conditionCell;
-            if (userActionNames.Contains(actionName) &&
+            if (scheduledActionNames.Contains(actionName) &&
                 conditionByName.TryGetValue(actionName, out string? cond) &&
                 cond is not null)
             {
                 conditionCell = new CellValue.StringValue(cond);
             }
-            else if (userActionNames.Contains(actionName))
+            else if (scheduledActionNames.Contains(actionName))
             {
-                // User action with null condition → Null cell (MSI convention: no condition).
+                // User/inline action with null condition → Null cell (MSI convention: no condition).
                 conditionCell = new CellValue.Null();
             }
             else
@@ -322,6 +368,35 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
                 FindReferenceSequence(before.ReferenceAction, existingActions) - 1,
             _ => 4001,
         };
+
+    /// <summary>
+    /// Resolves the inline execute-sequence position a custom action carries via its fluent
+    /// <c>.After</c>/<c>.Before</c>/<c>.Sequence</c> setters, or <c>null</c> when the action
+    /// pins no inline slot. Precedence: an absolute <see cref="CustomActionModel.Sequence"/> is
+    /// the most specific intent and wins; otherwise <see cref="CustomActionModel.After"/> then
+    /// <see cref="CustomActionModel.Before"/>. A lone <see cref="CustomActionModel.Condition"/>
+    /// with no position does NOT schedule — a condition without a slot has nothing to gate — so
+    /// such an action is left for CA006 to flag as unscheduled.
+    /// </summary>
+    private static ActionPosition? ResolveInlinePosition(CustomActionModel ca)
+    {
+        if (ca.Sequence is int sequence)
+        {
+            return new ActionPosition.AtNumber(sequence);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ca.After))
+        {
+            return new ActionPosition.AfterAction(ca.After);
+        }
+
+        if (!string.IsNullOrWhiteSpace(ca.Before))
+        {
+            return new ActionPosition.BeforeAction(ca.Before);
+        }
+
+        return null;
+    }
 
     private static int FindReferenceSequence(
         string referenceAction,
