@@ -1,5 +1,6 @@
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
+using FalkForge.Compiler.Bundle.Validation;
 
 namespace FalkForge;
 
@@ -8,9 +9,14 @@ namespace FalkForge;
 ///     Extends the <see cref="Installer" /> surface with a <see cref="BuildBundle(string[], Action{BundleBuilder}, BundleCompiler?)" />
 ///     overload that wires <see cref="BundleBuilder" /> and <see cref="BundleCompiler" /> internally — mirroring
 ///     how <see cref="Installer.Build(string[], Action{FalkForge.Builders.PackageBuilder}, ICompiler?)" /> wires
-///     <c>PackageBuilder</c> and <c>MsiCompiler</c> for MSI authoring. Callers who need a bundle compiled by a
-///     different/async signing path keep using <see cref="Installer.BuildBundle(string[], Func{string, Result{string}})" />
-///     or <see cref="Installer.BuildBundleAsync" /> directly.
+///     <c>PackageBuilder</c> and <c>MsiCompiler</c> for MSI authoring. One deliberate difference: on the MSI side
+///     an omitted/null <c>compiler</c> skips compilation and only validates, because <c>ModelValidator</c> runs as
+///     a separate step before the compiler is even consulted; a bundle has no equivalent standalone validate step
+///     (<see cref="BundleValidator" /> runs inside <see cref="BundleCompiler.Compile" /> itself), so an omitted
+///     <c>compiler</c> here always compiles, defaulting to a plain <see cref="BundleCompiler" />. Callers who need
+///     a bundle compiled by a different/async signing path keep using
+///     <see cref="Installer.BuildBundle(string[], Func{string, Result{string}})" /> or
+///     <see cref="Installer.BuildBundleAsync" /> directly.
 /// </summary>
 public static class InstallerBundle
 {
