@@ -21,6 +21,16 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     private TaskCompletionSource<PlanResult>? _planTcs;
     private TaskCompletionSource<int>? _shutdownTcs;
 
+    // Sticky latch for the "pipe already closed" state. OnPipeClosed only completes whichever
+    // TCS is armed *at the moment it fires*; without this latch, a disconnect that races ahead of
+    // Detect/Plan/Apply/Shutdown arming its TCS is silently lost (TrySetException has nothing to
+    // complete), leaving the caller to hang until its own CancellationToken eventually fires —
+    // surfacing an unrelated TaskCanceledException instead of the real cause. Set once, checked
+    // by every arm site immediately after publishing its TCS, so no interleaving between
+    // "pipe closes" and "caller arms" can drop the signal. The pipe never reconnects once closed,
+    // so this flag is never reset.
+    private volatile bool _pipeClosed;
+
     public EngineClient(PipeConnectionOptions options, InstallerManifest manifest)
         : this(options, manifest, logPath: null)
     {
@@ -72,6 +82,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public async Task<DetectResult> DetectAsync(CancellationToken ct = default)
     {
         _detectTcs = new TaskCompletionSource<DetectResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        FailIfPipeAlreadyClosed(_detectTcs);
         using var registration = ct.Register(() => _detectTcs.TrySetCanceled(ct));
 
         var sendResult = await _pipe.SendAsync(new RequestDetectMessage(), ct);
@@ -83,6 +94,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public async Task<PlanResult> PlanAsync(InstallAction action, CancellationToken ct = default)
     {
         _planTcs = new TaskCompletionSource<PlanResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        FailIfPipeAlreadyClosed(_planTcs);
         using var registration = ct.Register(() => _planTcs.TrySetCanceled(ct));
 
         var sendResult = await _pipe.SendAsync(new RequestPlanMessage { Action = action }, ct);
@@ -94,6 +106,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public async Task<ApplyResult> ApplyAsync(CancellationToken ct = default)
     {
         _applyTcs = new TaskCompletionSource<ApplyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        FailIfPipeAlreadyClosed(_applyTcs);
         using var registration = ct.Register(() => _applyTcs.TrySetCanceled(ct));
 
         var sendResult = await _pipe.SendAsync(new RequestApplyMessage(), ct);
@@ -128,6 +141,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     public async Task<int> ShutdownAsync()
     {
         _shutdownTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        FailIfPipeAlreadyClosed(_shutdownTcs);
 
         var sendResult = await _pipe.SendAsync(new ShutdownRequestMessage());
         if (sendResult.IsFailure) _shutdownTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
@@ -221,6 +235,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     internal async Task SimulateDetectAndWaitForDisconnectAsync(CancellationToken ct)
     {
         _detectTcs = new TaskCompletionSource<DetectResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        FailIfPipeAlreadyClosed(_detectTcs);
         using var reg = ct.Register(() => _detectTcs.TrySetCanceled(ct));
         await _detectTcs.Task;
     }
@@ -232,6 +247,7 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     internal async Task SimulateApplyAndWaitForDisconnectAsync(CancellationToken ct)
     {
         _applyTcs = new TaskCompletionSource<ApplyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        FailIfPipeAlreadyClosed(_applyTcs);
         using var reg = ct.Register(() => _applyTcs.TrySetCanceled(ct));
         await _applyTcs.Task;
     }
@@ -249,12 +265,26 @@ public sealed class EngineClient : IInstallerEngine, IAsyncDisposable
     private void OnPipeClosed()
     {
         // The engine process crashed or the pipe was closed without sending a proper response.
-        // Complete all pending TaskCompletionSources so callers don't hang indefinitely.
+        // Set the sticky latch FIRST, before touching any TCS: a TCS armed by a Detect/Plan/
+        // Apply/Shutdown call that races in right after this method reads the (now-stale) TCS
+        // fields still needs to observe the disconnect via FailIfPipeAlreadyClosed. Complete
+        // whichever TCS is currently armed so an in-flight caller doesn't hang indefinitely.
+        _pipeClosed = true;
         var ex = new PipeDisconnectedException();
         _detectTcs?.TrySetException(ex);
         _planTcs?.TrySetException(ex);
         _applyTcs?.TrySetException(ex);
         _shutdownTcs?.TrySetException(ex);
+    }
+
+    /// <summary>
+    ///     If the pipe already closed before <paramref name="tcs"/> was armed, complete it
+    ///     immediately instead of leaving it to rely on the caller's own cancellation token.
+    ///     Closes the lost-wakeup window where OnPipeClosed fires against a not-yet-published TCS.
+    /// </summary>
+    private void FailIfPipeAlreadyClosed<T>(TaskCompletionSource<T> tcs)
+    {
+        if (_pipeClosed) tcs.TrySetException(new PipeDisconnectedException());
     }
 
     private async Task SendSetInstallDirectoryAsync(string directory)

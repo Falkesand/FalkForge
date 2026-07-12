@@ -77,4 +77,52 @@ public sealed class EngineClientPipeDisconnectTests
             await client.SimulateApplyAndWaitForDisconnectAsync(cts.Token);
         });
     }
+
+    /// <summary>
+    /// Deterministic regression test for the lost-wakeup race: if the pipe closes BEFORE the
+    /// caller arms its TaskCompletionSource (rather than while it is awaiting), the disconnect
+    /// signal must not be dropped. Without a sticky "pipe closed" latch in EngineClient,
+    /// OnPipeClosed's null-conditional TrySetException has nothing to complete at the moment it
+    /// fires, so the newly-armed TCS created afterward would only ever be observed by its own
+    /// cancellation token — surfacing TaskCanceledException instead of PipeDisconnectedException,
+    /// which is exactly the intermittent flake this test locks in a fix for. Unlike the two tests
+    /// above (which race a background Task.Delay against arming and can pass by luck on either
+    /// side of the fix), this test forces the "already closed" ordering every run, so it fails
+    /// deterministically without the latch and passes deterministically with it.
+    /// </summary>
+    [Fact]
+    public async Task DetectAsync_ThrowsPipeDisconnectedException_WhenPipeAlreadyClosedBeforeArming()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+
+        // The pipe closes first, with no pending Detect in flight yet.
+        client.SimulatePipeClosed();
+
+        var ex = await Assert.ThrowsAsync<PipeDisconnectedException>(async () =>
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await client.SimulateDetectAndWaitForDisconnectAsync(cts.Token);
+        });
+
+        Assert.NotNull(ex);
+    }
+
+    /// <summary>
+    /// Same lost-wakeup regression as above, for the Apply path.
+    /// </summary>
+    [Fact]
+    public async Task ApplyAsync_ThrowsPipeDisconnectedException_WhenPipeAlreadyClosedBeforeArming()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+
+        client.SimulatePipeClosed();
+
+        var ex = await Assert.ThrowsAsync<PipeDisconnectedException>(async () =>
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await client.SimulateApplyAndWaitForDisconnectAsync(cts.Token);
+        });
+
+        Assert.NotNull(ex);
+    }
 }
