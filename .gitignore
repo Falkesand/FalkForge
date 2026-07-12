@@ -422,9 +422,6 @@ demo/45-patch/payload/app-v1.msi
 demo/45-patch/payload/app-v2.msi
 demo/53-delta-updates/MyApp.msi
 
-# Documentation generator fragments
-docs/gen/
-
 # JetBrains Rider
 *.sln.iml
 .idea/
