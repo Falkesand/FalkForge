@@ -369,7 +369,7 @@ public static class MsiPackageReconstructor
     /// <list type="bullet">
     ///   <item><c>[~]</c>-delimited → REG_MULTI_SZ (<see cref="List{String}"/>), covering the
     ///     producer's <c>[~]</c> (empty), <c>[~]value[~]</c> (single) and <c>a[~]b[~]c</c> (multi) forms.</item>
-    ///   <item><c>#x</c>+hex → REG_BINARY (<see cref="T:System.Byte[]"/>).</item>
+    ///   <item><c>#x</c>+hex → REG_BINARY (<c>byte[]</c>).</item>
     ///   <item><c>#%</c>+text → REG_EXPAND_SZ.</item>
     ///   <item><c>##</c>+text → REG_SZ whose literal value begins with '#' (producer doubles a leading '#').</item>
     ///   <item><c>#</c>+decimal → REG_DWORD (<see cref="int"/>).</item>
