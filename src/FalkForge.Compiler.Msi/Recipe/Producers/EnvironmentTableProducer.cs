@@ -50,8 +50,8 @@ internal sealed class EnvironmentTableProducer : ITableProducer
         {
             EnvironmentVariableModel envVar = envVars[index];
             string envId = string.Create(CultureInfo.InvariantCulture, $"ENV_{index:D4}");
-            string encodedName = EnvironmentEncoding.EncodeName(envVar.Name, envVar.Action, envVar.IsSystem);
-            string encodedValue = EnvironmentEncoding.EncodeValue(envVar.Value, envVar.Action, envVar.Separator);
+            string encodedName = EnvironmentEncoding.EncodeName(envVar.Name, envVar.Action, envVar.IsSystem, envVar.Part);
+            string encodedValue = EnvironmentEncoding.EncodeValue(envVar.Value, envVar.Action, envVar.Separator, envVar.Part);
             string componentId = ResolveComponentId(envVar, index, resolved, defaultComponentId);
 
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
