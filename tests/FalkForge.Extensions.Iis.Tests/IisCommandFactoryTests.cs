@@ -61,9 +61,9 @@ public sealed class IisCommandFactoryTests
         string script = DecodeInstall(create);
         Assert.Contains("$__pool.ProcessModel.Password = $__arg", script, StringComparison.Ordinal);
 
-        IReadOnlyList<string> hidden = IisCommandFactory.CollectHiddenPropertyNames(pools, []);
-        Assert.Contains("IISPWD", hidden);
-        Assert.Contains("IisPool_P", hidden);
+        // The create step declares the scrub list the compiler aggregates into MsiHiddenProperties.
+        Assert.Contains("IISPWD", create.HiddenProperties);
+        Assert.Contains("IisPool_P", create.HiddenProperties);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class IisCommandFactoryTests
 
         Assert.Equal("Pl4in", create.CustomActionData); // literal (MSI-escaped) — the discouraged path
         // Both the source-less literal and the deferred action property are still hidden from the log.
-        Assert.Contains("IisPool_P", IisCommandFactory.CollectHiddenPropertyNames(pools, []));
+        Assert.Contains("IisPool_P", create.HiddenProperties);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class IisCommandFactoryTests
         ExecutionStep create = Single(IisCommandFactory.BuildSteps(pools, []), "IisPool_P");
 
         Assert.Null(create.CustomActionData);
-        Assert.Empty(IisCommandFactory.CollectHiddenPropertyNames(pools, []));
+        Assert.Empty(create.HiddenProperties);
     }
 
     [Fact]

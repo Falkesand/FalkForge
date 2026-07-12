@@ -179,12 +179,14 @@ public sealed class SqlCommandFactoryTests
     }
 
     [Fact]
-    public void CollectHiddenPropertyNames_ForSqlAuth_IncludesSourceAndActionProperties()
+    public void HiddenProperties_ForSqlAuth_IncludesSourceAndActionProperties_OnSecretSteps()
     {
         var db = Db("Db", createOnInstall: true, user: "appLogin", passwordProperty: "SQLPASSWORD");
         var str = new SqlStringModel { Id = "Seed", DatabaseRef = "Db", Sql = "SELECT 1", ExecuteOnInstall = true };
 
-        var hidden = SqlCommandFactory.CollectHiddenPropertyNames([db], [], [str]);
+        // Each install step that carries the password declares its own scrub list; the compiler aggregates
+        // these across all extensions into the single MsiHiddenProperties row.
+        var hidden = HiddenNames([db], [], [str]);
 
         Assert.Contains("SQLPASSWORD", hidden);        // secure source property
         Assert.Contains("SqlDb_Db", hidden);           // create action's CustomActionData property
@@ -192,13 +194,19 @@ public sealed class SqlCommandFactoryTests
     }
 
     [Fact]
-    public void CollectHiddenPropertyNames_ForIntegratedAuth_IsEmpty()
+    public void HiddenProperties_ForIntegratedAuth_IsEmpty()
     {
         var db = Db("Db", createOnInstall: true);
         var str = new SqlStringModel { Id = "Seed", DatabaseRef = "Db", Sql = "SELECT 1", ExecuteOnInstall = true };
 
-        Assert.Empty(SqlCommandFactory.CollectHiddenPropertyNames([db], [], [str]));
+        Assert.Empty(HiddenNames([db], [], [str]));
     }
+
+    private static IReadOnlyList<string> HiddenNames(
+        IReadOnlyList<SqlDatabaseModel> databases,
+        IReadOnlyList<SqlScriptModel> scripts,
+        IReadOnlyList<SqlStringModel> strings)
+        => [.. SqlCommandFactory.BuildSteps(databases, scripts, strings).SelectMany(s => s.HiddenProperties)];
 
     [Fact]
     public void SourceFileScript_WithoutInlineSql_ProducesNoExecutionStep()

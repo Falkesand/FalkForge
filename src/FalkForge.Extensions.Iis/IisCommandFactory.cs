@@ -33,8 +33,9 @@ namespace FalkForge.Extensions.Iis;
 /// through the seam's <see cref="ExecutionStep.CustomActionData"/> channel (an immediate <c>SetProperty</c>
 /// copies the value of the referenced secure MSI property into the deferred action, read here as
 /// <c>$args[0]</c> and applied directly to <c>ProcessModel.Password</c>). The password is never stored in
-/// the MSI; the carrying properties are listed in <c>MsiHiddenProperties</c> (see
-/// <see cref="IisHiddenPropertiesContributor"/>) so a verbose install log redacts them.</para>
+/// the MSI; each SpecificUser pool's create step declares the carrying properties via
+/// <see cref="ExecutionStep.HiddenProperties"/>, which the compiler aggregates into the single
+/// <c>MsiHiddenProperties</c> row so a verbose install log redacts them.</para>
 ///
 /// <para><b>Injection safety.</b> All author/environment values (pool + site names, physical paths, host
 /// headers, IPs, user names) are embedded either as PowerShell single-quoted literals via
@@ -52,25 +53,8 @@ internal static class IisCommandFactory
     internal static IReadOnlyList<ExecutionStep> BuildSteps(
         IReadOnlyList<AppPoolModel> pools,
         IReadOnlyList<WebSiteModel> sites)
-        => BuildPlan(pools, sites).Steps;
-
-    /// <summary>
-    /// The names of every MSI property that carries an app-pool password at run time — each SpecificUser
-    /// pool's secure source property (<see cref="AppPoolModel.PasswordProperty"/>) plus that pool's deferred
-    /// install action's CustomActionData property (named after the action). Listed in
-    /// <c>MsiHiddenProperties</c> so their values are scrubbed from a verbose MSI log.
-    /// </summary>
-    internal static IReadOnlyList<string> CollectHiddenPropertyNames(
-        IReadOnlyList<AppPoolModel> pools,
-        IReadOnlyList<WebSiteModel> sites)
-        => BuildPlan(pools, sites).HiddenPropertyNames;
-
-    private static IisExecutionPlan BuildPlan(
-        IReadOnlyList<AppPoolModel> pools,
-        IReadOnlyList<WebSiteModel> sites)
     {
         var steps = new List<ExecutionStep>();
-        var hidden = new HashSet<string>(StringComparer.Ordinal);
 
         // Map pool Id -> pool Name so a site referencing a pool by Id assigns the correct app-pool name.
         var poolNamesById = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -86,9 +70,7 @@ internal static class IisCommandFactory
             if (string.IsNullOrWhiteSpace(pool.Name))
                 continue;
 
-            ExecutionStep step = BuildPoolCreateStep(pool);
-            steps.Add(step);
-            RecordSecret(hidden, step, pool);
+            steps.Add(BuildPoolCreateStep(pool));
         }
 
         // (2) Create web sites (install real + uninstall remove). Sites created after pools.
@@ -109,23 +91,24 @@ internal static class IisCommandFactory
             steps.Add(BuildPoolRemoveStep(pool));
         }
 
-        return new IisExecutionPlan(steps, hidden.OrderBy(n => n, StringComparer.Ordinal).ToList());
+        return steps;
     }
 
     /// <summary>
-    /// Records the secret-carrying property names for a SpecificUser pool that uses the secure or literal
-    /// password channel, so both are scrubbed from logs via MsiHiddenProperties.
+    /// The secret-carrying property names a SpecificUser pool's create step declares so the compiler scrubs
+    /// them from a verbose MSI log via the aggregated <c>MsiHiddenProperties</c> row: the deferred create
+    /// action's own CustomActionData property (<paramref name="stepId"/>) plus the secure source property,
+    /// if any. Empty when the pool carries no SpecificUser password.
     /// </summary>
-    private static void RecordSecret(HashSet<string> hidden, ExecutionStep step, AppPoolModel pool)
+    private static IReadOnlyList<string> SecretNames(string stepId, AppPoolModel pool)
     {
         if (pool.IdentityType != AppPoolIdentityType.SpecificUser)
-            return;
+            return [];
         if (string.IsNullOrEmpty(pool.PasswordProperty) && string.IsNullOrEmpty(pool.Password))
-            return;
-
-        hidden.Add(step.Id); // the deferred create action's CustomActionData property holds the resolved password.
-        if (!string.IsNullOrEmpty(pool.PasswordProperty))
-            hidden.Add(pool.PasswordProperty!); // the secure source property populated via SetSecureProperty.
+            return [];
+        return string.IsNullOrEmpty(pool.PasswordProperty)
+            ? [stepId]
+            : [stepId, pool.PasswordProperty!];
     }
 
     // ── application pool create / remove ─────────────────────────────────────
@@ -138,15 +121,17 @@ internal static class IisCommandFactory
         string createScript = BuildPoolCreateScript(pool, readsPassword: customActionData is not null);
         string removeScript = BuildPoolRemoveScript(pool);
 
+        string id = IisStepId.Make("IisPool_", pool.Id);
         return new ExecutionStep
         {
-            Id = IisStepId.Make("IisPool_", pool.Id),
+            Id = id,
             InstallCommand = customActionData is null
                 ? IisPowerShellEncoder.Encode(createScript)
                 : IisPowerShellEncoder.EncodeWithTrailingArgument(createScript, "[CustomActionData]"),
             CustomActionData = customActionData,
             // Rollback of a failed install: remove the pool we just created (best-effort, SYSTEM).
             RollbackCommand = IisPowerShellEncoder.Encode(removeScript),
+            HiddenProperties = SecretNames(id, pool),
         };
     }
 
@@ -331,8 +316,4 @@ internal static class IisCommandFactory
     };
 
     private static string Int(int value) => value.ToString(CultureInfo.InvariantCulture);
-
-    private sealed record IisExecutionPlan(
-        IReadOnlyList<ExecutionStep> Steps,
-        IReadOnlyList<string> HiddenPropertyNames);
 }

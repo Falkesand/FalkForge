@@ -106,4 +106,21 @@ public sealed record ExecutionStep
     /// that must run as the installing user.
     /// </summary>
     public bool Elevated { get; init; } = true;
+
+    /// <summary>
+    /// MSI property names whose run-time values carry a secret this step introduces — typically the
+    /// deferred action's own <c>CustomActionData</c> property (named <see cref="Id"/>) and any secure
+    /// source property (e.g. a <c>SetSecureProperty</c> target) feeding it. The compiler scrubs their
+    /// values from a verbose <c>msiexec /L*v</c> install log.
+    /// <para>
+    /// <b>Aggregation contract.</b> The compiler collects these names from <i>every</i> execution step of
+    /// <i>every</i> extension in the package, de-duplicates them, sorts them deterministically, and emits a
+    /// <b>single</b> <c>MsiHiddenProperties</c> <c>Property</c> row. This is the single source of truth for
+    /// the scrub list — an extension MUST NOT author its own <c>MsiHiddenProperties</c> row (two such rows
+    /// share the same <c>Property</c> primary key and fail the build), and a new secret-bearing extension
+    /// participates automatically just by populating this list. Empty (the default) when the step carries
+    /// no secret.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> HiddenProperties { get; init; } = [];
 }

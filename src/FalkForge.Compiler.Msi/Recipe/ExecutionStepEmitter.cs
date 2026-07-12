@@ -99,6 +99,13 @@ internal static class ExecutionStepEmitter
         var caRows = new List<MsiTableRow>(steps.Count * 3);
         var seqRows = new List<MsiTableRow>(steps.Count * 3);
 
+        // Single source of truth for the MsiHiddenProperties scrub list: every secret property name
+        // declared by ANY step of ANY extension is aggregated here, de-duplicated and ordinal-sorted (so
+        // the emitted value is deterministic for reproducible builds), then written as exactly ONE Property
+        // row below. This replaces the former per-extension MsiHiddenProperties contributors, whose separate
+        // rows collided on the Property primary key when two secret-bearing extensions shared a package.
+        var hiddenProperties = new SortedSet<string>(StringComparer.Ordinal);
+
         int installSeq = InstallBandStart;
         int uninstallSeq = UninstallBandStart;
         // Guards every emitted CustomAction primary key — not just the base step id — so a step "X"
@@ -171,13 +178,32 @@ internal static class ExecutionStepEmitter
                 if (failure is not null)
                     return failure.Value;
             }
+
+            // ── (5) aggregate this step's secret property names into the single scrub list.
+            foreach (string name in step.HiddenProperties)
+            {
+                if (!string.IsNullOrEmpty(name))
+                    hiddenProperties.Add(name);
+            }
         }
 
-        ImmutableArray<IMsiTableContributor> contributors = ImmutableArray.Create<IMsiTableContributor>(
+        var contributors = new List<IMsiTableContributor>(3)
+        {
             new StaticTableContributor("CustomAction", caRows),
-            new StaticTableContributor("InstallExecuteSequence", seqRows));
+            new StaticTableContributor("InstallExecuteSequence", seqRows),
+        };
 
-        return Result<ImmutableArray<IMsiTableContributor>>.Success(contributors);
+        // Emit exactly ONE MsiHiddenProperties Property row carrying the aggregated, deterministic list.
+        // No secrets → no row (parity with the prior per-extension no-secret behaviour).
+        if (hiddenProperties.Count > 0)
+        {
+            var hiddenRow = new MsiTableRow()
+                .Set("Property", "MsiHiddenProperties")
+                .Set("Value", string.Join(';', hiddenProperties));
+            contributors.Add(new StaticTableContributor("Property", [hiddenRow]));
+        }
+
+        return Result<ImmutableArray<IMsiTableContributor>>.Success([.. contributors]);
     }
 
     /// <summary>

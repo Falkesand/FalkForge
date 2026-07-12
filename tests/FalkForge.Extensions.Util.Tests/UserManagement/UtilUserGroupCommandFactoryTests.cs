@@ -40,9 +40,9 @@ public sealed class UtilUserGroupCommandFactoryTests
         Assert.Contains("[CustomActionData]", step.InstallCommand, StringComparison.Ordinal);
         Assert.Contains("ConvertTo-SecureString", Decode(step.InstallCommand), StringComparison.Ordinal);
 
-        var hidden = UtilUserGroupCommandFactory.CollectHiddenPropertyNames([user]);
-        Assert.Contains("USERPASSWORD", hidden);
-        Assert.Contains("UUsr_svc", hidden);
+        // The user-create step declares the scrub list the compiler aggregates into MsiHiddenProperties.
+        Assert.Contains("USERPASSWORD", step.HiddenProperties);
+        Assert.Contains("UUsr_svc", step.HiddenProperties);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class UtilUserGroupCommandFactoryTests
 
         var step = Single(UtilUserGroupCommandFactory.BuildSteps([], [user]), "UUsr_svc");
         Assert.Null(step.CustomActionData);
-        Assert.Empty(UtilUserGroupCommandFactory.CollectHiddenPropertyNames([user]));
+        Assert.Empty(step.HiddenProperties);
     }
 
     [Fact]

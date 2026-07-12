@@ -20,11 +20,10 @@ public sealed class SqlExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(Databases);
         registry.RegisterTableContributor(Scripts);
         registry.RegisterTableContributor(Strings);
-        // Scrub SQL passwords carried through the CustomActionData channel from verbose MSI logs.
-        registry.RegisterTableContributor(new SqlHiddenPropertiesContributor(
-            () => Databases.Items, () => Scripts.Items, () => Strings.Items));
         // Make the SqlDatabase/SqlScript/SqlString tables LIVE: schedule deferred, elevated custom actions
-        // that create databases, run scripts/strings, and drop databases on uninstall.
+        // that create databases, run scripts/strings, and drop databases on uninstall. Each secret-bearing
+        // step declares its ExecutionStep.HiddenProperties; the compiler aggregates those across all
+        // extensions into a single MsiHiddenProperties row that scrubs SQL passwords from verbose MSI logs.
         registry.RegisterExecutionContributor(new SqlExecutionContributor(
             () => Databases.Items, () => Scripts.Items, () => Strings.Items));
     }

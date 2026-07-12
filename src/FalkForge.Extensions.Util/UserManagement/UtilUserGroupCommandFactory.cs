@@ -22,8 +22,9 @@ namespace FalkForge.Extensions.Util.UserManagement;
 /// the referenced secure MSI property (populated at run time via <c>SetSecureProperty</c>) into the
 /// deferred action, read here as <c>$args[0]</c> and immediately converted to a <c>SecureString</c> with
 /// <c>ConvertTo-SecureString</c>. The password is therefore never stored in the MSI, never echoed and
-/// never logged (the carrying properties are listed in <c>MsiHiddenProperties</c> by
-/// <see cref="UtilHiddenPropertiesContributor"/>). A <i>literal</i> password (discouraged, USR010-warned)
+/// never logged (each password-bearing create step declares the carrying properties via
+/// <see cref="ExecutionStep.HiddenProperties"/>, which the compiler aggregates into the single
+/// <c>MsiHiddenProperties</c> row). A <i>literal</i> password (discouraged, USR010-warned)
 /// is embedded in the SetProperty target instead — the contrast proves the secure path keeps the secret
 /// out of the MSI.</para>
 ///
@@ -43,18 +44,6 @@ internal static class UtilUserGroupCommandFactory
 {
     internal static IReadOnlyList<ExecutionStep> BuildSteps(
         IReadOnlyList<GroupModel> groups, IReadOnlyList<UserModel> users)
-        => BuildPlan(groups, users).Steps;
-
-    /// <summary>
-    /// The names of every MSI property that carries a user password at run time — the secure source
-    /// property (<see cref="UserModel.PasswordProperty"/>) plus each deferred user-create action's
-    /// CustomActionData property (named after the action). Listed in <c>MsiHiddenProperties</c> so their
-    /// values are scrubbed from a verbose MSI log.
-    /// </summary>
-    internal static IReadOnlyList<string> CollectHiddenPropertyNames(IReadOnlyList<UserModel> users)
-        => BuildPlan([], users).HiddenPropertyNames;
-
-    private static UserGroupPlan BuildPlan(IReadOnlyList<GroupModel> groups, IReadOnlyList<UserModel> users)
     {
         // Defense in depth: UserModel/GroupModel are public and can be constructed directly (bypassing the
         // builder's USR003/GRP002 validation). Every name reaches a SYSTEM-context command line (and the
@@ -63,7 +52,6 @@ internal static class UtilUserGroupCommandFactory
         Guard(groups, users);
 
         var steps = new List<ExecutionStep>();
-        var hidden = new HashSet<string>(StringComparer.Ordinal);
 
         // ── (1) create local groups first so memberships can target them.
         foreach (GroupModel g in groups)
@@ -76,11 +64,7 @@ internal static class UtilUserGroupCommandFactory
         foreach (UserModel u in users)
         {
             if (IsLocal(u.Domain) && !string.IsNullOrWhiteSpace(u.Name))
-            {
-                ExecutionStep step = BuildUserCreateStep(u);
-                steps.Add(step);
-                RecordSecret(hidden, step, u);
-            }
+                steps.Add(BuildUserCreateStep(u));
         }
 
         // ── (3) add users to groups (works for both local and domain-qualified users).
@@ -121,7 +105,7 @@ internal static class UtilUserGroupCommandFactory
                 steps.Add(BuildGroupRemoveStep(g));
         }
 
-        return new UserGroupPlan(steps, hidden.OrderBy(n => n, StringComparer.Ordinal).ToList());
+        return steps;
     }
 
     /// <summary>
@@ -152,14 +136,19 @@ internal static class UtilUserGroupCommandFactory
         }
     }
 
-    private static void RecordSecret(HashSet<string> hidden, ExecutionStep step, UserModel u)
+    /// <summary>
+    /// The secret-carrying property names a password-bearing user-create step declares so the compiler
+    /// scrubs them from a verbose MSI log via the aggregated <c>MsiHiddenProperties</c> row: the deferred
+    /// action's own CustomActionData property (<paramref name="stepId"/>) plus the secure source property,
+    /// if any. Empty when the user carries no credential.
+    /// </summary>
+    private static IReadOnlyList<string> SecretNames(string stepId, UserModel u)
     {
         if (string.IsNullOrEmpty(u.PasswordProperty) && string.IsNullOrEmpty(u.Password))
-            return; // no credential → CustomActionData (if any) carries no secret.
-
-        hidden.Add(step.Id); // the deferred action's CustomActionData property holds the resolved password.
-        if (!string.IsNullOrEmpty(u.PasswordProperty))
-            hidden.Add(u.PasswordProperty!); // the secure source property populated via SetSecureProperty.
+            return [];
+        return string.IsNullOrEmpty(u.PasswordProperty)
+            ? [stepId]
+            : [stepId, u.PasswordProperty!];
     }
 
     // ── group create / remove ───────────────────────────────────────────────
@@ -214,6 +203,7 @@ internal static class UtilUserGroupCommandFactory
             CustomActionData = customActionData,
             // Marker-gated rollback (see BuildGroupCreateStep): removes the user only when this run created it.
             RollbackCommand = UtilPowerShellEncoder.Encode(BuildUserRollbackScript(u, id)),
+            HiddenProperties = SecretNames(id, u),
         };
     }
 
@@ -528,8 +518,4 @@ internal static class UtilUserGroupCommandFactory
     /// <summary>The compile-time-resolved bitwise op to set (<c>-bor</c>) or clear (<c>-band -bnot</c>) a user flag bit.</summary>
     private static string FlagOp(bool set, string bit)
         => set ? " -bor " + bit : " -band (-bnot " + bit + ")";
-
-    private sealed record UserGroupPlan(
-        IReadOnlyList<ExecutionStep> Steps,
-        IReadOnlyList<string> HiddenPropertyNames);
 }
