@@ -13,15 +13,35 @@ public sealed class EnvironmentVariableBuilder
         _value = value;
     }
 
+    private EnvironmentVariableAction _action = EnvironmentVariableAction.Set;
+
     public bool IsSystem { get; set; } = true;
-    public EnvironmentVariableAction Action { get; set; } = EnvironmentVariableAction.Set;
+
+    /// <summary>
+    /// The variable operation (set / append / prepend). Assigning this directly clears any
+    /// previously chosen <see cref="Part"/> so the two can never silently disagree — the encoder
+    /// treats a non-null <see cref="Part"/> as authoritative, so a stale Part would otherwise mask a
+    /// freshly-set Action. Use <see cref="Set"/>/<see cref="Append"/>/<see cref="Prepend"/> to set
+    /// both together.
+    /// </summary>
+    public EnvironmentVariableAction Action
+    {
+        get => _action;
+        set
+        {
+            _action = value;
+            Part = null;
+        }
+    }
+
     public string? Separator { get; set; }
 
     /// <summary>
     /// WiX-style value placement (<see cref="EnvironmentVariablePart"/>: all/first/last). When set,
     /// it governs where the authored value sits relative to any existing value via the MSI
-    /// <c>[~]</c> token. Prefer the <see cref="Set"/>/<see cref="Append"/>/<see cref="Prepend"/>
-    /// convenience methods, which keep this and <see cref="Action"/> consistent.
+    /// <c>[~]</c> token and overrides <see cref="Action"/>. Prefer the <see cref="Set"/>/
+    /// <see cref="Append"/>/<see cref="Prepend"/> convenience methods, which set this and
+    /// <see cref="Action"/> together.
     /// </summary>
     public string? Part { get; set; }
 

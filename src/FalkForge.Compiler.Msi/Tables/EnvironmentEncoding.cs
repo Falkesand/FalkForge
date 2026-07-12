@@ -21,8 +21,11 @@ internal static class EnvironmentEncoding
     ///     append/prepend also schedules the variable for removal on uninstall, matching
     ///     the established WiX behavior for these actions.
     /// </summary>
-    ///     When <paramref name="part"/> is non-null it is the authoritative value-placement axis
-    ///     (WiX <c>Environment/@Part</c>: all/first/last) and overrides <paramref name="action"/>.
+    /// <param name="part">
+    ///     WiX-style value placement (<see cref="EnvironmentVariablePart"/>: all/first/last). When
+    ///     non-null it is the authoritative axis and overrides <paramref name="action"/>; when null,
+    ///     <paramref name="action"/> drives the emitted prefix.
+    /// </param>
     internal static string EncodeName(
         string variableName, EnvironmentVariableAction action, bool isSystem, string? part = null)
         => EnvironmentNameEncoder.Encode(ResolveAction(action, part), isSystem, variableName);
@@ -34,6 +37,11 @@ internal static class EnvironmentEncoding
     ///     For <see cref="EnvironmentVariableAction.Prepend"/>: <c>&lt;value&gt;&lt;separator&gt;[~]</c>.
     ///     Default separator is <c>;</c>.
     /// </summary>
+    /// <param name="part">
+    ///     WiX-style value placement (<see cref="EnvironmentVariablePart"/>: all/first/last). When
+    ///     non-null it is the authoritative placement axis and overrides <paramref name="action"/>;
+    ///     when null, <paramref name="action"/> drives placement.
+    /// </param>
     internal static string EncodeValue(
         string value, EnvironmentVariableAction action, string? separator, string? part = null)
     {

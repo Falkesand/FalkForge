@@ -184,6 +184,74 @@ public sealed class FeatureComponentRefsRoundTripTests
         Assert.DoesNotContain(actual, r => r.Feature == "Beta" && r.Component == compAlpha);
     }
 
+    // ── A9e: ComponentRefs on a nested CHILD feature drive the mapping (recursion) ───────
+
+    [Fact]
+    public void Compile_ComponentRefsOnNestedChildFeature_MapsComponentUnderTheChild()
+    {
+        using var temp = new TempDir();
+        var sourceFile = temp.WriteFile("app.exe");
+        var installDir = KnownFolder.ProgramFiles / "TestCorp" / "A9e";
+
+        var probe = ModelWithFiles("A9e",
+            [FileEntry(sourceFile, installDir, "app.exe")],
+            []);
+        var componentId = ResolveSingleComponentId(probe);
+
+        // The component (no FeatureRef) is claimed only by a CHILD feature's ComponentRefs. The
+        // producer must recurse into Children and place it under the child, never the parent/default.
+        var model = ModelWithFiles("A9e",
+            [FileEntry(sourceFile, installDir, "app.exe")],
+            [
+                new FeatureModel
+                {
+                    Id = "Parent",
+                    Title = "Parent",
+                    Children =
+                    [
+                        new FeatureModel { Id = "Child", Title = "Child", ComponentRefs = [componentId] }
+                    ]
+                }
+            ]);
+
+        var rows = CompileAndReadFeatureComponents(model, temp.Path("out_e"));
+
+        Assert.Contains(rows, r => r.Feature == "Child" && r.Component == componentId);
+        Assert.DoesNotContain(rows, r => r.Feature == "Parent" && r.Component == componentId);
+    }
+
+    // ── A9f: one component under TWO different features (FeatureRef + another feature's ref) ─
+
+    [Fact]
+    public void Compile_ComponentUnderTwoDifferentFeatures_EmitsBothRows()
+    {
+        using var temp = new TempDir();
+        var sourceFile = temp.WriteFile("app.exe");
+        var installDir = KnownFolder.ProgramFiles / "TestCorp" / "A9f";
+
+        var probe = ModelWithFiles("A9f",
+            [FileEntry(sourceFile, installDir, "app.exe")],
+            []);
+        var componentId = ResolveSingleComponentId(probe);
+
+        // The file is FeatureRef-stamped to F1; F2 additionally lists it in ComponentRefs. MSI
+        // permits a component in multiple features, so both (F1,C) and (F2,C) must be emitted —
+        // the claimed-set only suppresses the DEFAULT fallback, never an explicit FeatureRef.
+        var model = ModelWithFiles("A9f",
+            [FileEntry(sourceFile, installDir, "app.exe", featureRef: "F1")],
+            [
+                new FeatureModel { Id = "F1", Title = "Feature One" },
+                new FeatureModel { Id = "F2", Title = "Feature Two", ComponentRefs = [componentId] }
+            ]);
+
+        var rows = CompileAndReadFeatureComponents(model, temp.Path("out_f"));
+
+        var matches = rows.Where(r => r.Component == componentId).ToList();
+        Assert.Equal(2, matches.Count);
+        Assert.Contains(matches, r => r.Feature == "F1");
+        Assert.Contains(matches, r => r.Feature == "F2");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────
 
     private static FileEntryModel FileEntry(string sourcePath, InstallPath targetDir, string fileName,
