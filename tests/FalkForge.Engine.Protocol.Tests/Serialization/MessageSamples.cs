@@ -97,5 +97,53 @@ internal static class MessageSamples
             ErrorMessage = "Access denied.",
             ResultPayload = new byte[] { 0xFF, 0xFE },
         };
+        yield return new DetectPackageCompleteMessage
+        {
+            SequenceId = 32,
+            PackageId = "pkg-a",
+            State = InstallState.OlderVersion,
+            Version = "1.2.3",
+        };
+        yield return new DetectPackageCompleteMessage
+        {
+            SequenceId = 33,
+            PackageId = "pkg-b",
+            State = InstallState.NotInstalled,
+            Version = null,
+        };
+        yield return new DetectRelatedBundleMessage
+        {
+            SequenceId = 34,
+            BundleId = "{11111111-1111-1111-1111-111111111111}",
+            Relation = RelatedBundleRelation.Upgrade,
+            InstalledVersion = "0.9.0",
+        };
+        yield return new PlanPackageBeginMessage
+        {
+            SequenceId = 35,
+            PackageId = "pkg-a",
+            DisplayName = "Package A",
+            PlannedAction = "Install",
+        };
+        yield return new PlanPackageCompleteMessage
+        {
+            SequenceId = 36,
+            PackageId = "pkg-a",
+            DisplayName = "Package A",
+            PlannedAction = "Install",
+        };
+        yield return new ApplyPackageBeginMessage
+        {
+            SequenceId = 37,
+            PackageId = "pkg-a",
+            DisplayName = "Package A",
+        };
+        yield return new ApplyPackageCompleteMessage
+        {
+            SequenceId = 38,
+            PackageId = "pkg-a",
+            DisplayName = "Package A",
+            Succeeded = true,
+        };
     }
 }

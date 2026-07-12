@@ -24,6 +24,15 @@ public enum MessageType : ushort
     LaunchUpdate = 0x010F,
     License = 0x0110,
 
+    // Per-package / per-related-bundle lifecycle (Engine -> UI, 0x01xx). Observational
+    // notifications interleaved with the phase-level Detect/Plan/Apply Begin/Complete messages.
+    DetectPackageComplete = 0x0111,
+    DetectRelatedBundle = 0x0112,
+    PlanPackageBegin = 0x0113,
+    PlanPackageComplete = 0x0114,
+    ApplyPackageBegin = 0x0115,
+    ApplyPackageComplete = 0x0116,
+
     // UI -> Engine (0x02xx)
     Cancel = 0x0201,
     ShutdownRequest = 0x0202,

@@ -61,6 +61,12 @@ public static class MessageCodecRegistry
         ElevateProgressCodec.Instance,
         ElevateResultCodec.Instance,
         SessionStartCodec.Instance,
+        DetectPackageCompleteCodec.Instance,
+        DetectRelatedBundleCodec.Instance,
+        PlanPackageBeginCodec.Instance,
+        PlanPackageCompleteCodec.Instance,
+        ApplyPackageBeginCodec.Instance,
+        ApplyPackageCompleteCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
