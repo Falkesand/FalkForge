@@ -43,11 +43,16 @@ Installer integrity is where FalkForge goes further than the mainstream installe
 - **Supply-chain transparency** -- reproducible builds, CycloneDX SBOM, and a provable pipeline (`forge plan` / `forge verify --rebuild`) to show what a bundle does and that it matches its source.
 - **Hardened install engine** -- the elevated helper is mutually authenticated (HMAC handshake, parent PID verification) and executes only a whitelisted command set.
 
-Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](documentation.html) (section 22, includes the plain-language security manual).
+Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](documentation.html) (section 23, includes the plain-language security manual).
 
 ## Get Started in a Minute
 
-Install the tool **or** add the one meta-package — never the 26 granular packages:
+> **Status: pre-alpha, packages not yet published.** FalkForge isn't on nuget.org yet, so
+> `dotnet tool install`, `dotnet new install`, and `dotnet add package` below are the
+> onboarding path **coming with the first public release** -- they document the intended
+> shape, not something you can run today. Until then, build from source (next section).
+
+Once published, install the tool **or** add the one meta-package — never the 26 granular packages:
 
 ```bash
 # Option 1 — the forge CLI scaffolds and builds installers
@@ -69,6 +74,25 @@ EXE-bundle compilers, localization, every extension, and the NativeAOT bundle
 engine runtime — so `dotnet run` on a scaffolded project produces a runnable
 installer with nothing else installed. The granular `FalkForge.*` packages
 remain available when you want a minimal footprint.
+
+### Building from source (today)
+
+```bash
+git clone https://github.com/Falkesand/FalkForge.git
+cd FalkForge
+dotnet build
+
+# Scaffold a starter project with the CLI, run from source:
+dotnet run --project src/FalkForge.Cli -- init --name "My App"
+cd My_App && dotnet run    # -> My_App-1.0.0.msi
+```
+
+`forge init` (see [CLI Tool](#cli-tool) below) writes a project that references the
+`FalkForge` meta-package by version -- since that package isn't published yet either,
+point the scaffolded project's `PackageReference` at a local NuGet feed built from this
+repo (`scripts/pack.ps1`), or reference the `src/` projects directly while packages
+aren't public. The [tutorials](docs/tutorials/index.html) walk through the same flow
+step by step.
 
 ## Quick Start
 
@@ -190,9 +214,15 @@ dumps and kills a test host after 10 minutes without test progress
 ## Demos and Documentation
 
 - **[demo/](demo/)** -- 60+ demo projects covering every feature, from hello-world
-  to delta updates, signing, and reproducible builds.
+  to delta updates, signing, and reproducible builds. New here? The
+  [demo README](demo/README.md) has a starter track.
+- **[docs/tutorials/](docs/tutorials/index.html)** -- narrative, demo-by-demo
+  walkthroughs: start with [Getting Started](docs/tutorials/getting-started.html),
+  then [MSI Basics](docs/tutorials/msi-basics.html); coming from WiX? there's a
+  [tutorial for that](docs/tutorials/coming-from-wix.html) too.
 - **[documentation.html](documentation.html)** -- self-contained full reference
-  (18 sections, searchable, dark/light theme).
+  (23 sections, searchable, dark/light theme). Start with **Concepts** (section 2)
+  if you're new to Windows Installer.
 - **[docs/provenance.md](docs/provenance.md)** -- the supply-chain provenance
   surface: SBOM, payload integrity, reproducible builds, attestations.
 

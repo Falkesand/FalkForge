@@ -23,6 +23,22 @@ Key properties:
 - **NativeAOT engine** -- 3-5 MB self-extracting bundle runtime with WPF UI
 - **Extension system** -- Firewall, IIS, SQL, .NET detection, Dependency, and utility actions
 
+## New Here? Start With These
+
+The tables below cover every demo -- useful as a reference, a lot to scroll through as a
+starting point. If you're new, work through these four in order instead:
+
+| # | Demo | Why |
+|---|------|-----|
+| [01](01-hello-world/) | Hello World | The smallest possible installer -- one file, no features |
+| [02](02-notepad-clone/) | Notepad Clone | Adds shortcuts, registry entries, and a major-upgrade path |
+| [06](06-product-suite/) | Product Suite | Chains multiple MSIs into a self-extracting EXE bundle |
+| [11](11-custom-ui-simple/) | Custom UI Simple | Replaces the built-in wizard with your own WPF pages |
+
+Each builds on the last. Pair this with the [Getting Started](../docs/tutorials/getting-started.html)
+and [MSI Basics](../docs/tutorials/msi-basics.html) tutorials, which walk through demos 01-05
+narratively instead of as a reference table.
+
 ## C# Demo Index
 
 ### MSI Demos (01-10)
