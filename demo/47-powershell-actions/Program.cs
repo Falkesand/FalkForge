@@ -17,8 +17,6 @@ return Installer.Build(args, package =>
     package.CustomAction("LogInstallStart", ca =>
     {
         ca.PowerShellScript("Write-EventLog -LogName Application -Source 'MSIInstaller' -EventId 1000 -Message 'PowerShell Demo: installation started'");
-        ca.After = "CostFinalize";
-        ca.Condition = Condition.IsInstalling.ToString();
     });
 
     // --- File-based PowerShell script ---
@@ -28,7 +26,6 @@ return Installer.Build(args, package =>
         ca.PowerShellFile("payload/setup.ps1");
         ca.Deferred();
         ca.NoImpersonate();
-        ca.After = "InstallFiles";
     });
 
     // --- Deferred PowerShell with NoImpersonate ---
@@ -41,7 +38,6 @@ $configPath = Join-Path $env:ProgramFiles 'Demo\PowerShellDemo\config.json'
 ");
         ca.Deferred();
         ca.NoImpersonate();
-        ca.After = "RunSetupScript";
     });
 
     // --- Rollback PowerShell action ---
@@ -54,6 +50,19 @@ if (Test-Path $configPath) { Remove-Item $configPath -Force }
 ");
         ca.Rollback();
         ca.NoImpersonate();
-        ca.Before = "ConfigureSettings";
     });
+
+    // Schedule every custom action above — CustomActionBuilder's After/Before/Condition
+    // properties are metadata only; the compiler reads scheduling exclusively from
+    // ExecuteSequence(...)/UISequence(...), so each action must be placed here to run.
+    package.ExecuteSequence(seq => seq
+        .Action("LogInstallStart")
+            .After("CostFinalize")
+            .Condition(Condition.IsInstalling)
+        .Action("RunSetupScript")
+            .After("InstallFiles")
+        .Action("UndoConfigureSettings")
+            .Before("ConfigureSettings")
+        .Action("ConfigureSettings")
+            .After("RunSetupScript"));
 }, new MsiCompiler());

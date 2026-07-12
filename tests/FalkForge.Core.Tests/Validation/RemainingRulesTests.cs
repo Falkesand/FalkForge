@@ -136,6 +136,67 @@ public sealed class RemainingRulesTests
         Assert.Empty(RemainingRules.Ca005_NoImpersonateRequiresInScript.Evaluate(Ctx(pkg)));
     }
 
+    // ── CA006 — Custom action defined but never scheduled (warning) ──────────
+
+    [Fact]
+    public void Ca006_defined_but_never_scheduled_yields_warning()
+    {
+        var pkg = WithCA(new CustomActionModel { Id = "OrphanCA", Type = 1, SourceRef = "Ref" });
+        var violations = RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("CA006", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Ca006_scheduled_in_execute_sequence_yields_no_violations()
+    {
+        var pkg = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(), ProductCode = Guid.NewGuid(),
+            CustomActions = [new CustomActionModel { Id = "ScheduledCA", Type = 1, SourceRef = "Ref" }],
+            ExecuteSequenceActions =
+            [
+                new SequenceActionModel
+                {
+                    ActionName = "ScheduledCA",
+                    Table = SequenceTable.InstallExecuteSequence,
+                    Position = new ActionPosition.AfterAction("InstallFiles")
+                }
+            ]
+        };
+        Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ca006_scheduled_in_ui_sequence_yields_no_violations()
+    {
+        var pkg = new PackageModel
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            UpgradeCode = Guid.NewGuid(), ProductCode = Guid.NewGuid(),
+            CustomActions = [new CustomActionModel { Id = "ScheduledCA", Type = 1, SourceRef = "Ref" }],
+            UISequenceActions =
+            [
+                new SequenceActionModel
+                {
+                    ActionName = "ScheduledCA",
+                    Table = SequenceTable.InstallUISequence,
+                    Position = new ActionPosition.AtNumber(1500)
+                }
+            ]
+        };
+        Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ca006_no_custom_actions_yields_no_violations()
+    {
+        Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(Base())));
+    }
+
     // ── ASM001 — Assembly FileRef required ───────────────────────────────────
 
     [Fact]
