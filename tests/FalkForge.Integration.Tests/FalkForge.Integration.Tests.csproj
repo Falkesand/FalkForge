@@ -19,6 +19,8 @@
     <ProjectReference Include="..\..\src\FalkForge.Engine.Protocol\FalkForge.Engine.Protocol.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Extensions.Iis\FalkForge.Extensions.Iis.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Extensions.Sql\FalkForge.Extensions.Sql.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Decompiler\FalkForge.Decompiler.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Cli\FalkForge.Cli.csproj" />
