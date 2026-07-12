@@ -310,16 +310,15 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             return;
         }
 
-        var byName = new Dictionary<string, IMsiDialogStepBuilder>(StringComparer.Ordinal);
-        for (int i = 0; i < _extensionStepBuilders.Count; i++)
-        {
-            byName[_extensionStepBuilders[i].Name] = _extensionStepBuilders[i];
-        }
-
+        // Single registry serves both the name→builder lookup and the DialogBuildContext.
+        // The Contains guard tolerates a duplicate-named builder rather than throwing.
         var registry = new DialogStepRegistry();
         for (int i = 0; i < _extensionStepBuilders.Count; i++)
         {
-            registry.Register(_extensionStepBuilders[i]);
+            if (!registry.Contains(_extensionStepBuilders[i].Name))
+            {
+                registry.Register(_extensionStepBuilders[i]);
+            }
         }
         registry.Freeze();
 
@@ -328,7 +327,8 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         var emitted = new HashSet<string>(StringComparer.Ordinal);
         foreach (InsertedDialogStep step in customization.InsertedSteps)
         {
-            if (byName.TryGetValue(step.StepName, out IMsiDialogStepBuilder? builder)
+            if (registry.TryGet(step.StepName, out IMsiDialogStepBuilder? builder)
+                && builder is not null
                 && emitted.Add(step.StepName))
             {
                 dialogs.Add(builder.Build(context));

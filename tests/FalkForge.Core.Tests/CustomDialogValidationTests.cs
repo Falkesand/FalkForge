@@ -82,6 +82,24 @@ public sealed class CustomDialogValidationTests
     }
 
     [Fact]
+    public void VolumeCostList_without_a_property_does_not_trigger_DLG018()
+    {
+        // The MSI Control table Property column is not used for VolumeCostList, so a missing
+        // property is legal and must not be flagged.
+        var vcl = new CustomDialogControlModel
+        {
+            Name = "Costs",
+            Type = CustomControlType.VolumeCostList,
+            X = 10, Y = 10, Width = 300, Height = 100,
+            Property = null,
+        };
+        var dialog = new CustomDialogModel { Id = "CostDlg", Controls = [vcl] };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.DoesNotContain(report.Errors, e => e.RuleId.Value == "DLG018");
+    }
+
+    [Fact]
     public void Well_formed_custom_dialog_produces_no_DLG_errors()
     {
         var dialog = new CustomDialogModel

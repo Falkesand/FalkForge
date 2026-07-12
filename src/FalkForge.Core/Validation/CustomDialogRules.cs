@@ -17,6 +17,8 @@ public static partial class CustomDialogRules
     private static partial Regex IdentifierRegex();
 
     // Control types that carry data and therefore require a bound MSI property.
+    // (VolumeCostList / ProgressBar are intentionally excluded — their Control table
+    // Property column is not used.)
     private static readonly FrozenSet<CustomControlType> PropertyBoundTypes =
         FrozenSet.Create(
             CustomControlType.Edit,
@@ -28,7 +30,6 @@ public static partial class CustomDialogRules
             CustomControlType.ListBox,
             CustomControlType.DirectoryCombo,
             CustomControlType.DirectoryList,
-            CustomControlType.VolumeCostList,
             CustomControlType.SelectionTree);
 
     private static ModelPath DialogPath(int i) =>
