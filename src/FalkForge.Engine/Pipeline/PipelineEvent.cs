@@ -24,6 +24,35 @@ public abstract record PipelineEvent
     /// <summary>A terminal failure has occurred.</summary>
     public sealed record Failed(ErrorKind Kind, string Message) : PipelineEvent;
 
+    /// <summary>
+    /// The Detect phase completed successfully. Emitted once, after the per-package
+    /// <see cref="DetectPackageComplete"/> notifications, carrying the aggregate detected state.
+    /// Maps to the UI's <c>DetectCompleteMessage</c> so the UI's <c>DetectAsync</c> request/response
+    /// await returns — without it the UI hangs at "Detecting…".
+    /// </summary>
+    public sealed record DetectComplete(
+        InstallState State,
+        string? CurrentVersion,
+        FeatureState[] Features) : PipelineEvent;
+
+    /// <summary>
+    /// The Plan phase completed successfully. Carries the planned package identifiers and the total
+    /// disk space the plan requires. Maps to the UI's <c>PlanCompleteMessage</c> so the UI's
+    /// <c>PlanAsync</c> request/response await returns.
+    /// </summary>
+    public sealed record PlanComplete(
+        long TotalDiskSpaceRequired,
+        string[] PackageIds) : PipelineEvent;
+
+    /// <summary>
+    /// The Apply phase completed. Carries the process exit code (0 on success) and an optional error
+    /// message. Maps to the UI's <c>ApplyCompleteMessage</c> so the UI's <c>ApplyAsync</c>
+    /// request/response await returns.
+    /// </summary>
+    public sealed record ApplyComplete(
+        int ExitCode,
+        string? ErrorMessage) : PipelineEvent;
+
     /// <summary>A single rollback step has completed.</summary>
     public sealed record RollbackStep(RollbackStepResult Step) : PipelineEvent;
 

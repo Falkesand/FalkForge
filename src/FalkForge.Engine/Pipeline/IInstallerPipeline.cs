@@ -1,5 +1,8 @@
 namespace FalkForge.Engine.Pipeline;
 
+using FalkForge.Engine.Detection;
+using FalkForge.Engine.Planning;
+
 /// <summary>
 /// Top-level coordinator for an installer run. Enforces phase ordering
 /// (Detect → Plan → Apply) and delegates each phase to registered step
@@ -15,14 +18,18 @@ public interface IInstallerPipeline : IAsyncDisposable
     /// <summary>
     /// Runs the Detect phase. Must be called before <see cref="PlanAsync"/>.
     /// Returns <see cref="ErrorKind.EngineError"/> if called out of sequence.
+    /// On success, yields the aggregate <see cref="DetectionResult"/> so the caller can emit the
+    /// phase-complete event the UI awaits.
     /// </summary>
-    Task<Result<Unit>> DetectAsync(CancellationToken ct);
+    Task<Result<DetectionResult>> DetectAsync(CancellationToken ct);
 
     /// <summary>
     /// Runs the Plan phase. Requires a prior successful <see cref="DetectAsync"/>.
     /// Returns <see cref="ErrorKind.EngineError"/> if called out of sequence.
+    /// On success, yields the produced <see cref="InstallPlan"/> so the caller can emit the
+    /// phase-complete event the UI awaits.
     /// </summary>
-    Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct);
+    Task<Result<InstallPlan>> PlanAsync(UiRequest.Plan request, CancellationToken ct);
 
     /// <summary>
     /// Runs the optional Elevate phase. Call between <see cref="PlanAsync"/> and

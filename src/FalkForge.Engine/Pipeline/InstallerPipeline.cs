@@ -1,5 +1,9 @@
 namespace FalkForge.Engine.Pipeline;
 
+using FalkForge.Engine.Detection;
+using FalkForge.Engine.Planning;
+using FalkForge.Engine.Protocol;
+
 /// <summary>
 /// <see cref="IInstallerPipeline"/> implementation. Enforces Detect → Plan → Apply
 /// ordering and delegates each phase to the injected step implementations.
@@ -67,46 +71,53 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     }
 
     /// <inheritdoc/>
-    public async Task<Result<Unit>> DetectAsync(CancellationToken ct)
+    public async Task<Result<DetectionResult>> DetectAsync(CancellationToken ct)
     {
         if (_disposed)
-            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
+            return Result<DetectionResult>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
 
         // Detect may run from Initial or re-run from Detected state (re-detect).
         if (_phase is Phase.Planned or Phase.Applied)
-            return Result<Unit>.Failure(ErrorKind.EngineError,
+            return Result<DetectionResult>.Failure(ErrorKind.EngineError,
                 "DetectAsync cannot be called after Plan or Apply.");
 
         if (_detectStep is not null)
         {
             var result = await _detectStep.ExecuteAsync(_ctx, ct);
             if (result.IsFailure)
-                return result;
+                return Result<DetectionResult>.Failure(result.Error);
         }
 
         _phase = Phase.Detected;
-        return Unit.Value;
+
+        // Surface the aggregate detection so the caller (PipelineRunner) can emit DetectComplete.
+        // Null when no detect step ran (skeleton / ordering-only pipeline): report an empty,
+        // not-installed result rather than fabricating state.
+        return _ctx.Detection ?? new DetectionResult(InstallState.NotInstalled, null, []);
     }
 
     /// <inheritdoc/>
-    public async Task<Result<Unit>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
+    public async Task<Result<InstallPlan>> PlanAsync(UiRequest.Plan request, CancellationToken ct)
     {
         if (_disposed)
-            return Result<Unit>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
+            return Result<InstallPlan>.Failure(ErrorKind.EngineError, "Pipeline has been disposed.");
 
         if (_phase is not Phase.Detected)
-            return Result<Unit>.Failure(ErrorKind.EngineError,
+            return Result<InstallPlan>.Failure(ErrorKind.EngineError,
                 "PlanAsync requires a prior successful DetectAsync.");
 
         if (_planStep is not null)
         {
             var result = await _planStep.ExecuteAsync(_ctx, request, ct);
             if (result.IsFailure)
-                return result;
+                return Result<InstallPlan>.Failure(result.Error);
         }
 
         _phase = Phase.Planned;
-        return Unit.Value;
+
+        // Surface the produced plan so the caller (PipelineRunner) can emit PlanComplete.
+        // Null when no plan step ran (skeleton pipeline): report an empty plan.
+        return _ctx.Plan ?? new InstallPlan { Actions = [] };
     }
 
     /// <inheritdoc/>
