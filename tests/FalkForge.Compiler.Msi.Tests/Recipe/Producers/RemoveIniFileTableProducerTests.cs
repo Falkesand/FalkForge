@@ -103,15 +103,14 @@ public sealed class RemoveIniFileTableProducerTests
     }
 
     // -------------------------------------------------------------------
-    // Produce tests — always returns empty (no RemoveIniFiles in model)
+    // Produce tests
     // -------------------------------------------------------------------
 
     [Fact]
-    public void Produce_always_returns_empty_rows()
+    public void Produce_with_no_removeinifiles_returns_empty_rows()
     {
-        // The legacy TableEmitter always creates the RemoveIniFile table but
-        // never populates it: PackageModel has no RemoveIniFiles collection.
-        // The producer must mirror that behaviour — always succeed with zero rows.
+        // PackageModel.RemoveIniFiles defaults to empty; the producer must succeed
+        // with zero rows rather than fail.
         ResolvedPackage resolved = MakeResolved();
         RemoveIniFileTableProducer producer = new();
 
@@ -125,6 +124,100 @@ public sealed class RemoveIniFileTableProducerTests
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public void Produce_emits_one_row_per_entry_with_correct_cells()
+    {
+        RemoveIniFileModel entry = new()
+        {
+            Id = "RemIni1",
+            FileName = "settings.ini",
+            DirProperty = "INSTALLDIR",
+            Section = "Database",
+            Key = "ConnectionString",
+            Value = "Server=local",
+            Action = IniFileAction.RemoveTag,
+            ComponentRef = "Comp1",
+        };
+        ResolvedPackage resolved = MakeResolvedWithEntries(
+            entries: new[] { entry },
+            components: new[] { MakeComponent("Comp1") });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        RecipeRow row = Assert.Single(rows);
+        Assert.Equal("RemIni1", ((CellValue.StringValue)row.Cells[0]).Value);
+        Assert.Equal("settings.ini", ((CellValue.StringValue)row.Cells[1]).Value);
+        Assert.Equal("INSTALLDIR", ((CellValue.StringValue)row.Cells[2]).Value);
+        Assert.Equal("Database", ((CellValue.StringValue)row.Cells[3]).Value);
+        Assert.Equal("ConnectionString", ((CellValue.StringValue)row.Cells[4]).Value);
+        Assert.Equal("Server=local", ((CellValue.StringValue)row.Cells[5]).Value);
+        Assert.Equal((int)IniFileAction.RemoveTag, ((CellValue.IntValue)row.Cells[6]).Value);
+        CellValue.ForeignKey fk = Assert.IsType<CellValue.ForeignKey>(row.Cells[7]);
+        Assert.Equal("Component", fk.TargetTable.Value);
+        Assert.Equal("Comp1", fk.TargetKey);
+    }
+
+    [Fact]
+    public void Produce_emits_null_cells_for_unset_dirproperty_and_value()
+    {
+        RemoveIniFileModel entry = new()
+        {
+            Id = "RemIni2",
+            FileName = "f.ini",
+            Section = "S",
+            Key = "K",
+            ComponentRef = "C1",
+        };
+        ResolvedPackage resolved = MakeResolvedWithEntries(
+            entries: new[] { entry },
+            components: new[] { MakeComponent("C1") });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.IsType<CellValue.Null>(rows[0].Cells[2]);
+        Assert.IsType<CellValue.Null>(rows[0].Cells[5]);
+    }
+
+    [Fact]
+    public void Produce_falls_back_to_first_resolved_component_when_componentref_missing()
+    {
+        RemoveIniFileModel entry = new()
+        {
+            Id = "RemIni3",
+            FileName = "f.ini",
+            Section = "S",
+            Key = "K",
+        };
+        ResolvedPackage resolved = MakeResolvedWithEntries(
+            entries: new[] { entry },
+            components: new[] { MakeComponent("FirstComp"), MakeComponent("SecondComp") });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        CellValue.ForeignKey fk = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[7]);
+        Assert.Equal("FirstComp", fk.TargetKey);
+    }
+
+    [Fact]
+    public void Produce_falls_back_to_main_component_when_no_components_resolved()
+    {
+        RemoveIniFileModel entry = new()
+        {
+            Id = "RemIni4",
+            FileName = "f.ini",
+            Section = "S",
+            Key = "K",
+        };
+        ResolvedPackage resolved = MakeResolvedWithEntries(
+            entries: new[] { entry },
+            components: Array.Empty<ResolvedComponent>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        CellValue.ForeignKey fk = Assert.IsType<CellValue.ForeignKey>(rows[0].Cells[7]);
+        Assert.Equal("MainComponent", fk.TargetKey);
     }
 
     [Fact]
@@ -209,6 +302,49 @@ public sealed class RemoveIniFileTableProducerTests
             Components = new List<ResolvedComponent>(),
             Files = new List<ResolvedFile>(),
         };
+
+    private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
+    {
+        RecipeBuildContext context = new(
+            resolved,
+            new MsiRecipeBuildOptions(),
+            new NoOpFileSequencer(),
+            new DictionaryStreamRegistry());
+        RemoveIniFileTableProducer producer = new();
+        Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
+        Assert.True(result.IsSuccess);
+        return result.Value;
+    }
+
+    private static ResolvedComponent MakeComponent(string id)
+    {
+        return new ResolvedComponent
+        {
+            Id = id,
+            Guid = Guid.NewGuid(),
+            Directory = KnownFolder.ProgramFiles / "App",
+            KeyPath = string.Empty,
+            Files = Array.Empty<ResolvedFile>(),
+        };
+    }
+
+    private static ResolvedPackage MakeResolvedWithEntries(
+        IReadOnlyList<RemoveIniFileModel> entries,
+        IReadOnlyList<ResolvedComponent> components)
+    {
+        return new ResolvedPackage
+        {
+            Package = new PackageModel
+            {
+                Name = "T",
+                Manufacturer = "M",
+                Version = new Version(1, 0, 0),
+                RemoveIniFiles = entries,
+            },
+            Components = components,
+            Files = Array.Empty<ResolvedFile>(),
+        };
+    }
 
     private static ResolvedPackage MakeResolvedPackage() => MakeResolved();
 }

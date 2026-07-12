@@ -75,6 +75,7 @@ public sealed class PackageModel
     public IReadOnlyList<FontModel> Fonts { get; init; } = [];
     public IReadOnlyList<LaunchConditionModel> LaunchConditions { get; init; } = [];
     public IReadOnlyList<IniFileModel> IniFiles { get; init; } = [];
+    public IReadOnlyList<RemoveIniFileModel> RemoveIniFiles { get; init; } = [];
     public IReadOnlyList<PermissionModel> Permissions { get; init; } = [];
     public IReadOnlyList<FileAssociationModel> FileAssociations { get; init; } = [];
     public IReadOnlyList<CustomActionModel> CustomActions { get; init; } = [];

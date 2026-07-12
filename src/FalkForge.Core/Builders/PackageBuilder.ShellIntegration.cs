@@ -19,6 +19,18 @@ public sealed partial class PackageBuilder
         return this;
     }
 
+    /// <summary>
+    /// Authors an uninstall-time INI-file removal entry (MSI <c>RemoveIniFile</c> table),
+    /// distinct from <see cref="IniFile"/> which authors the install-time <c>IniFile</c> table.
+    /// </summary>
+    public PackageBuilder RemoveIniFile(string fileName, Action<RemoveIniFileBuilder> configure)
+    {
+        var builder = new RemoveIniFileBuilder(fileName);
+        configure(builder);
+        _removeIniFiles.Add(builder.Build());
+        return this;
+    }
+
     public PackageBuilder Permission(string lockObject, Action<PermissionBuilder> configure)
     {
         var builder = new PermissionBuilder(lockObject);
