@@ -44,6 +44,21 @@ public sealed class CustomActionBuilder
     }
 
     /// <summary>
+    ///     Creates a custom action that sets a Directory table entry to a formatted value
+    ///     (MSI CustomAction type 35 / msidbCustomActionTypeDirectory). Commonly used to
+    ///     redirect an install directory to a path computed by an earlier custom action,
+    ///     e.g. an existing install location read back from the registry.
+    /// </summary>
+    public CustomActionBuilder SetDirectory(string directoryId, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryId);
+        _baseType = CustomActionType.SetDirectory;
+        _sourceRef = directoryId;
+        Target = value;
+        return this;
+    }
+
+    /// <summary>
     ///     Creates a custom action that runs a PowerShell script inline.
     ///     Uses ExeInDir (type 34) targeting powershell.exe located in the SystemFolder
     ///     directory. The Source column on an ExeInDir custom action must be a Directory
