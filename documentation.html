@@ -7550,11 +7550,45 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <code>LicenseAccepted = "1"</code>).
 </div>
 
+<h3>Authoring a Custom Dialog (<code>AddCustomDialog</code>)</h3>
+
+<p>
+    To author a complete dialog from scratch &mdash; your own controls, events, conditions, and tab
+    order &mdash; call <code>PackageBuilder.AddCustomDialog(id, dlg =&gt; …)</code>. This needs no
+    extension and no reference to <code>FalkForge.Compiler.Msi</code>: the fluent builders live in
+    <code>FalkForge.Core</code> and produce a public <code>CustomDialogModel</code> that the compiler
+    translates into MSI <code>Dialog</code>/<code>Control</code>/<code>ControlEvent</code>/<code>ControlCondition</code>
+    rows.
+</p>
+
+<pre><code class="language-csharp">package.AddCustomDialog("LicenseKeyDlg", dlg =&gt; dlg
+    .Title("Enter your license key")
+    .Sequence(1100)                         // show as the first install-UI screen
+    .FirstControl("KeyEdit")
+    .Text("Prompt", 20, 20, 330, 20, "Please enter your license key:")
+    .Edit("KeyEdit", 20, 50, 330, 18, property: "LICENSEKEY", b =&gt; b.Next("Next"))
+    .PushButton("Next", 280, 240, 66, 17, "Next", b =&gt; b
+        .EndDialog("Return")                // ControlEvent: proceed with the install
+        .DisableWhen("LICENSEKEY = \"\"")));// ControlCondition: gate until a key is entered</code></pre>
+
+<p>
+    Custom dialogs are emitted <strong>in addition to</strong> any active stock dialog set (and even when
+    <code>DialogSet</code> is <code>None</code>). <code>.Sequence(n)</code> makes a dialog an install-UI
+    entry (the standard first-dialog slot is 1100); without it a custom dialog is reachable only via
+    another dialog's <code>NewDialog</code>/<code>SpawnDialog</code> event. Control adders exist for
+    <code>Text</code>, <code>PushButton</code>, <code>Line</code>, <code>CheckBox</code>, <code>Edit</code>,
+    <code>PathEdit</code>, <code>ScrollableText</code>, <code>Bitmap</code>, <code>Icon</code>, and
+    <code>GroupBox</code>; use <code>.Control(type, …)</code> for any other type. Invalid authoring
+    (empty/ill-formed ids, duplicate names, a dangling <code>Control_Next</code>, a data-bound control
+    with no property) fails loud at validation time via rules <strong>DLG010&ndash;DLG019</strong>. See
+    demo <code>65-custom-dialog</code>.
+</p>
+
 <h3>Dialog Customization API</h3>
 
 <p>
-    Beyond picking a template, callers can <strong>insert</strong> custom dialog steps into the dialog
-    flow without copying a whole template. RFC Cycle 6 added an extension-driven dialog-injection API:
+    Beyond picking a template, callers can <strong>insert</strong> reusable, extension-contributed dialog
+    steps into a stock flow without copying a whole template. An extension-driven dialog-injection API
     extensions register named dialog builders, and the package author requests insertions by name in the
     fluent API. The compiler resolves each insertion against the registry at build time. If an insertion
     references a name that was not registered, the build fails with diagnostic <strong>DLG001</strong>.
@@ -7578,10 +7612,14 @@ public interface IDialogStepBuilder
 
 <p>Composition surface in the fluent API:</p>
 
-<pre><code class="language-csharp">package
-    .UseDialogSet(MsiDialogSet.InstallDir)
-    .InsertDialogStep("MyPostLicenseStep", after: "LicenseAgreementDlg")
-    .InsertDialogStep("MyPreInstallStep",  before: "InstallDirDlg");</code></pre>
+<pre><code class="language-csharp">package.UseDialogSet(MsiDialogSet.InstallDir, dialogs =&gt; dialogs
+    .InsertStep("MyPostLicenseStep", after: StockDialog.License));</code></pre>
+
+<p>
+    When the inserted step resolves to an <code>IMsiDialogStepBuilder</code>, the compiler calls its
+    <code>Build</code> and emits the resulting dialog into the MSI UI tables; a name-only
+    <code>IDialogStepBuilder</code> only reserves its name for <code>DLG001</code> and emits nothing.
+</p>
 
 <p>
     Internals (not part of the public API but documented here for diagnostic clarity):

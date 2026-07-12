@@ -279,6 +279,7 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 | 61 | signserver-remote-signing | Remote signing via `SignServerSignatureProvider`/`SignServerConfig`, async build pipeline; falls back to a local key with no SignServer configured |
 | 62 | require-signed-updates | Update-trust authoring: `Integrity().Epoch()/.Revoke()` + `UpdateFeed()`; runtime enforcement (`StagedUpdateVerifier`, INT007/INT001/INT008) notes |
 | 63 | hybrid-pq-signing | Hybrid post-quantum signing: `Integrity().HybridKey(classicalPem, pqPem)` (ECDSA-P256 + ML-DSA-65), companion pin (`TrustHybridKey`/`PqFingerprint=`), strip-attack → INT011 proof; CLI: `signing.pqKeyPath`/`pqKeyEnv` |
+| 65 | custom-dialog | Public custom MSI dialog authoring via `PackageBuilder.AddCustomDialog(id, dlg => …)`: author a single-screen license dialog (scrollable EULA, accept check box, key edit, Install/Cancel) with control events, a control condition, tab order, and `.Sequence(1100)` install-UI entry. Emitted by `DialogSetProducer` via `CustomDialogTranslator`; validated by DLG010–DLG019. |
 JSON demos (`demo/json/`, 7 files): 01-minimal, 02-installdir, 03-featuretree, 04-mondo, 05-advanced, 06-web-server, 07-database-app + payload/
 
 ## Documentation
