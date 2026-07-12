@@ -1,0 +1,106 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FalkForge.Models;
+using FalkForge.Validation;
+using Xunit;
+
+namespace FalkForge.Core.Tests;
+
+/// <summary>
+/// Fail-loud validation for authored custom dialogs (DLG010–DLG019). An invalid dialog must
+/// surface a precise rule error at validation time rather than being silently dropped or
+/// producing an opaque MSI foreign-key failure at emit time.
+/// </summary>
+public sealed class CustomDialogValidationTests
+{
+    private static PackageModel PackageWith(params CustomDialogModel[] dialogs) => new()
+    {
+        Name = "App",
+        Manufacturer = "FalkForge",
+        Version = new Version(1, 0, 0),
+        UpgradeCode = Guid.NewGuid(),
+        ProductCode = Guid.NewGuid(),
+        Features = [new FeatureModel { Id = "Complete", Title = "Complete", IsRequired = true, IsDefault = true }],
+        CustomDialogs = dialogs,
+    };
+
+    private static CustomDialogControlModel Button(string name, string? next = null) => new()
+    {
+        Name = name,
+        Type = CustomControlType.PushButton,
+        X = 10,
+        Y = 10,
+        Width = 50,
+        Height = 17,
+        Text = name,
+        NextControl = next,
+    };
+
+    [Fact]
+    public void Empty_dialog_id_fails_loud_with_DLG010()
+    {
+        var dialog = new CustomDialogModel { Id = "", Controls = [Button("Ok")] };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG010");
+    }
+
+    [Fact]
+    public void Dangling_control_next_fails_loud_with_DLG017()
+    {
+        // "Ok" tab-links to "Missing" which is not a control on the dialog.
+        var dialog = new CustomDialogModel { Id = "MyDlg", Controls = [Button("Ok", next: "Missing")] };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG017");
+    }
+
+    [Fact]
+    public void Property_bound_control_without_property_fails_loud_with_DLG018()
+    {
+        var edit = new CustomDialogControlModel
+        {
+            Name = "KeyEdit",
+            Type = CustomControlType.Edit,
+            X = 10, Y = 10, Width = 100, Height = 18,
+            Property = null, // Edit must be bound to a property.
+        };
+        var dialog = new CustomDialogModel { Id = "MyDlg", Controls = [edit] };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG018");
+    }
+
+    [Fact]
+    public void Duplicate_control_names_fail_loud_with_DLG016()
+    {
+        var dialog = new CustomDialogModel { Id = "MyDlg", Controls = [Button("Ok"), Button("Ok")] };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG016");
+    }
+
+    [Fact]
+    public void Well_formed_custom_dialog_produces_no_DLG_errors()
+    {
+        var dialog = new CustomDialogModel
+        {
+            Id = "LicenseKeyDlg",
+            Title = "License",
+            Controls =
+            [
+                new CustomDialogControlModel
+                {
+                    Name = "KeyEdit", Type = CustomControlType.Edit,
+                    X = 20, Y = 50, Width = 330, Height = 18, Property = "LICENSEKEY",
+                    NextControl = "Next",
+                },
+                Button("Next"),
+            ],
+        };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.DoesNotContain(report.Errors, e => e.RuleId.Value.StartsWith("DLG01", StringComparison.Ordinal));
+    }
+}

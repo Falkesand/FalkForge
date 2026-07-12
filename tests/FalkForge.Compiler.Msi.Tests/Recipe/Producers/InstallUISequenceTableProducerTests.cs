@@ -488,6 +488,53 @@ public sealed class InstallUISequenceTableProducerTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
+    // ── Custom-dialog install-UI entry ──────────────────────────────────────
+
+    [Fact]
+    public void Produce_with_sequenced_custom_dialog_and_no_stock_set_emits_baseline_plus_entry()
+    {
+        var resolved = new ResolvedPackage
+        {
+            Package = new PackageModel
+            {
+                Name = "TestPkg",
+                Manufacturer = "TestMfr",
+                Version = new Version(1, 0, 0),
+                DialogSet = MsiDialogSet.None,
+                CustomDialogs =
+                [
+                    new CustomDialogModel
+                    {
+                        Id = "MyWelcomeDlg",
+                        SequenceNumber = 1100,
+                        Controls =
+                        [
+                            new CustomDialogControlModel
+                            {
+                                Name = "Next", Type = CustomControlType.PushButton,
+                                X = 10, Y = 10, Width = 50, Height = 17, Text = "Next",
+                            },
+                        ],
+                    },
+                ],
+            },
+            Components = new List<ResolvedComponent>(),
+            Files = Array.Empty<ResolvedFile>(),
+        };
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+        IReadOnlyList<string> names = ActionNames(rows);
+
+        // Baseline must be present (a UI sequence now exists) and the custom dialog must be
+        // scheduled as an install-UI entry.
+        Assert.Contains("AppSearch", names);
+        Assert.Contains("ExecuteAction", names);
+        Assert.Contains("MyWelcomeDlg", names);
+
+        RecipeRow entry = rows.Single(r => ((CellValue.StringValue)r.Cells[0]).Value == "MyWelcomeDlg");
+        Assert.Equal(1100, ((CellValue.IntValue)entry.Cells[2]).Value);
+    }
+
     private static ImmutableArray<RecipeRow> ProduceRows(ResolvedPackage resolved)
     {
         RecipeBuildContext context = new(

@@ -7,16 +7,23 @@ namespace FalkForge.Extensibility;
 /// </summary>
 /// <remarks>
 /// <para>
-/// RFC Cycle 6, step 16. The <see cref="Name"/> is the stable identifier referenced by
+/// The <see cref="Name"/> is the stable identifier referenced by
 /// <c>DialogCustomization.InsertStep(stepName, after:)</c> in <c>FalkForge.Models</c>.
 /// DLG001 validation in <c>FalkForge.Compiler.Msi</c> rejects any <c>InsertStep</c> call
-/// whose <paramref name="Name"/> is not present in the <c>DialogStepRegistry</c> at compile time.
+/// whose <see cref="Name"/> is not registered at compile time.
 /// </para>
 /// <para>
-/// Extension authors who need to produce a full <see cref="MsiDialogModel"/> should implement
-/// <c>IMsiDialogStepBuilder</c> (defined in <c>FalkForge.Compiler.Msi</c>), which extends
-/// this interface with a <c>Build(DialogBuildContext)</c> method. That requires a project
+/// An extension that only implements this interface reserves its step name (so <c>InsertStep</c>
+/// passes validation) but emits no dialog. To actually contribute dialog layout that the compiler
+/// emits, implement <c>IMsiDialogStepBuilder</c> (defined in <c>FalkForge.Compiler.Msi</c>), which
+/// extends this interface with a <c>Build(DialogBuildContext)</c> method; that requires a project
 /// reference to <c>FalkForge.Compiler.Msi</c>.
+/// </para>
+/// <para>
+/// Most authors do not need this interface at all: to author a complete custom dialog from
+/// application code, use
+/// <c>PackageBuilder.AddCustomDialog(id, dlg =&gt; …)</c> in <c>FalkForge.Core</c>, which builds the
+/// dialog directly with no extension plumbing.
 /// </para>
 /// </remarks>
 public interface IDialogStepBuilder

@@ -45,10 +45,10 @@ internal static class DialogCustomizationValidator
 
         var errors = new List<DialogValidationError>();
 
-        // DLG001 — every InsertedStep name must be registered.
+        // DLG001 — every InsertedStep name must be registered (MSI-capable or name-only).
         foreach (var step in customization.InsertedSteps)
         {
-            if (!registry.TryGet(step.StepName, out _))
+            if (!registry.Contains(step.StepName))
             {
                 errors.Add(new DialogValidationError(
                     "DLG001",

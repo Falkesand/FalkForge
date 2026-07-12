@@ -93,6 +93,7 @@ public sealed class PackageModel
     public SigningOptions? Signing { get; init; }
     public MsiDialogSet DialogSet { get; init; } = MsiDialogSet.None;
     public DialogCustomizationModel? DialogCustomization { get; init; }
+    public IReadOnlyList<CustomDialogModel> CustomDialogs { get; init; } = [];
     public int CabinetThreadCount { get; init; }
     public IReadOnlyList<LocalizationData> LocalizationData { get; init; } = [];
     public ReproducibleBuildOptions? ReproducibleOptions { get; init; }

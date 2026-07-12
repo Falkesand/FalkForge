@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Compiler.Msi.UI;
+using FalkForge.Compiler.Msi.UI.Layout;
 using FalkForge.Compiler.Msi.UI.Templates;
 using FalkForge.Models;
 
@@ -40,6 +42,23 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </summary>
 internal sealed partial class DialogSetProducer : IMultiTableProducer
 {
+    // Extension-contributed, MSI-capable dialog step builders, drained from the extension
+    // registry by MsiAuthoring. When a DialogCustomization inserts one of these steps by name,
+    // its Build output is emitted here — the real emission path for the InsertStep feature.
+    private readonly IReadOnlyList<IMsiDialogStepBuilder> _extensionStepBuilders;
+
+    /// <summary>Creates a producer with no extension-contributed dialog steps.</summary>
+    public DialogSetProducer()
+        : this([])
+    {
+    }
+
+    /// <summary>Creates a producer that can emit the given extension-contributed dialog steps.</summary>
+    public DialogSetProducer(IReadOnlyList<IMsiDialogStepBuilder> extensionStepBuilders)
+    {
+        _extensionStepBuilders = extensionStepBuilders ?? [];
+    }
+
     // ── Fixed text style rows — identical to legacy DialogEmitter.EmitTextStyles ──────
     // Tuple: (Name, FaceName, Size, Color, StyleBits)
     private static readonly (string Name, string FaceName, int Size, int? Color, int StyleBits)[]
@@ -101,16 +120,32 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
 
         PackageModel package = context.Resolved.Package;
         MsiDialogSet dialogSet = package.DialogSet;
+        bool hasCustomDialogs = package.CustomDialogs.Count > 0;
 
-        if (dialogSet == MsiDialogSet.None)
+        // No stock dialog set and no authored custom dialogs → emit nothing.
+        if (dialogSet == MsiDialogSet.None && !hasCustomDialogs)
         {
             return Result<ImmutableArray<RecipeTable>>.Success(
                 ImmutableArray<RecipeTable>.Empty);
         }
 
-        // Resolve dialogs via the existing template infrastructure (pure data, no DB).
-        IDialogTemplate template = GetTemplate(dialogSet);
-        IReadOnlyList<MsiDialogModel> dialogs = template.GetDialogs(package);
+        // Compose the dialog set: stock template dialogs first (when a stock set is active),
+        // then author-defined custom dialogs translated into the same internal model. The
+        // fixed TextStyle/UIText rows below are emitted whenever any dialog is present.
+        var dialogs = new List<MsiDialogModel>();
+        if (dialogSet != MsiDialogSet.None)
+        {
+            IDialogTemplate template = GetTemplate(dialogSet);
+            dialogs.AddRange(template.GetDialogs(package));
+        }
+
+        for (int cd = 0; cd < package.CustomDialogs.Count; cd++)
+        {
+            dialogs.Add(CustomDialogTranslator.Translate(package.CustomDialogs[cd]));
+        }
+
+        // Emit extension-contributed dialog steps referenced by DialogCustomization.InsertStep.
+        AppendInsertedExtensionStepDialogs(package, dialogs);
 
         // Resolve !(loc.X) references in control text, mirroring DialogEmitter.BuildStringResolver.
         Result<Unit> resolveResult = ResolveLocalizationRefs(dialogs, package);
@@ -256,6 +291,49 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         tableBuilder.Add(MakeTable(UITextSchema,           uitRows.ToImmutable(),     MsiTableDefinitions.CreateUITextTable));
 
         return Result<ImmutableArray<RecipeTable>>.Success(tableBuilder.ToImmutable());
+    }
+
+    // ── Extension inserted-step emission ─────────────────────────────────────────
+
+    /// <summary>
+    /// Builds and appends the <see cref="MsiDialogModel"/> for each extension-contributed step
+    /// named by <see cref="DialogCustomizationModel.InsertedSteps"/> that resolves to an
+    /// MSI-capable builder. Each distinct step is emitted once; duplicate insert points (the same
+    /// step inserted after two stock dialogs) do not duplicate the dialog rows.
+    /// </summary>
+    private void AppendInsertedExtensionStepDialogs(PackageModel package, List<MsiDialogModel> dialogs)
+    {
+        if (_extensionStepBuilders.Count == 0
+            || package.DialogCustomization is not { } customization
+            || customization.InsertedSteps.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var byName = new Dictionary<string, IMsiDialogStepBuilder>(StringComparer.Ordinal);
+        for (int i = 0; i < _extensionStepBuilders.Count; i++)
+        {
+            byName[_extensionStepBuilders[i].Name] = _extensionStepBuilders[i];
+        }
+
+        var registry = new DialogStepRegistry();
+        for (int i = 0; i < _extensionStepBuilders.Count; i++)
+        {
+            registry.Register(_extensionStepBuilders[i]);
+        }
+        registry.Freeze();
+
+        DialogBuildContext context = DialogBuildContext.Create(customization, registry);
+
+        var emitted = new HashSet<string>(StringComparer.Ordinal);
+        foreach (InsertedDialogStep step in customization.InsertedSteps)
+        {
+            if (byName.TryGetValue(step.StepName, out IMsiDialogStepBuilder? builder)
+                && emitted.Add(step.StepName))
+            {
+                dialogs.Add(builder.Build(context));
+            }
+        }
     }
 
     // ── Template selection (mirrors legacy DialogEmitter.GetTemplate) ────────────────
