@@ -1,7 +1,10 @@
 namespace FalkForge.Compiler.Bundle.Builders;
 
+using FalkForge.Engine.Protocol.Manifest;
+
 public sealed class MspPackageBuilder
 {
+    private readonly ChainPackageOptions _chainOptions = new();
     private readonly string _sourcePath;
     private string _displayName;
     private string _id;
@@ -61,6 +64,48 @@ public sealed class MspPackageBuilder
 
     public MspPackageBuilder SlipstreamTarget(string msiPackageId) { _slipstreamTargetId = msiPackageId; return this; }
 
+    public MspPackageBuilder Container(string containerId)
+    {
+        _chainOptions.SetContainer(containerId);
+        return this;
+    }
+
+    public MspPackageBuilder Container(ContainerRef containerRef)
+    {
+        _chainOptions.SetContainer(containerRef);
+        return this;
+    }
+
+    public MspPackageBuilder RemotePayload(string url, string sha256, long size)
+    {
+        _chainOptions.SetRemotePayload(url, sha256, size);
+        return this;
+    }
+
+    public MspPackageBuilder ExitCode(int code, ExitCodeBehavior behavior)
+    {
+        _chainOptions.SetExitCode(code, behavior);
+        return this;
+    }
+
+    public MspPackageBuilder DetectionMode(DetectionMode mode)
+    {
+        _chainOptions.SetDetectionMode(mode);
+        return this;
+    }
+
+    public MspPackageBuilder SearchCondition(Action<SearchConditionBuilder> configure)
+    {
+        _chainOptions.AddSearchCondition(configure);
+        return this;
+    }
+
+    public MspPackageBuilder Permanent(bool permanent = true)
+    {
+        _chainOptions.SetPermanent(permanent);
+        return this;
+    }
+
     internal BundlePackageModel Build()
     {
         return new BundlePackageModel
@@ -73,7 +118,13 @@ public sealed class MspPackageBuilder
             PatchCode = _patchCode,
             TargetProductCode = _targetProductCode,
             InstallCondition = _installCondition,
-            SlipstreamTargetId = _slipstreamTargetId
+            SlipstreamTargetId = _slipstreamTargetId,
+            ContainerId = _chainOptions.ContainerId,
+            RemotePayload = _chainOptions.RemotePayload,
+            ExitCodes = new Dictionary<int, ExitCodeBehavior>(_chainOptions.ExitCodes),
+            DetectionMode = _chainOptions.DetectionMode,
+            SearchConditions = _chainOptions.SearchConditions.ToArray(),
+            Permanent = _chainOptions.Permanent
         };
     }
 }
