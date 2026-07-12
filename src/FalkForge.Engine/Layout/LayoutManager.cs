@@ -75,17 +75,9 @@ public sealed class LayoutManager
                 // engine additionally requires a valid Authenticode signature from the pinned
                 // publisher. Verified in place on the downloaded target (no TOCTOU). Fails closed
                 // when a pin is set but no validator is available (non-Windows build).
-                var pinResult = PayloadSignaturePinVerifier.Verify(
-                    _authenticodeValidator,
-                    targetPath,
-                    package.AuthenticodeThumbprint,
-                    package.RemotePayloadCertificatePublicKey,
-                    package.Id);
+                var pinResult = VerifyPinOrDelete(package, targetPath);
                 if (pinResult.IsFailure)
-                {
-                    TryDeleteFile(targetPath);
-                    return Result<Unit>.Failure(pinResult.Error);
-                }
+                    return pinResult;
             }
             else if (File.Exists(package.SourcePath))
             {
@@ -110,17 +102,9 @@ public sealed class LayoutManager
                 // Defense-in-depth: enforce a publisher pin even for a locally-sourced payload. A pin
                 // is authored on the package, not the transport, so a pinned package staged from a
                 // local file must still satisfy it — no fail-open just because it was not downloaded.
-                var localPinResult = PayloadSignaturePinVerifier.Verify(
-                    _authenticodeValidator,
-                    targetPath,
-                    package.AuthenticodeThumbprint,
-                    package.RemotePayloadCertificatePublicKey,
-                    package.Id);
+                var localPinResult = VerifyPinOrDelete(package, targetPath);
                 if (localPinResult.IsFailure)
-                {
-                    TryDeleteFile(targetPath);
-                    return Result<Unit>.Failure(localPinResult.Error);
-                }
+                    return localPinResult;
             }
             else
             {
@@ -150,6 +134,29 @@ public sealed class LayoutManager
         {
             return Result<Unit>.Failure(ErrorKind.LayoutError, $"Failed to write layout manifest: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Enforces the package's Authenticode publisher pin against the staged file, deleting it and
+    /// surfacing the failure when the pin is not satisfied (fail-closed). Returns success when no
+    /// pin is authored. Shared by the remote-download and local-copy branches so both apply the
+    /// identical fail-closed check against the exact staged bytes (no TOCTOU).
+    /// </summary>
+    private Result<Unit> VerifyPinOrDelete(PackageInfo package, string targetPath)
+    {
+        var pinResult = PayloadSignaturePinVerifier.Verify(
+            _authenticodeValidator,
+            targetPath,
+            package.AuthenticodeThumbprint,
+            package.RemotePayloadCertificatePublicKey,
+            package.Id);
+        if (pinResult.IsFailure)
+        {
+            TryDeleteFile(targetPath);
+            return Result<Unit>.Failure(pinResult.Error);
+        }
+
+        return Unit.Value;
     }
 
     private static string ComputeSha256(string filePath)
