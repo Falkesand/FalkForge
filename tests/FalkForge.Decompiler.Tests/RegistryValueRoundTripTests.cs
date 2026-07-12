@@ -51,6 +51,8 @@ public sealed class RegistryValueRoundTripTests
                     k.Binary("Blob", [0x0A, 0xFF, 0x00, 0x7F]);
                     k.MultiString("List", ["alpha", "beta"]);
                     k.MultiString("Single", ["solo"]);
+                    k.MultiString("Interior", ["a", "", "c"]);
+                    k.MultiString("Empty", []);
                     k.ExpandString("Root", "%SystemRoot%\\App");
                     k.Value("Hashy", "#literal");
                     k.Value("Plain", "just text");
@@ -110,6 +112,32 @@ public sealed class RegistryValueRoundTripTests
         Assert.Equal(RegistryValueType.MultiString, single.ValueType);
         var values = Assert.IsAssignableFrom<IReadOnlyList<string>>(single.Value);
         Assert.Equal(["solo"], values);
+    }
+
+    [Fact]
+    public void Decompile_MultiStringWithInteriorEmptyElement_PreservesEmptyElement()
+    {
+        // The producer joins a 2+ element REG_MULTI_SZ as "a[~][~]c" for ["a", "", "c"];
+        // the decoder must preserve the interior empty element so decompile->recompile
+        // reproduces the same Registry.Value string (RemoveEmptyEntries would drop it).
+        var model = Roundtrip();
+
+        var interior = Entry(model, "Interior");
+        Assert.Equal(RegistryValueType.MultiString, interior.ValueType);
+        var values = Assert.IsAssignableFrom<IReadOnlyList<string>>(interior.Value);
+        Assert.Equal(["a", "", "c"], values);
+    }
+
+    [Fact]
+    public void Decompile_EmptyMultiStringRegistryValue_RecoversEmptyList()
+    {
+        // The producer encodes an empty REG_MULTI_SZ as the bare "[~]" sentinel.
+        var model = Roundtrip();
+
+        var empty = Entry(model, "Empty");
+        Assert.Equal(RegistryValueType.MultiString, empty.ValueType);
+        var values = Assert.IsAssignableFrom<IReadOnlyList<string>>(empty.Value);
+        Assert.Empty(values);
     }
 
     [Fact]

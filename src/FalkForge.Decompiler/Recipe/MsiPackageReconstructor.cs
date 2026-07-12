@@ -385,10 +385,7 @@ public static class MsiPackageReconstructor
             return (null, RegistryValueType.String);
 
         if (rawValue.Contains("[~]", StringComparison.Ordinal))
-        {
-            List<string> parts = rawValue.Split("[~]", StringSplitOptions.RemoveEmptyEntries).ToList();
-            return (parts, RegistryValueType.MultiString);
-        }
+            return (DecodeMultiString(rawValue), RegistryValueType.MultiString);
 
         if (rawValue.StartsWith("#x", StringComparison.Ordinal))
         {
@@ -414,6 +411,33 @@ public static class MsiPackageReconstructor
         }
 
         return (rawValue, RegistryValueType.String);
+    }
+
+    /// <summary>
+    /// Inverts <c>RegistryTableProducer.EncodeMultiString</c>: <c>[~]</c> (empty list),
+    /// <c>[~]value[~]</c> (single element, the producer's wrap form), and <c>a[~]b[~]c</c>
+    /// (two or more elements, a plain <c>[~]</c>-join). Interior and edge empty elements of the
+    /// join form are preserved — splitting without <see cref="StringSplitOptions.RemoveEmptyEntries"/> —
+    /// so a decompile→recompile reproduces the same <c>Registry.Value</c> string. The wrap form
+    /// <c>[~]value[~]</c> is decoded to the single element <c>[value]</c>; it is inherently ambiguous
+    /// with the non-canonical three-element <c>["", value, ""]</c> because the producer's encoding is
+    /// not injective, so the producer's own single-element form is chosen.
+    /// </summary>
+    private static List<string> DecodeMultiString(string rawValue)
+    {
+        const string separator = "[~]";
+
+        if (rawValue == separator)
+            return [];
+
+        // Keep empty segments — an empty segment can be a genuine element of the join form.
+        string[] parts = rawValue.Split(separator);
+
+        // The single-element wrap form "[~]value[~]" splits to ["", value, ""]; collapse it back.
+        if (parts.Length == 3 && parts[0].Length == 0 && parts[2].Length == 0)
+            return [parts[1]];
+
+        return [.. parts];
     }
 
     /// <summary>

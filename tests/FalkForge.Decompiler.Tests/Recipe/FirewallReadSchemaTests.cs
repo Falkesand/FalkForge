@@ -110,6 +110,25 @@ public sealed class FirewallReadSchemaTests
     }
 
     [Fact]
+    public void DecompileToRecipe_FirewallTableGenuineReadFailure_StillSurfacesDec003()
+    {
+        // The back-compat fallback (full 13-col SELECT -> 11-col core SELECT) must not mask a
+        // genuine read failure: a table whose query fails for every column set fails BOTH attempts
+        // and must still surface DEC003 rather than silently defaulting to empty/null.
+        using var access = new MockMsiTableAccess()
+            .WithTable("Property", [["ProductName", "BrokenFirewall"]])
+            .WithTableQueryFailure("WixFirewallException", "simulated read corruption");
+
+        var contributor = new FirewallTableContributor();
+        var decompiler = new MsiDecompiler(access, [contributor]);
+
+        var result = decompiler.DecompileToRecipe("ignored.msi");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DEC003", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DecompileToRecipe_WithFirewallContributor_RowsAreTypedAsWixFirewallExceptionRow()
     {
         using var access = new MockMsiTableAccess()
