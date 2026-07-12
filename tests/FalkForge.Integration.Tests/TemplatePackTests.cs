@@ -82,6 +82,23 @@ public sealed partial class TemplatePackTests
             program, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A Start Menu shortcut is the most common first ask, so the MSI template scaffolds one —
+    /// otherwise `dotnet new falkforge-msi &amp;&amp; dotnet run` produces an installer with no way
+    /// to launch the app from the Start Menu. The bundle template chains an MSI built the same
+    /// way as the (unshortcutted) EXE-bundle path in InitScaffolder, so it is intentionally
+    /// excluded here.
+    /// </summary>
+    [Fact]
+    public void MsiTemplate_ScaffoldsStartMenuShortcut()
+    {
+        var program = File.ReadAllText(Path.Combine(TemplateContentDir("falkforge-msi"), "Program.cs"));
+
+        Assert.Contains("""package.Shortcut("PRODUCT-NAME", "PRODUCT-NAME.exe")""",
+            program, StringComparison.Ordinal);
+        Assert.Contains(".OnStartMenu()", program, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BundleTemplate_RegeneratesItsGuidsPerInstantiation()
     {

@@ -88,6 +88,13 @@ internal static class InitScaffolder
                      package.Files(files => files
                          .FromDirectory("payload")
                          .To(KnownFolder.ProgramFiles / "My Company" / "{{product}}"));
+
+                     // Start Menu shortcut. TargetFile is a payload file name (not a full path —
+                     // the compiler resolves it against the installed folder above); update it to
+                     // match your application's real executable once you replace payload/ with
+                     // your app.
+                     package.Shortcut("{{product}}", "{{product}}.exe")
+                         .OnStartMenu();
                  }, new MsiCompiler());
                  """ + Environment.NewLine;
     }
