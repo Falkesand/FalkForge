@@ -12,7 +12,18 @@ internal sealed class FirewallTableReadSchema : ITableReadSchema
 {
     internal static readonly FirewallTableReadSchema Instance = new();
 
-    private static readonly string[] Columns =
+    // Original (pre-RemotePort/LocalAddress) column shape. Every WixFirewallException table —
+    // however old — carries these 11 columns.
+    private static readonly string[] CoreColumns =
+    [
+        "Name", "RemoteAddresses", "Port", "Protocol", "Program",
+        "Profile", "Direction", "Action", "Component_", "Description", "Condition"
+    ];
+
+    // Current shape adds the two trailing columns. An MSI authored before they existed lacks
+    // them, so a SELECT that names them fails with an unknown-column error — the read then falls
+    // back to CoreColumns and defaults RemotePort/LocalAddress to null.
+    private static readonly string[] FullColumns =
     [
         "Name", "RemoteAddresses", "Port", "Protocol", "Program",
         "Profile", "Direction", "Action", "Component_", "Description", "Condition",
@@ -29,13 +40,20 @@ internal sealed class FirewallTableReadSchema : ITableReadSchema
         if (!existsResult.Value)
             return Result<IReadOnlyList<object>>.Success([]);
 
-        var rowsResult = query.QueryTable(TableName, Columns);
+        // Prefer the full 13-column shape. If that SELECT fails (an older MSI lacks the two
+        // trailing columns), retry with the guaranteed 11-column core set and default the
+        // absent columns — a shape difference must not surface as a DEC003 read error.
+        var rowsResult = query.QueryTable(TableName, FullColumns);
+        bool hasTrailing = rowsResult.IsSuccess;
+        if (!hasTrailing)
+            rowsResult = query.QueryTable(TableName, CoreColumns);
+
         if (rowsResult.IsFailure)
             return Result<IReadOnlyList<object>>.Failure(
                 ErrorKind.Validation,
                 $"DEC003: Failed to read WixFirewallException table. {rowsResult.Error.Message}");
 
-        const int expectedCells = 13;
+        int expectedCells = hasTrailing ? 13 : 11;
         var result = new List<object>(rowsResult.Value.Count);
 
         for (var i = 0; i < rowsResult.Value.Count; i++)
@@ -75,8 +93,8 @@ internal sealed class FirewallTableReadSchema : ITableReadSchema
                 Component_:      cells[8],
                 Description:     cells[9],
                 Condition:       cells[10],
-                RemotePort:      cells[11],
-                LocalAddress:    cells[12]));
+                RemotePort:      hasTrailing ? cells[11] : null,
+                LocalAddress:    hasTrailing ? cells[12] : null));
         }
 
         return Result<IReadOnlyList<object>>.Success(result);

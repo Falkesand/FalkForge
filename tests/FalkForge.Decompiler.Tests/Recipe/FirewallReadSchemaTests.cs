@@ -75,6 +75,60 @@ public sealed class FirewallReadSchemaTests
     }
 
     [Fact]
+    public void DecompileToRecipe_OlderShapedFirewallTable_MissingTrailingColumns_DecompilesWithDefaults()
+    {
+        // An MSI authored before RemotePort/LocalAddress were added carries only the
+        // original 11 WixFirewallException columns. A real MSI SELECT that names the two
+        // newer columns fails with an unknown-column error (simulated here by restricting
+        // the mock's exposed columns). The reader must fall back to the core columns and
+        // default the absent trailing values to null — not throw DEC003.
+        using var access = new MockMsiTableAccess()
+            .WithTable("Property", [["ProductName", "OldFirewall"]])
+            .WithTable("WixFirewallException",
+            [
+                // 11 core cells only — no RemotePort, no LocalAddress
+                ["LegacyRule", null, "80", "6", null, "7", "1", "1", "comp1", "HTTP inbound", null],
+            ])
+            .WithTableColumns("WixFirewallException",
+                "Name", "RemoteAddresses", "Port", "Protocol", "Program",
+                "Profile", "Direction", "Action", "Component_", "Description", "Condition");
+
+        var contributor = new FirewallTableContributor();
+        var decompiler = new MsiDecompiler(access, [contributor]);
+
+        var result = decompiler.DecompileToRecipe("ignored.msi");
+
+        Assert.True(result.IsSuccess,
+            result.IsFailure ? result.Error.Message : "");
+        var rows = result.Value.ExtensionRows["WixFirewallException"];
+        var row = Assert.IsType<WixFirewallExceptionRow>(Assert.Single(rows));
+        Assert.Equal("LegacyRule", row.Name);
+        Assert.Equal("80", row.Port);
+        Assert.Equal(6, row.Protocol);
+        Assert.Null(row.RemotePort);
+        Assert.Null(row.LocalAddress);
+    }
+
+    [Fact]
+    public void DecompileToRecipe_FirewallTableGenuineReadFailure_StillSurfacesDec003()
+    {
+        // The back-compat fallback (full 13-col SELECT -> 11-col core SELECT) must not mask a
+        // genuine read failure: a table whose query fails for every column set fails BOTH attempts
+        // and must still surface DEC003 rather than silently defaulting to empty/null.
+        using var access = new MockMsiTableAccess()
+            .WithTable("Property", [["ProductName", "BrokenFirewall"]])
+            .WithTableQueryFailure("WixFirewallException", "simulated read corruption");
+
+        var contributor = new FirewallTableContributor();
+        var decompiler = new MsiDecompiler(access, [contributor]);
+
+        var result = decompiler.DecompileToRecipe("ignored.msi");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DEC003", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DecompileToRecipe_WithFirewallContributor_RowsAreTypedAsWixFirewallExceptionRow()
     {
         using var access = new MockMsiTableAccess()
