@@ -30,6 +30,42 @@ public sealed class ResolvedPackage
         new Dictionary<int, string>();
 
     /// <summary>
+    /// Maps the list index of a feature-gated entry in <see cref="PackageModel.Shortcuts"/> to
+    /// the id of the synthesized <see cref="ResolvedComponent"/> that carries its
+    /// <see cref="ShortcutModel.FeatureRef"/>. Only entries with a non-null FeatureRef get an
+    /// entry — see <see cref="ShortcutTableProducer"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> ShortcutFeatureComponents { get; init; } =
+        new Dictionary<int, string>();
+
+    /// <summary>
+    /// Maps the list index of a feature-gated entry in <see cref="PackageModel.EnvironmentVariables"/>
+    /// to the id of the synthesized <see cref="ResolvedComponent"/> that carries its
+    /// <see cref="EnvironmentVariableModel.FeatureRef"/>. Only entries with a non-null FeatureRef
+    /// get an entry — see <see cref="EnvironmentTableProducer"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> EnvironmentFeatureComponents { get; init; } =
+        new Dictionary<int, string>();
+
+    /// <summary>
+    /// Maps the list index of a feature-gated entry in <see cref="PackageModel.IniFiles"/> to the
+    /// id of the synthesized <see cref="ResolvedComponent"/> that carries its
+    /// <see cref="IniFileModel.FeatureRef"/>. Only entries with a non-null FeatureRef get an
+    /// entry — see <see cref="IniFileTableProducer"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> IniFileFeatureComponents { get; init; } =
+        new Dictionary<int, string>();
+
+    /// <summary>
+    /// Maps the list index of a feature-gated entry in <see cref="PackageModel.FileAssociations"/>
+    /// to the id of the synthesized <see cref="ResolvedComponent"/> that carries its
+    /// <see cref="FileAssociationModel.FeatureRef"/>. Only entries with a non-null FeatureRef get
+    /// an entry — see <see cref="ExtensionTableProducer"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> FileAssociationFeatureComponents { get; init; } =
+        new Dictionary<int, string>();
+
+    /// <summary>
     ///     Per-instance identifier assigned at construction time.
     ///     Used as a build-nonce for PackageCode derivation in normal (non-reproducible)
     ///     mode: two separate <see cref="ResolvedPackage"/> instances that happen to share

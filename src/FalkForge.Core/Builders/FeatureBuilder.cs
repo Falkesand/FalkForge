@@ -9,6 +9,12 @@ public sealed class FeatureBuilder
     private readonly List<FileEntryModel> _files = [];
     private readonly List<ServiceModel> _services = [];
     private readonly List<RegistryEntryModel> _registryEntries = [];
+    private readonly List<ShortcutModel> _shortcuts = [];
+    private readonly List<EnvironmentVariableModel> _environmentVariables = [];
+    private readonly List<FontModel> _fonts = [];
+    private readonly List<IniFileModel> _iniFiles = [];
+    private readonly List<PermissionModel> _permissions = [];
+    private readonly List<FileAssociationModel> _fileAssociations = [];
     private readonly string _id;
 
     internal FeatureBuilder(string id)
@@ -82,6 +88,90 @@ public sealed class FeatureBuilder
         var builder = new RegistryBuilder();
         configure(builder);
         _registryEntries.AddRange(builder.Build());
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a shortcut scoped to this feature. Mirrors <see cref="Files"/>: the resulting
+    /// <see cref="ShortcutModel"/> is stamped with this feature's ID so the compiler places the
+    /// shortcut's synthesized component under the correct MSI feature.
+    /// </summary>
+    public ShortcutBuilder Shortcut(string name, string targetFile)
+    {
+        return new ShortcutBuilder(name, targetFile, _shortcuts.Add);
+    }
+
+    /// <summary>
+    /// Declares an environment variable scoped to this feature. Mirrors <see cref="Files"/>:
+    /// the resulting <see cref="EnvironmentVariableModel"/> is stamped with this feature's ID so
+    /// the compiler places its synthesized component under the correct MSI feature.
+    /// </summary>
+    public FeatureBuilder EnvironmentVariable(string name, string value,
+        Action<EnvironmentVariableBuilder>? configure = null)
+    {
+        var builder = new EnvironmentVariableBuilder(name, value);
+        configure?.Invoke(builder);
+        _environmentVariables.Add(builder.Build());
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a font scoped to this feature. Mirrors <see cref="Files"/> for API symmetry: the
+    /// resulting <see cref="FontModel"/> is stamped with this feature's ID. Unlike the other five
+    /// entry points, the real MSI <c>Font</c> table has no Component_/Feature_ column of its own —
+    /// a Font row always rides on the File it references, so the actual feature placement for a
+    /// font is governed by declaring its source file inside this same feature scope via
+    /// <see cref="Files"/>, not by this stamped FeatureRef (which no producer reads).
+    /// </summary>
+    public FeatureBuilder Font(string fileName, Action<FontBuilder>? configure = null)
+    {
+        var builder = new FontBuilder(fileName);
+        configure?.Invoke(builder);
+        _fonts.Add(builder.Build());
+        return this;
+    }
+
+    /// <summary>
+    /// Declares an INI file entry scoped to this feature. Mirrors <see cref="Files"/>: the
+    /// resulting <see cref="IniFileModel"/> is stamped with this feature's ID so the compiler
+    /// places its synthesized component under the correct MSI feature.
+    /// </summary>
+    public FeatureBuilder IniFile(string fileName, Action<IniFileBuilder> configure)
+    {
+        var builder = new IniFileBuilder(fileName);
+        configure(builder);
+        _iniFiles.Add(builder.Build());
+        return this;
+    }
+
+    /// <summary>
+    /// Declares an NTFS/registry/folder permission scoped to this feature. Mirrors
+    /// <see cref="Files"/>: the resulting <see cref="PermissionModel"/> is stamped with this
+    /// feature's ID. Only SDDL-driven permissions (routed to <c>MsiLockPermissionsEx</c>) can
+    /// honor this — that table has a <c>Condition</c> column the compiler encodes as
+    /// <c>&amp;FeatureId=3</c>. User/Domain-driven permissions route to <c>LockPermissions</c>,
+    /// which has no Condition or Component column at all, so gating one fails the compile instead
+    /// of silently doing nothing (see PRM005).
+    /// </summary>
+    public FeatureBuilder Permission(string lockObject, Action<PermissionBuilder> configure)
+    {
+        var builder = new PermissionBuilder(lockObject);
+        configure(builder);
+        _permissions.Add(builder.Build());
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a file association scoped to this feature. Mirrors <see cref="Files"/>: the
+    /// resulting <see cref="FileAssociationModel"/> is stamped with this feature's ID so the
+    /// compiler places its synthesized component under the correct MSI feature and sets the
+    /// <c>Extension</c> table's own <c>Feature_</c> column to match.
+    /// </summary>
+    public FeatureBuilder FileAssociation(string extension, Action<FileAssociationBuilder> configure)
+    {
+        var builder = new FileAssociationBuilder(extension);
+        configure(builder);
+        _fileAssociations.Add(builder.Build());
         return this;
     }
 
@@ -175,6 +265,170 @@ public sealed class FeatureBuilder
 
         foreach (var child in _childBuilders)
             result.AddRange(child.CollectRegistryEntries());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Collects all shortcuts declared on this feature and its nested child features, each
+    /// stamped with a FeatureRef pointing to their owning feature ID.
+    /// Called by PackageBuilder.Feature() to lift shortcuts into the flat PackageModel.Shortcuts list.
+    /// </summary>
+    internal IReadOnlyList<ShortcutModel> CollectShortcuts()
+    {
+        var result = new List<ShortcutModel>(_shortcuts.Count);
+
+        foreach (var shortcut in _shortcuts)
+            result.Add(new ShortcutModel
+            {
+                Name = shortcut.Name,
+                TargetFile = shortcut.TargetFile,
+                Locations = shortcut.Locations,
+                WorkingDirectory = shortcut.WorkingDirectory,
+                Arguments = shortcut.Arguments,
+                Description = shortcut.Description,
+                IconFile = shortcut.IconFile,
+                IconIndex = shortcut.IconIndex,
+                StartMenuSubfolder = shortcut.StartMenuSubfolder,
+                FeatureRef = _id
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectShortcuts());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Collects all environment variables declared on this feature and its nested child features,
+    /// each stamped with a FeatureRef pointing to their owning feature ID.
+    /// Called by PackageBuilder.Feature() to lift entries into the flat PackageModel.EnvironmentVariables list.
+    /// </summary>
+    internal IReadOnlyList<EnvironmentVariableModel> CollectEnvironmentVariables()
+    {
+        var result = new List<EnvironmentVariableModel>(_environmentVariables.Count);
+
+        foreach (var envVar in _environmentVariables)
+            result.Add(new EnvironmentVariableModel
+            {
+                Name = envVar.Name,
+                Value = envVar.Value,
+                IsSystem = envVar.IsSystem,
+                Action = envVar.Action,
+                Part = envVar.Part,
+                Separator = envVar.Separator,
+                FeatureRef = _id
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectEnvironmentVariables());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Collects all fonts declared on this feature and its nested child features, each stamped
+    /// with a FeatureRef pointing to their owning feature ID. See <see cref="Font"/> for why this
+    /// stamped FeatureRef is metadata-only — no producer reads it.
+    /// Called by PackageBuilder.Feature() to lift fonts into the flat PackageModel.Fonts list.
+    /// </summary>
+    internal IReadOnlyList<FontModel> CollectFonts()
+    {
+        var result = new List<FontModel>(_fonts.Count);
+
+        foreach (var font in _fonts)
+            result.Add(new FontModel
+            {
+                FileName = font.FileName,
+                FontTitle = font.FontTitle,
+                FeatureRef = _id
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectFonts());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Collects all INI file entries declared on this feature and its nested child features, each
+    /// stamped with a FeatureRef pointing to their owning feature ID.
+    /// Called by PackageBuilder.Feature() to lift entries into the flat PackageModel.IniFiles list.
+    /// </summary>
+    internal IReadOnlyList<IniFileModel> CollectIniFiles()
+    {
+        var result = new List<IniFileModel>(_iniFiles.Count);
+
+        foreach (var ini in _iniFiles)
+            result.Add(new IniFileModel
+            {
+                FileName = ini.FileName,
+                DirProperty = ini.DirProperty,
+                Section = ini.Section,
+                Key = ini.Key,
+                Value = ini.Value,
+                Action = ini.Action,
+                FeatureRef = _id
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectIniFiles());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Collects all permissions declared on this feature and its nested child features, each
+    /// stamped with a FeatureRef pointing to their owning feature ID. See <see cref="Permission"/>
+    /// for how (and how far) this FeatureRef is honored at compile time.
+    /// Called by PackageBuilder.Feature() to lift entries into the flat PackageModel.Permissions list.
+    /// </summary>
+    internal IReadOnlyList<PermissionModel> CollectPermissions()
+    {
+        var result = new List<PermissionModel>(_permissions.Count);
+
+        foreach (var perm in _permissions)
+            result.Add(new PermissionModel
+            {
+                LockObject = perm.LockObject,
+                Table = perm.Table,
+                Sddl = perm.Sddl,
+                Domain = perm.Domain,
+                User = perm.User,
+                Permission = perm.Permission,
+                FeatureRef = _id
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectPermissions());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Collects all file associations declared on this feature and its nested child features,
+    /// each stamped with a FeatureRef pointing to their owning feature ID.
+    /// Called by PackageBuilder.Feature() to lift entries into the flat PackageModel.FileAssociations list.
+    /// </summary>
+    internal IReadOnlyList<FileAssociationModel> CollectFileAssociations()
+    {
+        var result = new List<FileAssociationModel>(_fileAssociations.Count);
+
+        foreach (var assoc in _fileAssociations)
+            result.Add(new FileAssociationModel
+            {
+                Extension = assoc.Extension,
+                ProgId = assoc.ProgId,
+                Description = assoc.Description,
+                IconFile = assoc.IconFile,
+                IconIndex = assoc.IconIndex,
+                ContentType = assoc.ContentType,
+                Verbs = assoc.Verbs,
+                FeatureRef = _id
+            });
+
+        foreach (var child in _childBuilders)
+            result.AddRange(child.CollectFileAssociations());
 
         return result;
     }

@@ -9,10 +9,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <see cref="PackageModel.IniFiles"/> and emits one row per entry,
 /// mirroring <see cref="Tables.TableEmitter"/>'s <c>EmitIniFiles</c>:
 /// each row is keyed on a synthesized <c>INI_NNNN</c> identifier matching
-/// the legacy emitter, the <see cref="IniFileAction"/> enum projects to
-/// its underlying integer, and every entry binds to the first resolved
-/// component (or <c>"MainComponent"</c>) since the legacy emitter does
-/// not honour a per-entry component reference.
+/// the legacy emitter, and the <see cref="IniFileAction"/> enum projects to
+/// its underlying integer. An ungated entry binds to the first resolved
+/// component (or <c>"MainComponent"</c>), matching the legacy emitter; a
+/// feature-gated entry (declared via <c>FeatureBuilder.IniFile(...)</c>)
+/// instead binds to the dedicated component ComponentResolver synthesized
+/// for it — see <see cref="ResolveComponentId"/>.
 /// </summary>
 internal sealed class IniFileTableProducer : ITableProducer
 {
@@ -61,6 +63,8 @@ internal sealed class IniFileTableProducer : ITableProducer
                 ? new CellValue.Null()
                 : new CellValue.StringValue(ini.Value);
 
+            string rowComponentId = ResolveComponentId(ini, index, resolved, componentId);
+
             ImmutableArray<CellValue> cells = ImmutableArray.Create<CellValue>(
                 new CellValue.StringValue(iniId),
                 new CellValue.StringValue(ini.FileName),
@@ -69,11 +73,30 @@ internal sealed class IniFileTableProducer : ITableProducer
                 new CellValue.StringValue(ini.Key),
                 valueCell,
                 new CellValue.IntValue((int)ini.Action),
-                new CellValue.ForeignKey(ComponentTable, componentId));
+                new CellValue.ForeignKey(ComponentTable, rowComponentId));
             rows.Add(new RecipeRow { Cells = cells });
         }
 
         return Result<ImmutableArray<RecipeRow>>.Success(rows.ToImmutable());
+    }
+
+    /// <summary>
+    /// Resolves the Component_ FK for an INI-file row. An entry with a FeatureRef (declared via
+    /// FeatureBuilder.IniFile(...)) attaches to the dedicated component ComponentResolver
+    /// synthesized for it — that component carries the FeatureRef, which is what places it under
+    /// the correct feature in FeatureComponents. Without one, the entry falls back to the first
+    /// resolved component (or "MainComponent"), matching the legacy default.
+    /// </summary>
+    private static string ResolveComponentId(
+        IniFileModel ini, int index, ResolvedPackage resolved, string defaultComponentId)
+    {
+        if (ini.FeatureRef is not null &&
+            resolved.IniFileFeatureComponents.TryGetValue(index, out string? featureComponentId))
+        {
+            return featureComponentId;
+        }
+
+        return defaultComponentId;
     }
 
     private static TableSchema BuildSchema()

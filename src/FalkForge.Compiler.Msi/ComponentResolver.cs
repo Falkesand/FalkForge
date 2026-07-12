@@ -166,13 +166,121 @@ public sealed class ComponentResolver
             registryFeatureComponents[i] = componentId;
         }
 
+        var shortcutFeatureComponents = new Dictionary<int, string>();
+        for (var i = 0; i < package.Shortcuts.Count; i++)
+        {
+            var shortcut = package.Shortcuts[i];
+            if (shortcut.FeatureRef is null)
+            {
+                continue;
+            }
+
+            var componentId = GenerateShortcutComponentId(i, shortcut);
+            var componentGuid = GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"shortcut-component::{i}::{shortcut.Name}");
+
+            components.Add(new ResolvedComponent
+            {
+                Id = componentId,
+                Guid = componentGuid,
+                Directory = defaultDirectory,
+                KeyPath = string.Empty,
+                Files = [],
+                FeatureRef = shortcut.FeatureRef
+            });
+            shortcutFeatureComponents[i] = componentId;
+        }
+
+        var environmentFeatureComponents = new Dictionary<int, string>();
+        for (var i = 0; i < package.EnvironmentVariables.Count; i++)
+        {
+            var envVar = package.EnvironmentVariables[i];
+            if (envVar.FeatureRef is null)
+            {
+                continue;
+            }
+
+            var componentId = GenerateEnvironmentComponentId(i, envVar);
+            var componentGuid = GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"environment-component::{i}::{envVar.Name}");
+
+            components.Add(new ResolvedComponent
+            {
+                Id = componentId,
+                Guid = componentGuid,
+                Directory = defaultDirectory,
+                KeyPath = string.Empty,
+                Files = [],
+                FeatureRef = envVar.FeatureRef
+            });
+            environmentFeatureComponents[i] = componentId;
+        }
+
+        var iniFileFeatureComponents = new Dictionary<int, string>();
+        for (var i = 0; i < package.IniFiles.Count; i++)
+        {
+            var ini = package.IniFiles[i];
+            if (ini.FeatureRef is null)
+            {
+                continue;
+            }
+
+            var componentId = GenerateIniFileComponentId(i, ini);
+            var componentGuid = GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"inifile-component::{i}::{ini.FileName}::{ini.Section}::{ini.Key}");
+
+            components.Add(new ResolvedComponent
+            {
+                Id = componentId,
+                Guid = componentGuid,
+                Directory = defaultDirectory,
+                KeyPath = string.Empty,
+                Files = [],
+                FeatureRef = ini.FeatureRef
+            });
+            iniFileFeatureComponents[i] = componentId;
+        }
+
+        var fileAssociationFeatureComponents = new Dictionary<int, string>();
+        for (var i = 0; i < package.FileAssociations.Count; i++)
+        {
+            var assoc = package.FileAssociations[i];
+            if (assoc.FeatureRef is null)
+            {
+                continue;
+            }
+
+            var componentId = GenerateFileAssociationComponentId(i, assoc);
+            var componentGuid = GuidUtility.CreateDeterministicGuid(
+                GuidUtility.FalkForgeNamespace,
+                $"fileassociation-component::{i}::{assoc.Extension}");
+
+            components.Add(new ResolvedComponent
+            {
+                Id = componentId,
+                Guid = componentGuid,
+                Directory = defaultDirectory,
+                KeyPath = string.Empty,
+                Files = [],
+                FeatureRef = assoc.FeatureRef
+            });
+            fileAssociationFeatureComponents[i] = componentId;
+        }
+
         return new ResolvedPackage
         {
             Package = package,
             Components = components,
             Files = fileEntries,
             ServiceFeatureComponents = serviceFeatureComponents,
-            RegistryFeatureComponents = registryFeatureComponents
+            RegistryFeatureComponents = registryFeatureComponents,
+            ShortcutFeatureComponents = shortcutFeatureComponents,
+            EnvironmentFeatureComponents = environmentFeatureComponents,
+            IniFileFeatureComponents = iniFileFeatureComponents,
+            FileAssociationFeatureComponents = fileAssociationFeatureComponents
         };
     }
 
@@ -215,6 +323,55 @@ public sealed class ComponentResolver
     {
         var hashInput = $"{index}|{entry.Root}|{entry.Key}|{entry.ValueName}";
         var raw = $"C_REG_{index}_{StableHash(hashInput)}";
+        return raw.Length > 72 ? raw[..72] : raw;
+    }
+
+    /// <summary>
+    /// Generates the deterministic component id for a feature-gated shortcut. Keyed by list index
+    /// plus name so two shortcuts sharing a name (e.g. one per location) never collide. The hash
+    /// stays last: this id is always short (a numeric index plus an 8-char hash) and can never
+    /// reach the 72-char truncation limit.
+    /// </summary>
+    private static string GenerateShortcutComponentId(int index, ShortcutModel shortcut)
+    {
+        var hashInput = $"{index}|{shortcut.Name}|{shortcut.TargetFile}";
+        var raw = $"C_SHC_{index}_{StableHash(hashInput)}";
+        return raw.Length > 72 ? raw[..72] : raw;
+    }
+
+    /// <summary>
+    /// Generates the deterministic component id for a feature-gated environment variable. Keyed
+    /// by list index plus name for the same collision-avoidance reason as
+    /// <see cref="GenerateShortcutComponentId"/>.
+    /// </summary>
+    private static string GenerateEnvironmentComponentId(int index, EnvironmentVariableModel envVar)
+    {
+        var hashInput = $"{index}|{envVar.Name}";
+        var raw = $"C_ENV_{index}_{StableHash(hashInput)}";
+        return raw.Length > 72 ? raw[..72] : raw;
+    }
+
+    /// <summary>
+    /// Generates the deterministic component id for a feature-gated INI file entry. Keyed by list
+    /// index plus file/section/key for the same collision-avoidance reason as
+    /// <see cref="GenerateShortcutComponentId"/>.
+    /// </summary>
+    private static string GenerateIniFileComponentId(int index, IniFileModel ini)
+    {
+        var hashInput = $"{index}|{ini.FileName}|{ini.Section}|{ini.Key}";
+        var raw = $"C_INI_{index}_{StableHash(hashInput)}";
+        return raw.Length > 72 ? raw[..72] : raw;
+    }
+
+    /// <summary>
+    /// Generates the deterministic component id for a feature-gated file association. Keyed by
+    /// list index plus extension for the same collision-avoidance reason as
+    /// <see cref="GenerateShortcutComponentId"/>.
+    /// </summary>
+    private static string GenerateFileAssociationComponentId(int index, FileAssociationModel assoc)
+    {
+        var hashInput = $"{index}|{assoc.Extension}";
+        var raw = $"C_FAS_{index}_{StableHash(hashInput)}";
         return raw.Length > 72 ? raw[..72] : raw;
     }
 

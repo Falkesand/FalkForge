@@ -83,6 +83,7 @@ public static partial class MiscRules
             Prm002_SddlOrUserRequired,
             Prm003_TableValid,
             Prm004_NoMixedPermissionTypes,
+            Prm005_FeatureRefRequiresSddl,
             // Registry  (MiscRules.Registry.cs)
             Reg007_SensitivePropertyInRegistry,
             Rrg001_IdRequired,

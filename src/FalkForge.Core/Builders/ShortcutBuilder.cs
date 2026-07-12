@@ -6,7 +6,7 @@ public sealed class ShortcutBuilder
 {
     private readonly List<ShortcutLocation> _locations = [];
     private readonly string _name;
-    private readonly PackageBuilder _parent;
+    private readonly Action<ShortcutModel> _onAdd;
     private readonly string _targetFile;
     private string? _arguments;
     private string? _description;
@@ -15,17 +15,23 @@ public sealed class ShortcutBuilder
     private string? _startMenuSubfolder;
     private string? _workingDirectory;
 
-    internal ShortcutBuilder(string name, string targetFile, PackageBuilder parent)
+    /// <summary>
+    /// <paramref name="onAdd"/> decouples this builder from any specific owner: <see cref="PackageBuilder"/>
+    /// passes <c>AddShortcut</c>, <see cref="FeatureBuilder"/> passes its own feature-scoped list's
+    /// <c>Add</c> so shortcuts declared via <c>FeatureBuilder.Shortcut(...)</c> can later be stamped
+    /// with the owning feature's id (see <see cref="FeatureBuilder.CollectShortcuts"/>).
+    /// </summary>
+    internal ShortcutBuilder(string name, string targetFile, Action<ShortcutModel> onAdd)
     {
         _name = name;
         _targetFile = targetFile;
-        _parent = parent;
+        _onAdd = onAdd;
     }
 
     public ShortcutBuilder OnDesktop()
     {
         _locations.Add(ShortcutLocation.Desktop);
-        _parent.AddShortcut(BuildCurrent());
+        _onAdd(BuildCurrent());
         return this;
     }
 
@@ -33,14 +39,14 @@ public sealed class ShortcutBuilder
     {
         _locations.Add(ShortcutLocation.StartMenu);
         _startMenuSubfolder = subfolder;
-        _parent.AddShortcut(BuildCurrent());
+        _onAdd(BuildCurrent());
         return this;
     }
 
     public ShortcutBuilder OnStartup()
     {
         _locations.Add(ShortcutLocation.Startup);
-        _parent.AddShortcut(BuildCurrent());
+        _onAdd(BuildCurrent());
         return this;
     }
 
