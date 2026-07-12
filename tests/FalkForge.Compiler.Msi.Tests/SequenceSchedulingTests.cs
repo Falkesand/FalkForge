@@ -184,6 +184,106 @@ public sealed class SequenceSchedulingTests
         Assert.Contains("CA_UICustom", actionNames);
     }
 
+    // --- Inline custom-action scheduling (.After/.Before/.Sequence/.Condition) ---
+
+    [Fact]
+    public void InlineCustomAction_After_SchedulesAfterReferencedAction()
+    {
+        using var ctx = CompileWithSequence(p =>
+        {
+            p.CustomAction("CA_InlineAfter", ca =>
+            {
+                ca.SetProperty("INLINE_PROP", "1");
+                ca.After = "InstallFiles";
+            });
+        });
+
+        var rows = QueryExecuteSequenceRows(ctx.Database);
+        Assert.True(rows.ContainsKey("CA_InlineAfter"),
+            "Inline-scheduled custom action (.After) was never emitted into InstallExecuteSequence.");
+        Assert.True(rows["CA_InlineAfter"] > rows["InstallFiles"],
+            $"Expected CA_InlineAfter ({rows.GetValueOrDefault("CA_InlineAfter")}) > InstallFiles ({rows["InstallFiles"]}).");
+    }
+
+    [Fact]
+    public void InlineCustomAction_Before_SchedulesBeforeReferencedAction()
+    {
+        using var ctx = CompileWithSequence(p =>
+        {
+            p.CustomAction("CA_InlineBefore", ca =>
+            {
+                ca.SetProperty("INLINE_PROP", "1");
+                ca.Before = "InstallFinalize";
+            });
+        });
+
+        var rows = QueryExecuteSequenceRows(ctx.Database);
+        Assert.True(rows.ContainsKey("CA_InlineBefore"),
+            "Inline-scheduled custom action (.Before) was never emitted into InstallExecuteSequence.");
+        Assert.True(rows["CA_InlineBefore"] < rows["InstallFinalize"],
+            $"Expected CA_InlineBefore ({rows.GetValueOrDefault("CA_InlineBefore")}) < InstallFinalize ({rows["InstallFinalize"]}).");
+    }
+
+    [Fact]
+    public void InlineCustomAction_AbsoluteSequence_UsesExactNumber()
+    {
+        using var ctx = CompileWithSequence(p =>
+        {
+            p.CustomAction("CA_InlineSeq", ca =>
+            {
+                ca.SetProperty("INLINE_PROP", "1");
+                ca.Sequence = 5555;
+            });
+        });
+
+        var rows = QueryExecuteSequenceRows(ctx.Database);
+        Assert.True(rows.ContainsKey("CA_InlineSeq"),
+            "Inline-scheduled custom action (.Sequence) was never emitted into InstallExecuteSequence.");
+        Assert.Equal(5555, rows["CA_InlineSeq"]);
+    }
+
+    [Fact]
+    public void InlineCustomAction_Condition_EmittedOnSequenceRow()
+    {
+        using var ctx = CompileWithSequence(p =>
+        {
+            p.CustomAction("CA_InlineCond", ca =>
+            {
+                ca.SetProperty("INLINE_PROP", "1");
+                ca.After = "InstallFiles";
+                ca.Condition = "NOT Installed";
+            });
+        });
+
+        var rows = QueryExecuteSequenceRowsFull(ctx.Database);
+        var row = rows.First(r => r.Action == "CA_InlineCond");
+        Assert.Equal("NOT Installed", row.Condition);
+    }
+
+    [Fact]
+    public void CustomAction_ScheduledInlineAndViaExecuteSequence_ProducesSingleRow_ExplicitWins()
+    {
+        // A custom action pinned BOTH inline (.After) AND via ExecuteSequence(...) for the
+        // same Id must yield exactly ONE InstallExecuteSequence row — the explicit entry is
+        // authoritative, so no double-insert (which would violate the Action primary key).
+        using var ctx = CompileWithSequence(p =>
+        {
+            p.CustomAction("CA_Both", ca =>
+            {
+                ca.SetProperty("INLINE_PROP", "1");
+                ca.After = "InstallFiles";
+            });
+            p.ExecuteSequence(s => s
+                .Action("CA_Both")
+                .At(5555));
+        });
+
+        var rows = QueryExecuteSequenceRowsFull(ctx.Database);
+        var both = rows.Where(r => r.Action == "CA_Both").ToList();
+        Assert.Single(both);
+        Assert.Equal(5555, both[0].Sequence);
+    }
+
     // --- Helpers ---
 
     private sealed class CompilationContext : IDisposable

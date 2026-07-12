@@ -15,11 +15,14 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <c>ExtendedType</c> hard-coded to <c>0</c> to match the legacy emitter
 /// which has no model field for it.
 ///
-/// Note: the legacy <c>EmitCustomActions</c> also writes
-/// <c>InstallExecuteSequence</c> rows for actions that pin a sequence,
-/// before, or after anchor. That emission is intentionally out of scope
-/// for this producer — a dedicated <c>InstallExecuteSequenceTableProducer</c>
-/// will project the same source list onto its own table when wired up.
+/// Note: this producer emits ONLY the <c>CustomAction</c> table row. When an action
+/// pins an inline sequence/before/after anchor (via the fluent <c>CustomActionBuilder</c>),
+/// the corresponding <c>InstallExecuteSequence</c> row is projected by
+/// <see cref="InstallExecuteSequenceTableProducer"/> (see its
+/// <c>ResolveInlinePosition</c>), which reads the same
+/// <see cref="PackageModel.CustomActions"/> source list. Keeping the two tables in
+/// separate producers preserves single-responsibility while inline scheduling still works
+/// end-to-end.
 /// </summary>
 internal sealed class CustomActionTableProducer : ITableProducer
 {

@@ -198,6 +198,53 @@ public sealed class RemainingRulesTests
     }
 
     [Fact]
+    public void Ca006_inline_after_scheduling_yields_no_violations()
+    {
+        // Inline scheduling via .After is now projected onto InstallExecuteSequence by the
+        // compiler, so it counts as "scheduled" and CA006 must not fire.
+        var pkg = WithCA(new CustomActionModel
+        {
+            Id = "InlineAfterCA", Type = 1, SourceRef = "Ref", After = "InstallFiles"
+        });
+        Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ca006_inline_before_scheduling_yields_no_violations()
+    {
+        var pkg = WithCA(new CustomActionModel
+        {
+            Id = "InlineBeforeCA", Type = 1, SourceRef = "Ref", Before = "InstallFinalize"
+        });
+        Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ca006_inline_absolute_sequence_yields_no_violations()
+    {
+        var pkg = WithCA(new CustomActionModel
+        {
+            Id = "InlineSeqCA", Type = 1, SourceRef = "Ref", Sequence = 4500
+        });
+        Assert.Empty(RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ca006_inline_condition_only_without_position_still_warns()
+    {
+        // A Condition with no .After/.Before/.Sequence position has no slot to gate — it does
+        // NOT schedule the action, so CA006 must still flag the orphaned custom action.
+        var pkg = WithCA(new CustomActionModel
+        {
+            Id = "ConditionOnlyCA", Type = 1, SourceRef = "Ref", Condition = "NOT Installed"
+        });
+        var violations = RemainingRules.Ca006_DefinedButNeverScheduled.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("CA006", violations[0].RuleId.Value);
+    }
+
+    [Fact]
     public void Ca006_one_of_two_actions_unscheduled_flags_only_that_one()
     {
         // Guards against a per-CA check that over-reports (flags the scheduled action too)
