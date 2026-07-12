@@ -77,6 +77,50 @@ public sealed class IisExecutionEmissionTests
     }
 
     [Fact]
+    public void CreateSiteWithVirtualDirectory_ProducesDeferredCreateRollbackAndUninstallRemove()
+    {
+        using var scratch = new Scratch();
+
+        var iis = new IisExtension();
+        iis.AddWebSite(s => s
+            .Id("WebSite").Description("FalkForgeSite").Directory("[INSTALLDIR]web")
+            .Binding(80)
+            .VirtualDirectory(v => v.Id("Reports").Alias("/reports").Directory("[INSTALLDIR]reports")));
+
+        using var db = Compile(scratch, "IisExecVdirApp", iis);
+        var actions = QueryCustomActions(db);
+        var sequence = QuerySequence(db);
+
+        // Vdir create: deferred + SYSTEM, drives Microsoft.Web.Administration, runs AFTER the site exists.
+        var vdirCreate = actions["IisVDir_Reports"];
+        Assert.True((vdirCreate.Type & InScript) != 0 && (vdirCreate.Type & NoImpersonate) != 0,
+            "virtual directory create action must be deferred + SYSTEM");
+        string createScript = DecodeEncoded(vdirCreate.Target);
+        Assert.Contains("VirtualDirectories.Add", createScript, StringComparison.Ordinal);
+        Assert.True(sequence["IisVDir_Reports"] > sequence["IisSite_WebSite"],
+            "virtual directory must be created after its parent site");
+
+        // Physical path rides the CustomActionData channel (formatted token resolved at schedule time),
+        // never baked directly into the script — the type-51 SetProperty action carries it.
+        var setProp = actions["IisVDir_Reports_d"];
+        Assert.Equal(SetProperty, setProp.Type);
+        Assert.Equal("IisVDir_Reports", setProp.Source);
+        Assert.Equal("[INSTALLDIR]reports", setProp.Target);
+
+        // Rollback (undo a failed install) and uninstall (removal) both remove the virtual directory.
+        Assert.True((actions["IisVDir_Reports_rb"].Type & Rollback) != 0);
+        Assert.Contains("VirtualDirectories.Remove", DecodeEncoded(actions["IisVDir_Reports_rb"].Target), StringComparison.Ordinal);
+        Assert.Contains("VirtualDirectories.Remove", DecodeEncoded(actions["IisVDir_Reports_un"].Target), StringComparison.Ordinal);
+        Assert.True(sequence["IisVDir_Reports_rb"] < sequence["IisVDir_Reports"]);
+
+        // Everything sequenced between InstallInitialize and InstallFinalize.
+        int init = sequence["InstallInitialize"];
+        int finalize = sequence["InstallFinalize"];
+        Assert.InRange(sequence["IisVDir_Reports"], init + 1, finalize - 1);
+        Assert.InRange(sequence["IisVDir_Reports_un"], init + 1, finalize - 1);
+    }
+
+    [Fact]
     public void UninstallSiteRemove_RunsBeforePoolRemove_InCompiledSequence()
     {
         using var scratch = new Scratch();
@@ -250,6 +294,55 @@ public sealed class IisExecutionEmissionTests
         }
     }
 
+    /// <summary>
+    /// Proves the IIS extension genuinely creates a virtual directory (under the site's root application)
+    /// on install and removes it on uninstall — not merely authored into the MSI. Gated behind
+    /// <c>FALKFORGE_E2E=1</c> AND administrator elevation AND IIS present (W3SVC). Honestly skips (never a
+    /// silent fake pass) when any gate is closed.
+    /// </summary>
+    [Fact]
+    public void VirtualDirectory_IsCreated_ThenRemoved_OnRealInstall()
+    {
+        if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
+            Assert.Skip("Real IIS install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (!IsElevated())
+            Assert.Skip("Real IIS install requires administrator elevation; run the test host elevated.");
+        if (!IisInstalled())
+            Assert.Skip("IIS (W3SVC) is not installed; install the Web Server (IIS) role to run this e2e.");
+
+        string siteName = "FalkForgeE2eSite_" + Guid.NewGuid().ToString("N")[..8];
+        const string vdirAlias = "/reports";
+        int port = 51000 + (Environment.TickCount & 0x0FFF);
+        using var scratch = new Scratch();
+        string vdirPhysicalDir = Path.Combine(scratch.SourceDir, "reports");
+        Directory.CreateDirectory(vdirPhysicalDir);
+
+        var iis = new IisExtension();
+        iis.AddWebSite(s => s
+            .Id(siteName).Description(siteName).Directory(scratch.SourceDir).Binding(port)
+            .VirtualDirectory(v => v.Id("Reports").Alias(vdirAlias).Directory(vdirPhysicalDir)));
+
+        var package = MinimalPackage(scratch, "IisExecVdirE2eApp");
+        var result = new MsiCompiler(new WindowsFileSystem()).Use(iis).Compile(package, scratch.OutputDir);
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+        string msi = result.Value;
+
+        try
+        {
+            int install = RunMsiExec($"/i \"{msi}\" /qn /norestart");
+            Assert.True(install is 0 or 3010, $"msiexec install exit code {install}");
+            Assert.True(AppcmdListVdirSucceeds($"{siteName}{vdirAlias}"), "virtual directory was not created by the deferred action");
+
+            int uninstall = RunMsiExec($"/x \"{msi}\" /qn /norestart");
+            Assert.True(uninstall is 0 or 3010, $"msiexec uninstall exit code {uninstall}");
+            Assert.False(AppcmdListVdirSucceeds($"{siteName}{vdirAlias}"), "virtual directory was not removed on uninstall");
+        }
+        finally
+        {
+            RunAppcmd($"delete site \"{siteName}\"");
+        }
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     private static MsiDatabase Compile(Scratch scratch, string name, IisExtension iis)
@@ -343,6 +436,8 @@ public sealed class IisExecutionEmissionTests
         Environment.GetFolderPath(Environment.SpecialFolder.System), "inetsrv", "appcmd.exe");
 
     private static bool AppcmdListSucceeds(string arguments) => RunAppcmd(arguments) == 0;
+
+    private static bool AppcmdListVdirSucceeds(string vdirName) => RunAppcmd($"list vdir \"{vdirName}\"") == 0;
 
     private static int RunAppcmd(string arguments)
     {

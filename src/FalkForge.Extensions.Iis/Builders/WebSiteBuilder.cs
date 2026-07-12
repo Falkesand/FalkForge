@@ -6,6 +6,7 @@ public sealed class WebSiteBuilder
 {
     private readonly List<WebBindingModel> _bindings = [];
     private readonly List<WebApplicationModel> _webApplications = [];
+    private readonly List<WebVirtualDirectoryModel> _virtualDirectories = [];
     private string? _appPool;
     private bool _autoStart = true;
     private int _connectionTimeout = 120;
@@ -82,6 +83,19 @@ public sealed class WebSiteBuilder
         return this;
     }
 
+    /// <summary>
+    /// Authors a virtual directory mounted under this site (by default under its root application,
+    /// <c>/</c>). Genuinely created at install via <c>Microsoft.Web.Administration</c> — see
+    /// <see cref="WebVirtualDirectoryBuilder"/>.
+    /// </summary>
+    public WebSiteBuilder VirtualDirectory(Action<WebVirtualDirectoryBuilder> configure)
+    {
+        var builder = new WebVirtualDirectoryBuilder();
+        configure(builder);
+        _virtualDirectories.Add(builder.Build());
+        return this;
+    }
+
     internal WebSiteModel Build()
     {
         return new WebSiteModel
@@ -93,7 +107,8 @@ public sealed class WebSiteBuilder
             AppPool = _appPool,
             AutoStart = _autoStart,
             ConnectionTimeout = _connectionTimeout,
-            WebApplications = _webApplications
+            WebApplications = _webApplications,
+            VirtualDirectories = _virtualDirectories
         };
     }
 }

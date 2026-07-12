@@ -51,6 +51,7 @@ public sealed class WebSiteBuilderTests
         Assert.Empty(model.Bindings);
         Assert.Null(model.AppPool);
         Assert.Empty(model.WebApplications);
+        Assert.Empty(model.VirtualDirectories);
     }
 
     [Fact]
@@ -101,6 +102,46 @@ public sealed class WebSiteBuilderTests
     }
 
     [Fact]
+    public void VirtualDirectory_AddsVirtualDirectory()
+    {
+        var builder = new WebSiteBuilder();
+        builder.Description("Site").Directory("[INSTALLDIR]")
+            .VirtualDirectory(v => v.Alias("/reports").Directory("[INSTALLDIR]reports"));
+
+        var model = BuildModel(builder);
+
+        Assert.Single(model.VirtualDirectories);
+        Assert.Equal("/reports", model.VirtualDirectories[0].Alias);
+        Assert.Equal("[INSTALLDIR]reports", model.VirtualDirectories[0].Directory);
+        Assert.Null(model.VirtualDirectories[0].WebApplication);
+    }
+
+    [Fact]
+    public void VirtualDirectory_WithWebApplication_SetsParentApplication()
+    {
+        var builder = new WebSiteBuilder();
+        builder.Description("Site").Directory("[INSTALLDIR]")
+            .VirtualDirectory(v => v.Id("vd1").Alias("/reports").Directory("[INSTALLDIR]reports").WebApplication("/api"));
+
+        var model = BuildModel(builder);
+
+        Assert.Equal("vd1", model.VirtualDirectories[0].Id);
+        Assert.Equal("/api", model.VirtualDirectories[0].WebApplication);
+    }
+
+    [Fact]
+    public void VirtualDirectory_IdDefaultsToAlias_WhenNotSet()
+    {
+        var builder = new WebSiteBuilder();
+        builder.Description("Site").Directory("[INSTALLDIR]")
+            .VirtualDirectory(v => v.Alias("/reports").Directory("[INSTALLDIR]reports"));
+
+        var model = BuildModel(builder);
+
+        Assert.Equal("/reports", model.VirtualDirectories[0].Id);
+    }
+
+    [Fact]
     public void AppPool_SetsAppPoolReference()
     {
         var builder = new WebSiteBuilder();
@@ -124,7 +165,8 @@ public sealed class WebSiteBuilderTests
             .AppPool("Pool")
             .AutoStart(false)
             .ConnectionTimeout(60)
-            .AddApplication(app => app.Alias("/app").Directory("[INSTALLDIR]app"));
+            .AddApplication(app => app.Alias("/app").Directory("[INSTALLDIR]app"))
+            .VirtualDirectory(v => v.Alias("/reports").Directory("[INSTALLDIR]reports"));
 
         Assert.Same(builder, result);
     }
