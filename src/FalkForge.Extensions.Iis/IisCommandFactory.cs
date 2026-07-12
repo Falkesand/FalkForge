@@ -223,6 +223,15 @@ internal static class IisCommandFactory
         return WrapScript(body.ToString(), tolerant: false, readsArg: true);
     }
 
+    /// <summary>
+    /// Defense-in-depth: on uninstall the site's own remove action is scheduled earlier (it is added to
+    /// the step list first) and removing a site cascades removal of everything under it, including this
+    /// virtual directory. So by the time this script runs, <c>$__site</c> is typically already gone and
+    /// every guard below short-circuits to a tolerant no-op. It still exists (rather than being dropped)
+    /// so a virtual directory removed independently of its site — e.g. a future partial-uninstall path,
+    /// or the rollback-of-a-failed-install case, where the site is NOT being removed — is genuinely
+    /// cleaned up rather than silently orphaned.
+    /// </summary>
     private static string BuildVdirRemoveScript(WebSiteModel site, WebVirtualDirectoryModel vdir)
     {
         string siteName = CommandLine.PowerShellSingleQuote(site.Description);

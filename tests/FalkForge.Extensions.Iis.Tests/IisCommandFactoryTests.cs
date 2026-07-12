@@ -283,6 +283,65 @@ public sealed class IisCommandFactoryTests
         Assert.Contains("/reports", iis015[0].Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void IIS016_Fires_ForVirtualDirectoryWithMissingAlias()
+    {
+        var vdir = new WebVirtualDirectoryModel { Id = "V", Alias = "", Directory = "[INSTALLDIR]reports" };
+        var site = new WebSiteModel
+        {
+            Id = "S", Description = "Site", Directory = "[INSTALLDIR]",
+            Bindings = [new WebBindingModel { Port = 80 }],
+            VirtualDirectories = [vdir],
+        };
+
+        var engine = new FalkForge.Validation.ValidationEngine(
+            new FalkForge.Validation.RuleRegistry(IisRules.Build(() => [site], () => [], () => [])));
+        var report = engine.Run(MinimalPackage());
+
+        // An empty Alias means IisCommandFactory.BuildSteps silently skips the vdir (never created at
+        // install) — this must be a build-blocking Error, not a silent no-op, so the author is told.
+        Assert.False(report.IsValid);
+        Assert.Contains(report.Violations, v => v.RuleId.Value == "IIS016" && v.Severity == FalkForge.Validation.Severity.Error);
+    }
+
+    [Fact]
+    public void IIS017_Fires_ForVirtualDirectoryWithMissingDirectory()
+    {
+        var vdir = new WebVirtualDirectoryModel { Id = "V", Alias = "/reports", Directory = "" };
+        var site = new WebSiteModel
+        {
+            Id = "S", Description = "Site", Directory = "[INSTALLDIR]",
+            Bindings = [new WebBindingModel { Port = 80 }],
+            VirtualDirectories = [vdir],
+        };
+
+        var engine = new FalkForge.Validation.ValidationEngine(
+            new FalkForge.Validation.RuleRegistry(IisRules.Build(() => [site], () => [], () => [])));
+        var report = engine.Run(MinimalPackage());
+
+        Assert.False(report.IsValid);
+        Assert.Contains(report.Violations, v => v.RuleId.Value == "IIS017" && v.Severity == FalkForge.Validation.Severity.Error);
+        Assert.Contains("/reports", report.Violations.Single(v => v.RuleId.Value == "IIS017").Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IIS016_And_IIS017_DoNotFire_ForCompleteVirtualDirectory()
+    {
+        var vdir = new WebVirtualDirectoryModel { Id = "V", Alias = "/reports", Directory = "[INSTALLDIR]reports" };
+        var site = new WebSiteModel
+        {
+            Id = "S", Description = "Site", Directory = "[INSTALLDIR]",
+            Bindings = [new WebBindingModel { Port = 80 }],
+            VirtualDirectories = [vdir],
+        };
+
+        var engine = new FalkForge.Validation.ValidationEngine(
+            new FalkForge.Validation.RuleRegistry(IisRules.Build(() => [site], () => [], () => [])));
+        var report = engine.Run(MinimalPackage());
+
+        Assert.DoesNotContain(report.Violations, v => v.RuleId.Value is "IIS016" or "IIS017");
+    }
+
     private static FalkForge.Models.PackageModel MinimalPackage() => FalkForge.Testing.InstallerTestHost.BuildPackage(p =>
     {
         p.Name = "App";

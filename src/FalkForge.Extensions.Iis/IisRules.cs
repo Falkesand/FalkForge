@@ -5,7 +5,7 @@ using FalkForge.Validation;
 namespace FalkForge.Extensions.Iis;
 
 /// <summary>
-/// Rules-as-data for the IIS extension (IIS001–IIS011).
+/// Rules-as-data for the IIS extension (IIS001–IIS017).
 /// Rules are built per-extension-instance so they close over the site/pool/certificate lists.
 /// </summary>
 public static class IisRules
@@ -229,6 +229,38 @@ public static class IisRules
                             "only the root application ('/') exists automatically, so this virtual directory will fail " +
                             "to create at install. Target the root application, or create the parent application " +
                             "out-of-band.")))),
+
+            // Required-field errors, mirroring IIS001/IIS002/IIS005: an empty Alias or Directory makes
+            // IisCommandFactory.BuildSteps silently skip the virtual directory (never created at install),
+            // so — same as every other silently-skipped shape in this extension — that must be a build-
+            // blocking Error, never a quiet no-op.
+            new ValidationRule(
+                new RuleId("IIS016"),
+                Severity.Error,
+                ModelSection.Extension_Iis,
+                "Virtual directory must have an Alias",
+                "Each IIS virtual directory must have a non-empty Alias.",
+                ctx => getWebSites().SelectMany(s =>
+                    s.VirtualDirectories
+                        .Where(v => string.IsNullOrWhiteSpace(v.Alias))
+                        .Select(v => new Violation(
+                            new RuleId("IIS016"), Severity.Error,
+                            ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("VirtualDirectory"),
+                            $"IIS016: A virtual directory on site '{s.Description}' must have a non-empty Alias.")))),
+
+            new ValidationRule(
+                new RuleId("IIS017"),
+                Severity.Error,
+                ModelSection.Extension_Iis,
+                "Virtual directory must have a Directory",
+                "Each IIS virtual directory must have a non-empty physical Directory.",
+                ctx => getWebSites().SelectMany(s =>
+                    s.VirtualDirectories
+                        .Where(v => !string.IsNullOrWhiteSpace(v.Alias) && string.IsNullOrWhiteSpace(v.Directory))
+                        .Select(v => new Violation(
+                            new RuleId("IIS017"), Severity.Error,
+                            ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("VirtualDirectory").Field(v.Alias),
+                            $"IIS017: Virtual directory '{v.Alias}' on site '{s.Description}' must have a non-empty Directory.")))),
         ];
     }
 

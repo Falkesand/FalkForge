@@ -22,6 +22,8 @@ iis.AddWebSite(site => site
     .AutoStart(true)
     // Virtual directories are genuinely created (and removed on uninstall) at install time via
     // Microsoft.Web.Administration — unlike sub-applications, which are still authored-only (IIS014).
+    // The physical directory need not exist at compile time (IIS does not validate it); a real
+    // deployment would ensure "reports" is populated under INSTALLDIR, e.g. via package.Files(...).
     .VirtualDirectory(vdir => vdir
         .Id("DemoReports")
         .Alias("/reports")
