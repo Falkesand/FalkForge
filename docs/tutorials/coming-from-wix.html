@@ -349,7 +349,7 @@ package<span class="punc">.</span><span class="method">AddLaunchCondition</span>
       <li><strong>Triple decompiler</strong> &mdash; decompile MSI, FalkForge bundles, and WiX Burn bundles.</li>
       <li><strong>NativeAOT engine</strong> &mdash; smaller, faster, no runtime dependency.</li>
       <li><strong>Built-in WPF custom UI</strong> &mdash; <code>InstallerPage&lt;TView&gt;</code> with ReactiveUI.</li>
-      <li><strong>Sigil payload signing</strong> &mdash; embedded integrity verification.</li>
+      <li><strong>ECDSA payload signing</strong> &mdash; free, built-in tamper-evident integrity verification for bundle payloads, no external tool required. An optional separate tool, Sigil, adds SBOM attestation on top (see <a href="../../documentation.html#sigil">Sigil</a> in the reference docs).</li>
       <li><strong>Compile-time security guards</strong> &mdash; REG007 warns when registry values reference password properties. WiX has no equivalent compile-time check.</li>
       <li><strong>WinGet manifest generation</strong> &mdash; <code>.WinGet()</code> on PackageBuilder auto-generates the 3-file YAML manifest set. Advanced Installer charges $2,400+/year for this feature.</li>
     </ul>

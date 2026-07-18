@@ -144,6 +144,10 @@ SBOM is also wrapped in a Sigil DSSE attestation envelope and embedded inside th
 manifest as `SbomAttestation`. This is a separate (additive) path — the `.cdx.json` sidecar
 is always written first and does not depend on Sigil.
 
+Sigil is a separate, optional, build-time-only tool (a `Sigil.Sign` .NET global tool, not part
+of FalkForge) — see [Sigil: Optional SBOM Attestation & MSI Integrity Signing](../documentation.html#sigil)
+for what it is, install instructions, and the (more load-bearing) MSI-side behavior.
+
 ### Verification
 
 ```bash

@@ -8432,6 +8432,11 @@ forge build installer.cs -o ./output
 forge build installer.cs --dry-run --json
 forge build installer.cs --reproducible --sbom
 forge build installer.cs --winget --winget-url https://example.com/app.msi</code></pre>
+<p>
+    <code>--no-sign</code> skips Sigil-based signing/attestation &mdash; see
+    <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what Sigil is and
+    when you need it.
+</p>
 
 <h4>validate</h4>
 <p>
@@ -12093,6 +12098,62 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     for the friendly prompt, the free payload signature for real tamper protection.
 </p>
 
+<h3 id="sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</h3>
+
+<p>
+    You'll see references to a <code>sigil</code> CLI elsewhere in this manual (the <code>--no-sign</code> flag,
+    the MSI compile pipeline). Sigil is a separate, optional tool by the same author &mdash; not part of
+    FalkForge itself, and never required for the payload signature described above in this section.
+</p>
+
+<p>
+    <strong>What works without it.</strong> Bundle payload signing (<code>BundleBuilder.Integrity()</code>) is
+    always pure-.NET ECDSA-P256 (<code>EcdsaManifestSigner</code>) &mdash; no external tool is ever needed to
+    produce a bundle's manifest signature. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
+    has no Sigil dependency either: it always writes a CycloneDX/SPDX sidecar next to the compiled artifact.
+</p>
+
+<p>
+    <strong>What Sigil adds, when it's on PATH.</strong> FalkForge probes <code>sigil --version</code> once per
+    process (<code>SigilDetector</code>, result cached) and, if found:
+</p>
+<ul>
+    <li>
+        <strong>Bundles</strong> &mdash; the already-written SBOM is additionally wrapped in a Sigil DSSE
+        attestation envelope and embedded in the manifest as <code>SbomAttestation</code>
+        (<code>BundleIntegritySigner</code>). This is purely additive: if Sigil is missing, or the attestation
+        step fails for any reason, the build still succeeds with the payload signature and the plain SBOM
+        sidecar intact &mdash; the attestation is simply absent.
+    </li>
+    <li>
+        <strong>MSI packages</strong> &mdash; here Sigil is load-bearing, not additive. Unlike bundles,
+        <code>PackageBuilder.Integrity()</code> has no pure-.NET fallback: the entire MSI integrity-signing step
+        (manifest signing <em>and</em> SBOM attestation, both driven through the <code>sigil</code> CLI via
+        <code>IntegritySigner</code>) is skipped silently when Sigil is absent from PATH, even with
+        <code>Integrity()</code> configured. If you need MSI integrity signing, install Sigil first.
+    </li>
+</ul>
+
+<div class="note">
+    <code>forge build --no-sign</code> (or the <code>FALKFORGE_NO_SIGN</code> environment variable) skips
+    Sigil-based signing and attestation too, on both MSI and bundle builds &mdash; the same switch that
+    disables the native ECDSA signer above.
+</div>
+
+<p>
+    <strong>Installing it.</strong> Sigil ships as a .NET global tool on NuGet:
+</p>
+<pre><code class="language-bash">dotnet tool install -g Sigil.Sign</code></pre>
+<p>
+    Source and documentation: <a href="https://github.com/Falkesand/Sigil">github.com/Falkesand/Sigil</a>. Sigil
+    is licensed AGPL-3.0-only &mdash; a separate license from FalkForge's own &mdash; so review its terms before
+    depending on it in your build pipeline.
+</p>
+<p>
+    Sigil is build-time-only: the FalkForge engine that runs on end-user machines never calls it and has no
+    dependency on it being installed anywhere but your build machine.
+</p>
+
 <h3 id="signing-future">What's Coming (Planned, Not Yet Shipped)</h3>
 
 <p>
@@ -12226,6 +12287,11 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
                             reproducible builds, since ICE can perturb bytes non-deterministically).
 11. SBOM + WinGet            Non-fatal, opt-in sidecars: a CycloneDX SBOM next to the .msi, and a 3-file
                             WinGet manifest (8.28) if WinGet() was configured.</code></pre>
+<p>
+    Step 9's opportunistic integrity signing depends on a separate optional tool &mdash; see
+    <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what it is, what
+    still works without it, and how to install it.
+</p>
 <p>
     Two details matter if you're debugging a build. First, cabinet compression here is single-threaded
     &mdash; one <code>CabinetBuilder</code> call per planned cabinet, in a loop. <code>ParallelCabinetBuilder</code>
