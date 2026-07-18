@@ -1,13 +1,18 @@
-using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Models;
 using FalkForge.Signing;
 
-namespace FalkForge.Compiler.Bundle.Compilation;
+namespace FalkForge.Engine.Protocol.Integrity;
 
 /// <summary>
 /// Build-time payload signer using pure .NET ECDSA (P-256). Produces a
 /// <see cref="ManifestSignatureEnvelope"/> the engine verifies before executing any
 /// payload, independent of Authenticode and of the external <c>sigil</c> CLI.
+///
+/// <para>Shared by both build-time compilers — <c>Compiler.Bundle</c>'s <c>BundleIntegritySigner</c>
+/// and <c>Compiler.Msi</c>'s <c>IntegritySigner</c> — so a bundle and an MSI produce byte-identical
+/// envelope shapes from the identical signing code path. It lives here, next to
+/// <see cref="IntegrityEnvelopeCodec"/>/<see cref="ManifestSignatureEnvelope"/>, rather than in either
+/// compiler project, precisely so neither compiler has to depend on the other to share it.</para>
 ///
 /// <para>Signing is delegated to one or more <see cref="ISignatureProvider"/> backends (C17). The default
 /// set is derived from the integrity config: a <see cref="PemSignatureProvider"/> per configured PEM key
@@ -23,7 +28,7 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 /// stays byte-reproducible in its payload content while the envelope (key + signature)
 /// is the one intentionally non-deterministic, post-content part.</para>
 /// </summary>
-internal static class EcdsaManifestSigner
+public static class EcdsaManifestSigner
 {
     /// <summary>
     /// Signs the supplied payload hashes and returns the canonical envelope JSON to embed in the manifest.
@@ -32,7 +37,7 @@ internal static class EcdsaManifestSigner
     /// a thread. A genuinely asynchronous provider (e.g. a future remote signing service) must be driven
     /// through <see cref="SignAsync"/> on an async build path — here it fails loud rather than block.
     /// </summary>
-    internal static Result<string> Sign(
+    public static Result<string> Sign(
         IReadOnlyList<PayloadHashEntry> entries,
         IntegrityConfiguration? config)
     {
@@ -59,7 +64,7 @@ internal static class EcdsaManifestSigner
     /// the canonical envelope JSON. Returns the provider's error (e.g. SGN002 for a missing key file) on the
     /// first failure. This is the async seam a remote signing backend plugs into.
     /// </summary>
-    internal static async ValueTask<Result<string>> SignAsync(
+    public static async ValueTask<Result<string>> SignAsync(
         IReadOnlyList<PayloadHashEntry> entries,
         IntegrityConfiguration? config,
         CancellationToken cancellationToken = default)

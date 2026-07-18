@@ -1,11 +1,22 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Tables;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Models;
 using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Msi.Signing;
 
+/// <summary>
+/// Embeds MSI integrity data into the <c>_FalkForgeIntegrity</c> custom table.
+///
+/// <para>The manifest signature is <b>always</b> produced via the pure-.NET
+/// <see cref="EcdsaManifestSigner"/> — the same signer <c>Compiler.Bundle</c>'s
+/// <c>BundleIntegritySigner</c> uses — so an <c>Integrity()</c>-configured MSI is signed regardless of
+/// whether the external <c>sigil</c> CLI is on PATH. SBOM attestation remains opportunistic: it is
+/// produced only when <c>sigil</c> is available, and any SBOM/attest failure is swallowed so it never
+/// blocks the (already-completed) signature — mirroring <c>BundleIntegritySigner</c> exactly.</para>
+/// </summary>
 [SupportedOSPlatform("windows")]
 internal static class IntegritySigner
 {
@@ -21,42 +32,20 @@ internal static class IntegritySigner
         {
             var config = package.Integrity;
 
-            // Step 1: Write payload hashes to temp directory
-            var hashDir = Path.Combine(tempDir, "payloads");
-            Directory.CreateDirectory(hashDir);
-            WritePayloadHashes(hashDir, resolvedFiles);
+            // Step 1: Sign payload hashes (pure-.NET ECDSA; no external tool required). Always runs when
+            // this method is called — the caller (MsiAuthoring step 8.5) gates on Integrity() being
+            // configured and signing not being explicitly disabled, nothing more.
+            var entries = BuildPayloadHashEntries(resolvedFiles);
+            var signResult = EcdsaManifestSigner.Sign(entries, config);
+            if (signResult.IsFailure)
+                return Result<Unit>.Failure(signResult.Error);
 
-            // Step 2: Sign manifest
-            var signer = new SigilSigner();
-            var manifestOutputPath = Path.Combine(tempDir, "manifest.sig.json");
-            var manifestResult = signer.RunSignManifest(hashDir, manifestOutputPath, config);
-            if (manifestResult.IsFailure)
-                return Result<Unit>.Failure(manifestResult.Error);
+            var manifestJson = signResult.Value;
 
-            var manifestJson = File.ReadAllText(manifestOutputPath);
+            // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
+            var attestation = TryGenerateSbomAttestation(msiPath, package, resolvedFiles, config, tempDir);
 
-            // Step 3: Generate SBOM JSON for attestation
-            var sbomFormat = config?.SbomFormat ?? SbomFormat.Spdx;
-            var sbomPath = Path.Combine(tempDir, "sbom.json");
-            var sbomResult = GenerateSbomForAttestation(package, resolvedFiles, sbomPath);
-            if (sbomResult.IsFailure)
-                return Result<Unit>.Failure(sbomResult.Error);
-
-            // Step 4: Attest SBOM
-            var attestOutputPath = Path.Combine(tempDir, "sbom.attest.json");
-            var attestResult = signer.RunAttest(msiPath, sbomPath, sbomFormat, attestOutputPath, config);
-            if (attestResult.IsFailure)
-                return Result<Unit>.Failure(attestResult.Error);
-
-            var attestJson = File.ReadAllText(attestOutputPath);
-
-            var sbomFormatString = sbomFormat switch
-            {
-                SbomFormat.CycloneDx => "cyclonedx",
-                _ => "spdx"
-            };
-
-            // Step 5: Re-open MSI and embed integrity data
+            // Step 3: Re-open MSI and embed integrity data.
             var dbResult = MsiDatabase.Open(msiPath);
             if (dbResult.IsFailure)
                 return Result<Unit>.Failure(dbResult.Error);
@@ -64,7 +53,7 @@ internal static class IntegritySigner
             using (var database = dbResult.Value)
             {
                 var emitResult = IntegrityTableEmitter.EmitIntegrityData(
-                    database, manifestJson, attestJson, sbomFormatString);
+                    database, manifestJson, attestation?.AttestJson, attestation?.SbomFormatString);
                 if (emitResult.IsFailure)
                     return emitResult;
 
@@ -73,9 +62,11 @@ internal static class IntegritySigner
                     return commitResult;
             }
 
-            // Step 6: Write sidecar files
-            File.Copy(manifestOutputPath, msiPath + ".sig.json", overwrite: true);
-            File.Copy(attestOutputPath, msiPath + ".attest.json", overwrite: true);
+            // Step 4: Write sidecar files. The signature sidecar always exists; the attestation
+            // sidecar only when the opportunistic sigil step produced one.
+            File.WriteAllText(msiPath + ".sig.json", manifestJson);
+            if (attestation is { } producedAttestation)
+                File.WriteAllText(msiPath + ".attest.json", producedAttestation.AttestJson);
 
             return Unit.Value;
         }
@@ -86,8 +77,9 @@ internal static class IntegritySigner
         }
     }
 
-    private static void WritePayloadHashes(string hashDir, IReadOnlyList<ResolvedFile> files)
+    private static List<PayloadHashEntry> BuildPayloadHashEntries(IReadOnlyList<ResolvedFile> files)
     {
+        var entries = new List<PayloadHashEntry>(files.Count);
         foreach (var file in files)
         {
             if (!File.Exists(file.SourcePath))
@@ -95,8 +87,54 @@ internal static class IntegritySigner
 
             using var stream = File.OpenRead(file.SourcePath);
             var hash = Convert.ToHexString(SHA256.HashData(stream));
-            var hashFile = Path.Combine(hashDir, file.FileName + ".sha256");
-            File.WriteAllText(hashFile, hash);
+            entries.Add(new PayloadHashEntry(file.FileName, hash));
+        }
+
+        return entries;
+    }
+
+    private readonly record struct SbomAttestationResult(string AttestJson, string SbomFormatString);
+
+    /// <summary>
+    /// Produces a Sigil DSSE SBOM attestation when the sigil CLI is available. Returns null (and embeds
+    /// nothing beyond the signature) when sigil is absent or any step fails — SBOM is supplementary
+    /// provenance and must never block the build or the ECDSA signature already computed above.
+    /// </summary>
+    private static SbomAttestationResult? TryGenerateSbomAttestation(
+        string msiPath,
+        PackageModel package,
+        IReadOnlyList<ResolvedFile> resolvedFiles,
+        IntegrityConfiguration? config,
+        string tempDir)
+    {
+        if (!FalkForge.Signing.SigilDetector.IsAvailable())
+            return null;
+
+        try
+        {
+            var sbomFormat = config?.SbomFormat ?? SbomFormat.Spdx;
+            var sbomPath = Path.Combine(tempDir, "sbom.json");
+            var sbomResult = GenerateSbomForAttestation(package, resolvedFiles, sbomPath);
+            if (sbomResult.IsFailure)
+                return null;
+
+            var signer = new SigilSigner();
+            var attestOutputPath = Path.Combine(tempDir, "sbom.attest.json");
+            var attestResult = signer.RunAttest(msiPath, sbomPath, sbomFormat, attestOutputPath, config);
+            if (attestResult.IsFailure)
+                return null;
+
+            var sbomFormatString = sbomFormat switch
+            {
+                SbomFormat.CycloneDx => "cyclonedx",
+                _ => "spdx"
+            };
+
+            return new SbomAttestationResult(File.ReadAllText(attestOutputPath), sbomFormatString);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 

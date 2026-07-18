@@ -395,10 +395,11 @@ public static class MsiAuthoring
             }
         }
 
-        // Step 8.5: Integrity signing — opportunistic (only when Sigil is on PATH).
-        if (!IsIntegritySigningDisabled() &&
-            FalkForge.Signing.SigilDetector.IsAvailable() &&
-            package.Integrity is not null)
+        // Step 8.5: Integrity signing. The ECDSA envelope is pure .NET and always signs when
+        // Integrity() is configured (FALKFORGE_NO_SIGN is the only opt-out) — it no longer depends on
+        // the external sigil CLI. Sigil, when present, opportunistically adds a DSSE SBOM attestation on
+        // top; see IntegritySigner.SignAndEmbed.
+        if (!IsIntegritySigningDisabled() && package.Integrity is not null)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 8.5: integrity signing.");

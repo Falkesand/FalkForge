@@ -3,6 +3,12 @@ namespace FalkForge.Compiler.Msi.Tests.Signing;
 using FalkForge.Signing;
 using Xunit;
 
+/// <summary>
+/// Shares the "SigilProcess" collection with <see cref="MsiIntegritySigningTests"/>: both classes touch
+/// the process-wide <see cref="SigilDetector"/> cache (and the latter also mutates the process-wide
+/// <c>PATH</c> environment variable), so xUnit must never run them concurrently with each other.
+/// </summary>
+[Collection("SigilProcess")]
 public sealed class SigilDetectorTests : IDisposable
 {
     public SigilDetectorTests()
