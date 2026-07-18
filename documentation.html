@@ -154,10 +154,26 @@
       font-size: 1.15rem;
       font-weight: 700;
       letter-spacing: -0.01em;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     .sidebar-header h1 span { color: var(--accent); }
+
+    /* Muted version pill under the wordmark -- deliberately quiet (border +
+       muted ink, not the oxblood accent) so it reads as a footnote, not a
+       second headline. */
+    .version-tag {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 1px 8px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-code);
+      color: var(--text-muted);
+      font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.02em;
+    }
 
     .sidebar-controls {
       display: flex;
@@ -547,6 +563,7 @@
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <h1><span>Falk</span>Forge Docs</h1>
+      <div class="version-tag">v0.5.0-beta.1</div><!-- update per release -->
       <div class="sidebar-controls">
         <input type="text" class="search-box" id="searchBox" placeholder="Search docs..." autocomplete="off">
         <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">&#9790;</button>
