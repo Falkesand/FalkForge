@@ -225,6 +225,8 @@ dumps and kills a test host after 10 minutes without test progress
   if you're new to Windows Installer.
 - **[docs/provenance.md](docs/provenance.md)** -- the supply-chain provenance
   surface: SBOM, payload integrity, reproducible builds, attestations.
+- **Online**: <https://falkesand.github.io/FalkForge/> -- the manual and tutorials,
+  hosted from this repository via GitHub Pages, browsable without cloning.
 
 ## Releases & Provenance
 
@@ -236,6 +238,11 @@ via the [release workflow](.github/workflows/release.yml), each with a
 ```bash
 gh attestation verify forge.exe --repo Falkesand/FalkForge
 ```
+
+## Support
+
+Found a bug, have a question, or want to request a feature? Open an issue at
+<https://github.com/Falkesand/FalkForge/issues>.
 
 ## License
 

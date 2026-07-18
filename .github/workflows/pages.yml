@@ -1,0 +1,82 @@
+name: Deploy Docs to GitHub Pages
+
+# Publishes the FalkForge documentation site — documentation.html (as index.html) plus
+# docs/tutorials/*.html — to GitHub Pages. No markdown, no internal plans/design docs;
+# same HTML-only surface as scripts/pack-docs.ps1 produces for the release zip.
+#
+# GATED: this repo is private pre-launch and GitHub Pages is not enabled yet. There is
+# no workflow expression for "repo is public" / "Pages is enabled", so this workflow is
+# gated behind a repository variable instead — it must run (and be visible as
+# skipped, not failed) even while Pages is off, so it never breaks CI.
+#
+# To turn this on at launch:
+#   1. Make the repository public.
+#   2. Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+#   3. Settings -> Secrets and variables -> Actions -> Variables tab ->
+#      New repository variable: name PAGES_ENABLED, value true.
+# Until step 3 is done, both jobs below are skipped on every run.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; never cancel one mid-flight in favor of a newer
+# push landing right after — let each publish finish so Pages never serves a half state.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: vars.PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Stage documentation site
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$RUNNER_TEMP/site"
+          mkdir -p "$site/docs/tutorials"
+
+          # documentation.html is the self-contained manual; publish it under its own
+          # name (matches in-repo links) and as index.html (the Pages entry point).
+          cp documentation.html "$site/documentation.html"
+          cp documentation.html "$site/index.html"
+
+          # docs/tutorials/*.html + shared/ CSS+JS only — no markdown, no internal
+          # plans/design docs.
+          cp docs/tutorials/*.html "$site/docs/tutorials/"
+          if [ -d docs/tutorials/shared ]; then
+            cp -r docs/tutorials/shared "$site/docs/tutorials/shared"
+          fi
+
+          echo "Staged site contents:"
+          find "$site" -type f | sort
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    if: vars.PAGES_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
