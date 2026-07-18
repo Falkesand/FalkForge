@@ -8277,6 +8277,72 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 
 <h3>Authoring a Custom Dialog (<code>AddCustomDialog</code>)</h3>
 
+<h4>How MSI dialogs work</h4>
+
+<p>
+    Windows Installer's UI is not a single window with pages &mdash; it's a chain of separate
+    <strong>modal dialogs</strong>. Each dialog is entirely described by four database tables the
+    compiler writes for you; there is no XAML, no HTML, no retained window object. If you've never
+    touched WiX or raw MSI authoring, that's the whole mental model:
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Table</th><th>One row per&hellip;</th><th>FalkForge model</th></tr></thead>
+    <tbody>
+        <tr><td><code>Dialog</code></td><td>a dialog window (size, title, focus/default/cancel control)</td><td><code>CustomDialogModel</code></td></tr>
+        <tr><td><code>Control</code></td><td>one control placed on a dialog (type, position, bound property, tab-order pointer)</td><td><code>CustomDialogControlModel</code></td></tr>
+        <tr><td><code>ControlEvent</code></td><td>one action a control fires (usually on click), gated by a condition</td><td><code>CustomDialogControlEventModel</code></td></tr>
+        <tr><td><code>ControlCondition</code></td><td>one show/hide/enable/disable rule that re-evaluates as properties change</td><td><code>CustomDialogControlConditionModel</code></td></tr>
+    </tbody>
+</table>
+
+<p>
+    <strong>Navigation</strong> between dialogs is itself just <code>ControlEvent</code> rows &mdash;
+    there's no separate &ldquo;wizard&rdquo; concept. A button's <code>NewDialog</code> event closes the
+    current dialog and opens another in its place (a normal Next/Back step); <code>SpawnDialog</code>
+    opens a second dialog <em>on top of</em> the current one, which stays open underneath until the
+    child closes (used for confirmation prompts like &ldquo;Are you sure you want to cancel?&rdquo;);
+    <code>EndDialog</code> closes the dialog chain entirely with an outcome (<code>Return</code> to
+    proceed with the install; <code>Exit</code>/<code>Retry</code>/<code>Ignore</code> for other exits).
+</p>
+
+<p>
+    <strong>Coordinates are dialog units (DLU), not pixels.</strong> <code>X</code>/<code>Y</code>/
+    <code>Width</code>/<code>Height</code> on both the dialog and its controls are DLU: a font-relative
+    unit Windows Installer converts to pixels at render time using the dialog's font metrics, so the
+    same authoring renders consistently across DPI and font-size settings. The MSI standard dialog is
+    370&times;270 DLU; lay controls out inside that.
+</p>
+
+<p>
+    <strong>Property binding</strong> is how a control exchanges data with the rest of the package: a
+    data-bound control's <code>Property</code> column names an MSI property, and the control both
+    initializes from and writes back to that property (a check box toggles it between <code>1</code>
+    and empty; an edit field mirrors its text). Anything else in the package &mdash; a launch condition,
+    another control's <code>ControlCondition</code>, a custom action's arguments &mdash; can then read
+    that same property.
+</p>
+
+<p>
+    <strong>Tab order</strong> is a linked list, not a Z-order or reading-order convention: the dialog's
+    <code>Control_First</code> names the control that gets initial focus, and each control's
+    <code>Control_Next</code> points at the next control Tab should move to. Chase every
+    <code>Control_Next</code> pointer and you get the full tab cycle; a control left out of the chain is
+    simply unreachable by keyboard.
+</p>
+
+<p>
+    <strong>When a dialog shows</strong> depends on whether it's reachable at all: a dialog only appears
+    as the first screen of the install UI if it's placed in the <code>InstallUISequence</code> table at
+    a sequence number &mdash; that's what <code>.Sequence(n)</code> does. Every other dialog is only
+    reached by another dialog's <code>NewDialog</code>/<code>SpawnDialog</code> event. Custom dialogs and
+    a stock <code>MsiDialogSet</code> are not mutually exclusive: you can add one extra custom dialog
+    reachable from a stock flow, or set <code>DialogSet</code> to <code>None</code> and author every
+    screen yourself, as demo <code>65-custom-dialog</code> does.
+</p>
+
+<h4>Building a dialog</h4>
+
 <p>
     To author a complete dialog from scratch &mdash; your own controls, events, conditions, and tab
     order &mdash; call <code>PackageBuilder.AddCustomDialog(id, dlg =&gt; …)</code>. This needs no
@@ -8298,15 +8364,131 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 
 <p>
     Custom dialogs are emitted <strong>in addition to</strong> any active stock dialog set (and even when
-    <code>DialogSet</code> is <code>None</code>). <code>.Sequence(n)</code> makes a dialog an install-UI
-    entry (the standard first-dialog slot is 1100); without it a custom dialog is reachable only via
-    another dialog's <code>NewDialog</code>/<code>SpawnDialog</code> event. Control adders exist for
-    <code>Text</code>, <code>PushButton</code>, <code>Line</code>, <code>CheckBox</code>, <code>Edit</code>,
-    <code>PathEdit</code>, <code>ScrollableText</code>, <code>Bitmap</code>, <code>Icon</code>, and
-    <code>GroupBox</code>; use <code>.Control(type, …)</code> for any other type. Invalid authoring
-    (empty/ill-formed ids, duplicate names, a dangling <code>Control_Next</code>, a data-bound control
-    with no property) fails loud at validation time via rules <strong>DLG010&ndash;DLG019</strong>. See
-    demo <code>65-custom-dialog</code>.
+    <code>DialogSet</code> is <code>None</code>). The full authoring surface &mdash; every control adder,
+    event verb, and condition verb &mdash; is tabulated in <a href="#dlg-capabilities">What's possible</a>
+    below. See demo <code>65-custom-dialog</code> for this exact example, walked step by step in the
+    <a href="docs/tutorials/custom-msi-dialogs.html">Custom MSI Dialogs tutorial</a>.
+</p>
+
+<h4 id="dlg-capabilities">What's possible</h4>
+
+<p>Dialog-level configuration, on <code>CustomDialogBuilder</code>:</p>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>Maps to</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td><code>Title(title)</code></td><td><code>Dialog.Title</code></td><td>Window title; omit for an untitled dialog.</td></tr>
+        <tr><td><code>Size(width, height)</code></td><td><code>Dialog.Width</code>/<code>Height</code></td><td>Dialog units; defaults to the MSI standard 370&times;270.</td></tr>
+        <tr><td><code>Centering(h, v)</code></td><td><code>Dialog.HCentering</code>/<code>VCentering</code></td><td>0&ndash;100 percent; defaults to 50/50 (screen-centered).</td></tr>
+        <tr><td><code>Attributes(int)</code></td><td><code>Dialog.Attributes</code></td><td>Raw bitmask escape hatch; default <code>39</code> = Visible | Modal | Minimize | TrackDiskSpace.</td></tr>
+        <tr><td><code>FirstControl(name)</code></td><td><code>Dialog.Control_First</code></td><td>Initial focus; unset falls back to the first authored control.</td></tr>
+        <tr><td><code>DefaultControl(name)</code></td><td><code>Dialog.Control_Default</code></td><td>Control activated by Enter.</td></tr>
+        <tr><td><code>CancelControl(name)</code></td><td><code>Dialog.Control_Cancel</code></td><td>Control activated by Esc.</td></tr>
+        <tr><td><code>Sequence(n)</code></td><td><code>InstallUISequence</code> row (Action = dialog Id)</td><td>Makes the dialog an install-UI entry point; standard first-dialog slot is 1100.</td></tr>
+    </tbody>
+</table>
+
+<p>Control adders, on <code>CustomDialogBuilder</code> (each takes a trailing <code>Action&lt;CustomDialogControlBuilder&gt;? configure</code> for tab order, events, conditions, and appearance):</p>
+
+<table class="api-table">
+    <thead><tr><th>Adder</th><th>Control type</th><th>Data-bound</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td><code>Text(name, x, y, w, h, text)</code></td><td><code>Text</code></td><td>No</td><td>Static label.</td></tr>
+        <tr><td><code>PushButton(name, x, y, w, h, text)</code></td><td><code>PushButton</code></td><td>No</td><td>Wire navigation/actions with control events.</td></tr>
+        <tr><td><code>Line(name, x, y, width)</code></td><td><code>Line</code></td><td>No</td><td>Horizontal etched separator; height fixed at 0.</td></tr>
+        <tr><td><code>CheckBox(name, x, y, w, h, property, text)</code></td><td><code>CheckBox</code></td><td>Yes</td><td>Toggles the bound property between <code>1</code> and empty.</td></tr>
+        <tr><td><code>Edit(name, x, y, w, h, property)</code></td><td><code>Edit</code></td><td>Yes</td><td>Single-line text field.</td></tr>
+        <tr><td><code>PathEdit(name, x, y, w, h, property)</code></td><td><code>PathEdit</code></td><td>Yes</td><td>Editable path field bound to a directory property.</td></tr>
+        <tr><td><code>ScrollableText(name, x, y, w, h, text)</code></td><td><code>ScrollableText</code></td><td>No</td><td>Scrollable read-only multi-line area (license bodies).</td></tr>
+        <tr><td><code>Bitmap(name, x, y, w, h, binaryKey)</code></td><td><code>Bitmap</code></td><td>No*</td><td>Text names an embedded <code>Binary</code> stream, not a property.</td></tr>
+        <tr><td><code>Icon(name, x, y, w, h, binaryKey)</code></td><td><code>Icon</code></td><td>No*</td><td>Text names an embedded <code>Binary</code> stream, not a property.</td></tr>
+        <tr><td><code>GroupBox(name, x, y, w, h, text)</code></td><td><code>GroupBox</code></td><td>No</td><td>Labelled frame around related controls.</td></tr>
+        <tr><td><code>Control(type, name, x, y, w, h)</code></td><td>any <code>CustomControlType</code></td><td>depends</td><td>Escape hatch for types with no dedicated adder &mdash; <code>RadioButtonGroup</code>, <code>ComboBox</code>, <code>ListBox</code>, <code>SelectionTree</code>, <code>DirectoryCombo</code>, <code>DirectoryList</code>, <code>MaskedEdit</code>, <code>VolumeCostList</code>, <code>ProgressBar</code>. Several need a companion table (for example <code>RadioButtonGroup</code> needs a <code>RadioButton</code> table) authored separately &mdash; only the <code>Control</code> row is emitted here.</td></tr>
+    </tbody>
+</table>
+
+<p>Appearance/state modifiers, on the <code>CustomDialogControlBuilder</code> a control adder's <code>configure</code> callback receives (default attributes are <code>Visible | Enabled</code>):</p>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>Control.Attributes bit</th><th>Effect</th></tr></thead>
+    <tbody>
+        <tr><td><code>Hidden()</code></td><td>clears <code>Visible</code> (0x0001)</td><td>Control starts invisible; typically paired with a <code>ShowWhen</code> condition.</td></tr>
+        <tr><td><code>Disabled()</code></td><td>clears <code>Enabled</code> (0x0002)</td><td>Control starts greyed out; typically paired with an <code>EnableWhen</code> condition.</td></tr>
+        <tr><td><code>Sunken()</code></td><td>sets 0x0004</td><td>Sunken 3-D border (used for the license body in demo 65).</td></tr>
+        <tr><td><code>Transparent()</code></td><td>sets 0x00010000</td><td>Transparent background, for text/bitmap drawn over another control.</td></tr>
+        <tr><td><code>NoPrefix()</code></td><td>sets 0x00020000</td><td>Disables <code>&amp;</code> accelerator-prefix processing in the control text.</td></tr>
+        <tr><td><code>RightAligned()</code></td><td>sets 0x0040</td><td>Right-aligns the control text.</td></tr>
+        <tr><td><code>Attributes(int)</code></td><td>replaces the whole bitmask</td><td>Escape hatch for any other <a href="https://learn.microsoft.com/en-us/windows/win32/msi/control-table">Control table</a> bit.</td></tr>
+    </tbody>
+</table>
+
+<p>The same <code>configure</code> callback also has <code>Text(text)</code> (replaces the control text), <code>Property(property)</code> ((re)binds the MSI property), and <code>Next(controlName)</code> (sets <code>Control_Next</code> for tab order).</p>
+
+<p>Event verbs, chained off the same <code>configure</code> callback:</p>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>MSI ControlEvent</th><th>Argument</th><th>When to use</th></tr></thead>
+    <tbody>
+        <tr><td><code>NavigateTo(dialogId, condition?)</code></td><td><code>NewDialog</code></td><td>target dialog Id</td><td>Replace the current dialog in place &mdash; a normal Next/Back step.</td></tr>
+        <tr><td><code>SpawnDialog(dialogId, condition?)</code></td><td><code>SpawnDialog</code></td><td>target dialog Id</td><td>Open a modal child on top of the current dialog (confirmation prompts).</td></tr>
+        <tr><td><code>EndDialog(exitCode = "Return", condition?)</code></td><td><code>EndDialog</code></td><td><code>Return</code> / <code>Exit</code> / <code>Retry</code> / <code>Ignore</code></td><td>Close the dialog chain with an outcome &mdash; <code>Return</code> proceeds with the install.</td></tr>
+        <tr><td><code>DoAction(actionName, condition?)</code></td><td><code>DoAction</code></td><td>custom action name</td><td>Run a custom action from a button click.</td></tr>
+        <tr><td><code>SetProperty(property, value, condition?)</code></td><td><code>[PropertyName]</code></td><td>value to assign</td><td>Assign an MSI property directly, no custom action needed.</td></tr>
+        <tr><td><code>Reset(condition?)</code></td><td><code>Reset</code></td><td><code>0</code></td><td>Reset every control on the dialog to its default state.</td></tr>
+        <tr><td><code>PublishEvent(event, argument, condition?, ordering = 1)</code></td><td>any verb</td><td>any</td><td>Escape hatch for any other <a href="https://learn.microsoft.com/en-us/windows/win32/msi/controlevent-table">ControlEvent</a> row (for example <code>AddLocal</code>, <code>Remove</code>, <code>SetTargetPath</code>); <code>ordering</code> breaks ties when a control fires the same verb more than once.</td></tr>
+    </tbody>
+</table>
+
+<p>An omitted <code>condition</code> compiles to the canonical always-true condition <code>"1"</code>.</p>
+
+<p>Condition verbs, chained off the same <code>configure</code> callback:</p>
+
+<table class="api-table">
+    <thead><tr><th>Method</th><th>ControlCondition Action</th><th>Effect when the condition is true</th></tr></thead>
+    <tbody>
+        <tr><td><code>ShowWhen(condition)</code></td><td><code>Show</code></td><td>Shows the control.</td></tr>
+        <tr><td><code>HideWhen(condition)</code></td><td><code>Hide</code></td><td>Hides the control.</td></tr>
+        <tr><td><code>EnableWhen(condition)</code></td><td><code>Enable</code></td><td>Enables the control.</td></tr>
+        <tr><td><code>DisableWhen(condition)</code></td><td><code>Disable</code></td><td>Disables (greys out) the control.</td></tr>
+        <tr><td><code>DefaultWhen(condition)</code></td><td><code>Default</code></td><td>Restores the control to its default/initial state.</td></tr>
+        <tr><td><code>When(action, condition)</code></td><td>any <code>CustomConditionAction</code></td><td>Escape hatch taking the enum directly.</td></tr>
+    </tbody>
+</table>
+
+<p>
+    Conditions re-evaluate live as properties change &mdash; for example demo 65 wires
+    <code>DisableWhen("ACCEPTEULA &lt;&gt; \"1\"")</code> on the Install button so it re-enables the
+    moment the license check box is ticked, with no custom action involved.
+</p>
+
+<h4>Validation</h4>
+
+<p>
+    Invalid authoring fails loud at validation time, before the compiler ever touches the MSI database:
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Severity</th><th>Fires when</th></tr></thead>
+    <tbody>
+        <tr><td>DLG010</td><td>Error</td><td>A custom dialog's <code>Id</code> is empty or whitespace.</td></tr>
+        <tr><td>DLG011</td><td>Error</td><td>A custom dialog's <code>Id</code> is not a valid MSI identifier (must start with a letter or underscore; only letters, digits, underscores, and periods after that).</td></tr>
+        <tr><td>DLG012</td><td>Error</td><td>Two custom dialogs in the package share the same <code>Id</code>.</td></tr>
+        <tr><td>DLG013</td><td>Error</td><td>A custom dialog has zero controls &mdash; it would have no <code>Control_First</code> and could never be shown.</td></tr>
+        <tr><td>DLG014</td><td>Error</td><td>A control on a custom dialog has an empty or whitespace <code>Name</code>.</td></tr>
+        <tr><td>DLG015</td><td>Error</td><td>A control <code>Name</code> is not a valid MSI identifier.</td></tr>
+        <tr><td>DLG016</td><td>Error</td><td>Two controls on the same dialog share a <code>Name</code>.</td></tr>
+        <tr><td>DLG017</td><td>Error</td><td>A control's <code>Next(...)</code> tab-order target does not name a control on the same dialog.</td></tr>
+        <tr><td>DLG018</td><td>Error</td><td>A data-bound control type (<code>Edit</code>, <code>CheckBox</code>, <code>PathEdit</code>, <code>MaskedEdit</code>, <code>RadioButtonGroup</code>, <code>ComboBox</code>, <code>ListBox</code>, <code>DirectoryCombo</code>, <code>DirectoryList</code>, <code>SelectionTree</code>) has no bound property.</td></tr>
+        <tr><td>DLG019</td><td>Error</td><td>A dialog's <code>FirstControl</code>, <code>DefaultControl</code>, or <code>CancelControl</code> names a control that isn't on the dialog.</td></tr>
+        <tr><td>DLG020</td><td>Error</td><td>A control event has an empty event verb.</td></tr>
+        <tr><td>DLG021</td><td>Error</td><td>A <code>NewDialog</code>/<code>SpawnDialog</code>/<code>DoAction</code>/<code>EndDialog</code> event has an empty argument.</td></tr>
+        <tr><td>DLG022</td><td>Error</td><td>A control condition has an empty condition expression.</td></tr>
+    </tbody>
+</table>
+
+<p>
+    These are a distinct rule family from <code>DLG001&ndash;DLG003</code> below, which validate
+    <code>DialogCustomization</code> step insertion rather than authored custom dialogs.
 </p>
 
 <h3>Dialog Customization API</h3>

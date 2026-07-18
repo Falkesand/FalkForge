@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom MSI Dialogs — FalkForge Tutorials</title>
+  <link rel="stylesheet" href="shared/tutorial.css">
+</head>
+<body>
+  <header class="top-bar">
+    <div style="display:flex;align-items:center;gap:1rem">
+      <span class="logo" style="font-weight:700;font-size:1.1rem;color:var(--accent)">FalkForge</span>
+      <a href="index.html" style="color:var(--text-muted);font-size:0.9rem;text-decoration:none">Tutorials</a>
+    </div>
+    <nav style="display:flex;align-items:center;gap:1rem">
+      <a href="../../documentation.html" style="font-size:0.9rem">Reference Docs</a>
+      <button id="theme-toggle" title="Toggle theme" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:4px 8px">🌙</button>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Custom MSI Dialogs</h1>
+    <div class="tutorial-meta">
+      15 min read · Prerequisite: <a href="msi-basics.html">MSI Basics</a> · Wraps <code>demo/65-custom-dialog</code>
+    </div>
+
+    <!-- Intro -->
+    <p>The stock dialog sets (<code>Minimal</code>, <code>InstallDir</code>, <code>Mondo</code>, &hellip;) cover most installers. But sometimes you need a screen the stock templates don't have &mdash; a license-key entry field, a survey question, a custom EULA layout. <code>PackageBuilder.AddCustomDialog</code> lets you author a complete MSI dialog from scratch: your own controls, your own navigation, your own validation &mdash; no WiX, no XML, no reference to the compiler project.</p>
+    <p>This tutorial builds the exact dialog in <code>demo/65-custom-dialog</code> one call at a time, explaining every Windows Installer concept &mdash; dialog units, tab order, property binding, control events &mdash; as it comes up. You don't need any prior MSI UI knowledge.</p>
+
+    <!-- Section 1: Start from an empty package -->
+    <h2>Start from an empty package</h2>
+    <p>A FalkForge installer is a call to <code>Installer.Build</code> with a callback that configures a <code>PackageBuilder</code>. Strip away the dialog and demo 65 is a completely ordinary single-file installer:</p>
+
+    <pre><code><span class="kw">return</span> Installer<span class="punc">.</span><span class="method">Build</span><span class="punc">(</span>args<span class="punc">,</span> package <span class="punc">=></span>
+<span class="punc">{</span>
+    package<span class="punc">.</span>Name <span class="punc">=</span> <span class="str">"Custom Dialog Demo"</span><span class="punc">;</span>
+    package<span class="punc">.</span>Manufacturer <span class="punc">=</span> <span class="str">"Demo"</span><span class="punc">;</span>
+    package<span class="punc">.</span>Version <span class="punc">=</span> <span class="kw">new</span> <span class="typ">Version</span><span class="punc">(</span><span class="num">1</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">0</span><span class="punc">);</span>
+
+    package<span class="punc">.</span><span class="method">Files</span><span class="punc">(</span>files <span class="punc">=></span> files
+        <span class="punc">.</span><span class="method">Add</span><span class="punc">(</span><span class="str">"payload/app.txt"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">To</span><span class="punc">(</span><span class="typ">KnownFolder</span><span class="punc">.</span>ProgramFiles <span class="punc">/</span> <span class="str">"Demo"</span> <span class="punc">/</span> <span class="str">"CustomDialog"</span><span class="punc">));</span>
+
+    <span class="cmt">// the dialog goes here</span>
+<span class="punc">},</span> <span class="kw">new</span> <span class="typ">MsiCompiler</span><span class="punc">());</span></code></pre>
+
+    <p>No <code>UseDialogSet</code> call, no <code>DialogSet</code> at all. Left as-is, this package compiles with no UI &mdash; the MSI installs silently. Everything from here on is one <code>package.AddCustomDialog(&hellip;)</code> call that adds a single screen.</p>
+
+    <!-- Section 2: Open the dialog -->
+    <h2>Open the dialog</h2>
+    <pre><code>package<span class="punc">.</span><span class="method">AddCustomDialog</span><span class="punc">(</span><span class="str">"LicenseKeyDlg"</span><span class="punc">,</span> dlg <span class="punc">=></span> dlg
+    <span class="cmt">// &hellip; configuration and controls go here, chained off dlg</span>
+<span class="punc">);</span></code></pre>
+
+    <p><code>AddCustomDialog</code> takes an <strong>Id</strong> (<code>"LicenseKeyDlg"</code> &mdash; must be a valid MSI identifier: starts with a letter or underscore, then only letters, digits, underscores, and periods) and a configuration callback. The callback receives a <code>CustomDialogBuilder</code>; every method on it returns the same builder, so the whole dialog reads as one fluent chain.</p>
+    <p>Nothing about this call touches <code>FalkForge.Compiler.Msi</code>. <code>CustomDialogBuilder</code> lives in <code>FalkForge.Core</code> and produces a plain <code>CustomDialogModel</code> the compiler translates into MSI <code>Dialog</code>/<code>Control</code>/<code>ControlEvent</code>/<code>ControlCondition</code> rows when the package builds.</p>
+
+    <!-- Section 3: Title and sequence -->
+    <h2>Title, size, and sequence</h2>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">Title</span><span class="punc">(</span><span class="str">"Custom Dialog Demo — License"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Size</span><span class="punc">(</span><span class="num">370</span><span class="punc">,</span> <span class="num">270</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Sequence</span><span class="punc">(</span><span class="num">1100</span><span class="punc">)</span>                 <span class="cmt">// Show this dialog as the first install-UI screen.</span></code></pre>
+
+    <p><code>Title</code> sets the window caption. <code>Size(370, 270)</code> is the MSI standard dialog size &mdash; and it's the default even if you don't call <code>Size</code> at all, so this line is here for clarity, not necessity.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: dialog units aren't pixels</summary>
+      <div class="deep-dive-content">
+        <p>Every coordinate and size you'll pass to a control &mdash; <code>X</code>, <code>Y</code>, <code>Width</code>, <code>Height</code> &mdash; is in <strong>dialog units (DLU)</strong>, not pixels. A DLU is defined relative to the dialog's font: roughly one quarter of the average character width horizontally, one eighth of the character height vertically. Windows Installer converts DLU to pixels at render time using the actual font metrics on the machine showing the dialog.</p>
+        <p>This is why the standard dialog is <code>370 &times; 270</code> and not some pixel figure: it looks right regardless of the user's DPI setting or system font size, because the conversion happens on their machine, not at compile time. When you lay out a control at <code>x: 15, y: 180</code>, think of it as "15/270ths of the way across, 180/270ths of the way down" &mdash; not an absolute pixel offset.</p>
+      </div>
+    </details>
+
+    <p><code>.Sequence(1100)</code> is what makes this dialog actually <em>appear</em>. Without it, <code>LicenseKeyDlg</code> would be a fully valid dialog that nothing ever shows &mdash; reachable only if some other dialog's <code>NewDialog</code>/<code>SpawnDialog</code> event targeted it. Setting a sequence number places the dialog's Id into the <code>InstallUISequence</code> table, which is what Windows Installer walks to decide the first screen of the install UI. <code>1100</code> is the conventional first-dialog slot every stock FalkForge template also uses.</p>
+
+    <!-- Section 4: Tab order anchors -->
+    <h2>Tab order anchors</h2>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">FirstControl</span><span class="punc">(</span><span class="str">"AcceptCheck"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">CancelControl</span><span class="punc">(</span><span class="str">"CancelButton"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">DefaultControl</span><span class="punc">(</span><span class="str">"InstallButton"</span><span class="punc">)</span></code></pre>
+
+    <p>These three calls name controls we haven't added yet &mdash; that's fine, FalkForge only checks that the names resolve when the package is validated, after the whole dialog is authored. They set up three independent keyboard anchors:</p>
+    <ul>
+      <li><strong>FirstControl</strong> &mdash; which control has focus the instant the dialog opens.</li>
+      <li><strong>DefaultControl</strong> &mdash; which control activates when the user presses Enter, from anywhere on the dialog.</li>
+      <li><strong>CancelControl</strong> &mdash; which control activates when the user presses Esc.</li>
+    </ul>
+    <p>None of these three by themselves create the Tab-key cycle &mdash; that's a separate, per-control chain covered in a moment.</p>
+
+    <!-- Section 5: Controls one by one -->
+    <h2>Adding controls, one at a time</h2>
+    <p>Every control adder on <code>CustomDialogBuilder</code> takes the same shape: a unique <strong>name</strong>, then <strong>x, y, width, height</strong> in dialog units, then whatever data the control type needs, then an optional <code>configure</code> callback for anything beyond the basics (tab order, events, conditions, appearance bits).</p>
+
+    <h3>Header text and separator</h3>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">Text</span><span class="punc">(</span><span class="str">"Title"</span><span class="punc">,</span> <span class="num">15</span><span class="punc">,</span> <span class="num">15</span><span class="punc">,</span> <span class="num">340</span><span class="punc">,</span> <span class="num">15</span><span class="punc">,</span> <span class="str">"Please review and accept the license"</span><span class="punc">,</span>
+        b <span class="punc">=></span> b<span class="punc">.</span><span class="method">Attributes</span><span class="punc">(</span><span class="num">0x00030003</span><span class="punc">))</span> <span class="cmt">// Visible | Enabled | Transparent | NoPrefix</span>
+    <span class="punc">.</span><span class="method">Line</span><span class="punc">(</span><span class="str">"HeaderLine"</span><span class="punc">,</span> <span class="num">0</span><span class="punc">,</span> <span class="num">40</span><span class="punc">,</span> <span class="num">370</span><span class="punc">)</span></code></pre>
+
+    <p><code>Text</code> is a static, non-interactive label &mdash; no property, nothing to bind. It sits at <code>(15, 15)</code>, is <code>340</code> DLU wide (leaving a 15-unit margin on each side of the 370-wide dialog) and <code>15</code> tall. The <code>configure</code> callback here calls <code>.Attributes(0x00030003)</code> directly with a raw bitmask instead of using the named helpers (<code>Transparent()</code>, <code>NoPrefix()</code>) &mdash; both produce the identical <code>Control</code> row; the raw form is shown here because that's what the demo does, and it's worth knowing both work.</p>
+    <p><code>Line</code> draws a horizontal etched separator. It only takes a name, position, and width &mdash; no height parameter, because a line's height is always <code>0</code> in the MSI <code>Control</code> table.</p>
+
+    <h3>The license body</h3>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">ScrollableText</span><span class="punc">(</span><span class="str">"LicenseBody"</span><span class="punc">,</span> <span class="num">15</span><span class="punc">,</span> <span class="num">50</span><span class="punc">,</span> <span class="num">340</span><span class="punc">,</span> <span class="num">120</span><span class="punc">,</span>
+        <span class="str">"This is a demonstration end-user license agreement.\n\n"</span> <span class="punc">+</span>
+        <span class="str">"You may use this sample installer for evaluation purposes."</span><span class="punc">,</span>
+        b <span class="punc">=></span> b<span class="punc">.</span><span class="method">Sunken</span><span class="punc">())</span></code></pre>
+
+    <p><code>ScrollableText</code> is a read-only, multi-line, scrollable text area &mdash; the standard control for a license body. It carries its text directly (not a bound property: nothing writes back into it). <code>b.Sunken()</code> sets the appearance bit that draws the classic sunken 3-D border MSI license boxes use, so it reads visually as a distinct, contained region rather than plain text floating on the dialog.</p>
+
+    <h3>The accept check box</h3>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">CheckBox</span><span class="punc">(</span><span class="str">"AcceptCheck"</span><span class="punc">,</span> <span class="num">15</span><span class="punc">,</span> <span class="num">180</span><span class="punc">,</span> <span class="num">340</span><span class="punc">,</span> <span class="num">12</span><span class="punc">,</span>
+        property<span class="punc">:</span> <span class="str">"ACCEPTEULA"</span><span class="punc">,</span>
+        text<span class="punc">:</span> <span class="str">"I &amp;accept the terms in the License Agreement"</span><span class="punc">,</span>
+        configure<span class="punc">:</span> b <span class="punc">=></span> b<span class="punc">.</span><span class="method">Next</span><span class="punc">(</span><span class="str">"KeyEdit"</span><span class="punc">))</span></code></pre>
+
+    <p>This is the first <strong>data-bound</strong> control: <code>property: "ACCEPTEULA"</code> means the check box reads and writes the MSI property <code>ACCEPTEULA</code> &mdash; ticked means <code>"1"</code>, unticked means empty. Nothing else in the dialog has to poll the check box; anything that needs to know whether the license was accepted just reads that property, which is exactly what the Install button's condition will do shortly.</p>
+    <p><code>b.Next("KeyEdit")</code> is the first link in the tab-order chain: this is what makes <code>FirstControl("AcceptCheck")</code> from earlier actually lead somewhere. <code>Control_Next</code> is a linked list, not a Z-order &mdash; a control you never point <em>to</em> or set as <code>FirstControl</code> is simply unreachable by Tab.</p>
+
+    <h3>The license key field</h3>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">Text</span><span class="punc">(</span><span class="str">"KeyPrompt"</span><span class="punc">,</span> <span class="num">15</span><span class="punc">,</span> <span class="num">200</span><span class="punc">,</span> <span class="num">120</span><span class="punc">,</span> <span class="num">12</span><span class="punc">,</span> <span class="str">"License &amp;key:"</span><span class="punc">)</span>
+    <span class="punc">.</span><span class="method">Edit</span><span class="punc">(</span><span class="str">"KeyEdit"</span><span class="punc">,</span> <span class="num">135</span><span class="punc">,</span> <span class="num">198</span><span class="punc">,</span> <span class="num">220</span><span class="punc">,</span> <span class="num">16</span><span class="punc">,</span>
+        property<span class="punc">:</span> <span class="str">"LICENSEKEY"</span><span class="punc">,</span>
+        configure<span class="punc">:</span> b <span class="punc">=></span> b<span class="punc">.</span><span class="method">Next</span><span class="punc">(</span><span class="str">"InstallButton"</span><span class="punc">))</span></code></pre>
+
+    <p>A plain <code>Text</code> label ("License &amp;key:") sits next to an <code>Edit</code> field bound to <code>LICENSEKEY</code>. The two share a row visually (<code>y: 200</code> and <code>y: 198</code>, close enough to align) but only the <code>Edit</code> is in the tab chain &mdash; static text is never a tab stop. <code>Next("InstallButton")</code> continues the chain: <code>AcceptCheck &rarr; KeyEdit &rarr; InstallButton</code> so far.</p>
+
+    <h3>The buttons</h3>
+    <pre><code>dlg
+    <span class="punc">.</span><span class="method">PushButton</span><span class="punc">(</span><span class="str">"InstallButton"</span><span class="punc">,</span> <span class="num">210</span><span class="punc">,</span> <span class="num">240</span><span class="punc">,</span> <span class="num">66</span><span class="punc">,</span> <span class="num">17</span><span class="punc">,</span> <span class="str">"&amp;Install"</span><span class="punc">,</span> b <span class="punc">=></span> b
+        <span class="punc">.</span><span class="method">Next</span><span class="punc">(</span><span class="str">"CancelButton"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">EndDialog</span><span class="punc">(</span><span class="str">"Return"</span><span class="punc">)</span>                       <span class="cmt">// proceed with the installation</span>
+        <span class="punc">.</span><span class="method">DisableWhen</span><span class="punc">(</span><span class="str">"ACCEPTEULA &lt;&gt; \"1\""</span><span class="punc">))</span>       <span class="cmt">// gated on the accept check box</span>
+    <span class="punc">.</span><span class="method">PushButton</span><span class="punc">(</span><span class="str">"CancelButton"</span><span class="punc">,</span> <span class="num">289</span><span class="punc">,</span> <span class="num">240</span><span class="punc">,</span> <span class="num">66</span><span class="punc">,</span> <span class="num">17</span><span class="punc">,</span> <span class="str">"Cancel"</span><span class="punc">,</span> b <span class="punc">=></span> b
+        <span class="punc">.</span><span class="method">Next</span><span class="punc">(</span><span class="str">"AcceptCheck"</span><span class="punc">)</span>
+        <span class="punc">.</span><span class="method">EndDialog</span><span class="punc">(</span><span class="str">"Exit"</span><span class="punc">)));</span></code></pre>
+
+    <p><code>CancelButton.Next("AcceptCheck")</code> closes the tab loop: <code>AcceptCheck &rarr; KeyEdit &rarr; InstallButton &rarr; CancelButton &rarr; AcceptCheck</code>. Tab cycles forever through all four interactive controls; Shift+Tab walks it backwards. This is also why <code>FirstControl("AcceptCheck")</code> and <code>CancelControl("CancelButton")</code> from earlier line up with real controls now that the whole dialog is authored.</p>
+
+    <!-- Section 6: Events -->
+    <h2>Events: what a click actually does</h2>
+    <p>Each button chains two more calls after <code>Next</code> &mdash; one event, one condition. Take them separately.</p>
+    <p><code>.EndDialog("Return")</code> on the Install button and <code>.EndDialog("Exit")</code> on the Cancel button are both <strong>ControlEvent</strong> rows with the <code>EndDialog</code> verb. <code>EndDialog</code> closes the entire dialog chain &mdash; there's nothing to navigate back to. The argument is the outcome: <code>Return</code> tells Windows Installer the UI sequence finished successfully and it should proceed to install; <code>Exit</code> tells it the user backed out, and the install does not proceed. (The other two standard arguments, <code>Retry</code> and <code>Ignore</code>, matter for dialogs shown during error handling, not here.)</p>
+    <p>Contrast this with the navigation verbs you'd use in a multi-dialog flow: <code>NavigateTo(dialogId)</code> emits <code>NewDialog</code>, which closes the current dialog and opens another one in its place (a Next/Back step); <code>SpawnDialog(dialogId)</code> emits <code>SpawnDialog</code>, which opens a second dialog <em>on top of</em> the current one &mdash; used for things like an "Are you sure you want to cancel?" prompt, where the parent dialog is still there underneath once the child closes. This demo only has one dialog, so it only ever needs <code>EndDialog</code>.</p>
+
+    <details class="deep-dive">
+      <summary>Deep dive: why events need a condition at all</summary>
+      <div class="deep-dive-content">
+        <p>Every <code>ControlEvent</code> row has a condition column. If you don't pass one &mdash; and neither button here does &mdash; FalkForge compiles the canonical always-true condition <code>"1"</code>, so the event fires unconditionally on click. You'd supply a real condition on an event (not a <code>ControlCondition</code> &mdash; that's a separate table, covered next) when the same button needs to do different things depending on state, for example firing a <code>DoAction</code> custom action only when a certain property is set, and an <code>EndDialog</code> otherwise. This demo doesn't need that: both buttons always do exactly one thing when clicked, so both events use the default <code>"1"</code>.</p>
+      </div>
+    </details>
+
+    <!-- Section 7: Conditions -->
+    <h2>Conditions: gating the Install button</h2>
+    <p><code>.DisableWhen("ACCEPTEULA &lt;&gt; \"1\"")</code> is a completely different mechanism from the event above it. It's a <strong>ControlCondition</strong> row: not something that fires once on a click, but a rule Windows Installer re-evaluates continuously as properties change. As long as <code>ACCEPTEULA</code> is not <code>"1"</code> &mdash; the check box unticked &mdash; the Install button stays disabled (greyed out, unclickable). The instant the user ticks <code>AcceptCheck</code>, <code>ACCEPTEULA</code> becomes <code>"1"</code>, the condition goes false, and the button re-enables itself with no custom action, no page refresh, nothing else involved.</p>
+    <p>This is the same pattern the stock FalkForge templates use for their own license pages (<code>LicenseAccepted = "1"</code> gating Next) &mdash; <code>DisableWhen</code> is just the fluent form of it, available on any control you author yourself. The companion verbs are <code>ShowWhen</code>/<code>HideWhen</code> (visibility) and <code>EnableWhen</code> (the inverse of <code>DisableWhen</code>) and <code>DefaultWhen</code> (restores the control's initial state); all five compile to the same <code>ControlCondition</code> table with a different <code>Action</code> value.</p>
+
+    <!-- Section 8: Build -->
+    <h2>Build it</h2>
+    <pre><code>dotnet run --project demo/65-custom-dialog</code></pre>
+    <p>This compiles the installer definition and produces a <code>.msi</code> file. Before it writes a single MSI row, FalkForge validates the whole authored dialog: every Id and Name must be a well-formed MSI identifier and unique in its scope, <code>Control_Next</code>/<code>FirstControl</code>/<code>DefaultControl</code>/<code>CancelControl</code> must all resolve to real controls, and every data-bound control (like <code>AcceptCheck</code> and <code>KeyEdit</code> here) must actually have a property. Get any of that wrong and the build fails loud with a specific <code>DLG01x</code>/<code>DLG02x</code> diagnostic instead of silently producing a broken dialog &mdash; see the <a href="../../documentation.html#dlg-capabilities">Validation table</a> in the reference manual for the full list.</p>
+
+    <!-- Section 9: What it looks like -->
+    <h2>What it looks like at install</h2>
+    <p>Run the compiled MSI and <code>LicenseKeyDlg</code> is the very first thing you see &mdash; that's the <code>.Sequence(1100)</code> from earlier. The screen shows the header text and separator, the sunken scrollable license body, the "I accept the terms&hellip;" check box, a "License key:" label next to an edit field, and two buttons in the bottom-right corner. Install starts disabled (greyed out) because <code>ACCEPTEULA</code> is empty. Tab cycles focus through check box &rarr; key field &rarr; Install &rarr; Cancel &rarr; back to check box; Esc always triggers Cancel; Enter triggers whichever of Install/Cancel currently has focus behavior wired as default (<code>InstallButton</code>, once it's enabled).</p>
+    <p>Tick the check box: <code>ACCEPTEULA</code> flips to <code>"1"</code>, the <code>DisableWhen</code> condition re-evaluates, and Install lights up &mdash; no page reload, because there was never a page to reload. Click Install and the dialog fires <code>EndDialog("Return")</code>: the UI sequence ends successfully and the file copy proceeds. Click Cancel instead (at any point, check box ticked or not) and <code>EndDialog("Exit")</code> ends the sequence without installing anything.</p>
+
+    <!-- Recap -->
+    <h2>Recap</h2>
+    <p>Building a custom dialog is always the same shape:</p>
+    <ol>
+      <li><strong><code>AddCustomDialog(id, dlg =&gt; &hellip;)</code></strong> &mdash; opens the builder for one dialog.</li>
+      <li><strong>Configure the dialog</strong> &mdash; <code>Title</code>, <code>Size</code>, <code>Sequence</code> (to make it appear), <code>FirstControl</code>/<code>DefaultControl</code>/<code>CancelControl</code> (keyboard anchors).</li>
+      <li><strong>Add controls</strong> &mdash; each one named, positioned in dialog units (not pixels), bound to a property if it carries data.</li>
+      <li><strong>Chain tab order</strong> &mdash; every interactive control's <code>Next(&hellip;)</code> points at the next one, closing the loop back to the first.</li>
+      <li><strong>Wire events</strong> &mdash; what happens on click: navigate, spawn a child, run an action, or end the dialog.</li>
+      <li><strong>Wire conditions</strong> &mdash; what the control's state should be as a function of live property values, re-evaluated continuously.</li>
+    </ol>
+    <p>The full source is in <code>demo/65-custom-dialog/Program.cs</code>. For the complete authoring surface &mdash; every control adder, every event verb, every condition verb, and the full <code>DLG010</code>&ndash;<code>DLG022</code> validation reference &mdash; see <a href="../../documentation.html#dlg-capabilities">Authoring a Custom Dialog</a> in the manual.</p>
+
+    <nav class="tutorial-nav">
+      <a href="msi-basics.html">&larr; Previous: MSI Basics</a>
+      <span></span>
+    </nav>
+  </main>
+
+  <script src="shared/tutorial.js"></script>
+</body>
+</html>
