@@ -2813,8 +2813,9 @@ return Installer.Build(args, p =&gt;
     p.UseDialogSet(MsiDialogSet.FeatureTree);
 
     p.MajorUpgrade(mu =&gt; mu
-        .DowngradeErrorMessage("A newer version is already installed.")
         .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate));
+
+    p.Downgrade(d =&gt; d.Block("A newer version is already installed."));
 
     p.Require(Condition.IsWindows10OrLater, "Windows 10 or later is required.");
 
@@ -3500,9 +3501,7 @@ p.UISequence(seq =&gt; seq
       <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>AllowDowngrades()</code></td><td><code>MajorUpgradeBuilder</code></td><td>Allows installing an older version over a newer one.</td></tr>
       <tr><td><code>AllowSameVersionUpgrades()</code></td><td><code>MajorUpgradeBuilder</code></td><td>Allows reinstalling the same version.</td></tr>
-      <tr><td><code>DowngradeErrorMessage(string message)</code></td><td><code>MajorUpgradeBuilder</code></td><td>Error message shown when a downgrade is blocked.</td></tr>
       <tr><td><code>Schedule(RemoveExistingProductsSchedule schedule)</code></td><td><code>MajorUpgradeBuilder</code></td><td>When to remove the previous version. Defaults to <code>AfterInstallValidate</code>.</td></tr>
       <tr><td><code>MigrateFeatures(bool migrate)</code></td><td><code>MajorUpgradeBuilder</code></td><td>Whether to migrate feature selections from the old install. Defaults to <code>true</code>.</td></tr>
     </tbody>
@@ -3522,11 +3521,28 @@ p.UISequence(seq =&gt; seq
     </tbody>
   </table>
 
+  <p>
+    Downgrade blocking is configured separately via <code>PackageBuilder.Downgrade()</code>, not through
+    <code>MajorUpgradeBuilder</code>. Located at <code>src/FalkForge.Core/Builders/DowngradeBuilder.cs</code>.
+  </p>
+
+  <h4>DowngradeBuilder</h4>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Allow()</code></td><td><code>DowngradeBuilder</code></td><td>Allows installing an older version over a newer one.</td></tr>
+      <tr><td><code>Block(string message)</code></td><td><code>DowngradeBuilder</code></td><td>Blocks downgrades and sets the error message shown when a downgrade is blocked.</td></tr>
+    </tbody>
+  </table>
+
   <pre><code class="language-csharp">p.MajorUpgrade(mu =&gt; mu
-    .DowngradeErrorMessage("A newer version of [ProductName] is already installed.")
     .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate)
     .AllowSameVersionUpgrades()
-    .MigrateFeatures(true));</code></pre>
+    .MigrateFeatures(true));
+
+p.Downgrade(d =&gt; d.Block("A newer version of [ProductName] is already installed."));</code></pre>
 
   <!-- ================================================================ -->
   <!-- 8.15 UpgradeBuilder                                              -->
@@ -4113,8 +4129,9 @@ p.CreateFolder(cf =&gt; cf
 
     // Upgrade behavior
     p.MajorUpgrade(mu =&gt; mu
-        .DowngradeErrorMessage("A newer version is already installed.")
         .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate));
+
+    p.Downgrade(d =&gt; d.Block("A newer version is already installed."));
 
     // Launch conditions
     p.Require(Condition.IsWindows10OrLater, "Windows 10 or later is required.");
@@ -5025,9 +5042,12 @@ public sealed class BundleCompiler
     The shipped extensions below don't just author inert MSI table rows: Firewall, SQL, IIS
     (application pools and web sites), HTTP, Dependency, and Util schedule real deferred, elevated
     custom actions that create the firewall rule, database, site, URL reservation, or registry
-    provider entry <em>at install time</em>. One gap to know about: IIS certificate bindings,
-    sub-applications, and virtual directories are still written into site configuration only
-    &mdash; they are not yet bound or created at install (the validator warns via IIS013/IIS014).
+    provider entry <em>at install time</em>. IIS virtual directories are created (and removed on
+    uninstall) at install time when parented under the site's root application; a virtual directory
+    targeting a non-root parent application is warned via IIS015, since sub-application creation
+    itself is not yet wired. Two gaps remain: IIS certificate bindings and sub-applications are
+    still written into site configuration only &mdash; they are not yet bound or created at install
+    (the validator warns via IIS013/IIS014).
   </p>
 
   <!-- 10.1 Extension Interfaces -->
@@ -9107,14 +9127,11 @@ public sealed record WixUnmappedFeature(
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>SVC001</td><td>Service name is required</td></tr>
-        <tr><td>SVC002</td><td>Service display name is required</td></tr>
-        <tr><td>SVC003</td><td>Service executable path is required</td></tr>
-        <tr><td>SVC004</td><td>Invalid service start type</td></tr>
-        <tr><td>SVC005</td><td>Invalid service type</td></tr>
-        <tr><td>SVC006</td><td>Duplicate service name</td></tr>
-        <tr><td>SVC007</td><td>Service account requires password</td></tr>
-        <tr><td>SVC008</td><td>Invalid failure action configuration</td></tr>
+        <tr><td>SVC001</td><td>Service Name is required</td></tr>
+        <tr><td>SVC002</td><td>Service Executable is required</td></tr>
+        <tr><td>SVC003</td><td>Service with Account=User requires a UserName</td></tr>
+        <tr><td>SVC004</td><td>Service name must not exceed 256 characters</td></tr>
+        <tr><td>SVC005</td><td>Plaintext service password (warning)</td></tr>
         <tr><td>SVC009</td><td>Service Arguments is empty string (use null for no arguments)</td></tr>
         <tr><td>SVC010</td><td>Both AccountProperty and UserName specified (AccountProperty takes precedence)</td></tr>
         <tr><td>SVC011</td><td>Service ComponentCondition must not be empty (use null to omit)</td></tr>
@@ -9135,12 +9152,17 @@ public sealed record WixUnmappedFeature(
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>REG001</td><td>Registry root is required</td></tr>
-        <tr><td>REG002</td><td>Registry key path is required</td></tr>
-        <tr><td>REG003</td><td>Registry value name is required for non-default values</td></tr>
-        <tr><td>REG004</td><td>Invalid registry value type</td></tr>
-        <tr><td>REG005</td><td>Registry value data is required</td></tr>
-        <tr><td>REG006</td><td>Duplicate registry entry</td></tr>
+        <tr><td>REG007</td><td>Registry value references a sensitive MSI property (warning)</td></tr>
+    </tbody>
+</table>
+
+<h3>RemoveRegistry Validation (RRG)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>RRG001</td><td>RemoveRegistry Id is required</td></tr>
+        <tr><td>RRG002</td><td>RemoveRegistry Key is required</td></tr>
+        <tr><td>RRG003</td><td>RemoveValue action requires a Name</td></tr>
     </tbody>
 </table>
 

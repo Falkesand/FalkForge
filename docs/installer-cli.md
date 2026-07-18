@@ -114,10 +114,10 @@ Self-extraction does **not** require elevation and never starts the engine state
 
 | Flag | Argument | Behaviour |
 |------|----------|-----------|
-| `--plan-only` | *(none)* | **Currently a no-op.** The flag is parsed but not yet wired through the engine pipeline. See note below. |
-| `--plan-output` | `<path>` | **Currently a no-op.** Reserved for the JSON dry-run output once `--plan-only` is wired. |
+| `--plan-only` | *(none)* | Runs Detect and Plan as usual, then exports the resulting plan as JSON and shuts down **without** running Elevate or Apply. Exits with code `0` on success. |
+| `--plan-output` | `<path>` | Optional. When set, the plan JSON is written to `<path>` instead of stdout. Only meaningful together with `--plan-only`. |
 
-**Implementation status.** As of the current code (`src/FalkForge.Engine/Program.cs`), both flags are parsed and then explicitly discarded with `_ = planOnly; _ = planOutputPath;`. The engine continues to run the normal install pipeline. Do not rely on these flags to produce a dry-run today; they are placeholders for a future feature.
+**Implementation status.** `--plan-only` and `--plan-output` are parsed in `src/FalkForge.Engine/Program.cs` and passed through as `EngineSessionOptions.IsPlanOnly` / `PlanOnlyOutputPath`. `PipelineRunner` (`src/FalkForge.Engine/Pipeline/PipelineRunner.cs`) checks `IsPlanOnly` immediately after a successful `PlanAsync()`: if set, it calls `IInstallerPipeline.ExportPlan(planOnlyOutputPath)` — which writes the plan JSON to the given file path, or to stdout when no path is given — sends a shutdown, and returns exit code `0` without ever calling `ElevateAsync` or `ApplyAsync`. This is a real dry-run: no elevation is requested and no changes are applied to the machine.
 
 ## Internal flags (do not pass directly)
 
