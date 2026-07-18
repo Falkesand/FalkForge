@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi;
+using FalkForge.Engine.Protocol.Integrity;
 
 namespace FalkForge.Cli;
 
@@ -61,6 +62,28 @@ public static class MsiInspector
             }
         }
 
+        // Signature presence/format/fingerprint for display only (non-cryptographic — verification
+        // is MsiIntegrityVerifier's job). Shares the table-then-sidecar lookup with the verifier so a
+        // reproducible-mode MSI (sidecar-only signature, no in-band table) is reported correctly too.
+        var signaturePresent = false;
+        string? signatureFormatTag = null;
+        var signatureFingerprints = new List<string>();
+
+        var located = MsiIntegrityVerifier.LocateEnvelopeJson(db, msiPath);
+        if (located is { } envelope)
+        {
+            signaturePresent = true;
+            signatureFormatTag = envelope.FormatTag;
+            var parsed = IntegrityEnvelopeCodec.Parse(envelope.Json);
+            if (parsed is not null)
+            {
+                signatureFingerprints = parsed.Signatures
+                    .Select(s => s.Fingerprint)
+                    .Where(fp => !string.IsNullOrEmpty(fp))
+                    .ToList();
+            }
+        }
+
         return new MsiInspectionResult
         {
             ProductName = productName,
@@ -68,7 +91,10 @@ public static class MsiInspector
             Version = version,
             ProductCode = productCode,
             TableNames = tableNames,
-            TableCount = tableNames.Count
+            TableCount = tableNames.Count,
+            SignaturePresent = signaturePresent,
+            SignatureFormatTag = signatureFormatTag,
+            SignatureFingerprints = signatureFingerprints
         };
     }
 

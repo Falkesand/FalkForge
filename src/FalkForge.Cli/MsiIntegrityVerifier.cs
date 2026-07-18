@@ -170,10 +170,16 @@ public static class MsiIntegrityVerifier
 
     /// <summary>
     /// Locates the signature envelope JSON, preferring the embedded table row over the detached
-    /// sidecar so an in-band signature is always authoritative when both exist.
+    /// sidecar so an in-band signature is always authoritative when both exist. A reproducible-mode
+    /// MSI (<c>Reproducible()</c> + <c>Integrity()</c>) carries no in-band table at all — the
+    /// signature moves entirely to the sidecar so the MSI bytes stay deterministic — so the sidecar
+    /// fallback is the normal path for those, not an error case.
+    ///
+    /// <para>Internal (not private) so <see cref="MsiInspector.Inspect"/> can surface the same
+    /// presence/format/fingerprint information for display without duplicating this lookup.</para>
     /// </summary>
     [SupportedOSPlatform("windows")]
-    private static (string Json, string? FormatTag, string Source)? LocateEnvelopeJson(MsiDatabase db, string msiPath)
+    internal static (string Json, string? FormatTag, string Source)? LocateEnvelopeJson(MsiDatabase db, string msiPath)
     {
         var queryResult = db.QueryRows("SELECT `Id`, `Format`, `Data` FROM `_FalkForgeIntegrity`", 3);
         if (queryResult.IsSuccess)

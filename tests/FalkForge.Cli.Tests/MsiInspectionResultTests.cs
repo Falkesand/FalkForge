@@ -15,6 +15,9 @@ public sealed class MsiInspectionResultTests
         Assert.Null(result.ProductCode);
         Assert.Empty(result.TableNames);
         Assert.Equal(0, result.TableCount);
+        Assert.False(result.SignaturePresent);
+        Assert.Null(result.SignatureFormatTag);
+        Assert.Empty(result.SignatureFingerprints);
     }
 
     [Fact]
@@ -29,7 +32,10 @@ public sealed class MsiInspectionResultTests
             Version = "1.0.0",
             ProductCode = "{12345678-1234-1234-1234-123456789012}",
             TableNames = tableNames,
-            TableCount = 3
+            TableCount = 3,
+            SignaturePresent = true,
+            SignatureFormatTag = "falkforge-ecdsa-envelope-v2",
+            SignatureFingerprints = ["AABBCC"]
         };
 
         Assert.Equal("Test App", result.ProductName);
@@ -38,5 +44,8 @@ public sealed class MsiInspectionResultTests
         Assert.Equal("{12345678-1234-1234-1234-123456789012}", result.ProductCode);
         Assert.Equal(3, result.TableCount);
         Assert.Equal(3, result.TableNames.Count);
+        Assert.True(result.SignaturePresent);
+        Assert.Equal("falkforge-ecdsa-envelope-v2", result.SignatureFormatTag);
+        Assert.Equal(["AABBCC"], result.SignatureFingerprints);
     }
 }

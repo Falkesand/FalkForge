@@ -82,6 +82,17 @@ public sealed class InspectCommand : Command<InspectSettings>
         output.MarkupLine($"[bold]Product Code:[/] {Markup.Escape(info.ProductCode ?? "(unknown)")}");
         output.MarkupLine($"[bold]Tables:[/] {info.TableCount}");
 
+        if (info.SignaturePresent)
+        {
+            output.MarkupLine($"[bold]Integrity Signature:[/] present ({Markup.Escape(info.SignatureFormatTag ?? "unknown format")})");
+            foreach (var fingerprint in info.SignatureFingerprints)
+                output.MarkupLine($"[bold]Signing Key Fingerprint:[/] {Markup.Escape(fingerprint)}");
+        }
+        else
+        {
+            output.MarkupLine("[bold]Integrity Signature:[/] not present");
+        }
+
         if (settings.Verbose && info.TableNames.Count > 0)
         {
             output.MarkupLine("[bold]Table list:[/]");

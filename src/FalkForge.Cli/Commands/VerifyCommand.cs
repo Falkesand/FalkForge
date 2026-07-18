@@ -282,9 +282,11 @@ internal sealed class VerifyCommand : Command<VerifySettings>
         output.MarkupLine(
             "[yellow]Note:[/] the rebuilt MSI carries an embedded ECDSA integrity signature " +
             "(_FalkForgeIntegrity/ManifestSignature). Like bundle ECDSA signatures, this signature is " +
-            "non-deterministic across builds, so a signed MSI can never byte-match a prior build. Use " +
-            "'forge verify <msi>' (no --rebuild) to check the signature's validity directly, or set " +
-            "FALKFORGE_NO_SIGN to compare unsigned bytes.");
+            "non-deterministic across builds, so an Integrity()-only MSI can never byte-match a prior " +
+            "build. Combine Reproducible() with Integrity() to get a byte-identical MSI plus a detached " +
+            "'<msi>.sig.json' sidecar signature instead (the signature moves out-of-band, so it no " +
+            "longer affects the compared bytes). Either way, use 'forge verify <msi>' (no --rebuild) to " +
+            "check the signature's validity directly, or set FALKFORGE_NO_SIGN to compare unsigned bytes.");
     }
 
     /// <summary>
