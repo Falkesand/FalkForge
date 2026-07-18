@@ -1,24 +1,6 @@
 namespace FalkForge.Cli;
 
 /// <summary>
-/// The outcome of <see cref="MsiIntegrityVerifier.Verify"/>.
-/// </summary>
-public enum SignatureVerdict
-{
-    /// <summary>The signature cryptographically verifies and the MSI's actual embedded payload
-    /// matches every hash it declares.</summary>
-    Verified,
-
-    /// <summary>Neither the embedded <c>_FalkForgeIntegrity</c> table nor a detached
-    /// <c>.sig.json</c> sidecar carries a signature for this MSI.</summary>
-    NotSigned,
-
-    /// <summary>A signature was found but did not verify, matched no trusted key, or the MSI's
-    /// actual payload does not match the hashes the signature declares.</summary>
-    Failed
-}
-
-/// <summary>
 /// Result of verifying an MSI's pure-.NET ECDSA integrity signature (<see
 /// cref="MsiIntegrityVerifier"/>). Carries enough detail for <c>forge verify</c> to print a
 /// PASS/FAIL diagnostic without the caller re-deriving anything cryptographic.
@@ -37,9 +19,10 @@ public sealed class MsiSignatureVerification
     /// sidecar — for display only.</summary>
     public string? Source { get; init; }
 
-    /// <summary>The fingerprint of the signature that established the <see cref="Verdict.Verified"/>
-    /// outcome. Null when unset (failed/not-signed) or when verification was consistency-only (no
-    /// trusted keys supplied, so no fingerprint was matched against a trust anchor).</summary>
+    /// <summary>The fingerprint of the signature that established a <see
+    /// cref="SignatureVerdict.Verified"/> outcome with authorship (a matching <c>--trusted-key</c>
+    /// was supplied). Null when unset (failed/not-signed) or when verification was consistency-only
+    /// (no trusted keys supplied, so no fingerprint was matched against a trust anchor).</summary>
     public string? MatchedFingerprint { get; init; }
 
     /// <summary>Payload file names whose actual embedded content did not match the hash the

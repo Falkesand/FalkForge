@@ -284,7 +284,7 @@ public static class MsiIntegrityVerifier
         foreach (var row in fileResult.Value)
         {
             if (row[0] is { } fileKey && row[1] is { } fileNameField)
-                fileNameByKey[fileKey] = ParseLongFileName(fileNameField);
+                fileNameByKey[fileKey] = MsiExtractor.ParseLongFileName(fileNameField);
         }
 
         var mediaResult = db.QueryRows("SELECT `Cabinet` FROM `Media`", 1);
@@ -324,17 +324,6 @@ public static class MsiIntegrityVerifier
         }
 
         return hashes;
-    }
-
-    /// <summary>
-    /// Parses the MSI <c>File.FileName</c> column's <c>short|long</c> format and returns the long
-    /// name, or the whole string when no pipe separator is present (mirrors
-    /// <c>FalkForge.Cli.MsiExtractor.ParseLongFileName</c>).
-    /// </summary>
-    private static string ParseLongFileName(string fileNameField)
-    {
-        var pipeIndex = fileNameField.IndexOf('|');
-        return pipeIndex >= 0 ? fileNameField[(pipeIndex + 1)..] : fileNameField;
     }
 
     /// <summary>
