@@ -539,6 +539,7 @@
         <div class="nav-children">
           <a href="#concepts-components">Components &amp; the Component Rule</a>
           <a href="#concepts-codes">ProductCode, UpgradeCode &amp; PackageCode</a>
+          <a href="#concepts-migration">Migrating an Existing Installer to FalkForge</a>
           <a href="#concepts-elevation">Elevation: Per-Machine vs. Per-User</a>
           <a href="#concepts-sequencing">Install Sequencing</a>
         </div>
@@ -1028,6 +1029,117 @@ return Installer.Build(args, package =>
     without understanding upgrade semantics is a common way to break future <code>MajorUpgrade</code>
     detection.
   </div>
+
+  <h3 id="concepts-migration">Migrating an Existing Installer to FalkForge</h3>
+  <p>
+    A common starting point isn't a blank product &mdash; it's a product you already ship, built with WiX,
+    another MSI toolkit, or a non-MSI installer (Inno Setup, NSIS, a hand-rolled EXE), and the goal is for a
+    new FalkForge-built installer to <em>replace</em> the old one on a user's machine, not sit next to it as
+    an unrelated second product. The single fact that decides whether that happens automatically is the one
+    from the table above: Windows Installer's <code>MajorUpgrade</code> detection matches products by
+    <code>UpgradeCode</code> alone, and <code>PackageBuilder.Build()</code> derives a fresh one
+    (deterministically, from <code>Name</code> + <code>Manufacturer</code>) unless you set it explicitly.
+    That derived value is <strong>not</strong> the old installer's <code>UpgradeCode</code> &mdash; a
+    different tool used a different algorithm (or a human just picked a GUID) &mdash; so left alone, the new
+    package installs as a stranger to Windows Installer, not a successor.
+  </p>
+
+  <h4>The Rule: Reuse the Old UpgradeCode</h4>
+  <p>
+    Set <code>PackageBuilder.UpgradeCode</code> to the <em>exact</em> GUID the old installer registered,
+    and configure <code>MajorUpgrade</code> as usual. A fresh <code>ProductCode</code> on every build is
+    still correct and expected &mdash; only <code>UpgradeCode</code> has to carry over:
+  </p>
+  <pre><code class="language-csharp">var package = new PackageBuilder
+{
+    Name = "Contoso App",
+    Manufacturer = "Contoso Inc.",
+    Version = new Version(3, 0, 0),
+    // The OLD installer's UpgradeCode, recovered below. Do not regenerate this value.
+    UpgradeCode = Guid.Parse("12345678-1234-1234-1234-1234567890AB"),
+};
+
+package.MajorUpgrade(mu =&gt; mu
+    .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate)
+    .MigrateFeatures(true));</code></pre>
+  <p>
+    See <a href="#msi-major-upgrade-builder">8.14 MajorUpgradeBuilder</a> for the full
+    <code>Schedule</code>/<code>MigrateFeatures</code>/<code>AllowSameVersionUpgrades</code> API.
+  </p>
+
+  <h4>Recovering the Old UpgradeCode</h4>
+  <p>
+    If the old installer is itself an <code>.msi</code> (WiX, InstallShield, or any other MSI tool), the
+    most direct route is <code>forge decompile old.msi -o old.cs</code> (Windows-only &mdash; it calls
+    <code>msi.dll</code> the same way the compiler does). The generated C# includes a
+    <code>builder.UpgradeCode = new Guid("&hellip;")</code> line read straight from the old MSI's
+    <code>Property</code> table. <code>forge inspect</code> is not the tool for this &mdash; today it
+    surfaces product name, manufacturer, version, and <code>ProductCode</code>, but not
+    <code>UpgradeCode</code>.
+  </p>
+  <div class="note">
+    The MSI spec doesn't strictly require an <code>UpgradeCode</code> row in the <code>Property</code>
+    table, so an occasional old MSI won't have one for <code>forge decompile</code> to read (it comes back
+    <code>Guid.Empty</code>). Two fallbacks that work on any MSI, FalkForge-built or not:
+    <strong>Orca</strong> (Microsoft's free MSI table editor) &mdash; open the <code>Upgrade</code> table
+    directly, every row's <code>UpgradeCode</code> column has it &mdash; or the registry: every product
+    Windows Installer ever registered leaves a key under
+    <code>HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\</code> (per-user installs mirror under
+    <code>HKCU</code>). The key name is a <em>packed</em> GUID &mdash; compressed, no dashes, byte order
+    reversed &mdash; not the human-readable form; let Orca or a dedicated unpacker convert it rather than
+    hand-editing the dashes back in.
+  </div>
+  <p>
+    <a href="#demos">Demo 54 &mdash; forge migrate</a> automates the whole path: <code>forge migrate
+    old.msi -o ./migrated</code> decompiles the old installer and writes a buildable FalkForge project whose
+    generated <code>Program.cs</code> already carries the recovered <code>UpgradeCode</code> forward, along
+    with the reconstructed features, files, and other metadata it could map (a
+    <code>MIGRATION-REPORT.md</code> lists anything it couldn't). For most migrations, starting from that
+    generated project and adjusting it is faster and safer than retyping a recovered GUID into a
+    hand-written <code>PackageBuilder</code>. <code>forge migrate</code> also reads WiX Burn bundle
+    <code>.exe</code>s the same way, for teams migrating a bundled installer rather than a bare MSI.
+  </p>
+
+  <h4>Caveats</h4>
+  <ul>
+    <li>
+      <strong>The old installer isn't an MSI.</strong> Inno Setup, NSIS, and similar tools don't register
+      an <code>UpgradeCode</code> at all &mdash; there's nothing to reuse, because
+      <code>MajorUpgrade</code> detection is an MSI-only mechanism. The new FalkForge MSI and the old EXE
+      are two unrelated installations as far as Windows Installer is concerned. Practical options: detect
+      the old install some other way you control (a registry key or file it's known to leave behind, wired
+      into a <code>package.Require()</code> launch condition or a custom action) and drive its silent
+      uninstall yourself before proceeding &mdash; <code>QuietExec</code> in
+      <a href="#extensions">Extensions.Util (10)</a> is built for exactly this &mdash; or, if you're willing
+      to introduce a bundle, chain "uninstall the old EXE" as its own step ahead of the new MSI in a
+      <a href="#bundle-builders">bundle chain (9)</a> instead of trying to fold the transition into MSI
+      upgrade detection at all.
+    </li>
+    <li>
+      <strong>Version comparison only looks at three fields.</strong> The <code>Upgrade</code> table's
+      version range is written from <code>Version.ToString(3)</code>, and Windows Installer's own
+      <code>ProductVersion</code> comparison only ever considers Major.Minor.Build &mdash; a fourth
+      (Revision) component on a .NET <code>Version</code> is silently ignored for upgrade-detection
+      purposes. Don't rely on a fourth component to distinguish versions from
+      <code>MajorUpgrade</code>'s perspective.
+    </li>
+    <li>
+      <strong>Downgrades are blocked by default.</strong> Installing an older <code>Version</code> than
+      what Windows Installer sees on the machine fails validation unless you opt in:
+      <code>package.Downgrade(d =&gt; d.Allow())</code>, or keep it blocked with your own message via
+      <code>package.Downgrade(d =&gt; d.Block("A newer version is already installed."))</code>. This bites
+      migrations specifically when the old product's version numbering and the new FalkForge numbering
+      don't line up &mdash; e.g. resetting to <code>1.0.0</code> under the same <code>UpgradeCode</code> the
+      old <code>4.x</code> product used reads as a downgrade and is blocked. Decide your version numbering
+      before wiring up the migration, not after.
+    </li>
+    <li>
+      <strong>Per-machine and per-user context must match.</strong> <code>MajorUpgrade</code> detection
+      only sees products installed in the same scope (<a href="#concepts-elevation">below</a>) as the new
+      package. A per-user old install and a per-machine new install &mdash; or vice versa &mdash; won't
+      detect each other via <code>UpgradeCode</code> at all, no matter how carefully the GUID was copied.
+    </li>
+  </ul>
 
   <h3 id="concepts-elevation">Elevation: Per-Machine vs. Per-User</h3>
   <p>
