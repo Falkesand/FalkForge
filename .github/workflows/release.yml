@@ -66,6 +66,15 @@ jobs:
           -c Release -r win-x64 --self-contained
           -o release-artifacts/cli
 
+      # --- Pack documentation site ---
+      # Same HTML-only surface published to GitHub Pages (see .github/workflows/pages.yml):
+      # documentation.html (+ index.html copy) and docs/tutorials/*.html. Attached to the
+      # release so the manual is available offline without cloning the repo.
+
+      - name: Pack documentation site
+        shell: pwsh
+        run: ./scripts/pack-docs.ps1 -Output release-artifacts/docs-pack
+
       # --- Collect and checksum ---
 
       - name: Collect release artifacts
@@ -80,6 +89,9 @@ jobs:
           Copy-Item "release-artifacts/elevation/FalkForge.Engine.Elevation.exe" "$out/FalkForge.Engine.Elevation.exe"
           # CLI exe
           Copy-Item "release-artifacts/cli/forge.exe"                          "$out/forge.exe"
+          # Documentation zip (see scripts/pack-docs.ps1)
+          $docsZip = Get-ChildItem "release-artifacts/docs-pack" -Filter "falkforge-docs-*.zip" | Select-Object -First 1
+          Copy-Item $docsZip.FullName "$out/$($docsZip.Name)"
 
       - name: Generate SHA-256 checksums
         shell: pwsh
