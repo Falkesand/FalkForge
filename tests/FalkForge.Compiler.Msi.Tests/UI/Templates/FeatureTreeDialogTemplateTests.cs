@@ -95,4 +95,33 @@ public sealed class FeatureTreeDialogTemplateTests
         Assert.Contains(exit.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "background.bmp");
         Assert.DoesNotContain(customize.Controls, c => c.Type == MsiControlType.Bitmap);
     }
+
+    [Fact]
+    public void BannerBitmap_and_HeaderIcon_customization_target_only_interior_dialogs()
+    {
+        var template = new FeatureTreeDialogTemplate();
+        var dialogs = template.GetDialogs(new PackageModel
+        {
+            Name = "Test",
+            Manufacturer = "Acme",
+            Version = new System.Version(1, 0, 0),
+            UpgradeCode = System.Guid.Parse("12345678-1234-1234-1234-123456789abc"),
+            DialogCustomization = new DialogCustomizationModel
+            {
+                BannerBitmap = "banner.bmp",
+                HeaderIcon = "icon.ico",
+            },
+        });
+
+        var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
+        var exit = dialogs.Single(d => d.Name == "ExitDlg");
+        var customize = dialogs.Single(d => d.Name == "CustomizeDlg");
+
+        Assert.Contains(customize.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "banner.bmp");
+        Assert.Contains(customize.Controls, c => c.Type == MsiControlType.Icon && c.Text == "icon.ico");
+        Assert.DoesNotContain(welcome.Controls, c => c.Type == MsiControlType.Bitmap);
+        Assert.DoesNotContain(welcome.Controls, c => c.Type == MsiControlType.Icon);
+        Assert.DoesNotContain(exit.Controls, c => c.Type == MsiControlType.Bitmap);
+        Assert.DoesNotContain(exit.Controls, c => c.Type == MsiControlType.Icon);
+    }
 }

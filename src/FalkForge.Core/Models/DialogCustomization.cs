@@ -20,7 +20,7 @@ public sealed class DialogCustomization
     private string? _headerIcon;
     private string? _windowTitle;
 
-    /// <summary>Sets the path to a 493x312 banner image used by every dialog header.</summary>
+    /// <summary>Sets the path to a 493x58 banner image used by every interior dialog header.</summary>
     public DialogCustomization BannerBitmap(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

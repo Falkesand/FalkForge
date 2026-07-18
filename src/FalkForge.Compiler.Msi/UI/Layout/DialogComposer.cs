@@ -29,6 +29,13 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// dialogs only (<see cref="DialogContent.Kind"/> "Welcome" or "Exit"): a synthetic full-canvas
 /// background <c>Bitmap</c> control (the classic 370x234 WixUI_Bmp_Dialog convention) is inserted
 /// ahead of every other control so later controls draw in front of it.
+/// <see cref="DialogCustomizationModel.BannerBitmap"/> and <see cref="DialogCustomizationModel.HeaderIcon"/>
+/// synthesize their controls on interior wizard-page dialogs only — non-exterior dialogs that
+/// declare a <c>TitleRow</c> placement (the structural marker distinguishing a full wizard page
+/// from a small modal like <c>CancelDlg</c>/<c>BrowseDlg</c>, neither of which places one).
+/// Synthesis only happens when the composed dialog has no <c>Bitmap</c>/<c>Icon</c>-typed control
+/// of its own yet; when one already exists (e.g. an author-placed control), the existing swap
+/// behavior above still rewrites its <c>Text</c> in place — no duplicate control is added.
 /// </para>
 /// <see cref="MsiDialogModel"/> is internal so this composer is internal as well.
 /// </remarks>
@@ -108,7 +115,7 @@ internal static class DialogComposer
             }
         }
 
-        ApplyCustomization(model, customization, content.Kind, layout);
+        ApplyCustomization(model, customization, content, layout);
 
         AppendDeclarativeEvents(model, content);
 
@@ -175,16 +182,17 @@ internal static class DialogComposer
             $"Unknown MSI condition action '{action}'. Expected Enable/Disable/Show/Hide/Default.");
     }
 
-    // Canonical MSI control Name for the synthetic exterior-dialog background Bitmap control
-    // inserted when DialogCustomizationModel.DialogBitmap is set. Excluded by name from the
-    // BannerBitmap sweep below so the two verbs never clobber each other when both are set on
-    // the same Welcome/Exit dialog.
+    // Canonical MSI control Names for the synthetic controls this method may insert. Excluded by
+    // name from each other's sweep below so the three bitmap/icon verbs never clobber each other
+    // when several are set together.
     private const string DialogBackgroundBitmapControlName = "DialogBmp";
+    private const string BannerBitmapControlName = "BannerBmp";
+    private const string HeaderIconControlName = "HeaderIcon";
 
     private static void ApplyCustomization(
         MsiDialogModel model,
         DialogCustomizationModel? customization,
-        string dialogKind,
+        DialogContent content,
         DialogLayout layout)
     {
         if (customization is null)
@@ -225,9 +233,30 @@ internal static class DialogComposer
         // it is opt-in branding — so it is synthesized here and inserted first (index 0) so
         // subsequent controls (title/description/buttons) draw in front of it, matching MSI's
         // Control-table row-order Z-ordering.
-        if (hasDialogBitmap && IsExteriorDialogKind(dialogKind))
+        if (hasDialogBitmap && IsExteriorDialogKind(content.Kind))
         {
             model.Controls.Insert(0, BuildDialogBitmapControl(dialogBitmap!, layout));
+        }
+
+        // BannerBitmap/HeaderIcon synthesize their controls on interior wizard pages only, and
+        // only when the composed dialog has no Bitmap/Icon control of its own — an author-placed
+        // control still gets its Text swapped in place by the sweep below, never duplicated.
+        // Checked against the pre-synthesis control list: DialogBitmap synthesis above can never
+        // fire on the same dialog as this block (mutually exclusive by IsExteriorDialogKind vs.
+        // IsInteriorWizardDialog), so there is no cross-contamination to guard against here.
+        if (IsInteriorWizardDialog(content))
+        {
+            int insertAt = 0;
+            if (hasBanner && !ContainsControlType(model.Controls, MsiControlType.Bitmap))
+            {
+                model.Controls.Insert(insertAt++, BuildBannerBitmapControl(bannerBitmap!, layout));
+            }
+
+            if (hasIcon && !ContainsControlType(model.Controls, MsiControlType.Icon))
+            {
+                // Inserted right after the banner (if any) so the icon draws in front of it.
+                model.Controls.Insert(insertAt, BuildHeaderIconControl(headerIcon!, layout));
+            }
         }
 
         foreach (var control in model.Controls)
@@ -259,6 +288,45 @@ internal static class DialogComposer
         string.Equals(dialogKind, "Welcome", StringComparison.Ordinal)
         || string.Equals(dialogKind, "Exit", StringComparison.Ordinal);
 
+    // Interior wizard pages are every non-exterior dialog that declares a TitleRow placement —
+    // the structural marker separating a full wizard page (License, InstallDir, Customize,
+    // SetupType, InstallScope, Progress) from a small modal (CancelDlg, BrowseDlg) that never
+    // places one. Welcome/Exit also declare TitleRow, so exterior exclusion is checked first.
+    private static bool IsInteriorWizardDialog(DialogContent content) =>
+        !IsExteriorDialogKind(content.Kind) && HasTitleRowPlacement(content);
+
+    private static bool HasTitleRowPlacement(DialogContent content)
+    {
+        if (content.Placements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var placement in content.Placements)
+        {
+            if (string.Equals(placement.RegionName, "TitleRow", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsControlType(List<MsiControlModel> controls, MsiControlType type)
+    {
+        // Index-based loop avoids the List<T> enumerator allocation (HAA0401) in this hot path.
+        for (int i = 0; i < controls.Count; i++)
+        {
+            if (controls[i].Type == type)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static MsiControlModel BuildDialogBitmapControl(string dialogBitmapPath, DialogLayout layout)
     {
         // Height stops at the BottomLine region's Y (234 DLU in the stock 370x270 layout) so the
@@ -277,6 +345,55 @@ internal static class DialogComposer
             Width = layout.CanvasWidth,
             Height = height,
             Text = dialogBitmapPath,
+        };
+    }
+
+    private static MsiControlModel BuildBannerBitmapControl(string bannerBitmapPath, DialogLayout layout)
+    {
+        // Sized to the layout's own Banner region (370x58 DLU in the stock layout — the same
+        // region documented in dialog-template-architecture.md), never hardcoded numbers, so a
+        // future per-template layout stays authoritative for this geometry too.
+        Rect bounds = layout.TryGetRegion("Banner", out var banner)
+            ? banner.Bounds
+            : new Rect { X = 0, Y = 0, Width = layout.CanvasWidth, Height = 58 };
+
+        return new MsiControlModel
+        {
+            Name = BannerBitmapControlName,
+            Type = MsiControlType.Bitmap,
+            X = bounds.X,
+            Y = bounds.Y,
+            Width = bounds.Width,
+            Height = bounds.Height,
+            Text = bannerBitmapPath,
+        };
+    }
+
+    private static MsiControlModel BuildHeaderIconControl(string headerIconPath, DialogLayout layout)
+    {
+        // Top-right corner of the Banner region, vertically aligned with TitleRow (Y=6 in the
+        // stock layout) — "shown next to the dialog title" per DialogCustomization.HeaderIcon's
+        // XML doc. 16x16 matches that same doc's stated icon size; 8 DLU margin matches the
+        // ButtonRow's own default gap (RegionDefaults.Gap) used elsewhere in this layout.
+        const int IconSize = 16;
+        const int Margin = 8;
+
+        Rect bannerBounds = layout.TryGetRegion("Banner", out var banner)
+            ? banner.Bounds
+            : new Rect { X = 0, Y = 0, Width = layout.CanvasWidth, Height = 58 };
+        Rect titleRowBounds = layout.TryGetRegion("TitleRow", out var titleRow)
+            ? titleRow.Bounds
+            : new Rect { X = 15, Y = 6, Width = 200, Height = 15 };
+
+        return new MsiControlModel
+        {
+            Name = HeaderIconControlName,
+            Type = MsiControlType.Icon,
+            X = bannerBounds.X + bannerBounds.Width - IconSize - Margin,
+            Y = titleRowBounds.Y,
+            Width = IconSize,
+            Height = IconSize,
+            Text = headerIconPath,
         };
     }
 

@@ -10,7 +10,7 @@ namespace FalkForge.Models;
 /// </summary>
 public sealed record DialogCustomizationModel
 {
-    /// <summary>Path to a 493x312 banner image (BMP/PNG) shown on the top of every dialog.</summary>
+    /// <summary>Path to a 493x58 banner image (BMP/PNG) shown on the top of every interior dialog.</summary>
     public string? BannerBitmap { get; init; }
 
     /// <summary>Path to a 493x312 background bitmap for Welcome/Exit dialogs.</summary>

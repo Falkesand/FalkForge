@@ -334,4 +334,167 @@ public sealed class DialogComposerCustomizationTests
         var background = model.Controls.Single(c => c.Type == MsiControlType.Bitmap && c.Name != "BannerBmp");
         Assert.Equal("new-dialog.bmp", background.Text);
     }
+
+    // Interior wizard-page content mirroring LicenseDlgBuilder's shape: a TitleRow + ButtonRow,
+    // the structural marker (TitleRow) that distinguishes a full wizard page from a small modal
+    // (Cancel/Browse, which never place a TitleRow control).
+    private static DialogContent InteriorWizardContent(string kind) => new()
+    {
+        Name = kind + "Dlg",
+        Kind = kind,
+        Placements = ImmutableArray.Create(
+            new RegionPlacement
+            {
+                RegionName = "TitleRow",
+                Controls = ImmutableArray.Create(
+                    new PlacedControl { Name = "Title", Type = "Text", TextOrLocKey = "Title" }),
+            },
+            new RegionPlacement
+            {
+                RegionName = "ButtonRow",
+                Controls = ImmutableArray.Create(Button("Next", "!(loc.Button.Next)")),
+            }),
+    };
+
+    [Fact]
+    public void Compose_with_banner_bitmap_on_interior_dialog_without_existing_bitmap_synthesizes_banner_control()
+    {
+        var content = InteriorWizardContent("License");
+        var customization = new DialogCustomization()
+            .BannerBitmap("C:/branding/banner.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var banner = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
+        Assert.Equal("C:/branding/banner.bmp", banner.Text);
+        Assert.Equal(0, banner.X);
+        Assert.Equal(0, banner.Y);
+        Assert.Equal(370, banner.Width);
+        Assert.Equal(58, banner.Height);
+        // Inserted first so Title (TitleRow) draws in front of the banner strip.
+        Assert.Equal(banner, model.Controls[0]);
+    }
+
+    [Fact]
+    public void Compose_with_banner_bitmap_on_dialog_without_title_row_is_not_synthesized()
+    {
+        // Mirrors CancelDlgBuilder/BrowseDlgBuilder's shape: ContentArea + ButtonRow only, no
+        // TitleRow — small modals never get a banner strip.
+        var content = new DialogContent
+        {
+            Name = "CancelDlg",
+            Kind = "Cancel",
+            Placements = ImmutableArray.Create(
+                new RegionPlacement
+                {
+                    RegionName = "ButtonRow",
+                    Controls = ImmutableArray.Create(Button("No", "!(loc.Button.No)")),
+                }),
+        };
+        var customization = new DialogCustomization()
+            .BannerBitmap("C:/branding/banner.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Bitmap);
+    }
+
+    [Fact]
+    public void Compose_with_banner_bitmap_on_welcome_dialog_is_not_synthesized()
+    {
+        var content = InteriorWizardContent("Welcome");
+        var customization = new DialogCustomization()
+            .BannerBitmap("C:/branding/banner.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Bitmap);
+    }
+
+    [Fact]
+    public void Compose_with_header_icon_on_interior_dialog_without_existing_icon_synthesizes_icon_control()
+    {
+        var content = InteriorWizardContent("InstallDir");
+        var customization = new DialogCustomization()
+            .HeaderIcon("C:/branding/icon.ico")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var icon = model.Controls.Single(c => c.Type == MsiControlType.Icon);
+        Assert.Equal("C:/branding/icon.ico", icon.Text);
+        // Top-right of the 370-wide Banner region, vertically aligned with TitleRow (Y=6).
+        Assert.Equal(346, icon.X);
+        Assert.Equal(6, icon.Y);
+        Assert.Equal(16, icon.Width);
+        Assert.Equal(16, icon.Height);
+    }
+
+    [Fact]
+    public void Compose_with_header_icon_on_exit_dialog_is_not_synthesized()
+    {
+        var content = InteriorWizardContent("Exit");
+        var customization = new DialogCustomization()
+            .HeaderIcon("C:/branding/icon.ico")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Icon);
+    }
+
+    [Fact]
+    public void Compose_with_banner_bitmap_and_header_icon_together_orders_banner_behind_icon()
+    {
+        var content = InteriorWizardContent("SetupType");
+        var customization = new DialogCustomization()
+            .BannerBitmap("C:/branding/banner.bmp")
+            .HeaderIcon("C:/branding/icon.ico")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.Equal(MsiControlType.Bitmap, model.Controls[0].Type);
+        Assert.Equal(MsiControlType.Icon, model.Controls[1].Type);
+        Assert.Equal("C:/branding/banner.bmp", model.Controls[0].Text);
+        Assert.Equal("C:/branding/icon.ico", model.Controls[1].Text);
+    }
+
+    [Fact]
+    public void Compose_with_all_three_bitmap_verbs_on_interior_dialog_synthesizes_only_banner_and_icon()
+    {
+        var content = InteriorWizardContent("Customize");
+        var customization = new DialogCustomization()
+            .DialogBitmap("C:/branding/dialog.bmp")
+            .BannerBitmap("C:/branding/banner.bmp")
+            .HeaderIcon("C:/branding/icon.ico")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.DoesNotContain(model.Controls, c => c.Name == "DialogBmp");
+        Assert.Contains(model.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "C:/branding/banner.bmp");
+        Assert.Contains(model.Controls, c => c.Type == MsiControlType.Icon && c.Text == "C:/branding/icon.ico");
+    }
+
+    [Fact]
+    public void Compose_with_all_three_bitmap_verbs_on_exterior_dialog_synthesizes_only_dialog_bitmap()
+    {
+        var content = InteriorWizardContent("Welcome");
+        var customization = new DialogCustomization()
+            .DialogBitmap("C:/branding/dialog.bmp")
+            .BannerBitmap("C:/branding/banner.bmp")
+            .HeaderIcon("C:/branding/icon.ico")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var bitmap = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
+        Assert.Equal("DialogBmp", bitmap.Name);
+        Assert.Equal("C:/branding/dialog.bmp", bitmap.Text);
+        Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Icon);
+    }
 }
