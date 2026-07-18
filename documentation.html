@@ -3315,6 +3315,9 @@ p.RemoveRegistry(rr =&gt; rr
       <tr><td><code>DllFromBinary(string binaryName, string entryPoint)</code></td><td><code>CustomActionBuilder</code></td><td>Calls a DLL function from a binary embedded in the Binary table. Type value: 1.</td></tr>
       <tr><td><code>ExeFromBinary(string binaryName)</code></td><td><code>CustomActionBuilder</code></td><td>Executes an EXE from a binary embedded in the Binary table. Type value: 2.</td></tr>
       <tr><td><code>SetProperty(string propertyName, string value)</code></td><td><code>CustomActionBuilder</code></td><td>Sets an MSI property to a value. Type value: 51.</td></tr>
+      <tr><td><code>SetDirectory(string directoryId, string value)</code></td><td><code>CustomActionBuilder</code></td><td>Sets a Directory table entry to a formatted value (type 35 / <code>msidbCustomActionTypeDirectory</code>). Commonly used to redirect an install directory to a path computed by an earlier custom action &mdash; e.g. an existing install location read back from the registry.</td></tr>
+      <tr><td><code>PowerShellScript(string script)</code></td><td><code>CustomActionBuilder</code></td><td>Runs an inline PowerShell script via ExeInDir (type 34) targeting <code>powershell.exe</code> in the SystemFolder directory. See <a href="#powershell-ca">PowerShell Custom Actions</a>.</td></tr>
+      <tr><td><code>PowerShellFile(string filePath)</code></td><td><code>CustomActionBuilder</code></td><td>Reads a PowerShell script from disk at build time and embeds its content inline via <code>PowerShellScript</code>.</td></tr>
     </tbody>
   </table>
 
@@ -4873,6 +4876,29 @@ Installer.BuildBundle(args, bundle =&gt;
     </tbody>
   </table>
 
+  <p>
+    The four <a href="#enum-relatedbundlerelation">RelatedBundleRelation</a> values describe, at
+    authoring time, how the bundle you're building relates to another bundle that might already be on
+    the machine: <code>Upgrade</code> means this bundle supersedes the related one (a newer version of
+    the same product); <code>Addon</code> means it extends the related bundle without replacing it (an
+    optional module for a product that must already be present); <code>Patch</code> means it modifies
+    the related bundle in place rather than standing alone; <code>Detect</code> means it should only be
+    <em>recognized</em> as related for detection/reporting purposes, with no install-time action implied.
+  </p>
+  <div class="note">
+    <strong>Current runtime behavior:</strong> today, the engine only branches on <code>Upgrade</code>.
+    During Detect, <code>FeatureDetector</code> migrates prior feature selections from an
+    <code>Upgrade</code>-related bundle when no current selections exist in the registry; during
+    Planning, <code>Planner</code> auto-generates an uninstall action for the old bundle only when its
+    relation is <code>Upgrade</code>. <code>Addon</code>, <code>Patch</code>, and <code>Detect</code> are
+    fully round-tripped &mdash; serialized on the wire (<code>DetectRelatedBundle</code>, see
+    <a href="#protocol-messages">Message Types</a>), surfaced to the UI, present in the manifest &mdash;
+    but as of this writing nothing in the engine currently treats them differently from each other at
+    install time. Author with the intended semantics above; don't rely on distinct runtime behavior for
+    <code>Addon</code>/<code>Patch</code>/<code>Detect</code> until the engine grows relation-specific
+    handling for them.
+  </div>
+
   <!-- 9.9 RollbackBoundaryBuilder -->
   <h3>9.9 RollbackBoundaryBuilder</h3>
   <p>
@@ -4889,6 +4915,33 @@ Installer.BuildBundle(args, bundle =&gt;
       <tr><td><code>Vital(bool vital)</code></td><td><code>RollbackBoundaryBuilder</code></td><td>Whether the boundary itself is vital. Default: <code>true</code>.</td></tr>
     </tbody>
   </table>
+
+  <p>
+    Each <code>RollbackBoundary(...)</code> call is a marker in the chain's package sequence, not a
+    package itself &mdash; it opens a new rollback scope that covers every package after it, up to the
+    next boundary (or the end of the chain). If a package inside a scope fails, only the packages
+    within <em>that same scope</em> roll back; packages that already completed successfully in an
+    earlier scope are left installed. Place a boundary wherever you want a failure to stop propagating
+    backward &mdash; typically between prerequisites and the application itself, so a failed application
+    install doesn't tear out prerequisites another product might also depend on:
+  </p>
+  <pre><code class="language-csharp">.Chain(chain =&gt; chain
+    // Scope 1: if Runtime.msi fails, only Runtime.msi rolls back (nothing precedes it)
+    .RollbackBoundary("Prerequisites")
+    .MsiPackage("Runtime.msi", p =&gt; p
+        .Id("Runtime")
+        .DisplayName("Runtime Prerequisites")
+        .Vital(true))
+    // Scope 2: if MyApp.msi fails, only MyApp.msi rolls back -- Runtime.msi (scope 1)
+    // stays installed, since it already completed successfully
+    .RollbackBoundary("Application")
+    .MsiPackage("MyApp.msi", p =&gt; p
+        .Id("MyApp")
+        .DisplayName("My Application")
+        .Vital(true)))</code></pre>
+  <p>
+    See <a href="#demos">Demo 41 &mdash; bundle-rollback</a> for the full runnable bundle.
+  </p>
 
   <!-- 9.10 BundleVariableBuilder -->
   <h3>9.10 BundleVariableBuilder</h3>
@@ -5666,14 +5719,17 @@ var seedData = new SqlStringBuilder()
     </thead>
     <tbody>
       <tr><td><code>Name(string name)</code></td><td><code>UserBuilder</code></td><td>Sets the user account name.</td></tr>
-      <tr><td><code>Password(string password)</code></td><td><code>UserBuilder</code></td><td>Sets the user password.</td></tr>
+      <tr><td><code>Password(string password)</code></td><td><code>UserBuilder</code></td><td>Sets the user password as a literal string (discouraged &mdash; produces warning USR010; prefer <code>PasswordProperty</code>).</td></tr>
+      <tr><td><code>PasswordProperty(string propertyName)</code></td><td><code>UserBuilder</code></td><td>Sources the password from an MSI property at install time instead of a literal, so the secret never sits in plaintext in the builder call. Mutually exclusive with <code>Password</code>.</td></tr>
       <tr><td><code>Domain(string domain)</code></td><td><code>UserBuilder</code></td><td>Sets the domain for the user account.</td></tr>
+      <tr><td><code>Description(string description)</code></td><td><code>UserBuilder</code></td><td>Sets the account description.</td></tr>
       <tr><td><code>CanNotChangePassword()</code></td><td><code>UserBuilder</code></td><td>Prevents the user from changing their password.</td></tr>
       <tr><td><code>Disabled()</code></td><td><code>UserBuilder</code></td><td>Creates the account in a disabled state.</td></tr>
       <tr><td><code>PasswordExpired()</code></td><td><code>UserBuilder</code></td><td>Forces a password change at first logon.</td></tr>
       <tr><td><code>PasswordNeverExpires()</code></td><td><code>UserBuilder</code></td><td>Sets the password to never expire.</td></tr>
       <tr><td><code>RemoveOnUninstall()</code></td><td><code>UserBuilder</code></td><td>Removes the user account on uninstall.</td></tr>
       <tr><td><code>UpdateIfExists()</code></td><td><code>UserBuilder</code></td><td>Updates the account if it already exists instead of failing.</td></tr>
+      <tr><td><code>MemberOf(string groupName)</code></td><td><code>UserBuilder</code></td><td>Adds the account to a local group at creation time. Repeatable for multiple groups.</td></tr>
       <tr><td><code>ComponentRef(string componentRef)</code></td><td><code>UserBuilder</code></td><td>Associates with a specific component.</td></tr>
     </tbody>
   </table>
@@ -5687,6 +5743,9 @@ var seedData = new SqlStringBuilder()
     <tbody>
       <tr><td><code>Name(string name)</code></td><td><code>GroupBuilder</code></td><td>Sets the group name. Required (GRP001).</td></tr>
       <tr><td><code>Domain(string domain)</code></td><td><code>GroupBuilder</code></td><td>Sets the domain for the group.</td></tr>
+      <tr><td><code>Description(string description)</code></td><td><code>GroupBuilder</code></td><td>Sets the group description.</td></tr>
+      <tr><td><code>UpdateIfExists()</code></td><td><code>GroupBuilder</code></td><td>Updates the group if it already exists instead of failing.</td></tr>
+      <tr><td><code>RemoveOnUninstall()</code></td><td><code>GroupBuilder</code></td><td>Removes the group on uninstall.</td></tr>
       <tr><td><code>ComponentRef(string componentRef)</code></td><td><code>GroupBuilder</code></td><td>Associates with a specific component.</td></tr>
     </tbody>
   </table>
@@ -5746,6 +5805,58 @@ var shortcut = new InternetShortcutBuilder()
     .Target("https://docs.contoso.com")
     .Directory("ProgramMenuDir")
     .Build();</code></pre>
+
+<div class="note">
+    <code>FileShareBuilder</code>, <code>UserBuilder</code>, <code>GroupBuilder</code>, and
+    <code>RemoveFolderExBuilder</code> all have an <code>internal Build()</code> &mdash; unlike
+    <code>XmlConfigBuilder</code>, they cannot be constructed and built directly. They're configured
+    through <code>UtilExtension.AddFileShare/AddUser/AddGroup/AddRemoveFolderEx(Action&lt;TBuilder&gt;
+    configure)</code>, which builds the model internally and returns a <code>Result&lt;Unit&gt;</code>
+    you check for validation failures.
+</div>
+
+<pre><code class="language-csharp">var util = new UtilExtension();
+
+// Group first, so the user below can join it by name.
+var group = util.AddGroup(g =&gt; g
+    .Name("ContosoOperators")
+    .Description("Operators group for the Contoso service account")
+    .RemoveOnUninstall());
+if (group.IsFailure) { Console.Error.WriteLine(group.Error); return 1; }
+
+// PasswordProperty (not Password) keeps the secret out of the MSI in plaintext -- it's
+// sourced from an MSI property set at install time instead.
+var user = util.AddUser(u =&gt; u
+    .Name("svc-contoso")
+    .PasswordProperty("SVC_PASSWORD")
+    .PasswordNeverExpires()
+    .MemberOf("ContosoOperators")
+    .RemoveOnUninstall());
+if (user.IsFailure) { Console.Error.WriteLine(user.Error); return 1; }
+
+var fileShare = util.AddFileShare(f =&gt; f
+    .Id("AppData")
+    .Name("ContosoAppData")
+    .Directory(@"C:\ProgramData\Contoso\MyApp")
+    .GrantRead("Everyone")
+    .GrantFull("ContosoOperators"));
+if (fileShare.IsFailure) { Console.Error.WriteLine(fileShare.Error); return 1; }
+
+var removeFolderEx = util.AddRemoveFolderEx(r =&gt; r
+    .Id("Cache")
+    .Directory(@"C:\ProgramData\Contoso\MyApp\Cache")
+    .OnUninstall());
+if (removeFolderEx.IsFailure) { Console.Error.WriteLine(removeFolderEx.Error); return 1; }
+
+// Wire the extension into the compiler, same as any other extension:
+Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));</code></pre>
+<p>
+    See <a href="#demos">Demo 33 &mdash; ext-util</a> for a runnable version of this pattern (the demo
+    exercises <code>AddFileShare</code>/<code>AddRemoveFolderEx</code>/<code>AddQuietExec</code>/
+    <code>AddInternetShortcut</code> plus <code>XmlConfigBuilder</code>; user/group management follows
+    the identical <code>Add*(Action&lt;TBuilder&gt;)</code> &rarr; <code>Result&lt;Unit&gt;</code> shape
+    shown above).
+</p>
 </section>
 
 <!-- Section 11: Custom UI Framework -->
@@ -5798,6 +5909,8 @@ var shortcut = new InternetShortcutBuilder()
     <tbody>
       <tr><td><code>Window(Action&lt;InstallerWindowBuilder&gt; configure)</code></td><td><code>InstallerUIBuilder</code></td><td>Configures window appearance (size, colors, title, icon, images).</td></tr>
       <tr><td><code>Pages(Action&lt;PageRegistrar&gt; configure)</code></td><td><code>InstallerUIBuilder</code></td><td>Registers the ordered sequence of pages to display.</td></tr>
+      <tr><td><code>Plugin&lt;T&gt;()</code> where <code>T : IInstallerPlugin, new()</code></td><td><code>InstallerUIBuilder</code></td><td>Registers a single plugin type by generic parameter. See <a href="#plugins">Plugin System</a> (22) for the full wiring path into <code>InstallerPage.PluginServices</code>.</td></tr>
+      <tr><td><code>RegisterPlugins(PluginRegistry registry)</code></td><td><code>InstallerUIBuilder</code></td><td>Bulk-registers every plugin in a pre-built <code>PluginRegistry</code>. Combines with any prior <code>Plugin&lt;T&gt;()</code> calls; earlier registrations win on duplicate service types.</td></tr>
     </tbody>
   </table>
 
@@ -7937,6 +8050,15 @@ Transport framing (length-prefix):
         <tr><td>0x010B</td><td>ShutdownResponse</td><td>Engine &rarr; UI</td><td>ExitCode</td><td>Engine shutdown acknowledgement with final exit code</td></tr>
         <tr><td>0x010C</td><td>UpdateAvailable</td><td>Engine &rarr; UI</td><td>Version, ReleaseNotes?, DownloadUrl, LocalPath?</td><td>An update is available for download</td></tr>
         <tr><td>0x010D</td><td>UpdateReady</td><td>Engine &rarr; UI</td><td>Version, LocalPath</td><td>Update has been downloaded and is ready to apply</td></tr>
+        <tr><td>0x010E</td><td>UpdateDownloadProgress</td><td>Engine &rarr; UI</td><td>BytesReceived, TotalBytes, PercentComplete</td><td>Progress report while downloading an available update, produced by <code>UpdateDownloader</code> (see <a href="#update-feed-guide">Update Feed</a>)</td></tr>
+        <tr><td>0x010F</td><td>LaunchUpdate</td><td>UI &rarr; Engine</td><td>(none)</td><td>Tells the engine to launch a downloaded/ready update; sent by <code>EngineClient.LaunchUpdate()</code></td></tr>
+        <tr><td>0x0110</td><td>License</td><td>Engine &harr; UI</td><td>Action (<code>LicenseAction</code>: Required/Accepted/Declined), LicenseContent?</td><td>Engine presents license text to the UI (<code>Action = Required</code>); the UI replies with <code>Accepted</code>/<code>Declined</code>. <code>RequestPlan</code> is gated on acceptance</td></tr>
+        <tr><td>0x0111</td><td>DetectPackageComplete</td><td>Engine &rarr; UI</td><td>PackageId, State (InstallState), Version?</td><td>Per-package detection result, emitted once per package in manifest chain order during Detect</td></tr>
+        <tr><td>0x0112</td><td>DetectRelatedBundle</td><td>Engine &rarr; UI</td><td>BundleId, Relation (<code>RelatedBundleRelation</code>), InstalledVersion</td><td>A related bundle (e.g. an older version eligible for upgrade) was found on the machine during Detect</td></tr>
+        <tr><td>0x0113</td><td>PlanPackageBegin</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName, PlannedAction</td><td>Planning is about to start for a single package during the Plan phase</td></tr>
+        <tr><td>0x0114</td><td>PlanPackageComplete</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName, PlannedAction</td><td>Planning finished for a single package, sent immediately after its <code>PlanPackageBegin</code></td></tr>
+        <tr><td>0x0115</td><td>ApplyPackageBegin</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName</td><td>A package's installer is about to run during the Apply phase, in execution order</td></tr>
+        <tr><td>0x0116</td><td>ApplyPackageComplete</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName, Succeeded</td><td>A package's installer returned; <code>Succeeded</code> is false for the package whose failure aborts the apply</td></tr>
         <tr><td>0x0201</td><td>Cancel</td><td>UI &rarr; Engine</td><td>(none)</td><td>User requested cancellation</td></tr>
         <tr><td>0x0202</td><td>ShutdownRequest</td><td>UI &rarr; Engine</td><td>(none)</td><td>UI requests engine shutdown</td></tr>
         <tr><td>0x0203</td><td>SetInstallDirectory</td><td>UI &rarr; Engine</td><td>Directory (string)</td><td>User changed install directory</td></tr>
@@ -7947,7 +8069,9 @@ Transport framing (length-prefix):
         <tr><td>0x0208</td><td>SetProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), Value (string)</td><td>Sets an MSI property for package execution. Phase-gated: only accepted during Initializing, Detecting, or Planning.</td></tr>
         <tr><td>0x0209</td><td>SetSecureProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), SecureValue (<code>SensitiveBytes</code>)</td><td>Sets a secret property via named pipe. <code>SecureValue</code> is a <code>SensitiveBytes</code> struct that zeroes its backing array on dispose. The codec applies three-layer zeroing (write reveal, read scratch, PostWrite). Never appears on the command line.</td></tr>
         <tr><td>0x0301</td><td>ElevateExecute</td><td>Engine &rarr; Elevated</td><td>CommandName, CommandPayload (byte[])</td><td>Execute an elevated command</td></tr>
+        <tr><td>0x0302</td><td>SessionStart</td><td>Engine &rarr; Elevated</td><td>CorrelationId (Guid), StartedUtc (DateTimeOffset)</td><td>Sent once right after the HMAC handshake completes; carries a correlation id so elevated-process logs can be matched back to engine/UI logs</td></tr>
         <tr><td>0x0401</td><td>ElevateResult</td><td>Elevated &rarr; Engine</td><td>Success, ErrorMessage?, ResultPayload?</td><td>Result of an elevated command execution</td></tr>
+        <tr><td>0x0402</td><td>ElevateProgress</td><td>Elevated &rarr; Engine</td><td>Percent</td><td>Progress update sent while the elevated companion executes a privileged operation</td></tr>
     </tbody>
 </table>
 
@@ -8634,11 +8758,19 @@ forge init --from-publish bin/Release/net10.0/publish -o installer/</code></pre>
 #   --reproducible           Reproducible build (uses SOURCE_DATE_EPOCH or git HEAD)
 #   --sbom                   Emit a CycloneDX SBOM sidecar
 #   --no-sign                Skip the ECDSA integrity signature (and any Sigil SBOM attestation)
+#   --no-engine              Bundle only: embed a design-time placeholder engine stub instead of
+#                            the published NativeAOT engine (manifest still verifies; the result is
+#                            NOT a runnable installer &mdash; for signing/verification tooling and CI
+#                            without an engine publish)
 #   --winget                 Emit a WinGet singleton manifest alongside the MSI
 #   --winget-url &lt;URL&gt;       InstallerUrl to embed in the manifest
 #   --ice                    Run ICE validation (default: on for .msi)
 #   --no-ice                 Disable ICE validation
 #   --ice-cub-path &lt;PATH&gt;    Override the default darice.cub
+#   --ice-skip-when-cub-unavailable
+#                            Silently skip ICE validation when darice.cub is not found (lenient
+#                            mode). By default a missing darice.cub is a build failure &mdash; see
+#                            the note below.
 #   --suppress-ice &lt;NAMES&gt;   Comma-separated list of ICE names to suppress
 #   --ice-warnings-as-errors Treat ICE warnings as errors
 #   --ice-report &lt;PATH&gt;      Export ICE results to JSON
@@ -8674,6 +8806,9 @@ forge build installer.cs --winget --winget-url https://example.com/app.msi</code
 #   --stop-on-first-error    Halt after the first error
 #   --ice                    Run ICE on .msi input
 #   --ice-cub-path &lt;PATH&gt;    Override the default darice.cub
+#   --ice-skip-when-cub-unavailable
+#                            Silently skip ICE validation when darice.cub is not found (lenient
+#                            mode). By default, a missing darice.cub with --ice returns an error.
 #   --suppress-ice &lt;NAMES&gt;   Comma-separated list of ICE names to suppress
 #   --ice-warnings-as-errors Treat ICE warnings as errors
 #   --ice-report &lt;PATH&gt;      Export ICE results to JSON
@@ -9193,6 +9328,39 @@ Result&lt;IReadOnlyList&lt;LocalizationModel&gt;&gt; result = builder.Build();</
 <pre><code class="language-csharp">var resolver = new LocalizedStringResolver(models, "en-US");
 Result&lt;string&gt; result = resolver.Resolve("Welcome to !(loc.ProductName)", "de");</code></pre>
 
+<h3>Automatic Culture Detection: <code>DetectCulture()</code></h3>
+<p>
+    Both localization builders expose a <code>DetectCulture(bool detect = true)</code> fluent method
+    that, instead of always falling back to the configured default culture, tries to pick a matching
+    culture from <code>CultureInfo.CurrentUICulture</code> &mdash; first an exact match (e.g.
+    <code>"sv-SE"</code>), then the neutral parent culture (e.g. <code>"sv"</code>) if no exact match is
+    registered. The two builders live in different assemblies and default this differently:
+</p>
+<table class="api-table">
+    <thead><tr><th>Builder</th><th><code>DetectCulture</code> default</th><th>Used for</th></tr></thead>
+    <tbody>
+        <tr><td><code>FalkForge.Localization.LocalizationBuilder</code></td><td><code>false</code></td><td>Compile-time MSI dialog string resolution (the builder documented above)</td></tr>
+        <tr><td><code>FalkForge.Ui.Localization.UiLocalizationBuilder</code></td><td><code>true</code></td><td>Runtime custom-UI string resolution (<code>src/FalkForge.Ui/Localization/</code>), consumed via <code>UiLocalizationConfig</code> on <code>InstallerUIBuilder</code></td></tr>
+    </tbody>
+</table>
+<pre><code class="language-csharp">// Compile-time (MSI dialogs): opt in explicitly
+package.Localization(loc =&gt; loc
+    .DefaultCulture("en-US")
+    .AddJsonFile("strings.en-US.json")
+    .AddJsonFile("strings.sv-SE.json")
+    .DetectCulture());   // false by default -- must be called to enable
+
+// Runtime custom UI: on by default, matching the OS/thread UI culture at startup
+builder.Localization(loc =&gt; loc
+    .DefaultCulture("en-US")
+    .AddJsonResources());   // auto-discovers embedded lang.strings.*.json resources
+    // DetectCulture(false) to force DefaultCulture regardless of the OS locale</code></pre>
+<p>
+    See <a href="#demos">Demo 08 &mdash; localization</a> for a runnable multi-language example and the
+    <a href="docs/tutorials/localization.html">Localization tutorial</a> for a narrative walkthrough of
+    the whole culture fallback + detection story.
+</p>
+
 <h3>Error Codes</h3>
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
@@ -9218,6 +9386,45 @@ Result&lt;string&gt; result = resolver.Resolve("Welcome to !(loc.ProductName)", 
     fed back into the FalkForge build pipeline. MSI decompilation is
     <strong>Windows-only</strong> (<code>[SupportedOSPlatform("windows")]</code>); bundle and WiX Burn
     decompilation are cross-platform.
+</p>
+
+<h3>Quick Start</h3>
+<p>
+    Most callers only need two methods on <code>MsiDecompiler</code>: <code>Decompile(msiPath)</code> to
+    get a structured <code>PackageModel</code> you can inspect or feed into further tooling, or
+    <code>DecompileToCSharp(msiPath)</code> to get buildable fluent C# source directly:
+</p>
+<pre><code class="language-csharp">// Structured model &mdash; inspect features, files, registry keys, etc.
+var decompiler = new MsiDecompiler();
+Result&lt;PackageModel&gt; modelResult = decompiler.Decompile("legacy.msi");
+if (modelResult.IsSuccess)
+{
+    PackageModel model = modelResult.Value;
+    Console.WriteLine($"{model.Name} {model.Version} &mdash; {model.Features.Count} feature(s)");
+}
+
+// Fluent C# source &mdash; ready to save as Program.cs and build
+Result&lt;string&gt; csharpResult = decompiler.DecompileToCSharp("legacy.msi");
+if (csharpResult.IsSuccess)
+    File.WriteAllText("Program.cs", csharpResult.Value);</code></pre>
+<p>
+    <code>Decompile</code> validates the path, opens the MSI via <code>MsiTableAccess.Open</code>, reads
+    every table into an <code>MsiReadRecipe</code> snapshot, then reconstructs a <code>PackageModel</code>
+    from that snapshot (a pure, cross-platform step &mdash; see <em>Recipe Pipeline</em> below).
+    <code>DecompileToCSharp</code> calls <code>Decompile</code> internally and, on success, runs the
+    result through <code>CSharpEmitter</code> to produce source text; a decompile failure propagates
+    through unchanged. Both take a single <code>msiPath</code> parameter, unless an
+    <code>IMsiTableAccess</code> was injected via constructor (a test seam), in which case
+    <code>msiPath</code> is ignored in favor of that access.
+</p>
+<p>
+    <code>forge decompile legacy.msi</code> is a thin CLI wrapper around
+    <code>DecompileToCSharp</code>, writing the resulting source to stdout or <code>-o</code>.
+    <code>forge migrate</code> goes one step further and generates a whole buildable project
+    (<code>Program.cs</code>, <code>.csproj</code>, extracted payload, and a
+    <code>MIGRATION-REPORT.md</code> of what could and couldn't be mapped) &mdash; see
+    <a href="#cli">CLI Reference &sect; migrate</a> and
+    <a href="#demos">Demo 54 &mdash; forge migrate</a> for the full round-trip workflow.
 </p>
 
 <h3>MsiDecompiler</h3>
@@ -10358,8 +10565,19 @@ public sealed record WixUnmappedFeature(
 
 <div class="note">
     ICE validation requires the Windows SDK <code>darice.cub</code> file. The validator automatically
-    searches <code>C:\Program Files (x86)\Windows Kits\10\bin</code> and related paths. If not found,
-    validation is silently skipped (graceful fallback).
+    searches <code>C:\Program Files (x86)\Windows Kits\10\bin</code> and related paths. What happens
+    when it's not found depends on how you invoke ICE, and the two paths disagree by design:
+    <ul>
+        <li>The parameterless fluent overload &mdash; <code>IceValidator.Validate(msiPath)</code>, with no
+            <code>IceConfiguration</code> supplied &mdash; treats ICE as opt-in and skips gracefully when
+            <code>darice.cub</code> is missing.</li>
+        <li>Everything that goes through an explicit <code>IceConfiguration</code> &mdash; the
+            <code>package.Ice(...)</code> builder shown below, <code>forge build</code>, and
+            <code>forge validate --ice</code> &mdash; is <strong>strict by default</strong>: a missing
+            <code>darice.cub</code> is a hard build/validate failure. Pass
+            <code>SkipWhenCubUnavailable(true)</code> (API) or <code>--ice-skip-when-cub-unavailable</code>
+            (CLI) to restore the lenient, skip-when-missing behavior.</li>
+    </ul>
 </div>
 
 <h4>API: IceConfigurationBuilder</h4>
@@ -10394,6 +10612,7 @@ public sealed record WixUnmappedFeature(
 <tr><td><code>WarningsAsErrors(bool value = true)</code></td><td>Promote all ICE warnings to errors, causing build failure</td></tr>
 <tr><td><code>ReportPath(string path)</code></td><td>Export results to a JSON report file</td></tr>
 <tr><td><code>CubFilePath(string path)</code></td><td>Use a custom <code>.cub</code> file instead of auto-detected <code>darice.cub</code></td></tr>
+<tr><td><code>SkipWhenCubUnavailable(bool value = true)</code></td><td>Waive ICE validation instead of failing when <code>darice.cub</code> can't be found. Default is <code>false</code> (strict) &mdash; a missing <code>darice.cub</code> is a typed <code>Result</code> failure, not a silent skip</td></tr>
 <tr><td><code>Disable()</code></td><td>Disable ICE validation entirely</td></tr>
 </tbody>
 </table>
@@ -10474,25 +10693,46 @@ forge build installer.csx -o ./output --ice-warnings-as-errors --ice-report repo
     <code>-NoProfile -NonInteractive -ExecutionPolicy Bypass</code>.
 </p>
 
+<p>
+    <code>PackageBuilder.CustomAction(string id, Action&lt;CustomActionBuilder&gt; configure)</code> takes
+    the action's id as an explicit first argument &mdash; there is no <code>.Id(...)</code> method on
+    <code>CustomActionBuilder</code>. <code>After</code>/<code>Before</code>/<code>Condition</code> are
+    settable properties, not fluent methods; actual scheduling always comes from where the action's id
+    appears in <code>ExecuteSequence(...)</code>/<code>UISequence(...)</code> &mdash; setting
+    <code>After</code>/<code>Before</code> on the builder is metadata only, so every custom action must
+    also be placed explicitly in a sequence. See
+    <a href="#demos">Demo 47 &mdash; powershell-actions</a> for a complete, buildable example covering
+    every pattern below.
+</p>
+
 <h4>Inline Script: <code>PowerShellScript()</code></h4>
 <p>
     Embed a PowerShell script directly in the custom action definition. The script text is
     stored in the MSI <code>CustomAction</code> table.
 </p>
-<pre><code class="language-csharp">package.CustomAction(ca => ca
-    .Id("WriteTimestamp")
-    .PowerShellScript("Get-Date | Out-File 'C:\\install-log.txt'")
-    .After("InstallFiles"));</code></pre>
+<pre><code class="language-csharp">package.CustomAction("LogInstallStart", ca =>
+{
+    ca.PowerShellScript("Write-EventLog -LogName Application -Source 'MSIInstaller' " +
+                         "-EventId 1000 -Message 'PowerShell Demo: installation started'");
+});
+
+package.ExecuteSequence(seq => seq
+    .Action("LogInstallStart").After("CostFinalize").Condition(Condition.IsInstalling));</code></pre>
 
 <h4>External File: <code>PowerShellFile()</code></h4>
 <p>
     Read a <code>.ps1</code> file at build time and embed its content as an inline script.
     This keeps complex scripts in separate files for easier editing and testing.
 </p>
-<pre><code class="language-csharp">package.CustomAction(ca => ca
-    .Id("ConfigureApp")
-    .PowerShellFile("scripts/configure.ps1")
-    .After("InstallFiles"));</code></pre>
+<pre><code class="language-csharp">package.CustomAction("RunSetupScript", ca =>
+{
+    ca.PowerShellFile("payload/setup.ps1");
+    ca.Deferred();
+    ca.NoImpersonate();
+});
+
+package.ExecuteSequence(seq => seq
+    .Action("RunSetupScript").After("InstallFiles"));</code></pre>
 
 <div class="note">
     <code>PowerShellFile()</code> reads the file at build time and delegates to
@@ -10500,37 +10740,63 @@ forge build installer.csx -o ./output --ice-warnings-as-errors --ice-report repo
     present on the target machine &mdash; its content is embedded in the MSI.
 </div>
 
-<h4>Deferred Execution</h4>
+<h4>Deferred Execution &amp; the CustomActionData Staging Pattern</h4>
 <p>
-    For scripts that need elevated permissions or must run during the installation transaction,
-    combine with <code>Deferred()</code> and <code>NoImpersonate()</code>:
+    Deferred actions (see <a href="#concepts-sequencing">Install Sequencing</a>) run inside the
+    installation script and can no longer see the live property table, so any data they need &mdash;
+    a password, a computed path &mdash; must be staged into their <code>CustomActionData</code> by an
+    immediate action scheduled just before them. MSI's own convention drives this: an immediate
+    <code>SetProperty</code> action whose <em>property name</em> equals the deferred action's <em>id</em>
+    becomes that action's <code>CustomActionData</code> automatically, readable inside the deferred
+    action's own <code>Target</code> via the literal <code>[CustomActionData]</code> token:
 </p>
-<pre><code class="language-csharp">package.CustomAction(ca => ca
-    .Id("ConfigureService")
-    .PowerShellScript("Set-Service -Name 'MyService' -StartupType Automatic")
-    .Deferred()
-    .NoImpersonate()
-    .After("InstallServices"));</code></pre>
+<pre><code class="language-csharp">// Immediate: stage a secret into the deferred action's CustomActionData. The property
+// name here ("ConfigureDatabase") must match the deferred action's id below.
+package.CustomAction("StageDbPassword", ca =>
+{
+    ca.SetProperty("ConfigureDatabase", "[DB_PASSWORD]");
+});
+
+// Deferred: [CustomActionData] is substituted with the staged value before powershell.exe
+// ever sees the command line -- the script itself never touches the live property table
+// (deferred actions can't; see Install Sequencing).
+package.CustomAction("ConfigureDatabase", ca =>
+{
+    ca.PowerShellScript("$password = '[CustomActionData]'; Set-DbCredential -Password $password");
+    ca.Deferred();
+    ca.NoImpersonate();
+});
+
+package.ExecuteSequence(seq => seq
+    .Action("StageDbPassword").Before("ConfigureDatabase")
+    .Action("ConfigureDatabase").After("InstallFiles"));</code></pre>
 
 <h4>Rollback Scripts</h4>
 <p>
-    Register a rollback script that reverses the PowerShell action if installation fails:
+    Register a rollback script that reverses the PowerShell action if installation fails. The rollback
+    action must be scheduled <em>before</em> the forward action it undoes &mdash; MSI rollback actions
+    run in reverse of install order, so they need to already be in the script when the forward action
+    that might fail is reached:
 </p>
-<pre><code class="language-csharp">// Forward action
-package.CustomAction(ca => ca
-    .Id("CreateConfig")
-    .PowerShellScript("New-Item -Path 'C:\\App\\config.json' -ItemType File")
-    .Deferred()
-    .NoImpersonate()
-    .After("InstallFiles"));
+<pre><code class="language-csharp">// Rollback action (scheduled first, per MSI rollback-scheduling rules)
+package.CustomAction("UndoConfigureSettings", ca =>
+{
+    ca.PowerShellScript("Remove-Item -Path 'C:\\App\\config.json' -Force -ErrorAction SilentlyContinue");
+    ca.Rollback();
+    ca.NoImpersonate();
+});
 
-// Rollback action
-package.CustomAction(ca => ca
-    .Id("RollbackConfig")
-    .PowerShellScript("Remove-Item -Path 'C:\\App\\config.json' -ErrorAction SilentlyContinue")
-    .Rollback()
-    .NoImpersonate()
-    .Before("CreateConfig"));</code></pre>
+// Forward action
+package.CustomAction("ConfigureSettings", ca =>
+{
+    ca.PowerShellScript("New-Item -Path 'C:\\App\\config.json' -ItemType File");
+    ca.Deferred();
+    ca.NoImpersonate();
+});
+
+package.ExecuteSequence(seq => seq
+    .Action("UndoConfigureSettings").Before("ConfigureSettings")
+    .Action("ConfigureSettings").After("InstallFiles"));</code></pre>
 
 <h4>Execution Modes</h4>
 <table>
@@ -10538,13 +10804,13 @@ package.CustomAction(ca => ca
 <tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>.PowerShellScript(string)</code></td><td>Inline PowerShell script text</td></tr>
-<tr><td><code>.PowerShellFile(string)</code></td><td>Read <code>.ps1</code> file at build time, embed as inline script</td></tr>
-<tr><td><code>.Deferred()</code></td><td>Run during installation script phase (elevated context)</td></tr>
-<tr><td><code>.NoImpersonate()</code></td><td>Run as LocalSystem instead of impersonating the user</td></tr>
-<tr><td><code>.Rollback()</code></td><td>Run only if the installation fails and rolls back</td></tr>
-<tr><td><code>.Commit()</code></td><td>Run only after successful installation</td></tr>
-<tr><td><code>.ContinueOnError()</code></td><td>Do not fail the installation if the script returns a non-zero exit code</td></tr>
+<tr><td><code>PowerShellScript(string)</code></td><td>Inline PowerShell script text</td></tr>
+<tr><td><code>PowerShellFile(string)</code></td><td>Read <code>.ps1</code> file at build time, embed as inline script</td></tr>
+<tr><td><code>Deferred()</code></td><td>Run during installation script phase (elevated context)</td></tr>
+<tr><td><code>NoImpersonate()</code></td><td>Run as LocalSystem instead of impersonating the user</td></tr>
+<tr><td><code>Rollback()</code></td><td>Run only if the installation fails and rolls back</td></tr>
+<tr><td><code>Commit()</code></td><td>Run only after successful installation</td></tr>
+<tr><td><code>ContinueOnError()</code></td><td>Do not fail the installation if the script returns a non-zero exit code</td></tr>
 </tbody>
 </table>
 
@@ -10580,7 +10846,10 @@ package.CustomAction(ca => ca
       "size": 15728640,
       "releaseNotes": "Bug fixes and performance improvements.",
       "published": "2026-03-01T00:00:00Z",
-      "minVersion": "1.5.0"
+      "minVersion": "1.5.0",
+      "deltaUrl": "https://releases.example.com/myapp/2.1.0/setup-delta-from-2.0.1.exe",
+      "deltaSha256": "c3d4e5f6a7b8...64-char-hex-hash",
+      "deltaSize": 1048576
     },
     {
       "version": "2.0.1",
@@ -10606,6 +10875,9 @@ package.CustomAction(ca => ca
 <tr><td><code>releaseNotes</code></td><td>No</td><td>Human-readable release notes for UI display</td></tr>
 <tr><td><code>published</code></td><td>No</td><td>ISO 8601 publication date (reserved for future UI display)</td></tr>
 <tr><td><code>minVersion</code></td><td>No</td><td>Minimum currently-installed version that can upgrade to this entry. If the installed version is below <code>minVersion</code>, the entry is skipped.</td></tr>
+<tr><td><code>deltaUrl</code></td><td>No</td><td>HTTPS download URL for a delta bundle (see <a href="#demos">Demo 53 &mdash; delta-updates</a>) that reconstructs this version from a previously-installed base bundle. Rejected (falls back to a full download) unless it parses as an absolute <code>https://</code> URI.</td></tr>
+<tr><td><code>deltaSha256</code></td><td>No, but required alongside <code>deltaUrl</code></td><td>SHA-256 hash of the delta download. A <code>deltaUrl</code> without a non-blank <code>deltaSha256</code> is dropped entirely &mdash; the parser then behaves as if no delta was offered</td></tr>
+<tr><td><code>deltaSize</code></td><td>No</td><td>Delta file size in bytes (used for progress display). Only carried through when <code>deltaUrl</code>/<code>deltaSha256</code> both validated</td></tr>
 </tbody>
 </table>
 
@@ -10676,6 +10948,32 @@ package.CustomAction(ca => ca
     <li>If an update is found, an <code>UpdateAvailable</code> message is sent to the UI via the named pipe.</li>
     <li>Under <code>DownloadAndPrompt</code>/<code>AutoUpdate</code> policies, the <code>UpdateDownloader</code> downloads the file with SHA-256 verification and optional resume support.</li>
 </ol>
+
+<p>
+    <strong>Delta-first, full-bundle fallback:</strong> when the selected entry carries a validated
+    <code>deltaUrl</code>/<code>deltaSha256</code> pair, <code>UpdateDownloader</code> tries the delta
+    download before the full bundle:
+</p>
+<ol>
+    <li>It downloads the delta artifact (itself a complete self-extracting bundle EXE whose payloads
+        are Octodiff delta blobs) to a separate <code>.delta</code>-suffixed cache path, verified
+        against <code>deltaSha256</code>.</li>
+    <li>On success, the verified delta artifact is moved onto the final bundle cache path. The delta
+        payloads are reconstructed against the previously-installed base bundle at <em>install</em>
+        time by the engine's delta applicator (basis-pinned, with a reconstructed-hash check) &mdash;
+        this download step only proves the delta artifact itself downloaded intact, not that it will
+        apply.</li>
+    <li>If the delta download fails, or the move to the final cache path fails, <code>UpdateDownloader</code>
+        logs a warning and falls back to downloading the full bundle from <code>url</code>/<code>sha256</code>
+        instead &mdash; the update still completes, just without the smaller transfer.</li>
+    <li>If no valid delta was offered, the full bundle is downloaded directly, same as before delta
+        support existed.</li>
+</ol>
+<p>
+    See <a href="#demos">Demo 53 &mdash; delta-updates</a> for a worked example that builds both a full
+    and a delta feed entry, and <a href="#bundle-delta-updates">Delta Updates</a> for how delta bundles
+    themselves are produced at build time.
+</p>
 
 <h4>Error Codes</h4>
 <table>
@@ -11734,14 +12032,15 @@ public interface IInstallerPlugin
 // Core/Plugins/IPluginServiceRegistry.cs &mdash; write surface
 public interface IPluginServiceRegistry
 {
-    void Register&lt;T&gt;(T instance) where T : class;
+    void Register&lt;TService&gt;(TService instance) where TService : class;
+    void Register&lt;TService&gt;(Func&lt;TService&gt; factory) where TService : class;
 }
 
 // Core/Plugins/IPluginServices.cs &mdash; read surface
 public interface IPluginServices
 {
-    T? GetService&lt;T&gt;() where T : class;
-    bool TryGetService&lt;T&gt;(out T? service) where T : class;
+    TService? GetService&lt;TService&gt;() where TService : class;
+    TService GetRequiredService&lt;TService&gt;() where TService : class; // throws if not registered
 }</code></pre>
 
 <p>
@@ -11756,21 +12055,32 @@ public interface IPluginServices
 
 <p>
     <code>PluginRegistry</code> (<code>src/FalkForge.Core/Plugins/PluginRegistry.cs</code>) is the
-    bulk-composition helper. Pass in a list of <code>IInstallerPlugin</code> instances; each one's
-    <code>RegisterServices</code> is called against a shared registry, and the result is frozen and
-    exposed as <code>IPluginServices</code>.
+    AOT-safe bulk-composition helper &mdash; an immutable, ordered list of <code>IInstallerPlugin</code>
+    instances built via <code>Create(...)</code>, all supplied at compile time (no
+    <code>Assembly.GetTypes()</code>, no <code>Activator.CreateInstance(string)</code>). Call
+    <code>RegisterAll(registry)</code> to run every plugin's <code>RegisterServices</code> against a
+    shared <code>IPluginServiceRegistry</code> in list order:
 </p>
 
-<pre><code class="language-csharp">var services = PluginRegistry.Compose(new IInstallerPlugin[]
-{
-    new SqlServerPlugin(),
+<pre><code class="language-csharp">var registry = PluginRegistry.Create(
+    new SqlPlugin(),
     new OdbcPlugin(),
-    new FolderBrowserPlugin(),
-});
+    new FileSystemPlugin());
+
+var serviceRegistry = new PluginServiceRegistry();
+registry.RegisterAll(serviceRegistry);
+serviceRegistry.Freeze();
 
 // Consumers resolve by interface:
-var sql     = services.GetService&lt;ISqlServerDiscovery&gt;();
-var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
+var sql     = serviceRegistry.GetService&lt;ISqlServerDiscovery&gt;();
+var browser = serviceRegistry.GetService&lt;IFolderBrowser&gt;();</code></pre>
+
+<p>
+    <code>PluginServiceRegistry</code> (<code>src/FalkForge.Core/Plugins/PluginServiceRegistry.cs</code>)
+    is the one concrete class that implements both <code>IPluginServiceRegistry</code> (write) and
+    <code>IPluginServices</code> (read) &mdash; it is what you compose by hand above, and it is exactly
+    what <code>InstallerApp.Run</code> builds for you automatically (next section).
+</p>
 
 <h3 id="plugins-shipped">Shipped Plugins</h3>
 
@@ -11778,7 +12088,7 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
     <thead><tr><th>Plugin</th><th>Project</th><th>Registers</th><th>Notes</th></tr></thead>
     <tbody>
         <tr>
-            <td><strong>SqlServerPlugin</strong></td>
+            <td><strong>SqlPlugin</strong></td>
             <td><code>FalkForge.Plugins.Sql</code></td>
             <td><code>ISqlServerDiscovery</code>, <code>IDatabaseLister</code>, <code>IConnectionTester</code></td>
             <td>Enumerates SQL Server instances via SQL Browser broadcast, lists databases, validates connection strings. Depends on <code>Microsoft.Data.SqlClient</code>.</td>
@@ -11790,7 +12100,7 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
             <td>Checks for ODBC drivers + user/system DSNs and can launch the ODBC Data Source Administrator. Windows-only.</td>
         </tr>
         <tr>
-            <td><strong>FolderBrowserPlugin</strong></td>
+            <td><strong>FileSystemPlugin</strong></td>
             <td><code>FalkForge.Plugins.FileSystem</code></td>
             <td><code>IFolderBrowser</code></td>
             <td>Wraps the modern Windows folder-picker dialog (<code>IFileOpenDialog</code> with
@@ -11800,10 +12110,67 @@ var browser = services.GetService&lt;IFolderBrowser&gt;();</code></pre>
 </table>
 
 <div class="note">
-    Plugins are optional &mdash; consuming code should always use <code>TryGetService</code> or check the
-    result of <code>GetService</code> for null. A custom-UI page that asks for
-    <code>ISqlServerDiscovery</code> when the SQL plugin is not loaded simply gets <code>null</code> and
-    can fall back to manual entry.
+    Plugins are optional &mdash; consuming code should always use <code>GetService</code> (nullable
+    return) and check for <code>null</code>, or accept the throw from <code>GetRequiredService</code>
+    when the service is truly mandatory. A custom-UI page that asks for
+    <code>ISqlServerDiscovery</code> via <code>GetService</code> when the SQL plugin is not loaded
+    simply gets <code>null</code> back and can fall back to manual entry.
+</div>
+
+<h3 id="plugins-wiring">Wiring Plugins Into a Custom UI</h3>
+
+<p>
+    The two registration paths on <code>InstallerUIBuilder</code> (<code>Plugin&lt;T&gt;()</code> for a
+    single compile-time-known type, <code>RegisterPlugins(PluginRegistry)</code> for a bulk list) don't
+    build the <code>PluginServiceRegistry</code> themselves &mdash; they just record what was asked for.
+    The actual composition happens inside <code>InstallerApp.Run</code>, once, after all pages are
+    constructed:
+</p>
+<ol>
+    <li>Every <code>Plugin&lt;T&gt;()</code>-registered plugin's <code>RegisterServices</code> runs first, in registration order.</li>
+    <li>Then <code>RegisterPlugins(PluginRegistry)</code>'s bulk list runs its own <code>RegisterServices</code> calls against the same registry &mdash; first-registration-wins overall, so a <code>Plugin&lt;T&gt;()</code> call always beats a same-typed service coming from the bulk registry.</li>
+    <li>The registry is frozen (further <code>Register</code> calls throw), then assigned to every page's <code>InstallerPage.PluginServices</code> property (<code>internal set</code>, populated by the framework &mdash; not constructor-injected).</li>
+</ol>
+
+<pre><code class="language-csharp">// Program.cs &mdash; composing InstallerUIBuilder with plugins
+using FalkForge.Plugins;
+using FalkForge.Plugins.Sql;
+using FalkForge.Plugins.Odbc;
+using FalkForge.Plugins.FileSystem;
+using FalkForge.Ui;
+
+return InstallerApp.Run(args, builder =>
+{
+    builder
+        .Window(w => w.Size(800, 600).Title("MyOrg Installer"))
+        .Pages(p => p.Add&lt;WelcomePage&gt;().Add&lt;DatabasePickerPage&gt;())
+        .RegisterPlugins(PluginRegistry.Create(
+            new SqlPlugin(),
+            new OdbcPlugin(),
+            new FileSystemPlugin()));
+});
+
+// DatabasePickerPage.cs &mdash; a custom InstallerPage reading a plugin service.
+// PluginServices is populated AFTER all pages are constructed, so don't read it
+// from the page constructor &mdash; use it from a lifecycle hook or command handler.
+public sealed class DatabasePickerPage : InstallerPage&lt;DatabasePickerView&gt;
+{
+    protected internal override async Task&lt;bool&gt; OnDetectBeginAsync()
+    {
+        var discovery = PluginServices.GetRequiredService&lt;ISqlServerDiscovery&gt;();
+        var servers = await discovery.DiscoverServersAsync();
+        // bind servers.Value into the view...
+        return true;
+    }
+}</code></pre>
+
+<div class="note">
+    No shipped demo currently exercises this wiring end-to-end through
+    <code>InstallerApp.Run</code> &mdash; the plugin composition logic is covered by unit tests
+    (<code>FalkForge.Ui.Tests</code>, <code>FalkForge.Core.Tests</code>) that replicate the framework's
+    drain-and-freeze sequence by hand, not by a runnable custom-UI demo. If you build a custom host that
+    doesn't go through <code>InstallerApp.Run</code>, you must replicate that sequence yourself, as shown
+    at the top of this section.
 </div>
 </section>
 
