@@ -265,6 +265,139 @@ public sealed class ServiceRulesTests
         Assert.Empty(ServiceRules.Svc011_EmptyComponentCondition.Evaluate(Ctx(PkgWithService(svc))));
     }
 
+    // ── SVC012 — Custom account without password warning ─────────────────────
+
+    [Fact]
+    public void Svc012_user_account_no_password_yields_warning()
+    {
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"CONTOSO\svcaccount",
+            Password = null
+        };
+        var violations = ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("SVC012", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Svc012_user_account_empty_password_yields_warning()
+    {
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"CONTOSO\svcaccount",
+            Password = ""
+        };
+        Assert.Single(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_user_account_with_password_yields_no_violations()
+    {
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"CONTOSO\svcaccount",
+            Password = "secret123"
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_gmsa_account_no_password_yields_no_violations()
+    {
+        // Group Managed Service Accounts are identified by a trailing '$' and
+        // never take a static password -- Windows manages the credential.
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"CONTOSO\gMSA1$",
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_virtual_service_account_no_password_yields_no_violations()
+    {
+        // Virtual accounts (NT SERVICE\<ServiceName>) are managed by the SCM
+        // and never take a static password.
+        var svc = new ServiceModel
+        {
+            Name = "MySvc", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"NT SERVICE\MySvc",
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_builtin_system_account_string_no_password_yields_no_violations()
+    {
+        // A caller who spelled a built-in account out as UserName (instead of
+        // using the Account enum) must not be flagged either.
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"NT AUTHORITY\SYSTEM",
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_local_system_enum_account_no_password_yields_no_violations()
+    {
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.LocalSystem,
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_account_property_set_no_password_yields_no_violations()
+    {
+        // The account is resolved from an MSI property at install time -- its
+        // password requirements cannot be judged statically at compile time.
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            AccountProperty = "SVC_ACCOUNT",
+            UserName = null,
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_no_username_yields_no_violations()
+    {
+        // SVC003 already flags a User account with no UserName at all; SVC012
+        // stays silent to avoid double-reporting the same underlying problem.
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = null,
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
     // ── SCT001 — ServiceControl ServiceName required ──────────────────────────
 
     [Fact]
