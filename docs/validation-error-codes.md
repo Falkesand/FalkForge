@@ -304,6 +304,8 @@ Auto-generated from source — do not edit by hand. To refresh: re-run the extra
 | LOC003 | Unresolved localization reference '!(loc.<x>)'. String ID '<x>' not found in any culture | `src/FalkForge.Localization/LocalizedStringResolver.cs` |
 | LOC004 | Cannot extract culture from filename. Expected format: name.culture.json (e.g., strings.en-US.json) | `src/FalkForge.Localization/LocalizationLoader.cs` |
 
+`LocalizationBuilder` merges strings in two tiers: a **baseline** tier (`AddBaselineCulture()`, used internally by `AddBuiltInCultures()`) and a **user** tier (`AddCulture()` / `AddJsonFile()`). The user tier silently overrides any baseline key it also defines, regardless of registration order — that's how you override a single built-in dialog string without touching the rest. LOC001 only fires for a duplicate key *within* the same tier (two user sources colliding, or two baseline sources colliding); a user string overriding a baseline string is never an error.
+
 ## MDT — Media template
 
 | Code | Message | Source |
