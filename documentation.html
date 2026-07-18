@@ -638,6 +638,27 @@
         <a href="#bundle-builders" class="nav-section-title">
           <span class="chevron">&#9656;</span><span class="nav-text">9. Bundle Builder API</span>
         </a>
+        <div class="nav-children">
+          <a href="#bundle-builder">9.1 BundleBuilder</a>
+          <a href="#bundle-chain-builder">9.2 ChainBuilder</a>
+          <a href="#bundle-package-builder">9.3 BundlePackageBuilder</a>
+          <a href="#bundle-search-conditions">9.3a SearchConditionBuilder</a>
+          <a href="#bundle-package-groups">9.3b PackageGroupBuilder</a>
+          <a href="#bundle-built-in-prerequisites">9.3c Built-in Prerequisites</a>
+          <a href="#bundle-variable-resolution">9.3d Variable Resolution</a>
+          <a href="#bundle-msu-package-builder">9.4 MsuPackageBuilder</a>
+          <a href="#bundle-msp-package-builder">9.5 MspPackageBuilder</a>
+          <a href="#bundle-nested-package-builder">9.6 NestedBundlePackageBuilder</a>
+          <a href="#bundle-container-builder">9.7 ContainerBuilder</a>
+          <a href="#bundle-related-bundle-builder">9.8 RelatedBundleBuilder</a>
+          <a href="#bundle-rollback-boundary-builder">9.9 RollbackBoundaryBuilder</a>
+          <a href="#bundle-variable-builder">9.10 BundleVariableBuilder</a>
+          <a href="#bundle-feature-builder">9.11 BundleFeatureBuilder</a>
+          <a href="#bundle-reference-handles">9.12 Typed Reference Handles</a>
+          <a href="#bundle-entry-point">9.13 Entry Point and Compilation</a>
+          <a href="#bundle-code-example">9.14 Code Example</a>
+          <a href="#bundle-delta-updates">Delta Updates</a>
+        </div>
       </div>
 
       <!-- Section 10: Extensions -->
@@ -646,6 +667,12 @@
           <span class="chevron">&#9656;</span><span class="nav-text">10. Extension System</span>
         </a>
         <div class="nav-children">
+          <a href="#ext-interfaces">10.1 Extension Interfaces</a>
+          <a href="#ext-firewall">10.2 Firewall Extension</a>
+          <a href="#ext-iis">10.3 IIS Extension</a>
+          <a href="#ext-sql">10.4 SQL Extension</a>
+          <a href="#ext-dotnet">10.5 .NET Extension</a>
+          <a href="#ext-util">10.6 Util Extension</a>
           <a href="#ext-http">10.7 HTTP Extension</a>
           <a href="#ext-driver">10.8 Driver Extension</a>
           <a href="#ext-com">10.9 COM Registration</a>
@@ -659,6 +686,20 @@
         <a href="#custom-ui" class="nav-section-title">
           <span class="chevron">&#9656;</span><span class="nav-text">11. Custom UI Framework</span>
         </a>
+        <div class="nav-children">
+          <a href="#custom-ui-installer-app">11.1 InstallerApp</a>
+          <a href="#custom-ui-ui-builder">11.2 InstallerUIBuilder</a>
+          <a href="#custom-ui-window-builder">11.3 InstallerWindowBuilder</a>
+          <a href="#custom-ui-page-registrar">11.4 PageRegistrar</a>
+          <a href="#custom-ui-installer-page">11.5 InstallerPage (Abstract Base)</a>
+          <a href="#custom-ui-lifecycle-hooks">11.5.1 Engine Lifecycle Hooks &amp; Fire Order</a>
+          <a href="#custom-ui-installer-page-t">11.6 InstallerPage&lt;TView&gt;</a>
+          <a href="#custom-ui-iinstaller-engine">11.7 IInstallerEngine</a>
+          <a href="#custom-ui-page-result">11.8 PageResult</a>
+          <a href="#custom-ui-installer-state">11.9 InstallerState</a>
+          <a href="#custom-ui-complete-example">11.10 Complete Custom UI Example</a>
+          <a href="#property-passing">11.11 Property Passing</a>
+        </div>
       </div>
 
       <!-- Section 12: Engine -->
@@ -674,6 +715,7 @@
           <a href="#engine-download">Download &amp; Update Checking</a>
           <a href="#engine-cache">Cache</a>
           <a href="#engine-rollback">Rollback Journal</a>
+          <a href="#engine-logging">Logging &amp; Metrics</a>
         </div>
       </div>
 
@@ -684,6 +726,7 @@
         </a>
         <div class="nav-children">
           <a href="#protocol-messages">Message Types</a>
+          <a href="#protocol-codec">Codec Architecture</a>
           <a href="#protocol-transport">Transport</a>
           <a href="#protocol-manifest">Manifest Types</a>
         </div>
@@ -694,6 +737,16 @@
         <a href="#dialog-templates" class="nav-section-title">
           <span class="chevron">&#9656;</span><span class="nav-text">14. MSI Dialog Templates</span>
         </a>
+        <div class="nav-children">
+          <a href="#dlg-template-comparison">Template Comparison</a>
+          <a href="#dlg-minimal-template">Minimal Template</a>
+          <a href="#dlg-installdir-template">InstallDir Template</a>
+          <a href="#dlg-featuretree-template">FeatureTree Template</a>
+          <a href="#dlg-mondo-template">Mondo Template</a>
+          <a href="#dlg-advanced-template">Advanced Template</a>
+          <a href="#dlg-authoring-custom-dialog">Authoring a Custom Dialog</a>
+          <a href="#dlg-customization-api">Dialog Customization API</a>
+        </div>
       </div>
 
       <!-- Section 15: CLI -->
@@ -701,6 +754,12 @@
         <a href="#cli" class="nav-section-title">
           <span class="chevron">&#9656;</span><span class="nav-text">15. CLI Tool</span>
         </a>
+        <div class="nav-children">
+          <a href="#cli-commands">Commands</a>
+          <a href="#cli-exit-codes">Exit Codes</a>
+          <a href="#cli-json-config">JSON Configuration Format</a>
+          <a href="#cli-scripting">C# Scripting Support</a>
+        </div>
       </div>
 
       <!-- Section 16: Localization -->
@@ -708,6 +767,17 @@
         <a href="#localization" class="nav-section-title">
           <span class="chevron">&#9656;</span><span class="nav-text">16. Localization</span>
         </a>
+        <div class="nav-children">
+          <a href="#loc-how-it-works">How It Works</a>
+          <a href="#loc-json-format">JSON File Format</a>
+          <a href="#loc-culture-fallback">Culture Fallback Chain</a>
+          <a href="#loc-builder-api">Builder API</a>
+          <a href="#loc-override">Overriding Built-In Strings</a>
+          <a href="#loc-integration">Integration with PackageBuilder</a>
+          <a href="#loc-string-resolution">String Resolution</a>
+          <a href="#loc-detect-culture">Automatic Culture Detection</a>
+          <a href="#loc-error-codes">Error Codes</a>
+        </div>
       </div>
 
       <!-- Section 17: Decompiler -->
@@ -715,6 +785,17 @@
         <a href="#decompiler" class="nav-section-title">
           <span class="chevron">&#9656;</span><span class="nav-text">17. Decompiler</span>
         </a>
+        <div class="nav-children">
+          <a href="#decompiler-quick-start">Quick Start</a>
+          <a href="#decompiler-msi">MsiDecompiler</a>
+          <a href="#decompiler-table-access">IMsiTableAccess</a>
+          <a href="#decompiler-recipe-pipeline">Recipe Pipeline</a>
+          <a href="#decompiler-extension-roundtrip">Extension Round-Trip</a>
+          <a href="#decompiler-csharp-emitter">CSharpEmitter</a>
+          <a href="#decompiler-bundle">BundleDecompiler</a>
+          <a href="#decompiler-wix-bundle">WixBundleDecompiler</a>
+          <a href="#decompiler-error-codes">Error Codes</a>
+        </div>
       </div>
 
       <!-- Section 18: Error Codes -->
@@ -791,6 +872,7 @@
           <a href="#plugins-interfaces">Interfaces</a>
           <a href="#plugins-registry">PluginRegistry</a>
           <a href="#plugins-shipped">Shipped Plugins</a>
+          <a href="#plugins-wiring">Wiring Plugins Into a Custom UI</a>
         </div>
       </div>
 
@@ -809,6 +891,7 @@
           <a href="#signing-roles-quorum">Roles &amp; Quorum</a>
           <a href="#signing-post-quantum">Post-Quantum Hybrid Signing</a>
           <a href="#signing-cert-faq">Do I Need a Certificate?</a>
+          <a href="#sigil">Sigil: SBOM Attestation &amp; MSI Integrity Signing</a>
           <a href="#signing-future">What's Coming</a>
         </div>
       </div>
@@ -4579,7 +4662,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
   </p>
 
   <!-- 9.1 BundleBuilder -->
-  <h3>9.1 BundleBuilder</h3>
+  <h3 id="bundle-builder">9.1 BundleBuilder</h3>
   <p>
     Top-level builder for defining an EXE bundle. Configures bundle metadata, UI mode, chain of packages,
     related bundles, containers, variables, features, dependency tracking, and update feed.
@@ -4620,7 +4703,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
   </table>
 
   <!-- 9.2 ChainBuilder -->
-  <h3>9.2 ChainBuilder</h3>
+  <h3 id="bundle-chain-builder">9.2 ChainBuilder</h3>
   <p>
     Configures the ordered chain of packages to install. Each package type has a dedicated method
     that accepts a source path and a configuration callback. Rollback boundaries can be inserted
@@ -4644,7 +4727,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
   </table>
 
   <!-- 9.3 BundlePackageBuilder -->
-  <h3>9.3 BundlePackageBuilder</h3>
+  <h3 id="bundle-package-builder">9.3 BundlePackageBuilder</h3>
   <p>
     Configures an individual package (MSI or EXE) within the bundle chain. Created internally by
     <code>ChainBuilder.MsiPackage()</code>, <code>ChainBuilder.ExePackage()</code>, and
@@ -4784,7 +4867,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </div>
 
   <!-- 9.4 MsuPackageBuilder -->
-  <h3>9.4 MsuPackageBuilder</h3>
+  <h3 id="bundle-msu-package-builder">9.4 MsuPackageBuilder</h3>
   <p>
     Configures a Windows Update (MSU) package within the chain.
     Located in <code>src/FalkForge.Compiler.Bundle/Builders/MsuPackageBuilder.cs</code>.
@@ -4804,7 +4887,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.5 MspPackageBuilder -->
-  <h3>9.5 MspPackageBuilder</h3>
+  <h3 id="bundle-msp-package-builder">9.5 MspPackageBuilder</h3>
   <p>
     Configures a patch (MSP) package within the chain.
     Located in <code>src/FalkForge.Compiler.Bundle/Builders/MspPackageBuilder.cs</code>.
@@ -4825,7 +4908,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.6 NestedBundlePackageBuilder -->
-  <h3>9.6 NestedBundlePackageBuilder</h3>
+  <h3 id="bundle-nested-package-builder">9.6 NestedBundlePackageBuilder</h3>
   <p>
     Configures a nested bundle package within the chain.
     Located in <code>src/FalkForge.Compiler.Bundle/Builders/NestedBundlePackageBuilder.cs</code>.
@@ -4844,7 +4927,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.7 ContainerBuilder -->
-  <h3>9.7 ContainerBuilder</h3>
+  <h3 id="bundle-container-builder">9.7 ContainerBuilder</h3>
   <p>
     Configures a payload container for grouping packages. Containers enable separate download of
     package subsets from a remote URL.
@@ -4861,7 +4944,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.8 RelatedBundleBuilder -->
-  <h3>9.8 RelatedBundleBuilder</h3>
+  <h3 id="bundle-related-bundle-builder">9.8 RelatedBundleBuilder</h3>
   <p>
     Declares a relationship to another bundle (upgrade, addon, detect, or patch).
     Located in <code>src/FalkForge.Compiler.Bundle/Builders/RelatedBundleBuilder.cs</code>.
@@ -4900,7 +4983,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </div>
 
   <!-- 9.9 RollbackBoundaryBuilder -->
-  <h3>9.9 RollbackBoundaryBuilder</h3>
+  <h3 id="bundle-rollback-boundary-builder">9.9 RollbackBoundaryBuilder</h3>
   <p>
     Configures a rollback boundary inserted into the package chain. If a package after a rollback
     boundary fails, only packages between this boundary and the next are rolled back.
@@ -4944,7 +5027,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </p>
 
   <!-- 9.10 BundleVariableBuilder -->
-  <h3>9.10 BundleVariableBuilder</h3>
+  <h3 id="bundle-variable-builder">9.10 BundleVariableBuilder</h3>
   <p>
     Declares a bundle variable that can be used in conditions, passed to packages, or persisted
     across sessions. Created via <code>BundleBuilder.Variable()</code>.
@@ -4966,7 +5049,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.11 BundleFeatureBuilder -->
-  <h3>9.11 BundleFeatureBuilder</h3>
+  <h3 id="bundle-feature-builder">9.11 BundleFeatureBuilder</h3>
   <p>
     Declares a feature that groups packages for optional selection by the user.
     Created via <code>BundleBuilder.Feature()</code>.
@@ -4986,7 +5069,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.12 Typed Reference Handles -->
-  <h3>9.12 Typed Reference Handles</h3>
+  <h3 id="bundle-reference-handles">9.12 Typed Reference Handles</h3>
   <p>
     Sealed records that provide compile-time-safe cross-references between bundle elements.
     Prevents stringly-typed errors when referencing containers or rollback boundaries from other builders.
@@ -5002,7 +5085,7 @@ Installer.BuildBundle(args, bundle =&gt;
   </table>
 
   <!-- 9.13 Entry Point and Compilation -->
-  <h3>9.13 Entry Point and Compilation</h3>
+  <h3 id="bundle-entry-point">9.13 Entry Point and Compilation</h3>
   <p>
     Bundles are compiled using the <code>Installer.BuildBundle()</code> entry point, which accepts
     command-line arguments and a compilation function. The <code>BundleCompiler</code> validates the model,
@@ -5019,7 +5102,7 @@ public sealed class BundleCompiler
 }</code></pre>
 
   <!-- 9.14 Code Example -->
-  <h3>9.14 Code Example</h3>
+  <h3 id="bundle-code-example">9.14 Code Example</h3>
   <pre><code class="language-csharp">Installer.BuildBundle(args, outputPath =&gt;
 {
     var bundle = new BundleBuilder()
@@ -5131,7 +5214,7 @@ public sealed class BundleCompiler
   </p>
 
   <!-- 10.1 Extension Interfaces -->
-  <h3>10.1 Extension Interfaces</h3>
+  <h3 id="ext-interfaces">10.1 Extension Interfaces</h3>
   <p>
     Located in <code>src/FalkForge.Extensibility/</code>. These interfaces form the extension contract.
   </p>
@@ -5260,7 +5343,7 @@ public sealed class BundleCompiler
   </table>
 
   <!-- 10.2 Firewall Extension -->
-  <h3>10.2 Firewall Extension</h3>
+  <h3 id="ext-firewall">10.2 Firewall Extension</h3>
   <p>
     Defines Windows Firewall rules to create during installation.
     Located in <code>src/FalkForge.Extensions.Firewall/</code>.
@@ -5321,7 +5404,7 @@ firewall.AddRule(rule =&gt; rule
     .Action(FirewallRuleAction.Allow));</code></pre>
 
   <!-- 10.3 IIS Extension -->
-  <h3>10.3 IIS Extension</h3>
+  <h3 id="ext-iis">10.3 IIS Extension</h3>
   <p>
     Configures IIS application pools, web sites, web applications, bindings, and certificates.
     Located in <code>src/FalkForge.Extensions.Iis/</code>.
@@ -5470,7 +5553,7 @@ iis.AddWebSite(site =&gt; site
         .AppPool(appPool)));</code></pre>
 
   <!-- 10.4 SQL Extension -->
-  <h3>10.4 SQL Extension</h3>
+  <h3 id="ext-sql">10.4 SQL Extension</h3>
   <p>
     Configures SQL Server database creation, script execution, and inline SQL string execution.
     Located in <code>src/FalkForge.Extensions.Sql/</code>.
@@ -5594,7 +5677,7 @@ var seedData = new SqlStringBuilder()
     .Build();</code></pre>
 
   <!-- 10.5 .NET Extension -->
-  <h3>10.5 .NET Extension</h3>
+  <h3 id="ext-dotnet">10.5 .NET Extension</h3>
   <p>
     Detects installed .NET runtimes via registry and filesystem probing. This is a detection-only
     extension -- it does not contribute MSI tables or components. Detection results are populated
@@ -5637,7 +5720,7 @@ var seedData = new SqlStringBuilder()
     .Build();</code></pre>
 
   <!-- 10.6 Util Extension -->
-  <h3>10.6 Util Extension</h3>
+  <h3 id="ext-util">10.6 Util Extension</h3>
   <p>
     Provides utility actions: XML configuration editing, quiet command execution, user/group management,
     file share creation, recursive folder removal, and internet shortcut creation.
@@ -5870,7 +5953,7 @@ Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));
   </p>
 
   <!-- 11.1 InstallerApp -->
-  <h3>11.1 InstallerApp</h3>
+  <h3 id="custom-ui-installer-app">11.1 InstallerApp</h3>
   <p>
     Static entry point for custom UI installers. Orchestrates page creation, engine wiring, window
     creation, and WPF application lifecycle. Located in <code>src/FalkForge.Ui/InstallerApp.cs</code>.
@@ -5897,7 +5980,7 @@ Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));
 }</code></pre>
 
   <!-- 11.2 InstallerUIBuilder -->
-  <h3>11.2 InstallerUIBuilder</h3>
+  <h3 id="custom-ui-ui-builder">11.2 InstallerUIBuilder</h3>
   <p>
     Top-level fluent builder composing window configuration and page registration.
     Located in <code>src/FalkForge.Ui/InstallerUIBuilder.cs</code>.
@@ -5915,7 +5998,7 @@ Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));
   </table>
 
   <!-- 11.3 InstallerWindowBuilder -->
-  <h3>11.3 InstallerWindowBuilder</h3>
+  <h3 id="custom-ui-window-builder">11.3 InstallerWindowBuilder</h3>
   <p>
     Configures the installer window appearance and behavior.
     Located in <code>src/FalkForge.Ui/InstallerWindowBuilder.cs</code>.
@@ -5940,7 +6023,7 @@ Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));
   </table>
 
   <!-- 11.4 PageRegistrar -->
-  <h3>11.4 PageRegistrar</h3>
+  <h3 id="custom-ui-page-registrar">11.4 PageRegistrar</h3>
   <p>
     Registers pages in display order. Each page is created via a parameterless constructor.
     Located in <code>src/FalkForge.Ui/PageRegistrar.cs</code>.
@@ -5961,7 +6044,7 @@ pages.Add&lt;WelcomePage&gt;()      // Page 0 (shown first)
      .Add&lt;CompletePage&gt;();    // Page 4 (shown last)</code></pre>
 
   <!-- 11.5 InstallerPage -->
-  <h3>11.5 InstallerPage (Abstract Base)</h3>
+  <h3 id="custom-ui-installer-page">11.5 InstallerPage (Abstract Base)</h3>
   <p>
     Abstract base class for all custom installer pages. Provides engine access, shared state, navigation
     hooks, and <code>INotifyPropertyChanged</code> support. Has an internal constructor, so pages must
@@ -5989,7 +6072,7 @@ pages.Add&lt;WelcomePage&gt;()      // Page 0 (shown first)
   </table>
 
   <!-- 11.5.1 Engine Lifecycle Hooks & Fire Order -->
-  <h3>11.5.1 Engine Lifecycle Hooks &amp; Fire Order</h3>
+  <h3 id="custom-ui-lifecycle-hooks">11.5.1 Engine Lifecycle Hooks &amp; Fire Order</h3>
   <p>
     Beyond the navigation hooks above, an <code>InstallerPage</code> can override <strong>engine
     lifecycle hooks</strong> that fire while the engine runs the Detect &rarr; Plan &rarr; Apply
@@ -6069,7 +6152,7 @@ OnApplyCompleteAsync
   </p>
 
   <!-- 11.6 InstallerPage<TView> -->
-  <h3>11.6 InstallerPage&lt;TView&gt;</h3>
+  <h3 id="custom-ui-installer-page-t">11.6 InstallerPage&lt;TView&gt;</h3>
   <p>
     Generic subclass that auto-creates the WPF view and wires <code>DataContext</code>. This is the
     class custom pages should derive from. <code>TView</code> must be a <code>FrameworkElement</code>
@@ -6096,7 +6179,7 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
 // DataContext is automatically set to the WelcomePage instance</code></pre>
 
   <!-- 11.7 IInstallerEngine -->
-  <h3>11.7 IInstallerEngine</h3>
+  <h3 id="custom-ui-iinstaller-engine">11.7 IInstallerEngine</h3>
   <p>
     Interface for communicating with the installer engine from custom UI pages. Provides async
     operations for the detect/plan/apply lifecycle, observable progress streams, and feature/directory
@@ -6125,7 +6208,7 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
   </table>
 
   <!-- 11.8 PageResult -->
-  <h3>11.8 PageResult</h3>
+  <h3 id="custom-ui-page-result">11.8 PageResult</h3>
   <p>
     Sealed class representing page navigation results. Returned from <code>OnNext()</code> and
     <code>OnBack()</code> to control navigation flow. Provides singleton instances for common
@@ -6180,7 +6263,7 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
 }</code></pre>
 
   <!-- 11.9 InstallerState -->
-  <h3>11.9 InstallerState</h3>
+  <h3 id="custom-ui-installer-state">11.9 InstallerState</h3>
   <p>
     Thread-safe state bag for sharing data between pages. Built on <code>ConcurrentDictionary&lt;string, object&gt;</code>.
     Provides typed <code>Get&lt;T&gt;</code>/<code>Set&lt;T&gt;</code> methods and a convenience
@@ -6208,7 +6291,7 @@ bool accepted = SharedState.Get&lt;bool&gt;("LicenseAccepted");
 string? dir = SharedState.InstallDirectory;</code></pre>
 
   <!-- 11.10 Complete Example -->
-  <h3>11.10 Complete Custom UI Example</h3>
+  <h3 id="custom-ui-complete-example">11.10 Complete Custom UI Example</h3>
   <p>
     A full example demonstrating the custom UI framework with three pages: Welcome, Install, and Complete.
   </p>
@@ -8300,7 +8383,7 @@ public static class MessageCodecRegistry
 // Usage in the fluent API:
 package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 
-<h3>Template Comparison</h3>
+<h3 id="dlg-template-comparison">Template Comparison</h3>
 <table class="api-table">
     <thead>
         <tr>
@@ -8368,27 +8451,27 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     </tbody>
 </table>
 
-<h3>Minimal Template</h3>
+<h3 id="dlg-minimal-template">Minimal Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/MinimalDialogTemplate.cs</code></p>
 <p>The simplest template with just three dialogs for a one-click installation experience.</p>
 <p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
 
-<h3>InstallDir Template</h3>
+<h3 id="dlg-installdir-template">InstallDir Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/InstallDirDialogTemplate.cs</code></p>
 <p>Adds a license agreement and destination folder chooser to the flow.</p>
 <p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>InstallDirDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
 
-<h3>FeatureTree Template</h3>
+<h3 id="dlg-featuretree-template">FeatureTree Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/FeatureTreeDialogTemplate.cs</code></p>
 <p>Includes a feature selection tree (SelectionTree control) with disk cost information.</p>
 <p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>CustomizeDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
 
-<h3>Mondo Template</h3>
+<h3 id="dlg-mondo-template">Mondo Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/MondoDialogTemplate.cs</code></p>
 <p>Full dialog set with setup type selection (Typical/Custom/Complete) and both feature tree and install directory dialogs.</p>
 <p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>SetupTypeDlg</strong> (Typical &rarr; Progress | Custom &rarr; <strong>CustomizeDlg</strong> | Complete &rarr; Progress) &rarr; <strong>InstallDirDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
 
-<h3>Advanced Template</h3>
+<h3 id="dlg-advanced-template">Advanced Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/AdvancedDialogTemplate.cs</code></p>
 <p>The most comprehensive template, adding an install scope dialog for choosing between per-machine (all users, requires admin) and per-user installation. Sets the <code>ALLUSERS</code> property accordingly.</p>
 <p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>InstallScopeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>SetupTypeDlg</strong> &rarr; <strong>CustomizeDlg</strong> &rarr; <strong>InstallDirDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
@@ -8399,7 +8482,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <code>LicenseAccepted = "1"</code>).
 </div>
 
-<h3>Authoring a Custom Dialog (<code>AddCustomDialog</code>)</h3>
+<h3 id="dlg-authoring-custom-dialog">Authoring a Custom Dialog (<code>AddCustomDialog</code>)</h3>
 
 <h4>How MSI dialogs work</h4>
 
@@ -8615,7 +8698,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <code>DialogCustomization</code> step insertion rather than authored custom dialogs.
 </p>
 
-<h3>Dialog Customization API</h3>
+<h3 id="dlg-customization-api">Dialog Customization API</h3>
 
 <p>
     Beyond picking a template, callers can <strong>insert</strong> reusable, extension-contributed dialog
@@ -8702,7 +8785,7 @@ public interface IDialogStepBuilder
     a <code>--json</code> flag which switches output to a CI-friendly JSON envelope.
 </p>
 
-<h3>Commands</h3>
+<h3 id="cli-commands">Commands</h3>
 
 <h4>init</h4>
 <p>
@@ -9153,7 +9236,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
 
 <p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>, <a href="#sigil">Sigil</a> (23) for how the signature itself is produced.</p>
 
-<h3>Exit Codes</h3>
+<h3 id="cli-exit-codes">Exit Codes</h3>
 <table class="api-table">
     <thead><tr><th>Code</th><th>Constant</th><th>Description</th></tr></thead>
     <tbody>
@@ -9164,7 +9247,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     </tbody>
 </table>
 
-<h3>JSON Configuration Format</h3>
+<h3 id="cli-json-config">JSON Configuration Format</h3>
 <p>The CLI accepts JSON files as an alternative to C# scripts. The schema is defined in <code>src/FalkForge.Cli/Models/InstallerConfig.cs</code>.</p>
 
 <pre><code class="language-json">{
@@ -9209,7 +9292,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
   }
 }</code></pre>
 
-<h3>C# Scripting Support</h3>
+<h3 id="cli-scripting">C# Scripting Support</h3>
 <p>
     C# script files (<code>.cs</code>) are compiled using Roslyn scripting.
     The <code>ScriptLoader</code> class evaluates the script, which calls
@@ -9229,7 +9312,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     using the <code>!(loc.StringId)</code> pattern.
 </p>
 
-<h3>How It Works</h3>
+<h3 id="loc-how-it-works">How It Works</h3>
 <ol>
     <li>Define string tables in JSON files named <code>name.culture.json</code> (e.g., <code>strings.en-US.json</code>, <code>strings.de.json</code>)</li>
     <li>Register them with the <code>LocalizationBuilder</code>, specifying a default culture</li>
@@ -9237,7 +9320,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     <li>If a string is not found in the requested culture, the fallback chain is followed</li>
 </ol>
 
-<h3>JSON File Format</h3>
+<h3 id="loc-json-format">JSON File Format</h3>
 <p>Each JSON file is a flat dictionary of string ID to string value. The culture is extracted from the filename.</p>
 <pre><code class="language-json">// strings.en-US.json
 {
@@ -9259,7 +9342,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     separated by hyphens (e.g., <code>en-US</code>, <code>zh-Hans-CN</code>).
 </div>
 
-<h3>Culture Fallback Chain</h3>
+<h3 id="loc-culture-fallback">Culture Fallback Chain</h3>
 <p><code>src/FalkForge.Localization/CultureFallbackChain.cs</code></p>
 <p>
     The fallback chain walks from the most specific culture to the default:
@@ -9273,7 +9356,7 @@ Chain: ["zh-Hans-CN", "zh-Hans", "zh", "en-US"]
 Input: culture="en-US", default="en-US"
 Chain: ["en-US"]  (no fallback needed)</code></pre>
 
-<h3>Builder API</h3>
+<h3 id="loc-builder-api">Builder API</h3>
 <p><code>src/FalkForge.Localization/LocalizationBuilder.cs</code></p>
 
 <pre><code class="language-csharp">var builder = new LocalizationBuilder();
@@ -9312,14 +9395,14 @@ Result&lt;IReadOnlyList&lt;LocalizationModel&gt;&gt; result = builder.Build();</
     one.
 </p>
 
-<h3>Integration with PackageBuilder</h3>
+<h3 id="loc-integration">Integration with PackageBuilder</h3>
 <p><code>src/FalkForge.Localization/PackageBuilderExtensions.cs</code></p>
 <pre><code class="language-csharp">package.Localization(loc => loc
     .DefaultCulture("en-US")
     .AddJsonFile("strings.en-US.json")
     .AddJsonFile("strings.de.json"));</code></pre>
 
-<h3>String Resolution</h3>
+<h3 id="loc-string-resolution">String Resolution</h3>
 <p><code>src/FalkForge.Localization/LocalizedStringResolver.cs</code></p>
 <p>
     Resolves <code>!(loc.StringId)</code> patterns with recursive nesting support and circular
@@ -9328,7 +9411,7 @@ Result&lt;IReadOnlyList&lt;LocalizationModel&gt;&gt; result = builder.Build();</
 <pre><code class="language-csharp">var resolver = new LocalizedStringResolver(models, "en-US");
 Result&lt;string&gt; result = resolver.Resolve("Welcome to !(loc.ProductName)", "de");</code></pre>
 
-<h3>Automatic Culture Detection: <code>DetectCulture()</code></h3>
+<h3 id="loc-detect-culture">Automatic Culture Detection: <code>DetectCulture()</code></h3>
 <p>
     Both localization builders expose a <code>DetectCulture(bool detect = true)</code> fluent method
     that, instead of always falling back to the configured default culture, tries to pick a matching
@@ -9361,7 +9444,7 @@ builder.Localization(loc =&gt; loc
     the whole culture fallback + detection story.
 </p>
 
-<h3>Error Codes</h3>
+<h3 id="loc-error-codes">Error Codes</h3>
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
@@ -9388,7 +9471,7 @@ builder.Localization(loc =&gt; loc
     decompilation are cross-platform.
 </p>
 
-<h3>Quick Start</h3>
+<h3 id="decompiler-quick-start">Quick Start</h3>
 <p>
     Most callers only need two methods on <code>MsiDecompiler</code>: <code>Decompile(msiPath)</code> to
     get a structured <code>PackageModel</code> you can inspect or feed into further tooling, or
@@ -9427,7 +9510,7 @@ if (csharpResult.IsSuccess)
     <a href="#demos">Demo 54 &mdash; forge migrate</a> for the full round-trip workflow.
 </p>
 
-<h3>MsiDecompiler</h3>
+<h3 id="decompiler-msi">MsiDecompiler</h3>
 <p><code>src/FalkForge.Decompiler/MsiDecompiler.cs</code></p>
 
 <pre><code class="language-csharp">[SupportedOSPlatform("windows")]
@@ -9450,7 +9533,7 @@ public sealed class MsiDecompiler
     round-trip without the decompiler core knowing about them.
 </p>
 
-<h3>IMsiTableAccess</h3>
+<h3 id="decompiler-table-access">IMsiTableAccess</h3>
 <p><code>src/FalkForge.Decompiler/IMsiTableAccess.cs</code></p>
 <p>
     Abstraction for MSI database reads, enabling unit tests without a real MSI file.
@@ -9472,7 +9555,7 @@ public sealed class MsiTableAccess : IMsiTableAccess
     public static Result&lt;MsiTableAccess&gt; Open(string msiPath);
 }</code></pre>
 
-<h3>Recipe Pipeline (MsiReadRecipe + Schemas)</h3>
+<h3 id="decompiler-recipe-pipeline">Recipe Pipeline (MsiReadRecipe + Schemas)</h3>
 <p>
     Per-table readers were replaced by a single schema-driven engine. Each table is described by a
     <code>TableReadSchema&lt;TRow&gt;</code>, and the static <code>TableReadEngine</code> drives any schema
@@ -9530,7 +9613,7 @@ public sealed record MsiReadRecipe
     </tbody>
 </table>
 
-<h3>Extension Round-Trip (ITableQuery + ITableReadSchema)</h3>
+<h3 id="decompiler-extension-roundtrip">Extension Round-Trip (ITableQuery + ITableReadSchema)</h3>
 <p>
     Custom MSI tables contributed by extensions are round-trip via two interfaces in
     <code>FalkForge.Extensibility</code>:
@@ -9567,7 +9650,7 @@ public interface IMsiTableContributor
     concrete <code>TRow</code> type.
 </p>
 
-<h3>CSharpEmitter</h3>
+<h3 id="decompiler-csharp-emitter">CSharpEmitter</h3>
 <p><code>src/FalkForge.Decompiler/CSharpEmitter.cs</code></p>
 <p>
     Converts a <code>PackageModel</code> into fluent C# source code using the FalkForge builder API.
@@ -9575,7 +9658,7 @@ public interface IMsiTableContributor
     registry entries, services, shortcuts, properties, and major-upgrade configuration.
 </p>
 
-<h3>BundleDecompiler (native FalkForge bundles)</h3>
+<h3 id="decompiler-bundle">BundleDecompiler (native FalkForge bundles)</h3>
 <p><code>src/FalkForge.Decompiler/BundleDecompiler.cs</code></p>
 <p>
     Decompiles a native FalkForge self-extracting <code>.exe</code> bundle. Parses the footer magic,
@@ -9601,7 +9684,7 @@ public interface IBundleAccess
     <code>BundleCSharpEmitter</code> generates fluent C#.
 </p>
 
-<h3>WixBundleDecompiler (WiX Burn bundles)</h3>
+<h3 id="decompiler-wix-bundle">WixBundleDecompiler (WiX Burn bundles)</h3>
 <p><code>src/FalkForge.Decompiler/WixBundleDecompiler.cs</code></p>
 <p>
     Decompiles a WiX Burn (<code>.wixburn</code> PE section) bundle. The PE parser locates the
@@ -9633,7 +9716,7 @@ public sealed record WixUnmappedFeature(
     <code>ApprovedExeForElevation</code>, and <code>BootstrapperExtension</code>.
 </p>
 
-<h3>Error Codes</h3>
+<h3 id="decompiler-error-codes">Error Codes</h3>
 <table class="api-table">
     <thead><tr><th>Code</th><th>Subsystem</th><th>Description</th></tr></thead>
     <tbody>
