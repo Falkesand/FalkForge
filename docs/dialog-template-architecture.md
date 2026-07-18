@@ -216,19 +216,21 @@ public PackageBuilder UseDialogSet(MsiDialogSet dialogSet, Action<DialogCustomiz
 Typical caller:
 
 ```csharp
-PackageBuilder.Create("MyApp", "1.0.0", "Acme Corp")
-    .AddBinary("AcmeBanner",    "assets/banner.bmp")
-    .AddBinary("AcmeWatermark", "assets/watermark.bmp")
+new PackageBuilder { Name = "MyApp", Manufacturer = "Acme Corp", Version = new Version(1, 0, 0) }
+    .Binary("AcmeBanner",    "assets/banner.bmp")
+    .Binary("AcmeWatermark", "assets/watermark.bmp")
     .UseDialogSet(MsiDialogSet.FeatureTree, dialogs => dialogs
-        .BannerBitmap("AcmeBanner")
-        .DialogBitmap("AcmeWatermark")
+        .BannerBitmap("AcmeBanner")     // Binary key, not a file path — DLG003 validates it
+        .DialogBitmap("AcmeWatermark")  // resolves against the Binary rows registered above
         .OverrideButtonLabel(DialogButton.Install, "!(loc.Button.Deploy)")
         .OverrideButtonLabel(DialogButton.Next, "Continue")
         .WindowTitle("Acme Studio [ProductName]"))
     .Build();
 ```
 
-`DialogCustomization` verbs:
+`DialogCustomization` verbs. `key` in `BannerBitmap`/`DialogBitmap`/`HeaderIcon` is always a
+**Binary stream key** — the `Name` of a `PackageBuilder.Binary(name, sourcePath)` entry, never a
+raw file path. DLG003 fails the build if a key does not resolve to a registered `Binary`:
 
 | Verb | Effect |
 |------|--------|
