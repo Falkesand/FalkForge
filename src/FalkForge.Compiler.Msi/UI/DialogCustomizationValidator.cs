@@ -21,6 +21,14 @@ namespace FalkForge.Compiler.Msi.UI;
 ///           with a dangling NewDialog event that points to a dialog that will never be
 ///           emitted, causing the wizard to stall.
 /// </para>
+/// <para>
+/// DLG003 — <see cref="DialogCustomizationModel.BannerBitmap"/>, <see cref="DialogCustomizationModel.DialogBitmap"/>,
+///           or <see cref="DialogCustomizationModel.HeaderIcon"/> names a Binary stream key that
+///           is not registered in <see cref="PackageModel.Binaries"/> (via
+///           <c>PackageBuilder.Binary(name, sourcePath)</c>). The synthesized/swapped control's
+///           <c>Text</c> would reference a Binary row that does not exist, compiling cleanly but
+///           breaking the dialog at runtime (blank or missing image) — Error, not a Warning.
+/// </para>
 /// </remarks>
 internal static class DialogCustomizationValidator
 {
@@ -32,16 +40,24 @@ internal static class DialogCustomizationValidator
         BuildProtectedDialogs();
 
     /// <summary>
-    /// Validates the customization model and returns any DLG001/DLG002 violations.
+    /// Validates the customization model and returns any DLG001/DLG002/DLG003 violations.
     /// Returns an empty list when the customization is valid.
     /// </summary>
+    /// <param name="binaries">
+    /// The package's registered Binary entries (<see cref="PackageModel.Binaries"/>), used by
+    /// DLG003 to cross-check <see cref="DialogCustomizationModel.BannerBitmap"/>,
+    /// <see cref="DialogCustomizationModel.DialogBitmap"/>, and
+    /// <see cref="DialogCustomizationModel.HeaderIcon"/> keys.
+    /// </param>
     public static IReadOnlyList<DialogValidationError> Validate(
         DialogCustomizationModel customization,
         MsiDialogSet dialogSet,
-        DialogStepRegistry registry)
+        DialogStepRegistry registry,
+        IReadOnlyList<BinaryModel> binaries)
     {
         ArgumentNullException.ThrowIfNull(customization);
         ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(binaries);
 
         var errors = new List<DialogValidationError>();
 
@@ -75,7 +91,39 @@ internal static class DialogCustomizationValidator
             }
         }
 
+        // DLG003 — bitmap/icon customization keys must resolve to a registered Binary.
+        CheckBitmapKey(errors, binaries, customization.BannerBitmap, nameof(DialogCustomizationModel.BannerBitmap));
+        CheckBitmapKey(errors, binaries, customization.DialogBitmap, nameof(DialogCustomizationModel.DialogBitmap));
+        CheckBitmapKey(errors, binaries, customization.HeaderIcon, nameof(DialogCustomizationModel.HeaderIcon));
+
         return errors;
+    }
+
+    // Ordinal, exact-match lookup — mirrors how BinaryTableProducer keys the emitted Binary
+    // table rows and stream registry by the literal BinaryModel.Name string.
+    private static void CheckBitmapKey(
+        List<DialogValidationError> errors,
+        IReadOnlyList<BinaryModel> binaries,
+        string? key,
+        string verbName)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        for (var i = 0; i < binaries.Count; i++)
+        {
+            if (string.Equals(binaries[i].Name, key, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        errors.Add(new DialogValidationError(
+            "DLG003",
+            $"DialogCustomization.{verbName}('{key}') references Binary key '{key}' which is not " +
+            $"registered. Register it via PackageBuilder.Binary(\"{key}\", <sourcePath>) before compiling."));
     }
 
     private static FrozenDictionary<MsiDialogSet, FrozenSet<StockDialog>> BuildProtectedDialogs()

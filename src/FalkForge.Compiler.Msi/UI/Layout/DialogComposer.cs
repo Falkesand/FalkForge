@@ -16,15 +16,26 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// onto <see cref="MsiControlModel"/> entries which preserve the input order.
 /// <para>
 /// Phase 9: the three-arg overload accepts an optional <see cref="DialogCustomizationModel"/>
-/// and applies four customization verbs to the produced model: <see cref="DialogCustomizationModel.WindowTitle"/>
+/// and applies customization verbs to the produced model: <see cref="DialogCustomizationModel.WindowTitle"/>
 /// overrides <see cref="MsiDialogModel.Title"/>, <see cref="DialogCustomizationModel.BannerBitmap"/>
-/// rewrites the <c>Text</c> of every <c>Bitmap</c>-typed control, <see cref="DialogCustomizationModel.HeaderIcon"/>
+/// rewrites the <c>Text</c> of every other <c>Bitmap</c>-typed control, <see cref="DialogCustomizationModel.HeaderIcon"/>
 /// rewrites the <c>Text</c> of every <c>Icon</c>-typed control, and entries in
 /// <see cref="DialogCustomizationModel.ButtonLabelOverrides"/> rewrite the <c>Text</c> of
 /// the matching <c>PushButton</c> identified through <see cref="DialogButtonNames.Map"/>.
 /// Suppression of stock dialogs (<see cref="DialogCustomizationModel.SuppressedDialogs"/>) is
 /// not applied here — that is a dialog-set-level concern handled by the emitter that decides
 /// which dialogs to compose at all.
+/// <see cref="DialogCustomizationModel.DialogBitmap"/> targets the exterior Welcome/Exit
+/// dialogs only (<see cref="DialogContent.Kind"/> "Welcome" or "Exit"): a synthetic full-canvas
+/// background <c>Bitmap</c> control (the classic 370x234 WixUI_Bmp_Dialog convention) is inserted
+/// ahead of every other control so later controls draw in front of it.
+/// <see cref="DialogCustomizationModel.BannerBitmap"/> and <see cref="DialogCustomizationModel.HeaderIcon"/>
+/// synthesize their controls on interior wizard-page dialogs only — non-exterior dialogs that
+/// declare a <c>TitleRow</c> placement (the structural marker distinguishing a full wizard page
+/// from a small modal like <c>CancelDlg</c>/<c>BrowseDlg</c>, neither of which places one).
+/// Synthesis only happens when the composed dialog has no <c>Bitmap</c>/<c>Icon</c>-typed control
+/// of its own yet; when one already exists (e.g. an author-placed control), the existing swap
+/// behavior above still rewrites its <c>Text</c> in place — no duplicate control is added.
 /// </para>
 /// <see cref="MsiDialogModel"/> is internal so this composer is internal as well.
 /// </remarks>
@@ -104,7 +115,7 @@ internal static class DialogComposer
             }
         }
 
-        ApplyCustomization(model, customization);
+        ApplyCustomization(model, customization, content, layout);
 
         AppendDeclarativeEvents(model, content);
 
@@ -171,7 +182,18 @@ internal static class DialogComposer
             $"Unknown MSI condition action '{action}'. Expected Enable/Disable/Show/Hide/Default.");
     }
 
-    private static void ApplyCustomization(MsiDialogModel model, DialogCustomizationModel? customization)
+    // Canonical MSI control Names for the synthetic controls this method may insert. Excluded by
+    // name from each other's sweep below so the three bitmap/icon verbs never clobber each other
+    // when several are set together.
+    private const string DialogBackgroundBitmapControlName = "DialogBmp";
+    private const string BannerBitmapControlName = "BannerBmp";
+    private const string HeaderIconControlName = "HeaderIcon";
+
+    private static void ApplyCustomization(
+        MsiDialogModel model,
+        DialogCustomizationModel? customization,
+        DialogContent content,
+        DialogLayout layout)
     {
         if (customization is null)
         {
@@ -194,19 +216,58 @@ internal static class DialogComposer
         }
 
         var bannerBitmap = customization.BannerBitmap;
+        var dialogBitmap = customization.DialogBitmap;
         var headerIcon = customization.HeaderIcon;
         var hasBanner = !string.IsNullOrEmpty(bannerBitmap);
+        var hasDialogBitmap = !string.IsNullOrEmpty(dialogBitmap);
         var hasIcon = !string.IsNullOrEmpty(headerIcon);
         var hasButtonOverrides = buttonOverrides is { Count: > 0 };
 
-        if (!hasBanner && !hasIcon && !hasButtonOverrides)
+        if (!hasBanner && !hasDialogBitmap && !hasIcon && !hasButtonOverrides)
         {
             return;
         }
 
+        // DialogBitmap only applies to the exterior Welcome/Exit dialogs, matching the classic
+        // WixUI_Bmp_Dialog convention. Stock templates do not declare this control themselves —
+        // it is opt-in branding — so it is synthesized here and inserted first (index 0) so
+        // subsequent controls (title/description/buttons) draw in front of it, matching MSI's
+        // Control-table row-order Z-ordering.
+        // Deliberately no ContainsControlType(Bitmap) guard here, unlike the Banner/Icon block
+        // below: DialogBitmap is a full-canvas *background* layer, so it is meant to coexist
+        // underneath an author-placed Bitmap control (e.g. a custom watermark) rather than defer
+        // to it — the two occupy different visual roles even though both are MsiControlType.Bitmap.
+        if (hasDialogBitmap && IsExteriorDialogKind(content.Kind))
+        {
+            model.Controls.Insert(0, BuildDialogBitmapControl(dialogBitmap!, layout));
+        }
+
+        // BannerBitmap/HeaderIcon synthesize their controls on interior wizard pages only, and
+        // only when the composed dialog has no Bitmap/Icon control of its own — an author-placed
+        // control still gets its Text swapped in place by the sweep below, never duplicated.
+        // Checked against the pre-synthesis control list: DialogBitmap synthesis above can never
+        // fire on the same dialog as this block (mutually exclusive by IsExteriorDialogKind vs.
+        // IsInteriorWizardDialog), so there is no cross-contamination to guard against here.
+        if (IsInteriorWizardDialog(content))
+        {
+            int insertAt = 0;
+            if (hasBanner && !ContainsControlType(model.Controls, MsiControlType.Bitmap))
+            {
+                model.Controls.Insert(insertAt++, BuildBannerBitmapControl(bannerBitmap!, layout));
+            }
+
+            if (hasIcon && !ContainsControlType(model.Controls, MsiControlType.Icon))
+            {
+                // Inserted right after the banner (if any) so the icon draws in front of it.
+                model.Controls.Insert(insertAt, BuildHeaderIconControl(headerIcon!, layout));
+            }
+        }
+
         foreach (var control in model.Controls)
         {
-            if (hasBanner && control.Type == MsiControlType.Bitmap)
+            if (hasBanner
+                && control.Type == MsiControlType.Bitmap
+                && !string.Equals(control.Name, DialogBackgroundBitmapControlName, StringComparison.Ordinal))
             {
                 control.Text = bannerBitmap;
                 continue;
@@ -225,6 +286,124 @@ internal static class DialogComposer
                 control.Text = label;
             }
         }
+    }
+
+    private static bool IsExteriorDialogKind(string dialogKind) =>
+        string.Equals(dialogKind, "Welcome", StringComparison.Ordinal)
+        || string.Equals(dialogKind, "Exit", StringComparison.Ordinal);
+
+    // Interior wizard pages are every non-exterior dialog that declares a TitleRow placement —
+    // the structural marker separating a full wizard page (License, InstallDir, Customize,
+    // SetupType, InstallScope, Progress) from a small modal (CancelDlg, BrowseDlg) that never
+    // places one. Welcome/Exit also declare TitleRow, so exterior exclusion is checked first.
+    private static bool IsInteriorWizardDialog(DialogContent content) =>
+        !IsExteriorDialogKind(content.Kind) && HasTitleRowPlacement(content);
+
+    private static bool HasTitleRowPlacement(DialogContent content)
+    {
+        if (content.Placements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var placement in content.Placements)
+        {
+            if (string.Equals(placement.RegionName, "TitleRow", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsControlType(List<MsiControlModel> controls, MsiControlType type)
+    {
+        // Index-based loop avoids the List<T> enumerator allocation (HAA0401) in this hot path.
+        for (int i = 0; i < controls.Count; i++)
+        {
+            if (controls[i].Type == type)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static MsiControlModel BuildDialogBitmapControl(string dialogBitmapPath, DialogLayout layout)
+    {
+        // Height stops at the BottomLine region's Y (234 DLU in the stock 370x270 layout) so the
+        // background does not paint over the button row. Fail loud like the main Compose loop
+        // (line ~99) on a missing region rather than silently falling back to guessed geometry —
+        // a custom DialogLayout that omits BottomLine is an authoring bug, not a degraded mode.
+        DialogRegion bottomLine = RequireRegion(layout, "BottomLine");
+
+        return new MsiControlModel
+        {
+            Name = DialogBackgroundBitmapControlName,
+            Type = MsiControlType.Bitmap,
+            X = 0,
+            Y = 0,
+            Width = layout.CanvasWidth,
+            Height = bottomLine.Bounds.Y,
+            Text = dialogBitmapPath,
+        };
+    }
+
+    private static MsiControlModel BuildBannerBitmapControl(string bannerBitmapPath, DialogLayout layout)
+    {
+        // Sized to the layout's own Banner region (370x58 DLU in the stock layout — the same
+        // region documented in dialog-template-architecture.md). Fail loud on a missing region;
+        // see BuildDialogBitmapControl.
+        Rect bounds = RequireRegion(layout, "Banner").Bounds;
+
+        return new MsiControlModel
+        {
+            Name = BannerBitmapControlName,
+            Type = MsiControlType.Bitmap,
+            X = bounds.X,
+            Y = bounds.Y,
+            Width = bounds.Width,
+            Height = bounds.Height,
+            Text = bannerBitmapPath,
+        };
+    }
+
+    private static MsiControlModel BuildHeaderIconControl(string headerIconPath, DialogLayout layout)
+    {
+        // Top-right corner of the Banner region, vertically aligned with TitleRow (Y=6 in the
+        // stock layout) — "shown next to the dialog title" per DialogCustomization.HeaderIcon's
+        // XML doc. 16x16 matches that same doc's stated icon size; 8 DLU margin matches the
+        // ButtonRow's own default gap (RegionDefaults.Gap) used elsewhere in this layout. Fail
+        // loud on a missing region; see BuildDialogBitmapControl.
+        const int IconSize = 16;
+        const int Margin = 8;
+
+        Rect bannerBounds = RequireRegion(layout, "Banner").Bounds;
+        Rect titleRowBounds = RequireRegion(layout, "TitleRow").Bounds;
+
+        return new MsiControlModel
+        {
+            Name = HeaderIconControlName,
+            Type = MsiControlType.Icon,
+            X = bannerBounds.X + bannerBounds.Width - IconSize - Margin,
+            Y = titleRowBounds.Y,
+            Width = IconSize,
+            Height = IconSize,
+            Text = headerIconPath,
+        };
+    }
+
+    private static DialogRegion RequireRegion(DialogLayout layout, string regionName)
+    {
+        if (!layout.TryGetRegion(regionName, out var region))
+        {
+            throw new InvalidOperationException(
+                $"Region '{regionName}' is not defined in layout '{layout.Name}'.");
+        }
+
+        return region;
     }
 
     private static IRegionLayoutPolicy SelectPolicy(RegionPolicy policy) => policy switch

@@ -21,7 +21,7 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.Empty(errors);
     }
@@ -39,7 +39,7 @@ public sealed class DialogCustomizationValidatorTests
         registry.Register(new StubDialogStepBuilder("MyStep"));
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.Empty(errors);
     }
@@ -56,7 +56,7 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.Single(errors);
         Assert.Contains("DLG001", errors[0].Code);
@@ -76,7 +76,7 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.Equal(2, errors.Count);
         Assert.All(errors, e => Assert.Contains("DLG001", e.Code));
@@ -96,7 +96,7 @@ public sealed class DialogCustomizationValidatorTests
         registry.Register(new StubDialogStepBuilder("Known"));
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.Single(errors);
         Assert.Contains("Unknown", errors[0].Message);
@@ -117,7 +117,7 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.Empty(errors);
     }
@@ -135,7 +135,7 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.InstallDir, registry);
+            customization, MsiDialogSet.InstallDir, registry, []);
 
         Assert.True(errors.Count > 0);
         Assert.Contains(errors, e => e.Code.Contains("DLG002"));
@@ -153,7 +153,7 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         Assert.True(errors.Count > 0);
         Assert.Contains(errors, e => e.Code.Contains("DLG002"));
@@ -170,10 +170,117 @@ public sealed class DialogCustomizationValidatorTests
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry);
+            customization, MsiDialogSet.Minimal, registry, []);
 
         var dlg002 = errors.First(e => e.Code.Contains("DLG002"));
         Assert.Contains("Progress", dlg002.Message);
+    }
+
+    // ── DLG003 — bitmap/icon customization key must be a registered Binary ────
+
+    [Fact]
+    public void DLG003_no_bitmap_customization_returns_no_errors()
+    {
+        var customization = new DialogCustomizationModel();
+        var registry = new DialogStepRegistry();
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, []);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void DLG003_banner_bitmap_key_matching_registered_binary_returns_no_errors()
+    {
+        var customization = new DialogCustomizationModel { BannerBitmap = "AcmeBanner" };
+        var registry = new DialogStepRegistry();
+        var binaries = new[] { new BinaryModel { Name = "AcmeBanner", SourcePath = "banner.bmp" } };
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, binaries);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void DLG003_banner_bitmap_key_with_no_matching_binary_returns_error()
+    {
+        var customization = new DialogCustomizationModel { BannerBitmap = "MissingKey" };
+        var registry = new DialogStepRegistry();
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, []);
+
+        Assert.Single(errors);
+        Assert.Equal("DLG003", errors[0].Code);
+        Assert.Contains("MissingKey", errors[0].Message);
+        Assert.Contains("BannerBitmap", errors[0].Message);
+    }
+
+    [Fact]
+    public void DLG003_dialog_bitmap_key_with_no_matching_binary_returns_error()
+    {
+        var customization = new DialogCustomizationModel { DialogBitmap = "MissingKey" };
+        var registry = new DialogStepRegistry();
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, []);
+
+        Assert.Single(errors);
+        Assert.Equal("DLG003", errors[0].Code);
+        Assert.Contains("MissingKey", errors[0].Message);
+        Assert.Contains("DialogBitmap", errors[0].Message);
+    }
+
+    [Fact]
+    public void DLG003_header_icon_key_with_no_matching_binary_returns_error()
+    {
+        var customization = new DialogCustomizationModel { HeaderIcon = "MissingIcon" };
+        var registry = new DialogStepRegistry();
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, []);
+
+        Assert.Single(errors);
+        Assert.Equal("DLG003", errors[0].Code);
+        Assert.Contains("MissingIcon", errors[0].Message);
+        Assert.Contains("HeaderIcon", errors[0].Message);
+    }
+
+    [Fact]
+    public void DLG003_all_three_keys_missing_returns_error_per_key()
+    {
+        var customization = new DialogCustomizationModel
+        {
+            BannerBitmap = "MissingBanner",
+            DialogBitmap = "MissingDialog",
+            HeaderIcon = "MissingIcon",
+        };
+        var registry = new DialogStepRegistry();
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, []);
+
+        Assert.Equal(3, errors.Count);
+        Assert.All(errors, e => Assert.Equal("DLG003", e.Code));
+    }
+
+    [Fact]
+    public void DLG003_key_match_is_case_sensitive()
+    {
+        // MSI Binary.Name lookups are exact-match (Ordinal) throughout this codebase
+        // (BinaryTableProducer keys streams by the literal Name string) — a case-mismatched
+        // key must still be reported, not silently accepted.
+        var customization = new DialogCustomizationModel { BannerBitmap = "AcmeBanner" };
+        var registry = new DialogStepRegistry();
+        var binaries = new[] { new BinaryModel { Name = "acmebanner", SourcePath = "banner.bmp" } };
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, binaries);
+
+        Assert.Single(errors);
+        Assert.Equal("DLG003", errors[0].Code);
     }
 
     // ── Stub ──────────────────────────────────────────────────────────────────

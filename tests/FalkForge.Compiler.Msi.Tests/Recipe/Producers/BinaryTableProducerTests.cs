@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msi.Recipe;
@@ -309,6 +310,54 @@ public sealed class BinaryTableProducerTests : IDisposable
         Assert.Contains("TestBin", result.Value.Streams);
         StreamSource.FilePath fp = Assert.IsType<StreamSource.FilePath>(result.Value.Streams["TestBin"]);
         Assert.Equal(path, fp.Path);
+    }
+
+    [Fact]
+    public void MsiRecipeBuilder_with_registered_binary_and_banner_bitmap_produces_matching_control_and_binary_rows()
+    {
+        // Merge-Gate remediation (DLG003): proves the real compile path end-to-end — a Binary
+        // registered via PackageBuilder.Binary(name, sourcePath) and referenced by
+        // DialogCustomization.BannerBitmap must both (a) appear as a Binary table row and
+        // (b) be the exact Text value on the synthesized banner Bitmap control emitted by
+        // DialogSetProducer. Guards against the key drifting from the registered Binary name —
+        // a mismatch here is exactly the "compiles clean, breaks at runtime" bug DLG003 rejects
+        // at validation time, before this producer pipeline ever runs.
+        byte[] payload = [0x42];
+        string path = CreateTempFile(payload);
+        PackageModel pkg = new()
+        {
+            Name = "Test",
+            Manufacturer = "Acme",
+            Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.InstallDir,
+            Binaries = new[] { new BinaryModel { Name = "AcmeBanner", SourcePath = path } },
+            DialogCustomization = new DialogCustomizationModel { BannerBitmap = "AcmeBanner" },
+        };
+        ResolvedPackage resolved = new()
+        {
+            Package = pkg,
+            Components = Array.Empty<ResolvedComponent>(),
+            Files = Array.Empty<ResolvedFile>(),
+        };
+
+        Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
+            resolved,
+            contributors: [],
+            options: new MsiRecipeBuildOptions(),
+            multiProducers: [new DialogSetProducer()]);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        MsiDatabaseRecipe recipe = result.Value;
+
+        RecipeTable binaryTable = recipe.Tables.Single(t => t.Name.Value == "Binary");
+        Assert.Contains(binaryTable.Rows, r =>
+            r.Cells[0] is CellValue.StringValue sv && sv.Value == "AcmeBanner");
+
+        RecipeTable controlTable = recipe.Tables.Single(t => t.Name.Value == "Control");
+        Assert.Contains(controlTable.Rows, r =>
+            r.Cells[0] is CellValue.StringValue dlg && dlg.Value == "InstallDirDlg" &&
+            r.Cells[2] is CellValue.StringValue type && type.Value == "Bitmap" &&
+            r.Cells[9] is CellValue.StringValue text && text.Value == "AcmeBanner");
     }
 
     [Fact]
