@@ -61,6 +61,58 @@ public sealed class ReproducibilityTests
     }
 
     [Fact]
+    public void Reproducible_WithIntegrity_MsiBuiltTwice_ProducesIdenticalOutput()
+    {
+        // Regression test: an ECDSA signature embeds a fresh random nonce (k) every time it is
+        // computed, so signing the same payload hashes twice produces two DIFFERENT signature byte
+        // strings even though both are valid. Before this fix, MsiAuthoring step 8.5 embedded that
+        // signature IN-BAND in the _FalkForgeIntegrity custom table unconditionally — so an
+        // Integrity()-configured MSI could never be byte-identical across builds, defeating
+        // Reproducible() the moment sigil (or, after the prior fix, pure-.NET ECDSA) actually signed.
+        // The fix: in reproducible mode the in-band table is skipped entirely (verified below) and the
+        // signature is written sidecar-only, so the MSI artifact itself stays byte-identical.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"falk-repro-integrity-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+
+            var payloadPath = Path.Combine(tempDir, "payload.dll");
+            File.WriteAllBytes(payloadPath, new byte[] { 0x4D, 0x5A, 0x01, 0x02, 0x03, 0x04 });
+            File.SetLastWriteTimeUtc(payloadPath, new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+            var outputDir1 = Path.Combine(tempDir, "out1");
+            var outputDir2 = Path.Combine(tempDir, "out2");
+
+            var msiPath1 = BuildMsi(payloadPath, outputDir1, reproducible: true, withIntegrity: true);
+            var msiPath2 = BuildMsi(payloadPath, outputDir2, reproducible: true, withIntegrity: true);
+
+            var hash1 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath1)));
+            var hash2 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath2)));
+            Assert.Equal(hash1, hash2);
+
+            // The in-band _FalkForgeIntegrity table must not exist — its presence would mean the
+            // (nondeterministic) signature bytes are embedded in the reproducible artifact.
+            var dbResult = MsiDatabase.Open(msiPath1, readOnly: true);
+            Assert.True(dbResult.IsSuccess, dbResult.IsFailure ? dbResult.Error.Message : null);
+            using (var db = dbResult.Value)
+            {
+                var rowsResult = db.QueryRows("SELECT `Id` FROM `_FalkForgeIntegrity`", 1);
+                Assert.True(rowsResult.IsFailure,
+                    "Expected no _FalkForgeIntegrity table in a Reproducible() + Integrity() build.");
+            }
+
+            // The detached sidecar signature is still produced — reproducible mode does not mean
+            // unsigned, it means the signature moves out of the byte-deterministic artifact.
+            Assert.True(File.Exists(msiPath1 + ".sig.json"));
+            Assert.True(File.Exists(msiPath2 + ".sig.json"));
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDir);
+        }
+    }
+
+    [Fact]
     public void NonReproducible_MsiBuiltTwice_ProducesDifferentOutput()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"falk-nonrepro-{Guid.NewGuid():N}");
@@ -100,7 +152,7 @@ public sealed class ReproducibilityTests
         return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(msiPath)));
     }
 
-    private static string BuildMsi(string payloadPath, string outputDir, bool reproducible)
+    private static string BuildMsi(string payloadPath, string outputDir, bool reproducible, bool withIntegrity = false)
     {
         var builder = new PackageBuilder
         {
@@ -115,6 +167,9 @@ public sealed class ReproducibilityTests
 
         if (reproducible)
             builder.Reproducible(TestEpoch);
+
+        if (withIntegrity)
+            builder.Integrity(i => { }); // ephemeral key — only the byte-determinism of the MSI
 
         var model = builder.Build();
         var compiler = new MsiCompiler();

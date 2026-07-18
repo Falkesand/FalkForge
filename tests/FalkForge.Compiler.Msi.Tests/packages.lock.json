@@ -302,6 +302,9 @@
           "FalkForge.Platform": "[0.1.0-alpha.1, )"
         }
       },
+      "sigil": {
+        "type": "Project"
+      },
       "Octopus.Octodiff": {
         "type": "CentralTransitive",
         "requested": "[2.0.549, )",

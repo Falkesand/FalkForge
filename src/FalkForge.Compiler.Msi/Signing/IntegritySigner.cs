@@ -16,6 +16,18 @@ namespace FalkForge.Compiler.Msi.Signing;
 /// whether the external <c>sigil</c> CLI is on PATH. SBOM attestation remains opportunistic: it is
 /// produced only when <c>sigil</c> is available, and any SBOM/attest failure is swallowed so it never
 /// blocks the (already-completed) signature — mirroring <c>BundleIntegritySigner</c> exactly.</para>
+///
+/// <para><b>Reproducible() interaction.</b> ECDSA-P256 signing is intentionally nondeterministic (a
+/// fresh random nonce every call), so the same payload hashes sign to different bytes on every build —
+/// exactly like <c>CodeSigner</c>/Authenticode. When <see cref="PackageModel.ReproducibleOptions"/> is
+/// set, embedding that nondeterministic signature IN-BAND in the MSI (via
+/// <c>MsiDatabase.Open</c>/<c>Commit</c>) would make the reproducible-build guarantee a lie the moment
+/// <c>Integrity()</c> is also configured — a second `Commit()` after Step 7's timestamp patch can also
+/// re-perturb the OLE compound document's own metadata regardless of what table data changed. So in
+/// reproducible mode the in-band table (Steps 3 in the non-reproducible path) is skipped entirely: the
+/// MSI artifact itself stays byte-identical across builds, and the signature is written sidecar-only
+/// (<c>&lt;msi&gt;.sig.json</c>) instead — still a real, verifiable ECDSA envelope, just not embedded in
+/// the deterministic artifact. <c>MsiAuthoring</c> logs an explicit notice when this applies.</para>
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class IntegritySigner
@@ -45,13 +57,16 @@ internal static class IntegritySigner
             // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
             var attestation = TryGenerateSbomAttestation(msiPath, package, resolvedFiles, config, tempDir);
 
-            // Step 3: Re-open MSI and embed integrity data.
-            var dbResult = MsiDatabase.Open(msiPath);
-            if (dbResult.IsFailure)
-                return Result<Unit>.Failure(dbResult.Error);
-
-            using (var database = dbResult.Value)
+            // Step 3: Re-open MSI and embed integrity data — SKIPPED in reproducible mode (see class doc).
+            // The nondeterministic signature (and any SBOM attestation row alongside it) never touches the
+            // MSI artifact's bytes when Reproducible() is set; both still land in the sidecar files below.
+            if (package.ReproducibleOptions is null)
             {
+                var dbResult = MsiDatabase.Open(msiPath);
+                if (dbResult.IsFailure)
+                    return Result<Unit>.Failure(dbResult.Error);
+
+                using var database = dbResult.Value;
                 var emitResult = IntegrityTableEmitter.EmitIntegrityData(
                     database, manifestJson, attestation?.AttestJson, attestation?.SbomFormatString);
                 if (emitResult.IsFailure)

@@ -43,6 +43,24 @@ public sealed class MsiIntegritySigningTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Resolves the FakeSigil test-double project's own build output directory (where its
+    /// <c>sigil.exe</c> apphost lands), deriving the Configuration/TargetFramework segments from
+    /// this very assembly's own <see cref="AppContext.BaseDirectory"/> rather than hardcoding
+    /// "Debug"/"net10.0" — robust to a Release run or a future TFM bump. FakeSigil's
+    /// ProjectReference uses <c>ReferenceOutputAssembly="false"</c> precisely so its output is
+    /// NOT copied next to this test host (see that csproj's comment for why), so tests that want
+    /// it reachable must explicitly prepend this directory to PATH themselves.
+    /// </summary>
+    private static string ResolveFakeSigilDirectory()
+    {
+        var binDir = new DirectoryInfo(AppContext.BaseDirectory);       // .../bin/<Config>/<TFM>
+        var configDir = binDir.Parent ?? throw new DirectoryNotFoundException();
+        var projectDir = configDir.Parent?.Parent ?? throw new DirectoryNotFoundException(); // .../<ThisProject>
+        var testsRoot = projectDir.Parent ?? throw new DirectoryNotFoundException();          // .../tests
+        return Path.Combine(testsRoot.FullName, "FalkForge.Compiler.Msi.Tests.FakeSigil", "bin", configDir.Name, binDir.Name);
+    }
+
     private (string sourceFile, string outputDir) CreatePackageInputs(string label)
     {
         var sourceDir = Path.Combine(_tempDir, $"{label}_source");
@@ -146,29 +164,29 @@ public sealed class MsiIntegritySigningTests : IDisposable
     }
 
     [Fact]
-    public void Compile_WithIntegrity_WhenSigilIsOnPath_StillEmbedsEcdsaSignature()
+    public void Compile_WithIntegrity_WhenSigilSubcommandFails_StillEmbedsEcdsaSignature()
     {
-        // The inverse of the primary test above: sigil ON path must not change or block the always-on
-        // ECDSA signature either. Whether the opportunistic SBOM attestation sub-step actually succeeds
-        // depends on sigil having a fully configured signing identity, not merely being reachable on
-        // PATH — proven live by this very sandbox, where `sigil --version` succeeds but `sigil attest`
-        // fails for lack of configuration, and IntegritySigner correctly swallows that (never-fatal
-        // contract) rather than failing the build or the already-computed signature. So this test
-        // intentionally does not require the SbomAttestation row to exist — only that IF it exists, its
-        // sidecar is consistent, and that the mandatory ManifestSignature row is unaffected either way.
+        // Deterministic CI coverage for the never-fatal SBOM-attestation contract: sigil being
+        // reachable on PATH must not change or block the always-on ECDSA signature, even when its
+        // sign-manifest/attest subcommands fail. CI has no reason to have real sigil installed, so this
+        // does not depend on host state — the FakeSigil project (referenced purely for its build
+        // output, never linked into this assembly's code) puts a `sigil.exe` right next to this test
+        // assembly that answers `--version` successfully but fails every other subcommand, exactly
+        // like a real but unconfigured sigil install.
+        var fakeSigilDir = ResolveFakeSigilDirectory();
+        Assert.True(File.Exists(Path.Combine(fakeSigilDir, "sigil.exe")),
+            $"Test setup invariant: FakeSigil build output not found at '{fakeSigilDir}'.");
+        Environment.SetEnvironmentVariable("PATH", fakeSigilDir + Path.PathSeparator + _originalPath);
         SigilDetector.Reset();
-        if (!SigilDetector.IsAvailable())
-            return; // sigil is not installed on this machine — the always-on ECDSA path is already
-                     // proven unconditionally by Compile_WithIntegrity_SignsWithEcdsa_EvenWhenSigilIsNotOnPath;
-                     // there is nothing further to prove here without a real sigil binary on PATH.
+        Assert.True(SigilDetector.IsAvailable(), "Test setup invariant: the fake sigil.exe must answer --version.");
 
-        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithIntegrity_WhenSigilIsOnPath_StillEmbedsEcdsaSignature));
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithIntegrity_WhenSigilSubcommandFails_StillEmbedsEcdsaSignature));
         var package = InstallerTestHost.BuildPackage(p =>
         {
-            p.Name = "IntegrityWithSigilApp";
+            p.Name = "IntegrityFakeSigilApp";
             p.Manufacturer = "TestCorp";
             p.Version = new Version(1, 0, 0);
-            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "IntegrityWithSigilApp"));
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "IntegrityFakeSigilApp"));
             p.Integrity(i => { });
         });
 
@@ -184,7 +202,38 @@ public sealed class MsiIntegritySigningTests : IDisposable
         Assert.NotNull(envelope);
         Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!));
 
-        if (rows.Any(r => r[0] == "SbomAttestation"))
-            Assert.True(File.Exists(result.Value + ".attest.json"));
+        // The fake sigil's sign-manifest/attest subcommands always fail (exit 1) — proving the SBOM
+        // row/sidecar are genuinely optional and their absence never blocks the mandatory signature
+        // above, deterministically, regardless of what is (or is not) installed on the host machine.
+        Assert.DoesNotContain(rows, r => r[0] == "SbomAttestation");
+        Assert.False(File.Exists(result.Value + ".attest.json"));
+    }
+
+    [Fact]
+    public void Compile_WithIntegrity_AndNotConfigured_HasNoIntegrityTable()
+    {
+        // Negative case: without Integrity() at all, the _FalkForgeIntegrity table must not exist —
+        // no table, no rows, nothing to accidentally read as "signed".
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithIntegrity_AndNotConfigured_HasNoIntegrityTable));
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "NoIntegrityApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "NoIntegrityApp"));
+            // No .Integrity(...) call.
+        });
+
+        var compiler = new MsiCompiler();
+        var result = compiler.Compile(package, outputDir);
+
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var dbResult = MsiDatabase.Open(result.Value, readOnly: true);
+        Assert.True(dbResult.IsSuccess, dbResult.IsFailure ? dbResult.Error.Message : null);
+        using var db = dbResult.Value;
+        var rowsResult = db.QueryRows("SELECT `Id`, `Format`, `Data` FROM `_FalkForgeIntegrity`", 3);
+        Assert.True(rowsResult.IsFailure, "Expected no _FalkForgeIntegrity table when Integrity() is never configured.");
+        Assert.False(File.Exists(result.Value + ".sig.json"));
     }
 }

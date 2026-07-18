@@ -404,6 +404,20 @@ public static class MsiAuthoring
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 8.5: integrity signing.");
 
+            // ECDSA signatures are nondeterministic (fresh random nonce per call), so embedding one
+            // in-band in the MSI would defeat Reproducible() the moment Integrity() is also configured.
+            // IntegritySigner.SignAndEmbed skips the in-band _FalkForgeIntegrity table in that case and
+            // writes the signature sidecar-only — surfaced here at Info level (not gated behind
+            // --verbose) since it is a real, user-visible change of where the signature lives.
+            if (package.ReproducibleOptions is not null)
+            {
+                logger?.Info("MsiAuthoring",
+                    "Step 8.5: Reproducible() + Integrity() are both configured. The MSI's in-band " +
+                    "_FalkForgeIntegrity table is skipped so the artifact stays byte-identical across " +
+                    "builds; the ECDSA signature is written sidecar-only ('<msi>.sig.json'). Verify via " +
+                    "the sidecar, not the embedded table.");
+            }
+
             Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
             if (integrityResult.IsFailure)
             {
