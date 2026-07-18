@@ -333,15 +333,34 @@ internal sealed class VerifyCommand : Command<VerifySettings>
             result["formatTag"] = formatTag;
         if (outcome.MatchedFingerprint is { } fingerprint)
             result["fingerprint"] = fingerprint;
+        // Fail-loud for JSON/automation consumers too (Merge Gate MEDIUM finding): a machine reading
+        // only `verdict` must not conflate "payload is self-consistent" with "publisher identity
+        // confirmed" — those are different guarantees. Always present (not just on Verified) so an
+        // automated consumer never has to infer it from field absence.
+        result["authorshipEstablished"] = (outcome.MatchedFingerprint is not null).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         switch (outcome.Verdict)
         {
+            case SignatureVerdict.Verified when outcome.MatchedFingerprint is { } matchedFingerprint:
+                // A trusted key matched: authorship is established, not merely internal consistency.
+                output.MarkupLine($"[green]VERIFIED (authorship verified):[/] {Markup.Escape(outcome.Message)}");
+                if (outcome.Source is { } trustedSource)
+                    output.MarkupLine($"[grey]Signature source:[/] {Markup.Escape(trustedSource)}");
+                output.MarkupLine($"[grey]Matched trusted key fingerprint:[/] {Markup.Escape(matchedFingerprint)}");
+                return ExitCodes.Success;
+
             case SignatureVerdict.Verified:
-                output.MarkupLine($"[green]VERIFIED:[/] {Markup.Escape(outcome.Message)}");
-                if (outcome.Source is { } verifiedSource)
-                    output.MarkupLine($"[grey]Signature source:[/] {Markup.Escape(verifiedSource)}");
-                if (outcome.MatchedFingerprint is { } matchedFingerprint)
-                    output.MarkupLine($"[grey]Matched trusted key fingerprint:[/] {Markup.Escape(matchedFingerprint)}");
+                // No --trusted-key was supplied: this PASS proves the payload matches the signed
+                // declaration and the signature is internally self-consistent — tamper-evidence, NOT
+                // proof of who signed it. Rendered in yellow with an explicit label rather than the
+                // same green "VERIFIED" a trusted-key PASS gets (Merge Gate MEDIUM finding): printing
+                // an identical label for both would let a consistency-only PASS pass for an
+                // authorship-confirmed one — the exact downgrade-attack UX a user must never see.
+                output.MarkupLine(
+                    "[yellow]VERIFIED (tamper-evidence only — authorship NOT established; pass " +
+                    $"--trusted-key to verify publisher):[/] {Markup.Escape(outcome.Message)}");
+                if (outcome.Source is { } consistencySource)
+                    output.MarkupLine($"[grey]Signature source:[/] {Markup.Escape(consistencySource)}");
                 return ExitCodes.Success;
 
             case SignatureVerdict.NotSigned:

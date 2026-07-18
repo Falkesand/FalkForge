@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using FalkForge.Cli.Commands;
 using FalkForge.Cli.Settings;
 using FalkForge.Compiler.Msi;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Testing;
 using Spectre.Console.Cli;
 using Xunit;
@@ -60,13 +61,37 @@ public sealed class VerifyCommandMsiSignatureTests : IDisposable
         return result.Value;
     }
 
+    /// <summary>
+    /// Mirrors <c>MsiIntegrityVerifierTests.ReadFirstFingerprint</c>: reads the CLASSICAL
+    /// (ECDSA-P256) signature's fingerprint, since <c>--trusted-key</c> only ever matches against
+    /// that entry (a hybrid-signed zero-config build also carries an ML-DSA companion entry).
+    /// </summary>
+    private static string ReadClassicalFingerprint(string msiPath)
+    {
+        var dbResult = MsiDatabase.Open(msiPath, readOnly: true);
+        Assert.True(dbResult.IsSuccess);
+        using var db = dbResult.Value;
+        var rows = db.QueryRows("SELECT `Id`, `Data` FROM `_FalkForgeIntegrity`", 2);
+        Assert.True(rows.IsSuccess);
+        var manifestRow = Assert.Single(rows.Value, r => r[0] == "ManifestSignature");
+        var envelope = IntegrityEnvelopeCodec.Parse(manifestRow[1]!);
+        Assert.NotNull(envelope);
+        var classical = envelope!.Signatures.First(s => string.IsNullOrEmpty(s.Algorithm));
+        return classical.Fingerprint;
+    }
+
     [Fact]
-    public void Execute_SignedMsi_NoRebuild_ReturnsSuccessWithVerifiedVerdict()
+    public void Execute_SignedMsi_NoRebuild_NoTrustedKey_ReturnsSuccessWithConsistencyOnlyLabel()
     {
         if (!OperatingSystem.IsWindows())
             Assert.Skip("Windows only");
 
-        var msiPath = CompileMsi(nameof(Execute_SignedMsi_NoRebuild_ReturnsSuccessWithVerifiedVerdict), signed: true);
+        // Merge Gate MEDIUM finding (Opus): consistency-only verification (no --trusted-key) must
+        // NOT print an identical "VERIFIED" as authorship-established verification — that is a
+        // downgrade-attack UX (a user could be shown the same green PASS regardless of whether
+        // publisher identity was actually checked). Exit code stays 0 (the payload genuinely is
+        // self-consistent), but the label must say so plainly.
+        var msiPath = CompileMsi(nameof(Execute_SignedMsi_NoRebuild_NoTrustedKey_ReturnsSuccessWithConsistencyOnlyLabel), signed: true);
         var output = new TestConsoleOutput();
         var command = new VerifyCommand(output);
         var settings = new VerifySettings { ArtifactPath = msiPath };
@@ -75,6 +100,42 @@ public sealed class VerifyCommandMsiSignatureTests : IDisposable
 
         Assert.Equal(ExitCodes.Success, code);
         Assert.Contains(output.AllOutput, m => m.Contains("VERIFIED", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(output.AllOutput, m =>
+            m.Contains("tamper-evidence only", StringComparison.OrdinalIgnoreCase)
+            && m.Contains("authorship NOT established", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Execute_SignedMsi_NoRebuild_WithCorrectTrustedKey_ReturnsSuccessWithAuthorshipLabel_DistinctFromConsistencyOnly()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // A short literal label, not nameof(this test): the full test method name is long enough
+        // that combining it with the temp-dir prefix and "_output\<label>-1.0.0.msi" pushes the
+        // compiled MSI's path past MAX_PATH (260 chars), which MsiDatabase.Create then reports as
+        // the misleadingly generic "Error code: 1631" rather than a path-length error.
+        var msiPath = CompileMsi("AuthorshipLabelApp", signed: true);
+        var fingerprint = ReadClassicalFingerprint(msiPath);
+
+        var pinnedOutput = new TestConsoleOutput();
+        var pinnedCode = new VerifyCommand(pinnedOutput).ExecuteSync(
+            Ctx(), new VerifySettings { ArtifactPath = msiPath, TrustedKeys = [fingerprint] }, CancellationToken.None);
+
+        var consistencyOnlyOutput = new TestConsoleOutput();
+        var consistencyOnlyCode = new VerifyCommand(consistencyOnlyOutput).ExecuteSync(
+            Ctx(), new VerifySettings { ArtifactPath = msiPath }, CancellationToken.None);
+
+        Assert.Equal(ExitCodes.Success, pinnedCode);
+        Assert.Equal(ExitCodes.Success, consistencyOnlyCode);
+
+        // Both PASS (exit 0), but the labels must differ — a pinned, authorship-verified PASS is a
+        // strictly stronger claim than a consistency-only PASS, and the two must never render
+        // identically (the exact downgrade-attack UX the Merge Gate flagged).
+        Assert.Contains(pinnedOutput.AllOutput, m => m.Contains("authorship verified", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(pinnedOutput.AllOutput, m => m.Contains("tamper-evidence only", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(consistencyOnlyOutput.AllOutput, m => m.Contains("tamper-evidence only", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(consistencyOnlyOutput.AllOutput, m => m.Contains("authorship verified", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
