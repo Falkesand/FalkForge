@@ -812,6 +812,21 @@
         </div>
       </div>
 
+      <!-- Section 24: Architecture -->
+      <div class="nav-section" data-section="architecture">
+        <a href="#architecture" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">24. Architecture</span>
+        </a>
+        <div class="nav-children">
+          <a href="#architecture-solution-map">Solution Map</a>
+          <a href="#architecture-msi-pipeline">The MSI Compile Pipeline</a>
+          <a href="#architecture-bundle-runtime">Bundle Runtime</a>
+          <a href="#architecture-security">Security Architecture</a>
+          <a href="#architecture-extensions">Extension Model</a>
+          <a href="#architecture-ui">UI Stack</a>
+        </div>
+      </div>
+
     </div>
   </nav>
 
@@ -11889,6 +11904,363 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     INT011 anti-strip rule) are all live in this release. The two items above are the only forward-looking
     pieces in this section.
 </p>
+</section>
+
+<!-- ============================================================
+     Section 24: Architecture
+     ============================================================ -->
+<section id="architecture">
+<h2>24. Architecture</h2>
+
+<p>
+    <a href="#concepts">Concepts</a> explained the MSI vocabulary &mdash; components, codes, elevation,
+    sequencing &mdash; and the sections since then have documented each piece of FalkForge as its own API
+    surface. This section is the map that ties them together: how a call to
+    <code>PackageBuilder.Build()</code> actually becomes bytes on disk, how a distributed <code>.exe</code>
+    turns into an installed application, and where the trust boundaries sit along the way. It assumes you've
+    read Concepts and is deliberately a systems-level tour rather than a new API reference &mdash; every
+    subsection links to the existing chapter that documents its subject in full depth.
+</p>
+
+<h3 id="architecture-solution-map">24.1 Solution Map</h3>
+<p>
+    <a href="#structure">Solution Structure</a> lists every project with its own description and a
+    dependency tree; this is the same 33-project solution seen through a different lens &mdash; grouped by
+    the <em>role</em> each project plays, which is the more useful question when you're trying to find where
+    a piece of behavior lives.
+</p>
+<pre><code>Authoring core        Core, Extensibility
+                       The fluent API, domain model, validation, and the interfaces an
+                       extension implements. No compiler, no runtime, no UI &mdash; just the
+                       shape of an installer definition.
+
+Compilers              Compiler.Msi, Compiler.Bundle, Compiler.Msix (experimental)
+                       Turn a PackageModel / BundleModel into bytes: an .msi via msi.dll
+                       P/Invoke, a self-extracting .exe, or (experimental) a .msix.
+
+Engine runtime         Engine, Engine.Elevation, Engine.Protocol, Engine.Runtime,
+                       Platform, Platform.Windows
+                       The NativeAOT processes that actually run an install: detect,
+                       plan, elevate, apply, roll back. Engine.Runtime carries the
+                       published win-x64 runtime assets the Meta package depends on.
+
+UI                     Ui.Abstractions, Ui, Studio
+                       The default WPF installer chrome, the custom-UI framework authors
+                       build on, and the separate visual authoring tool (Studio) that
+                       edits installer definitions rather than running them.
+
+Extensions             Extensions.Util / Dependency / Firewall / DotNet / Iis / Sql /
+                       Driver / Http
+                       Optional domain-specific authoring + compile-time table
+                       injection + runtime execution, all through the same
+                       Extensibility contract (24.5).
+
+Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServer,
+                       Plugins.Sql / Odbc / FileSystem, Testing, Meta, Templates
+                       The `forge` CLI, MSI/Bundle/WiX-Burn decompiler, JSON
+                       localization, the MSBuild SDK for ProjectOutputs generation,
+                       remote-signing client, IDE-facing discovery plugins, and the
+                       `FalkForge` meta-package + `dotnet new` templates that make
+                       "add one package reference" a working setup.</code></pre>
+<p>
+    Dependencies flow in one direction through these layers: extensions and compilers depend on
+    <code>Core</code>, never the reverse; the engine runtime depends on the AOT-safe
+    <code>Engine.Protocol</code> but not on <code>Core</code> (the engine never sees a
+    <code>PackageBuilder</code> &mdash; it only ever sees a compiled manifest); the UI depends on
+    <code>Ui.Abstractions</code>, never directly on <code>Engine</code>, so a custom UI author can swap
+    <code>EngineClient</code> for a test double without touching engine internals. See
+    <a href="#structure">Solution Structure</a> for the full per-project dependency arrows.
+</p>
+
+<h3 id="architecture-msi-pipeline">24.2 From C# to .msi: The Compile Pipeline</h3>
+<p>
+    <code>PackageBuilder.Build()</code> (<a href="#msi-package-builder">8.2</a>) produces an immutable
+    <code>PackageModel</code> &mdash; a description, not an installer. Handing that model to
+    <code>MsiCompiler.Compile(model, outputPath)</code> (or the CLI's <code>forge build</code>) drives it
+    through a fixed pipeline, implemented as <code>MsiAuthoring.Compile</code>
+    (<code>src/FalkForge.Compiler.Msi/Recipe/MsiAuthoring.cs</code>) with a <code>Result&lt;string&gt;</code>
+    return at every step &mdash; nothing throws for an ordinary authoring mistake, and the pipeline stops at
+    the first failure rather than compiling a half-valid MSI:
+</p>
+<pre><code> 1. Register extensions    Each IFalkForgeExtension.Register() runs; table/execution/dialog-step
+                            contributors and extension ValidationRules are collected.
+ 2. Validate the model     Core + extension ValidationRules run in one pass (ModelValidator.Inspect).
+                            Any PKG/FEA/SVC/&hellip; rule violation fails the build here &mdash; nothing
+                            downstream ever sees an invalid model.
+ 3. Validate dialog UI     If a DialogSet/DialogCustomization is present, DLG001/DLG002 checks run
+                            against the merged built-in + extension step registry.
+ 4. Resolve components     ComponentResolver turns Files into ResolvedComponent/ResolvedFile records
+                            with deterministic GUIDs (one component per file &mdash; 2.1).
+ 5. Build the recipe       MsiRecipeBuilder runs ~40 built-in ITableProducers in a fixed order
+                            (Directory, Component, File, Feature, Registry, ServiceInstall, &hellip;),
+                            appends CustomTablesProducer + DialogSetProducer output, then routes every
+                            registered IMsiTableContributor through ExtensionTableEmitter (24.5) &mdash;
+                            producing an immutable MsiDatabaseRecipe: a table/row/column model with no
+                            open file handle yet.
+ 6. Build cabinets         CabinetPlanner decides disk/cabinet layout from MediaTemplate; CabinetBuilder
+                            compresses each cabinet's file slice (cabinet.dll P/Invoke). Embedded cabs
+                            become streams on the recipe; external cabs are written beside the .msi.
+ 7. Write the database     MsiDatabase.Create opens a fresh OLE compound file via msi.dll; MsiRecipeExecutor
+                            issues CREATE TABLE + INSERT for every recipe table, then the database commits.
+ 8. Reproducible timestamps  (opt-in) SummaryInfoPatcher overwrites the FILETIME fields msi.dll always
+                            stamps with the current time, so a ReproducibleOptions build is byte-identical
+                            across machines and calendar days.
+ 9. Sign                   Authenticode (CodeSigner, if Signing is configured) and, opportunistically,
+                            FalkForge integrity signing (IntegritySigner, if Sigil is on PATH and
+                            Integrity() is configured) &mdash; see 24.4.
+10. ICE validate            Native ICE custom actions run against the finished .msi (skipped for
+                            reproducible builds, since ICE can perturb bytes non-deterministically).
+11. SBOM + WinGet            Non-fatal, opt-in sidecars: a CycloneDX SBOM next to the .msi, and a 3-file
+                            WinGet manifest (8.28) if WinGet() was configured.</code></pre>
+<p>
+    Two details matter if you're debugging a build. First, cabinet compression here is single-threaded
+    &mdash; one <code>CabinetBuilder</code> call per planned cabinet, in a loop. <code>ParallelCabinetBuilder</code>
+    (<code>Parallel.ForEachAsync</code> over <code>CabinetWorkItem</code>s) exists as a separate, tested,
+    opt-in API for parallelizing cabinet builds on large payload sets; it is not wired into the default
+    pipeline above. Second, steps 10 and 11 are intentionally non-fatal on infrastructure failure (missing
+    <code>darice.cub</code>, no SBOM writer available) &mdash; a build still succeeds without ICE or an SBOM,
+    but a <code>Warning</code>-level log entry says so, so a green build never silently means "ICE didn't
+    run" without a trace.
+</p>
+<p>
+    See <a href="#demos">Demo 09 &mdash; advanced-msi</a> for custom actions/tables/sequences exercising most
+    of this pipeline in one package, and <a href="#demos">Demo 26 &mdash; custom-tables</a> for
+    <code>CustomTablesProducer</code> specifically.
+</p>
+
+<h3 id="architecture-bundle-runtime">24.3 From .exe to Installed System: Bundle Runtime</h3>
+<p>
+    A bundle is a different kind of artifact from an .msi: it's not something Windows Installer interprets
+    directly, it's a self-extracting launcher FalkForge itself understands. On disk it is one file laid out
+    as <code>[PE stub] [Magic] [Manifest JSON] [compressed payloads] [TOC] [Footer]</code> (full byte layout
+    and why Authenticode can't cover the payload section: <a href="#signing-why">23</a>). Running it starts
+    the chain of processes and phases that <a href="#engine">Engine Architecture (12)</a> and
+    <a href="#protocol">Protocol &amp; IPC (13)</a> document in full API detail; this subsection is the
+    narrative version &mdash; what happens, in order, from double-click to installed application.
+</p>
+<pre><code>double-click bundle.exe
+     |
+     v
+ [UI Process]  &lt;== Named Pipe A (HMAC-SHA256) ==&gt;  [Engine Process]
+ unprivileged, WPF                                   unprivileged, NativeAOT
+                                                            |
+                                                            | only when Applying needs
+                                                            | a privileged operation
+                                                            v
+                                              [Elevated Engine]  &lt;== Pipe B (HMAC-SHA256) ==&gt;
+                                              admin token, whitelisted commands only</code></pre>
+<p>
+    The Engine process is the one that matters for this story &mdash; it owns the install lifecycle end to
+    end via <code>IInstallerPipeline</code>, expressed as a fixed sequence of phase steps
+    (<code>DetectStep</code> &rarr; <code>PlanStep</code> &rarr; optional <code>ElevateStep</code> &rarr;
+    <code>ApplyStep</code>, with <code>RollbackStep</code> on failure). The UI never talks to the Elevated
+    process directly and never performs a privileged operation itself &mdash; it only ever asks the Engine
+    to detect, plan, or apply, and the Engine decides when elevation is actually required
+    (<a href="#concepts-elevation">2.3</a>).
+</p>
+<ul>
+    <li>
+        <strong>Detect</strong> &mdash; <code>PackageDetector</code>/<code>MsiDetector</code> ask Windows
+        (registry, MSI database) what's already installed, and <code>DependencyDetector</code> checks
+        whether anything else on the machine depends on a package this bundle would remove
+        (<a href="#engine-detection">Detection</a>).
+    </li>
+    <li>
+        <strong>Plan</strong> &mdash; <code>Planner</code> diffs detected state against the requested
+        action (install/uninstall/repair/update) and produces an ordered <code>InstallPlan</code> of
+        <code>PlanAction</code>s (<a href="#engine-planning">Planning</a>). This is the same plan
+        <code>forge plan</code>/<code>plan-diff</code> can export and diff without ever executing it
+        (<a href="#demos">Demo 56</a>).
+    </li>
+    <li>
+        <strong>Elevate</strong> &mdash; skipped entirely for a plan with no privileged actions. When
+        needed, the Engine launches the Elevated companion and the two mutually authenticate before a single
+        command crosses the pipe (24.4).
+    </li>
+    <li>
+        <strong>Apply</strong> &mdash; <code>PackageExecutor</code> dispatches each planned action to the
+        matching executor (<code>MsiExecutor</code> via <code>IMsiApi</code> P/Invoke,
+        <code>MsuExecutor</code>, <code>MspExecutor</code>, <code>BundleExecutor</code> for nested bundles,
+        <code>ExeExecutor</code>, <code>NetRuntimeExecutor</code>). Before every destructive step, a
+        <code>JournalEntry</code> is written to the <code>RollbackJournal</code> describing how to undo it
+        (<a href="#engine-rollback">Rollback Journal</a>) &mdash; this is what lets a mid-install failure
+        unwind cleanly instead of leaving the machine half-changed.
+    </li>
+    <li>
+        <strong>Complete / Shutdown</strong> &mdash; on success the plan's outcome is reported back over
+        the pipe and the journal for a successful run is retired. On failure, <code>RollbackExecutor</code>
+        walks the journal in reverse, running the matching
+        <code>IUndoOperation</code> (<code>MsiUninstallOperation</code>, <code>ExeRollbackOperation</code>,
+        <code>CacheCleanupOperation</code>) for each entry.
+    </li>
+</ul>
+<p>
+    Downloaded and extracted payloads live in the <code>PackageCache</code> under a content-addressed
+    layout (<a href="#engine-cache">Cache</a>) so a repair or a second install of the same version doesn't
+    re-download anything already verified on disk. For update scenarios, the same cache is where a delta
+    payload gets reconstructed against its declared basis version before its hash is ever trusted &mdash;
+    see 24.4.
+</p>
+<p>
+    See <a href="#demos">Demo 06 &mdash; product-suite</a> and <a href="#demos">Demo 10 &mdash;
+    advanced-bundle</a> for the chain/rollback-boundary authoring side, and
+    <a href="#demos">Demo 43 &mdash; bundle-layout</a> for how containers map onto the payload section of
+    the file layout above.
+</p>
+
+<h3 id="architecture-security">24.4 Security Architecture</h3>
+<p>
+    FalkForge's security model is layered: each layer answers a different question about trust, and a
+    reader who only skims one of the existing chapters (<a href="#concepts-elevation">Concepts</a>,
+    <a href="#protocol-transport">Protocol</a>, <a href="#bundle-signing-trust">Bundle Signing &amp;
+    Trust</a>) can come away thinking one mechanism does more than it does. Read top to bottom, in the
+    order they actually engage during a run:
+</p>
+<table class="api-table">
+    <thead><tr><th>Layer</th><th>Question it answers</th><th>Mechanism</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>Process transport</td>
+            <td>Is the process on the other end of this pipe really the Engine / Elevated companion I
+            expect, and not something else on the machine that guessed the pipe name?</td>
+            <td>HMAC-SHA256 handshake on both Named Pipe A (UI&harr;Engine) and Named Pipe B
+            (Engine&harr;Elevated), plus parent-process identity verification with start-time capture on
+            the elevated side, so a recycled PID can't impersonate the real parent
+            (<a href="#protocol-transport">13.3</a>).</td>
+        </tr>
+        <tr>
+            <td>Elevated command surface</td>
+            <td>Given a trusted pipe, what is the Engine actually allowed to ask the Elevated process to
+            do?</td>
+            <td>A fixed, whitelisted command set &mdash; MSI install/uninstall, service install, registry
+            write, file write &mdash; dispatched by <code>ElevatedCommandExecutor</code>. There is no
+            "run arbitrary command" verb; an attacker who fully compromises the unprivileged Engine still
+            cannot make the Elevated process do anything outside that list.</td>
+        </tr>
+        <tr>
+            <td>Elevation companion identity</td>
+            <td>Is the <code>.exe</code> about to be launched with an admin token actually the one this
+            bundle shipped, and not something planted on disk?</td>
+            <td><code>BootstrapCompanionResolver</code> requires bytes on disk == the TOC hash the
+            extractor verified == the hash the manifest <em>declares</em> for the reserved companion payload
+            id (<code>InstallerManifest.EngineCompanionSha256</code>), and &mdash; on a signed bundle &mdash;
+            that declared hash is itself inside the ECDSA-signed set. A manifest that declares no companion
+            never wires one, even if a payload happens to sit under the reserved id (fail-closed, not
+            fail-open); a declared companion whose hash disagrees aborts with
+            <code>ErrorKind.SecurityError</code> rather than falling back to an ambient
+            beside-the-engine binary.</td>
+        </tr>
+        <tr>
+            <td>Payload integrity &amp; authorship</td>
+            <td>Did every payload byte in this bundle come from a publisher I trust, unmodified?</td>
+            <td>The FalkForge payload signature &mdash; ECDSA-P256 (optionally hybrid with ML-DSA-65 for
+            post-quantum resistance) over the TOC's per-payload SHA-256 hashes, checked against a baked-in
+            trusted-key set with optional roles-and-quorum policy. This is a separate signature from
+            Authenticode and is the one that actually covers payloads glued on after the launcher stub was
+            signed (<a href="#signing-two-kinds">23.2</a>).</td>
+        </tr>
+        <tr>
+            <td>Update trust</td>
+            <td>Should this machine trust and install an update it downloaded, possibly over an untrusted
+            network?</td>
+            <td><code>StagedUpdateVerifier</code> flips <code>TrustPolicy.RequireSigned</code> to true on
+            the update path specifically &mdash; a fresh install tolerates an unsigned bundle if the user
+            chose to run it, but an unsigned or untrusted-key update is rejected outright
+            (<a href="#signing-updates">23.6</a>). A delta update additionally pins its basis version: the
+            reconstructed file's SHA-256 is checked against <code>ReconstructedSha256Hash</code> before the
+            reconstructed bytes are trusted at all, so a delta can't be used to smuggle bytes that don't
+            match the declared basis.</td>
+        </tr>
+    </tbody>
+</table>
+<p>
+    None of these layers substitutes for another. A valid HMAC handshake proves you're talking to the real
+    Engine process, not that the bundle's payloads are untampered; a valid payload signature proves the
+    payload bytes are what the publisher shipped, not that the elevated companion launching them is the one
+    the manifest declared. Removing any one layer narrows what an attacker needs to forge, which is why the
+    engine fails closed at each of them independently rather than trusting an earlier layer's pass as a
+    substitute.
+</p>
+<p>
+    For the full authoring and operational picture &mdash; generating keys, rotation, quorum policy,
+    remote signing via SignServer, and the post-quantum hybrid mode &mdash; see
+    <a href="#bundle-signing-trust">Bundle Signing, Trust &amp; Key Rotation (23)</a>, and
+    <a href="#demos">Demo 62 &mdash; require-signed-updates</a> /
+    <a href="#demos">Demo 63 &mdash; hybrid-pq-signing</a> /
+    <a href="#demos">Demo 53 &mdash; delta-updates</a> for runnable proofs of each row above.
+</p>
+
+<h3 id="architecture-extensions">24.5 Extension Model</h3>
+<p>
+    Extensions plug into two different points in the pipeline above, and conflating them is the most common
+    source of confusion for a first-time extension author &mdash; <a href="#ext-authoring-arch">10.10</a>
+    covers this in full depth; here is where each piece sits architecturally.
+</p>
+<p>
+    <strong>Compile-time (MSI pipeline, step 5 above):</strong> an extension implementing
+    <code>IFalkForgeExtension</code> registers <code>IMsiTableContributor</code>s, which
+    <code>ExtensionTableEmitter</code> routes into the recipe &mdash; merged into a built-in table
+    (<code>Registry</code>, <code>CustomAction</code>, &hellip;) when the contributor's <code>TableName</code>
+    matches one, or materialized as a brand-new custom table (with a <code>CREATE TABLE</code> the emitter
+    generates from the contributor's declared <code>WriteColumns</code> schema) otherwise. This is purely
+    data: rows land in the compiled <code>.msi</code>, inspectable with any MSI tool, but nothing runs them
+    yet.
+</p>
+<p>
+    <strong>Runtime (inside the compiled MSI's own execute sequence):</strong> an extension's custom table
+    is inert until something schedules a custom action to read it. <code>IExecutionContributor</code> is
+    that seam &mdash; it returns <code>ExecutionStep</code> records that <code>ExecutionStepEmitter</code>
+    turns into deferred, elevated <code>CustomAction</code> + <code>InstallExecuteSequence</code> rows
+    (themselves just another table contribution, flowing through the same emitter). This is why
+    <code>Extensions.Firewall</code>'s <code>WixFirewallException</code> table and
+    <code>Extensions.Sql</code>'s <code>SqlDatabase</code> table both compile cleanly on their own, but
+    require their execution contributor registered too before the rule or the database actually gets
+    created at install time.
+</p>
+<div class="note">
+    <code>IComponentContributor</code> is defined and collected today but not yet wired into the recipe
+    pipeline &mdash; registering one logs a <code>Warning</code> (<code>EXT002</code>) rather than silently
+    dropping your files, but no shipped extension currently relies on it. See
+    <a href="#ext-authoring-arch">10.10</a> for the up-to-date status of every extension seam.
+</div>
+<p>
+    See <a href="#extensions">Extension System (10)</a> for the full authoring guide and API reference, and
+    <a href="#demos">Demo 34 &mdash; ext-dependency</a> for a Provides/Requires extension exercising both
+    seams end to end.
+</p>
+
+<h3 id="architecture-ui">24.6 UI Stack</h3>
+<p>
+    The default WPF installer and any custom UI you author both sit behind the same contract:
+    <code>IInstallerEngine</code> (<code>src/FalkForge.Ui.Abstractions/IInstallerEngine.cs</code>) &mdash;
+    <code>DetectAsync</code> / <code>PlanAsync</code> / <code>ApplyAsync</code>, observable
+    <code>Phase</code> / <code>Progress</code> / <code>StatusMessage</code> streams, and property-passing
+    methods (<code>SetProperty</code>, <code>SetSecureProperty</code>) that reach the running MSI session
+    without ever putting a secret on a command line or in a log
+    (<a href="#property-passing">11.11</a>). <code>EngineClient</code> is the production implementation:
+    it speaks the Engine.Protocol binary message format over Named Pipe A and turns the Engine's phase and
+    progress messages into the observables the UI layer subscribes to. Because the contract is an
+    interface, a custom UI (or a test) can swap in <code>NullInstallerEngine</code> or a hand-rolled double
+    without touching anything in <code>FalkForge.Ui</code>.
+</p>
+<p>
+    <code>InstallerPage</code> (and the generic <code>InstallerPage&lt;TView&gt;</code>) is the base a
+    custom page derives from: it exposes <code>Engine</code>, <code>SharedState</code>, and
+    <code>DetectedState</code>, and a set of lifecycle hooks &mdash;
+    <code>OnDetect/Plan/ApplyBeginAsync</code> and <code>...CompleteAsync</code> &mdash; called by
+    <code>CustomShellViewModel</code> at the matching points in the phase sequence from 24.3, so a page can
+    react to (or veto, by returning <code>false</code> from a Begin hook) detection, planning, or apply
+    without knowing anything about pipes or processes. <code>InstallerApp.Run(args, configure)</code> is the
+    static entry point that wires a set of pages, a theme, and localization into a runnable custom
+    installer UI in a few lines.
+</p>
+<p>
+    See <a href="#custom-ui">Custom UI Framework (11)</a> for the full page/view/builder API, and
+    <a href="#demos">Demo 11 &mdash; custom-ui-simple</a> and
+    <a href="#demos">Demo 14 &mdash; lifecycle-hooks</a> for the lifecycle hooks and property passing shown
+    working end to end.
+</p>
+
 </section>
 
   </main>
