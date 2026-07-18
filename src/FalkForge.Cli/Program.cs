@@ -103,7 +103,7 @@ app.Configure(config =>
     {
         loc.SetDescription("Localization tooling");
         loc.AddCommand<LocExportCommand>("export")
-            .WithDescription("Export built-in localization JSON as an override starting point")
+            .WithDescription("Export built-in localization JSON as an override starting point (overwrites existing files at the target path)")
             .WithExample("loc", "export")
             .WithExample("loc", "export", "--culture", "en-US", "-o", "./loc")
             .WithExample("loc", "export", "--culture", "en-US", "-o", "custom-en-US.json")

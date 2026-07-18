@@ -420,4 +420,22 @@ public sealed class LocalizationBuilderTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.Equal("Howdy", result.Value.Single(m => m.Culture == "en-US").Strings["Greeting"]);
     }
+
+    [Fact]
+    public void Build_UserOverride_MatchesBaselineCulture_AcrossCasingDifference()
+    {
+        // Culture-name matching across tiers is OrdinalIgnoreCase (same as the pre-existing merge
+        // dictionary), so a baseline registered as "en-US" and a user culture typed as "EN-us"
+        // must still be recognized as the same culture and still override.
+        var builder = new LocalizationBuilder();
+        builder.AddBaselineCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Hi" });
+        builder.AddCulture("EN-us", new Dictionary<string, string> { ["Greeting"] = "Howdy" });
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value); // one culture, not two -- casing variants must merge, not split
+        Assert.Equal("Howdy", result.Value.Single().Strings["Greeting"]);
+    }
 }

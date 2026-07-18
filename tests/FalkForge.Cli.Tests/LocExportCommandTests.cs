@@ -148,4 +148,55 @@ public sealed class LocExportCommandTests : IDisposable
         Assert.Equal(ExitCodes.Success, exitCode);
         Assert.True(File.Exists(Path.Combine(nested, "en-US.json")));
     }
+
+    [Fact]
+    public void OutputPathCollidesWithExistingFile_FailsLoud_RuntimeError()
+    {
+        // Regression: the write step (Directory.CreateDirectory + File.WriteAllBytes) was
+        // unguarded -- any IO failure (permission denied, disk full, path collision) threw a raw
+        // exception out of Execute() instead of a clean exit code, unlike every sibling command
+        // (InitCommand, MigrateCommand, PlanCommand all catch IOException/UnauthorizedAccessException
+        // around their writes). Reproduce a reliable, portable failure: a *file* already occupies
+        // the path we need to create as the output *directory* -- Directory.CreateDirectory throws
+        // IOException on every platform for that collision, no ACL trickery needed.
+        var collidingPath = Path.Combine(_tempDir, "blocked");
+        File.WriteAllText(collidingPath, "not a directory");
+
+        var (exitCode, console) = Run(new LocExportSettings { Culture = "en-US", Output = collidingPath });
+
+        Assert.Equal(ExitCodes.RuntimeError, exitCode);
+        Assert.NotEmpty(console.Errors);
+    }
+
+    [Fact]
+    public void CultureMatch_IsCaseInsensitive_AndFileUsesCanonicalCasing()
+    {
+        // The library side (LocalizationBuilder's culture merge) is OrdinalIgnoreCase; the CLI's
+        // own culture-name match must not be stricter than that. "EN-us" must resolve to the
+        // built-in "en-US" pack, and the written file must use the canonical casing -- not the
+        // user's typed casing -- so a directory export always produces predictable filenames.
+        // NOTE: NTFS path lookups (File.Exists) are case-insensitive, so a wrong-casing check via
+        // File.Exists would prove nothing -- assert on the actual on-disk name from a directory
+        // listing instead, which preserves the casing used at creation time.
+        var (exitCode, _) = Run(new LocExportSettings { Culture = "EN-us", Output = _tempDir });
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        var written = Assert.Single(Directory.GetFiles(_tempDir));
+        Assert.Equal("en-US.json", Path.GetFileName(written), StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void NoCulture_WithJsonSuffixedOutput_IsAmbiguous_FailsLoud()
+    {
+        // Exporting every built-in culture into a single named .json file is ambiguous -- which
+        // culture's content goes there? Fail loud instead of silently picking one or creating a
+        // directory literally named "foo.json".
+        var jsonLikeOutput = Path.Combine(_tempDir, "foo.json");
+
+        var (exitCode, console) = Run(new LocExportSettings { Output = jsonLikeOutput });
+
+        Assert.Equal(ExitCodes.ValidationFailure, exitCode);
+        Assert.NotEmpty(console.Errors);
+        Assert.False(Directory.Exists(jsonLikeOutput));
+    }
 }

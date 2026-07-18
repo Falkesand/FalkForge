@@ -114,7 +114,8 @@ public sealed class LocalizationBuilder
         // Validate default culture exists in the merged set
         if (!merged.ContainsKey(resolvedDefaultCulture))
             return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
-                $"LOC002: Default culture '{resolvedDefaultCulture}' is not defined. Add it with AddCulture() or AddJsonFile().");
+                $"LOC002: Default culture '{resolvedDefaultCulture}' is not defined. " +
+                "Add it with AddCulture(), AddJsonFile(), or AddBaselineCulture().");
 
         var models = new List<LocalizationModel>(merged.Count);
         foreach (var (culture, strings) in merged)
