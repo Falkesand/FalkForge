@@ -12,7 +12,7 @@ namespace FalkForge.Validation;
 ///     <c>ValidPermissionTables</c>) and the <see cref="All"/> array.</item>
 ///   <item>MiscRules.Shortcuts.cs — SHC001-003, FNT001, FAS001-003.</item>
 ///   <item>MiscRules.IniPermissions.cs — INI001-003, PRM001-004.</item>
-///   <item>MiscRules.Registry.cs — REG007, RRG001-003.</item>
+///   <item>MiscRules.Registry.cs — REG001-003, REG007, RRG001-003.</item>
 ///   <item>MiscRules.FileOps.cs — RMF001-002, CRF001, MVF001-003, DPF001.</item>
 /// </list>
 /// </summary>
@@ -85,6 +85,9 @@ public static partial class MiscRules
             Prm004_NoMixedPermissionTypes,
             Prm005_FeatureRefRequiresSddl,
             // Registry  (MiscRules.Registry.cs)
+            Reg001_KeyRequired,
+            Reg002_DuplicateEntry,
+            Reg003_ConflictingEntry,
             Reg007_SensitivePropertyInRegistry,
             Rrg001_IdRequired,
             Rrg002_KeyRequired,
