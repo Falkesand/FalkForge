@@ -363,6 +363,62 @@ binary itself: the MSBuild-baked `BakedTrustedKeys` set, unioned with anything r
 `EngineTrustAnchor` at bootstrap. Neither is read from the bundle, the artifact being verified,
 or any file the installer processes at runtime.
 
+### MSI signing and verification — `forge verify`
+
+Everything above describes bundle *runtime* verification: an installed EXE bundle has an engine
+in the loop that checks the signature before executing a single payload. An MSI has no such
+engine — Windows Installer itself has no concept of FalkForge's ECDSA envelope — so
+`PackageBuilder.Integrity()` (the identical fluent API and identical `EcdsaManifestSigner`/
+`IntegrityEnvelopeCodec` signing code as bundles) instead produces an envelope that is verified
+**out-of-band, after the fact**, via the CLI:
+
+```bash
+forge verify MyApp-1.0.0.msi                          # consistency-only (tamper-evidence)
+forge verify MyApp-1.0.0.msi --trusted-key A1B2C3...   # authorship (repeatable flag)
+```
+
+**What is signed.** Identical shape to bundles: the ordered `(name, sha256)` list of every payload
+file FalkForge embeds in the MSI, keyed by the file's target name (the `File` table's `FileName`
+column) and hashed from the *original source file on disk* at build time — not from any MSI
+container byte. `forge verify` recomputes this independently at verification time by re-extracting
+every embedded cabinet and re-hashing each file, then binds that recomputed hash back to the
+signed declaration — the same "signed → manifest" direction
+`FalkForge.Engine.Integrity.PayloadIntegrityGate` enforces for bundles at install time. A payload
+swapped into the MSI after signing — leaving the signature table/sidecar itself untouched — is
+caught by this binding even though the signature cryptographically still verifies against its own
+(unchanged) declaration.
+
+> **Known limitation:** only *embedded* cabinets (`Media.Cabinet` prefixed `#`) are re-extracted
+> for this check — the same limitation `forge extract` already has. A payload shipped via an
+> external, disk-resident cabinet is neither confirmed nor contradicted by the content-binding step.
+
+**Where the signature lives — table vs. sidecar.** `IntegritySigner` always writes the envelope to
+a detached `<msi>.sig.json` sidecar next to the compiled MSI. Whether it *also* embeds the
+identical envelope in-band, in the MSI's own `_FalkForgeIntegrity`/`ManifestSignature` custom
+table, depends on `Reproducible()`:
+
+| Build configuration | In-band table | Sidecar | MSI bytes |
+|---|---|---|---|
+| `Integrity()` only | Yes | Yes | Non-deterministic (ECDSA signature is part of the MSI) |
+| `Reproducible()` + `Integrity()` | **No** | Yes | Byte-identical across builds |
+
+A `Reproducible()`+`Integrity()` MSI never carries the signature in-band — embedding a
+non-deterministic ECDSA signature in the MSI's own database would silently break
+`forge verify --rebuild` for that exact combination (the compiled bytes could never byte-match a
+prior build even from identical source). `forge verify` handles both shapes transparently: it
+prefers the in-band table when present, and falls back to the sidecar when it is not — the
+sidecar path is a normal, fully-supported verification, not a degraded one.
+
+**Verdicts:** `VERIFIED` (exit 0), `NOT-SIGNED` (exit 1 — no table and no sidecar; fail-loud, an
+unsigned MSI is never reported as passing), `FAILED` (exit 1 — signature invalid, matched no
+trusted key, or the recomputed content no longer matches what was signed). See
+[`cli-json-schema.md`](cli-json-schema.md#forge-verify---json) for the full envelope shape and
+exit-code table.
+
+**`forge inspect`** additionally surfaces signature *presence*, the format tag (e.g.
+`falkforge-ecdsa-envelope-v2`), and the declared signing-key fingerprint(s) for quick,
+non-cryptographic display — actual verification is `forge verify`'s job, not `forge inspect`'s.
+
 ---
 
 ## 4. WinGet Manifest Generation
@@ -506,7 +562,8 @@ is blocked with `PLN004` and a clear list of unsupported extension names.
 |----------|---------|------|---------------|
 | MSI SBOM | `.Sbom()` fluent / `--sbom` / env var | `{msi}.cdx.json` | CycloneDX tooling / `jq` |
 | Bundle SBOM | `.Sbom()` fluent / `--sbom` / env var | `{exe}.cdx.json` | CycloneDX tooling / `jq` |
-| ECDSA signature | `.Integrity()` fluent | Embedded in EXE manifest | Engine gate at Apply |
+| ECDSA signature (bundle) | `.Integrity()` fluent | Embedded in EXE manifest | Engine gate at Apply |
+| ECDSA signature (MSI) | `.Integrity()` fluent | `_FalkForgeIntegrity` table and/or `{msi}.sig.json` sidecar (sidecar-only under `Reproducible()`) | `forge verify {msi}` |
 | WinGet manifest | `.WinGet()` fluent / `forge winget` | `{name}.winget*.yaml` | WinGet CLI validation |
 | Plan JSON | `forge plan` | stdout / `-o <file>` | `jq` / change management tools |
 | Reproducible build | `.Reproducible()` fluent | N/A (determinism property) | `sha256sum` across two builds |

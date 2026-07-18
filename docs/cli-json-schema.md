@@ -217,7 +217,12 @@ forge plan installer.exe --json
 
 ## forge verify --json
 
-**Purpose:** independently verify that a shipped artifact came from a given source. Rebuilds the source project in reproducible mode and byte-compares the result against the supplied artifact. Identical bytes prove provenance — no trust in the build host required.
+**Purpose:** independently verify a shipped artifact. Two modes, selected by whether `--rebuild` is passed:
+
+1. **Rebuild-and-compare** (`.msi` or `.exe`) — rebuilds the source project in reproducible mode and byte-compares the result against the supplied artifact. Identical bytes prove provenance — no trust in the build host required.
+2. **Signature-only** (`.msi` only, no `--rebuild`) — checks the MSI's pure-.NET ECDSA integrity signature (`MsiIntegrityVerifier`) without needing the source project at all. A bundle has no signature-only mode yet, so `--rebuild` stays required for `.exe`.
+
+### Rebuild-and-compare mode
 
 **Usage:** `forge verify <artifact.msi|artifact.exe> --rebuild <project> [--source-date-epoch <epoch>] [--json]`
 
@@ -230,14 +235,18 @@ forge plan installer.exe --json
 | Verdict | Exit | Meaning |
 |---------|------|---------|
 | `VERIFIED` | `0` | Rebuilt artifact is byte-identical to the shipped artifact. |
-| `MISMATCH` | `1` | Bytes differ. The diagnostic reports the signed size delta, the total differing-byte count, the first differing offsets (hex), and — for bundles — the structural region (`footer` / `TOC` / `payload/manifest/stub`) the first difference falls in. |
+| `MISMATCH` | `1` | Bytes differ. The diagnostic reports the signed size delta, the total differing-byte count, the first differing offsets (hex), and — for bundles/signed MSIs — the structural region (`footer` / `TOC` / `payload/manifest/stub`) or signature note that explains it. |
 | `REBUILD-FAILED` | `2` | The rebuild process exited non-zero (the project did not build). |
 | `SETUP-ERROR` | `3` | The rebuild succeeded (exit 0) but produced no artifact of the expected type — a project/config mismatch, not a build failure. Distinct from `REBUILD-FAILED` so a verdict maps to exactly one exit code. |
 | (no verdict) | `3` | IO/setup failure *before* the rebuild ran: artifact or project missing, or epoch unresolved. The envelope carries no `verdict` key in this case. |
 
-**Envelope:** standard. The `result` map carries: `verdict` (always), `expectedSize`/`actualSize` (after a successful rebuild), and on `MISMATCH` also `sizeDelta`, `differingBytes`, `firstDifferingOffset`, and for bundles `region` and `signed`.
+**Envelope:** standard. The `result` map carries: `verdict` (always), `expectedSize`/`actualSize` (after a successful rebuild), and on `MISMATCH` also `sizeDelta`, `differingBytes`, `firstDifferingOffset`, and for bundles/signed MSIs `region` (bundles only) and `signed`.
 
-**Signed bundles (known physics):** FalkForge bundles are ECDSA-signed by default (`manifestSignature` in the embedded manifest). ECDSA is non-deterministic, so **a signed bundle can never byte-match across independent rebuilds.** When `forge verify` detects a `manifestSignature` in the rebuilt bundle, the `MISMATCH` diagnostic says so plainly and points to the `FALKFORGE_NO_SIGN` environment variable: rebuild and ship with `FALKFORGE_NO_SIGN` set to make the bundle deterministic and byte-verifiable, or verify the signed bundle's payloads via the detach workflow (`forge bundle detach`) instead. MSI artifacts are unaffected; signed-MSI (Authenticode) verification is not supported and reports a mismatch.
+**Signed artifacts (known physics):** FalkForge bundles are ECDSA-signed by default (`manifestSignature` in the embedded manifest); MSIs are signed when `.Integrity()` is configured (`_FalkForgeIntegrity`/`ManifestSignature` table row). ECDSA is non-deterministic, so **an `Integrity()`-only signed bundle or MSI can never byte-match across independent rebuilds.** When `forge verify` detects an in-band signature in the rebuilt artifact, the `MISMATCH` diagnostic says so plainly:
+- **Bundle:** points to the `FALKFORGE_NO_SIGN` environment variable (rebuild unsigned to compare), or verify the signed bundle via the detach workflow (`forge bundle detach`) instead.
+- **MSI:** points to `forge verify <msi>` with no `--rebuild` (signature-only mode, below) to check the signature directly, to `FALKFORGE_NO_SIGN` to compare unsigned bytes, or — the recommended fix — combining `Reproducible()` with `Integrity()`: that combination writes the signature *only* to a detached `<msi>.sig.json` sidecar (no in-band table row), so the MSI bytes themselves stay deterministic and `--rebuild` verification and signature verification both work.
+
+Authenticode code-signing is orthogonal to either check and is not verified by `forge verify` in either mode.
 
 **Representative messages (success):**
 - `info` — `VERIFIED: rebuilt artifact is byte-identical (<N> bytes). The artifact provably came from this source.`
@@ -260,6 +269,33 @@ forge verify app.msi --rebuild installer.csproj --source-date-epoch 1577836800 -
 
 ```json
 {"version":1,"command":"verify","exitCode":0,"messages":[{"level":"info","text":"VERIFIED: rebuilt artifact is byte-identical (12,288 bytes). The artifact provably came from this source."}],"result":{"verdict":"VERIFIED","expectedSize":"12288","actualSize":"12288"}}
+```
+
+### Signature-only mode (.msi, no --rebuild)
+
+**Usage:** `forge verify <artifact.msi> [--trusted-key <fingerprint>]... [--json]`
+
+**Behaviour:** `MsiIntegrityVerifier` (a) locates the pure-.NET ECDSA integrity envelope, preferring the embedded `_FalkForgeIntegrity`/`ManifestSignature` table row and falling back to the detached `<msi>.sig.json` sidecar when the table is absent (the normal shape for a `Reproducible()`+`Integrity()` MSI, which carries no in-band table at all — see the note above), (b) cryptographically verifies the envelope — against the `--trusted-key` fingerprint set when supplied (establishing authorship), else consistency-only (tamper-evidence only, not authorship), and (c) re-extracts every embedded cabinet, recomputes each payload file's SHA-256, and binds it to the signed declaration, so a payload swapped in after signing (leaving the table/sidecar untouched) is caught even though the signature itself still verifies. Windows-only (requires `msi.dll`); non-Windows exits `3`.
+
+**Verdicts:**
+
+| Verdict | Exit | Meaning |
+|---------|------|---------|
+| `VERIFIED` | `0` | The signature cryptographically verifies (and matches a trusted key, when `--trusted-key` was supplied) and the MSI's actual payload matches every hash it declares. |
+| `NOT-SIGNED` | `1` | Neither the embedded table nor a detached sidecar carries a signature. Fail-loud: an unsigned MSI is never reported as passing. |
+| `FAILED` | `1` | A signature was found but did not verify, matched no trusted key, or the MSI's actual payload no longer matches what was signed (post-signing tamper). |
+| (no verdict) | `3` | Setup failure — the MSI could not be opened at all. |
+
+**Envelope:** the `result` map carries `verdict` (always), and on `VERIFIED` also `formatTag` (e.g. `falkforge-ecdsa-envelope-v2`) and, when `--trusted-key` established authorship, `fingerprint` (the matched key's fingerprint).
+
+**Example:**
+
+```bash
+forge verify app.msi --trusted-key A1B2C3D4E5F6...
+```
+
+```json
+{"version":1,"command":"verify","exitCode":0,"messages":[{"level":"info","text":"VERIFIED: The MSI's actual payload matches its integrity signature."}],"result":{"verdict":"VERIFIED","formatTag":"falkforge-ecdsa-envelope-v2","fingerprint":"A1B2C3D4E5F6..."}}
 ```
 
 ## Exit Code Reference
