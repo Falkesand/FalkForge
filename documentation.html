@@ -5918,31 +5918,16 @@ var xmlConfig = new XmlConfigBuilder()
     .XPath("//configuration/connectionStrings/add[@name='Default']")
     .SetAttribute("connectionString", "Server=(local);Database=MyApp;Trusted_Connection=True")
     .Sequence(1)
-    .Build();
-
-// Quiet execution
-var quietExec = new QuietExecBuilder()
-    .Id("RunMigration")
-    .Command(@"[INSTALLFOLDER]migrate.exe --apply")
-    .WorkingDir("[INSTALLFOLDER]")
-    .RollbackCommand(@"[INSTALLFOLDER]migrate.exe --rollback")
-    .Build();
-
-// Internet shortcut
-var shortcut = new InternetShortcutBuilder()
-    .Id("HelpLink")
-    .Name("Product Documentation")
-    .Target("https://docs.contoso.com")
-    .Directory("ProgramMenuDir")
     .Build();</code></pre>
 
 <div class="note">
-    <code>FileShareBuilder</code>, <code>UserBuilder</code>, <code>GroupBuilder</code>, and
-    <code>RemoveFolderExBuilder</code> all have an <code>internal Build()</code> &mdash; unlike
-    <code>XmlConfigBuilder</code>, they cannot be constructed and built directly. They're configured
-    through <code>UtilExtension.AddFileShare/AddUser/AddGroup/AddRemoveFolderEx(Action&lt;TBuilder&gt;
-    configure)</code>, which builds the model internally and returns a <code>Result&lt;Unit&gt;</code>
-    you check for validation failures.
+    <code>QuietExecBuilder</code>, <code>InternetShortcutBuilder</code>, <code>FileShareBuilder</code>,
+    <code>UserBuilder</code>, <code>GroupBuilder</code>, and <code>RemoveFolderExBuilder</code> all have
+    an <code>internal Build()</code> &mdash; unlike <code>XmlConfigBuilder</code>, they cannot be
+    constructed and built directly. They're configured through
+    <code>UtilExtension.AddQuietExec/AddInternetShortcut/AddFileShare/AddUser/AddGroup/AddRemoveFolderEx
+    (Action&lt;TBuilder&gt; configure)</code>, which builds the model internally and returns a
+    <code>Result&lt;Unit&gt;</code> you check for validation failures.
 </div>
 
 <pre><code class="language-csharp">var util = new UtilExtension();
@@ -5977,6 +5962,20 @@ var removeFolderEx = util.AddRemoveFolderEx(r =&gt; r
     .Directory(@"C:\ProgramData\Contoso\MyApp\Cache")
     .OnUninstall());
 if (removeFolderEx.IsFailure) { Console.Error.WriteLine(removeFolderEx.Error); return 1; }
+
+var quietExec = util.AddQuietExec(q =&gt; q
+    .Id("RunMigration")
+    .Command(@"[INSTALLFOLDER]migrate.exe --apply")
+    .WorkingDir("[INSTALLFOLDER]")
+    .RollbackCommand(@"[INSTALLFOLDER]migrate.exe --rollback"));
+if (quietExec.IsFailure) { Console.Error.WriteLine(quietExec.Error); return 1; }
+
+var shortcut = util.AddInternetShortcut(s =&gt; s
+    .Id("HelpLink")
+    .Name("Product Documentation")
+    .Target("https://docs.contoso.com")
+    .Directory("ProgramMenuDir"));
+if (shortcut.IsFailure) { Console.Error.WriteLine(shortcut.Error); return 1; }
 
 // Wire the extension into the compiler, same as any other extension:
 Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));</code></pre>
