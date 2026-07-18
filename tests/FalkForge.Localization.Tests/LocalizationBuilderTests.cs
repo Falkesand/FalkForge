@@ -329,4 +329,95 @@ public sealed class LocalizationBuilderTests : IDisposable
             CultureInfo.CurrentUICulture = originalCulture;
         }
     }
+
+    // ── baseline/user tier override semantics ─────────────────────────────────
+
+    [Fact]
+    public void Build_UserCultureOverridesBaselineKey_Succeeds()
+    {
+        // The whole point of a baseline tier: AddBuiltInCultures() (or any extension) ships
+        // defaults, and a user AddCulture()/AddJsonFile() for the same key must silently win —
+        // never LOC001. This is the override path that AddCulture-only duplicate detection lacked.
+        var builder = new LocalizationBuilder();
+        builder.AddBaselineCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Hi" });
+        builder.AddCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Howdy" });
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Howdy", result.Value.Single(m => m.Culture == "en-US").Strings["Greeting"]);
+    }
+
+    [Fact]
+    public void Build_DuplicateKeyWithinUserTier_StillReturnsFailure_LOC001()
+    {
+        // Overriding a baseline key is allowed; two user-supplied cultures colliding with each
+        // other on the same key is still an authoring mistake and must fail loud.
+        var builder = new LocalizationBuilder();
+        builder.AddCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Hi" });
+        builder.AddCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Howdy" });
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("LOC001", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_DuplicateKeyWithinBaselineTier_StillReturnsFailure_LOC001()
+    {
+        // A baseline tier can itself have authoring bugs (e.g. two extensions shipping baseline
+        // strings for the same culture) — those collisions must still be caught.
+        var builder = new LocalizationBuilder();
+        builder.AddBaselineCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Hi" });
+        builder.AddBaselineCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Howdy" });
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("LOC001", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_BaselineOnly_NoUserCulture_UnchangedBehavior()
+    {
+        // No user override present — baseline strings pass through untouched, same as a plain
+        // AddCulture()-only build before tiers existed.
+        var builder = new LocalizationBuilder();
+        builder.AddBaselineCulture("en-US", new Dictionary<string, string>
+        {
+            ["Greeting"] = "Hi",
+            ["Farewell"] = "Bye"
+        });
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsSuccess);
+        var enUs = result.Value.Single(m => m.Culture == "en-US");
+        Assert.Equal("Hi", enUs.Strings["Greeting"]);
+        Assert.Equal("Bye", enUs.Strings["Farewell"]);
+    }
+
+    [Fact]
+    public void Build_UserOverride_IsOrderIndependent_EvenWhenBaselineAddedAfterUser()
+    {
+        // Tier wins by TIER, not by call order — a baseline registered after the user culture in
+        // the fluent chain must still lose, proving override semantics aren't a last-write-wins
+        // accident of registration order.
+        var builder = new LocalizationBuilder();
+        builder.AddCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Howdy" });
+        builder.AddBaselineCulture("en-US", new Dictionary<string, string> { ["Greeting"] = "Hi" });
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Howdy", result.Value.Single(m => m.Culture == "en-US").Strings["Greeting"]);
+    }
 }

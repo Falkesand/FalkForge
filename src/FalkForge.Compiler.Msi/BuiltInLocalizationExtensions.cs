@@ -45,6 +45,6 @@ public static class BuiltInLocalizationExtensions
             throw new InvalidOperationException($"Failed to parse built-in culture '{culture}': {ex.Message}", ex);
         }
 
-        builder.AddCulture(culture, strings);
+        builder.AddBaselineCulture(culture, strings);
     }
 }

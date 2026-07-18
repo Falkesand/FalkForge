@@ -4,6 +4,7 @@ namespace FalkForge.Localization;
 
 public sealed class LocalizationBuilder
 {
+    private readonly List<(string Culture, Dictionary<string, string> Strings)> _baselineCultures = [];
     private readonly List<(string Culture, Dictionary<string, string> Strings)> _inlineCultures = [];
     private readonly List<string> _jsonFilePaths = [];
     private string? _defaultCulture;
@@ -12,6 +13,20 @@ public sealed class LocalizationBuilder
     public LocalizationBuilder AddCulture(string culture, Dictionary<string, string> strings)
     {
         _inlineCultures.Add((culture, strings));
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a culture's strings in the baseline (default) tier. Baseline strings are silently
+    ///     overridden by any user-supplied culture with the same key (added via <see cref="AddCulture"/>
+    ///     or <see cref="AddJsonFile"/>) — regardless of the order the tiers are registered in. Duplicate
+    ///     keys within the baseline tier itself still produce LOC001. Intended for extension-shipped or
+    ///     built-in default string packs (e.g. <c>AddBuiltInCultures()</c>); user code authoring its own
+    ///     strings should use <see cref="AddCulture"/> instead.
+    /// </summary>
+    public LocalizationBuilder AddBaselineCulture(string culture, Dictionary<string, string> strings)
+    {
+        _baselineCultures.Add((culture, strings));
         return this;
     }
 
@@ -35,8 +50,8 @@ public sealed class LocalizationBuilder
 
     public Result<IReadOnlyList<LocalizationModel>> Build()
     {
-        // Load JSON files first
-        var loaded = new List<(string Culture, Dictionary<string, string> Strings)>();
+        // Load JSON files first (user tier)
+        var loadedUser = new List<(string Culture, Dictionary<string, string> Strings)>();
 
         foreach (var path in _jsonFilePaths)
         {
@@ -44,16 +59,30 @@ public sealed class LocalizationBuilder
             if (loadResult.IsFailure)
                 return Result<IReadOnlyList<LocalizationModel>>.Failure(loadResult.Error);
 
-            loaded.Add((loadResult.Value.Culture, new Dictionary<string, string>(loadResult.Value.Strings)));
+            loadedUser.Add((loadResult.Value.Culture, new Dictionary<string, string>(loadResult.Value.Strings)));
         }
 
-        // Combine inline cultures
-        loaded.AddRange(_inlineCultures);
+        // Combine inline cultures (user tier)
+        loadedUser.AddRange(_inlineCultures);
 
-        // Merge entries by culture, detecting duplicate string IDs
+        // Merge each tier independently, detecting duplicate string IDs WITHIN that tier.
+        var baselineMergeResult = MergeTier(_baselineCultures);
+        if (baselineMergeResult.IsFailure)
+            return Result<IReadOnlyList<LocalizationModel>>.Failure(baselineMergeResult.Error);
+
+        var userMergeResult = MergeTier(loadedUser);
+        if (userMergeResult.IsFailure)
+            return Result<IReadOnlyList<LocalizationModel>>.Failure(userMergeResult.Error);
+
+        // Combine tiers: baseline strings are defaults; the user tier silently overrides any
+        // baseline key it also defines — that's the point of a baseline tier, and it holds
+        // regardless of which tier was registered with the builder first.
         var merged = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (culture, strings) in loaded)
+        foreach (var (culture, strings) in baselineMergeResult.Value)
+            merged[culture] = new Dictionary<string, string>(strings, StringComparer.Ordinal);
+
+        foreach (var (culture, strings) in userMergeResult.Value)
         {
             if (!merged.TryGetValue(culture, out var existing))
             {
@@ -62,9 +91,7 @@ public sealed class LocalizationBuilder
             }
 
             foreach (var (key, value) in strings)
-                if (!existing.TryAdd(key, value))
-                    return Result<IReadOnlyList<LocalizationModel>>.Failure(ErrorKind.Validation,
-                        $"LOC001: Duplicate string ID '{key}' in culture '{culture}'.");
+                existing[key] = value; // user tier always wins over baseline, never LOC001
         }
 
         // Auto-detect default culture from system UI culture if requested
@@ -98,5 +125,32 @@ public sealed class LocalizationBuilder
             });
 
         return Result<IReadOnlyList<LocalizationModel>>.Success(models);
+    }
+
+    /// <summary>
+    ///     Merges a single tier's culture entries, returning LOC001 for any duplicate string ID
+    ///     within that tier (same culture, same key added twice). Callers combine tiers afterward;
+    ///     cross-tier collisions are intentional overrides, not errors.
+    /// </summary>
+    private static Result<Dictionary<string, Dictionary<string, string>>> MergeTier(
+        List<(string Culture, Dictionary<string, string> Strings)> entries)
+    {
+        var merged = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (culture, strings) in entries)
+        {
+            if (!merged.TryGetValue(culture, out var existing))
+            {
+                existing = new Dictionary<string, string>(StringComparer.Ordinal);
+                merged[culture] = existing;
+            }
+
+            foreach (var (key, value) in strings)
+                if (!existing.TryAdd(key, value))
+                    return Result<Dictionary<string, Dictionary<string, string>>>.Failure(ErrorKind.Validation,
+                        $"LOC001: Duplicate string ID '{key}' in culture '{culture}'.");
+        }
+
+        return Result<Dictionary<string, Dictionary<string, string>>>.Success(merged);
     }
 }
