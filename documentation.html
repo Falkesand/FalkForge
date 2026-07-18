@@ -539,6 +539,7 @@
         <div class="nav-children">
           <a href="#concepts-components">Components &amp; the Component Rule</a>
           <a href="#concepts-codes">ProductCode, UpgradeCode &amp; PackageCode</a>
+          <a href="#concepts-migration">Migrating an Existing Installer to FalkForge</a>
           <a href="#concepts-elevation">Elevation: Per-Machine vs. Per-User</a>
           <a href="#concepts-sequencing">Install Sequencing</a>
         </div>
@@ -812,6 +813,21 @@
         </div>
       </div>
 
+      <!-- Section 24: Architecture -->
+      <div class="nav-section" data-section="architecture">
+        <a href="#architecture" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">24. Architecture</span>
+        </a>
+        <div class="nav-children">
+          <a href="#architecture-solution-map">Solution Map</a>
+          <a href="#architecture-msi-pipeline">The MSI Compile Pipeline</a>
+          <a href="#architecture-bundle-runtime">Bundle Runtime</a>
+          <a href="#architecture-security">Security Architecture</a>
+          <a href="#architecture-extensions">Extension Model</a>
+          <a href="#architecture-ui">UI Stack</a>
+        </div>
+      </div>
+
     </div>
   </nav>
 
@@ -1014,6 +1030,117 @@ return Installer.Build(args, package =>
     detection.
   </div>
 
+  <h3 id="concepts-migration">Migrating an Existing Installer to FalkForge</h3>
+  <p>
+    A common starting point isn't a blank product &mdash; it's a product you already ship, built with WiX,
+    another MSI toolkit, or a non-MSI installer (Inno Setup, NSIS, a hand-rolled EXE), and the goal is for a
+    new FalkForge-built installer to <em>replace</em> the old one on a user's machine, not sit next to it as
+    an unrelated second product. The single fact that decides whether that happens automatically is the one
+    from the table above: Windows Installer's <code>MajorUpgrade</code> detection matches products by
+    <code>UpgradeCode</code> alone, and <code>PackageBuilder.Build()</code> derives a fresh one
+    (deterministically, from <code>Name</code> + <code>Manufacturer</code>) unless you set it explicitly.
+    That derived value is <strong>not</strong> the old installer's <code>UpgradeCode</code> &mdash; a
+    different tool used a different algorithm (or a human just picked a GUID) &mdash; so left alone, the new
+    package installs as a stranger to Windows Installer, not a successor.
+  </p>
+
+  <h4>The Rule: Reuse the Old UpgradeCode</h4>
+  <p>
+    Set <code>PackageBuilder.UpgradeCode</code> to the <em>exact</em> GUID the old installer registered,
+    and configure <code>MajorUpgrade</code> as usual. A fresh <code>ProductCode</code> on every build is
+    still correct and expected &mdash; only <code>UpgradeCode</code> has to carry over:
+  </p>
+  <pre><code class="language-csharp">var package = new PackageBuilder
+{
+    Name = "Contoso App",
+    Manufacturer = "Contoso Inc.",
+    Version = new Version(3, 0, 0),
+    // The OLD installer's UpgradeCode, recovered below. Do not regenerate this value.
+    UpgradeCode = Guid.Parse("12345678-1234-1234-1234-1234567890AB"),
+};
+
+package.MajorUpgrade(mu =&gt; mu
+    .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate)
+    .MigrateFeatures(true));</code></pre>
+  <p>
+    See <a href="#msi-major-upgrade-builder">8.14 MajorUpgradeBuilder</a> for the full
+    <code>Schedule</code>/<code>MigrateFeatures</code>/<code>AllowSameVersionUpgrades</code> API.
+  </p>
+
+  <h4>Recovering the Old UpgradeCode</h4>
+  <p>
+    If the old installer is itself an <code>.msi</code> (WiX, InstallShield, or any other MSI tool), the
+    most direct route is <code>forge decompile old.msi -o old.cs</code> (Windows-only &mdash; it calls
+    <code>msi.dll</code> the same way the compiler does). The generated C# includes a
+    <code>builder.UpgradeCode = new Guid("&hellip;")</code> line read straight from the old MSI's
+    <code>Property</code> table. <code>forge inspect</code> is not the tool for this &mdash; today it
+    surfaces product name, manufacturer, version, and <code>ProductCode</code>, but not
+    <code>UpgradeCode</code>.
+  </p>
+  <div class="note">
+    The MSI spec doesn't strictly require an <code>UpgradeCode</code> row in the <code>Property</code>
+    table, so an occasional old MSI won't have one for <code>forge decompile</code> to read (it comes back
+    <code>Guid.Empty</code>). Two fallbacks that work on any MSI, FalkForge-built or not:
+    <strong>Orca</strong> (Microsoft's free MSI table editor) &mdash; open the <code>Upgrade</code> table
+    directly, every row's <code>UpgradeCode</code> column has it &mdash; or the registry: every product
+    Windows Installer ever registered leaves a key under
+    <code>HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\</code> (per-user installs mirror under
+    <code>HKCU</code>). The key name is a <em>packed</em> GUID &mdash; compressed, no dashes, byte order
+    reversed &mdash; not the human-readable form; let Orca or a dedicated unpacker convert it rather than
+    hand-editing the dashes back in.
+  </div>
+  <p>
+    <a href="#demos">Demo 54 &mdash; forge migrate</a> automates the whole path: <code>forge migrate
+    old.msi -o ./migrated</code> decompiles the old installer and writes a buildable FalkForge project whose
+    generated <code>Program.cs</code> already carries the recovered <code>UpgradeCode</code> forward, along
+    with the reconstructed features, files, and other metadata it could map (a
+    <code>MIGRATION-REPORT.md</code> lists anything it couldn't). For most migrations, starting from that
+    generated project and adjusting it is faster and safer than retyping a recovered GUID into a
+    hand-written <code>PackageBuilder</code>. <code>forge migrate</code> also reads WiX Burn bundle
+    <code>.exe</code>s the same way, for teams migrating a bundled installer rather than a bare MSI.
+  </p>
+
+  <h4>Caveats</h4>
+  <ul>
+    <li>
+      <strong>The old installer isn't an MSI.</strong> Inno Setup, NSIS, and similar tools don't register
+      an <code>UpgradeCode</code> at all &mdash; there's nothing to reuse, because
+      <code>MajorUpgrade</code> detection is an MSI-only mechanism. The new FalkForge MSI and the old EXE
+      are two unrelated installations as far as Windows Installer is concerned. Practical options: detect
+      the old install some other way you control (a registry key or file it's known to leave behind, wired
+      into a <code>package.Require()</code> launch condition or a custom action) and drive its silent
+      uninstall yourself before proceeding &mdash; <code>QuietExec</code> in
+      <a href="#extensions">Extensions.Util (10)</a> is built for exactly this &mdash; or, if you're willing
+      to introduce a bundle, chain "uninstall the old EXE" as its own step ahead of the new MSI in a
+      <a href="#bundle-builders">bundle chain (9)</a> instead of trying to fold the transition into MSI
+      upgrade detection at all.
+    </li>
+    <li>
+      <strong>Version comparison only looks at three fields.</strong> The <code>Upgrade</code> table's
+      version range is written from <code>Version.ToString(3)</code>, and Windows Installer's own
+      <code>ProductVersion</code> comparison only ever considers Major.Minor.Build &mdash; a fourth
+      (Revision) component on a .NET <code>Version</code> is silently ignored for upgrade-detection
+      purposes. Don't rely on a fourth component to distinguish versions from
+      <code>MajorUpgrade</code>'s perspective.
+    </li>
+    <li>
+      <strong>Downgrades are blocked by default.</strong> Installing an older <code>Version</code> than
+      what Windows Installer sees on the machine fails validation unless you opt in:
+      <code>package.Downgrade(d =&gt; d.Allow())</code>, or keep it blocked with your own message via
+      <code>package.Downgrade(d =&gt; d.Block("A newer version is already installed."))</code>. This bites
+      migrations specifically when the old product's version numbering and the new FalkForge numbering
+      don't line up &mdash; e.g. resetting to <code>1.0.0</code> under the same <code>UpgradeCode</code> the
+      old <code>4.x</code> product used reads as a downgrade and is blocked. Decide your version numbering
+      before wiring up the migration, not after.
+    </li>
+    <li>
+      <strong>Per-machine and per-user context must match.</strong> <code>MajorUpgrade</code> detection
+      only sees products installed in the same scope (<a href="#concepts-elevation">below</a>) as the new
+      package. A per-user old install and a per-machine new install &mdash; or vice versa &mdash; won't
+      detect each other via <code>UpgradeCode</code> at all, no matter how carefully the GUID was copied.
+    </li>
+  </ul>
+
   <h3 id="concepts-elevation">Elevation: Per-Machine vs. Per-User</h3>
   <p>
     <code>PackageBuilder.Scope</code> is <code>InstallScope.PerMachine</code> by default. A
@@ -1159,6 +1286,7 @@ dotnet publish -c Release</code></pre>
       <tr><td><code>forge plan bundle.exe</code></td><td>Compute and display the install plan for a bundle without running it</td></tr>
       <tr><td><code>forge plan-diff a.exe b.exe</code></td><td>Diff two installers of the same type and report changes</td></tr>
       <tr><td><code>forge verify bundle.exe</code></td><td>Independently rebuild from source and byte-compare to prove reproducibility; verdicts: VERIFIED / MISMATCH / REBUILD-FAILED / SETUP-ERROR</td></tr>
+      <tr><td><code>forge loc export --culture en-US -o custom-en-US.json</code></td><td>Export a built-in localization JSON file as a starting point for an override</td></tr>
     </tbody>
   </table>
 
@@ -2686,8 +2814,9 @@ return Installer.Build(args, p =&gt;
     p.UseDialogSet(MsiDialogSet.FeatureTree);
 
     p.MajorUpgrade(mu =&gt; mu
-        .DowngradeErrorMessage("A newer version is already installed.")
         .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate));
+
+    p.Downgrade(d =&gt; d.Block("A newer version is already installed."));
 
     p.Require(Condition.IsWindows10OrLater, "Windows 10 or later is required.");
 
@@ -3373,9 +3502,7 @@ p.UISequence(seq =&gt; seq
       <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>AllowDowngrades()</code></td><td><code>MajorUpgradeBuilder</code></td><td>Allows installing an older version over a newer one.</td></tr>
       <tr><td><code>AllowSameVersionUpgrades()</code></td><td><code>MajorUpgradeBuilder</code></td><td>Allows reinstalling the same version.</td></tr>
-      <tr><td><code>DowngradeErrorMessage(string message)</code></td><td><code>MajorUpgradeBuilder</code></td><td>Error message shown when a downgrade is blocked.</td></tr>
       <tr><td><code>Schedule(RemoveExistingProductsSchedule schedule)</code></td><td><code>MajorUpgradeBuilder</code></td><td>When to remove the previous version. Defaults to <code>AfterInstallValidate</code>.</td></tr>
       <tr><td><code>MigrateFeatures(bool migrate)</code></td><td><code>MajorUpgradeBuilder</code></td><td>Whether to migrate feature selections from the old install. Defaults to <code>true</code>.</td></tr>
     </tbody>
@@ -3395,11 +3522,28 @@ p.UISequence(seq =&gt; seq
     </tbody>
   </table>
 
+  <p>
+    Downgrade blocking is configured separately via <code>PackageBuilder.Downgrade()</code>, not through
+    <code>MajorUpgradeBuilder</code>. Located at <code>src/FalkForge.Core/Builders/DowngradeBuilder.cs</code>.
+  </p>
+
+  <h4>DowngradeBuilder</h4>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Allow()</code></td><td><code>DowngradeBuilder</code></td><td>Allows installing an older version over a newer one.</td></tr>
+      <tr><td><code>Block(string message)</code></td><td><code>DowngradeBuilder</code></td><td>Blocks downgrades and sets the error message shown when a downgrade is blocked.</td></tr>
+    </tbody>
+  </table>
+
   <pre><code class="language-csharp">p.MajorUpgrade(mu =&gt; mu
-    .DowngradeErrorMessage("A newer version of [ProductName] is already installed.")
     .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate)
     .AllowSameVersionUpgrades()
-    .MigrateFeatures(true));</code></pre>
+    .MigrateFeatures(true));
+
+p.Downgrade(d =&gt; d.Block("A newer version of [ProductName] is already installed."));</code></pre>
 
   <!-- ================================================================ -->
   <!-- 8.15 UpgradeBuilder                                              -->
@@ -3986,8 +4130,9 @@ p.CreateFolder(cf =&gt; cf
 
     // Upgrade behavior
     p.MajorUpgrade(mu =&gt; mu
-        .DowngradeErrorMessage("A newer version is already installed.")
         .Schedule(RemoveExistingProductsSchedule.AfterInstallValidate));
+
+    p.Downgrade(d =&gt; d.Block("A newer version is already installed."));
 
     // Launch conditions
     p.Require(Condition.IsWindows10OrLater, "Windows 10 or later is required.");
@@ -4202,6 +4347,112 @@ Installer.Build(p =&gt;
     Source: <code>src/FalkForge.Core/Models/PackageModel.cs</code>,
     <code>src/FalkForge.Core/Builders/PackageBuilder.cs</code>,
     <code>src/FalkForge.Compiler.Msi/Recipe/PackageCodeDerivation.cs</code>.
+  </p>
+
+  <h4>Why Reproducible Builds Matter</h4>
+  <p>
+    The table above explains <em>what</em> <code>Reproducible()</code> does mechanically; this is
+    <em>why</em> you'd turn it on. "Reproducible" has one precise meaning here: the same source, built
+    twice, produces byte-identical output. <code>package.Reproducible(epochOverride = null)</code> pins
+    every timestamp the compiler would otherwise take from the wall clock to a fixed
+    <code>SOURCE_DATE_EPOCH</code> (an explicit argument, or the <code>SOURCE_DATE_EPOCH</code>
+    environment variable &mdash; it throws rather than silently falling back to "now" if neither is set),
+    and leaves <code>PackageCode</code> <code>null</code> so the compiler derives it from a content digest
+    instead of a random GUID. Nothing about the installer's behavior changes; only whether two builds of
+    the same inputs are byte-for-byte the same file.
+  </p>
+  <p>
+    That one property enables several things a non-reproducible build can't offer:
+  </p>
+  <ul>
+    <li>
+      <strong>Supply-chain trust.</strong> Anyone &mdash; not just the team that ran the original build
+      &mdash; can rebuild your installer from the published source and byte-compare it against the artifact
+      you shipped. <code>forge verify &lt;artifact&gt; --rebuild &lt;project&gt;</code> (<a
+      href="#cli">CLI, 15</a>) automates exactly that comparison and reports
+      <code>VERIFIED</code>/<code>MISMATCH</code>/<code>REBUILD-FAILED</code>. Without reproducibility
+      there is nothing to compare against &mdash; a legitimate rebuild and a compromised build machine
+      produce equally "different" bytes from the original, so a mismatch would prove nothing.
+    </li>
+    <li>
+      <strong>Auditability and attestations.</strong> <code>package.Sbom()</code> emits a CycloneDX SBOM
+      listing every installed file's SHA-256; under a reproducible build its own serial number and
+      timestamp are derived from build content rather than the wall clock, so the SBOM itself doesn't
+      introduce non-determinism into an otherwise-reproducible artifact. The same logic applies one layer
+      up to any release pipeline &mdash; including FalkForge's own
+      (<code>.github/workflows/release.yml</code>) &mdash; that publishes SLSA-style build-provenance
+      attestations: an attestation asserts "these bytes came from this source, this build"; reproducibility
+      is what lets a third party independently confirm that assertion by rebuilding, instead of trusting it
+      on faith.
+    </li>
+    <li>
+      <strong>Debugging and support.</strong> Given a customer's shipped version number, you can rebuild the
+      exact bytes they're running, months or years later, for forensics &mdash; without having archived the
+      original build machine's output.
+    </li>
+    <li>
+      <strong>Trustworthy version diffs.</strong> <code>forge plan-diff old new</code> reports what
+      genuinely changed between two releases' install plans. If builds aren't reproducible, re-running a
+      build of the <em>same</em> version can itself introduce noise (a fresh <code>PackageCode</code>, a
+      different embedded timestamp) that has nothing to do with the version bump you actually care about
+      reviewing.
+    </li>
+    <li>
+      <strong>Smaller, meaningful deltas.</strong> <code>BundleBuilder.DeltaFrom()</code> computes a binary
+      delta with Octodiff &mdash; a raw byte-level (rsync-style) diff between the old and new payload files.
+      Non-deterministic bytes scattered through an otherwise little-changed file (a random
+      <code>PackageCode</code>, a fresh save timestamp in the MSI's OLE compound structure) reduce how much
+      of the old and new payloads actually match block-for-block, inflating the delta with noise unrelated
+      to your real changes. A reproducible build removes that noise, so the delta reflects the content that
+      actually changed.
+    </li>
+  </ul>
+  <p>
+    None of this is free, which is why it's opt-in rather than the default. A normal build's fresh
+    <code>Guid.NewGuid()</code> <code>PackageCode</code> on every compile exists for a reason of its own:
+    Windows Installer's repair cache needs every packaging event to be unambiguously distinguishable, and a
+    fresh GUID guarantees that without you having to think about it, even across many builds of an unchanged
+    <code>ProductCode</code>. Reproducible mode's content-derived <code>PackageCode</code> preserves that
+    same SECREPAIR safety property a different way &mdash; two <em>non-identical</em> packages still never
+    collide, because the digest folds in per-file content hashes &mdash; but it requires you to actually pin
+    <code>SOURCE_DATE_EPOCH</code> and accept that identical inputs now produce identical output rather than
+    a fresh identity every time. Pick reproducible mode for a release build you intend to publish, sign, or
+    attest to; a normal (non-reproducible) build remains the simpler default for local development, where a
+    unique identity per compile is exactly what you want and there's nothing yet to verify against.
+  </p>
+
+  <h4>Combining Reproducible() with Integrity() (MSI)</h4>
+  <p>
+    ECDSA-P256 signing is intentionally nondeterministic (a fresh random nonce every call), so embedding an
+    <code>Integrity()</code> signature in-band would defeat <code>Reproducible()</code>'s byte-identical
+    guarantee the moment both are configured on the same <code>PackageBuilder</code>. When both are set,
+    <code>IntegritySigner</code> skips the in-band <code>_FalkForgeIntegrity</code> table entirely and writes
+    the signature <em>sidecar-only</em> instead (<code>&lt;msi&gt;.sig.json</code>, the same envelope shape as
+    always) &mdash; the MSI artifact itself stays byte-identical across rebuilds. The compiler logs an
+    explicit <code>Info</code>-level notice when this applies (not hidden behind <code>--verbose</code>, since
+    it is a real, user-visible change of where the signature lives). A non-reproducible
+    <code>Integrity()</code> build still gets both: the in-band table <em>and</em> the sidecar.
+    <code>forge verify &lt;msi&gt;</code> (<a href="#cli">CLI, 15</a>) checks the table first and falls back to
+    the sidecar automatically, so verification works the same way either way.
+  </p>
+  <div class="warning">
+    Bundles do not yet have this guard. <code>BundleBuilder.Integrity()</code> always embeds its ECDSA
+    signature in the bundle manifest, so a bundle combining <code>Reproducible()</code> with
+    <code>Integrity()</code> is <em>not</em> byte-identical across rebuilds today &mdash; a known, tracked gap,
+    not a design choice. If you need a byte-reproducible signed bundle today, verify the unsigned artifact
+    with <code>FALKFORGE_NO_SIGN=1</code> and sign out-of-band instead.
+  </div>
+  <p>
+    See <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what does
+    and doesn't need Sigil in either mode.
+  </p>
+  <p>
+    See <a href="#demos">Demo 57 &mdash; reproducible-sbom</a> for the full pin-build-twice-and-compare
+    workflow with an SBOM sidecar, <a href="#demos">Demo 56 &mdash; verify-and-plan</a> for
+    <code>forge plan</code>/<code>plan-diff</code>/<code>verify --rebuild</code> together, the
+    <a href="#cli">CLI reference (15)</a> for full <code>forge verify</code> and <code>forge plan-diff</code>
+    flags, and <a href="#bundle-signing-trust">Bundle Signing, Trust &amp; Key Rotation (23)</a> for how
+    payload signing and integrity attestation build on top of a reproducible artifact.
   </p>
 
   <!-- ================================================================ -->
@@ -4818,9 +5069,12 @@ public sealed class BundleCompiler
     The shipped extensions below don't just author inert MSI table rows: Firewall, SQL, IIS
     (application pools and web sites), HTTP, Dependency, and Util schedule real deferred, elevated
     custom actions that create the firewall rule, database, site, URL reservation, or registry
-    provider entry <em>at install time</em>. One gap to know about: IIS certificate bindings,
-    sub-applications, and virtual directories are still written into site configuration only
-    &mdash; they are not yet bound or created at install (the validator warns via IIS013/IIS014).
+    provider entry <em>at install time</em>. IIS virtual directories are created (and removed on
+    uninstall) at install time when parented under the site's root application; a virtual directory
+    targeting a non-root parent application is warned via IIS015, since sub-application creation
+    itself is not yet wired. Two gaps remain: IIS certificate bindings and sub-applications are
+    still written into site configuration only &mdash; they are not yet bound or created at install
+    (the validator warns via IIS013/IIS014).
   </p>
 
   <!-- 10.1 Extension Interfaces -->
@@ -8107,8 +8361,16 @@ public interface IDialogStepBuilder
     <tbody>
         <tr><td>DLG001</td><td>Error</td><td>An <code>InsertedDialogStep</code> references a step name that is not registered in the <code>DialogStepRegistry</code>. Fix: register the builder via the owning extension before compiling.</td></tr>
         <tr><td>DLG002</td><td>Error</td><td>Two <code>InsertedDialogStep</code> entries declare the same logical position (same <code>before</code>/<code>after</code> anchor with the same target). Fix: give them distinct anchors or merge them.</td></tr>
+        <tr><td>DLG003</td><td>Error</td><td><code>DialogCustomization.BannerBitmap</code>/<code>DialogBitmap</code>/<code>HeaderIcon</code> names a Binary stream key that is not registered in <code>PackageModel.Binaries</code> (via <code>PackageBuilder.Binary(name, sourcePath)</code>). Fix: register the key with <code>PackageBuilder.Binary()</code> before compiling, or fix the typo.</td></tr>
     </tbody>
 </table>
+
+<p>
+    <code>BannerBitmap</code>/<code>DialogBitmap</code>/<code>HeaderIcon</code> synthesize real controls on
+    the stock dialog templates (banner/background bitmaps, header icon) &mdash; they are not reserved or
+    inert. See <code>docs/dialog-template-architecture.md</code> (&ldquo;Customizing a Dialog Set&rdquo;) for
+    the full verb reference and exact placement rules.
+</p>
 
 </section>
 
@@ -8189,7 +8451,7 @@ forge init --from-publish bin/Release/net10.0/publish -o installer/</code></pre>
 #   --dry-run                Validate + plan, but do not write any output artifacts
 #   --reproducible           Reproducible build (uses SOURCE_DATE_EPOCH or git HEAD)
 #   --sbom                   Emit a CycloneDX SBOM sidecar
-#   --no-sign                Skip Sigil code signing
+#   --no-sign                Skip the ECDSA integrity signature (and any Sigil SBOM attestation)
 #   --winget                 Emit a WinGet singleton manifest alongside the MSI
 #   --winget-url &lt;URL&gt;       InstallerUrl to embed in the manifest
 #   --ice                    Run ICE validation (default: on for .msi)
@@ -8205,6 +8467,12 @@ forge build installer.cs -o ./output
 forge build installer.cs --dry-run --json
 forge build installer.cs --reproducible --sbom
 forge build installer.cs --winget --winget-url https://example.com/app.msi</code></pre>
+<p>
+    <code>--no-sign</code> skips FalkForge's own ECDSA integrity signature (and any Sigil-based SBOM
+    attestation on top of it) &mdash; see
+    <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what Sigil is and
+    when (if ever) you need it.
+</p>
 
 <h4>validate</h4>
 <p>
@@ -8254,6 +8522,16 @@ forge inspect package.msi
 forge inspect package.msi --verbose
 forge inspect package.msi --json
 forge inspect package.msi --sbom</code></pre>
+<p>
+    When the MSI carries an <code>Integrity()</code> signature (embedded table row or detached sidecar),
+    <code>inspect</code> also prints its presence and format tag (e.g. <code>falkforge-ecdsa-envelope-v2</code>).
+    Classical (ECDSA-P256) fingerprints are printed as <strong>Signing Key Fingerprint</strong> &mdash; the
+    values <code>forge verify --trusted-key</code> matches against. Any hybrid post-quantum (ML-DSA) companion
+    fingerprints are printed separately as <strong>PQ Companion Fingerprint (not usable with
+    --trusted-key)</strong>, since pasting one into <code>--trusted-key</code> produces a baffling
+    <code>INT001</code> &mdash; the two are never interchangeable. All of this is display only, not
+    cryptographic verification; use <code>forge verify &lt;msi&gt;</code> to actually check the signature.
+</p>
 
 <h4>decompile</h4>
 <p>Decompiles an MSI or bundle EXE into C# source code.</p>
@@ -8340,6 +8618,50 @@ forge rules list --target merge --json</code></pre>
 forge rules explain PKG001
 forge rules explain SVC003</code></pre>
 
+<h4>loc export</h4>
+<p>
+    Exports FalkForge's built-in MSI dialog localization JSON (<code>en-US</code>, <code>sv-SE</code>) to disk
+    so an override file can be started from a real baseline instead of being written from scratch &mdash; see
+    <a href="#loc-override">Overriding Built-In Strings</a> (16). The written bytes are the embedded resource
+    verbatim, byte-faithful. Cross-platform (reads embedded resources only, no <code>msi.dll</code> required).
+</p>
+<pre><code class="language-bash">forge loc export [options]
+
+# Options:
+#   --culture &lt;name&gt;   Culture to export (e.g. en-US). Case-insensitive. Omit to export every
+#                       built-in culture.
+#   -o, --output &lt;path&gt; Output directory (created if missing), or an exact .json file path when a
+#                       single culture is exported via --culture. Defaults to the current directory.
+#   --list              List available built-in cultures and exit
+
+# Examples:
+forge loc export --list
+forge loc export                                    # every built-in culture -> ./en-US.json, ./sv-SE.json
+forge loc export --culture en-US -o custom-en-US.json
+forge loc export --culture SV-se -o strings/         # case-insensitive match; writes strings/sv-SE.json</code></pre>
+<p>
+    A file at the target path is silently overwritten &mdash; export is an idempotent, non-destructive read of
+    a built-in resource into a file you named yourself; re-running it is expected and safe, unlike
+    <code>forge init</code>'s clobber guard for hand-written project files. Passing an explicit <code>.json</code>
+    <code>--output</code> path <em>without</em> <code>--culture</code> is a loud validation error rather than a
+    guess: with more than one built-in culture and no culture selected, which culture's content would go into
+    that one named file is ambiguous, so <code>loc export</code> refuses instead of silently picking one or
+    creating a directory literally named <code>something.json</code>.
+</p>
+<p>
+    Typical override workflow: export a built-in culture, edit one string, then point
+    <code>AddJsonFile()</code> at the edited copy:
+</p>
+<pre><code class="language-bash">forge loc export --culture en-US -o custom-en-US.json</code></pre>
+<pre><code class="language-json">// custom-en-US.json — edit just the one key you want to change
+{
+    "WelcomeTitle": "Welcome to Acme Setup"
+}</code></pre>
+<pre><code class="language-csharp">package.Localization(loc => loc
+    .AddBuiltInCultures()
+    .AddJsonFile("custom-en-US.json"));  // your WelcomeTitle wins; every other built-in string
+                                          // still resolves from the baseline tier</code></pre>
+
 <h4>bundle detach / bundle reattach</h4>
 <p>Bundle signing operations for detaching and reattaching PE stubs.</p>
 <pre><code class="language-bash"># Detach PE stub from bundle for external signing
@@ -8418,35 +8740,101 @@ forge plan-diff v1.0/app.msi v1.1/app.msi --json</code></pre>
 
 <h4>verify</h4>
 <p>
-    Independently rebuilds an installer from its published source and byte-compares the result
-    against a shipped artifact to prove the binary is reproducible. This lets anyone confirm that
-    the artifact they received matches the published source code without trusting the original
-    build machine or its environment.
+    Independently verifies a shipped artifact through one of two modes.
+    <strong>Rebuild-and-compare</strong> (<code>--rebuild &lt;project&gt;</code>, .msi or .exe) rebuilds the
+    project reproducibly and byte-compares the result against the artifact &mdash; the strongest proof, since
+    it ties the shipped bytes back to source. <strong>Signature-only</strong> (.msi, <code>--rebuild</code>
+    omitted) instead crypto-verifies the MSI's pure-.NET ECDSA integrity signature without needing the source
+    project at all. A bundle (.exe) has no signature-only mode yet, so <code>--rebuild</code> stays required
+    for it.
 </p>
-<pre><code class="language-bash">forge verify &lt;artifact&gt; --rebuild &lt;project&gt; [options]
+<pre><code class="language-bash"># Rebuild-and-compare (.msi or .exe):
+forge verify &lt;artifact&gt; --rebuild &lt;project&gt; [options]
+
+# Signature-only (.msi only, --rebuild omitted):
+forge verify &lt;artifact.msi&gt; [--trusted-key &lt;fingerprint&gt;]... [options]
 
 # Arguments:
 #   &lt;artifact&gt;                     Path to the shipped .msi or .exe to verify
 
-# Options (required):
-#   --rebuild &lt;project&gt;            Installer project to rebuild from (.cs / .csx / .json / .csproj)
-
-# Options:
+# Options (rebuild-and-compare):
+#   --rebuild &lt;project&gt;            Installer project to rebuild from (.cs / .csx / .json / .csproj).
+#                                   Omit for an .msi to run signature-only verification instead;
+#                                   still required for an .exe bundle.
 #   --source-date-epoch &lt;epoch&gt;    Unix timestamp to pin the reproducible build clock
+
+# Options (signature-only, .msi):
+#   --trusted-key &lt;fingerprint&gt;    Pin a trusted signing-key fingerprint (uppercase hex SHA-256 of
+#                                   the SubjectPublicKeyInfo). Repeatable. Omitted = consistency-only
+#                                   verification (tamper-evidence, not authorship). Rejected together
+#                                   with --rebuild (it would silently have no effect there).
+
+# Options (either mode):
 #   --json                         Emit a JSON envelope to stdout
 
-# Verdicts:
+# Verdicts (rebuild-and-compare):
 #   VERIFIED       (exit 0)  Artifact matches rebuild byte-for-byte
 #   MISMATCH       (exit 1)  Artifact differs from rebuild
 #   REBUILD-FAILED (exit 2)  Rebuild compilation failed
 #   SETUP-ERROR    (exit 3)  Artifact or project not found / environment error
 
+# Verdicts (signature-only, .msi):
+#   VERIFIED (authorship verified)        (exit 0)  --trusted-key matched; publisher identity confirmed.
+#                                                    Rendered green.
+#   VERIFIED (tamper-evidence only)       (exit 0)  No --trusted-key; payload self-consistent but
+#                                                    publisher identity NOT checked. Rendered yellow with
+#                                                    the full label spelled out below.
+#   NOT-SIGNED                            (exit 1)  No signature found (checked the embedded table,
+#                                                    then the sidecar)
+#   FAILED                                (exit 1)  Signature didn't verify, matched no trusted key, an
+#                                                    oversized (&gt;4 MiB) sidecar was refused, a payload
+#                                                    file name is carried by more than one embedded file
+#                                                    (unconditional tamper, ambiguous which is signed),
+#                                                    or the payload no longer matches what was signed in
+#                                                    EITHER direction (missing, added, altered, or an
+#                                                    aliased duplicate)
+#   (no verdict)                          (exit 3)  Setup failure: the MSI could not be opened at all
+
 # Examples:
 forge verify app-1.2.msi --rebuild installer.cs
 forge verify setup.exe --rebuild installer.cs --source-date-epoch 1718150400
-forge verify app-1.2.msi --rebuild installer.cs --json</code></pre>
+forge verify app-1.2.msi --rebuild installer.cs --json
+forge verify app-1.2.msi                          # signature-only, consistency-only
+forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-pinned</code></pre>
 
-<p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>.</p>
+<p>
+    Signature-only verification checks, in order: the envelope is located (embedded
+    <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> table row first, the detached
+    <code>&lt;msi&gt;.sig.json</code> sidecar as fallback, capped at 4&nbsp;MiB &mdash; an oversized sidecar is
+    refused outright and reported <code>FAILED</code> rather than read unbounded into memory; this fallback is
+    the normal path for a <code>Reproducible()</code>+<code>Integrity()</code> MSI, which carries no in-band
+    table at all, see <a href="#msi-package-code">8.29</a>); cryptographic verification against any
+    <code>--trusted-key</code> fingerprints supplied, else consistency-only (tamper-evidence, not authorship
+    &mdash; see <a href="#signing-two-kinds">23.2</a> for that distinction in general); a name-collision
+    (ambiguity) check &mdash; the signed envelope has name-only granularity, so two or more embedded payload
+    files resolving to the <em>same</em> name can never be distinguished by the signature, and any such
+    collision is treated as unconditional tamper, refused before the content check below even runs; and
+    <strong>bidirectional</strong> content binding &mdash; every embedded cabinet is re-extracted and each
+    file's SHA-256 recomputed, and the result is checked both ways against the signed declaration: every
+    declared file must be present with a matching hash (catches missing/altered files), <em>and</em> every
+    actual embedded file must be declared (catches an undeclared file added after signing, which a
+    one-directional check would silently pass as VERIFIED). Only externally-referenced (disk-resident)
+    cabinets are not content-bound by this last check &mdash; the same limitation <code>forge extract</code>
+    already has.
+</p>
+
+<p>
+    Two outcomes both print as a green-vs-yellow &ldquo;VERIFIED&rdquo; and must not be confused: a trusted-key
+    match renders <strong>[green]VERIFIED (authorship verified)[/]</strong>; no trusted key supplied renders
+    <strong>[yellow]VERIFIED (tamper-evidence only &mdash; authorship NOT established; pass --trusted-key to
+    verify publisher)[/]</strong> &mdash; the payload is provably self-consistent but nothing established
+    <em>who</em> signed it. With <code>--json</code>, the emitted <code>result</code> object always carries a
+    boolean <code>authorshipEstablished</code> field on every signature-only verdict (not just VERIFIED) so a
+    machine consumer never has to infer the distinction from field absence; <code>fingerprint</code> is present
+    only when a trusted key matched.
+</p>
+
+<p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>, <a href="#sigil">Sigil</a> (23) for how the signature itself is produced.</p>
 
 <h3>Exit Codes</h3>
 <table class="api-table">
@@ -8584,6 +8972,28 @@ builder
     });
 
 Result&lt;IReadOnlyList&lt;LocalizationModel&gt;&gt; result = builder.Build();</code></pre>
+
+<h3 id="loc-override">Overriding Built-In Strings</h3>
+<p>
+    <code>AddBuiltInCultures()</code> (<code>src/FalkForge.Compiler.Msi/BuiltInLocalizationExtensions.cs</code>)
+    registers FalkForge's own MSI dialog strings (<code>en-US</code>, <code>sv-SE</code>) into a separate
+    <strong>baseline tier</strong> via <code>LocalizationBuilder.AddBaselineCulture()</code> &mdash; distinct
+    from the <strong>user tier</strong> populated by <code>AddCulture()</code>/<code>AddJsonFile()</code>. The
+    two tiers merge with a simple rule: <strong>a user-tier string with the same culture and key silently wins
+    over the baseline</strong>, regardless of which tier was registered with the builder first. A single line is
+    enough to override one built-in string:
+</p>
+<pre><code class="language-csharp">package.Localization(loc => loc
+    .AddBuiltInCultures()
+    .AddJsonFile("custom-en-US.json"));  // overrides only the keys it defines; everything else
+                                          // still falls back to the built-in en-US strings</code></pre>
+<p>
+    Duplicate keys are still an error <em>within</em> a single tier &mdash; two baseline registrations (or two
+    user registrations) defining the same culture+key still produce <code>LOC001</code>. It is only the
+    baseline-vs-user relationship that is a silent override, since that is the entire point of having a
+    baseline tier: a caller should never have to enumerate and reproduce every built-in string just to change
+    one.
+</p>
 
 <h3>Integration with PackageBuilder</h3>
 <p><code>src/FalkForge.Localization/PackageBuilderExtensions.cs</code></p>
@@ -8900,14 +9310,11 @@ public sealed record WixUnmappedFeature(
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>SVC001</td><td>Service name is required</td></tr>
-        <tr><td>SVC002</td><td>Service display name is required</td></tr>
-        <tr><td>SVC003</td><td>Service executable path is required</td></tr>
-        <tr><td>SVC004</td><td>Invalid service start type</td></tr>
-        <tr><td>SVC005</td><td>Invalid service type</td></tr>
-        <tr><td>SVC006</td><td>Duplicate service name</td></tr>
-        <tr><td>SVC007</td><td>Service account requires password</td></tr>
-        <tr><td>SVC008</td><td>Invalid failure action configuration</td></tr>
+        <tr><td>SVC001</td><td>Service Name is required</td></tr>
+        <tr><td>SVC002</td><td>Service Executable is required</td></tr>
+        <tr><td>SVC003</td><td>Service with Account=User requires a UserName</td></tr>
+        <tr><td>SVC004</td><td>Service name must not exceed 256 characters</td></tr>
+        <tr><td>SVC005</td><td>Plaintext service password (warning)</td></tr>
         <tr><td>SVC009</td><td>Service Arguments is empty string (use null for no arguments)</td></tr>
         <tr><td>SVC010</td><td>Both AccountProperty and UserName specified (AccountProperty takes precedence)</td></tr>
         <tr><td>SVC011</td><td>Service ComponentCondition must not be empty (use null to omit)</td></tr>
@@ -8932,6 +9339,17 @@ public sealed record WixUnmappedFeature(
         <tr><td>REG001</td><td>Registry entry Key is required</td></tr>
         <tr><td>REG002</td><td>Duplicate registry entry: same root+key+value-name with identical data (warning; message notes possible feature-exclusivity when the entries are gated to different components/features)</td></tr>
         <tr><td>REG003</td><td>Conflicting registry entry: same root+key+value-name with different data (error when both entries resolve to the same component/feature scope, since they are certain to co-install; downgraded to warning when the scopes differ, since that may be an intentional mutually-exclusive-feature pattern)</td></tr>
+        <tr><td>REG007</td><td>Registry value references a sensitive MSI property (warning)</td></tr>
+    </tbody>
+</table>
+
+<h3>RemoveRegistry Validation (RRG)</h3>
+<table class="api-table">
+    <thead><tr><th>Code</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>RRG001</td><td>RemoveRegistry Id is required</td></tr>
+        <tr><td>RRG002</td><td>RemoveRegistry Key is required</td></tr>
+        <tr><td>RRG003</td><td>RemoveValue action requires a Name</td></tr>
     </tbody>
 </table>
 
@@ -11862,6 +12280,56 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     for the friendly prompt, the free payload signature for real tamper protection.
 </p>
 
+<h3 id="sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</h3>
+
+<p>
+    You'll see references to a <code>sigil</code> CLI elsewhere in this manual (the <code>--no-sign</code> flag,
+    the MSI compile pipeline). Sigil is a separate, optional tool by the same author &mdash; not part of
+    FalkForge itself, and never required for the payload signature described above in this section.
+</p>
+
+<p>
+    <strong>What works without it.</strong> Payload signing is always pure-.NET ECDSA-P256
+    (<code>EcdsaManifestSigner</code>) on <em>both</em> sides &mdash; <code>BundleBuilder.Integrity()</code>
+    for bundles and <code>PackageBuilder.Integrity()</code> for MSI packages (<code>IntegritySigner</code>,
+    embedded as the MSI's <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> row, format tag
+    <code>falkforge-ecdsa-envelope-v2</code>). No external tool is ever required to produce a verifiable
+    manifest signature for either artifact type. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
+    has no Sigil dependency either: it always writes a CycloneDX/SPDX sidecar next to the compiled artifact.
+</p>
+
+<p>
+    <strong>What Sigil adds, when it's on PATH.</strong> FalkForge probes <code>sigil --version</code> once per
+    process (<code>SigilDetector</code>, result cached) and, if found, wraps the already-written SBOM in a
+    Sigil DSSE attestation envelope and embeds it in the manifest as <code>SbomAttestation</code>
+    (<code>BundleIntegritySigner</code> for bundles, <code>IntegritySigner</code> for MSI &mdash; identical
+    shape on both sides). This is purely additive on both artifact types: if Sigil is missing, or the
+    attestation step fails for any reason, the build still succeeds with the payload signature and the plain
+    SBOM sidecar intact &mdash; the attestation is simply absent. <strong>Sigil never gates the payload
+    signature itself</strong> for either MSI or bundles &mdash; do not install it "to get a signed MSI"; it's
+    only needed if you specifically want the extra DSSE SBOM attestation.
+</p>
+
+<div class="note">
+    <code>forge build --no-sign</code> (or the <code>FALKFORGE_NO_SIGN</code> environment variable) skips
+    Sigil-based signing and attestation too, on both MSI and bundle builds &mdash; the same switch that
+    disables the native ECDSA signer above.
+</div>
+
+<p>
+    <strong>Installing it.</strong> Sigil ships as a .NET global tool on NuGet:
+</p>
+<pre><code class="language-bash">dotnet tool install -g Sigil.Sign</code></pre>
+<p>
+    Source and documentation: <a href="https://github.com/Falkesand/Sigil">github.com/Falkesand/Sigil</a>. Sigil
+    is licensed AGPL-3.0-only &mdash; a separate license from FalkForge's own &mdash; so review its terms before
+    depending on it in your build pipeline.
+</p>
+<p>
+    Sigil is build-time-only: the FalkForge engine that runs on end-user machines never calls it and has no
+    dependency on it being installed anywhere but your build machine.
+</p>
+
 <h3 id="signing-future">What's Coming (Planned, Not Yet Shipped)</h3>
 
 <p>
@@ -11887,6 +12355,371 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     INT011 anti-strip rule) are all live in this release. The two items above are the only forward-looking
     pieces in this section.
 </p>
+</section>
+
+<!-- ============================================================
+     Section 24: Architecture
+     ============================================================ -->
+<section id="architecture">
+<h2>24. Architecture</h2>
+
+<p>
+    <a href="#concepts">Concepts</a> explained the MSI vocabulary &mdash; components, codes, elevation,
+    sequencing &mdash; and the sections since then have documented each piece of FalkForge as its own API
+    surface. This section is the map that ties them together: how a call to
+    <code>PackageBuilder.Build()</code> actually becomes bytes on disk, how a distributed <code>.exe</code>
+    turns into an installed application, and where the trust boundaries sit along the way. It assumes you've
+    read Concepts and is deliberately a systems-level tour rather than a new API reference &mdash; every
+    subsection links to the existing chapter that documents its subject in full depth.
+</p>
+
+<h3 id="architecture-solution-map">24.1 Solution Map</h3>
+<p>
+    <a href="#structure">Solution Structure</a> lists every project with its own description and a
+    dependency tree; this is the same 33-project solution seen through a different lens &mdash; grouped by
+    the <em>role</em> each project plays, which is the more useful question when you're trying to find where
+    a piece of behavior lives.
+</p>
+<pre><code>Authoring core        Core, Extensibility
+                       The fluent API, domain model, validation, and the interfaces an
+                       extension implements. No compiler, no runtime, no UI &mdash; just the
+                       shape of an installer definition.
+
+Compilers              Compiler.Msi, Compiler.Bundle, Compiler.Msix (experimental)
+                       Turn a PackageModel / BundleModel into bytes: an .msi via msi.dll
+                       P/Invoke, a self-extracting .exe, or (experimental) a .msix.
+
+Engine runtime         Engine, Engine.Elevation, Engine.Protocol, Engine.Runtime,
+                       Platform, Platform.Windows
+                       The NativeAOT processes that actually run an install: detect,
+                       plan, elevate, apply, roll back. Engine.Runtime carries the
+                       published win-x64 runtime assets the Meta package depends on.
+
+UI                     Ui.Abstractions, Ui, Studio
+                       The default WPF installer chrome, the custom-UI framework authors
+                       build on, and the separate visual authoring tool (Studio) that
+                       edits installer definitions rather than running them.
+
+Extensions             Extensions.Util / Dependency / Firewall / DotNet / Iis / Sql /
+                       Driver / Http
+                       Optional domain-specific authoring + compile-time table
+                       injection + runtime execution, all through the same
+                       Extensibility contract (24.5).
+
+Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServer,
+                       Plugins.Sql / Odbc / FileSystem, Testing, Meta, Templates
+                       The `forge` CLI, MSI/Bundle/WiX-Burn decompiler, JSON
+                       localization, the MSBuild SDK for ProjectOutputs generation,
+                       remote-signing client, IDE-facing discovery plugins, and the
+                       `FalkForge` meta-package + `dotnet new` templates that make
+                       "add one package reference" a working setup.</code></pre>
+<p>
+    Dependencies flow in one direction through these layers: extensions and compilers depend on
+    <code>Core</code>, never the reverse; the engine runtime depends on the AOT-safe
+    <code>Engine.Protocol</code> but not on <code>Core</code> (the engine never sees a
+    <code>PackageBuilder</code> &mdash; it only ever sees a compiled manifest); the UI depends on
+    <code>Ui.Abstractions</code>, never directly on <code>Engine</code>, so a custom UI author can swap
+    <code>EngineClient</code> for a test double without touching engine internals. See
+    <a href="#structure">Solution Structure</a> for the full per-project dependency arrows.
+</p>
+
+<h3 id="architecture-msi-pipeline">24.2 From C# to .msi: The Compile Pipeline</h3>
+<p>
+    <code>PackageBuilder.Build()</code> (<a href="#msi-package-builder">8.2</a>) produces an immutable
+    <code>PackageModel</code> &mdash; a description, not an installer. Handing that model to
+    <code>MsiCompiler.Compile(model, outputPath)</code> (or the CLI's <code>forge build</code>) drives it
+    through a fixed pipeline, implemented as <code>MsiAuthoring.Compile</code>
+    (<code>src/FalkForge.Compiler.Msi/Recipe/MsiAuthoring.cs</code>) with a <code>Result&lt;string&gt;</code>
+    return at every step &mdash; nothing throws for an ordinary authoring mistake, and the pipeline stops at
+    the first failure rather than compiling a half-valid MSI:
+</p>
+<pre><code> 1. Register extensions    Each IFalkForgeExtension.Register() runs; table/execution/dialog-step
+                            contributors and extension ValidationRules are collected.
+ 2. Validate the model     Core + extension ValidationRules run in one pass (ModelValidator.Inspect).
+                            Any PKG/FEA/SVC/&hellip; rule violation fails the build here &mdash; nothing
+                            downstream ever sees an invalid model.
+ 3. Validate dialog UI     If a DialogSet/DialogCustomization is present, DLG001/DLG002 checks run
+                            against the merged built-in + extension step registry.
+ 4. Resolve components     ComponentResolver turns Files into ResolvedComponent/ResolvedFile records
+                            with deterministic GUIDs (one component per file &mdash; 2.1).
+ 5. Build the recipe       MsiRecipeBuilder runs ~40 built-in ITableProducers in a fixed order
+                            (Directory, Component, File, Feature, Registry, ServiceInstall, &hellip;),
+                            appends CustomTablesProducer + DialogSetProducer output, then routes every
+                            registered IMsiTableContributor through ExtensionTableEmitter (24.5) &mdash;
+                            producing an immutable MsiDatabaseRecipe: a table/row/column model with no
+                            open file handle yet.
+ 6. Build cabinets         CabinetPlanner decides disk/cabinet layout from MediaTemplate; CabinetBuilder
+                            compresses each cabinet's file slice (cabinet.dll P/Invoke). Embedded cabs
+                            become streams on the recipe; external cabs are written beside the .msi.
+ 7. Write the database     MsiDatabase.Create opens a fresh OLE compound file via msi.dll; MsiRecipeExecutor
+                            issues CREATE TABLE + INSERT for every recipe table, then the database commits.
+ 8. Reproducible timestamps  (opt-in) SummaryInfoPatcher overwrites the FILETIME fields msi.dll always
+                            stamps with the current time, so a ReproducibleOptions build is byte-identical
+                            across machines and calendar days.
+ 9. Sign                   Authenticode (CodeSigner, if Signing is configured) and FalkForge integrity
+                            signing (IntegritySigner: always pure-.NET ECDSA when Integrity() is configured
+                            &mdash; Sigil is not required; sidecar-only when Reproducible() is also set) &mdash;
+                            see 24.4.
+10. ICE validate            Native ICE custom actions run against the finished .msi (skipped for
+                            reproducible builds, since ICE can perturb bytes non-deterministically).
+11. SBOM + WinGet            Non-fatal, opt-in sidecars: a CycloneDX SBOM next to the .msi, and a 3-file
+                            WinGet manifest (8.28) if WinGet() was configured.</code></pre>
+<p>
+    Step 9's integrity signature is always produced by FalkForge's own pure-.NET ECDSA signer, never gated
+    on an external tool &mdash; see <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity
+    Signing</a> (23) for the one thing Sigil optionally adds on top (a DSSE SBOM attestation), and
+    <a href="#msi-package-code">Why Reproducible Builds Matter</a> (8.29) for how Step 9 changes when
+    <code>Reproducible()</code> is also configured.
+</p>
+<p>
+    Two details matter if you're debugging a build. First, cabinet compression here is single-threaded
+    &mdash; one <code>CabinetBuilder</code> call per planned cabinet, in a loop. <code>ParallelCabinetBuilder</code>
+    (<code>Parallel.ForEachAsync</code> over <code>CabinetWorkItem</code>s) exists as a separate, tested,
+    opt-in API for parallelizing cabinet builds on large payload sets; it is not wired into the default
+    pipeline above. Second, steps 10 and 11 are intentionally non-fatal on infrastructure failure (missing
+    <code>darice.cub</code>, no SBOM writer available) &mdash; a build still succeeds without ICE or an SBOM,
+    but a <code>Warning</code>-level log entry says so, so a green build never silently means "ICE didn't
+    run" without a trace.
+</p>
+<p>
+    See <a href="#demos">Demo 09 &mdash; advanced-msi</a> for custom actions/tables/sequences exercising most
+    of this pipeline in one package, and <a href="#demos">Demo 26 &mdash; custom-tables</a> for
+    <code>CustomTablesProducer</code> specifically.
+</p>
+
+<h3 id="architecture-bundle-runtime">24.3 From .exe to Installed System: Bundle Runtime</h3>
+<p>
+    A bundle is a different kind of artifact from an .msi: it's not something Windows Installer interprets
+    directly, it's a self-extracting launcher FalkForge itself understands. On disk it is one file laid out
+    as <code>[PE stub] [Magic] [Manifest JSON] [compressed payloads] [TOC] [Footer]</code> (full byte layout
+    and why Authenticode can't cover the payload section: <a href="#signing-why">23</a>). Running it starts
+    the chain of processes and phases that <a href="#engine">Engine Architecture (12)</a> and
+    <a href="#protocol">Protocol &amp; IPC (13)</a> document in full API detail; this subsection is the
+    narrative version &mdash; what happens, in order, from double-click to installed application.
+</p>
+<pre><code>double-click bundle.exe
+     |
+     v
+ [UI Process]  &lt;== Named Pipe A (HMAC-SHA256) ==&gt;  [Engine Process]
+ unprivileged, WPF                                   unprivileged, NativeAOT
+                                                            |
+                                                            | only when Applying needs
+                                                            | a privileged operation
+                                                            v
+                                              [Elevated Engine]  &lt;== Pipe B (HMAC-SHA256) ==&gt;
+                                              admin token, whitelisted commands only</code></pre>
+<p>
+    The Engine process is the one that matters for this story &mdash; it owns the install lifecycle end to
+    end via <code>IInstallerPipeline</code>, expressed as a fixed sequence of phase steps
+    (<code>DetectStep</code> &rarr; <code>PlanStep</code> &rarr; optional <code>ElevateStep</code> &rarr;
+    <code>ApplyStep</code>, with <code>RollbackStep</code> on failure). The UI never talks to the Elevated
+    process directly and never performs a privileged operation itself &mdash; it only ever asks the Engine
+    to detect, plan, or apply, and the Engine decides when elevation is actually required
+    (<a href="#concepts-elevation">2.3</a>).
+</p>
+<ul>
+    <li>
+        <strong>Detect</strong> &mdash; <code>PackageDetector</code>/<code>MsiDetector</code> ask Windows
+        (registry, MSI database) what's already installed, and <code>DependencyDetector</code> checks
+        whether anything else on the machine depends on a package this bundle would remove
+        (<a href="#engine-detection">Detection</a>).
+    </li>
+    <li>
+        <strong>Plan</strong> &mdash; <code>Planner</code> diffs detected state against the requested
+        action (install/uninstall/repair/update) and produces an ordered <code>InstallPlan</code> of
+        <code>PlanAction</code>s (<a href="#engine-planning">Planning</a>). This is the same plan
+        <code>forge plan</code>/<code>plan-diff</code> can export and diff without ever executing it
+        (<a href="#demos">Demo 56</a>).
+    </li>
+    <li>
+        <strong>Elevate</strong> &mdash; skipped entirely for a plan with no privileged actions. When
+        needed, the Engine launches the Elevated companion and the two mutually authenticate before a single
+        command crosses the pipe (24.4).
+    </li>
+    <li>
+        <strong>Apply</strong> &mdash; <code>PackageExecutor</code> dispatches each planned action to the
+        matching executor (<code>MsiExecutor</code> via <code>IMsiApi</code> P/Invoke,
+        <code>MsuExecutor</code>, <code>MspExecutor</code>, <code>BundleExecutor</code> for nested bundles,
+        <code>ExeExecutor</code>, <code>NetRuntimeExecutor</code>). Before every destructive step, a
+        <code>JournalEntry</code> is written to the <code>RollbackJournal</code> describing how to undo it
+        (<a href="#engine-rollback">Rollback Journal</a>) &mdash; this is what lets a mid-install failure
+        unwind cleanly instead of leaving the machine half-changed.
+    </li>
+    <li>
+        <strong>Complete / Shutdown</strong> &mdash; on success the plan's outcome is reported back over
+        the pipe and the journal for a successful run is retired. On failure, <code>RollbackExecutor</code>
+        walks the journal in reverse, running the matching
+        <code>IUndoOperation</code> (<code>MsiUninstallOperation</code>, <code>ExeRollbackOperation</code>,
+        <code>CacheCleanupOperation</code>) for each entry.
+    </li>
+</ul>
+<p>
+    Downloaded and extracted payloads live in the <code>PackageCache</code> under a content-addressed
+    layout (<a href="#engine-cache">Cache</a>) so a repair or a second install of the same version doesn't
+    re-download anything already verified on disk. For update scenarios, the same cache is where a delta
+    payload gets reconstructed against its declared basis version before its hash is ever trusted &mdash;
+    see 24.4.
+</p>
+<p>
+    See <a href="#demos">Demo 06 &mdash; product-suite</a> and <a href="#demos">Demo 10 &mdash;
+    advanced-bundle</a> for the chain/rollback-boundary authoring side, and
+    <a href="#demos">Demo 43 &mdash; bundle-layout</a> for how containers map onto the payload section of
+    the file layout above.
+</p>
+
+<h3 id="architecture-security">24.4 Security Architecture</h3>
+<p>
+    FalkForge's security model is layered: each layer answers a different question about trust, and a
+    reader who only skims one of the existing chapters (<a href="#concepts-elevation">Concepts</a>,
+    <a href="#protocol-transport">Protocol</a>, <a href="#bundle-signing-trust">Bundle Signing &amp;
+    Trust</a>) can come away thinking one mechanism does more than it does. Read top to bottom, in the
+    order they actually engage during a run:
+</p>
+<table class="api-table">
+    <thead><tr><th>Layer</th><th>Question it answers</th><th>Mechanism</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>Process transport</td>
+            <td>Is the process on the other end of this pipe really the Engine / Elevated companion I
+            expect, and not something else on the machine that guessed the pipe name?</td>
+            <td>HMAC-SHA256 handshake on both Named Pipe A (UI&harr;Engine) and Named Pipe B
+            (Engine&harr;Elevated), plus parent-process identity verification with start-time capture on
+            the elevated side, so a recycled PID can't impersonate the real parent
+            (<a href="#protocol-transport">13.3</a>).</td>
+        </tr>
+        <tr>
+            <td>Elevated command surface</td>
+            <td>Given a trusted pipe, what is the Engine actually allowed to ask the Elevated process to
+            do?</td>
+            <td>A fixed, whitelisted command set &mdash; MSI install/uninstall, service install, registry
+            write, file write &mdash; dispatched by <code>ElevatedCommandExecutor</code>. There is no
+            "run arbitrary command" verb; an attacker who fully compromises the unprivileged Engine still
+            cannot make the Elevated process do anything outside that list.</td>
+        </tr>
+        <tr>
+            <td>Elevation companion identity</td>
+            <td>Is the <code>.exe</code> about to be launched with an admin token actually the one this
+            bundle shipped, and not something planted on disk?</td>
+            <td><code>BootstrapCompanionResolver</code> requires bytes on disk == the TOC hash the
+            extractor verified == the hash the manifest <em>declares</em> for the reserved companion payload
+            id (<code>InstallerManifest.EngineCompanionSha256</code>), and &mdash; on a signed bundle &mdash;
+            that declared hash is itself inside the ECDSA-signed set. A manifest that declares no companion
+            never wires one, even if a payload happens to sit under the reserved id (fail-closed, not
+            fail-open); a declared companion whose hash disagrees aborts with
+            <code>ErrorKind.SecurityError</code> rather than falling back to an ambient
+            beside-the-engine binary.</td>
+        </tr>
+        <tr>
+            <td>Payload integrity &amp; authorship</td>
+            <td>Did every payload byte in this bundle come from a publisher I trust, unmodified?</td>
+            <td>The FalkForge payload signature &mdash; ECDSA-P256 (optionally hybrid with ML-DSA-65 for
+            post-quantum resistance) over the TOC's per-payload SHA-256 hashes, checked against a baked-in
+            trusted-key set with optional roles-and-quorum policy. This is a separate signature from
+            Authenticode and is the one that actually covers payloads glued on after the launcher stub was
+            signed (<a href="#signing-two-kinds">23.2</a>).</td>
+        </tr>
+        <tr>
+            <td>Update trust</td>
+            <td>Should this machine trust and install an update it downloaded, possibly over an untrusted
+            network?</td>
+            <td><code>StagedUpdateVerifier</code> flips <code>TrustPolicy.RequireSigned</code> to true on
+            the update path specifically &mdash; a fresh install tolerates an unsigned bundle if the user
+            chose to run it, but an unsigned or untrusted-key update is rejected outright
+            (<a href="#signing-updates">23.6</a>). A delta update additionally pins its basis version: the
+            reconstructed file's SHA-256 is checked against <code>ReconstructedSha256Hash</code> before the
+            reconstructed bytes are trusted at all, so a delta can't be used to smuggle bytes that don't
+            match the declared basis.</td>
+        </tr>
+    </tbody>
+</table>
+<p>
+    None of these layers substitutes for another. A valid HMAC handshake proves you're talking to the real
+    Engine process, not that the bundle's payloads are untampered; a valid payload signature proves the
+    payload bytes are what the publisher shipped, not that the elevated companion launching them is the one
+    the manifest declared. Removing any one layer narrows what an attacker needs to forge, which is why the
+    engine fails closed at each of them independently rather than trusting an earlier layer's pass as a
+    substitute.
+</p>
+<p>
+    For the full authoring and operational picture &mdash; generating keys, rotation, quorum policy,
+    remote signing via SignServer, and the post-quantum hybrid mode &mdash; see
+    <a href="#bundle-signing-trust">Bundle Signing, Trust &amp; Key Rotation (23)</a>, and
+    <a href="#demos">Demo 62 &mdash; require-signed-updates</a> /
+    <a href="#demos">Demo 63 &mdash; hybrid-pq-signing</a> /
+    <a href="#demos">Demo 53 &mdash; delta-updates</a> for runnable proofs of each row above.
+</p>
+
+<h3 id="architecture-extensions">24.5 Extension Model</h3>
+<p>
+    Extensions plug into two different points in the pipeline above, and conflating them is the most common
+    source of confusion for a first-time extension author &mdash; <a href="#ext-authoring-arch">10.10</a>
+    covers this in full depth; here is where each piece sits architecturally.
+</p>
+<p>
+    <strong>Compile-time (MSI pipeline, step 5 above):</strong> an extension implementing
+    <code>IFalkForgeExtension</code> registers <code>IMsiTableContributor</code>s, which
+    <code>ExtensionTableEmitter</code> routes into the recipe &mdash; merged into a built-in table
+    (<code>Registry</code>, <code>CustomAction</code>, &hellip;) when the contributor's <code>TableName</code>
+    matches one, or materialized as a brand-new custom table (with a <code>CREATE TABLE</code> the emitter
+    generates from the contributor's declared <code>WriteColumns</code> schema) otherwise. This is purely
+    data: rows land in the compiled <code>.msi</code>, inspectable with any MSI tool, but nothing runs them
+    yet.
+</p>
+<p>
+    <strong>Runtime (inside the compiled MSI's own execute sequence):</strong> an extension's custom table
+    is inert until something schedules a custom action to read it. <code>IExecutionContributor</code> is
+    that seam &mdash; it returns <code>ExecutionStep</code> records that <code>ExecutionStepEmitter</code>
+    turns into deferred, elevated <code>CustomAction</code> + <code>InstallExecuteSequence</code> rows
+    (themselves just another table contribution, flowing through the same emitter). This is why
+    <code>Extensions.Firewall</code>'s <code>WixFirewallException</code> table and
+    <code>Extensions.Sql</code>'s <code>SqlDatabase</code> table both compile cleanly on their own, but
+    require their execution contributor registered too before the rule or the database actually gets
+    created at install time.
+</p>
+<div class="note">
+    <code>IComponentContributor</code> is defined and collected today but not yet wired into the recipe
+    pipeline &mdash; registering one logs a <code>Warning</code> (<code>EXT002</code>) rather than silently
+    dropping your files, but no shipped extension currently relies on it. See
+    <a href="#ext-authoring-arch">10.10</a> for the up-to-date status of every extension seam.
+</div>
+<p>
+    See <a href="#extensions">Extension System (10)</a> for the full authoring guide and API reference, and
+    <a href="#demos">Demo 34 &mdash; ext-dependency</a> for a Provides/Requires extension exercising both
+    seams end to end.
+</p>
+
+<h3 id="architecture-ui">24.6 UI Stack</h3>
+<p>
+    The default WPF installer and any custom UI you author both sit behind the same contract:
+    <code>IInstallerEngine</code> (<code>src/FalkForge.Ui.Abstractions/IInstallerEngine.cs</code>) &mdash;
+    <code>DetectAsync</code> / <code>PlanAsync</code> / <code>ApplyAsync</code>, observable
+    <code>Phase</code> / <code>Progress</code> / <code>StatusMessage</code> streams, and property-passing
+    methods (<code>SetProperty</code>, <code>SetSecureProperty</code>) that reach the running MSI session
+    without ever putting a secret on a command line or in a log
+    (<a href="#property-passing">11.11</a>). <code>EngineClient</code> is the production implementation:
+    it speaks the Engine.Protocol binary message format over Named Pipe A and turns the Engine's phase and
+    progress messages into the observables the UI layer subscribes to. Because the contract is an
+    interface, a custom UI (or a test) can swap in <code>NullInstallerEngine</code> or a hand-rolled double
+    without touching anything in <code>FalkForge.Ui</code>.
+</p>
+<p>
+    <code>InstallerPage</code> (and the generic <code>InstallerPage&lt;TView&gt;</code>) is the base a
+    custom page derives from: it exposes <code>Engine</code>, <code>SharedState</code>, and
+    <code>DetectedState</code>, and a set of lifecycle hooks &mdash;
+    <code>OnDetect/Plan/ApplyBeginAsync</code> and <code>...CompleteAsync</code> &mdash; called by
+    <code>CustomShellViewModel</code> at the matching points in the phase sequence from 24.3, so a page can
+    react to (or veto, by returning <code>false</code> from a Begin hook) detection, planning, or apply
+    without knowing anything about pipes or processes. <code>InstallerApp.Run(args, configure)</code> is the
+    static entry point that wires a set of pages, a theme, and localization into a runnable custom
+    installer UI in a few lines.
+</p>
+<p>
+    See <a href="#custom-ui">Custom UI Framework (11)</a> for the full page/view/builder API, and
+    <a href="#demos">Demo 11 &mdash; custom-ui-simple</a> and
+    <a href="#demos">Demo 14 &mdash; lifecycle-hooks</a> for the lifecycle hooks and property passing shown
+    working end to end.
+</p>
+
 </section>
 
   </main>
