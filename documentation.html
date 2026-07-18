@@ -8930,11 +8930,8 @@ public sealed record WixUnmappedFeature(
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
         <tr><td>REG001</td><td>Registry entry Key is required</td></tr>
-        <tr><td>REG002</td><td>Duplicate registry entry: same root+key+value-name with identical data (warning)</td></tr>
-        <tr><td>REG003</td><td>Conflicting registry entry: same root+key+value-name with different data</td></tr>
-        <tr><td>REG004</td><td>Invalid registry value type</td></tr>
-        <tr><td>REG005</td><td>Registry value data is required</td></tr>
-        <tr><td>REG006</td><td>Duplicate registry entry</td></tr>
+        <tr><td>REG002</td><td>Duplicate registry entry: same root+key+value-name with identical data (warning; message notes possible feature-exclusivity when the entries are gated to different components/features)</td></tr>
+        <tr><td>REG003</td><td>Conflicting registry entry: same root+key+value-name with different data (error when both entries resolve to the same component/feature scope, since they are certain to co-install; downgraded to warning when the scopes differ, since that may be an intentional mutually-exclusive-feature pattern)</td></tr>
     </tbody>
 </table>
 

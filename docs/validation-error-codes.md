@@ -400,8 +400,8 @@ Auto-generated from source — do not edit by hand. To refresh: re-run the extra
 | Code | Message | Source |
 |------|---------|--------|
 | REG001 | Registry entry Key is required | `src/FalkForge.Core/Validation/MiscRules.Registry.cs` |
-| REG002 | Duplicate registry entry: same root+key+value-name with identical data (warning) | `src/FalkForge.Core/Validation/MiscRules.Registry.cs` |
-| REG003 | Conflicting registry entry: same root+key+value-name with different data | `src/FalkForge.Core/Validation/MiscRules.Registry.cs` |
+| REG002 | Duplicate registry entry: same root+key+value-name with identical data (warning; notes possible feature-exclusivity when entries are gated to different components/features) | `src/FalkForge.Core/Validation/MiscRules.Registry.cs` |
+| REG003 | Conflicting registry entry: same root+key+value-name with different data (error if same component/feature scope -- certain to co-install; warning if scopes differ -- may be mutually exclusive, per MSI's ICE30) | `src/FalkForge.Core/Validation/MiscRules.Registry.cs` |
 | REG007 | Registry value references a sensitive MSI property (warning) | `src/FalkForge.Core/Validation/MiscRules.Registry.cs` |
 
 ## RFX — RemoveFolderEx (Util)
