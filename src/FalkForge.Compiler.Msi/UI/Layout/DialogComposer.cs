@@ -233,6 +233,10 @@ internal static class DialogComposer
         // it is opt-in branding — so it is synthesized here and inserted first (index 0) so
         // subsequent controls (title/description/buttons) draw in front of it, matching MSI's
         // Control-table row-order Z-ordering.
+        // Deliberately no ContainsControlType(Bitmap) guard here, unlike the Banner/Icon block
+        // below: DialogBitmap is a full-canvas *background* layer, so it is meant to coexist
+        // underneath an author-placed Bitmap control (e.g. a custom watermark) rather than defer
+        // to it — the two occupy different visual roles even though both are MsiControlType.Bitmap.
         if (hasDialogBitmap && IsExteriorDialogKind(content.Kind))
         {
             model.Controls.Insert(0, BuildDialogBitmapControl(dialogBitmap!, layout));
@@ -330,11 +334,10 @@ internal static class DialogComposer
     private static MsiControlModel BuildDialogBitmapControl(string dialogBitmapPath, DialogLayout layout)
     {
         // Height stops at the BottomLine region's Y (234 DLU in the stock 370x270 layout) so the
-        // background does not paint over the button row; falls back to the full canvas height if
-        // a future layout omits that region.
-        int height = layout.TryGetRegion("BottomLine", out var bottomLine)
-            ? bottomLine.Bounds.Y
-            : layout.CanvasHeight;
+        // background does not paint over the button row. Fail loud like the main Compose loop
+        // (line ~99) on a missing region rather than silently falling back to guessed geometry —
+        // a custom DialogLayout that omits BottomLine is an authoring bug, not a degraded mode.
+        DialogRegion bottomLine = RequireRegion(layout, "BottomLine");
 
         return new MsiControlModel
         {
@@ -343,7 +346,7 @@ internal static class DialogComposer
             X = 0,
             Y = 0,
             Width = layout.CanvasWidth,
-            Height = height,
+            Height = bottomLine.Bounds.Y,
             Text = dialogBitmapPath,
         };
     }
@@ -351,11 +354,9 @@ internal static class DialogComposer
     private static MsiControlModel BuildBannerBitmapControl(string bannerBitmapPath, DialogLayout layout)
     {
         // Sized to the layout's own Banner region (370x58 DLU in the stock layout — the same
-        // region documented in dialog-template-architecture.md), never hardcoded numbers, so a
-        // future per-template layout stays authoritative for this geometry too.
-        Rect bounds = layout.TryGetRegion("Banner", out var banner)
-            ? banner.Bounds
-            : new Rect { X = 0, Y = 0, Width = layout.CanvasWidth, Height = 58 };
+        // region documented in dialog-template-architecture.md). Fail loud on a missing region;
+        // see BuildDialogBitmapControl.
+        Rect bounds = RequireRegion(layout, "Banner").Bounds;
 
         return new MsiControlModel
         {
@@ -374,16 +375,13 @@ internal static class DialogComposer
         // Top-right corner of the Banner region, vertically aligned with TitleRow (Y=6 in the
         // stock layout) — "shown next to the dialog title" per DialogCustomization.HeaderIcon's
         // XML doc. 16x16 matches that same doc's stated icon size; 8 DLU margin matches the
-        // ButtonRow's own default gap (RegionDefaults.Gap) used elsewhere in this layout.
+        // ButtonRow's own default gap (RegionDefaults.Gap) used elsewhere in this layout. Fail
+        // loud on a missing region; see BuildDialogBitmapControl.
         const int IconSize = 16;
         const int Margin = 8;
 
-        Rect bannerBounds = layout.TryGetRegion("Banner", out var banner)
-            ? banner.Bounds
-            : new Rect { X = 0, Y = 0, Width = layout.CanvasWidth, Height = 58 };
-        Rect titleRowBounds = layout.TryGetRegion("TitleRow", out var titleRow)
-            ? titleRow.Bounds
-            : new Rect { X = 15, Y = 6, Width = 200, Height = 15 };
+        Rect bannerBounds = RequireRegion(layout, "Banner").Bounds;
+        Rect titleRowBounds = RequireRegion(layout, "TitleRow").Bounds;
 
         return new MsiControlModel
         {
@@ -395,6 +393,17 @@ internal static class DialogComposer
             Height = IconSize,
             Text = headerIconPath,
         };
+    }
+
+    private static DialogRegion RequireRegion(DialogLayout layout, string regionName)
+    {
+        if (!layout.TryGetRegion(regionName, out var region))
+        {
+            throw new InvalidOperationException(
+                $"Region '{regionName}' is not defined in layout '{layout.Name}'.");
+        }
+
+        return region;
     }
 
     private static IRegionLayoutPolicy SelectPolicy(RegionPolicy policy) => policy switch

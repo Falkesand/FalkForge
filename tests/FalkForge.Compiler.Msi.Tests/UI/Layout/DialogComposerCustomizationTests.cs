@@ -106,18 +106,18 @@ public sealed class DialogComposerCustomizationTests
                         {
                             Name = "BannerBmp",
                             Type = "Bitmap",
-                            TextOrLocKey = "OriginalBanner.bmp",
+                            TextOrLocKey = "OriginalBanner",
                         }),
                 }),
         };
         var customization = new DialogCustomization()
-            .BannerBitmap("C:/branding/banner.bmp")
+            .BannerBitmap("AcmeBanner")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var banner = model.Controls.Single(c => c.Name == "BannerBmp");
-        Assert.Equal("C:/branding/banner.bmp", banner.Text);
+        Assert.Equal("AcmeBanner", banner.Text);
     }
 
     [Fact]
@@ -136,18 +136,18 @@ public sealed class DialogComposerCustomizationTests
                         {
                             Name = "HeaderIcon",
                             Type = "Icon",
-                            TextOrLocKey = "OriginalIcon.ico",
+                            TextOrLocKey = "OriginalIcon",
                         }),
                 }),
         };
         var customization = new DialogCustomization()
-            .HeaderIcon("C:/branding/icon.ico")
+            .HeaderIcon("AcmeIcon")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var icon = model.Controls.Single(c => c.Name == "HeaderIcon");
-        Assert.Equal("C:/branding/icon.ico", icon.Text);
+        Assert.Equal("AcmeIcon", icon.Text);
     }
 
     [Fact]
@@ -176,8 +176,8 @@ public sealed class DialogComposerCustomizationTests
                 {
                     RegionName = "ContentArea",
                     Controls = ImmutableArray.Create(
-                        new PlacedControl { Name = "BannerBmp", Type = "Bitmap", TextOrLocKey = "old.bmp" },
-                        new PlacedControl { Name = "HeaderIcon", Type = "Icon", TextOrLocKey = "old.ico" }),
+                        new PlacedControl { Name = "BannerBmp", Type = "Bitmap", TextOrLocKey = "OldBanner" },
+                        new PlacedControl { Name = "HeaderIcon", Type = "Icon", TextOrLocKey = "OldIcon" }),
                 },
                 new RegionPlacement
                 {
@@ -189,8 +189,8 @@ public sealed class DialogComposerCustomizationTests
         };
         var customization = new DialogCustomization()
             .WindowTitle("New Title")
-            .BannerBitmap("new.bmp")
-            .HeaderIcon("new.ico")
+            .BannerBitmap("NewBanner")
+            .HeaderIcon("NewIcon")
             .OverrideButtonLabel(DialogButton.Next, "Go")
             .OverrideButtonLabel(DialogButton.Cancel, "Stop")
             .ToModel();
@@ -198,8 +198,8 @@ public sealed class DialogComposerCustomizationTests
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         Assert.Equal("New Title", model.Title);
-        Assert.Equal("new.bmp", model.Controls.Single(c => c.Name == "BannerBmp").Text);
-        Assert.Equal("new.ico", model.Controls.Single(c => c.Name == "HeaderIcon").Text);
+        Assert.Equal("NewBanner", model.Controls.Single(c => c.Name == "BannerBmp").Text);
+        Assert.Equal("NewIcon", model.Controls.Single(c => c.Name == "HeaderIcon").Text);
         Assert.Equal("Go", model.Controls.Single(c => c.Name == "Next").Text);
         Assert.Equal("Stop", model.Controls.Single(c => c.Name == "Cancel").Text);
     }
@@ -228,13 +228,13 @@ public sealed class DialogComposerCustomizationTests
         // button-row strip at Y=234, per Layouts.Standard370x270's BottomLine region).
         var content = ButtonRowContent(Button("Next", "!(loc.Button.Next)"));
         var customization = new DialogCustomization()
-            .DialogBitmap("C:/branding/dialog.bmp")
+            .DialogBitmap("AcmeDialog")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var bitmap = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
-        Assert.Equal("C:/branding/dialog.bmp", bitmap.Text);
+        Assert.Equal("AcmeDialog", bitmap.Text);
         Assert.Equal(0, bitmap.X);
         Assert.Equal(0, bitmap.Y);
         Assert.Equal(370, bitmap.Width);
@@ -259,13 +259,13 @@ public sealed class DialogComposerCustomizationTests
                 }),
         };
         var customization = new DialogCustomization()
-            .DialogBitmap("C:/branding/dialog.bmp")
+            .DialogBitmap("AcmeDialog")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var bitmap = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
-        Assert.Equal("C:/branding/dialog.bmp", bitmap.Text);
+        Assert.Equal("AcmeDialog", bitmap.Text);
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public sealed class DialogComposerCustomizationTests
                 }),
         };
         var customization = new DialogCustomization()
-            .DialogBitmap("C:/branding/dialog.bmp")
+            .DialogBitmap("AcmeDialog")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
@@ -314,7 +314,7 @@ public sealed class DialogComposerCustomizationTests
                 {
                     RegionName = "ContentArea",
                     Controls = ImmutableArray.Create(
-                        new PlacedControl { Name = "BannerBmp", Type = "Bitmap", TextOrLocKey = "old-banner.bmp" }),
+                        new PlacedControl { Name = "BannerBmp", Type = "Bitmap", TextOrLocKey = "OldBanner" }),
                 },
                 new RegionPlacement
                 {
@@ -323,16 +323,16 @@ public sealed class DialogComposerCustomizationTests
                 }),
         };
         var customization = new DialogCustomization()
-            .BannerBitmap("new-banner.bmp")
-            .DialogBitmap("new-dialog.bmp")
+            .BannerBitmap("NewBanner")
+            .DialogBitmap("NewDialogBmp")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var banner = model.Controls.Single(c => c.Name == "BannerBmp");
-        Assert.Equal("new-banner.bmp", banner.Text);
+        Assert.Equal("NewBanner", banner.Text);
         var background = model.Controls.Single(c => c.Type == MsiControlType.Bitmap && c.Name != "BannerBmp");
-        Assert.Equal("new-dialog.bmp", background.Text);
+        Assert.Equal("NewDialogBmp", background.Text);
     }
 
     // Interior wizard-page content mirroring LicenseDlgBuilder's shape: a TitleRow + ButtonRow,
@@ -361,19 +361,60 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("License");
         var customization = new DialogCustomization()
-            .BannerBitmap("C:/branding/banner.bmp")
+            .BannerBitmap("AcmeBanner")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var banner = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
-        Assert.Equal("C:/branding/banner.bmp", banner.Text);
+        Assert.Equal("AcmeBanner", banner.Text);
         Assert.Equal(0, banner.X);
         Assert.Equal(0, banner.Y);
         Assert.Equal(370, banner.Width);
         Assert.Equal(58, banner.Height);
         // Inserted first so Title (TitleRow) draws in front of the banner strip.
         Assert.Equal(banner, model.Controls[0]);
+    }
+
+    [Fact]
+    public void Compose_with_banner_bitmap_on_interior_dialog_with_existing_bitmap_control_swaps_text_without_duplicating()
+    {
+        // Exercises the !ContainsControlType guard on the interior-wizard-page synthesis path:
+        // an author-placed Bitmap control on an interior dialog (e.g. via a custom template)
+        // must have its Text swapped in place — never a second, synthesized "BannerBmp" control
+        // alongside it.
+        var content = new DialogContent
+        {
+            Name = "LicenseDlg",
+            Kind = "License",
+            Placements = ImmutableArray.Create(
+                new RegionPlacement
+                {
+                    RegionName = "TitleRow",
+                    Controls = ImmutableArray.Create(
+                        new PlacedControl { Name = "Title", Type = "Text", TextOrLocKey = "Title" }),
+                },
+                new RegionPlacement
+                {
+                    RegionName = "ContentArea",
+                    Controls = ImmutableArray.Create(
+                        new PlacedControl { Name = "AuthoredBanner", Type = "Bitmap", TextOrLocKey = "OldBanner" }),
+                },
+                new RegionPlacement
+                {
+                    RegionName = "ButtonRow",
+                    Controls = ImmutableArray.Create(Button("Next", "!(loc.Button.Next)")),
+                }),
+        };
+        var customization = new DialogCustomization()
+            .BannerBitmap("AcmeBanner")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var bitmap = Assert.Single(model.Controls, c => c.Type == MsiControlType.Bitmap);
+        Assert.Equal("AuthoredBanner", bitmap.Name);
+        Assert.Equal("AcmeBanner", bitmap.Text);
     }
 
     [Fact]
@@ -393,7 +434,7 @@ public sealed class DialogComposerCustomizationTests
                 }),
         };
         var customization = new DialogCustomization()
-            .BannerBitmap("C:/branding/banner.bmp")
+            .BannerBitmap("AcmeBanner")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
@@ -406,7 +447,7 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("Welcome");
         var customization = new DialogCustomization()
-            .BannerBitmap("C:/branding/banner.bmp")
+            .BannerBitmap("AcmeBanner")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
@@ -419,13 +460,13 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("InstallDir");
         var customization = new DialogCustomization()
-            .HeaderIcon("C:/branding/icon.ico")
+            .HeaderIcon("AcmeIcon")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var icon = model.Controls.Single(c => c.Type == MsiControlType.Icon);
-        Assert.Equal("C:/branding/icon.ico", icon.Text);
+        Assert.Equal("AcmeIcon", icon.Text);
         // Top-right of the 370-wide Banner region, vertically aligned with TitleRow (Y=6).
         Assert.Equal(346, icon.X);
         Assert.Equal(6, icon.Y);
@@ -438,7 +479,7 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("Exit");
         var customization = new DialogCustomization()
-            .HeaderIcon("C:/branding/icon.ico")
+            .HeaderIcon("AcmeIcon")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
@@ -451,16 +492,16 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("SetupType");
         var customization = new DialogCustomization()
-            .BannerBitmap("C:/branding/banner.bmp")
-            .HeaderIcon("C:/branding/icon.ico")
+            .BannerBitmap("AcmeBanner")
+            .HeaderIcon("AcmeIcon")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         Assert.Equal(MsiControlType.Bitmap, model.Controls[0].Type);
         Assert.Equal(MsiControlType.Icon, model.Controls[1].Type);
-        Assert.Equal("C:/branding/banner.bmp", model.Controls[0].Text);
-        Assert.Equal("C:/branding/icon.ico", model.Controls[1].Text);
+        Assert.Equal("AcmeBanner", model.Controls[0].Text);
+        Assert.Equal("AcmeIcon", model.Controls[1].Text);
     }
 
     [Fact]
@@ -468,16 +509,84 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("Customize");
         var customization = new DialogCustomization()
-            .DialogBitmap("C:/branding/dialog.bmp")
-            .BannerBitmap("C:/branding/banner.bmp")
-            .HeaderIcon("C:/branding/icon.ico")
+            .DialogBitmap("AcmeDialog")
+            .BannerBitmap("AcmeBanner")
+            .HeaderIcon("AcmeIcon")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         Assert.DoesNotContain(model.Controls, c => c.Name == "DialogBmp");
-        Assert.Contains(model.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "C:/branding/banner.bmp");
-        Assert.Contains(model.Controls, c => c.Type == MsiControlType.Icon && c.Text == "C:/branding/icon.ico");
+        Assert.Contains(model.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "AcmeBanner");
+        Assert.Contains(model.Controls, c => c.Type == MsiControlType.Icon && c.Text == "AcmeIcon");
+    }
+
+    // ── Fail-loud on a layout missing a region the synthesis helpers need ─────
+    // Mirrors the main Compose loop's own behavior (line ~99: throws when a placement's
+    // region is absent) rather than silently falling back to hardcoded geometry — a missing
+    // region is an authoring bug in a custom DialogLayout, not something to paper over.
+
+    private static DialogLayout LayoutWithoutRegion(string missingRegionName, params DialogRegion[] keep)
+    {
+        System.Collections.Generic.List<DialogRegion> regions = new(keep);
+        if (!string.Equals(missingRegionName, "ButtonRow", System.StringComparison.Ordinal))
+        {
+            regions.Add(new DialogRegion
+            {
+                Name = "ButtonRow",
+                Bounds = new Rect { X = 0, Y = 243, Width = 360, Height = 17 },
+                Policy = RegionPolicy.RightPacked,
+                Defaults = new RegionDefaults { ChildWidth = 56, ChildHeight = 17, Gap = 8 },
+            });
+        }
+
+        return new DialogLayout
+        {
+            Name = "MissingRegionLayout",
+            CanvasWidth = 370,
+            CanvasHeight = 270,
+            Regions = regions.ToImmutableArray(),
+        };
+    }
+
+    [Fact]
+    public void Compose_with_dialog_bitmap_on_layout_missing_BottomLine_region_throws()
+    {
+        DialogLayout layout = LayoutWithoutRegion("BottomLine");
+        var content = ButtonRowContent(Button("Next", "!(loc.Button.Next)"));
+        var customization = new DialogCustomization().DialogBitmap("AcmeDialog").ToModel();
+
+        var ex = Assert.Throws<System.InvalidOperationException>(() =>
+            DialogComposer.Compose(content, layout, customization));
+        Assert.Contains("BottomLine", ex.Message);
+    }
+
+    [Fact]
+    public void Compose_with_banner_bitmap_on_layout_missing_Banner_region_throws()
+    {
+        DialogLayout layout = LayoutWithoutRegion(
+            "Banner",
+            new DialogRegion { Name = "TitleRow", Bounds = new Rect { X = 15, Y = 6, Width = 200, Height = 15 }, Policy = RegionPolicy.Absolute });
+        var content = InteriorWizardContent("License");
+        var customization = new DialogCustomization().BannerBitmap("AcmeBanner").ToModel();
+
+        var ex = Assert.Throws<System.InvalidOperationException>(() =>
+            DialogComposer.Compose(content, layout, customization));
+        Assert.Contains("Banner", ex.Message);
+    }
+
+    [Fact]
+    public void Compose_with_header_icon_on_layout_missing_Banner_region_throws()
+    {
+        DialogLayout layout = LayoutWithoutRegion(
+            "Banner",
+            new DialogRegion { Name = "TitleRow", Bounds = new Rect { X = 15, Y = 6, Width = 200, Height = 15 }, Policy = RegionPolicy.Absolute });
+        var content = InteriorWizardContent("License");
+        var customization = new DialogCustomization().HeaderIcon("AcmeIcon").ToModel();
+
+        var ex = Assert.Throws<System.InvalidOperationException>(() =>
+            DialogComposer.Compose(content, layout, customization));
+        Assert.Contains("Banner", ex.Message);
     }
 
     [Fact]
@@ -485,16 +594,16 @@ public sealed class DialogComposerCustomizationTests
     {
         var content = InteriorWizardContent("Welcome");
         var customization = new DialogCustomization()
-            .DialogBitmap("C:/branding/dialog.bmp")
-            .BannerBitmap("C:/branding/banner.bmp")
-            .HeaderIcon("C:/branding/icon.ico")
+            .DialogBitmap("AcmeDialog")
+            .BannerBitmap("AcmeBanner")
+            .HeaderIcon("AcmeIcon")
             .ToModel();
 
         var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
 
         var bitmap = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
         Assert.Equal("DialogBmp", bitmap.Name);
-        Assert.Equal("C:/branding/dialog.bmp", bitmap.Text);
+        Assert.Equal("AcmeDialog", bitmap.Text);
         Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Icon);
     }
 }
