@@ -338,14 +338,18 @@ internal sealed class LicenseKeyDlgBuilder : IMsiDialogStepBuilder
 }
 ```
 
-**Part 3 — Insert the step** from the package builder:
+**Part 3 — Insert the step**, attaching the extension to the compiler with `.Use(...)` (this is what
+makes the extension's `Register` callback run, so its dialog step name is known to the registry):
 
 ```csharp
-PackageBuilder.Create("MyApp", "1.0.0", "Acme Corp")
-    .UseExtension(new LicensingExtension())
-    .UseDialogSet(MsiDialogSet.FeatureTree, dialogs => dialogs
-        .InsertStep("LicenseKeyDlg", after: StockDialog.License))
-    .Build();
+return Installer.Build(args, package =>
+{
+    package.Name = "MyApp";
+    package.Manufacturer = "Acme Corp";
+    package.Version = new Version(1, 0, 0);
+    package.UseDialogSet(MsiDialogSet.FeatureTree, dialogs => dialogs
+        .InsertStep("LicenseKeyDlg", after: StockDialog.License));
+}, new MsiCompiler().Use(new LicensingExtension()));
 ```
 
 See `docs/plugin-extensibility.md` — "Part 1 — Compile-Time Extensions" — for the full

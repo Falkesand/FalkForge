@@ -1286,6 +1286,7 @@ dotnet publish -c Release</code></pre>
       <tr><td><code>forge plan bundle.exe</code></td><td>Compute and display the install plan for a bundle without running it</td></tr>
       <tr><td><code>forge plan-diff a.exe b.exe</code></td><td>Diff two installers of the same type and report changes</td></tr>
       <tr><td><code>forge verify bundle.exe</code></td><td>Independently rebuild from source and byte-compare to prove reproducibility; verdicts: VERIFIED / MISMATCH / REBUILD-FAILED / SETUP-ERROR</td></tr>
+      <tr><td><code>forge loc export --culture en-US -o custom-en-US.json</code></td><td>Export a built-in localization JSON file as a starting point for an override</td></tr>
     </tbody>
   </table>
 
@@ -8523,9 +8524,13 @@ forge inspect package.msi --json
 forge inspect package.msi --sbom</code></pre>
 <p>
     When the MSI carries an <code>Integrity()</code> signature (embedded table row or detached sidecar),
-    <code>inspect</code> also prints its presence, format tag (e.g. <code>falkforge-ecdsa-envelope-v2</code>),
-    and every signing key's fingerprint &mdash; display only, not cryptographic verification; use
-    <code>forge verify &lt;msi&gt;</code> to actually check the signature.
+    <code>inspect</code> also prints its presence and format tag (e.g. <code>falkforge-ecdsa-envelope-v2</code>).
+    Classical (ECDSA-P256) fingerprints are printed as <strong>Signing Key Fingerprint</strong> &mdash; the
+    values <code>forge verify --trusted-key</code> matches against. Any hybrid post-quantum (ML-DSA) companion
+    fingerprints are printed separately as <strong>PQ Companion Fingerprint (not usable with
+    --trusted-key)</strong>, since pasting one into <code>--trusted-key</code> produces a baffling
+    <code>INT001</code> &mdash; the two are never interchangeable. All of this is display only, not
+    cryptographic verification; use <code>forge verify &lt;msi&gt;</code> to actually check the signature.
 </p>
 
 <h4>decompile</h4>
@@ -8612,6 +8617,50 @@ forge rules list --target merge --json</code></pre>
 # Examples:
 forge rules explain PKG001
 forge rules explain SVC003</code></pre>
+
+<h4>loc export</h4>
+<p>
+    Exports FalkForge's built-in MSI dialog localization JSON (<code>en-US</code>, <code>sv-SE</code>) to disk
+    so an override file can be started from a real baseline instead of being written from scratch &mdash; see
+    <a href="#loc-override">Overriding Built-In Strings</a> (16). The written bytes are the embedded resource
+    verbatim, byte-faithful. Cross-platform (reads embedded resources only, no <code>msi.dll</code> required).
+</p>
+<pre><code class="language-bash">forge loc export [options]
+
+# Options:
+#   --culture &lt;name&gt;   Culture to export (e.g. en-US). Case-insensitive. Omit to export every
+#                       built-in culture.
+#   -o, --output &lt;path&gt; Output directory (created if missing), or an exact .json file path when a
+#                       single culture is exported via --culture. Defaults to the current directory.
+#   --list              List available built-in cultures and exit
+
+# Examples:
+forge loc export --list
+forge loc export                                    # every built-in culture -> ./en-US.json, ./sv-SE.json
+forge loc export --culture en-US -o custom-en-US.json
+forge loc export --culture SV-se -o strings/         # case-insensitive match; writes strings/sv-SE.json</code></pre>
+<p>
+    A file at the target path is silently overwritten &mdash; export is an idempotent, non-destructive read of
+    a built-in resource into a file you named yourself; re-running it is expected and safe, unlike
+    <code>forge init</code>'s clobber guard for hand-written project files. Passing an explicit <code>.json</code>
+    <code>--output</code> path <em>without</em> <code>--culture</code> is a loud validation error rather than a
+    guess: with more than one built-in culture and no culture selected, which culture's content would go into
+    that one named file is ambiguous, so <code>loc export</code> refuses instead of silently picking one or
+    creating a directory literally named <code>something.json</code>.
+</p>
+<p>
+    Typical override workflow: export a built-in culture, edit one string, then point
+    <code>AddJsonFile()</code> at the edited copy:
+</p>
+<pre><code class="language-bash">forge loc export --culture en-US -o custom-en-US.json</code></pre>
+<pre><code class="language-json">// custom-en-US.json — edit just the one key you want to change
+{
+    "WelcomeTitle": "Welcome to Acme Setup"
+}</code></pre>
+<pre><code class="language-csharp">package.Localization(loc => loc
+    .AddBuiltInCultures()
+    .AddJsonFile("custom-en-US.json"));  // your WelcomeTitle wins; every other built-in string
+                                          // still resolves from the baseline tier</code></pre>
 
 <h4>bundle detach / bundle reattach</h4>
 <p>Bundle signing operations for detaching and reattaching PE stubs.</p>
@@ -8717,7 +8766,8 @@ forge verify &lt;artifact.msi&gt; [--trusted-key &lt;fingerprint&gt;]... [option
 # Options (signature-only, .msi):
 #   --trusted-key &lt;fingerprint&gt;    Pin a trusted signing-key fingerprint (uppercase hex SHA-256 of
 #                                   the SubjectPublicKeyInfo). Repeatable. Omitted = consistency-only
-#                                   verification (tamper-evidence, not authorship).
+#                                   verification (tamper-evidence, not authorship). Rejected together
+#                                   with --rebuild (it would silently have no effect there).
 
 # Options (either mode):
 #   --json                         Emit a JSON envelope to stdout
@@ -8729,12 +8779,21 @@ forge verify &lt;artifact.msi&gt; [--trusted-key &lt;fingerprint&gt;]... [option
 #   SETUP-ERROR    (exit 3)  Artifact or project not found / environment error
 
 # Verdicts (signature-only, .msi):
-#   VERIFIED       (exit 0)  Signature verifies (and, with --trusted-key, matches a trusted key) and
-#                            the MSI's actual embedded payload matches every signed hash
-#   NOT-SIGNED     (exit 1)  No signature found (checked the embedded table, then the sidecar)
-#   FAILED         (exit 1)  Signature present but didn't verify, matched no trusted key, or the
-#                            payload no longer matches what was signed
-#   (exit 3)                 Setup failure: the MSI could not be opened at all
+#   VERIFIED (authorship verified)        (exit 0)  --trusted-key matched; publisher identity confirmed.
+#                                                    Rendered green.
+#   VERIFIED (tamper-evidence only)       (exit 0)  No --trusted-key; payload self-consistent but
+#                                                    publisher identity NOT checked. Rendered yellow with
+#                                                    the full label spelled out below.
+#   NOT-SIGNED                            (exit 1)  No signature found (checked the embedded table,
+#                                                    then the sidecar)
+#   FAILED                                (exit 1)  Signature didn't verify, matched no trusted key, an
+#                                                    oversized (&gt;4 MiB) sidecar was refused, a payload
+#                                                    file name is carried by more than one embedded file
+#                                                    (unconditional tamper, ambiguous which is signed),
+#                                                    or the payload no longer matches what was signed in
+#                                                    EITHER direction (missing, added, altered, or an
+#                                                    aliased duplicate)
+#   (no verdict)                          (exit 3)  Setup failure: the MSI could not be opened at all
 
 # Examples:
 forge verify app-1.2.msi --rebuild installer.cs
@@ -8744,17 +8803,35 @@ forge verify app-1.2.msi                          # signature-only, consistency-
 forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-pinned</code></pre>
 
 <p>
-    Signature-only verification checks three things in order: the envelope is located (embedded
+    Signature-only verification checks, in order: the envelope is located (embedded
     <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> table row first, the detached
-    <code>&lt;msi&gt;.sig.json</code> sidecar as fallback &mdash; the normal path for a
-    <code>Reproducible()</code>+<code>Integrity()</code> MSI, which carries no in-band table; see
-    <a href="#msi-package-code">8.29</a>); cryptographic verification against any <code>--trusted-key</code>
-    fingerprints supplied, else consistency-only (tamper-evidence, not authorship &mdash; see
-    <a href="#signing-two-kinds">23.2</a> for that distinction in general); and content binding &mdash; every
-    embedded cabinet is re-extracted and each file's SHA-256 recomputed against the signed declaration, so a
-    payload swapped in after signing is caught even though the signature itself still verifies. Only
-    externally-referenced (disk-resident) cabinets are not content-bound by this last check &mdash; the same
-    limitation <code>forge extract</code> already has.
+    <code>&lt;msi&gt;.sig.json</code> sidecar as fallback, capped at 4&nbsp;MiB &mdash; an oversized sidecar is
+    refused outright and reported <code>FAILED</code> rather than read unbounded into memory; this fallback is
+    the normal path for a <code>Reproducible()</code>+<code>Integrity()</code> MSI, which carries no in-band
+    table at all, see <a href="#msi-package-code">8.29</a>); cryptographic verification against any
+    <code>--trusted-key</code> fingerprints supplied, else consistency-only (tamper-evidence, not authorship
+    &mdash; see <a href="#signing-two-kinds">23.2</a> for that distinction in general); a name-collision
+    (ambiguity) check &mdash; the signed envelope has name-only granularity, so two or more embedded payload
+    files resolving to the <em>same</em> name can never be distinguished by the signature, and any such
+    collision is treated as unconditional tamper, refused before the content check below even runs; and
+    <strong>bidirectional</strong> content binding &mdash; every embedded cabinet is re-extracted and each
+    file's SHA-256 recomputed, and the result is checked both ways against the signed declaration: every
+    declared file must be present with a matching hash (catches missing/altered files), <em>and</em> every
+    actual embedded file must be declared (catches an undeclared file added after signing, which a
+    one-directional check would silently pass as VERIFIED). Only externally-referenced (disk-resident)
+    cabinets are not content-bound by this last check &mdash; the same limitation <code>forge extract</code>
+    already has.
+</p>
+
+<p>
+    Two outcomes both print as a green-vs-yellow &ldquo;VERIFIED&rdquo; and must not be confused: a trusted-key
+    match renders <strong>[green]VERIFIED (authorship verified)[/]</strong>; no trusted key supplied renders
+    <strong>[yellow]VERIFIED (tamper-evidence only &mdash; authorship NOT established; pass --trusted-key to
+    verify publisher)[/]</strong> &mdash; the payload is provably self-consistent but nothing established
+    <em>who</em> signed it. With <code>--json</code>, the emitted <code>result</code> object always carries a
+    boolean <code>authorshipEstablished</code> field on every signature-only verdict (not just VERIFIED) so a
+    machine consumer never has to infer the distinction from field absence; <code>fingerprint</code> is present
+    only when a trusted key matched.
 </p>
 
 <p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>, <a href="#sigil">Sigil</a> (23) for how the signature itself is produced.</p>
@@ -8895,6 +8972,28 @@ builder
     });
 
 Result&lt;IReadOnlyList&lt;LocalizationModel&gt;&gt; result = builder.Build();</code></pre>
+
+<h3 id="loc-override">Overriding Built-In Strings</h3>
+<p>
+    <code>AddBuiltInCultures()</code> (<code>src/FalkForge.Compiler.Msi/BuiltInLocalizationExtensions.cs</code>)
+    registers FalkForge's own MSI dialog strings (<code>en-US</code>, <code>sv-SE</code>) into a separate
+    <strong>baseline tier</strong> via <code>LocalizationBuilder.AddBaselineCulture()</code> &mdash; distinct
+    from the <strong>user tier</strong> populated by <code>AddCulture()</code>/<code>AddJsonFile()</code>. The
+    two tiers merge with a simple rule: <strong>a user-tier string with the same culture and key silently wins
+    over the baseline</strong>, regardless of which tier was registered with the builder first. A single line is
+    enough to override one built-in string:
+</p>
+<pre><code class="language-csharp">package.Localization(loc => loc
+    .AddBuiltInCultures()
+    .AddJsonFile("custom-en-US.json"));  // overrides only the keys it defines; everything else
+                                          // still falls back to the built-in en-US strings</code></pre>
+<p>
+    Duplicate keys are still an error <em>within</em> a single tier &mdash; two baseline registrations (or two
+    user registrations) defining the same culture+key still produce <code>LOC001</code>. It is only the
+    baseline-vs-user relationship that is a silent override, since that is the entire point of having a
+    baseline tier: a caller should never have to enumerate and reproduce every built-in string just to change
+    one.
+</p>
 
 <h3>Integration with PackageBuilder</h3>
 <p><code>src/FalkForge.Localization/PackageBuilderExtensions.cs</code></p>
