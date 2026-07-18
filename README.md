@@ -10,6 +10,12 @@ too -- you're welcome to use it to build and ship installers for your own produc
 free of charge (see [License](#license)). Issues and ideas are welcome; just know
 this is maintained at hobby-project pace by one person.
 
+In the interest of transparency: FalkForge is built with substantial help from
+Anthropic's AI models (Claude). The design direction and decisions are mine, but a
+large share of the implementation, tests, and documentation is AI-assisted. Every
+change goes through the full automated test suite (zero-warning builds, ~7,000+
+tests) and review gates before it lands.
+
 This GitHub repository is the project's home page -- docs, demos, and releases all
 live here.
 
