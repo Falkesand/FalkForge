@@ -29,6 +29,15 @@
 #   ./scripts/pack.ps1 -NoEngine                    # pack WITHOUT engine binaries (explicit
 #                                                   # opt-out: no runtime package, engine-less
 #                                                   # tool; consumers must set FALKFORGE_ENGINE_STUB)
+#
+# Publishing to nuget.org: .github/workflows/release.yml's publish-nuget job is now the
+# primary path — it runs this script, then pushes artifacts/nuget/*.nupkg via NuGet
+# Trusted Publishing (OIDC, no stored API key) on every `v*` tag push. This script alone
+# only packs to a local feed; it does not push anywhere. For a manual/local publish (e.g.
+# testing a release before tagging, or if the CI path is unavailable), run this script and
+# then push the packages yourself with a classic nuget.org API key:
+#   dotnet nuget push artifacts/nuget/*.nupkg --api-key <your-key> --source https://api.nuget.org/v3/index.json --skip-duplicates
+# See the header comment in release.yml above `jobs:` for Trusted Publishing setup details.
 
 param(
     [string]$Output = "",
