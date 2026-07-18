@@ -8911,6 +8911,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>SVC009</td><td>Service Arguments is empty string (use null for no arguments)</td></tr>
         <tr><td>SVC010</td><td>Both AccountProperty and UserName specified (AccountProperty takes precedence)</td></tr>
         <tr><td>SVC011</td><td>Service ComponentCondition must not be empty (use null to omit)</td></tr>
+        <tr><td>SVC012</td><td>Custom account specified without a password (warning)</td></tr>
     </tbody>
 </table>
 
@@ -8928,9 +8929,9 @@ public sealed record WixUnmappedFeature(
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>REG001</td><td>Registry root is required</td></tr>
-        <tr><td>REG002</td><td>Registry key path is required</td></tr>
-        <tr><td>REG003</td><td>Registry value name is required for non-default values</td></tr>
+        <tr><td>REG001</td><td>Registry entry Key is required</td></tr>
+        <tr><td>REG002</td><td>Duplicate registry entry: same root+key+value-name with identical data (warning)</td></tr>
+        <tr><td>REG003</td><td>Conflicting registry entry: same root+key+value-name with different data</td></tr>
         <tr><td>REG004</td><td>Invalid registry value type</td></tr>
         <tr><td>REG005</td><td>Registry value data is required</td></tr>
         <tr><td>REG006</td><td>Duplicate registry entry</td></tr>
