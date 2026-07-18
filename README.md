@@ -43,16 +43,17 @@ Installer integrity is where FalkForge goes further than the mainstream installe
 - **Supply-chain transparency** -- reproducible builds, CycloneDX SBOM, and a provable pipeline (`forge plan` / `forge verify --rebuild`) to show what a bundle does and that it matches its source.
 - **Hardened install engine** -- the elevated helper is mutually authenticated (HMAC handshake, parent PID verification) and executes only a whitelisted command set.
 
-Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](documentation.html) (section 23, includes the plain-language security manual).
+Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](https://falkesand.github.io/FalkForge/documentation.html#bundle-signing-trust) (section 23, includes the plain-language security manual).
 
 ## Get Started in a Minute
 
-> **Status: pre-alpha, packages not yet published.** FalkForge isn't on nuget.org yet, so
-> `dotnet tool install`, `dotnet new install`, and `dotnet add package` below are the
-> onboarding path **coming with the first public release** -- they document the intended
-> shape, not something you can run today. Until then, build from source (next section).
+**0.5.0-beta.1 — first public beta.** The core compiler and engine are exercised
+by ~7,000+ tests and used on real installs, but APIs can still shift before 1.0
+and a few features are intentionally incomplete -- see the
+[release notes](https://github.com/Falkesand/FalkForge/blob/main/docs/release-notes/v0.5.0-beta.1.md)
+for what's stable and what's flagged.
 
-Once published, install the tool **or** add the one meta-package — never the 26 granular packages:
+Install the tool **or** add the one meta-package — never the 28 granular packages:
 
 ```bash
 # Option 1 — the forge CLI scaffolds and builds installers
@@ -75,7 +76,7 @@ engine runtime — so `dotnet run` on a scaffolded project produces a runnable
 installer with nothing else installed. The granular `FalkForge.*` packages
 remain available when you want a minimal footprint.
 
-### Building from source (today)
+### Building from source
 
 ```bash
 git clone https://github.com/Falkesand/FalkForge.git
@@ -88,11 +89,9 @@ cd My_App && dotnet run    # -> My_App-1.0.0.msi
 ```
 
 `forge init` (see [CLI Tool](#cli-tool) below) writes a project that references the
-`FalkForge` meta-package by version -- since that package isn't published yet either,
-point the scaffolded project's `PackageReference` at a local NuGet feed built from this
-repo (`scripts/pack.ps1`), or reference the `src/` projects directly while packages
-aren't public. The [tutorials](docs/tutorials/index.html) walk through the same flow
-step by step.
+`FalkForge` meta-package by version. The
+[tutorials](https://falkesand.github.io/FalkForge/docs/tutorials/index.html) walk
+through the same flow step by step.
 
 ## Quick Start
 
@@ -123,9 +122,9 @@ forge build hello-world.csx
 
 Chaining multiple packages into a self-extracting EXE bundle with rollback
 boundaries, built-in UI, and update feeds works the same way -- see
-[demo/06-product-suite](demo/06-product-suite) and
-[demo/10-advanced-bundle](demo/10-advanced-bundle). Custom WPF installer UI:
-[demo/11-custom-ui-simple](demo/11-custom-ui-simple).
+[demo/06-product-suite](https://github.com/Falkesand/FalkForge/tree/main/demo/06-product-suite) and
+[demo/10-advanced-bundle](https://github.com/Falkesand/FalkForge/tree/main/demo/10-advanced-bundle). Custom WPF installer UI:
+[demo/11-custom-ui-simple](https://github.com/Falkesand/FalkForge/tree/main/demo/11-custom-ui-simple).
 
 ## Extensions
 
@@ -213,25 +212,30 @@ dumps and kills a test host after 10 minutes without test progress
 
 ## Demos and Documentation
 
-- **[demo/](demo/)** -- 60+ demo projects covering every feature, from hello-world
-  to delta updates, signing, and reproducible builds. New here? The
-  [demo README](demo/README.md) has a starter track.
-- **[docs/tutorials/](docs/tutorials/index.html)** -- narrative, demo-by-demo
-  walkthroughs: start with [Getting Started](docs/tutorials/getting-started.html),
-  then [MSI Basics](docs/tutorials/msi-basics.html); coming from WiX? there's a
-  [tutorial for that](docs/tutorials/coming-from-wix.html) too.
-- **[documentation.html](documentation.html)** -- self-contained full reference
-  (23 sections, searchable, dark/light theme). Start with **Concepts** (section 2)
-  if you're new to Windows Installer.
-- **[docs/provenance.md](docs/provenance.md)** -- the supply-chain provenance
-  surface: SBOM, payload integrity, reproducible builds, attestations.
+- **[demo/](https://github.com/Falkesand/FalkForge/tree/main/demo)** -- 60+ demo
+  projects covering every feature, from hello-world to delta updates, signing,
+  and reproducible builds. New here? The
+  [demo README](https://github.com/Falkesand/FalkForge/blob/main/demo/README.md)
+  has a starter track.
+- **[docs/tutorials/](https://falkesand.github.io/FalkForge/docs/tutorials/index.html)**
+  -- narrative, demo-by-demo walkthroughs: start with
+  [Getting Started](https://falkesand.github.io/FalkForge/docs/tutorials/getting-started.html),
+  then [MSI Basics](https://falkesand.github.io/FalkForge/docs/tutorials/msi-basics.html);
+  coming from WiX? there's a
+  [tutorial for that](https://falkesand.github.io/FalkForge/docs/tutorials/coming-from-wix.html) too.
+- **[documentation.html](https://falkesand.github.io/FalkForge/documentation.html)**
+  -- self-contained full reference (24 sections, searchable, dark/light theme).
+  Start with **Concepts** (section 2) if you're new to Windows Installer.
+- **[docs/provenance.md](https://github.com/Falkesand/FalkForge/blob/main/docs/provenance.md)**
+  -- the supply-chain provenance surface: SBOM, payload integrity, reproducible
+  builds, attestations.
 - **Online**: <https://falkesand.github.io/FalkForge/> -- the manual and tutorials,
   hosted from this repository via GitHub Pages, browsable without cloning.
 
 ## Releases & Provenance
 
 Release artifacts (Engine, Engine.Elevation, CLI) are published on version tag pushes
-via the [release workflow](.github/workflows/release.yml), each with a
+via the [release workflow](https://github.com/Falkesand/FalkForge/blob/main/.github/workflows/release.yml), each with a
 `SHA256SUMS.txt` checksum file and (where plan support allows)
 [GitHub build provenance attestations](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds):
 
@@ -246,7 +250,7 @@ Found a bug, have a question, or want to request a feature? Open an issue at
 
 ## License
 
-[PolyForm Perimeter 1.0.0](LICENSE.md) -- in plain words: use FalkForge freely to
+[PolyForm Perimeter 1.0.0](https://github.com/Falkesand/FalkForge/blob/main/LICENSE.md) -- in plain words: use FalkForge freely to
 build, package, and ship installers for your own or your customers' software,
 commercially or not. The only thing you can't do is take FalkForge itself and offer
 it (or a derivative) as a competing installer/packaging/setup-authoring product.
