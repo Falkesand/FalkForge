@@ -81,6 +81,52 @@ public sealed class MsiIntegrityVerifierTests : IDisposable
         return result.Value;
     }
 
+    private static string CompileReproducibleSigned(string sourceFile, string outputDir, string label)
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = label;
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / label));
+            p.Reproducible(1577836800);
+            p.Integrity(i => { });
+        });
+
+        var result = new MsiCompiler().Compile(package, outputDir);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        return result.Value;
+    }
+
+    [Fact]
+    public void Verify_ReproducibleSignedMsi_NoInBandTable_VerifiesViaRealSidecar()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // Exercises the REAL Reproducible()+Integrity() build path (feature/msi-pure-dotnet-integrity
+        // 644ae971): IntegritySigner skips the in-band _FalkForgeIntegrity table entirely for a
+        // reproducible build and writes the ECDSA envelope only to the detached '<msi>.sig.json'
+        // sidecar, so the MSI bytes stay deterministic. This must be a normal VERIFIED outcome via
+        // the sidecar fallback, not a special-cased failure.
+        var (source, outputDir) = CreatePackageInputs(nameof(Verify_ReproducibleSignedMsi_NoInBandTable_VerifiesViaRealSidecar));
+        var msiPath = CompileReproducibleSigned(source, outputDir, "ReproSignedApp");
+
+        Assert.True(File.Exists(msiPath + ".sig.json"), "IntegritySigner must still write the detached sidecar for a reproducible build.");
+        var dbResult = MsiDatabase.Open(msiPath, readOnly: true);
+        using (var db = dbResult.Value)
+        {
+            var rows = db.QueryRows("SELECT `Id` FROM `_FalkForgeIntegrity`", 1);
+            Assert.True(rows.IsFailure, "A reproducible build must carry no in-band _FalkForgeIntegrity table.");
+        }
+
+        var result = MsiIntegrityVerifier.Verify(msiPath, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(SignatureVerdict.Verified, result.Value.Verdict);
+        Assert.Contains("sidecar", result.Value.Source, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Verify_SignedMsi_NoTrustedKeys_ReturnsVerified_ConsistencyOnly()
     {
