@@ -68,19 +68,34 @@ public static class MsiInspector
         var signaturePresent = false;
         string? signatureFormatTag = null;
         var signatureFingerprints = new List<string>();
+        var pqCompanionFingerprints = new List<string>();
 
         var located = MsiIntegrityVerifier.LocateEnvelopeJson(db, msiPath);
         if (located is { } envelope)
         {
             signaturePresent = true;
             signatureFormatTag = envelope.FormatTag;
-            var parsed = IntegrityEnvelopeCodec.Parse(envelope.Json);
-            if (parsed is not null)
+
+            // Json is null when a sidecar was found but refused for being oversized (see
+            // MsiIntegrityVerifier.LocateEnvelopeJson) — presence is still reported, but nothing
+            // further can be shown without reading the file, which forge verify already refuses to
+            // do unbounded. Non-cryptographic display has no separate "why" to explain here; the
+            // detail lives in forge verify's FAILED message.
+            if (envelope.Json is { } json && IntegrityEnvelopeCodec.Parse(json) is { } parsed)
             {
-                signatureFingerprints = parsed.Signatures
-                    .Select(s => s.Fingerprint)
-                    .Where(fp => !string.IsNullOrEmpty(fp))
-                    .ToList();
+                foreach (var signature in parsed.Signatures)
+                {
+                    if (string.IsNullOrEmpty(signature.Fingerprint))
+                        continue;
+
+                    // Classical (ECDSA-P256, --trusted-key's currency) vs. a hybrid ML-DSA
+                    // post-quantum companion entry (Algorithm non-empty) — see FingerprintCategory
+                    // docs on the two result lists for why these must never be shown under one label.
+                    if (string.IsNullOrEmpty(signature.Algorithm))
+                        signatureFingerprints.Add(signature.Fingerprint);
+                    else
+                        pqCompanionFingerprints.Add(signature.Fingerprint);
+                }
             }
         }
 
@@ -94,7 +109,8 @@ public static class MsiInspector
             TableCount = tableNames.Count,
             SignaturePresent = signaturePresent,
             SignatureFormatTag = signatureFormatTag,
-            SignatureFingerprints = signatureFingerprints
+            SignatureFingerprints = signatureFingerprints,
+            PqCompanionFingerprints = pqCompanionFingerprints
         };
     }
 

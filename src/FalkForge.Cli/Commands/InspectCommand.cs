@@ -87,6 +87,12 @@ public sealed class InspectCommand : Command<InspectSettings>
             output.MarkupLine($"[bold]Integrity Signature:[/] present ({Markup.Escape(info.SignatureFormatTag ?? "unknown format")})");
             foreach (var fingerprint in info.SignatureFingerprints)
                 output.MarkupLine($"[bold]Signing Key Fingerprint:[/] {Markup.Escape(fingerprint)}");
+            // Distinct label from the classical fingerprints above (Merge Gate nit): a PQ companion
+            // fingerprint is NOT what forge verify --trusted-key matches against — showing it under
+            // the same "Signing Key Fingerprint" label is a copy-paste footgun that produces a
+            // baffling INT001 if pasted into --trusted-key.
+            foreach (var pqFingerprint in info.PqCompanionFingerprints)
+                output.MarkupLine($"[bold]PQ Companion Fingerprint (not usable with --trusted-key):[/] {Markup.Escape(pqFingerprint)}");
         }
         else
         {

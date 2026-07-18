@@ -74,4 +74,21 @@ public sealed class VerifySettingsTests
 
         Assert.False(settings.Validate().Successful);
     }
+
+    [Fact]
+    public void Validate_TrustedKeyWithRebuild_Fails()
+    {
+        // Merge Gate nit: --trusted-key only means anything in signature-only mode (no --rebuild).
+        // Combined with --rebuild it was silently ignored — the rebuild-and-compare path never
+        // reads TrustedKeys at all — which is a fail-loud violation: a user who passes --trusted-key
+        // expecting it to matter gets no error and no effect. Reject the combination instead.
+        var settings = new VerifySettings
+        {
+            ArtifactPath = "app.msi",
+            RebuildProjectPath = "proj.csproj",
+            TrustedKeys = ["AABBCC"]
+        };
+
+        Assert.False(settings.Validate().Successful);
+    }
 }

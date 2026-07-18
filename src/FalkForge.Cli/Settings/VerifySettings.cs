@@ -62,9 +62,18 @@ public sealed class VerifySettings : CommandSettings
                 return CliValidationResult.Error(
                     "--rebuild <project> is required for .exe bundle artifacts: byte-comparison is the only verification mode for bundles today.");
         }
-        else if (RebuildProjectPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+        else
         {
-            return CliValidationResult.Error("Rebuild project path contains invalid characters.");
+            if (RebuildProjectPath.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+                return CliValidationResult.Error("Rebuild project path contains invalid characters.");
+
+            // Merge Gate nit (fail-loud): --trusted-key only means anything in signature-only mode.
+            // Combined with --rebuild it would be silently ignored — the rebuild-and-compare path
+            // never reads TrustedKeys — leaving a user who expects it to matter with no error and no
+            // effect. Reject the combination outright instead.
+            if (TrustedKeys.Length > 0)
+                return CliValidationResult.Error(
+                    "--trusted-key has no effect together with --rebuild (it only applies to signature-only verification); omit --rebuild to use it.");
         }
 
         foreach (var key in TrustedKeys)

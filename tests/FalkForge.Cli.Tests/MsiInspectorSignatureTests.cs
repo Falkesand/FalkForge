@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using FalkForge.Compiler.Msi;
 using FalkForge.Testing;
 using Xunit;
@@ -85,5 +86,53 @@ public sealed class MsiInspectorSignatureTests : IDisposable
         Assert.False(result.Value.SignaturePresent);
         Assert.Null(result.Value.SignatureFormatTag);
         Assert.Empty(result.Value.SignatureFingerprints);
+    }
+
+    [Fact]
+    public void Inspect_SignedMsi_PqCompanionFingerprints_NeverOverlapClassical()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // Merge Gate nit: a zero-config Integrity() build on a PQ-capable machine signs with both a
+        // classical (ECDSA-P256) key and an ephemeral ML-DSA companion (EcdsaManifestSigner.
+        // BuildProviders). forge verify --trusted-key only ever matches the classical fingerprint, so
+        // the two lists must be disjoint — mixing them under one label is the exact copy-paste
+        // footgun this split fixes.
+        var msiPath = CompileMsi(nameof(Inspect_SignedMsi_PqCompanionFingerprints_NeverOverlapClassical), signed: true);
+
+        var result = MsiInspector.Inspect(msiPath);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.NotEmpty(result.Value.SignatureFingerprints);
+        Assert.Empty(result.Value.SignatureFingerprints.Intersect(result.Value.PqCompanionFingerprints, StringComparer.OrdinalIgnoreCase));
+
+        if (MLDsa.IsSupported)
+            Assert.NotEmpty(result.Value.PqCompanionFingerprints);
+    }
+
+    [Fact]
+    public void Inspect_OversizedSidecar_ReportsSignaturePresentButNoFingerprints()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // Mirrors MsiIntegrityVerifierTests.Verify_OversizedSidecar_ReturnsFailed_NotSilentlyNotSigned:
+        // forge inspect must not attempt to read an oversized sidecar either (it shares
+        // MsiIntegrityVerifier.LocateEnvelopeJson), but unlike forge verify it has nothing to fail —
+        // it reports presence honestly (something is there) without fabricating fingerprints it never read.
+        var msiPath = CompileMsi(nameof(Inspect_OversizedSidecar_ReportsSignaturePresentButNoFingerprints), signed: false);
+        var sidecarPath = msiPath + ".sig.json";
+        using (var fs = new FileStream(sidecarPath, FileMode.Create, FileAccess.Write))
+        {
+            fs.SetLength(5L * 1024 * 1024);
+        }
+
+        var result = MsiInspector.Inspect(msiPath);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.True(result.Value.SignaturePresent);
+        Assert.Empty(result.Value.SignatureFingerprints);
+        Assert.Empty(result.Value.PqCompanionFingerprints);
     }
 }

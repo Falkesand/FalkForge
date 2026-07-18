@@ -197,6 +197,33 @@ public sealed class MsiIntegrityVerifierTests : IDisposable
     }
 
     [Fact]
+    public void Verify_OversizedSidecar_ReturnsFailed_NotSilentlyNotSigned()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // Merge Gate nit (Opus): File.ReadAllText on the sidecar was unbounded — an implausibly
+        // large '<msi>.sig.json' (corruption, or a DoS attempt against a caller that reads it into
+        // memory) must not be silently treated as "nothing to see here" (NotSigned would hide the
+        // real signal). It must fail loud as a distinct, explained FAILED outcome instead.
+        var (source, outputDir) = CreatePackageInputs(nameof(Verify_OversizedSidecar_ReturnsFailed_NotSilentlyNotSigned));
+        var msiPath = CompileUnsigned(source, outputDir, "OversizedSidecarApp");
+
+        var sidecarPath = msiPath + ".sig.json";
+        using (var fs = new FileStream(sidecarPath, FileMode.Create, FileAccess.Write))
+        {
+            fs.SetLength(5L * 1024 * 1024); // 5 MiB, over the 4 MiB cap
+        }
+
+        var result = MsiIntegrityVerifier.Verify(msiPath, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(SignatureVerdict.Failed, result.Value.Verdict);
+        Assert.Contains("exceeds", result.Value.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sidecar", result.Value.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Verify_UnsignedMsi_WithDetachedSidecar_FallsBackToSidecarAndVerifies()
     {
         if (!OperatingSystem.IsWindows())

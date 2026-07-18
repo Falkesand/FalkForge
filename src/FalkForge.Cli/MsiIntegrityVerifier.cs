@@ -90,8 +90,22 @@ public static class MsiIntegrityVerifier
             };
         }
 
-        var (json, formatTag, source) = located.Value;
-        var envelope = IntegrityEnvelopeCodec.Parse(json);
+        var (json, formatTag, source, oversizedError) = located.Value;
+        if (oversizedError is not null)
+        {
+            // Fail loud (Merge Gate nit): an implausibly large sidecar must never be silently
+            // treated as "nothing to see here" — see LocateEnvelopeJson for why unbounded reads are
+            // refused before this point.
+            return new MsiSignatureVerification
+            {
+                Verdict = SignatureVerdict.Failed,
+                FormatTag = formatTag,
+                Source = source,
+                Message = oversizedError
+            };
+        }
+
+        var envelope = IntegrityEnvelopeCodec.Parse(json!);
         if (envelope is null)
         {
             return new MsiSignatureVerification
@@ -185,6 +199,15 @@ public static class MsiIntegrityVerifier
     }
 
     /// <summary>
+    /// Maximum bytes read from a detached '.sig.json' sidecar. The sidecar is a small, self-signed
+    /// JSON envelope (typically well under 10 KB); an implausibly large file is either corruption or
+    /// a DoS attempt against a caller that reads it unbounded into memory (Merge Gate nit) — 4 MiB is
+    /// generous headroom while still refusing that class of file outright, rather than silently
+    /// allocating whatever size an attacker-controlled file on disk happens to be.
+    /// </summary>
+    private const long MaxSidecarBytes = 4 * 1024 * 1024;
+
+    /// <summary>
     /// Locates the signature envelope JSON, preferring the embedded table row over the detached
     /// sidecar so an in-band signature is always authoritative when both exist. A reproducible-mode
     /// MSI (<c>Reproducible()</c> + <c>Integrity()</c>) carries no in-band table at all — the
@@ -194,8 +217,16 @@ public static class MsiIntegrityVerifier
     /// <para>Internal (not private) so <see cref="MsiInspector.Inspect"/> can surface the same
     /// presence/format/fingerprint information for display without duplicating this lookup.</para>
     /// </summary>
+    /// <returns>
+    /// Null when neither the table nor a readable sidecar exists (caller reports NotSigned).
+    /// Otherwise a tuple whose <c>OversizedError</c> is non-null only when a sidecar was found but
+    /// exceeded <see cref="MaxSidecarBytes"/> — in that case <c>Json</c> is null and the caller must
+    /// surface <c>OversizedError</c> as a FAILED verdict rather than reading further (fail loud,
+    /// never silently treated as "nothing to see here").
+    /// </returns>
     [SupportedOSPlatform("windows")]
-    internal static (string Json, string? FormatTag, string Source)? LocateEnvelopeJson(MsiDatabase db, string msiPath)
+    internal static (string? Json, string? FormatTag, string Source, string? OversizedError)? LocateEnvelopeJson(
+        MsiDatabase db, string msiPath)
     {
         var queryResult = db.QueryRows("SELECT `Id`, `Format`, `Data` FROM `_FalkForgeIntegrity`", 3);
         if (queryResult.IsSuccess)
@@ -203,7 +234,7 @@ public static class MsiIntegrityVerifier
             foreach (var row in queryResult.Value)
             {
                 if (string.Equals(row[0], "ManifestSignature", StringComparison.Ordinal) && row[2] is { } data)
-                    return (data, row[1], "the embedded _FalkForgeIntegrity table");
+                    return (data, row[1], "the embedded _FalkForgeIntegrity table", null);
             }
         }
 
@@ -212,7 +243,20 @@ public static class MsiIntegrityVerifier
         {
             try
             {
-                return (File.ReadAllText(sidecarPath), null, $"the detached sidecar '{Path.GetFileName(sidecarPath)}'");
+                var sidecarName = Path.GetFileName(sidecarPath);
+                var sidecarLength = new FileInfo(sidecarPath).Length;
+                if (sidecarLength > MaxSidecarBytes)
+                {
+                    return (
+                        null,
+                        null,
+                        $"the detached sidecar '{sidecarName}'",
+                        $"The detached sidecar '{sidecarName}' is {sidecarLength:N0} bytes, which " +
+                        $"exceeds the {MaxSidecarBytes:N0}-byte limit for a signature envelope. " +
+                        "Refusing to read it (possible corruption or a crafted oversized file).");
+                }
+
+                return (File.ReadAllText(sidecarPath), null, $"the detached sidecar '{sidecarName}'", null);
             }
             catch (IOException) { /* Sidecar unreadable — fall through to "no signature found". */ }
             catch (UnauthorizedAccessException) { /* Sidecar unreadable — fall through. */ }
