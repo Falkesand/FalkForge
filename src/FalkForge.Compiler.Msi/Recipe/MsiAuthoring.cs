@@ -133,7 +133,7 @@ public static class MsiAuthoring
             }
 
             var dialogErrors = FalkForge.Compiler.Msi.UI.DialogCustomizationValidator.Validate(
-                dialogCustomization, package.DialogSet, stepRegistry);
+                dialogCustomization, package.DialogSet, stepRegistry, package.Binaries);
             if (dialogErrors.Count > 0)
             {
                 var msgs = string.Join("; ", dialogErrors.Select(e => $"{e.Code}: {e.Message}"));

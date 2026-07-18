@@ -20,27 +20,43 @@ public sealed class DialogCustomization
     private string? _headerIcon;
     private string? _windowTitle;
 
-    /// <summary>Sets the path to a 493x58 banner image used by every interior dialog header.</summary>
-    public DialogCustomization BannerBitmap(string path)
+    /// <summary>
+    /// Sets the Binary stream key of a 493x58 banner image shown on every interior dialog
+    /// header. The key must name a stream registered via
+    /// <see cref="FalkForge.Builders.PackageBuilder.Binary(string, string)"/> — DLG003
+    /// fails the build if no matching Binary entry exists.
+    /// </summary>
+    public DialogCustomization BannerBitmap(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _bannerBitmap = path;
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        _bannerBitmap = key;
         return this;
     }
 
-    /// <summary>Sets the path to a 493x312 background bitmap used by Welcome / Exit dialogs.</summary>
-    public DialogCustomization DialogBitmap(string path)
+    /// <summary>
+    /// Sets the Binary stream key of the Welcome/Exit background bitmap. Pixel dimensions
+    /// follow the classic MSI convention (roughly 493x312 for the 370x234 DLU dialog area);
+    /// the key must name a stream registered via
+    /// <see cref="FalkForge.Builders.PackageBuilder.Binary(string, string)"/> — DLG003
+    /// fails the build if no matching Binary entry exists.
+    /// </summary>
+    public DialogCustomization DialogBitmap(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _dialogBitmap = path;
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        _dialogBitmap = key;
         return this;
     }
 
-    /// <summary>Sets the path to a 16x16 header icon shown next to the dialog title.</summary>
-    public DialogCustomization HeaderIcon(string path)
+    /// <summary>
+    /// Sets the Binary stream key of a 16x16 header icon shown next to the dialog title. The
+    /// key must name a stream registered via
+    /// <see cref="FalkForge.Builders.PackageBuilder.Binary(string, string)"/> — DLG003
+    /// fails the build if no matching Binary entry exists.
+    /// </summary>
+    public DialogCustomization HeaderIcon(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _headerIcon = path;
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        _headerIcon = key;
         return this;
     }
 
