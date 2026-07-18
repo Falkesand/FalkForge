@@ -4,9 +4,11 @@ using Xunit;
 namespace FalkForge.Cli.Tests;
 
 /// <summary>
-/// Validation tests for <see cref="VerifySettings"/>. The settings gate ensures the user
-/// supplied both an artifact path and a <c>--rebuild</c> project before any subprocess runs,
-/// and that the artifact extension is one the verifier can byte-compare (.msi or .exe).
+/// Validation tests for <see cref="VerifySettings"/>. Two independent verification modes exist:
+/// <c>--rebuild &lt;project&gt;</c> (rebuild-and-byte-compare, both .msi and .exe) and, for .msi
+/// only, a signature-only mode that checks the embedded/detached integrity signature without a
+/// source project. A bundle (.exe) has no signature-only mode yet, so <c>--rebuild</c> stays
+/// required for it.
 /// </summary>
 public sealed class VerifySettingsTests
 {
@@ -38,11 +40,21 @@ public sealed class VerifySettingsTests
     }
 
     [Fact]
-    public void Validate_MissingRebuildProject_Fails()
+    public void Validate_MsiWithoutRebuild_Succeeds_SignatureOnlyMode()
     {
-        // --rebuild is the only supported verification mode today; without it there is
-        // nothing to compare against, so the command must reject the invocation.
+        // .msi has a second verification mode (the embedded/detached ECDSA signature), so
+        // omitting --rebuild is valid — it selects that mode instead of rejecting the invocation.
         var settings = Make("app.msi", null);
+
+        Assert.True(settings.Validate().Successful);
+    }
+
+    [Fact]
+    public void Validate_ExeWithoutRebuild_Fails()
+    {
+        // Bundles have no signature-only verification mode (yet) — --rebuild is the only way to
+        // verify a .exe, so omitting it must still be rejected rather than silently no-op.
+        var settings = Make("installer.exe", null);
 
         Assert.False(settings.Validate().Successful);
     }
@@ -51,6 +63,31 @@ public sealed class VerifySettingsTests
     public void Validate_UnsupportedArtifactExtension_Fails()
     {
         var settings = Make("app.zip", "proj.csproj");
+
+        Assert.False(settings.Validate().Successful);
+    }
+
+    [Fact]
+    public void Validate_TrustedKeyWithWhitespace_Fails()
+    {
+        var settings = new VerifySettings { ArtifactPath = "app.msi", TrustedKeys = ["  "] };
+
+        Assert.False(settings.Validate().Successful);
+    }
+
+    [Fact]
+    public void Validate_TrustedKeyWithRebuild_Fails()
+    {
+        // Merge Gate nit: --trusted-key only means anything in signature-only mode (no --rebuild).
+        // Combined with --rebuild it was silently ignored — the rebuild-and-compare path never
+        // reads TrustedKeys at all — which is a fail-loud violation: a user who passes --trusted-key
+        // expecting it to matter gets no error and no effect. Reject the combination instead.
+        var settings = new VerifySettings
+        {
+            ArtifactPath = "app.msi",
+            RebuildProjectPath = "proj.csproj",
+            TrustedKeys = ["AABBCC"]
+        };
 
         Assert.False(settings.Validate().Successful);
     }

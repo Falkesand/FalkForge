@@ -48,10 +48,12 @@ app.Configure(config =>
         .WithExample("plan-diff", "v1.msi", "v2.msi", "--json");
 
     config.AddCommand<VerifyCommand>("verify")
-        .WithDescription("Independently verify a shipped artifact by rebuilding from source and byte-comparing")
+        .WithDescription("Independently verify a shipped artifact: rebuild-and-byte-compare, or (.msi) check its ECDSA integrity signature")
         .WithExample("verify", "app.msi", "--rebuild", "installer.csproj")
         .WithExample("verify", "installer.exe", "--rebuild", "installer.csproj", "--json")
-        .WithExample("verify", "app.msi", "--rebuild", "installer.csproj", "--source-date-epoch", "1577836800");
+        .WithExample("verify", "app.msi", "--rebuild", "installer.csproj", "--source-date-epoch", "1577836800")
+        .WithExample("verify", "app.msi")
+        .WithExample("verify", "app.msi", "--trusted-key", "A1B2C3...");
 
     config.AddCommand<InspectCommand>("inspect")
         .WithDescription("Display MSI metadata (tables, features, summary info)")

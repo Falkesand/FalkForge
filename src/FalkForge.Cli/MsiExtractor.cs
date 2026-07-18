@@ -194,8 +194,11 @@ public static class MsiExtractor
     /// <summary>
     /// Parses the MSI FileName column format "short|long" and returns the long name,
     /// or the whole string if no pipe separator is present.
+    ///
+    /// <para>Internal (not private) so <see cref="MsiIntegrityVerifier"/> shares this exact parsing
+    /// instead of carrying its own copy — both read the same <c>File.FileName</c> column shape.</para>
     /// </summary>
-    private static string ParseLongFileName(string fileNameField)
+    internal static string ParseLongFileName(string fileNameField)
     {
         var pipeIndex = fileNameField.IndexOf('|');
         return pipeIndex >= 0 ? fileNameField[(pipeIndex + 1)..] : fileNameField;

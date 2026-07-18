@@ -5,8 +5,13 @@ namespace FalkForge.Engine.Protocol.Integrity;
 
 /// <summary>
 /// Build-time payload signer using pure .NET ECDSA (P-256). Produces a
-/// <see cref="ManifestSignatureEnvelope"/> the engine verifies before executing any
-/// payload, independent of Authenticode and of the external <c>sigil</c> CLI.
+/// <see cref="ManifestSignatureEnvelope"/>, independent of Authenticode and of the external
+/// <c>sigil</c> CLI. Verification differs by artifact kind, since only a bundle has an installer
+/// engine in the loop: for a <b>bundle</b>, the Engine verifies the envelope before executing any
+/// payload (<c>FalkForge.Engine.Integrity.PayloadIntegrityGate</c> at Apply,
+/// <c>SignedPayloadTocVerifier</c> at extraction); an <b>MSI</b> has no install-time engine to check
+/// it, so the envelope is instead verified out-of-band, after the fact, via <c>forge verify</c>
+/// (<c>FalkForge.Cli.MsiIntegrityVerifier</c>).
 ///
 /// <para>Shared by both build-time compilers — <c>Compiler.Bundle</c>'s <c>BundleIntegritySigner</c>
 /// and <c>Compiler.Msi</c>'s <c>IntegritySigner</c> — so a bundle and an MSI produce byte-identical

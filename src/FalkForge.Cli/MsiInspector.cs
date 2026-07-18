@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi;
+using FalkForge.Engine.Protocol.Integrity;
 
 namespace FalkForge.Cli;
 
@@ -61,6 +62,43 @@ public static class MsiInspector
             }
         }
 
+        // Signature presence/format/fingerprint for display only (non-cryptographic — verification
+        // is MsiIntegrityVerifier's job). Shares the table-then-sidecar lookup with the verifier so a
+        // reproducible-mode MSI (sidecar-only signature, no in-band table) is reported correctly too.
+        var signaturePresent = false;
+        string? signatureFormatTag = null;
+        var signatureFingerprints = new List<string>();
+        var pqCompanionFingerprints = new List<string>();
+
+        var located = MsiIntegrityVerifier.LocateEnvelopeJson(db, msiPath);
+        if (located is { } envelope)
+        {
+            signaturePresent = true;
+            signatureFormatTag = envelope.FormatTag;
+
+            // Json is null when a sidecar was found but refused for being oversized (see
+            // MsiIntegrityVerifier.LocateEnvelopeJson) — presence is still reported, but nothing
+            // further can be shown without reading the file, which forge verify already refuses to
+            // do unbounded. Non-cryptographic display has no separate "why" to explain here; the
+            // detail lives in forge verify's FAILED message.
+            if (envelope.Json is { } json && IntegrityEnvelopeCodec.Parse(json) is { } parsed)
+            {
+                foreach (var signature in parsed.Signatures)
+                {
+                    if (string.IsNullOrEmpty(signature.Fingerprint))
+                        continue;
+
+                    // Classical (ECDSA-P256, --trusted-key's currency) vs. a hybrid ML-DSA
+                    // post-quantum companion entry (Algorithm non-empty) — see FingerprintCategory
+                    // docs on the two result lists for why these must never be shown under one label.
+                    if (string.IsNullOrEmpty(signature.Algorithm))
+                        signatureFingerprints.Add(signature.Fingerprint);
+                    else
+                        pqCompanionFingerprints.Add(signature.Fingerprint);
+                }
+            }
+        }
+
         return new MsiInspectionResult
         {
             ProductName = productName,
@@ -68,7 +106,11 @@ public static class MsiInspector
             Version = version,
             ProductCode = productCode,
             TableNames = tableNames,
-            TableCount = tableNames.Count
+            TableCount = tableNames.Count,
+            SignaturePresent = signaturePresent,
+            SignatureFormatTag = signatureFormatTag,
+            SignatureFingerprints = signatureFingerprints,
+            PqCompanionFingerprints = pqCompanionFingerprints
         };
     }
 

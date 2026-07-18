@@ -363,6 +363,101 @@ binary itself: the MSBuild-baked `BakedTrustedKeys` set, unioned with anything r
 `EngineTrustAnchor` at bootstrap. Neither is read from the bundle, the artifact being verified,
 or any file the installer processes at runtime.
 
+### MSI signing and verification — `forge verify`
+
+Everything above describes bundle *runtime* verification: an installed EXE bundle has an engine
+in the loop that checks the signature before executing a single payload. An MSI has no such
+engine — Windows Installer itself has no concept of FalkForge's ECDSA envelope — so
+`PackageBuilder.Integrity()` (the identical fluent API and identical `EcdsaManifestSigner`/
+`IntegrityEnvelopeCodec` signing code as bundles) instead produces an envelope that is verified
+**out-of-band, after the fact**, via the CLI:
+
+```bash
+forge verify MyApp-1.0.0.msi                          # consistency-only (tamper-evidence)
+forge verify MyApp-1.0.0.msi --trusted-key A1B2C3...   # authorship (repeatable flag)
+```
+
+**What is signed.** Identical shape to bundles: the ordered `(name, sha256)` list of every payload
+file FalkForge embeds in the MSI, keyed by the file's target name (the `File` table's `FileName`
+column) and hashed from the *original source file on disk* at build time — not from any MSI
+container byte. `forge verify` recomputes this independently at verification time by re-extracting
+every embedded cabinet and re-hashing each file, then binds that recomputed hash back to the
+signed declaration **bidirectionally**:
+
+- **signed → actual** (every declared file is present with a matching hash) — the same direction
+  `FalkForge.Engine.Integrity.PayloadIntegrityGate` enforces for bundles at install time; and
+- **actual → signed** (every embedded payload file is in the declared set) — this direction is
+  what stops an attacker from taking a genuinely signed, trusted MSI and *adding* an extra,
+  undeclared payload file without touching anything the signature covers. Checking only the first
+  direction would let that addition through as `VERIFIED`, carrying the real publisher's
+  fingerprint, because every declared file still matches — MSI has no separate runtime gate the
+  way a bundle's engine does, so `forge verify` is the only place this is ever caught.
+
+A payload swapped into, or added to, the MSI after signing — leaving the signature table/sidecar
+itself untouched — is caught by this binding even though the signature cryptographically still
+verifies against its own (unchanged) declaration.
+
+**Duplicate-name collisions are always tamper.** The envelope's `(name, sha256)` pairs are
+NAME-ONLY granularity — it has no way to express "there must be exactly one embedded payload file
+named X." If two or more actual embedded payload files resolve to the same name (a distinct `File`
+table row and cabinet entry per copy, but an aliased `FileName`), `forge verify` refuses the MSI as
+tamper unconditionally — it never picks either copy's hash to reconcile with the declaration, even
+if one of them happens to match. This closes a variant of the addition attack above: without it, an
+attacker could splice in a *second* copy of an already-declared file name with malicious bytes, and
+if that copy is processed before the legitimate one during cabinet re-extraction, a naive
+"last-write-wins" accumulation would silently retain only the legitimate hash — passing both
+direction checks above as `VERIFIED` while the genuinely separate, malicious `File` row still
+installs via `msiexec`. Legitimate MSIs cannot trigger this: the compiler enforces case-insensitive
+`FileName` uniqueness at build time, so a name collision is reachable only via direct post-build
+database tampering.
+
+> **Known limitations.** Only *embedded* cabinets (`Media.Cabinet` prefixed `#`) are re-extracted
+> for the content-binding check — the same limitation `forge extract` already has. A payload
+> shipped via an external, disk-resident cabinet is neither confirmed nor contradicted by it.
+> The envelope covers embedded payload FILES only — it says nothing about the content of other
+> MSI database tables (e.g. `Registry`, `CustomAction`, `Property` rows), so an attacker who edits
+> those directly, without adding or altering a payload file, is not detected. The signature check
+> also covers the CLASSICAL (ECDSA-P256) entry only: a hybrid post-quantum (ML-DSA) companion
+> signature, if present, is neither verified nor required for MSI today — there is no
+> `--pq-key`/`pqPolicy` equivalent of the bundle engine's `INT011` enforcement here yet.
+
+**Where the signature lives — table vs. sidecar.** `IntegritySigner` always writes the envelope to
+a detached `<msi>.sig.json` sidecar next to the compiled MSI. Whether it *also* embeds the
+identical envelope in-band, in the MSI's own `_FalkForgeIntegrity`/`ManifestSignature` custom
+table, depends on `Reproducible()`:
+
+| Build configuration | In-band table | Sidecar | MSI bytes |
+|---|---|---|---|
+| `Integrity()` only | Yes | Yes | Non-deterministic (ECDSA signature is part of the MSI) |
+| `Reproducible()` + `Integrity()` | **No** | Yes | Byte-identical across builds |
+
+A `Reproducible()`+`Integrity()` MSI never carries the signature in-band — embedding a
+non-deterministic ECDSA signature in the MSI's own database would silently break
+`forge verify --rebuild` for that exact combination (the compiled bytes could never byte-match a
+prior build even from identical source). `forge verify` handles both shapes transparently: it
+prefers the in-band table when present, and falls back to the sidecar when it is not — the
+sidecar path is a normal, fully-supported verification, not a degraded one.
+
+**Verdicts:** `VERIFIED` (exit 0) — but rendered under two distinct labels: **authorship
+verified** (green — a `--trusted-key` matched) versus **tamper-evidence only** (yellow — no
+`--trusted-key` was supplied, so publisher identity was never checked). The two must never render
+identically; a consistency-only pass is a strictly weaker claim than an authorship-verified one,
+and printing them the same way would be a downgrade-attack UX. `NOT-SIGNED` (exit 1 — no table and
+no sidecar; fail-loud, an unsigned MSI is never reported as passing), `FAILED` (exit 1 — signature
+invalid, matched no trusted key, the recomputed content no longer matches what was signed in
+either direction — missing, added, or altered files — or a located sidecar exceeded the 4 MiB read
+cap FalkForge enforces against DoS/corruption). See
+[`cli-json-schema.md`](cli-json-schema.md#forge-verify---json) for the full envelope shape
+(including the `authorshipEstablished` field JSON consumers should key off of) and exit-code table.
+
+**`forge inspect`** additionally surfaces signature *presence*, the format tag (e.g.
+`falkforge-ecdsa-envelope-v2`), and the declared signing-key fingerprint(s) for quick,
+non-cryptographic display — actual verification is `forge verify`'s job, not `forge inspect`'s.
+Classical (ECDSA-P256) fingerprints — the ones `--trusted-key` matches — are shown separately from
+any hybrid post-quantum companion fingerprint, under a distinct label, so the two are never
+confused: pasting a PQ companion fingerprint into `--trusted-key` would otherwise produce a
+baffling `INT001`.
+
 ---
 
 ## 4. WinGet Manifest Generation
@@ -506,7 +601,8 @@ is blocked with `PLN004` and a clear list of unsupported extension names.
 |----------|---------|------|---------------|
 | MSI SBOM | `.Sbom()` fluent / `--sbom` / env var | `{msi}.cdx.json` | CycloneDX tooling / `jq` |
 | Bundle SBOM | `.Sbom()` fluent / `--sbom` / env var | `{exe}.cdx.json` | CycloneDX tooling / `jq` |
-| ECDSA signature | `.Integrity()` fluent | Embedded in EXE manifest | Engine gate at Apply |
+| ECDSA signature (bundle) | `.Integrity()` fluent | Embedded in EXE manifest | Engine gate at Apply |
+| ECDSA signature (MSI) | `.Integrity()` fluent | `_FalkForgeIntegrity` table and/or `{msi}.sig.json` sidecar (sidecar-only under `Reproducible()`) | `forge verify {msi}` |
 | WinGet manifest | `.WinGet()` fluent / `forge winget` | `{name}.winget*.yaml` | WinGet CLI validation |
 | Plan JSON | `forge plan` | stdout / `-o <file>` | `jq` / change management tools |
 | Reproducible build | `.Reproducible()` fluent | N/A (determinism property) | `sha256sum` across two builds |
