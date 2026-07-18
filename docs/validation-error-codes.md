@@ -2,7 +2,7 @@
 
 Reference for every diagnostic code emitted by validators, builders, decompilers, and runtime integrity checks across the solution. Codes follow `<3 letters><3 digits>` (e.g. `PKG001`).
 
-Auto-generated from source — do not edit by hand. To refresh: re-run the extraction script in `.tmp_work/`.
+Historically auto-generated; the extraction script has been retired — this file is now hand-maintained. Keep entries in sync with the validation rule sources (`src/FalkForge.Core/Validation/...` and the other `Source` columns below).
 
 **Total codes:** 237 across 52 categories.
 
@@ -300,7 +300,7 @@ Auto-generated from source — do not edit by hand. To refresh: re-run the extra
 | Code | Message | Source |
 |------|---------|--------|
 | LOC001 | Duplicate string ID '<x>' in culture '<x>' | `src/FalkForge.Localization/LocalizationBuilder.cs` |
-| LOC002 | Default culture '<x>' is not defined. Add it with AddCulture() or AddJsonFile() | `src/FalkForge.Localization/LocalizationBuilder.cs` |
+| LOC002 | Default culture '<x>' is not defined. Add it with AddCulture(), AddJsonFile(), or AddBaselineCulture() | `src/FalkForge.Localization/LocalizationBuilder.cs` |
 | LOC003 | Unresolved localization reference '!(loc.<x>)'. String ID '<x>' not found in any culture | `src/FalkForge.Localization/LocalizedStringResolver.cs` |
 | LOC004 | Cannot extract culture from filename. Expected format: name.culture.json (e.g., strings.en-US.json) | `src/FalkForge.Localization/LocalizationLoader.cs` |
 
