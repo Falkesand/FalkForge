@@ -4419,6 +4419,32 @@ Installer.Build(p =&gt;
     attest to; a normal (non-reproducible) build remains the simpler default for local development, where a
     unique identity per compile is exactly what you want and there's nothing yet to verify against.
   </p>
+
+  <h4>Combining Reproducible() with Integrity() (MSI)</h4>
+  <p>
+    ECDSA-P256 signing is intentionally nondeterministic (a fresh random nonce every call), so embedding an
+    <code>Integrity()</code> signature in-band would defeat <code>Reproducible()</code>'s byte-identical
+    guarantee the moment both are configured on the same <code>PackageBuilder</code>. When both are set,
+    <code>IntegritySigner</code> skips the in-band <code>_FalkForgeIntegrity</code> table entirely and writes
+    the signature <em>sidecar-only</em> instead (<code>&lt;msi&gt;.sig.json</code>, the same envelope shape as
+    always) &mdash; the MSI artifact itself stays byte-identical across rebuilds. The compiler logs an
+    explicit <code>Info</code>-level notice when this applies (not hidden behind <code>--verbose</code>, since
+    it is a real, user-visible change of where the signature lives). A non-reproducible
+    <code>Integrity()</code> build still gets both: the in-band table <em>and</em> the sidecar.
+    <code>forge verify &lt;msi&gt;</code> (<a href="#cli">CLI, 15</a>) checks the table first and falls back to
+    the sidecar automatically, so verification works the same way either way.
+  </p>
+  <div class="warning">
+    Bundles do not yet have this guard. <code>BundleBuilder.Integrity()</code> always embeds its ECDSA
+    signature in the bundle manifest, so a bundle combining <code>Reproducible()</code> with
+    <code>Integrity()</code> is <em>not</em> byte-identical across rebuilds today &mdash; a known, tracked gap,
+    not a design choice. If you need a byte-reproducible signed bundle today, verify the unsigned artifact
+    with <code>FALKFORGE_NO_SIGN=1</code> and sign out-of-band instead.
+  </div>
+  <p>
+    See <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what does
+    and doesn't need Sigil in either mode.
+  </p>
   <p>
     See <a href="#demos">Demo 57 &mdash; reproducible-sbom</a> for the full pin-build-twice-and-compare
     workflow with an SBOM sidecar, <a href="#demos">Demo 56 &mdash; verify-and-plan</a> for
@@ -8334,8 +8360,16 @@ public interface IDialogStepBuilder
     <tbody>
         <tr><td>DLG001</td><td>Error</td><td>An <code>InsertedDialogStep</code> references a step name that is not registered in the <code>DialogStepRegistry</code>. Fix: register the builder via the owning extension before compiling.</td></tr>
         <tr><td>DLG002</td><td>Error</td><td>Two <code>InsertedDialogStep</code> entries declare the same logical position (same <code>before</code>/<code>after</code> anchor with the same target). Fix: give them distinct anchors or merge them.</td></tr>
+        <tr><td>DLG003</td><td>Error</td><td><code>DialogCustomization.BannerBitmap</code>/<code>DialogBitmap</code>/<code>HeaderIcon</code> names a Binary stream key that is not registered in <code>PackageModel.Binaries</code> (via <code>PackageBuilder.Binary(name, sourcePath)</code>). Fix: register the key with <code>PackageBuilder.Binary()</code> before compiling, or fix the typo.</td></tr>
     </tbody>
 </table>
+
+<p>
+    <code>BannerBitmap</code>/<code>DialogBitmap</code>/<code>HeaderIcon</code> synthesize real controls on
+    the stock dialog templates (banner/background bitmaps, header icon) &mdash; they are not reserved or
+    inert. See <code>docs/dialog-template-architecture.md</code> (&ldquo;Customizing a Dialog Set&rdquo;) for
+    the full verb reference and exact placement rules.
+</p>
 
 </section>
 
@@ -8416,7 +8450,7 @@ forge init --from-publish bin/Release/net10.0/publish -o installer/</code></pre>
 #   --dry-run                Validate + plan, but do not write any output artifacts
 #   --reproducible           Reproducible build (uses SOURCE_DATE_EPOCH or git HEAD)
 #   --sbom                   Emit a CycloneDX SBOM sidecar
-#   --no-sign                Skip Sigil code signing
+#   --no-sign                Skip the ECDSA integrity signature (and any Sigil SBOM attestation)
 #   --winget                 Emit a WinGet singleton manifest alongside the MSI
 #   --winget-url &lt;URL&gt;       InstallerUrl to embed in the manifest
 #   --ice                    Run ICE validation (default: on for .msi)
@@ -8433,9 +8467,10 @@ forge build installer.cs --dry-run --json
 forge build installer.cs --reproducible --sbom
 forge build installer.cs --winget --winget-url https://example.com/app.msi</code></pre>
 <p>
-    <code>--no-sign</code> skips Sigil-based signing/attestation &mdash; see
+    <code>--no-sign</code> skips FalkForge's own ECDSA integrity signature (and any Sigil-based SBOM
+    attestation on top of it) &mdash; see
     <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what Sigil is and
-    when you need it.
+    when (if ever) you need it.
 </p>
 
 <h4>validate</h4>
@@ -8486,6 +8521,12 @@ forge inspect package.msi
 forge inspect package.msi --verbose
 forge inspect package.msi --json
 forge inspect package.msi --sbom</code></pre>
+<p>
+    When the MSI carries an <code>Integrity()</code> signature (embedded table row or detached sidecar),
+    <code>inspect</code> also prints its presence, format tag (e.g. <code>falkforge-ecdsa-envelope-v2</code>),
+    and every signing key's fingerprint &mdash; display only, not cryptographic verification; use
+    <code>forge verify &lt;msi&gt;</code> to actually check the signature.
+</p>
 
 <h4>decompile</h4>
 <p>Decompiles an MSI or bundle EXE into C# source code.</p>
@@ -8650,35 +8691,73 @@ forge plan-diff v1.0/app.msi v1.1/app.msi --json</code></pre>
 
 <h4>verify</h4>
 <p>
-    Independently rebuilds an installer from its published source and byte-compares the result
-    against a shipped artifact to prove the binary is reproducible. This lets anyone confirm that
-    the artifact they received matches the published source code without trusting the original
-    build machine or its environment.
+    Independently verifies a shipped artifact through one of two modes.
+    <strong>Rebuild-and-compare</strong> (<code>--rebuild &lt;project&gt;</code>, .msi or .exe) rebuilds the
+    project reproducibly and byte-compares the result against the artifact &mdash; the strongest proof, since
+    it ties the shipped bytes back to source. <strong>Signature-only</strong> (.msi, <code>--rebuild</code>
+    omitted) instead crypto-verifies the MSI's pure-.NET ECDSA integrity signature without needing the source
+    project at all. A bundle (.exe) has no signature-only mode yet, so <code>--rebuild</code> stays required
+    for it.
 </p>
-<pre><code class="language-bash">forge verify &lt;artifact&gt; --rebuild &lt;project&gt; [options]
+<pre><code class="language-bash"># Rebuild-and-compare (.msi or .exe):
+forge verify &lt;artifact&gt; --rebuild &lt;project&gt; [options]
+
+# Signature-only (.msi only, --rebuild omitted):
+forge verify &lt;artifact.msi&gt; [--trusted-key &lt;fingerprint&gt;]... [options]
 
 # Arguments:
 #   &lt;artifact&gt;                     Path to the shipped .msi or .exe to verify
 
-# Options (required):
-#   --rebuild &lt;project&gt;            Installer project to rebuild from (.cs / .csx / .json / .csproj)
-
-# Options:
+# Options (rebuild-and-compare):
+#   --rebuild &lt;project&gt;            Installer project to rebuild from (.cs / .csx / .json / .csproj).
+#                                   Omit for an .msi to run signature-only verification instead;
+#                                   still required for an .exe bundle.
 #   --source-date-epoch &lt;epoch&gt;    Unix timestamp to pin the reproducible build clock
+
+# Options (signature-only, .msi):
+#   --trusted-key &lt;fingerprint&gt;    Pin a trusted signing-key fingerprint (uppercase hex SHA-256 of
+#                                   the SubjectPublicKeyInfo). Repeatable. Omitted = consistency-only
+#                                   verification (tamper-evidence, not authorship).
+
+# Options (either mode):
 #   --json                         Emit a JSON envelope to stdout
 
-# Verdicts:
+# Verdicts (rebuild-and-compare):
 #   VERIFIED       (exit 0)  Artifact matches rebuild byte-for-byte
 #   MISMATCH       (exit 1)  Artifact differs from rebuild
 #   REBUILD-FAILED (exit 2)  Rebuild compilation failed
 #   SETUP-ERROR    (exit 3)  Artifact or project not found / environment error
 
+# Verdicts (signature-only, .msi):
+#   VERIFIED       (exit 0)  Signature verifies (and, with --trusted-key, matches a trusted key) and
+#                            the MSI's actual embedded payload matches every signed hash
+#   NOT-SIGNED     (exit 1)  No signature found (checked the embedded table, then the sidecar)
+#   FAILED         (exit 1)  Signature present but didn't verify, matched no trusted key, or the
+#                            payload no longer matches what was signed
+#   (exit 3)                 Setup failure: the MSI could not be opened at all
+
 # Examples:
 forge verify app-1.2.msi --rebuild installer.cs
 forge verify setup.exe --rebuild installer.cs --source-date-epoch 1718150400
-forge verify app-1.2.msi --rebuild installer.cs --json</code></pre>
+forge verify app-1.2.msi --rebuild installer.cs --json
+forge verify app-1.2.msi                          # signature-only, consistency-only
+forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-pinned</code></pre>
 
-<p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>.</p>
+<p>
+    Signature-only verification checks three things in order: the envelope is located (embedded
+    <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> table row first, the detached
+    <code>&lt;msi&gt;.sig.json</code> sidecar as fallback &mdash; the normal path for a
+    <code>Reproducible()</code>+<code>Integrity()</code> MSI, which carries no in-band table; see
+    <a href="#msi-package-code">8.29</a>); cryptographic verification against any <code>--trusted-key</code>
+    fingerprints supplied, else consistency-only (tamper-evidence, not authorship &mdash; see
+    <a href="#signing-two-kinds">23.2</a> for that distinction in general); and content binding &mdash; every
+    embedded cabinet is re-extracted and each file's SHA-256 recomputed against the signed declaration, so a
+    payload swapped in after signing is caught even though the signature itself still verifies. Only
+    externally-referenced (disk-resident) cabinets are not content-bound by this last check &mdash; the same
+    limitation <code>forge extract</code> already has.
+</p>
+
+<p>See also: <a href="#demos">Demo 56 &mdash; verify and plan</a>, <a href="#demos">Demo 57 &mdash; reproducible SBOM</a>, <a href="#sigil">Sigil</a> (23) for how the signature itself is produced.</p>
 
 <h3>Exit Codes</h3>
 <table class="api-table">
@@ -9140,6 +9219,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>SVC009</td><td>Service Arguments is empty string (use null for no arguments)</td></tr>
         <tr><td>SVC010</td><td>Both AccountProperty and UserName specified (AccountProperty takes precedence)</td></tr>
         <tr><td>SVC011</td><td>Service ComponentCondition must not be empty (use null to omit)</td></tr>
+        <tr><td>SVC012</td><td>Custom account specified without a password (warning)</td></tr>
     </tbody>
 </table>
 
@@ -9157,6 +9237,9 @@ public sealed record WixUnmappedFeature(
 <table class="api-table">
     <thead><tr><th>Code</th><th>Description</th></tr></thead>
     <tbody>
+        <tr><td>REG001</td><td>Registry entry Key is required</td></tr>
+        <tr><td>REG002</td><td>Duplicate registry entry: same root+key+value-name with identical data (warning; message notes possible feature-exclusivity when the entries are gated to different components/features)</td></tr>
+        <tr><td>REG003</td><td>Conflicting registry entry: same root+key+value-name with different data (error when both entries resolve to the same component/feature scope, since they are certain to co-install; downgraded to warning when the scopes differ, since that may be an intentional mutually-exclusive-feature pattern)</td></tr>
         <tr><td>REG007</td><td>Registry value references a sensitive MSI property (warning)</td></tr>
     </tbody>
 </table>
@@ -12107,32 +12190,26 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
 </p>
 
 <p>
-    <strong>What works without it.</strong> Bundle payload signing (<code>BundleBuilder.Integrity()</code>) is
-    always pure-.NET ECDSA-P256 (<code>EcdsaManifestSigner</code>) &mdash; no external tool is ever needed to
-    produce a bundle's manifest signature. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
+    <strong>What works without it.</strong> Payload signing is always pure-.NET ECDSA-P256
+    (<code>EcdsaManifestSigner</code>) on <em>both</em> sides &mdash; <code>BundleBuilder.Integrity()</code>
+    for bundles and <code>PackageBuilder.Integrity()</code> for MSI packages (<code>IntegritySigner</code>,
+    embedded as the MSI's <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> row, format tag
+    <code>falkforge-ecdsa-envelope-v2</code>). No external tool is ever required to produce a verifiable
+    manifest signature for either artifact type. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
     has no Sigil dependency either: it always writes a CycloneDX/SPDX sidecar next to the compiled artifact.
 </p>
 
 <p>
     <strong>What Sigil adds, when it's on PATH.</strong> FalkForge probes <code>sigil --version</code> once per
-    process (<code>SigilDetector</code>, result cached) and, if found:
+    process (<code>SigilDetector</code>, result cached) and, if found, wraps the already-written SBOM in a
+    Sigil DSSE attestation envelope and embeds it in the manifest as <code>SbomAttestation</code>
+    (<code>BundleIntegritySigner</code> for bundles, <code>IntegritySigner</code> for MSI &mdash; identical
+    shape on both sides). This is purely additive on both artifact types: if Sigil is missing, or the
+    attestation step fails for any reason, the build still succeeds with the payload signature and the plain
+    SBOM sidecar intact &mdash; the attestation is simply absent. <strong>Sigil never gates the payload
+    signature itself</strong> for either MSI or bundles &mdash; do not install it "to get a signed MSI"; it's
+    only needed if you specifically want the extra DSSE SBOM attestation.
 </p>
-<ul>
-    <li>
-        <strong>Bundles</strong> &mdash; the already-written SBOM is additionally wrapped in a Sigil DSSE
-        attestation envelope and embedded in the manifest as <code>SbomAttestation</code>
-        (<code>BundleIntegritySigner</code>). This is purely additive: if Sigil is missing, or the attestation
-        step fails for any reason, the build still succeeds with the payload signature and the plain SBOM
-        sidecar intact &mdash; the attestation is simply absent.
-    </li>
-    <li>
-        <strong>MSI packages</strong> &mdash; here Sigil is load-bearing, not additive. Unlike bundles,
-        <code>PackageBuilder.Integrity()</code> has no pure-.NET fallback: the entire MSI integrity-signing step
-        (manifest signing <em>and</em> SBOM attestation, both driven through the <code>sigil</code> CLI via
-        <code>IntegritySigner</code>) is skipped silently when Sigil is absent from PATH, even with
-        <code>Integrity()</code> configured. If you need MSI integrity signing, install Sigil first.
-    </li>
-</ul>
 
 <div class="note">
     <code>forge build --no-sign</code> (or the <code>FALKFORGE_NO_SIGN</code> environment variable) skips
@@ -12280,17 +12357,20 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
  8. Reproducible timestamps  (opt-in) SummaryInfoPatcher overwrites the FILETIME fields msi.dll always
                             stamps with the current time, so a ReproducibleOptions build is byte-identical
                             across machines and calendar days.
- 9. Sign                   Authenticode (CodeSigner, if Signing is configured) and, opportunistically,
-                            FalkForge integrity signing (IntegritySigner, if Sigil is on PATH and
-                            Integrity() is configured) &mdash; see 24.4.
+ 9. Sign                   Authenticode (CodeSigner, if Signing is configured) and FalkForge integrity
+                            signing (IntegritySigner: always pure-.NET ECDSA when Integrity() is configured
+                            &mdash; Sigil is not required; sidecar-only when Reproducible() is also set) &mdash;
+                            see 24.4.
 10. ICE validate            Native ICE custom actions run against the finished .msi (skipped for
                             reproducible builds, since ICE can perturb bytes non-deterministically).
 11. SBOM + WinGet            Non-fatal, opt-in sidecars: a CycloneDX SBOM next to the .msi, and a 3-file
                             WinGet manifest (8.28) if WinGet() was configured.</code></pre>
 <p>
-    Step 9's opportunistic integrity signing depends on a separate optional tool &mdash; see
-    <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity Signing</a> (23) for what it is, what
-    still works without it, and how to install it.
+    Step 9's integrity signature is always produced by FalkForge's own pure-.NET ECDSA signer, never gated
+    on an external tool &mdash; see <a href="#sigil">Sigil: Optional SBOM Attestation &amp; MSI Integrity
+    Signing</a> (23) for the one thing Sigil optionally adds on top (a DSSE SBOM attestation), and
+    <a href="#msi-package-code">Why Reproducible Builds Matter</a> (8.29) for how Step 9 changes when
+    <code>Reproducible()</code> is also configured.
 </p>
 <p>
     Two details matter if you're debugging a build. First, cabinet compression here is single-threaded

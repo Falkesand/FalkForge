@@ -216,25 +216,27 @@ public PackageBuilder UseDialogSet(MsiDialogSet dialogSet, Action<DialogCustomiz
 Typical caller:
 
 ```csharp
-PackageBuilder.Create("MyApp", "1.0.0", "Acme Corp")
-    .AddBinary("AcmeBanner",    "assets/banner.bmp")
-    .AddBinary("AcmeWatermark", "assets/watermark.bmp")
+new PackageBuilder { Name = "MyApp", Manufacturer = "Acme Corp", Version = new Version(1, 0, 0) }
+    .Binary("AcmeBanner",    "assets/banner.bmp")
+    .Binary("AcmeWatermark", "assets/watermark.bmp")
     .UseDialogSet(MsiDialogSet.FeatureTree, dialogs => dialogs
-        .BannerBitmap("AcmeBanner")
-        .DialogBitmap("AcmeWatermark")
+        .BannerBitmap("AcmeBanner")     // Binary key, not a file path — DLG003 validates it
+        .DialogBitmap("AcmeWatermark")  // resolves against the Binary rows registered above
         .OverrideButtonLabel(DialogButton.Install, "!(loc.Button.Deploy)")
         .OverrideButtonLabel(DialogButton.Next, "Continue")
         .WindowTitle("Acme Studio [ProductName]"))
     .Build();
 ```
 
-`DialogCustomization` verbs:
+`DialogCustomization` verbs. `key` in `BannerBitmap`/`DialogBitmap`/`HeaderIcon` is always a
+**Binary stream key** — the `Name` of a `PackageBuilder.Binary(name, sourcePath)` entry, never a
+raw file path. DLG003 fails the build if a key does not resolve to a registered `Binary`:
 
 | Verb | Effect |
 |------|--------|
-| `BannerBitmap(key)` | Replaces `Text` of every `Bitmap`-typed control with `key` |
-| `DialogBitmap(key)` | Reserved for welcome/exit background bitmaps (emitter-side) |
-| `HeaderIcon(key)` | Replaces `Text` of every `Icon`-typed control with `key` |
+| `BannerBitmap(key)` | Interior wizard pages (any non-Welcome/Exit dialog that declares a `TitleRow` placement — License, InstallDir, Customize, SetupType, InstallScope, Progress; excludes the `CancelDlg`/`BrowseDlg` modals, which place no `TitleRow`): if the dialog already has a `Bitmap`-typed control, its `Text` is replaced with `key`; otherwise a synthetic full-width `Bitmap` control (`BannerBmp`, sized to the layout's `Banner` region — 370x58 in the stock layout) is inserted first so later controls draw in front of it. No-op on exterior/modal dialogs. |
+| `DialogBitmap(key)` | Inserts a synthetic full-canvas `Bitmap` control (`DialogBmp`, 370x234, classic `WixUI_Bmp_Dialog` convention) on the exterior `WelcomeDlg`/`ExitDlg` dialogs of every stock template, `Text` set to `key`. No-op when unset; excluded from `BannerBitmap`'s sweep by control name so the two verbs never collide when both are set. |
+| `HeaderIcon(key)` | Same interior-wizard-page scope as `BannerBitmap`. If the dialog already has an `Icon`-typed control, its `Text` is replaced with `key`; otherwise a synthetic 16x16 `Icon` control (`HeaderIcon`) is inserted at the top-right of the `Banner` region, vertically aligned with `TitleRow` — "next to the dialog title" — drawn in front of any synthesized banner. No-op on exterior/modal dialogs. |
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |
 | `OverrideButtonLabel(button, label)` | Rewrites matching `PushButton.Text` via `DialogButtonNames.Map` |
 | `SuppressDialog(dialog)` | Removes the stock dialog from the sequence (DLG002 validates navigation) |
