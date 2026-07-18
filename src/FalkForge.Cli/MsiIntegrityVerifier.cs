@@ -25,19 +25,29 @@ namespace FalkForge.Cli;
 ///   own docs for why that is not authorship proof).</item>
 ///   <item><b>Content binding</b> — the signature only proves the DECLARED
 ///   <c>(fileName, sha256)</c> pairs are self-consistent and (optionally) trusted; it says nothing
-///   about whether the MSI's ACTUAL embedded payload still matches those hashes. This step
-///   re-extracts every embedded cabinet, recomputes each file's SHA-256, and compares it against
-///   the signed declaration — exactly the "signed → manifest" binding
-///   <c>FalkForge.Engine.Integrity.PayloadIntegrityGate</c> performs for bundles at install time.
-///   A payload swapped in after signing (leaving the table/sidecar untouched) is caught here even
-///   though the signature itself still verifies.</item>
+///   about whether the MSI's ACTUAL embedded payload still matches those hashes, in EITHER
+///   direction. This step re-extracts every embedded cabinet, recomputes each file's SHA-256, and
+///   binds it to the signed declaration bidirectionally (<see cref="FindContentMismatches"/>):
+///   every declared file must be present with a matching hash (declared ⊆ actual — exactly the
+///   "signed → manifest" binding <c>FalkForge.Engine.Integrity.PayloadIntegrityGate</c> performs
+///   for bundles at install time), AND every actual embedded file must be declared (actual ⊆
+///   declared, closing the "attacker adds an undeclared payload to an otherwise-untouched, validly
+///   signed MSI" gap the one-directional check alone would miss). A payload swapped in or added
+///   after signing (leaving the table/sidecar untouched) is caught here even though the signature
+///   itself still verifies against its own, unmodified declaration.</item>
 /// </list>
 ///
-/// <para><b>Known limitation:</b> only embedded cabinets (<c>Media.Cabinet</c> prefixed
+/// <para><b>Known limitations.</b> Only embedded cabinets (<c>Media.Cabinet</c> prefixed
 /// <c>#</c>) are re-extracted for the content-binding check — the same limitation
 /// <c>FalkForge.Cli.MsiExtractor</c> (<c>forge extract</c>) already has. A payload shipped via an
 /// external, disk-resident cabinet is not content-bound by this check (its declared hash is
-/// neither confirmed nor contradicted).</para>
+/// neither confirmed nor contradicted). The envelope covers embedded PAYLOAD FILES only — it says
+/// nothing about the content of other MSI database tables (e.g. <c>Registry</c>,
+/// <c>CustomAction</c>, <c>Property</c> rows), so an attacker who edits those directly (without
+/// adding or altering a payload file) is not detected by this verifier. The signature also covers
+/// the CLASSICAL (ECDSA-P256) entry only; a hybrid post-quantum companion signature
+/// (<c>ML-DSA-*</c>), if present, is neither verified nor required here — there is no
+/// <c>--pq-key</c>/<c>pqPolicy</c> equivalent of the engine's INT011 enforcement for MSI yet.</para>
 /// </summary>
 public static class MsiIntegrityVerifier
 {
@@ -153,8 +163,8 @@ public static class MsiIntegrityVerifier
                 Source = source,
                 MatchedFingerprint = matchedFingerprint,
                 MismatchedFiles = mismatches,
-                Message = $"The MSI's actual payload does not match what was signed " +
-                          $"({mismatches.Count} file(s) differ): {string.Join(", ", mismatches)}."
+                Message = $"The MSI's actual embedded payload does not exactly match what was signed " +
+                          $"({mismatches.Count} file(s) differ — missing, added, or altered): {string.Join(", ", mismatches)}."
             };
         }
 
@@ -164,7 +174,13 @@ public static class MsiIntegrityVerifier
             FormatTag = formatTag,
             Source = source,
             MatchedFingerprint = matchedFingerprint,
-            Message = "The MSI's actual payload matches its integrity signature."
+            // Deliberately does NOT say "authorship verified" or similar — whether this outcome
+            // established authorship depends on whether a trusted key matched (MatchedFingerprint
+            // non-null) or verification was consistency-only (null). VerifyCommand renders that
+            // distinction explicitly in the label so a consistency-only PASS is never confused with
+            // a publisher-authenticated one (Merge Gate MEDIUM finding — see VerifyCommand).
+            Message = "The MSI's embedded payload files exactly match what was signed " +
+                      "(no files missing, added, or altered)."
         };
     }
 
@@ -278,16 +294,31 @@ public static class MsiIntegrityVerifier
     }
 
     /// <summary>
-    /// Compares the signed declaration against the actual re-extracted payload hashes. Pure and
-    /// platform-independent (no MSI I/O) so it is directly unit-testable without a real MSI.
-    /// Internal — exercised by tests via <c>InternalsVisibleTo</c>.
+    /// Compares the signed declaration against the actual re-extracted payload hashes,
+    /// bidirectionally. Pure and platform-independent (no MSI I/O) so it is directly unit-testable
+    /// without a real MSI. Internal — exercised by tests via <c>InternalsVisibleTo</c>.
+    ///
+    /// <para><b>Both directions matter.</b> Checking only "every declared file is present with a
+    /// matching hash" (declared ⊆ actual) is not enough: an attacker can take a genuinely signed,
+    /// trusted MSI and ADD an extra payload file — a new cabinet entry the signature never
+    /// declared — without touching anything the signature covers. Every declared file still
+    /// matches, so a one-directional check reports VERIFIED, carrying the real publisher's
+    /// fingerprint, while the injected file rides along unchecked (MSI has no separate runtime
+    /// gate the way a bundle's engine does — <c>forge verify</c> is the only trust check). The
+    /// second loop below closes this: every ACTUAL payload file must also be in the DECLARED set
+    /// (actual ⊆ declared), so an undeclared addition is caught even though it never touches a
+    /// single signed byte.</para>
     /// </summary>
     internal static List<string> FindContentMismatches(
         IReadOnlyList<ManifestFileEntry> declared, IReadOnlyDictionary<string, string> actual)
     {
         var mismatches = new List<string>();
+        var declaredNames = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var entry in declared)
         {
+            declaredNames.Add(entry.Name);
+
             if (!actual.TryGetValue(entry.Name, out var actualHash))
             {
                 mismatches.Add($"{entry.Name} (not found in the MSI's embedded payload)");
@@ -296,6 +327,13 @@ public static class MsiIntegrityVerifier
 
             if (!string.Equals(actualHash, entry.Sha256, StringComparison.OrdinalIgnoreCase))
                 mismatches.Add($"{entry.Name} (hash mismatch)");
+        }
+
+        // Closure check (actual ⊆ declared) — see the "Both directions matter" note above.
+        foreach (var name in actual.Keys)
+        {
+            if (!declaredNames.Contains(name))
+                mismatches.Add($"{name} (present in the MSI's embedded payload but not signed)");
         }
 
         return mismatches;

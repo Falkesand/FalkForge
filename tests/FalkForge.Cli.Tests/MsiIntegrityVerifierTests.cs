@@ -315,6 +315,118 @@ public sealed class MsiIntegrityVerifierTests : IDisposable
     }
 
     [Fact]
+    public void FindContentMismatches_ActualHasUndeclaredFile_ReportsClosureViolation()
+    {
+        // BLOCKING security finding (Merge Gate, Opus): the pre-fix check only verified declared
+        // subset-of-actual (every signed file present with a matching hash) and never checked the
+        // reverse direction. An attacker could take a genuinely signed, trusted MSI, inject an EXTRA
+        // payload file the signature never declared, and get a VERIFIED result carrying the real
+        // publisher's fingerprint — every declared file still matched, so the one-directional check
+        // never noticed the addition. msiexec has no separate runtime gate for MSI (unlike bundles),
+        // so an undetected extra file installs unchecked. The closure check below (actual subset of
+        // declared) is what catches it.
+        var declared = new List<ManifestFileEntry> { new() { Name = "app.exe", Sha256 = "AAAA" } };
+        var actual = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["app.exe"] = "aaaa",
+            ["evil.dll"] = "DEADBEEF" // present in the MSI's payload but never signed
+        };
+
+        var mismatches = MsiIntegrityVerifier.FindContentMismatches(declared, actual);
+
+        Assert.Single(mismatches);
+        Assert.Contains("evil.dll", mismatches[0]);
+    }
+
+    [Fact]
+    public void Verify_SignedMsiWithInjectedUndeclaredPayload_ReturnsFailed_ClosureViolation()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // End-to-end proof of the same attack against a REAL compiled, signed, correctly-pinned MSI:
+        // build and sign normally, then — without touching the signature or any declared file —
+        // splice in a second embedded cabinet (a new Media row + _Streams entry) carrying a file the
+        // envelope never declared. This models an attacker who appends a malicious payload without
+        // needing to break the signature at all. Pre-fix, this returned VERIFIED with the real,
+        // trusted publisher fingerprint; the fix must return FAILED naming the undeclared file.
+        var (source, outputDir) = CreatePackageInputs(nameof(Verify_SignedMsiWithInjectedUndeclaredPayload_ReturnsFailed_ClosureViolation));
+        var msiPath = CompileSigned(source, outputDir, "ClosureAttackApp");
+        var trustedFingerprint = ReadFirstFingerprint(msiPath);
+
+        var injectedDir = Path.Combine(_tempDir, "injected_source");
+        Directory.CreateDirectory(injectedDir);
+        var injectedFile = Path.Combine(injectedDir, "evil.dll");
+        File.WriteAllText(injectedFile, "malicious undeclared payload");
+
+        var cabOutputDir = Path.Combine(_tempDir, "injected_cab");
+        Directory.CreateDirectory(cabOutputDir);
+        var resolvedInjected = new ResolvedFile
+        {
+            SourcePath = injectedFile,
+            TargetDirectory = KnownFolder.ProgramFiles / "TestCorp" / "ClosureAttackApp",
+            FileName = "evil.dll",
+            FileSize = new FileInfo(injectedFile).Length,
+            ComponentId = "InjectedComponent",
+            FileId = "EVILFILE1"
+        };
+
+        string cabPath;
+        using (var cabinetBuilder = new CabinetBuilder())
+        {
+            var cabResult = cabinetBuilder.BuildCabinet([resolvedInjected], cabOutputDir, CompressionLevel.None, "Evil.cab");
+            Assert.True(cabResult.IsSuccess, cabResult.IsFailure ? cabResult.Error.Message : null);
+            cabPath = cabResult.Value;
+        }
+
+        var dbResult = MsiDatabase.Open(msiPath, readOnly: false);
+        Assert.True(dbResult.IsSuccess, dbResult.IsFailure ? dbResult.Error.Message : null);
+        using (var db = dbResult.Value)
+        {
+            // Reuse an EXISTING component so the injected File row is schema-shaped like the real
+            // attack Opus described (a msiexec install could reference it via FeatureComponents
+            // without needing a fabricated Component_ too) — MSI SQL does not enforce the foreign
+            // key at raw INSERT time, but this keeps the row realistic rather than a bare orphan.
+            var existingComponent = db.QueryRows("SELECT `Component` FROM `Component`", 1);
+            Assert.True(existingComponent.IsSuccess, existingComponent.IsFailure ? existingComponent.Error.Message : null);
+            var componentId = Assert.Single(existingComponent.Value)[0];
+
+            var fileRowResult = db.InsertRow(
+                "SELECT `File`, `Component_`, `FileName`, `FileSize`, `Version`, `Language`, `Attributes`, `Sequence` FROM `File`",
+                record => record.SetString(1, "EVILFILE1").SetString(2, componentId).SetString(3, "evil.dll")
+                    .SetInteger(4, (int)new FileInfo(injectedFile).Length).SetString(5, null).SetString(6, null)
+                    .SetInteger(7, 0).SetInteger(8, 9999));
+            Assert.True(fileRowResult.IsSuccess, fileRowResult.IsFailure ? fileRowResult.Error.Message : null);
+
+            // Insert the rogue cabinet as a NEW _Streams entry (its name "Evil.cab" cannot collide
+            // with the original "Data.cab") and a NEW Media row (DiskId 2, distinct primary key)
+            // pointing at it via the '#' embedded-cabinet prefix.
+            var streamResult = db.InsertRow(
+                "SELECT `Name`, `Data` FROM `_Streams`",
+                record => record.SetString(1, "Evil.cab").SetStream(2, cabPath));
+            Assert.True(streamResult.IsSuccess, streamResult.IsFailure ? streamResult.Error.Message : null);
+
+            var mediaResult = db.InsertRow(
+                "SELECT `DiskId`, `LastSequence`, `DiskPrompt`, `Cabinet`, `VolumeLabel`, `Source` FROM `Media`",
+                record => record.SetInteger(1, 2).SetInteger(2, 1).SetString(3, null).SetString(4, "#Evil.cab").SetString(5, null).SetString(6, null));
+            Assert.True(mediaResult.IsSuccess, mediaResult.IsFailure ? mediaResult.Error.Message : null);
+
+            var commitResult = db.Commit();
+            Assert.True(commitResult.IsSuccess, commitResult.IsFailure ? commitResult.Error.Message : null);
+        }
+
+        var result = MsiIntegrityVerifier.Verify(
+            msiPath, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { trustedFingerprint });
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(SignatureVerdict.Failed, result.Value.Verdict);
+        Assert.Contains(result.Value.MismatchedFiles, m => m.Contains("evil.dll", StringComparison.OrdinalIgnoreCase));
+        // Still cryptographically the trusted publisher's key — proves the closure violation is
+        // caught EVEN THOUGH authorship itself is genuine, not merely "signature invalid."
+        Assert.Contains("evil.dll", result.Value.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Verify_NonExistentMsi_ReturnsFailureResult()
     {
         if (!OperatingSystem.IsWindows())
