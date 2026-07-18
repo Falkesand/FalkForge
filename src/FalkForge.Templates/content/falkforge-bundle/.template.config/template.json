@@ -28,7 +28,7 @@
       "type": "parameter",
       "datatype": "text",
       "description": "Version of the FalkForge meta-package to reference.",
-      "defaultValue": "0.1.0-alpha.1",
+      "defaultValue": "0.5.0-beta.1",
       "replaces": "FALKFORGE-VERSION"
     }
   }
