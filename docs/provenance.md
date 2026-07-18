@@ -397,6 +397,20 @@ A payload swapped into, or added to, the MSI after signing — leaving the signa
 itself untouched — is caught by this binding even though the signature cryptographically still
 verifies against its own (unchanged) declaration.
 
+**Duplicate-name collisions are always tamper.** The envelope's `(name, sha256)` pairs are
+NAME-ONLY granularity — it has no way to express "there must be exactly one embedded payload file
+named X." If two or more actual embedded payload files resolve to the same name (a distinct `File`
+table row and cabinet entry per copy, but an aliased `FileName`), `forge verify` refuses the MSI as
+tamper unconditionally — it never picks either copy's hash to reconcile with the declaration, even
+if one of them happens to match. This closes a variant of the addition attack above: without it, an
+attacker could splice in a *second* copy of an already-declared file name with malicious bytes, and
+if that copy is processed before the legitimate one during cabinet re-extraction, a naive
+"last-write-wins" accumulation would silently retain only the legitimate hash — passing both
+direction checks above as `VERIFIED` while the genuinely separate, malicious `File` row still
+installs via `msiexec`. Legitimate MSIs cannot trigger this: the compiler enforces case-insensitive
+`FileName` uniqueness at build time, so a name collision is reachable only via direct post-build
+database tampering.
+
 > **Known limitations.** Only *embedded* cabinets (`Media.Cabinet` prefixed `#`) are re-extracted
 > for the content-binding check — the same limitation `forge extract` already has. A payload
 > shipped via an external, disk-resident cabinet is neither confirmed nor contradicted by it.

@@ -35,6 +35,14 @@ namespace FalkForge.Cli;
 ///   signed MSI" gap the one-directional check alone would miss). A payload swapped in or added
 ///   after signing (leaving the table/sidecar untouched) is caught here even though the signature
 ///   itself still verifies against its own, unmodified declaration.</item>
+///   <item><b>Name-collision (ambiguity) check</b> — the envelope's <c>(name, sha256)</c> pairs are
+///   NAME-ONLY granularity, so two or more actual embedded payload files resolving to the same name
+///   can never be distinguished by the signature. <see cref="AccumulatePayloadHashes"/> refuses to
+///   silently let one occurrence overwrite another; ANY such collision is unconditional tamper,
+///   checked before the bidirectional binding above (an attacker who splices in a duplicate-named
+///   file could otherwise engineer the dictionary to retain only the hash that happens to match the
+///   declaration, passing both direction checks while a genuinely separate, malicious File table row
+///   still installs).</item>
 /// </list>
 ///
 /// <para><b>Known limitations.</b> Only embedded cabinets (<c>Media.Cabinet</c> prefixed
@@ -167,7 +175,31 @@ public static class MsiIntegrityVerifier
             };
         }
 
-        var mismatches = FindContentMismatches(envelope.Files, actualHashes.Value);
+        var (hashesByName, duplicateNames) = actualHashes.Value;
+        if (duplicateNames.Count > 0)
+        {
+            // Ambiguity check, ahead of the declared/actual comparison below (Merge Gate delta
+            // re-review, BLOCKING): the envelope has NAME-ONLY granularity — one (name, sha256) pair
+            // per declared file — so it cannot express "there must be exactly one embedded payload
+            // file named X." Two or more embedded files resolving to the same name is therefore
+            // always tamper, unconditionally, regardless of whether either copy's bytes happen to
+            // match the declared hash. See AccumulatePayloadHashes for why a plain dictionary
+            // assignment could not be trusted to catch this.
+            return new MsiSignatureVerification
+            {
+                Verdict = SignatureVerdict.Failed,
+                FormatTag = formatTag,
+                Source = source,
+                MatchedFingerprint = matchedFingerprint,
+                MismatchedFiles = duplicateNames,
+                Message = $"The MSI's embedded payload contains {duplicateNames.Count} file name(s) " +
+                          $"carried by more than one embedded payload file — the signature cannot " +
+                          $"distinguish which is the signed one, so this is refused as tamper: " +
+                          $"{string.Join(", ", duplicateNames)}."
+            };
+        }
+
+        var mismatches = FindContentMismatches(envelope.Files, hashesByName);
         if (mismatches.Count > 0)
         {
             return new MsiSignatureVerification
@@ -271,14 +303,16 @@ public static class MsiIntegrityVerifier
     /// under (see <c>FalkForge.Compiler.Msi.Signing.IntegritySigner.BuildPayloadHashEntries</c>,
     /// which hashes <c>ResolvedFile.SourcePath</c> keyed by <c>ResolvedFile.FileName</c>, and
     /// <c>FileTableProducer</c>, which writes that same <c>FileName</c> into the File table's
-    /// <c>FileName</c> column verbatim).
+    /// <c>FileName</c> column verbatim). Duplicate-name detection is delegated to
+    /// <see cref="AccumulatePayloadHashes"/> — see its docs for why a plain dictionary assignment is
+    /// not safe here.
     /// </summary>
     [SupportedOSPlatform("windows")]
-    private static Result<Dictionary<string, string>> ReadActualPayloadHashes(MsiDatabase db)
+    private static Result<(Dictionary<string, string> Hashes, List<string> DuplicateNames)> ReadActualPayloadHashes(MsiDatabase db)
     {
         var fileResult = db.QueryRows("SELECT `File`, `FileName` FROM `File`", 2);
         if (fileResult.IsFailure)
-            return Result<Dictionary<string, string>>.Failure(fileResult.Error);
+            return Result<(Dictionary<string, string>, List<string>)>.Failure(fileResult.Error);
 
         var fileNameByKey = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var row in fileResult.Value)
@@ -289,10 +323,10 @@ public static class MsiIntegrityVerifier
 
         var mediaResult = db.QueryRows("SELECT `Cabinet` FROM `Media`", 1);
         if (mediaResult.IsFailure)
-            return Result<Dictionary<string, string>>.Failure(mediaResult.Error);
+            return Result<(Dictionary<string, string>, List<string>)>.Failure(mediaResult.Error);
 
-        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
         var remainingBudget = MsiStreamName.MaxTotalUncompressedCabinetBytes;
+        var extractedEntries = new List<(string Name, string Hash)>();
 
         foreach (var mediaRow in mediaResult.Value)
         {
@@ -313,17 +347,52 @@ public static class MsiIntegrityVerifier
             using var cabStream = new MemoryStream(streamResult.Value);
             var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget);
             if (extractResult.IsFailure)
-                return Result<Dictionary<string, string>>.Failure(extractResult.Error);
+                return Result<(Dictionary<string, string>, List<string>)>.Failure(extractResult.Error);
 
             foreach (var (cabFileKey, fileData) in extractResult.Value)
             {
                 remainingBudget -= fileData.LongLength;
                 var name = fileNameByKey.TryGetValue(cabFileKey, out var fn) ? fn : cabFileKey;
-                hashes[name] = Convert.ToHexString(SHA256.HashData(fileData));
+                extractedEntries.Add((name, Convert.ToHexString(SHA256.HashData(fileData))));
             }
         }
 
-        return hashes;
+        return AccumulatePayloadHashes(extractedEntries);
+    }
+
+    /// <summary>
+    /// Folds a stream of (resolved name, SHA-256) entries into a lookup dictionary, tracking any name
+    /// that appears more than once instead of silently letting a later entry overwrite an earlier one.
+    ///
+    /// <para><b>Why this matters (Merge Gate delta re-review, BLOCKING).</b> A plain
+    /// <c>dict[name] = hash</c> assignment during extraction is exploitable: an attacker splices in a
+    /// SECOND embedded cabinet + File row whose File key is distinct but whose resolved long name
+    /// ALIASES an already-declared, signed name, carrying malicious bytes. If that malicious entry
+    /// happens to be processed before the legitimate one (e.g. by placing it in a lower-DiskId Media
+    /// row), the legitimate entry's later assignment silently overwrites it in the dictionary — the
+    /// resulting <c>actual</c> map reports the CORRECT hash for that name, so both the declared⊆actual
+    /// and actual⊆declared checks pass, and the verifier returns VERIFIED with the real publisher's
+    /// fingerprint while the malicious duplicate — a genuine, separate File table row — still installs
+    /// via msiexec. Even without attacker control over processing order, the verdict would be
+    /// order-dependent on <c>Media</c> row iteration, which is unsound regardless of exploitability.
+    /// The envelope's <c>(name, sha256)</c> declaration has no way to express "exactly one file may
+    /// carry this name," so ANY name occurring more than once among the actual embedded payload files
+    /// is treated as tamper unconditionally — never reconciled by picking either hash. This is pure and
+    /// platform-independent so it is directly unit-testable without a real MSI.</para>
+    /// </summary>
+    internal static (Dictionary<string, string> Hashes, List<string> DuplicateNames) AccumulatePayloadHashes(
+        IEnumerable<(string Name, string Hash)> entries)
+    {
+        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var duplicateNames = new List<string>();
+
+        foreach (var (name, hash) in entries)
+        {
+            if (!hashes.TryAdd(name, hash) && !duplicateNames.Contains(name, StringComparer.Ordinal))
+                duplicateNames.Add(name);
+        }
+
+        return (hashes, duplicateNames);
     }
 
     /// <summary>

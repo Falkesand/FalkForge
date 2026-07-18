@@ -342,6 +342,51 @@ public sealed class MsiIntegrityVerifierTests : IDisposable
     }
 
     [Fact]
+    public void AccumulatePayloadHashes_NoCollisions_BuildsDictionaryWithNoDuplicates()
+    {
+        var entries = new List<(string Name, string Hash)> { ("app.exe", "AAAA"), ("helper.dll", "BBBB") };
+
+        var (hashes, duplicateNames) = MsiIntegrityVerifier.AccumulatePayloadHashes(entries);
+
+        Assert.Equal("AAAA", hashes["app.exe"]);
+        Assert.Equal("BBBB", hashes["helper.dll"]);
+        Assert.Empty(duplicateNames);
+    }
+
+    [Fact]
+    public void AccumulatePayloadHashes_TwoEntriesResolveToSameName_ReportsDuplicate_RegardlessOfHashEquality()
+    {
+        // Pure-function proof of the Opus delta re-review fix: a plain dict[name] = hash assignment
+        // would silently let the SECOND entry win, hiding the fact that TWO distinct embedded payload
+        // files claim the same name — exactly what a duplicate-aliasing attack relies on. Detection
+        // must fire even when, by coincidence, both hashes happen to be identical: the ambiguity
+        // itself (two files, one name) is what makes the envelope unable to say which is signed, not
+        // whether the bytes happen to differ.
+        var entries = new List<(string Name, string Hash)> { ("app.exe", "AAAA"), ("app.exe", "FFFF") };
+
+        var (hashes, duplicateNames) = MsiIntegrityVerifier.AccumulatePayloadHashes(entries);
+
+        Assert.Single(duplicateNames);
+        Assert.Equal("app.exe", duplicateNames[0]);
+        // The dictionary still resolves to SOME value (the first-seen entry) — callers must consult
+        // DuplicateNames rather than trusting the dictionary is exhaustive/unambiguous for that key.
+        Assert.Equal("AAAA", hashes["app.exe"]);
+    }
+
+    [Fact]
+    public void AccumulatePayloadHashes_ThreeEntriesSameName_ReportsDuplicateOnce_NotTwice()
+    {
+        var entries = new List<(string Name, string Hash)>
+        {
+            ("app.exe", "AAAA"), ("app.exe", "BBBB"), ("app.exe", "CCCC")
+        };
+
+        var (_, duplicateNames) = MsiIntegrityVerifier.AccumulatePayloadHashes(entries);
+
+        Assert.Single(duplicateNames); // de-duplicated: one name, however many colliding occurrences
+    }
+
+    [Fact]
     public void FindContentMismatches_ActualHasUndeclaredFile_ReportsClosureViolation()
     {
         // BLOCKING security finding (Merge Gate, Opus): the pre-fix check only verified declared
@@ -451,6 +496,98 @@ public sealed class MsiIntegrityVerifierTests : IDisposable
         // Still cryptographically the trusted publisher's key — proves the closure violation is
         // caught EVEN THOUGH authorship itself is genuine, not merely "signature invalid."
         Assert.Contains("evil.dll", result.Value.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Verify_SignedMsiWithDuplicateAliasedFileName_ReturnsFailed_NeverSilentlyReconciled()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // Opus delta re-review (residual BLOCKING, same attack class as the closure fix above):
+        // ReadActualPayloadHashes keys its dictionary by the RESOLVED long file name, and a plain
+        // dictionary assignment (hashes[name] = ...) silently OVERWRITES on a second occurrence of
+        // that name. An attacker can splice in a SECOND embedded cabinet + File row whose File KEY is
+        // distinct but whose resolved FileName ALIASES an already-declared name (here "app.exe") and
+        // carries malicious bytes, placed at a LOW DiskId so Media iteration order processes the
+        // malicious entry first. Pre-fix: the legitimate entry (processed second) silently overwrites
+        // the malicious one in the dictionary, so actual["app.exe"] ends up the GOOD hash — both
+        // direction checks pass, and forge verify reports VERIFIED (authorship verified) with the
+        // real, trusted publisher fingerprint, while msiexec would still install BOTH File rows
+        // (including the malicious duplicate, to its own component's directory). The signed envelope
+        // has name-only granularity — it cannot express "there must be exactly one file named
+        // app.exe" — so ANY second embedded payload resolving to an already-declared name must be
+        // tamper, unconditionally, regardless of which copy's bytes happen to match. Legitimate MSIs
+        // cannot trigger this: the compiler enforces case-insensitive FileName uniqueness at build
+        // time (verified — this scenario is only reachable via direct post-build database surgery,
+        // exactly like every other tamper test in this file).
+        var (source, outputDir) = CreatePackageInputs(nameof(Verify_SignedMsiWithDuplicateAliasedFileName_ReturnsFailed_NeverSilentlyReconciled));
+        var msiPath = CompileSigned(source, outputDir, "DupAliasAttackApp");
+        var trustedFingerprint = ReadFirstFingerprint(msiPath);
+
+        var injectedDir = Path.Combine(_tempDir, "injected_source");
+        Directory.CreateDirectory(injectedDir);
+        var injectedFile = Path.Combine(injectedDir, "app.exe"); // on-disk name is irrelevant; FileName below is what aliases
+        File.WriteAllText(injectedFile, "malicious duplicate payload, distinct bytes from the signed app.exe");
+
+        var cabOutputDir = Path.Combine(_tempDir, "injected_cab");
+        Directory.CreateDirectory(cabOutputDir);
+        var resolvedInjected = new ResolvedFile
+        {
+            SourcePath = injectedFile,
+            TargetDirectory = KnownFolder.ProgramFiles / "TestCorp" / "DupAliasAttackApp",
+            FileName = "app.exe", // aliases the already-declared, signed name
+            FileSize = new FileInfo(injectedFile).Length,
+            ComponentId = "InjectedComponent",
+            FileId = "EVILALIAS1" // distinct File key — a genuinely separate File table row
+        };
+
+        string cabPath;
+        using (var cabinetBuilder = new CabinetBuilder())
+        {
+            var cabResult = cabinetBuilder.BuildCabinet([resolvedInjected], cabOutputDir, CompressionLevel.None, "EvilAlias.cab");
+            Assert.True(cabResult.IsSuccess, cabResult.IsFailure ? cabResult.Error.Message : null);
+            cabPath = cabResult.Value;
+        }
+
+        var dbResult = MsiDatabase.Open(msiPath, readOnly: false);
+        Assert.True(dbResult.IsSuccess, dbResult.IsFailure ? dbResult.Error.Message : null);
+        using (var db = dbResult.Value)
+        {
+            var existingComponent = db.QueryRows("SELECT `Component` FROM `Component`", 1);
+            Assert.True(existingComponent.IsSuccess, existingComponent.IsFailure ? existingComponent.Error.Message : null);
+            var componentId = Assert.Single(existingComponent.Value)[0];
+
+            var fileRowResult = db.InsertRow(
+                "SELECT `File`, `Component_`, `FileName`, `FileSize`, `Version`, `Language`, `Attributes`, `Sequence` FROM `File`",
+                record => record.SetString(1, "EVILALIAS1").SetString(2, componentId).SetString(3, "app.exe")
+                    .SetInteger(4, (int)new FileInfo(injectedFile).Length).SetString(5, null).SetString(6, null)
+                    .SetInteger(7, 0).SetInteger(8, 9999));
+            Assert.True(fileRowResult.IsSuccess, fileRowResult.IsFailure ? fileRowResult.Error.Message : null);
+
+            var streamResult = db.InsertRow(
+                "SELECT `Name`, `Data` FROM `_Streams`",
+                record => record.SetString(1, "EvilAlias.cab").SetStream(2, cabPath));
+            Assert.True(streamResult.IsSuccess, streamResult.IsFailure ? streamResult.Error.Message : null);
+
+            // LOW DiskId (0, below the original build's DiskId 1) so the malicious cabinet is
+            // processed FIRST in Media order — the exact ordering the pre-fix code silently relied on
+            // to let the later, legitimate entry win the dictionary slot.
+            var mediaResult = db.InsertRow(
+                "SELECT `DiskId`, `LastSequence`, `DiskPrompt`, `Cabinet`, `VolumeLabel`, `Source` FROM `Media`",
+                record => record.SetInteger(1, 0).SetInteger(2, 1).SetString(3, null).SetString(4, "#EvilAlias.cab").SetString(5, null).SetString(6, null));
+            Assert.True(mediaResult.IsSuccess, mediaResult.IsFailure ? mediaResult.Error.Message : null);
+
+            var commitResult = db.Commit();
+            Assert.True(commitResult.IsSuccess, commitResult.IsFailure ? commitResult.Error.Message : null);
+        }
+
+        var result = MsiIntegrityVerifier.Verify(
+            msiPath, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { trustedFingerprint });
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(SignatureVerdict.Failed, result.Value.Verdict);
+        Assert.Contains("app.exe", result.Value.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
