@@ -147,6 +147,12 @@ forge validate installer.csx --json
 - `info` — `Version: <Version | "(unknown)">`
 - `info` — `Product Code: <ProductCode | "(unknown)">`
 - `info` — `Tables: <TableCount>`
+- `info` — `Integrity Signature: present (<SignatureFormatTag>)` or `Integrity Signature: not present`
+- when present: one `info` — `Signing Key Fingerprint: <fingerprint>` per entry in `SignatureFingerprints`
+- when present and the envelope carries a hybrid post-quantum companion: one `info` —
+  `PQ Companion Fingerprint (not usable with --trusted-key): <fingerprint>` per entry in
+  `PqCompanionFingerprints` — see [`forge verify --json`](#forge-verify---json) for why the two are
+  never interchangeable
 - with `--verbose`: `info` — `Table list:` followed by one `info` per name in `TableNames`
 
 The underlying inspection is captured by `MsiInspectionResult` (see `src/FalkForge.Cli/MsiInspectionResult.cs`):
@@ -159,6 +165,10 @@ The underlying inspection is captured by `MsiInspectionResult` (see `src/FalkFor
 | `ProductCode` | string? | `ProductCode` property GUID |
 | `TableNames` | array&lt;string&gt; | All table names in the MSI database |
 | `TableCount` | integer | `TableNames.Count` |
+| `SignaturePresent` | boolean | True when the embedded `_FalkForgeIntegrity` table or a detached `<msi>.sig.json` sidecar carries a signature. Non-cryptographic — presence only, not verification (`forge verify` is the verification path). |
+| `SignatureFormatTag` | string? | The signature row's `Format` column (e.g. `falkforge-ecdsa-envelope-v2`), or null when `SignaturePresent` is false or the signature came from a sidecar (no format column), or when a located sidecar was refused for exceeding the 4 MiB read cap. |
+| `SignatureFingerprints` | array&lt;string&gt; | Declared fingerprint(s) of the envelope's CLASSICAL (ECDSA-P256) signature entries — the ones a `forge verify --trusted-key` value must match. Displayed as written by the signer, not re-derived or checked against a trust anchor. |
+| `PqCompanionFingerprints` | array&lt;string&gt; | Declared fingerprint(s) of any hybrid post-quantum (ML-DSA) companion signature entries. Deliberately a separate field from `SignatureFingerprints`: a zero-config `Integrity()` build on a PQ-capable machine signs with both a classical and an ML-DSA key, and `--trusted-key` only ever matches the classical one — mixing the two under one field/label is a copy-paste footgun that produces a baffling `INT001`. |
 
 These values currently surface as text in `messages` rather than as a structured `result` object. Consumers that need the raw fields should either parse the message text or wait for a future schema version that promotes them to `result`.
 
@@ -273,29 +283,42 @@ forge verify app.msi --rebuild installer.csproj --source-date-epoch 1577836800 -
 
 ### Signature-only mode (.msi, no --rebuild)
 
-**Usage:** `forge verify <artifact.msi> [--trusted-key <fingerprint>]... [--json]`
+**Usage:** `forge verify <artifact.msi> [--trusted-key <fingerprint>]... [--json]`. `--trusted-key` is rejected together with `--rebuild` (validation error) — it has no effect on the rebuild-and-compare path, so combining them would otherwise silently do nothing.
 
-**Behaviour:** `MsiIntegrityVerifier` (a) locates the pure-.NET ECDSA integrity envelope, preferring the embedded `_FalkForgeIntegrity`/`ManifestSignature` table row and falling back to the detached `<msi>.sig.json` sidecar when the table is absent (the normal shape for a `Reproducible()`+`Integrity()` MSI, which carries no in-band table at all — see the note above), (b) cryptographically verifies the envelope — against the `--trusted-key` fingerprint set when supplied (establishing authorship), else consistency-only (tamper-evidence only, not authorship), and (c) re-extracts every embedded cabinet, recomputes each payload file's SHA-256, and binds it to the signed declaration, so a payload swapped in after signing (leaving the table/sidecar untouched) is caught even though the signature itself still verifies. Windows-only (requires `msi.dll`); non-Windows exits `3`.
+**Behaviour:** `MsiIntegrityVerifier` (a) locates the pure-.NET ECDSA integrity envelope, preferring the embedded `_FalkForgeIntegrity`/`ManifestSignature` table row and falling back to the detached `<msi>.sig.json` sidecar (capped at 4 MiB — an oversized sidecar is refused and reported as `FAILED`, never silently treated as "nothing to see here") when the table is absent (the normal shape for a `Reproducible()`+`Integrity()` MSI, which carries no in-band table at all — see the note above), (b) cryptographically verifies the envelope — against the `--trusted-key` fingerprint set when supplied (establishing authorship), else consistency-only (tamper-evidence only, not authorship), and (c) re-extracts every embedded cabinet, recomputes each payload file's SHA-256, and binds it to the signed declaration **bidirectionally**: every declared file must be present with a matching hash, AND every actual embedded file must be declared. The second direction matters — without it, an attacker could take a genuinely signed, trusted MSI and add an extra, undeclared payload file without touching anything the signature covers, and get a `VERIFIED` result carrying the real publisher's fingerprint. A payload swapped in, altered, or added after signing (leaving the table/sidecar untouched) is caught by this binding even though the signature itself still verifies against its own, unmodified declaration. Windows-only (requires `msi.dll`); non-Windows exits `3`.
+
+> **Uncovered by this check:** the envelope covers embedded payload FILES only — not other MSI database table content (e.g. `Registry`, `CustomAction`, `Property` rows), and not a hybrid post-quantum (ML-DSA) companion signature if present (classical ECDSA-P256 only is checked here; there is no `--pq-key`/`INT011`-equivalent enforcement for MSI yet, unlike the bundle runtime gate).
 
 **Verdicts:**
 
 | Verdict | Exit | Meaning |
 |---------|------|---------|
-| `VERIFIED` | `0` | The signature cryptographically verifies (and matches a trusted key, when `--trusted-key` was supplied) and the MSI's actual payload matches every hash it declares. |
+| `VERIFIED` (authorship verified) | `0` | A trusted key (`--trusted-key`) matched: the signature cryptographically verifies against a pinned publisher key, and the MSI's actual payload exactly matches what was signed (no files missing, added, or altered). Rendered in **green**. |
+| `VERIFIED` (tamper-evidence only) | `0` | No `--trusted-key` was supplied: the payload is self-consistent and the signature verifies against its own embedded key, but publisher identity was NOT checked. Rendered in **yellow** with the explicit label `VERIFIED (tamper-evidence only — authorship NOT established; pass --trusted-key to verify publisher)` — deliberately distinct from the authorship-verified label so a consistency-only pass is never mistaken for a publisher-authenticated one. |
 | `NOT-SIGNED` | `1` | Neither the embedded table nor a detached sidecar carries a signature. Fail-loud: an unsigned MSI is never reported as passing. |
-| `FAILED` | `1` | A signature was found but did not verify, matched no trusted key, or the MSI's actual payload no longer matches what was signed (post-signing tamper). |
+| `FAILED` | `1` | A signature was found but did not verify, matched no trusted key, the MSI's actual payload no longer matches what was signed in either direction (missing, added, or altered files — post-signing tamper), or a located sidecar exceeded the 4 MiB size cap. |
 | (no verdict) | `3` | Setup failure — the MSI could not be opened at all. |
 
-**Envelope:** the `result` map carries `verdict` (always), and on `VERIFIED` also `formatTag` (e.g. `falkforge-ecdsa-envelope-v2`) and, when `--trusted-key` established authorship, `fingerprint` (the matched key's fingerprint).
+**Envelope:** the `result` map carries `verdict` (always — `"VERIFIED"` for both rows above; use `authorshipEstablished` to tell them apart programmatically), `authorshipEstablished` (`"true"`/`"false"`, always present on every signature-only verdict — not just `VERIFIED` — so a consumer never has to infer it from field absence), and, whenever the envelope was located regardless of verdict, `formatTag` (e.g. `falkforge-ecdsa-envelope-v2`; absent when the signature came from a sidecar, which carries no format column, or when nothing was located at all). `fingerprint` is present only when a trusted key matched (implies `authorshipEstablished:"true"`).
 
-**Example:**
+**Example (authorship verified):**
 
 ```bash
 forge verify app.msi --trusted-key A1B2C3D4E5F6...
 ```
 
 ```json
-{"version":1,"command":"verify","exitCode":0,"messages":[{"level":"info","text":"VERIFIED: The MSI's actual payload matches its integrity signature."}],"result":{"verdict":"VERIFIED","formatTag":"falkforge-ecdsa-envelope-v2","fingerprint":"A1B2C3D4E5F6..."}}
+{"version":1,"command":"verify","exitCode":0,"messages":[{"level":"info","text":"VERIFIED (authorship verified): The MSI's embedded payload files exactly match what was signed (no files missing, added, or altered)."}],"result":{"verdict":"VERIFIED","authorshipEstablished":"true","formatTag":"falkforge-ecdsa-envelope-v2","fingerprint":"A1B2C3D4E5F6..."}}
+```
+
+**Example (consistency-only, no --trusted-key):**
+
+```bash
+forge verify app.msi
+```
+
+```json
+{"version":1,"command":"verify","exitCode":0,"messages":[{"level":"info","text":"VERIFIED (tamper-evidence only — authorship NOT established; pass --trusted-key to verify publisher): The MSI's embedded payload files exactly match what was signed (no files missing, added, or altered)."}],"result":{"verdict":"VERIFIED","authorshipEstablished":"false","formatTag":"falkforge-ecdsa-envelope-v2"}}
 ```
 
 ## Exit Code Reference

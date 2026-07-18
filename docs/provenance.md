@@ -382,15 +382,30 @@ file FalkForge embeds in the MSI, keyed by the file's target name (the `File` ta
 column) and hashed from the *original source file on disk* at build time — not from any MSI
 container byte. `forge verify` recomputes this independently at verification time by re-extracting
 every embedded cabinet and re-hashing each file, then binds that recomputed hash back to the
-signed declaration — the same "signed → manifest" direction
-`FalkForge.Engine.Integrity.PayloadIntegrityGate` enforces for bundles at install time. A payload
-swapped into the MSI after signing — leaving the signature table/sidecar itself untouched — is
-caught by this binding even though the signature cryptographically still verifies against its own
-(unchanged) declaration.
+signed declaration **bidirectionally**:
 
-> **Known limitation:** only *embedded* cabinets (`Media.Cabinet` prefixed `#`) are re-extracted
-> for this check — the same limitation `forge extract` already has. A payload shipped via an
-> external, disk-resident cabinet is neither confirmed nor contradicted by the content-binding step.
+- **signed → actual** (every declared file is present with a matching hash) — the same direction
+  `FalkForge.Engine.Integrity.PayloadIntegrityGate` enforces for bundles at install time; and
+- **actual → signed** (every embedded payload file is in the declared set) — this direction is
+  what stops an attacker from taking a genuinely signed, trusted MSI and *adding* an extra,
+  undeclared payload file without touching anything the signature covers. Checking only the first
+  direction would let that addition through as `VERIFIED`, carrying the real publisher's
+  fingerprint, because every declared file still matches — MSI has no separate runtime gate the
+  way a bundle's engine does, so `forge verify` is the only place this is ever caught.
+
+A payload swapped into, or added to, the MSI after signing — leaving the signature table/sidecar
+itself untouched — is caught by this binding even though the signature cryptographically still
+verifies against its own (unchanged) declaration.
+
+> **Known limitations.** Only *embedded* cabinets (`Media.Cabinet` prefixed `#`) are re-extracted
+> for the content-binding check — the same limitation `forge extract` already has. A payload
+> shipped via an external, disk-resident cabinet is neither confirmed nor contradicted by it.
+> The envelope covers embedded payload FILES only — it says nothing about the content of other
+> MSI database tables (e.g. `Registry`, `CustomAction`, `Property` rows), so an attacker who edits
+> those directly, without adding or altering a payload file, is not detected. The signature check
+> also covers the CLASSICAL (ECDSA-P256) entry only: a hybrid post-quantum (ML-DSA) companion
+> signature, if present, is neither verified nor required for MSI today — there is no
+> `--pq-key`/`pqPolicy` equivalent of the bundle engine's `INT011` enforcement here yet.
 
 **Where the signature lives — table vs. sidecar.** `IntegritySigner` always writes the envelope to
 a detached `<msi>.sig.json` sidecar next to the compiled MSI. Whether it *also* embeds the
@@ -409,15 +424,25 @@ prior build even from identical source). `forge verify` handles both shapes tran
 prefers the in-band table when present, and falls back to the sidecar when it is not — the
 sidecar path is a normal, fully-supported verification, not a degraded one.
 
-**Verdicts:** `VERIFIED` (exit 0), `NOT-SIGNED` (exit 1 — no table and no sidecar; fail-loud, an
-unsigned MSI is never reported as passing), `FAILED` (exit 1 — signature invalid, matched no
-trusted key, or the recomputed content no longer matches what was signed). See
-[`cli-json-schema.md`](cli-json-schema.md#forge-verify---json) for the full envelope shape and
-exit-code table.
+**Verdicts:** `VERIFIED` (exit 0) — but rendered under two distinct labels: **authorship
+verified** (green — a `--trusted-key` matched) versus **tamper-evidence only** (yellow — no
+`--trusted-key` was supplied, so publisher identity was never checked). The two must never render
+identically; a consistency-only pass is a strictly weaker claim than an authorship-verified one,
+and printing them the same way would be a downgrade-attack UX. `NOT-SIGNED` (exit 1 — no table and
+no sidecar; fail-loud, an unsigned MSI is never reported as passing), `FAILED` (exit 1 — signature
+invalid, matched no trusted key, the recomputed content no longer matches what was signed in
+either direction — missing, added, or altered files — or a located sidecar exceeded the 4 MiB read
+cap FalkForge enforces against DoS/corruption). See
+[`cli-json-schema.md`](cli-json-schema.md#forge-verify---json) for the full envelope shape
+(including the `authorshipEstablished` field JSON consumers should key off of) and exit-code table.
 
 **`forge inspect`** additionally surfaces signature *presence*, the format tag (e.g.
 `falkforge-ecdsa-envelope-v2`), and the declared signing-key fingerprint(s) for quick,
 non-cryptographic display — actual verification is `forge verify`'s job, not `forge inspect`'s.
+Classical (ECDSA-P256) fingerprints — the ones `--trusted-key` matches — are shown separately from
+any hybrid post-quantum companion fingerprint, under a distinct label, so the two are never
+confused: pasting a PQ companion fingerprint into `--trusted-key` would otherwise produce a
+baffling `INT001`.
 
 ---
 
