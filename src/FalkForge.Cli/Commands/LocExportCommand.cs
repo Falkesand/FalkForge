@@ -1,0 +1,83 @@
+using System.Diagnostics.CodeAnalysis;
+using FalkForge.Cli.Settings;
+using FalkForge.Compiler.Msi;
+using Spectre.Console;
+using Spectre.Console.Cli;
+
+namespace FalkForge.Cli.Commands;
+
+/// <summary>
+/// Implements <c>forge loc export</c>: exports the built-in localization JSON (baked into
+/// FalkForge.Compiler.Msi as embedded resources) so users never need to clone the FalkForge repo
+/// to start an override file. The written content is the exact embedded resource, byte-faithful.
+/// Cross-platform: reads embedded resources only, no msi.dll P/Invoke required.
+/// </summary>
+public sealed class LocExportCommand : Command<LocExportSettings>
+{
+    private readonly IConsoleOutput _console;
+
+    public LocExportCommand() : this(new SpectreConsoleOutput()) { }
+
+    public LocExportCommand(IConsoleOutput console)
+    {
+        _console = console;
+    }
+
+    protected override int Execute([NotNull] CommandContext context, [NotNull] LocExportSettings settings, CancellationToken cancellationToken)
+    {
+        if (settings.List)
+        {
+            foreach (var culture in BuiltInLocalizationExtensions.BuiltInCultureNames)
+                _console.WriteLine(culture);
+            return ExitCodes.Success;
+        }
+
+        string[] cultures;
+        if (string.IsNullOrWhiteSpace(settings.Culture))
+        {
+            cultures = [.. BuiltInLocalizationExtensions.BuiltInCultureNames];
+        }
+        else if (BuiltInLocalizationExtensions.BuiltInCultureNames.Contains(settings.Culture))
+        {
+            cultures = [settings.Culture];
+        }
+        else
+        {
+            var available = string.Join(", ", BuiltInLocalizationExtensions.BuiltInCultureNames);
+            _console.WriteError($"Unknown culture '{settings.Culture}'. Available built-in cultures: {available}");
+            return ExitCodes.ValidationFailure;
+        }
+
+        // A single explicit --culture with a .json-suffixed --output names the override file
+        // directly. Anything else -- default output, a directory path, or exporting every
+        // built-in culture -- writes "<culture>.json" per culture into the output directory
+        // (created if missing); multiple cultures can never share one file path.
+        var writeAsExplicitFile = cultures.Length == 1
+                                   && !string.IsNullOrWhiteSpace(settings.Culture)
+                                   && settings.Output.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+
+        foreach (var culture in cultures)
+        {
+            var bytes = BuiltInLocalizationExtensions.GetBuiltInCultureJsonBytes(culture);
+
+            string targetPath;
+            if (writeAsExplicitFile)
+            {
+                targetPath = settings.Output;
+                var directory = Path.GetDirectoryName(Path.GetFullPath(targetPath));
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
+            }
+            else
+            {
+                Directory.CreateDirectory(settings.Output);
+                targetPath = Path.Combine(settings.Output, $"{culture}.json");
+            }
+
+            File.WriteAllBytes(targetPath, bytes);
+            _console.MarkupLine($"[green]Exported[/] {Markup.Escape(culture)} -> {Markup.Escape(targetPath)}");
+        }
+
+        return ExitCodes.Success;
+    }
+}

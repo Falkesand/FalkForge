@@ -124,4 +124,44 @@ public sealed class BuiltInLocalizationExtensionsTests
         var deDe = result.Value.Single(m => m.Culture == "de-DE");
         Assert.Equal("&Weiter >", deDe.Strings["Button.Next"]);
     }
+
+    // ── BuiltInCultureNames / GetBuiltInCultureJsonBytes (forge loc export support) ───────────
+
+    [Fact]
+    public void BuiltInCultureNames_ListsEnUsAndSvSe()
+    {
+        Assert.Equal(["en-US", "sv-SE"], BuiltInLocalizationExtensions.BuiltInCultureNames);
+    }
+
+    [Fact]
+    public void GetBuiltInCultureJsonBytes_EnUs_ReturnsRawEmbeddedJson()
+    {
+        var bytes = BuiltInLocalizationExtensions.GetBuiltInCultureJsonBytes("en-US");
+        var json = System.Text.Encoding.UTF8.GetString(bytes);
+
+        // Byte-faithful: parses back to the same dictionary the strongly-typed loader produces.
+        var strings = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json)!;
+        Assert.Equal("&Next >", strings["Button.Next"]);
+        Assert.Equal("Welcome to [ProductName]", strings["Dialog.Welcome.Title"]);
+    }
+
+    [Fact]
+    public void GetBuiltInCultureJsonBytes_SvSe_ReturnsRawEmbeddedJson()
+    {
+        var bytes = BuiltInLocalizationExtensions.GetBuiltInCultureJsonBytes("sv-SE");
+        var json = System.Text.Encoding.UTF8.GetString(bytes);
+
+        var strings = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json)!;
+        Assert.Equal("&Nästa >", strings["Button.Next"]);
+    }
+
+    [Fact]
+    public void GetBuiltInCultureJsonBytes_UnknownCulture_ThrowsInvalidOperation()
+    {
+        // Not a built-in culture — no embedded resource exists for it. Callers (forge loc export)
+        // are expected to validate against BuiltInCultureNames first and never reach this path
+        // for user typos; this is the fail-loud guard for programming errors.
+        Assert.Throws<InvalidOperationException>(() =>
+            BuiltInLocalizationExtensions.GetBuiltInCultureJsonBytes("xx-XX"));
+    }
 }

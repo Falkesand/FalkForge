@@ -99,6 +99,17 @@ app.Configure(config =>
             .WithExample("rules", "explain", "SVC003");
     });
 
+    config.AddBranch("loc", loc =>
+    {
+        loc.SetDescription("Localization tooling");
+        loc.AddCommand<LocExportCommand>("export")
+            .WithDescription("Export built-in localization JSON as an override starting point")
+            .WithExample("loc", "export")
+            .WithExample("loc", "export", "--culture", "en-US", "-o", "./loc")
+            .WithExample("loc", "export", "--culture", "en-US", "-o", "custom-en-US.json")
+            .WithExample("loc", "export", "--list");
+    });
+
     config.AddBranch("bundle", bundle =>
     {
         bundle.SetDescription("Bundle signing operations (detach/reattach for code signing)");
