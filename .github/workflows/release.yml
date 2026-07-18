@@ -10,6 +10,62 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# --- NuGet Trusted Publishing (OIDC, no long-lived API key) ---
+# The publish-nuget job below pushes every packable FalkForge project to nuget.org
+# using Trusted Publishing instead of a stored NUGET_API_KEY secret: the job requests
+# a short-lived GitHub OIDC token (permissions.id-token: write), exchanges it for a
+# temporary nuget.org API key (NuGet/login@v1, ~1 hour lifetime, one OIDC token yields
+# exactly one temp key), then pushes packages with that key. No nuget.org API key is
+# stored anywhere in this repo or its secrets.
+#
+# One-time setup on nuget.org (account menu -> Trusted Publishing -> Add policy):
+#   Repository Owner : Falkesand
+#   Repository        : FalkForge
+#   Workflow File     : release.yml    (file name only, not the .github/workflows/ path)
+#   Environment       : nuget-publish  (must match the `environment:` gate on the job below)
+# The policy applies to every package owned by the selected nuget.org account/org.
+# As of 2026-07, nuget.org Trusted Publishing policies are NOT scoped to a specific
+# package ID -- there is no glob/ID field in policy setup (confirmed: policy fields are
+# Repository Owner / Repository / Workflow File / Environment only; per-package scoping
+# is an open feature request, see https://github.com/nuget/nugetgallery/issues/10587).
+#
+# FIRST-EVER PUBLISH OF A BRAND-NEW PACKAGE ID: no special bootstrap is required. Because
+# the policy is owner-scoped rather than package-ID-scoped, the temporary API key behaves
+# like a normal owner-level nuget.org API key and can push a package ID that has never
+# existed before exactly the same way it pushes an existing ID -- nuget.org's docs do not
+# describe any different first-publish path for Trusted Publishing, and the pending-policy
+# mechanics below are about the GITHUB REPO's trust, not about individual package IDs. No
+# one-time manual `dotnet nuget push` with a classic API key is needed to "seed" new IDs;
+# if that ever changes, do the one-time seed push locally with a classic key from
+# nuget.org -> API Keys, then this workflow takes over for every release after.
+#
+# PRIVATE-REPO POLICY ACTIVATION: FalkForge is a private repo (as of 2026-07). Per
+# nuget.org's docs, a Trusted Publishing policy created against a private repo starts
+# "temporarily active for 7 days" -- nuget.org needs the repo/owner IDs from a first
+# successful OIDC exchange to permanently pin the policy (this defends against resurrection
+# attacks: deleting a repo and recreating it under the same name to impersonate the trust
+# relationship). If no publish happens within 7 days of creating the policy, it goes
+# inactive and must be restarted on nuget.org before the publish-nuget job below will
+# authenticate again -- that failure surfaces as an auth error in the NuGet login step,
+# not a build or test failure.
+#
+# GitHub-side one-time setup (outside this file):
+#   - Repo Settings -> Environments -> new environment named "nuget-publish". Add required
+#     reviewers there for a human approval gate before every nuget.org publish (recommended
+#     once this package has a broad audience); leave reviewer-free for unattended releases.
+#   - Repo Settings -> Secrets and variables -> Actions -> new secret NUGET_USER = the
+#     nuget.org account/profile username (NOT email) that owns the Trusted Publishing
+#     policy above. This is the only nuget.org-related secret this workflow uses -- no
+#     API key secret exists.
+#
+# Sources (fetched 2026-07, do not trust training-data memory for this recent feature):
+#   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing  (policy fields,
+#     GitHub Actions example, "Policies Pending Full Activation" 7-day private-repo window)
+#   https://github.com/NuGet/login  (action inputs: `user` required; outputs: `NUGET_API_KEY`;
+#     default OIDC audience https://www.nuget.org; latest tag v1.2.0 as of 2026-04)
+#   https://github.com/nuget/nugetgallery/issues/10587  (confirms no per-package-ID scoping
+#     exists yet in Trusted Publishing policies)
+
 jobs:
   release:
     runs-on: windows-latest
@@ -159,3 +215,67 @@ jobs:
             $files
 
           Write-Host "Release $tag created with $($files.Count) artifact(s)."
+
+  # --- Publish NuGet packages via Trusted Publishing ---
+  # See the workflow-level header comment above `jobs:` for the full policy setup,
+  # first-publish, and private-repo-activation notes.
+  #
+  # Runs as its own job (rather than steps tacked onto `release`) so the `environment:`
+  # gate gives it an independent approval checkpoint from the GitHub Release creation, and
+  # so `permissions.id-token: write` is scoped to only the job that actually needs OIDC —
+  # the `release` job's existing `id-token: write` is for actions/attest-build-provenance
+  # and is untouched by this change.
+  #
+  # `needs: release` gates the publish on the full build+test+release pipeline succeeding
+  # first; this workflow only ever triggers on `v*` tag pushes (see `on:` above), so no
+  # extra trigger condition is needed here.
+  publish-nuget:
+    name: Publish NuGet packages (Trusted Publishing)
+    needs: release
+    runs-on: windows-latest
+    environment: nuget-publish
+
+    permissions:
+      id-token: write   # required for the OIDC token NuGet/login exchanges for a temp API key
+      contents: read    # checkout only; this job does not modify repo contents
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # Packs all 29 packable FalkForge projects (Core, both compilers, extensions,
+      # plugins, Sdk, the FalkForge meta-package, the FalkForge.Templates template pack,
+      # and the forge CLI as a .NET global tool) into artifacts/nuget/*.nupkg. Internally
+      # publishes the NativeAOT engine + elevation companion first so
+      # FalkForge.Engine.Runtime.win-x64 ships real win-x64 binaries (see scripts/pack.ps1).
+      #
+      # No -Version override: package version comes from the single-sourced
+      # VersionPrefix/VersionSuffix in the root Directory.Build.props, independent of the
+      # git tag that triggered this workflow (see FalkForge.Templates' single-source
+      # version pinning, enforced by TemplatePackTests).
+      #
+      # No symbol packages (.snupkg) are produced today (no IncludeSymbols/
+      # SymbolPackageFormat in any packable csproj) — if that changes, `dotnet nuget push`
+      # auto-detects and pushes a sibling .snupkg for every .nupkg it uploads with no
+      # workflow change required.
+      - name: Pack NuGet packages
+        shell: pwsh
+        run: ./scripts/pack.ps1
+
+      - name: NuGet login (OIDC -> temp API key)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push packages to nuget.org
+        shell: pwsh
+        run: >
+          dotnet nuget push artifacts/nuget/*.nupkg
+          --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicates

@@ -16,6 +16,11 @@
 #   ./scripts/publish.ps1                          # -> ./artifacts/publish
 #   ./scripts/publish.ps1 -Output C:\drop          # custom output folder
 #   ./scripts/publish.ps1 -SkipEngine              # skip the slow NativeAOT publishes
+#
+# Note: this script publishes executables only — it does not create or push NuGet
+# packages. For packing + publishing FalkForge's NuGet packages, see scripts/pack.ps1
+# (local pack) and .github/workflows/release.yml's publish-nuget job (CI push to
+# nuget.org via Trusted Publishing, the primary path as of 2026-07).
 
 param(
     [string]$Output = "",
