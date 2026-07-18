@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using FalkForge.Models;
 
 namespace FalkForge.Validation;
@@ -5,6 +6,125 @@ namespace FalkForge.Validation;
 public static partial class MiscRules
 {
     // ── Registry ──────────────────────────────────────────────────────────────
+
+    /// <summary>REG001 — Registry entry Key is required.</summary>
+    public static readonly ValidationRule Reg001_KeyRequired = new(
+        new RuleId("REG001"),
+        Severity.Error,
+        ModelSection.Registry,
+        "Registry entry Key required",
+        "Every registry entry must specify a non-empty Key.",
+        static ctx => ValidationCollectionHelper.ValidateCollection(ctx.Package.RegistryEntries,
+            static (entry, i) => string.IsNullOrWhiteSpace(entry.Key)
+                ? new Violation(new RuleId("REG001"), Severity.Error,
+                    ModelPath.Root.Field("RegistryEntries").Index(i).Field("Key"),
+                    "Registry entry Key is required.")
+                : null));
+
+    /// <summary>
+    /// Identifies a registry entry by write location (root + key + value name), normalized
+    /// case-insensitively per Win32 registry semantics (key and value names are
+    /// case-insensitive; the data payload is not).
+    /// </summary>
+    private readonly record struct RegistryIdentity(RegistryRoot Root, string Key, string? ValueName);
+
+    /// <summary>
+    /// Single left-to-right pass pairing every registry entry (after the first) with the
+    /// earliest entry sharing its write location, plus whether their data is identical.
+    /// Shared by REG002 (identical duplicate → warning) and REG003 (conflicting duplicate →
+    /// error) so the scan/group logic exists exactly once.
+    /// </summary>
+    private static IEnumerable<(int Index, int FirstIndex, bool SameValue)> FindRegistryDuplicates(
+        IReadOnlyList<RegistryEntryModel> entries)
+    {
+        var seen = new Dictionary<RegistryIdentity, int>();
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            if (string.IsNullOrWhiteSpace(entry.Key))
+                continue; // REG001 catches this
+
+            var identity = new RegistryIdentity(
+                entry.Root,
+                entry.Key.ToUpperInvariant(),
+                entry.ValueName?.ToUpperInvariant());
+
+            if (!seen.TryGetValue(identity, out var firstIndex))
+            {
+                seen[identity] = i;
+                continue;
+            }
+
+            yield return (i, firstIndex, RegistryValuesEqual(entries[firstIndex], entry));
+        }
+    }
+
+    /// <summary>
+    /// Compares the data payload of two registry entries that share the same write location.
+    /// Different <see cref="RegistryValueType"/> always conflicts; same type compares the
+    /// stored value by its concrete representation (string, DWord, binary, or multi-string).
+    /// </summary>
+    private static bool RegistryValuesEqual(RegistryEntryModel a, RegistryEntryModel b)
+    {
+        if (a.ValueType != b.ValueType)
+            return false;
+
+        return (a.Value, b.Value) switch
+        {
+            (null, null) => true,
+            (string sa, string sb) => string.Equals(sa, sb, StringComparison.Ordinal),
+            (byte[] ba, byte[] bb) => ba.AsSpan().SequenceEqual(bb),
+            (string[] ma, string[] mb) => ma.AsSpan().SequenceEqual(mb),
+            (int ia, int ib) => ia == ib,
+            _ => Equals(a.Value, b.Value)
+        };
+    }
+
+    /// <summary>REG002 — Two registry entries write the same root+key+value-name with identical data (warning, redundant).</summary>
+    public static readonly ValidationRule Reg002_DuplicateEntry = new(
+        new RuleId("REG002"),
+        Severity.Warning,
+        ModelSection.Registry,
+        "Duplicate registry entry",
+        "Two registry entries write the exact same root, key, and value name with identical data. The duplicate is redundant.",
+        static ctx =>
+        {
+            var violations = ImmutableArray.CreateBuilder<Violation>();
+            foreach (var (index, firstIndex, sameValue) in FindRegistryDuplicates(ctx.Package.RegistryEntries))
+            {
+                if (!sameValue)
+                    continue;
+
+                var entry = ctx.Package.RegistryEntries[index];
+                violations.Add(new Violation(new RuleId("REG002"), Severity.Warning,
+                    ModelPath.Root.Field("RegistryEntries").Index(index),
+                    $"Registry entry '{entry.Key}\\{entry.ValueName ?? "(Default)"}' duplicates the entry at index {firstIndex} with identical data."));
+            }
+            return violations.ToImmutable();
+        });
+
+    /// <summary>REG003 — Two registry entries write the same root+key+value-name with conflicting data (error, install-order-dependent).</summary>
+    public static readonly ValidationRule Reg003_ConflictingEntry = new(
+        new RuleId("REG003"),
+        Severity.Error,
+        ModelSection.Registry,
+        "Conflicting registry entry",
+        "Two registry entries write the same root, key, and value name with different data. The value that ends up in the registry depends on install order.",
+        static ctx =>
+        {
+            var violations = ImmutableArray.CreateBuilder<Violation>();
+            foreach (var (index, firstIndex, sameValue) in FindRegistryDuplicates(ctx.Package.RegistryEntries))
+            {
+                if (sameValue)
+                    continue;
+
+                var entry = ctx.Package.RegistryEntries[index];
+                violations.Add(new Violation(new RuleId("REG003"), Severity.Error,
+                    ModelPath.Root.Field("RegistryEntries").Index(index),
+                    $"Registry entry '{entry.Key}\\{entry.ValueName ?? "(Default)"}' conflicts with the entry at index {firstIndex}: same location, different data."));
+            }
+            return violations.ToImmutable();
+        });
 
     /// <summary>REG007 — Registry value references a sensitive MSI property (warning).</summary>
     public static readonly ValidationRule Reg007_SensitivePropertyInRegistry = new(

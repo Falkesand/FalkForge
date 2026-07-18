@@ -404,6 +404,136 @@ public sealed class MiscRulesTests
         Assert.Empty(MiscRules.Reg007_SensitivePropertyInRegistry.Evaluate(Ctx(pkg)));
     }
 
+    // ── REG001 — Registry entry Key required ──────────────────────────────────
+
+    [Fact]
+    public void Reg001_empty_key_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "", ValueName = "V", Value = "x" }
+        ]);
+        var violations = MiscRules.Reg001_KeyRequired.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG001", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg001_whitespace_key_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "   ", ValueName = "V", Value = "x" }
+        ]);
+        Assert.Single(MiscRules.Reg001_KeyRequired.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg001_valid_key_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "V", Value = "x" }
+        ]);
+        Assert.Empty(MiscRules.Reg001_KeyRequired.Evaluate(Ctx(pkg)));
+    }
+
+    // ── REG002 — Duplicate registry entry (identical data) ──────────────────
+
+    [Fact]
+    public void Reg002_duplicate_identical_entries_yields_warning()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"software\app", ValueName = "ver", Value = "1.0" }
+        ]);
+        var violations = MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG002", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg002_distinct_entries_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Path", Value = "1.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg002_conflicting_entries_yields_no_warning()
+    {
+        // Same location, different value -- this is REG003's job, not REG002's.
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "2.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)));
+    }
+
+    // ── REG003 — Conflicting registry entry (different data, same location) ──
+
+    [Fact]
+    public void Reg003_conflicting_value_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "2.0" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG003", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_conflicting_type_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Flag", Value = "1", ValueType = RegistryValueType.String },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Flag", Value = 1, ValueType = RegistryValueType.DWord }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
+    public void Reg003_identical_entries_yields_no_error()
+    {
+        // Exact duplicates are REG002's job (warning), not REG003's (error).
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg003_different_keys_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.CurrentUser, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "2.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)));
+    }
+
     // ── RRG001 — RemoveRegistry Id required ──────────────────────────────────
 
     [Fact]
