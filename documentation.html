@@ -4331,6 +4331,86 @@ Installer.Build(p =&gt;
     <code>src/FalkForge.Compiler.Msi/Recipe/PackageCodeDerivation.cs</code>.
   </p>
 
+  <h4>Why Reproducible Builds Matter</h4>
+  <p>
+    The table above explains <em>what</em> <code>Reproducible()</code> does mechanically; this is
+    <em>why</em> you'd turn it on. "Reproducible" has one precise meaning here: the same source, built
+    twice, produces byte-identical output. <code>package.Reproducible(epochOverride = null)</code> pins
+    every timestamp the compiler would otherwise take from the wall clock to a fixed
+    <code>SOURCE_DATE_EPOCH</code> (an explicit argument, or the <code>SOURCE_DATE_EPOCH</code>
+    environment variable &mdash; it throws rather than silently falling back to "now" if neither is set),
+    and leaves <code>PackageCode</code> <code>null</code> so the compiler derives it from a content digest
+    instead of a random GUID. Nothing about the installer's behavior changes; only whether two builds of
+    the same inputs are byte-for-byte the same file.
+  </p>
+  <p>
+    That one property enables several things a non-reproducible build can't offer:
+  </p>
+  <ul>
+    <li>
+      <strong>Supply-chain trust.</strong> Anyone &mdash; not just the team that ran the original build
+      &mdash; can rebuild your installer from the published source and byte-compare it against the artifact
+      you shipped. <code>forge verify &lt;artifact&gt; --rebuild &lt;project&gt;</code> (<a
+      href="#cli">CLI, 15</a>) automates exactly that comparison and reports
+      <code>VERIFIED</code>/<code>MISMATCH</code>/<code>REBUILD-FAILED</code>. Without reproducibility
+      there is nothing to compare against &mdash; a legitimate rebuild and a compromised build machine
+      produce equally "different" bytes from the original, so a mismatch would prove nothing.
+    </li>
+    <li>
+      <strong>Auditability and attestations.</strong> <code>package.Sbom()</code> emits a CycloneDX SBOM
+      listing every installed file's SHA-256; under a reproducible build its own serial number and
+      timestamp are derived from build content rather than the wall clock, so the SBOM itself doesn't
+      introduce non-determinism into an otherwise-reproducible artifact. The same logic applies one layer
+      up to any release pipeline &mdash; including FalkForge's own
+      (<code>.github/workflows/release.yml</code>) &mdash; that publishes SLSA-style build-provenance
+      attestations: an attestation asserts "these bytes came from this source, this build"; reproducibility
+      is what lets a third party independently confirm that assertion by rebuilding, instead of trusting it
+      on faith.
+    </li>
+    <li>
+      <strong>Debugging and support.</strong> Given a customer's shipped version number, you can rebuild the
+      exact bytes they're running, months or years later, for forensics &mdash; without having archived the
+      original build machine's output.
+    </li>
+    <li>
+      <strong>Trustworthy version diffs.</strong> <code>forge plan-diff old new</code> reports what
+      genuinely changed between two releases' install plans. If builds aren't reproducible, re-running a
+      build of the <em>same</em> version can itself introduce noise (a fresh <code>PackageCode</code>, a
+      different embedded timestamp) that has nothing to do with the version bump you actually care about
+      reviewing.
+    </li>
+    <li>
+      <strong>Smaller, meaningful deltas.</strong> <code>BundleBuilder.DeltaFrom()</code> computes a binary
+      delta with Octodiff &mdash; a raw byte-level (rsync-style) diff between the old and new payload files.
+      Non-deterministic bytes scattered through an otherwise little-changed file (a random
+      <code>PackageCode</code>, a fresh save timestamp in the MSI's OLE compound structure) reduce how much
+      of the old and new payloads actually match block-for-block, inflating the delta with noise unrelated
+      to your real changes. A reproducible build removes that noise, so the delta reflects the content that
+      actually changed.
+    </li>
+  </ul>
+  <p>
+    None of this is free, which is why it's opt-in rather than the default. A normal build's fresh
+    <code>Guid.NewGuid()</code> <code>PackageCode</code> on every compile exists for a reason of its own:
+    Windows Installer's repair cache needs every packaging event to be unambiguously distinguishable, and a
+    fresh GUID guarantees that without you having to think about it, even across many builds of an unchanged
+    <code>ProductCode</code>. Reproducible mode's content-derived <code>PackageCode</code> preserves that
+    same SECREPAIR safety property a different way &mdash; two <em>non-identical</em> packages still never
+    collide, because the digest folds in per-file content hashes &mdash; but it requires you to actually pin
+    <code>SOURCE_DATE_EPOCH</code> and accept that identical inputs now produce identical output rather than
+    a fresh identity every time. Pick reproducible mode for a release build you intend to publish, sign, or
+    attest to; a normal (non-reproducible) build remains the simpler default for local development, where a
+    unique identity per compile is exactly what you want and there's nothing yet to verify against.
+  </p>
+  <p>
+    See <a href="#demos">Demo 57 &mdash; reproducible-sbom</a> for the full pin-build-twice-and-compare
+    workflow with an SBOM sidecar, <a href="#demos">Demo 56 &mdash; verify-and-plan</a> for
+    <code>forge plan</code>/<code>plan-diff</code>/<code>verify --rebuild</code> together, the
+    <a href="#cli">CLI reference (15)</a> for full <code>forge verify</code> and <code>forge plan-diff</code>
+    flags, and <a href="#bundle-signing-trust">Bundle Signing, Trust &amp; Key Rotation (23)</a> for how
+    payload signing and integrity attestation build on top of a reproducible artifact.
+  </p>
+
   <!-- ================================================================ -->
   <!-- 8.30 Referencing another project's build output (ProjectOutputs) -->
   <!-- ================================================================ -->
