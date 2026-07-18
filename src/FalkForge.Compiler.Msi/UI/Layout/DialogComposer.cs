@@ -16,15 +16,19 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// onto <see cref="MsiControlModel"/> entries which preserve the input order.
 /// <para>
 /// Phase 9: the three-arg overload accepts an optional <see cref="DialogCustomizationModel"/>
-/// and applies four customization verbs to the produced model: <see cref="DialogCustomizationModel.WindowTitle"/>
+/// and applies customization verbs to the produced model: <see cref="DialogCustomizationModel.WindowTitle"/>
 /// overrides <see cref="MsiDialogModel.Title"/>, <see cref="DialogCustomizationModel.BannerBitmap"/>
-/// rewrites the <c>Text</c> of every <c>Bitmap</c>-typed control, <see cref="DialogCustomizationModel.HeaderIcon"/>
+/// rewrites the <c>Text</c> of every other <c>Bitmap</c>-typed control, <see cref="DialogCustomizationModel.HeaderIcon"/>
 /// rewrites the <c>Text</c> of every <c>Icon</c>-typed control, and entries in
 /// <see cref="DialogCustomizationModel.ButtonLabelOverrides"/> rewrite the <c>Text</c> of
 /// the matching <c>PushButton</c> identified through <see cref="DialogButtonNames.Map"/>.
 /// Suppression of stock dialogs (<see cref="DialogCustomizationModel.SuppressedDialogs"/>) is
 /// not applied here — that is a dialog-set-level concern handled by the emitter that decides
 /// which dialogs to compose at all.
+/// <see cref="DialogCustomizationModel.DialogBitmap"/> targets the exterior Welcome/Exit
+/// dialogs only (<see cref="DialogContent.Kind"/> "Welcome" or "Exit"): a synthetic full-canvas
+/// background <c>Bitmap</c> control (the classic 370x234 WixUI_Bmp_Dialog convention) is inserted
+/// ahead of every other control so later controls draw in front of it.
 /// </para>
 /// <see cref="MsiDialogModel"/> is internal so this composer is internal as well.
 /// </remarks>
@@ -104,7 +108,7 @@ internal static class DialogComposer
             }
         }
 
-        ApplyCustomization(model, customization);
+        ApplyCustomization(model, customization, content.Kind, layout);
 
         AppendDeclarativeEvents(model, content);
 
@@ -171,7 +175,17 @@ internal static class DialogComposer
             $"Unknown MSI condition action '{action}'. Expected Enable/Disable/Show/Hide/Default.");
     }
 
-    private static void ApplyCustomization(MsiDialogModel model, DialogCustomizationModel? customization)
+    // Canonical MSI control Name for the synthetic exterior-dialog background Bitmap control
+    // inserted when DialogCustomizationModel.DialogBitmap is set. Excluded by name from the
+    // BannerBitmap sweep below so the two verbs never clobber each other when both are set on
+    // the same Welcome/Exit dialog.
+    private const string DialogBackgroundBitmapControlName = "DialogBmp";
+
+    private static void ApplyCustomization(
+        MsiDialogModel model,
+        DialogCustomizationModel? customization,
+        string dialogKind,
+        DialogLayout layout)
     {
         if (customization is null)
         {
@@ -194,19 +208,33 @@ internal static class DialogComposer
         }
 
         var bannerBitmap = customization.BannerBitmap;
+        var dialogBitmap = customization.DialogBitmap;
         var headerIcon = customization.HeaderIcon;
         var hasBanner = !string.IsNullOrEmpty(bannerBitmap);
+        var hasDialogBitmap = !string.IsNullOrEmpty(dialogBitmap);
         var hasIcon = !string.IsNullOrEmpty(headerIcon);
         var hasButtonOverrides = buttonOverrides is { Count: > 0 };
 
-        if (!hasBanner && !hasIcon && !hasButtonOverrides)
+        if (!hasBanner && !hasDialogBitmap && !hasIcon && !hasButtonOverrides)
         {
             return;
         }
 
+        // DialogBitmap only applies to the exterior Welcome/Exit dialogs, matching the classic
+        // WixUI_Bmp_Dialog convention. Stock templates do not declare this control themselves —
+        // it is opt-in branding — so it is synthesized here and inserted first (index 0) so
+        // subsequent controls (title/description/buttons) draw in front of it, matching MSI's
+        // Control-table row-order Z-ordering.
+        if (hasDialogBitmap && IsExteriorDialogKind(dialogKind))
+        {
+            model.Controls.Insert(0, BuildDialogBitmapControl(dialogBitmap!, layout));
+        }
+
         foreach (var control in model.Controls)
         {
-            if (hasBanner && control.Type == MsiControlType.Bitmap)
+            if (hasBanner
+                && control.Type == MsiControlType.Bitmap
+                && !string.Equals(control.Name, DialogBackgroundBitmapControlName, StringComparison.Ordinal))
             {
                 control.Text = bannerBitmap;
                 continue;
@@ -225,6 +253,31 @@ internal static class DialogComposer
                 control.Text = label;
             }
         }
+    }
+
+    private static bool IsExteriorDialogKind(string dialogKind) =>
+        string.Equals(dialogKind, "Welcome", StringComparison.Ordinal)
+        || string.Equals(dialogKind, "Exit", StringComparison.Ordinal);
+
+    private static MsiControlModel BuildDialogBitmapControl(string dialogBitmapPath, DialogLayout layout)
+    {
+        // Height stops at the BottomLine region's Y (234 DLU in the stock 370x270 layout) so the
+        // background does not paint over the button row; falls back to the full canvas height if
+        // a future layout omits that region.
+        int height = layout.TryGetRegion("BottomLine", out var bottomLine)
+            ? bottomLine.Bounds.Y
+            : layout.CanvasHeight;
+
+        return new MsiControlModel
+        {
+            Name = DialogBackgroundBitmapControlName,
+            Type = MsiControlType.Bitmap,
+            X = 0,
+            Y = 0,
+            Width = layout.CanvasWidth,
+            Height = height,
+            Text = dialogBitmapPath,
+        };
     }
 
     private static IRegionLayoutPolicy SelectPolicy(RegionPolicy policy) => policy switch

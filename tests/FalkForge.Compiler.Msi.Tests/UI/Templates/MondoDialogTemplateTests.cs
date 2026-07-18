@@ -85,4 +85,26 @@ public sealed class MondoDialogTemplateTests
 
         Assert.Equal("SetupTypeDlg", back.Argument);
     }
+
+    [Fact]
+    public void DialogBitmap_customization_targets_only_welcome_and_exit_dialogs()
+    {
+        var template = new MondoDialogTemplate();
+        var dialogs = template.GetDialogs(new PackageModel
+        {
+            Name = "Test",
+            Manufacturer = "Acme",
+            Version = new System.Version(1, 0, 0),
+            UpgradeCode = System.Guid.Parse("12345678-1234-1234-1234-123456789abc"),
+            DialogCustomization = new DialogCustomizationModel { DialogBitmap = "background.bmp" },
+        });
+
+        var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
+        var exit = dialogs.Single(d => d.Name == "ExitDlg");
+        var setupType = dialogs.Single(d => d.Name == "SetupTypeDlg");
+
+        Assert.Contains(welcome.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "background.bmp");
+        Assert.Contains(exit.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "background.bmp");
+        Assert.DoesNotContain(setupType.Controls, c => c.Type == MsiControlType.Bitmap);
+    }
 }

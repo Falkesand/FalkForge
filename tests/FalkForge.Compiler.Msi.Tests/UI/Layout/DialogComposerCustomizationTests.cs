@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Linq;
+using FalkForge.Compiler.Msi.UI;
 using FalkForge.Compiler.Msi.UI.Layout;
 using FalkForge.Models;
 using Xunit;
@@ -216,5 +217,121 @@ public sealed class DialogComposerCustomizationTests
         Assert.Equal("!(loc.Button.Next)", model.Controls.Single(c => c.Name == "Next").Text);
         Assert.Equal("!(loc.Button.Cancel)", model.Controls.Single(c => c.Name == "Cancel").Text);
         Assert.Equal("OriginalTitle", model.Title);
+    }
+
+    [Fact]
+    public void Compose_with_dialog_bitmap_on_welcome_dialog_inserts_background_bitmap_control()
+    {
+        // Kind = "Welcome" via the ButtonRowContent helper — DialogBitmap targets exterior
+        // Welcome/Exit dialogs with a full-canvas background Bitmap control, matching the
+        // classic 370x234 WixUI_Bmp_Dialog convention (canvas 370x270 minus the 36 DLU
+        // button-row strip at Y=234, per Layouts.Standard370x270's BottomLine region).
+        var content = ButtonRowContent(Button("Next", "!(loc.Button.Next)"));
+        var customization = new DialogCustomization()
+            .DialogBitmap("C:/branding/dialog.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var bitmap = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
+        Assert.Equal("C:/branding/dialog.bmp", bitmap.Text);
+        Assert.Equal(0, bitmap.X);
+        Assert.Equal(0, bitmap.Y);
+        Assert.Equal(370, bitmap.Width);
+        Assert.Equal(234, bitmap.Height);
+        // Inserted first so title/description/buttons draw in front of it (MSI Z-orders
+        // controls by Control-table row order).
+        Assert.Equal(bitmap, model.Controls[0]);
+    }
+
+    [Fact]
+    public void Compose_with_dialog_bitmap_on_exit_dialog_inserts_background_bitmap_control()
+    {
+        var content = new DialogContent
+        {
+            Name = "ExitDlg",
+            Kind = "Exit",
+            Placements = ImmutableArray.Create(
+                new RegionPlacement
+                {
+                    RegionName = "ButtonRow",
+                    Controls = ImmutableArray.Create(Button("Finish", "!(loc.Button.Finish)")),
+                }),
+        };
+        var customization = new DialogCustomization()
+            .DialogBitmap("C:/branding/dialog.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var bitmap = model.Controls.Single(c => c.Type == MsiControlType.Bitmap);
+        Assert.Equal("C:/branding/dialog.bmp", bitmap.Text);
+    }
+
+    [Fact]
+    public void Compose_with_dialog_bitmap_on_interior_dialog_kind_is_not_applied()
+    {
+        var content = new DialogContent
+        {
+            Name = "LicenseAgreementDlg",
+            Kind = "License",
+            Placements = ImmutableArray.Create(
+                new RegionPlacement
+                {
+                    RegionName = "ButtonRow",
+                    Controls = ImmutableArray.Create(Button("Next", "!(loc.Button.Next)")),
+                }),
+        };
+        var customization = new DialogCustomization()
+            .DialogBitmap("C:/branding/dialog.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Bitmap);
+    }
+
+    [Fact]
+    public void Compose_with_no_dialog_bitmap_leaves_welcome_dialog_without_background_control()
+    {
+        var content = ButtonRowContent(Button("Next", "!(loc.Button.Next)"));
+        var customization = new DialogCustomization().ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        Assert.DoesNotContain(model.Controls, c => c.Type == MsiControlType.Bitmap);
+    }
+
+    [Fact]
+    public void Compose_with_dialog_bitmap_and_banner_bitmap_together_does_not_collide()
+    {
+        var content = new DialogContent
+        {
+            Name = "WelcomeDlg",
+            Kind = "Welcome",
+            Placements = ImmutableArray.Create(
+                new RegionPlacement
+                {
+                    RegionName = "ContentArea",
+                    Controls = ImmutableArray.Create(
+                        new PlacedControl { Name = "BannerBmp", Type = "Bitmap", TextOrLocKey = "old-banner.bmp" }),
+                },
+                new RegionPlacement
+                {
+                    RegionName = "ButtonRow",
+                    Controls = ImmutableArray.Create(Button("Next", "!(loc.Button.Next)")),
+                }),
+        };
+        var customization = new DialogCustomization()
+            .BannerBitmap("new-banner.bmp")
+            .DialogBitmap("new-dialog.bmp")
+            .ToModel();
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270, customization);
+
+        var banner = model.Controls.Single(c => c.Name == "BannerBmp");
+        Assert.Equal("new-banner.bmp", banner.Text);
+        var background = model.Controls.Single(c => c.Type == MsiControlType.Bitmap && c.Name != "BannerBmp");
+        Assert.Equal("new-dialog.bmp", background.Text);
     }
 }
