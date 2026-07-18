@@ -17,9 +17,9 @@ public static class ServiceRules
     /// </summary>
     private static readonly FrozenSet<string> BuiltInNoPasswordAccountNames =
         FrozenSet.Create(StringComparer.OrdinalIgnoreCase,
-            "LocalSystem", "SYSTEM", "NT AUTHORITY\\SYSTEM",
-            "LocalService", "NT AUTHORITY\\LOCALSERVICE",
-            "NetworkService", "NT AUTHORITY\\NETWORKSERVICE");
+            "LocalSystem", "SYSTEM", "NT AUTHORITY\\SYSTEM", ".\\LocalSystem",
+            "LocalService", "NT AUTHORITY\\LOCALSERVICE", "NT AUTHORITY\\LOCAL SERVICE",
+            "NetworkService", "NT AUTHORITY\\NETWORKSERVICE", "NT AUTHORITY\\NETWORK SERVICE");
 
     /// <summary>
     /// True when <paramref name="userName"/> identifies an account that legitimately needs

@@ -356,6 +356,32 @@ public sealed class ServiceRulesTests
     }
 
     [Fact]
+    public void Svc012_builtin_localservice_account_string_no_password_yields_no_violations()
+    {
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"NT AUTHORITY\LocalService",
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
+    public void Svc012_builtin_networkservice_account_string_no_password_yields_no_violations()
+    {
+        var svc = new ServiceModel
+        {
+            Name = "S", DisplayName = "S", Executable = "s.exe",
+            Account = ServiceAccount.User,
+            UserName = @"NT AUTHORITY\NetworkService",
+            Password = null
+        };
+        Assert.Empty(ServiceRules.Svc012_UserAccountWithoutPassword.Evaluate(Ctx(PkgWithService(svc))));
+    }
+
+    [Fact]
     public void Svc012_local_system_enum_account_no_password_yields_no_violations()
     {
         var svc = new ServiceModel
