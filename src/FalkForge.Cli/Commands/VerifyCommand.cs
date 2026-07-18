@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using FalkForge.Cli.Settings;
 using FalkForge.Cli.Verification;
+using FalkForge.Compiler.Msi;
 using FalkForge.Engine.Protocol.Bundle;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -9,21 +10,34 @@ using Spectre.Console.Cli;
 namespace FalkForge.Cli.Commands;
 
 /// <summary>
-/// Independently verifies a shipped artifact against its source: rebuilds the project in
-/// reproducible mode and byte-compares the result against the supplied <c>.msi</c>/<c>.exe</c>.
-/// Identical bytes prove the artifact came from that source.
+/// Independently verifies a shipped artifact. Two modes:
+/// <list type="bullet">
+///   <item><b>Rebuild-and-compare</b> (<c>--rebuild &lt;project&gt;</c>, .msi or .exe) — rebuilds
+///   the project in reproducible mode and byte-compares the result against the supplied artifact.
+///   Identical bytes prove the artifact came from that source.</item>
+///   <item><b>Signature-only</b> (.msi, no <c>--rebuild</c>) — checks the MSI's embedded or
+///   detached pure-.NET ECDSA integrity signature via <see cref="MsiIntegrityVerifier"/>, without
+///   needing the source project. See <see cref="ExecuteSignatureVerify"/>.</item>
+/// </list>
 /// <para>
-/// Verdicts and exit codes:
+/// Rebuild-and-compare verdicts and exit codes:
 /// <list type="bullet">
 ///   <item><c>VERIFIED</c> (exit 0) — rebuilt artifact is byte-identical.</item>
 ///   <item><c>MISMATCH</c> (exit 1) — bytes differ; the diagnostic reports the size delta, total
-///   differing-byte count, first differing offsets, and (for bundles) the region that differs.</item>
+///   differing-byte count, first differing offsets, and (for bundles/signed MSIs) the region or
+///   signature note that explains it.</item>
 ///   <item><c>REBUILD-FAILED</c> (exit 2) — the rebuild process exited non-zero (build failed).</item>
 ///   <item><c>SETUP-ERROR</c> (exit 3) — the rebuild succeeded but produced no artifact of the
 ///   expected type (a project/config mismatch, not a build failure).</item>
 ///   <item>exit 3 (no verdict) — IO/setup failure before the rebuild: artifact missing, project
 ///   missing, or epoch unresolved.</item>
 /// </list>
+/// </para>
+/// <para>
+/// Signature-only verdicts and exit codes: <c>VERIFIED</c> (exit 0), <c>NOT-SIGNED</c> or
+/// <c>FAILED</c> (exit 1 — a signature was found but failed to verify, matched no trusted key, or
+/// the payload no longer matches what was signed; fail-loud, no verdict silently passes), or exit
+/// 3 for a setup failure (the MSI could not be opened at all).
 /// </para>
 /// </summary>
 [Description("Independently verify a shipped artifact by rebuilding from source and byte-comparing")]
@@ -79,6 +93,9 @@ internal sealed class VerifyCommand : Command<VerifySettings>
             output.WriteError($"File not found: {artifactPath}");
             return ExitCodes.RuntimeError;
         }
+
+        if (string.IsNullOrWhiteSpace(settings.RebuildProjectPath))
+            return ExecuteSignatureVerify(settings, output, result, artifactPath);
 
         var projectPath = Path.GetFullPath(settings.RebuildProjectPath);
         if (!File.Exists(projectPath))
@@ -230,8 +247,130 @@ internal sealed class VerifyCommand : Command<VerifySettings>
         {
             AddBundleDiagnostics(output, result, rebuiltPath, report.FirstDifferingOffsets[0]);
         }
+        else if (artifactExt.Equals(".msi", StringComparison.OrdinalIgnoreCase))
+        {
+            AddMsiDiagnostics(output, result, rebuiltPath);
+        }
 
         return ExitCodes.ValidationFailure;
+    }
+
+    /// <summary>
+    /// MSI counterpart to <see cref="AddBundleDiagnostics"/>: when the rebuilt MSI carries an
+    /// embedded <c>_FalkForgeIntegrity</c>/<c>ManifestSignature</c> row, a byte mismatch may be
+    /// entirely explained by the signature itself — ECDSA is non-deterministic, so a signed MSI can
+    /// never byte-match a prior build even from identical source. Checks the TABLE specifically
+    /// (not merely "was Integrity() configured") so the note only fires when the signature actually
+    /// lives in-band and could plausibly account for the differing bytes.
+    /// </summary>
+    private static void AddMsiDiagnostics(
+        IConsoleOutput output, IDictionary<string, string?> result, string rebuiltMsiPath)
+    {
+        if (!OperatingSystem.IsWindows())
+            return; // Reading the _FalkForgeIntegrity table requires msi.dll.
+
+        var dbResult = MsiDatabase.Open(rebuiltMsiPath, readOnly: true);
+        if (dbResult.IsFailure)
+            return; // Not a readable MSI database — offsets already reported.
+
+        using var db = dbResult.Value;
+        var rowsResult = db.QueryRows("SELECT `Id` FROM `_FalkForgeIntegrity`", 1);
+        if (rowsResult.IsFailure || !rowsResult.Value.Any(r => r[0] == "ManifestSignature"))
+            return;
+
+        result["signed"] = "true";
+        output.MarkupLine(
+            "[yellow]Note:[/] the rebuilt MSI carries an embedded ECDSA integrity signature " +
+            "(_FalkForgeIntegrity/ManifestSignature). Like bundle ECDSA signatures, this signature is " +
+            "non-deterministic across builds, so an Integrity()-only MSI can never byte-match a prior " +
+            "build. Combine Reproducible() with Integrity() to get a byte-identical MSI plus a detached " +
+            "'<msi>.sig.json' sidecar signature instead (the signature moves out-of-band, so it no " +
+            "longer affects the compared bytes). Either way, use 'forge verify <msi>' (no --rebuild) to " +
+            "check the signature's validity directly, or set FALKFORGE_NO_SIGN to compare unsigned bytes.");
+    }
+
+    /// <summary>
+    /// Signature-only verification: checks an MSI's embedded or detached pure-.NET ECDSA integrity
+    /// signature via <see cref="MsiIntegrityVerifier"/> instead of rebuilding from source. Selected
+    /// when <c>--rebuild</c> is omitted (see <see cref="ExecuteCore"/>).
+    /// </summary>
+    private static int ExecuteSignatureVerify(
+        VerifySettings settings,
+        IConsoleOutput output,
+        IDictionary<string, string?> result,
+        string artifactPath)
+    {
+        if (!artifactPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+        {
+            output.WriteError(
+                "Signature-only verification (no --rebuild) is only supported for .msi artifacts today. " +
+                "Pass --rebuild <project> to verify a .exe bundle.");
+            return ExitCodes.RuntimeError;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            output.WriteError("MSI signature verification requires Windows (msi.dll).");
+            return ExitCodes.RuntimeError;
+        }
+
+        var trustedKeys = new HashSet<string>(settings.TrustedKeys, StringComparer.OrdinalIgnoreCase);
+        var verifyResult = MsiIntegrityVerifier.Verify(artifactPath, trustedKeys);
+        if (verifyResult.IsFailure)
+        {
+            output.WriteError(verifyResult.Error.Message);
+            return ExitCodes.FromErrorKind(verifyResult.Error.Kind);
+        }
+
+        var outcome = verifyResult.Value;
+        result["verdict"] = outcome.Verdict switch
+        {
+            SignatureVerdict.Verified => "VERIFIED",
+            SignatureVerdict.NotSigned => "NOT-SIGNED",
+            _ => "FAILED"
+        };
+        if (outcome.FormatTag is { } formatTag)
+            result["formatTag"] = formatTag;
+        if (outcome.MatchedFingerprint is { } fingerprint)
+            result["fingerprint"] = fingerprint;
+        // Fail-loud for JSON/automation consumers too (Merge Gate MEDIUM finding): a machine reading
+        // only `verdict` must not conflate "payload is self-consistent" with "publisher identity
+        // confirmed" — those are different guarantees. Always present (not just on Verified) so an
+        // automated consumer never has to infer it from field absence.
+        result["authorshipEstablished"] = (outcome.MatchedFingerprint is not null).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        switch (outcome.Verdict)
+        {
+            case SignatureVerdict.Verified when outcome.MatchedFingerprint is { } matchedFingerprint:
+                // A trusted key matched: authorship is established, not merely internal consistency.
+                output.MarkupLine($"[green]VERIFIED (authorship verified):[/] {Markup.Escape(outcome.Message)}");
+                if (outcome.Source is { } trustedSource)
+                    output.MarkupLine($"[grey]Signature source:[/] {Markup.Escape(trustedSource)}");
+                output.MarkupLine($"[grey]Matched trusted key fingerprint:[/] {Markup.Escape(matchedFingerprint)}");
+                return ExitCodes.Success;
+
+            case SignatureVerdict.Verified:
+                // No --trusted-key was supplied: this PASS proves the payload matches the signed
+                // declaration and the signature is internally self-consistent — tamper-evidence, NOT
+                // proof of who signed it. Rendered in yellow with an explicit label rather than the
+                // same green "VERIFIED" a trusted-key PASS gets (Merge Gate MEDIUM finding): printing
+                // an identical label for both would let a consistency-only PASS pass for an
+                // authorship-confirmed one — the exact downgrade-attack UX a user must never see.
+                output.MarkupLine(
+                    "[yellow]VERIFIED (tamper-evidence only — authorship NOT established; pass " +
+                    $"--trusted-key to verify publisher):[/] {Markup.Escape(outcome.Message)}");
+                if (outcome.Source is { } consistencySource)
+                    output.MarkupLine($"[grey]Signature source:[/] {Markup.Escape(consistencySource)}");
+                return ExitCodes.Success;
+
+            case SignatureVerdict.NotSigned:
+                output.MarkupLine($"[yellow]NOT-SIGNED:[/] {Markup.Escape(outcome.Message)}");
+                return ExitCodes.ValidationFailure;
+
+            default: // Failed
+                output.MarkupLine($"[red]FAILED:[/] {Markup.Escape(outcome.Message)}");
+                return ExitCodes.ValidationFailure;
+        }
     }
 
     private static void AddBundleDiagnostics(

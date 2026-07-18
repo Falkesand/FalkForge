@@ -133,7 +133,7 @@ public static class MsiAuthoring
             }
 
             var dialogErrors = FalkForge.Compiler.Msi.UI.DialogCustomizationValidator.Validate(
-                dialogCustomization, package.DialogSet, stepRegistry);
+                dialogCustomization, package.DialogSet, stepRegistry, package.Binaries);
             if (dialogErrors.Count > 0)
             {
                 var msgs = string.Join("; ", dialogErrors.Select(e => $"{e.Code}: {e.Message}"));
@@ -395,13 +395,28 @@ public static class MsiAuthoring
             }
         }
 
-        // Step 8.5: Integrity signing — opportunistic (only when Sigil is on PATH).
-        if (!IsIntegritySigningDisabled() &&
-            FalkForge.Signing.SigilDetector.IsAvailable() &&
-            package.Integrity is not null)
+        // Step 8.5: Integrity signing. The ECDSA envelope is pure .NET and always signs when
+        // Integrity() is configured (FALKFORGE_NO_SIGN is the only opt-out) — it no longer depends on
+        // the external sigil CLI. Sigil, when present, opportunistically adds a DSSE SBOM attestation on
+        // top; see IntegritySigner.SignAndEmbed.
+        if (!IsIntegritySigningDisabled() && package.Integrity is not null)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 8.5: integrity signing.");
+
+            // ECDSA signatures are nondeterministic (fresh random nonce per call), so embedding one
+            // in-band in the MSI would defeat Reproducible() the moment Integrity() is also configured.
+            // IntegritySigner.SignAndEmbed skips the in-band _FalkForgeIntegrity table in that case and
+            // writes the signature sidecar-only — surfaced here at Info level (not gated behind
+            // --verbose) since it is a real, user-visible change of where the signature lives.
+            if (package.ReproducibleOptions is not null)
+            {
+                logger?.Info("MsiAuthoring",
+                    "Step 8.5: Reproducible() + Integrity() are both configured. The MSI's in-band " +
+                    "_FalkForgeIntegrity table is skipped so the artifact stays byte-identical across " +
+                    "builds; the ECDSA signature is written sidecar-only ('<msi>.sig.json'). Verify via " +
+                    "the sidecar, not the embedded table.");
+            }
 
             Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
             if (integrityResult.IsFailure)

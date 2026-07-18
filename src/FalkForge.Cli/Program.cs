@@ -48,10 +48,12 @@ app.Configure(config =>
         .WithExample("plan-diff", "v1.msi", "v2.msi", "--json");
 
     config.AddCommand<VerifyCommand>("verify")
-        .WithDescription("Independently verify a shipped artifact by rebuilding from source and byte-comparing")
+        .WithDescription("Independently verify a shipped artifact: rebuild-and-byte-compare, or (.msi) check its ECDSA integrity signature")
         .WithExample("verify", "app.msi", "--rebuild", "installer.csproj")
         .WithExample("verify", "installer.exe", "--rebuild", "installer.csproj", "--json")
-        .WithExample("verify", "app.msi", "--rebuild", "installer.csproj", "--source-date-epoch", "1577836800");
+        .WithExample("verify", "app.msi", "--rebuild", "installer.csproj", "--source-date-epoch", "1577836800")
+        .WithExample("verify", "app.msi")
+        .WithExample("verify", "app.msi", "--trusted-key", "A1B2C3...");
 
     config.AddCommand<InspectCommand>("inspect")
         .WithDescription("Display MSI metadata (tables, features, summary info)")
@@ -97,6 +99,17 @@ app.Configure(config =>
             .WithDescription("Print full metadata for a single validation rule")
             .WithExample("rules", "explain", "PKG001")
             .WithExample("rules", "explain", "SVC003");
+    });
+
+    config.AddBranch("loc", loc =>
+    {
+        loc.SetDescription("Localization tooling");
+        loc.AddCommand<LocExportCommand>("export")
+            .WithDescription("Export built-in localization JSON as an override starting point (overwrites existing files at the target path)")
+            .WithExample("loc", "export")
+            .WithExample("loc", "export", "--culture", "en-US", "-o", "./loc")
+            .WithExample("loc", "export", "--culture", "en-US", "-o", "custom-en-US.json")
+            .WithExample("loc", "export", "--list");
     });
 
     config.AddBranch("bundle", bundle =>

@@ -1,3 +1,4 @@
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Models;
 using FalkForge.Sbom;

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- Deterministic fake `sigil` CLI, built as a real launchable .exe so
+             MsiIntegritySigningTests can prepend its output directory to PATH and prove the
+             "sigil present but its subcommand fails -> ECDSA signature still lands" contract
+             without depending on a genuine sigil binary/identity being on the CI machine.
+             AssemblyName=sigil so the built apphost is literally `sigil.exe`, no rename/copy
+             step needed at test time. Not a shippable artifact: IsPackable stays false (the
+             repo default) and it carries no PackageId/description. -->
+        <OutputType>Exe</OutputType>
+        <AssemblyName>sigil</AssemblyName>
+        <RootNamespace>FalkForge.Compiler.Msi.Tests.FakeSigil</RootNamespace>
+        <!-- This project lives under tests/ so it inherits tests/Directory.Build.props, which
+             adds the xUnit/Microsoft.Testing.Platform test-hosting packages to every project in
+             that subtree. This is a plain console app, not a test project, so opt back out so
+             `dotnet test` on the .slnx only builds it (as MsiIntegritySigningTests' transitive
+             ProjectReference dependency) rather than trying to run it as a test host. -->
+        <TestingPlatformDotnetTestSupport>false</TestingPlatformDotnetTestSupport>
+        <IsTestProject>false</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Remove="Microsoft.Testing.Extensions.TrxReport" />
+        <PackageReference Remove="Microsoft.Testing.Extensions.HangDump" />
+    </ItemGroup>
+</Project>

@@ -404,6 +404,341 @@ public sealed class MiscRulesTests
         Assert.Empty(MiscRules.Reg007_SensitivePropertyInRegistry.Evaluate(Ctx(pkg)));
     }
 
+    // ── REG001 — Registry entry Key required ──────────────────────────────────
+
+    [Fact]
+    public void Reg001_empty_key_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "", ValueName = "V", Value = "x" }
+        ]);
+        var violations = MiscRules.Reg001_KeyRequired.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG001", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg001_whitespace_key_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "   ", ValueName = "V", Value = "x" }
+        ]);
+        Assert.Single(MiscRules.Reg001_KeyRequired.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg001_valid_key_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "V", Value = "x" }
+        ]);
+        Assert.Empty(MiscRules.Reg001_KeyRequired.Evaluate(Ctx(pkg)));
+    }
+
+    // ── REG002 — Duplicate registry entry (identical data) ──────────────────
+
+    [Fact]
+    public void Reg002_duplicate_identical_entries_yields_warning()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"software\app", ValueName = "ver", Value = "1.0" }
+        ]);
+        var violations = MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG002", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg002_distinct_entries_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Path", Value = "1.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg002_conflicting_entries_yields_no_warning()
+    {
+        // Same location, different value -- this is REG003's job, not REG002's.
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "2.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)));
+    }
+
+    // ── REG003 — Conflicting registry entry (different data, same location) ──
+
+    [Fact]
+    public void Reg003_conflicting_value_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "2.0" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG003", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_conflicting_type_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Flag", Value = "1", ValueType = RegistryValueType.String },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Flag", Value = 1, ValueType = RegistryValueType.DWord }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
+    public void Reg003_identical_entries_yields_no_error()
+    {
+        // Exact duplicates are REG002's job (warning), not REG003's (error).
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg003_different_keys_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.CurrentUser, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "2.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)));
+    }
+
+    // ── REG002/REG003 scope-aware severity (same-component/feature vs cross) ──
+    // RegistryTableProducer.ResolveComponentId: explicit ComponentId always wins;
+    // else a FeatureRef routes the entry to its own synthesized component; with
+    // neither, the entry falls onto the SAME shared default component as every
+    // other scope-less entry. Two entries only ever land on the same real MSI
+    // component (and are therefore certain to co-install) when they share that
+    // resolved scope -- different ComponentId/FeatureRef is only a *possible*
+    // conflict (mutually-exclusive features are a legitimate, common pattern),
+    // matching how MSI's own ICE30 treats cross-component collisions as a
+    // warning, not a hard error.
+
+    [Fact]
+    public void Reg003_same_explicit_component_conflicting_value_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "A", ComponentId = "CompX" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "B", ComponentId = "CompX" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_different_explicit_component_conflicting_value_yields_warning()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "A", ComponentId = "CompX" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "B", ComponentId = "CompY" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("REG003", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_different_feature_conflicting_value_yields_warning()
+    {
+        // The mutually-exclusive-feature pattern: feature "Server" writes Mode=Server,
+        // feature "Client" writes Mode=Client. Nothing statically proves the features
+        // are mutually exclusive, so this must warn, not hard-block a valid package.
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "Server", FeatureRef = "Server" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "Client", FeatureRef = "Client" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_same_feature_conflicting_value_yields_error()
+    {
+        // Same FeatureRef: both entries install together whenever that feature is
+        // selected (each gets its own synthesized component, but both are gated to
+        // the identical feature), so this is a certain conflict, not a possible one.
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "A", FeatureRef = "Server" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "B", FeatureRef = "Server" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_default_scope_conflicting_value_yields_error()
+    {
+        // Both entries have neither ComponentId nor FeatureRef: both fall onto the
+        // SAME shared default component per RegistryTableProducer, so this is a
+        // certain conflict -- the pre-existing default-scope behavior must not change.
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "A" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Mode", Value = "B" }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg002_different_feature_duplicate_identical_yields_warning_noting_feature_gating()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0", FeatureRef = "Server" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0", FeatureRef = "Client" }
+        ]);
+        var violations = MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+        Assert.Contains("gated to different", violations[0].Message, StringComparison.Ordinal);
+    }
+
+    // ── REG002/REG003 — 3-entry duplicate chain pairs against FIRST occurrence ──
+
+    [Fact]
+    public void Reg002_three_identical_entries_each_pairs_against_first_occurrence()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Ver", Value = "1.0" }
+        ]);
+        var violations = MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Equal(2, violations.Count);
+        Assert.All(violations, v => Assert.Contains("index 0", v.Message, StringComparison.Ordinal));
+    }
+
+    // ── REG002/REG003 — RegistryValuesEqual Binary/MultiString branches ────────
+
+    [Fact]
+    public void Reg002_duplicate_identical_binary_yields_warning()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Blob", Value = new byte[] { 1, 2, 3 }, ValueType = RegistryValueType.Binary },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Blob", Value = new byte[] { 1, 2, 3 }, ValueType = RegistryValueType.Binary }
+        ]);
+        var violations = MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_conflicting_binary_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Blob", Value = new byte[] { 1, 2, 3 }, ValueType = RegistryValueType.Binary },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "Blob", Value = new byte[] { 1, 2, 4 }, ValueType = RegistryValueType.Binary }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg002_duplicate_identical_multistring_yields_warning()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "List", Value = new[] { "a", "b" }, ValueType = RegistryValueType.MultiString },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "List", Value = new[] { "a", "b" }, ValueType = RegistryValueType.MultiString }
+        ]);
+        var violations = MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Warning, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Reg003_conflicting_multistring_yields_error()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "List", Value = new[] { "a", "b" }, ValueType = RegistryValueType.MultiString },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = @"SOFTWARE\App", ValueName = "List", Value = new[] { "a", "c" }, ValueType = RegistryValueType.MultiString }
+        ]);
+        var violations = MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    // ── REG002/REG003 — empty-Key entries excluded from the scan (REG001's job) ──
+
+    [Fact]
+    public void Reg002_empty_key_entries_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "", ValueName = "Ver", Value = "1.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg002_DuplicateEntry.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Reg003_empty_key_entries_yields_no_violations()
+    {
+        var pkg = Base(registryEntries:
+        [
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "", ValueName = "Ver", Value = "1.0" },
+            new RegistryEntryModel { Root = RegistryRoot.LocalMachine, Key = "", ValueName = "Ver", Value = "2.0" }
+        ]);
+        Assert.Empty(MiscRules.Reg003_ConflictingEntry.Evaluate(Ctx(pkg)));
+    }
+
     // ── RRG001 — RemoveRegistry Id required ──────────────────────────────────
 
     [Fact]

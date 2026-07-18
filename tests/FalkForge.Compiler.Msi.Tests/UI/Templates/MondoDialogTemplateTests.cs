@@ -85,4 +85,55 @@ public sealed class MondoDialogTemplateTests
 
         Assert.Equal("SetupTypeDlg", back.Argument);
     }
+
+    [Fact]
+    public void DialogBitmap_customization_targets_only_welcome_and_exit_dialogs()
+    {
+        var template = new MondoDialogTemplate();
+        var dialogs = template.GetDialogs(new PackageModel
+        {
+            Name = "Test",
+            Manufacturer = "Acme",
+            Version = new System.Version(1, 0, 0),
+            UpgradeCode = System.Guid.Parse("12345678-1234-1234-1234-123456789abc"),
+            DialogCustomization = new DialogCustomizationModel { DialogBitmap = "AcmeDialog" },
+        });
+
+        var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
+        var exit = dialogs.Single(d => d.Name == "ExitDlg");
+        var setupType = dialogs.Single(d => d.Name == "SetupTypeDlg");
+
+        Assert.Contains(welcome.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "AcmeDialog");
+        Assert.Contains(exit.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "AcmeDialog");
+        Assert.DoesNotContain(setupType.Controls, c => c.Type == MsiControlType.Bitmap);
+    }
+
+    [Fact]
+    public void BannerBitmap_and_HeaderIcon_customization_target_only_interior_dialogs()
+    {
+        var template = new MondoDialogTemplate();
+        var dialogs = template.GetDialogs(new PackageModel
+        {
+            Name = "Test",
+            Manufacturer = "Acme",
+            Version = new System.Version(1, 0, 0),
+            UpgradeCode = System.Guid.Parse("12345678-1234-1234-1234-123456789abc"),
+            DialogCustomization = new DialogCustomizationModel
+            {
+                BannerBitmap = "AcmeBanner",
+                HeaderIcon = "AcmeIcon",
+            },
+        });
+
+        var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
+        var exit = dialogs.Single(d => d.Name == "ExitDlg");
+        var setupType = dialogs.Single(d => d.Name == "SetupTypeDlg");
+
+        Assert.Contains(setupType.Controls, c => c.Type == MsiControlType.Bitmap && c.Text == "AcmeBanner");
+        Assert.Contains(setupType.Controls, c => c.Type == MsiControlType.Icon && c.Text == "AcmeIcon");
+        Assert.DoesNotContain(welcome.Controls, c => c.Type == MsiControlType.Bitmap);
+        Assert.DoesNotContain(welcome.Controls, c => c.Type == MsiControlType.Icon);
+        Assert.DoesNotContain(exit.Controls, c => c.Type == MsiControlType.Bitmap);
+        Assert.DoesNotContain(exit.Controls, c => c.Type == MsiControlType.Icon);
+    }
 }

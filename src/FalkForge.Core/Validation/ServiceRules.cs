@@ -1,14 +1,41 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using FalkForge.Models;
 
 namespace FalkForge.Validation;
 
 /// <summary>
-/// Built-in rules for <see cref="ServiceModel"/> (SVC001-005, SVC009-011),
+/// Built-in rules for <see cref="ServiceModel"/> (SVC001-005, SVC009-012),
 /// <see cref="ServiceControlModel"/> (SCT001-002), and service dependencies (SDP001).
 /// </summary>
 public static class ServiceRules
 {
+    /// <summary>
+    /// Well-known built-in account names that never take a static password, spelled out
+    /// as strings for the (unusual but valid) case where a caller sets Account=User and
+    /// puts a built-in account name directly in UserName instead of using the Account enum.
+    /// </summary>
+    private static readonly FrozenSet<string> BuiltInNoPasswordAccountNames =
+        FrozenSet.Create(StringComparer.OrdinalIgnoreCase,
+            "LocalSystem", "SYSTEM", "NT AUTHORITY\\SYSTEM", ".\\LocalSystem",
+            "LocalService", "NT AUTHORITY\\LOCALSERVICE", "NT AUTHORITY\\LOCAL SERVICE",
+            "NetworkService", "NT AUTHORITY\\NETWORKSERVICE", "NT AUTHORITY\\NETWORK SERVICE");
+
+    /// <summary>
+    /// True when <paramref name="userName"/> identifies an account that legitimately needs
+    /// no static password: a group/standalone managed service account (trailing '$'), a
+    /// virtual account (<c>NT SERVICE\...</c>), or a built-in account spelled out by name.
+    /// </summary>
+    private static bool IsPasswordExemptAccount(string userName)
+    {
+        var trimmed = userName.Trim();
+        if (trimmed.EndsWith('$'))
+            return true; // gMSA / sMSA — Windows manages the credential.
+        if (trimmed.StartsWith("NT SERVICE\\", StringComparison.OrdinalIgnoreCase))
+            return true; // Virtual account — managed by the SCM.
+        return BuiltInNoPasswordAccountNames.Contains(trimmed);
+    }
+
     /// <summary>SVC001 — Service Name is required.</summary>
     public static readonly ValidationRule Svc001_NameRequired = new(
         new RuleId("SVC001"),
@@ -195,6 +222,38 @@ public static class ServiceRules
             return violations.ToImmutable();
         });
 
+    /// <summary>SVC012 — Custom account specified without a password (warning).</summary>
+    public static readonly ValidationRule Svc012_UserAccountWithoutPassword = new(
+        new RuleId("SVC012"),
+        Severity.Warning,
+        ModelSection.Service,
+        "Custom account without password",
+        "A service configured with a custom (Account=User) account but no Password will fail to "
+            + "install unless the account is a managed/virtual account that Windows supplies the "
+            + "credential for automatically.",
+        static ctx =>
+        {
+            var violations = ImmutableArray.CreateBuilder<Violation>();
+            for (var i = 0; i < ctx.Package.Services.Count; i++)
+            {
+                var svc = ctx.Package.Services[i];
+                if (svc.Account != ServiceAccount.User) continue;
+                if (svc.AccountProperty is not null) continue; // Resolved at install time; can't judge statically.
+                if (string.IsNullOrWhiteSpace(svc.UserName)) continue; // SVC003 already flags this.
+                if (!string.IsNullOrEmpty(svc.Password)) continue;
+                if (IsPasswordExemptAccount(svc.UserName)) continue;
+
+                violations.Add(new Violation(
+                    new RuleId("SVC012"),
+                    Severity.Warning,
+                    ModelPath.Root.Field("Services").Index(i).Field("Password"),
+                    $"Service '{svc.Name}' uses custom account '{svc.UserName}' but has no Password. " +
+                    "This will fail unless the account is a gMSA/sMSA (trailing '$'), a virtual account " +
+                    "(NT SERVICE\\...), or a built-in account that needs no password."));
+            }
+            return violations.ToImmutable();
+        });
+
     /// <summary>SCT001 — ServiceControl ServiceName is required.</summary>
     public static readonly ValidationRule Sct001_ServiceNameRequired = new(
         new RuleId("SCT001"),
@@ -281,6 +340,7 @@ public static class ServiceRules
         Svc009_EmptyArgumentsWarning,
         Svc010_AccountPropertyConflict,
         Svc011_EmptyComponentCondition,
+        Svc012_UserAccountWithoutPassword,
         Sct001_ServiceNameRequired,
         Sct002_EventsRequired,
         Sdp001_DependsOnRequired

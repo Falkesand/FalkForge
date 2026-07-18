@@ -9,6 +9,16 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Build-order dependency only, never referenced from C#; see FakeSigil's own csproj
+         comment. ReferenceOutputAssembly=false deliberately means "build it, but do not copy its
+         output here or add an assembly reference": Windows searches a launching process's OWN
+         directory before PATH, so copying sigil.exe next to this test host would make it always
+         "on PATH" even with PATH cleared, breaking Compile_WithIntegrity_SignsWithEcdsa_...'s
+         "sigil unreachable" invariant. MsiIntegritySigningTests instead resolves FakeSigil's own
+         build output directory at run time and prepends THAT to PATH only where it deliberately
+         wants sigil reachable. -->
+    <ProjectReference Include="..\FalkForge.Compiler.Msi.Tests.FakeSigil\FalkForge.Compiler.Msi.Tests.FakeSigil.csproj"
+                       ReferenceOutputAssembly="false" Private="false" />
     <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Dependency\FalkForge.Extensions.Dependency.csproj" />
