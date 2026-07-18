@@ -232,9 +232,9 @@ PackageBuilder.Create("MyApp", "1.0.0", "Acme Corp")
 
 | Verb | Effect |
 |------|--------|
-| `BannerBitmap(key)` | Replaces `Text` of every other `Bitmap`-typed control with `key` |
+| `BannerBitmap(key)` | Interior wizard pages (any non-Welcome/Exit dialog that declares a `TitleRow` placement — License, InstallDir, Customize, SetupType, InstallScope, Progress; excludes the `CancelDlg`/`BrowseDlg` modals, which place no `TitleRow`): if the dialog already has a `Bitmap`-typed control, its `Text` is replaced with `key`; otherwise a synthetic full-width `Bitmap` control (`BannerBmp`, sized to the layout's `Banner` region — 370x58 in the stock layout) is inserted first so later controls draw in front of it. No-op on exterior/modal dialogs. |
 | `DialogBitmap(key)` | Inserts a synthetic full-canvas `Bitmap` control (`DialogBmp`, 370x234, classic `WixUI_Bmp_Dialog` convention) on the exterior `WelcomeDlg`/`ExitDlg` dialogs of every stock template, `Text` set to `key`. No-op when unset; excluded from `BannerBitmap`'s sweep by control name so the two verbs never collide when both are set. |
-| `HeaderIcon(key)` | Replaces `Text` of every `Icon`-typed control with `key` |
+| `HeaderIcon(key)` | Same interior-wizard-page scope as `BannerBitmap`. If the dialog already has an `Icon`-typed control, its `Text` is replaced with `key`; otherwise a synthetic 16x16 `Icon` control (`HeaderIcon`) is inserted at the top-right of the `Banner` region, vertically aligned with `TitleRow` — "next to the dialog title" — drawn in front of any synthesized banner. No-op on exterior/modal dialogs. |
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |
 | `OverrideButtonLabel(button, label)` | Rewrites matching `PushButton.Text` via `DialogButtonNames.Map` |
 | `SuppressDialog(dialog)` | Removes the stock dialog from the sequence (DLG002 validates navigation) |
