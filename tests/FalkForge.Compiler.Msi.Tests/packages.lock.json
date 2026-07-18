@@ -196,6 +196,7 @@
         "type": "Project",
         "dependencies": {
           "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "FalkForge.Engine.Protocol": "[0.1.0-alpha.1, )",
           "FalkForge.Extensibility": "[0.1.0-alpha.1, )",
           "FalkForge.Localization": "[0.1.0-alpha.1, )",
           "FalkForge.Platform": "[0.1.0-alpha.1, )",
@@ -300,6 +301,9 @@
           "FalkForge.Engine": "[0.1.0-alpha.1, )",
           "FalkForge.Platform": "[0.1.0-alpha.1, )"
         }
+      },
+      "sigil": {
+        "type": "Project"
       },
       "Octopus.Octodiff": {
         "type": "CentralTransitive",

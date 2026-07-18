@@ -38,6 +38,7 @@
     <Project Path="tests/FalkForge.Cli.Tests/FalkForge.Cli.Tests.csproj" />
     <Project Path="tests/FalkForge.Compiler.Bundle.Tests/FalkForge.Compiler.Bundle.Tests.csproj" />
     <Project Path="tests/FalkForge.Compiler.Msi.Tests/FalkForge.Compiler.Msi.Tests.csproj" />
+    <Project Path="tests/FalkForge.Compiler.Msi.Tests.FakeSigil/FalkForge.Compiler.Msi.Tests.FakeSigil.csproj" />
     <Project Path="tests/FalkForge.Compiler.Msix.Tests/FalkForge.Compiler.Msix.Tests.csproj" />
     <Project Path="tests/FalkForge.Core.Tests/FalkForge.Core.Tests.csproj" />
     <Project Path="tests/FalkForge.Decompiler.Tests/FalkForge.Decompiler.Tests.csproj" />

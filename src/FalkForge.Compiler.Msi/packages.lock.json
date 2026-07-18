@@ -35,6 +35,13 @@
       "falkforge.core": {
         "type": "Project"
       },
+      "falkforge.engine.protocol": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.1.0-alpha.1, )",
+          "Octopus.Octodiff": "[2.0.549, )"
+        }
+      },
       "falkforge.extensibility": {
         "type": "Project",
         "dependencies": {
@@ -58,6 +65,12 @@
         "dependencies": {
           "FalkForge.Platform": "[0.1.0-alpha.1, )"
         }
+      },
+      "Octopus.Octodiff": {
+        "type": "CentralTransitive",
+        "requested": "[2.0.549, )",
+        "resolved": "2.0.549",
+        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
       }
     }
   }

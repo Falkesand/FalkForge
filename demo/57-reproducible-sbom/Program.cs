@@ -18,10 +18,16 @@ using FalkForge.Sbom;
 // It is the supply-chain manifest that lets auditors, security scanners, and end users
 // know exactly what they are installing. FalkForge emits CycloneDX JSON format.
 //
-// This demo builds an MSI, not a bundle, and does not call Integrity(). For EXE bundles,
-// FalkForge has a separate, independent supply-chain feature — an ECDSA P-256 signature
-// over the payload hashes, embedded in the bundle manifest and verified by the engine
-// before any payload runs — via `BundleBuilder.Integrity(...)`. See demo 59.
+// This demo does not call Integrity() so it can stay focused on reproducibility + SBOM, but
+// `PackageBuilder.Integrity(...)` works on MSI too (the same pure-.NET ECDSA P-256 signer as
+// `BundleBuilder.Integrity(...)` for EXE bundles — see demo 59), and it composes with
+// Reproducible(): because an ECDSA signature is intentionally nondeterministic (fresh random
+// nonce every call), combining the two skips the signature's IN-BAND MSI table row — embedding
+// it there would make every "reproducible" rebuild produce different bytes — and instead writes
+// it sidecar-only (`<msi>.sig.json`) so the MSI artifact itself stays byte-identical across
+// builds. `forge verify --rebuild` (demonstrated below) remains the way to prove the artifact's
+// bytes match a stated source tree; Integrity() is the separate, independent question of whether
+// the artifact carries a verifiable publisher signature at all.
 
 return Installer.Build(args, package =>
 {

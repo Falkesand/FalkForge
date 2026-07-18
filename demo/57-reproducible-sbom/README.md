@@ -89,16 +89,25 @@ forge build demo\57-reproducible-sbom\Program.cs --reproducible --sbom -o ./out-
 `--sbom` sets `FALKFORGE_GENERATE_SBOM=1`, triggering SBOM generation even without a `Sbom()` call
 in the script.
 
-## Bundle Payload Integrity (a separate feature, not used by this demo)
+## Payload Integrity (a separate feature, not used by this demo)
 
-This demo builds an MSI, not an EXE bundle, and its `Program.cs` never calls `Integrity(...)`.
-The reproducibility + SBOM story above is this demo's actual subject. For EXE bundles,
-FalkForge has an independent supply-chain feature: `BundleBuilder.Integrity(...)` signs the
-bundle manifest's payload hashes with an ECDSA P-256 key, and the engine verifies that
-signature before extracting or executing any payload — detecting tampering even if an
-attacker rewrites the bundle's own (unsigned) table of contents. See **demo 59: Bundle
-Integrity Signing** for a runnable example. For MSI-only packages like this one, the
-equivalent supply-chain protection is `forge verify --rebuild` (demonstrated above).
+This demo's `Program.cs` never calls `Integrity(...)` so it can stay focused on the
+reproducibility + SBOM story above. `Integrity(...)` is FalkForge's independent supply-chain
+feature: it signs the package's payload hashes with a pure-.NET ECDSA P-256 key, no external
+tool required — `BundleBuilder.Integrity(...)` for EXE bundles (the engine verifies that
+signature before extracting or executing any payload, detecting tampering even if an attacker
+rewrites the bundle's own unsigned table of contents; see **demo 59: Bundle Integrity Signing**),
+and `PackageBuilder.Integrity(...)` for MSI packages the same way, embedded in the
+`_FalkForgeIntegrity` custom table.
+
+Combining `Reproducible()` with `Integrity()` on an MSI has one wrinkle worth knowing: an ECDSA
+signature is intentionally nondeterministic (a fresh random nonce every call), so FalkForge
+skips the signature's in-band table row in that combination — embedding it there would make
+every "reproducible" rebuild produce different bytes, defeating the whole point — and instead
+writes the signature sidecar-only (`<msi>.sig.json`) so the MSI artifact itself still comes out
+byte-identical across builds. `forge verify --rebuild` (demonstrated above) remains the way to
+prove the artifact's bytes match a stated source tree; `Integrity()` is the separate question of
+whether the artifact carries a verifiable publisher signature at all.
 
 ## Notes
 
