@@ -232,8 +232,8 @@ PackageBuilder.Create("MyApp", "1.0.0", "Acme Corp")
 
 | Verb | Effect |
 |------|--------|
-| `BannerBitmap(key)` | Replaces `Text` of every `Bitmap`-typed control with `key` |
-| `DialogBitmap(key)` | Reserved for welcome/exit background bitmaps (emitter-side) |
+| `BannerBitmap(key)` | Replaces `Text` of every other `Bitmap`-typed control with `key` |
+| `DialogBitmap(key)` | Inserts a synthetic full-canvas `Bitmap` control (`DialogBmp`, 370x234, classic `WixUI_Bmp_Dialog` convention) on the exterior `WelcomeDlg`/`ExitDlg` dialogs of every stock template, `Text` set to `key`. No-op when unset; excluded from `BannerBitmap`'s sweep by control name so the two verbs never collide when both are set. |
 | `HeaderIcon(key)` | Replaces `Text` of every `Icon`-typed control with `key` |
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |
 | `OverrideButtonLabel(button, label)` | Rewrites matching `PushButton.Text` via `DialogButtonNames.Map` |
