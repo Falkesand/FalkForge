@@ -126,8 +126,7 @@ BuiltInLocalizationExtensions (`AddBuiltInCultures()`), Localization/en-US.json 
 Phases: Initializing → Detecting → Planning → Elevating → Applying → Completing → Shutdown. Error: any → Failed → RollingBack → Shutdown.
 
 **Engine** (`src/FalkForge.Engine/`):
-- EngineHost (dispatches SetProperty/SetSecureProperty to VariableStore; property name validation: regex check, built-in variable blocking (32 names), max length enforcement), EngineStateMachine, EngineContext (UserProperties (ConcurrentDictionary), SecretPropertyNames (ConcurrentDictionary) for property tracking and built-in variable protection)
-- Phases/: IEnginePhaseHandler + 9 handlers (Initializing, Detecting, Planning, Elevating, Applying, Completing, RollingBack, Failed, Shutdown)
+- EngineSession + EngineSessionOptions (session lifecycle: manifest path, plan-only mode, log config). Pipeline/: IInstallerPipeline/InstallerPipeline (Detect/Plan/Elevate/Apply/ExportPlan/LaunchUpdate), PipelineRunner (drives the UiRequest loop: Detect → Plan → [plan-only: export + exit] → Elevate → Apply → Shutdown), PipelineContext (holds Plan + session state), IPhaseStep + step classes (DetectStep, PlanStep, ElevateStep, ApplyStep, RollbackStep). IUiChannel: NamedPipeUiChannel dispatches SetProperty/SetSecureProperty to pending property dictionaries via PropertyNameValidator (regex check, built-in variable blocking, max length enforcement) before bundling into UiRequest.Plan; NullUiChannel for headless use.
 - Detection/: PackageDetector, MsiDetector, DependencyDetector, DependencyBlocker
 - Planning/: Planner, InstallPlan, PlanAction
 - Execution/: PackageExecutor, MsiExecutor (uses IMsiApi P/Invoke InstallProduct/ConfigureProduct instead of msiexec.exe; 3-arg ctor with Func<IMsiApi?> lazy accessor; property value injection defense via ProhibitedValueChars), MsuExecutor, MspExecutor, BundleExecutor, ExitCodeMapping, ExecutionOutcome, IProcessRunner, ProcessRunner
