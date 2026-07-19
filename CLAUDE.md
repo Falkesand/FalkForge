@@ -282,7 +282,7 @@ Sdk.targets: `_ComputeFalkArtifactPath` (FalkOutputType→path), `_GetFalkForgeO
 JSON demos (`demo/json/`, 7 files): 01-minimal, 02-installdir, 03-featuretree, 04-mondo, 05-advanced, 06-web-server, 07-database-app + payload/
 
 ## Documentation
-`documentation.html` (540KB, ~10100L). 18 sections, dark/light theme, sidebar+search. Hand-authored and tracked in git -- it IS the source of truth. Edit it directly; there is no generator or fragment tree to regenerate it from (the old `docs/gen/` concat script was retired 2026-07-12 because its stale fragments silently deleted large sections of the manual when run).
+`documentation.html` (~800KB, ~13600L). 24 sections, dark/light theme (cream/parchment palette), sidebar+search, version tag in header. Hand-authored and tracked in git -- it IS the source of truth. Edit it directly; there is no generator or fragment tree to regenerate it from (the old `docs/gen/` concat script was retired 2026-07-12 because its stale fragments silently deleted large sections of the manual when run).
 
 ## Namespaces
 ```
