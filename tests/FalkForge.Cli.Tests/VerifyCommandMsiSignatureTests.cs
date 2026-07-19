@@ -91,7 +91,16 @@ public sealed class VerifyCommandMsiSignatureTests : IDisposable
         // downgrade-attack UX (a user could be shown the same green PASS regardless of whether
         // publisher identity was actually checked). Exit code stays 0 (the payload genuinely is
         // self-consistent), but the label must say so plainly.
-        var msiPath = CompileMsi(nameof(Execute_SignedMsi_NoRebuild_NoTrustedKey_ReturnsSuccessWithConsistencyOnlyLabel), signed: true);
+        //
+        // A short literal label, not nameof(this test) — see the identical fix on
+        // Execute_SignedMsi_NoRebuild_WithCorrectTrustedKey_ReturnsSuccessWithAuthorshipLabel_DistinctFromConsistencyOnly
+        // below: the full test method name is long enough that combining it with the temp-dir
+        // prefix and "_output\<label>-1.0.0.msi" pushes the compiled MSI's path past MAX_PATH
+        // (260 chars) on a CI runner whose profile path (C:\Users\runneradmin\...) is a few
+        // characters longer than a typical dev machine's — reproduced locally byte-for-byte by
+        // padding TEMP to CI's length: MsiDatabase.Create then reports the misleadingly generic
+        // "Error code: 1631" rather than a path-length error.
+        var msiPath = CompileMsi("ConsistencyOnlyLabelApp", signed: true);
         var output = new TestConsoleOutput();
         var command = new VerifyCommand(output);
         var settings = new VerifySettings { ArtifactPath = msiPath };

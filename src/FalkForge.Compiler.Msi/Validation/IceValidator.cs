@@ -124,7 +124,31 @@ public sealed class IceValidator
 
     private static Result<IceValidationResult> ValidateWithCub(string msiPath, string cubPath)
     {
-        // Open target MSI
+        // MsiDatabaseMerge below pulls the cub's own tables into the target database — not just
+        // ICE result tables, but the cub's CustomAction/InstallExecuteSequence rows that schedule
+        // the ICE checks in the first place — and MsiDatabaseCommit persists that to disk. Running
+        // that merge against msiPath directly would permanently bloat the SHIPPED installer with
+        // ICE01..ICEnn result tables and dozens of foreign CustomAction rows every time a build
+        // happened to run on a machine with darice.cub available (confirmed: a real cub merge
+        // added 104 extra CustomAction rows to a compiled MSI in exactly this scenario). Validate
+        // a disposable copy instead so the real output artifact is never touched.
+        var scratchMsi = Path.Combine(Path.GetTempPath(), $"ice_validate_{Guid.NewGuid():N}.msi");
+        File.Copy(msiPath, scratchMsi, overwrite: true);
+        try
+        {
+            return ValidateCopyWithCub(scratchMsi, cubPath);
+        }
+        finally
+        {
+            try { File.Delete(scratchMsi); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static Result<IceValidationResult> ValidateCopyWithCub(string msiPath, string cubPath)
+    {
+        // Open target MSI (a disposable copy — see ValidateWithCub)
         var error = NativeMethods.MsiOpenDatabase(msiPath, NativeMethods.MSIDBOPEN_DIRECT, out var hDatabase);
         if (error != NativeMethods.ERROR_SUCCESS)
             return Result<IceValidationResult>.Failure(ErrorKind.CompilationError,
