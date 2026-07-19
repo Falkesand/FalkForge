@@ -1,3 +1,5 @@
+using FalkForge.Configuration;
+
 namespace FalkForge.Compiler.Bundle.Compilation;
 
 /// <summary>
@@ -22,7 +24,7 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 /// </summary>
 public static class EngineStubLocator
 {
-    public const string EnvironmentVariableName = "FALKFORGE_ENGINE_STUB";
+    public const string EnvironmentVariableName = EnvVarCatalog.EngineStub;
     public const string EngineExecutableFileName = "FalkForge.Engine.exe";
 
     private const string RepoMarkerFileName = "FalkForge.slnx";
@@ -33,7 +35,7 @@ public static class EngineStubLocator
     /// enclosing repository's publish output, in that order.
     /// </summary>
     public static Result<string> Resolve() => Resolve(
-        Environment.GetEnvironmentVariable(EnvironmentVariableName),
+        EnvVarCatalog.GetRaw(EnvironmentVariableName),
         AppContext.BaseDirectory,
         Environment.CurrentDirectory);
 

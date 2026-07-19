@@ -13,6 +13,13 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// PATH. The embedded envelope must verify and bind to the manifest package hashes
 /// exactly as the engine gate expects.
 /// </summary>
+/// <remarks>
+/// "BundleIntegrityEnv" collection: this class mutates the real FALKFORGE_NO_SIGN process
+/// environment variable, which every OTHER test class compiling a bundle with Integrity
+/// configured implicitly depends on being unset. All such classes share this collection so
+/// xUnit runs them sequentially instead of racing on process-global state.
+/// </remarks>
+[Collection("BundleIntegrityEnv")]
 public sealed class BundleCompilerSigningTests : IDisposable
 {
     private readonly string _tempDir;
@@ -125,6 +132,33 @@ public sealed class BundleCompilerSigningTests : IDisposable
         {
             var match = envelope.Files.Single(f => f.Name == pkg.Id);
             Assert.Equal(pkg.Sha256Hash, match.Sha256);
+        }
+    }
+
+    /// <summary>
+    /// Migration-equivalence pin for the FALKFORGE_NO_SIGN opt-out: even though the model
+    /// requests Integrity, setting the real process environment variable must still skip
+    /// signing end to end through BundleCompiler -&gt; BundleIntegritySigner, exactly as before
+    /// BundleIntegritySigner was migrated to read the flag via EnvVarCatalog.
+    /// </summary>
+    [Fact]
+    public void Compile_WithIntegrity_AndNoSignEnvVarSet_LeavesManifestUnsigned()
+    {
+        Environment.SetEnvironmentVariable("FALKFORGE_NO_SIGN", "1");
+        try
+        {
+            var p = CreatePayload("a.msi", "payload-a");
+            var model = ModelWithIntegrity(new IntegrityConfiguration(), ("PkgA", p));
+
+            var result = new BundleCompiler { AllowPlaceholderStub = true }
+                .Compile(model, Path.Combine(_tempDir, "out-nosign"));
+
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+            Assert.Null(ExtractManifest(result.Value).ManifestSignature);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("FALKFORGE_NO_SIGN", null);
         }
     }
 }

@@ -8,6 +8,7 @@ using FalkForge.Cli.WinGet;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Compiler.Msi;
+using FalkForge.Configuration;
 using FalkForge.Models;
 using FalkForge.Platform.Windows;
 using FalkForge.Signing;
@@ -75,14 +76,14 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
             if (epoch is null)
                 return ExitCodes.RuntimeError;
 
-            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", epoch.Value.ToString());
+            EnvVarCatalog.SetSourceDateEpoch(epoch.Value);
         }
 
         if (settings.GenerateSbom)
-            Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", "1");
+            EnvVarCatalog.RequestSbomGeneration();
 
         if (settings.NoSign)
-            Environment.SetEnvironmentVariable("FALKFORGE_NO_SIGN", "1");
+            EnvVarCatalog.DisableSigning();
 
         var projectPath = Path.GetFullPath(settings.ProjectPath);
 
@@ -395,15 +396,15 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     /// </summary>
     internal static long? ResolveSourceDateEpoch(IConsoleOutput console, string? gitWorkingDirectory = null)
     {
-        var envValue = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
-        if (envValue is not null)
+        var lookup = EnvVarCatalog.TryGetSourceDateEpoch();
+        if (lookup.IsFailure)
         {
-            if (long.TryParse(envValue, out var parsed))
-                return parsed;
-
-            console.WriteError("RPR001: SOURCE_DATE_EPOCH is not a valid Unix timestamp.");
+            console.WriteError(lookup.Error.Message);
             return null;
         }
+
+        if (lookup.Value.IsSet)
+            return lookup.Value.Value;
 
         try
         {

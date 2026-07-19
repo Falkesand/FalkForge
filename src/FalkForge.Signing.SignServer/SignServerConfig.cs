@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using FalkForge.Configuration;
 
 namespace FalkForge.Signing.SignServer;
 
@@ -65,8 +66,8 @@ public sealed record SignServerConfig
     /// </summary>
     public static Result<SignServerConfig> FromEnvironment()
     {
-        var baseUrl = Environment.GetEnvironmentVariable("SIGNSERVER_URL");
-        var worker = Environment.GetEnvironmentVariable("SIGNSERVER_WORKER");
+        var baseUrl = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerUrl);
+        var worker = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerWorker);
 
         if (string.IsNullOrWhiteSpace(baseUrl))
             return Result<SignServerConfig>.Failure(ErrorKind.SecurityError,
@@ -75,7 +76,7 @@ public sealed record SignServerConfig
             return Result<SignServerConfig>.Failure(ErrorKind.SecurityError,
                 "SGN024: SIGNSERVER_WORKER is not set.");
 
-        var authRaw = Environment.GetEnvironmentVariable("SIGNSERVER_AUTH");
+        var authRaw = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerAuth);
         var authMode = SignServerAuthMode.None;
         if (!string.IsNullOrWhiteSpace(authRaw) && !Enum.TryParse(authRaw, ignoreCase: true, out authMode))
             return Result<SignServerConfig>.Failure(ErrorKind.SecurityError,
@@ -86,10 +87,10 @@ public sealed record SignServerConfig
             BaseUrl = baseUrl,
             Worker = worker,
             AuthMode = authMode,
-            BearerToken = Environment.GetEnvironmentVariable("SIGNSERVER_BEARER_TOKEN"),
-            BasicUsername = Environment.GetEnvironmentVariable("SIGNSERVER_BASIC_USER"),
-            BasicPassword = Environment.GetEnvironmentVariable("SIGNSERVER_BASIC_PASS"),
-            KeyId = Environment.GetEnvironmentVariable("SIGNSERVER_KEY_ID") ?? string.Empty
+            BearerToken = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerBearerToken),
+            BasicUsername = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerBasicUser),
+            BasicPassword = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerBasicPass),
+            KeyId = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerKeyId) ?? string.Empty
         };
 
         switch (authMode)
@@ -115,7 +116,7 @@ public sealed record SignServerConfig
 
     private static Result<X509Certificate2> LoadClientCertFromEnvironment()
     {
-        var certPath = Environment.GetEnvironmentVariable("SIGNSERVER_CLIENT_CERT");
+        var certPath = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerClientCert);
         if (string.IsNullOrWhiteSpace(certPath))
             return Result<X509Certificate2>.Failure(ErrorKind.SecurityError,
                 "SGN024: SIGNSERVER_AUTH=clientcert requires SIGNSERVER_CLIENT_CERT (PFX path).");
@@ -123,7 +124,7 @@ public sealed record SignServerConfig
             return Result<X509Certificate2>.Failure(ErrorKind.SecurityError,
                 $"SGN024: client certificate file not found at '{certPath}'.");
 
-        var password = Environment.GetEnvironmentVariable("SIGNSERVER_CLIENT_CERT_PASSWORD");
+        var password = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerClientCertPassword);
         try
         {
             return X509CertificateLoader.LoadPkcs12FromFile(certPath, password);

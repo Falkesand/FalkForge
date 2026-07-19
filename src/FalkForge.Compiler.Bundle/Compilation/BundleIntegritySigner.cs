@@ -1,3 +1,4 @@
+using FalkForge.Configuration;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Models;
@@ -29,7 +30,7 @@ internal static class BundleIntegritySigner
         if (model.Integrity is null)
             return manifest;
 
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN")))
+        if (EnvVarCatalog.IsSigningDisabled())
             return manifest;
 
         var config = model.Integrity;
@@ -61,7 +62,7 @@ internal static class BundleIntegritySigner
         if (model.Integrity is null)
             return manifest;
 
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN")))
+        if (EnvVarCatalog.IsSigningDisabled())
             return manifest;
 
         var config = model.Integrity;

@@ -18,6 +18,12 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 ///    that verifies through the real <see cref="IntegrityEnvelopeCodec"/>.
 /// This proves both the Prepare/Finish compile-path refactor and the async signer threading end to end.
 /// </summary>
+/// <remarks>
+/// "BundleIntegrityEnv" collection: this class compiles with Integrity configured and depends
+/// on signing actually running — see <see cref="BundleCompilerSigningTests"/> for why every
+/// bundle-integrity-env-mutating class in this assembly shares one collection.
+/// </remarks>
+[Collection("BundleIntegrityEnv")]
 public sealed class BundleCompilerAsyncSigningTests : IDisposable
 {
     private readonly string _tempDir;
