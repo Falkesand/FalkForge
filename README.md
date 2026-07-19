@@ -25,7 +25,7 @@ live here.
 |----------|----------|-----|
 | **C# Fluent API** | Developers who want full control | Define installers as C# programs with IntelliSense and type safety. `dotnet build` compiles them. |
 | **JSON Configuration** | Declarative definitions, CI/CD | Write a JSON file, build with `forge build config.json`. No C# required. |
-| **FalkForge Studio** | Visual designers, non-developers | WPF desktop IDE. Import from MSI/WiX, export to C# or CI/CD pipelines. |
+| **FalkForge Studio** | Visual designers, non-developers | WPF desktop IDE. Import from MSI/WiX, export to C# or CI/CD pipelines. *Work in progress — expect visual and functional rough edges during the beta.* |
 
 ## Why FalkForge?
 
