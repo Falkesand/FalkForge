@@ -1,6 +1,20 @@
 using FalkForge.Cli;
 using FalkForge.Cli.Commands;
+using FalkForge.Configuration;
 using Spectre.Console.Cli;
+
+// Fail loud before any command dispatches: a malformed SOURCE_DATE_EPOCH exported globally in a
+// CI/shell environment would otherwise only surface later (e.g. deep inside a --reproducible
+// build, or worse, silently as a fresh non-reproducible SBOM identity) rather than at the point
+// where the operator can actually see and fix it. Opt-in flags (FALKFORGE_NO_SIGN,
+// FALKFORGE_GENERATE_SBOM) have no malformed state and stay resolved lazily — see
+// EnvVarCatalog.ValidateEager's doc for the full scope rule.
+var startupValidation = EnvVarCatalog.ValidateEager();
+if (startupValidation.IsFailure)
+{
+    await Console.Error.WriteLineAsync(startupValidation.Error.Message).ConfigureAwait(false);
+    return ExitCodes.RuntimeError;
+}
 
 var app = new CommandApp();
 
