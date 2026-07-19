@@ -93,10 +93,30 @@ jobs:
       # A test failure here aborts the workflow — no release is created.
       # FALKFORGE_E2E=1 opts the release run into the heavyweight e2e tests that the
       # fresh-clone default skips (see tests/FalkForge.Integration.Tests/E2EGate.cs).
+      #
+      # The trx is produced by the Microsoft.Testing.Platform native TRX reporter (arguments
+      # after `--` are passed to the test host), NOT the classic VSTest `--logger trx`, which is
+      # a silent no-op under MTP (xunit.v3) — the old form here left a red release run with zero
+      # way to name which test failed (discovered while diagnosing a release run that failed with
+      # 8 tests never seen in a local run: without a trx or an uploaded artifact, the only signal
+      # was a per-assembly pass/fail count in the -v minimal console log). Mirrors ci.yml's
+      # working pattern. Each test project writes its own test-results.trx under its
+      # bin/<cfg>/<tfm>/TestResults folder, captured by the artifact upload below.
       - name: Test (full suite)
         env:
           FALKFORGE_E2E: '1'
-        run: dotnet test FalkForge.slnx --no-build -c Release -v minimal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults --blame-hang-timeout 120s
+        run: dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx
+
+      # Preserve per-test failure detail even when the Test step above fails the job — a red
+      # release run must be diagnosable from the Actions UI alone, without needing local
+      # reproduction of the exact CI environment (elevation, absent tools, OS image contents).
+      - name: Upload test results
+        uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: release-test-results
+          path: tests/**/bin/**/TestResults/**
+          if-no-files-found: warn
 
       # --- Publish NativeAOT artifacts ---
       # Engine and Elevation require a RID for NativeAOT compilation.

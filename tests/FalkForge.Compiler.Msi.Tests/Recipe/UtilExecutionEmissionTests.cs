@@ -193,15 +193,18 @@ public sealed class UtilExecutionEmissionTests
 
     /// <summary>
     /// Proves FileShare is genuinely created on install and removed on uninstall — not merely authored
-    /// into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND administrator elevation because it runs a
-    /// real per-machine msiexec install that creates an SMB share. Honestly skips (never a silent fake
-    /// pass) when the gate is closed.
+    /// into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND
+    /// administrator elevation because it runs a real per-machine msiexec install that creates an SMB
+    /// share. Honestly skips (never a silent fake pass) when a gate is closed.
     /// </summary>
     [Fact]
     public void FileShare_IsCreatedThenRemoved_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real FileShare install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real FileShare install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real FileShare install requires administrator elevation; run the test host elevated.");
 
@@ -245,6 +248,9 @@ public sealed class UtilExecutionEmissionTests
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real RemoveFolderEx uninstall e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real RemoveFolderEx uninstall mutates machine-wide state: set " +
+                        "FALKFORGE_REAL_SYSTEM_E2E=1 on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real RemoveFolderEx uninstall requires administrator elevation; run the test host elevated.");
 

@@ -145,14 +145,20 @@ public sealed class HttpExecutionEmissionTests
     /// <summary>
     /// Proves the URL ACL reservation genuinely reaches http.sys on a real per-machine install, and is
     /// removed on uninstall — not merely authored into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND
-    /// administrator elevation, mirroring <see cref="UtilExecutionEmissionTests.FileShare_IsCreatedThenRemoved_OnRealInstall"/>.
-    /// Honestly skips (never a silent fake pass) when a gate is closed.
+    /// <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND administrator elevation, mirroring
+    /// <see cref="UtilExecutionEmissionTests.FileShare_IsCreatedThenRemoved_OnRealInstall"/>.
+    /// Honestly skips (never a silent fake pass) when a gate is closed (<c>FALKFORGE_REAL_SYSTEM_E2E</c>
+    /// is separate from the generic <c>FALKFORGE_E2E</c> opt-in because GitHub-hosted Windows runners
+    /// are always elevated).
     /// </summary>
     [Fact]
     public void UrlAcl_IsAddedThenRemoved_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real urlacl install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real urlacl install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real urlacl install requires administrator elevation; run the test host elevated.");
 
