@@ -9350,9 +9350,9 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
 <h3 id="cli-env-vars">Environment Variables</h3>
 <p>
     Every environment variable FalkForge itself defines is listed here &mdash; the canonical,
-    single source of truth. Before this table existed, 23 production call sites across 10 files
-    each read one of these with an inline string literal, so there was no one place to see the
-    full set. All of them are centralized in
+    single source of truth. Before this table existed, 25 production call sites (22 reads + 3
+    writes) across 12 files each touched one of these with an inline string literal, so there was
+    no one place to see the full set. All of them are centralized in
     <code>EnvVarCatalog</code> (<code>src/FalkForge.Core/Configuration/EnvVarCatalog.cs</code>),
     which owns the name constants and the shared parse/presence logic; each call site still
     decides its own policy for what to do with an absent or malformed value (throw, report and

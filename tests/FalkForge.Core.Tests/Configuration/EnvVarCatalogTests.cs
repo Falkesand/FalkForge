@@ -6,7 +6,7 @@ namespace FalkForge.Core.Tests.Configuration;
 /// <summary>
 /// Pins the central FALKFORGE_* environment-variable catalog: name constants stay stable
 /// (accidental rename is a breaking change for every operator's CI script), and each typed
-/// accessor preserves the exact semantics the 23 scattered call sites had before migration —
+/// accessor preserves the exact semantics the 25 scattered call sites had before migration —
 /// including the deliberately "silent" ones (absent opt-in flag = off, no error).
 /// </summary>
 [Collection("SourceDateEpoch")]
@@ -207,36 +207,4 @@ public sealed class EnvVarCatalogTests : IDisposable
         }
     }
 
-    // ── startup (eager) validation ────────────────────────────────────────
-
-    [Fact]
-    public void ValidateEager_NoEnvVarsSet_Succeeds()
-    {
-        Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
-
-        var result = EnvVarCatalog.ValidateEager();
-
-        Assert.True(result.IsSuccess);
-    }
-
-    [Fact]
-    public void ValidateEager_ValidSourceDateEpoch_Succeeds()
-    {
-        Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", "1700000000");
-
-        var result = EnvVarCatalog.ValidateEager();
-
-        Assert.True(result.IsSuccess);
-    }
-
-    [Fact]
-    public void ValidateEager_MalformedSourceDateEpoch_FailsWithRpr001()
-    {
-        Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", "not-a-number");
-
-        var result = EnvVarCatalog.ValidateEager();
-
-        Assert.True(result.IsFailure);
-        Assert.Contains("RPR001", result.Error.Message);
-    }
 }

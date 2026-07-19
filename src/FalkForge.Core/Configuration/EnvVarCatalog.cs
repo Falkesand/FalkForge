@@ -4,9 +4,10 @@ namespace FalkForge.Configuration;
 
 /// <summary>
 /// Central, discoverable catalog of every environment variable FalkForge itself defines and
-/// reads. Before this catalog existed, 23 production call sites across 10 files each called
-/// <see cref="Environment.GetEnvironmentVariable(string)"/> directly with an inline string
-/// literal for the name, so there was no single place to see the full set of supported
+/// reads. Before this catalog existed, 25 production call sites (22 reads + 3 writes) across 12
+/// files each called <see cref="Environment.GetEnvironmentVariable(string)"/> or
+/// <see cref="Environment.SetEnvironmentVariable(string, string?)"/> directly with an inline
+/// string literal for the name, so there was no single place to see the full set of supported
 /// variables, and no shared validation for the ones that parse to a non-string type.
 ///
 /// <para><b>Scope rule — what belongs here.</b> A variable gets a name constant in this catalog
@@ -158,35 +159,4 @@ public static class EnvVarCatalog
 
     /// <summary>Sets <see cref="GenerateSbom"/> to request an SBOM sidecar.</summary>
     public static void RequestSbomGeneration() => SetRaw(GenerateSbom, "1");
-
-    // ── Startup (eager) validation ───────────────────────────────────────
-
-    /// <summary>
-    /// Validates every environment variable that is safe and useful to check BEFORE a process
-    /// does any work, aggregating every problem found (not just the first) so an operator fixes
-    /// their environment in one pass. Opt-in presence flags (<see cref="NoSign"/>,
-    /// <see cref="GenerateSbom"/>) are deliberately excluded: they have no malformed state, so
-    /// eager validation has nothing to check and they stay resolved lazily at their point of use.
-    /// Path-valued variables (<see cref="EngineStub"/>, <see cref="ElevationCompanion"/>) are also
-    /// excluded: their resolution requires filesystem probes with their own detailed fail-loud
-    /// messages, and only matters for the one build operation (bundle compilation) that consumes
-    /// them — running that probe unconditionally at CLI startup would be surprising for
-    /// unrelated commands (e.g. <c>forge validate</c>) and would duplicate the locators'
-    /// resolution-order logic here for no benefit.
-    /// </summary>
-    public static Result<Unit> ValidateEager()
-    {
-        var problems = new List<string>();
-
-        var epoch = TryGetSourceDateEpoch();
-        if (epoch.IsFailure)
-            problems.Add(epoch.Error.Message);
-
-        if (problems.Count == 0)
-            return Result<Unit>.Success(Unit.Value);
-
-        return Result<Unit>.Failure(ErrorKind.Validation,
-            "Environment configuration problems:" + Environment.NewLine +
-            string.Join(Environment.NewLine, problems.ConvertAll(p => "  - " + p)));
-    }
 }

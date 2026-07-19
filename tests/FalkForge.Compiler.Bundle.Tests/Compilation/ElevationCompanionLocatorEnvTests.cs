@@ -9,6 +9,14 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// end to end (the other coverage for this locator, <c>ElevationCompanionEmbeddingTests</c>,
 /// exercises full bundle compilation and never sets this specific env var directly).
 /// </summary>
+/// <remarks>
+/// "BundleIntegrityEnv" collection (Merge Gate fix, BLOCKING C): <c>ElevationCompanionEmbeddingTests</c>
+/// (also in this collection) has cases that require FALKFORGE_ELEVATION_COMPANION UNSET
+/// (<c>Compile_DefaultResolver_FindsCompanionBesideResolvedEngine</c>,
+/// <c>Compile_EngineEmbedded_CompanionUnresolvable_FailsLoudWithGuidance</c>) -- without sharing a
+/// collection, this class's real env-var mutation could interleave with those and flake them.
+/// </remarks>
+[Collection("BundleIntegrityEnv")]
 public sealed class ElevationCompanionLocatorEnvTests : IDisposable
 {
     private readonly string _tempDir;

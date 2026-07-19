@@ -12,6 +12,13 @@ namespace FalkForge.Cli.Tests;
 /// runner writes a caller-supplied artifact into the scratch output directory, standing in for
 /// the project's reproducible build output.
 /// </summary>
+/// <remarks>
+/// "SourceDateEpoch" collection: <c>Execute_ExplicitSourceDateEpochOverride_IgnoresMalformedAmbientValue</c>
+/// mutates the real process SOURCE_DATE_EPOCH env var, so this class joins the same collection
+/// every other SOURCE_DATE_EPOCH-mutating class in this assembly uses (see
+/// <c>SourceDateEpochCollection</c>).
+/// </remarks>
+[Collection("SourceDateEpoch")]
 public sealed class VerifyCommandTests : IDisposable
 {
     private readonly List<string> _temp = [];
@@ -69,6 +76,43 @@ public sealed class VerifyCommandTests : IDisposable
 
         Assert.Equal(ExitCodes.Success, code);
         Assert.Contains(output.AllOutput, m => m.Contains("VERIFIED", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Merge Gate regression (BLOCKING A): VerifyCommand's own comment says the explicit
+    /// --source-date-epoch override wins and the ambient env var is never consulted in that case
+    /// (see VerifyCommand.cs's "Resolve the epoch: explicit override wins..." branch). A malformed
+    /// ambient SOURCE_DATE_EPOCH -- set by an unrelated tool, or left over from a previous
+    /// --reproducible build in the same shell -- must not affect a verify run that supplies its
+    /// own epoch explicitly.
+    /// </summary>
+    [Fact]
+    public void Execute_ExplicitSourceDateEpochOverride_IgnoresMalformedAmbientValue()
+    {
+        Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", "not-a-number");
+        try
+        {
+            var bytes = new byte[] { 10, 20, 30, 40 };
+            var artifact = TempArtifact(".msi", bytes);
+            var runner = new FakeRebuildRunner(exitCode: 0, emittedArtifactBytes: bytes, emittedExt: ".msi");
+            var output = new TestConsoleOutput();
+            var command = new VerifyCommand(output, runner: runner);
+            var settings = new VerifySettings
+            {
+                ArtifactPath = artifact,
+                RebuildProjectPath = TempProject(),
+                SourceDateEpoch = 1577836800, // explicit override; ambient value above must be ignored
+            };
+
+            var code = command.ExecuteSync(Ctx(), settings, CancellationToken.None);
+
+            Assert.Equal(ExitCodes.Success, code);
+            Assert.DoesNotContain(output.AllOutput, m => m.Contains("RPR001") || m.Contains("RPR002"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SOURCE_DATE_EPOCH", null);
+        }
     }
 
     // -------------------------------------------------------------------------
