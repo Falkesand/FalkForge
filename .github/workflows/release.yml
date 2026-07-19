@@ -292,10 +292,16 @@ jobs:
         with:
           user: ${{ secrets.NUGET_USER }}
 
+      # Enumerate explicitly instead of passing a wildcard: dotnet nuget push does its
+      # own glob expansion and fails to match forward-slash patterns on Windows.
+      # Failing loud on an empty feed also beats a silent zero-package "success".
       - name: Push packages to nuget.org
         shell: pwsh
-        run: >
-          dotnet nuget push artifacts/nuget/*.nupkg
-          --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
+        run: |
+          $packages = Get-ChildItem artifacts/nuget -Filter *.nupkg
+          if ($packages.Count -eq 0) { throw "No .nupkg files found in artifacts/nuget - pack step produced nothing." }
+          Write-Host "Pushing $($packages.Count) package(s)"
+          foreach ($pkg in $packages) {
+            dotnet nuget push $pkg.FullName --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "Push failed for $($pkg.Name)" }
+          }
