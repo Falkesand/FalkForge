@@ -163,8 +163,8 @@ jobs:
           Copy-Item "release-artifacts/engine/FalkForge.Engine.exe"           "$out/FalkForge.Engine.exe"
           # Elevation exe
           Copy-Item "release-artifacts/elevation/FalkForge.Engine.Elevation.exe" "$out/FalkForge.Engine.Elevation.exe"
-          # CLI exe
-          Copy-Item "release-artifacts/cli/forge.exe"                          "$out/forge.exe"
+          # CLI exe (assembly is FalkForge.Cli.exe; distributed as forge.exe to match the tool command name)
+          Copy-Item "release-artifacts/cli/FalkForge.Cli.exe"                  "$out/forge.exe"
           # Documentation zip (see scripts/pack-docs.ps1)
           $docsZip = Get-ChildItem "release-artifacts/docs-pack" -Filter "falkforge-docs-*.zip" | Select-Object -First 1
           Copy-Item $docsZip.FullName "$out/$($docsZip.Name)"
