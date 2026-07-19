@@ -1,5 +1,8 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Validation;
+using FalkForge.Models;
+using FalkForge.Platform.Windows;
+using FalkForge.Testing;
 using Xunit;
 
 namespace FalkForge.Compiler.Msi.Tests;
@@ -7,6 +10,85 @@ namespace FalkForge.Compiler.Msi.Tests;
 [SupportedOSPlatform("windows")]
 public sealed class IceValidatorTests
 {
+    /// <summary>
+    /// Regression for a real product bug found via a CI-only failure: <c>ValidateWithCub</c> used
+    /// to open the SHIPPED output MSI with <c>MSIDBOPEN_DIRECT</c>, merge the cub into it, and
+    /// <c>MsiDatabaseCommit</c> — permanently persisting the cub's tables (ICE01..ICEnn results,
+    /// the cub's own CustomAction/InstallExecuteSequence rows that schedule the ICE checks) into
+    /// the real installer artifact. Confirmed in CI: a real darice.cub merge added 104 extra
+    /// CustomAction rows to a compiled MSI's CustomAction table
+    /// (<see cref="CustomActionSetDirectoryEmissionTests"/> went from 1 row to 105). This test
+    /// does not depend on a real darice.cub being present on the host — any valid MSI database
+    /// qualifies to msi.dll as a mergeable cub, so a synthetic one with a distinctive marker table
+    /// proves the mechanism deterministically everywhere. ICE validation must merge against a
+    /// disposable copy and leave the shipped file untouched.
+    /// </summary>
+    [Fact]
+    public void ValidateWithCub_DoesNotMutateTheShippedMsi()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"IceCubMutation_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var sourceDir = Path.Combine(tempDir, "source");
+            Directory.CreateDirectory(sourceDir);
+            var sourceFile = Path.Combine(sourceDir, "app.exe");
+            File.WriteAllText(sourceFile, "fake content for ice-cub-mutation test");
+
+            var outputDir = Path.Combine(tempDir, "output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "IceCubMutationApp";
+                p.Manufacturer = "Corp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "Corp" / "IceCubMutationApp"));
+            });
+
+            var compiler = new MsiCompiler(new WindowsFileSystem());
+            var compileResult = compiler.Compile(package, outputDir);
+            Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : "");
+            string msiPath = compileResult.Value;
+
+            // A synthetic "cub": darice.cub is itself just an MSI database, so any valid one
+            // suffices to exercise MsiDatabaseMerge. Its marker table must never appear in the
+            // shipped MSI afterward.
+            var cubPath = Path.Combine(tempDir, "fake.cub");
+            var cubResult = MsiDatabase.Create(cubPath);
+            Assert.True(cubResult.IsSuccess, cubResult.IsFailure ? cubResult.Error.Message : "");
+            using (var cub = cubResult.Value)
+            {
+                var createTable = cub.Execute(
+                    "CREATE TABLE `IceCubProof` (`Marker` CHAR(32) NOT NULL PRIMARY KEY `Marker`)");
+                Assert.True(createTable.IsSuccess, createTable.IsFailure ? createTable.Error.Message : "");
+                var insert = cub.InsertRow(
+                    "SELECT `Marker` FROM `IceCubProof`",
+                    record => record.SetString(1, "PROOF_MARKER"));
+                Assert.True(insert.IsSuccess, insert.IsFailure ? insert.Error.Message : "");
+                var commit = cub.Commit();
+                Assert.True(commit.IsSuccess, commit.IsFailure ? commit.Error.Message : "");
+            }
+
+            var validator = new IceValidator();
+            var validateResult = validator.Validate(msiPath, cubPath);
+            Assert.True(validateResult.IsSuccess, validateResult.IsFailure ? validateResult.Error.Message : "");
+
+            var dbResult = MsiDatabase.Open(msiPath, readOnly: true);
+            Assert.True(dbResult.IsSuccess, dbResult.IsFailure ? dbResult.Error.Message : "");
+            using var db = dbResult.Value;
+            var rows = db.QueryRows("SELECT `Marker` FROM `IceCubProof`", 1);
+            Assert.True(rows.IsFailure,
+                "ICE validation merged the cub into the shipped MSI — the synthetic IceCubProof " +
+                "table must not exist in the real output file.");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
     [Fact]
     public void FindDariceCub_ReturnsNullOrPath()
     {
