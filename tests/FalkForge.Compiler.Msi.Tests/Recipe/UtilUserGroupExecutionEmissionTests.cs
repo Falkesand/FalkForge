@@ -197,14 +197,17 @@ public sealed class UtilUserGroupExecutionEmissionTests
     /// <summary>
     /// Proves the User/Group feature genuinely creates a local group, a local user, and a membership on a
     /// real per-machine install, and removes them on uninstall — not merely authored into the MSI. Gated
-    /// behind <c>FALKFORGE_E2E=1</c> AND administrator elevation. Honestly skips (never a silent fake pass)
-    /// when a gate is closed.
+    /// behind <c>FALKFORGE_E2E=1</c> AND <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND administrator elevation.
+    /// Honestly skips (never a silent fake pass) when a gate is closed.
     /// </summary>
     [Fact]
     public void UserGroupMembership_AreCreatedThenRemoved_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real User/Group install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real User/Group install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real User/Group install requires administrator elevation; run the test host elevated.");
 

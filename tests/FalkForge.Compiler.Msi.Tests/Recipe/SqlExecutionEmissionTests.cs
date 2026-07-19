@@ -195,14 +195,17 @@ public sealed class SqlExecutionEmissionTests
     /// <summary>
     /// Proves the SQL extension genuinely creates a database + runs a script on install and drops the
     /// database on uninstall — not merely authored into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND
-    /// administrator elevation AND a reachable SQL Server (LocalDB probed via integrated auth). Honestly
-    /// skips (never a silent fake pass) when any gate is closed.
+    /// <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND administrator elevation AND a reachable SQL Server (LocalDB
+    /// probed via integrated auth). Honestly skips (never a silent fake pass) when any gate is closed.
     /// </summary>
     [Fact]
     public void Database_IsCreatedScriptRun_ThenDropped_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real SQL install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real SQL install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real SQL install requires administrator elevation; run the test host elevated.");
 

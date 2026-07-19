@@ -242,15 +242,25 @@ public sealed class ExecutionStepEmissionTests
 
     /// <summary>
     /// Proves the firewall rule is genuinely created on install and removed on uninstall — not merely
-    /// authored into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND administrator elevation because
-    /// it runs a real per-machine msiexec install that touches the Windows Firewall. Honestly skips
-    /// (never a silent fake pass) when the gate is closed.
+    /// authored into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND <c>FALKFORGE_REAL_SYSTEM_E2E=1</c>
+    /// AND administrator elevation because it runs a real per-machine msiexec install that touches the
+    /// Windows Firewall. Honestly skips (never a silent fake pass) when a gate is closed.
+    /// <para>
+    /// <c>FALKFORGE_REAL_SYSTEM_E2E</c> is deliberately separate from the generic
+    /// <c>FALKFORGE_E2E</c> heavyweight-test opt-in: GitHub-hosted Windows runners execute with UAC
+    /// disabled, so <c>IsElevated()</c> is unconditionally true there — elevation alone is not a
+    /// reliable signal that this is a machine an operator prepared for real system mutation. See
+    /// <see cref="IsElevated"/>.
+    /// </para>
     /// </summary>
     [Fact]
     public void FirewallRule_IsCreatedThenRemoved_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real firewall install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real firewall install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real firewall install requires administrator elevation; run the test host elevated.");
 

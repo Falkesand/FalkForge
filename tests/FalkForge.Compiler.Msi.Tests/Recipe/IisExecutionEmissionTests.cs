@@ -248,14 +248,18 @@ public sealed class IisExecutionEmissionTests
 
     /// <summary>
     /// Proves the IIS extension genuinely creates an app pool + web site on install and removes them on
-    /// uninstall — not merely authored into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND administrator
-    /// elevation AND IIS present (W3SVC). Honestly skips (never a silent fake pass) when any gate is closed.
+    /// uninstall — not merely authored into the MSI. Gated behind <c>FALKFORGE_E2E=1</c> AND
+    /// <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND administrator elevation AND IIS present (W3SVC). Honestly
+    /// skips (never a silent fake pass) when any gate is closed.
     /// </summary>
     [Fact]
     public void PoolAndSite_AreCreated_ThenRemoved_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real IIS install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real IIS install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real IIS install requires administrator elevation; run the test host elevated.");
         if (!IisInstalled())
@@ -297,14 +301,17 @@ public sealed class IisExecutionEmissionTests
     /// <summary>
     /// Proves the IIS extension genuinely creates a virtual directory (under the site's root application)
     /// on install and removes it on uninstall — not merely authored into the MSI. Gated behind
-    /// <c>FALKFORGE_E2E=1</c> AND administrator elevation AND IIS present (W3SVC). Honestly skips (never a
-    /// silent fake pass) when any gate is closed.
+    /// <c>FALKFORGE_E2E=1</c> AND <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND administrator elevation AND IIS
+    /// present (W3SVC). Honestly skips (never a silent fake pass) when any gate is closed.
     /// </summary>
     [Fact]
     public void VirtualDirectory_IsCreated_ThenRemoved_OnRealInstall()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real IIS install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real IIS install mutates machine-wide state: set FALKFORGE_REAL_SYSTEM_E2E=1 " +
+                        "on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real IIS install requires administrator elevation; run the test host elevated.");
         if (!IisInstalled())

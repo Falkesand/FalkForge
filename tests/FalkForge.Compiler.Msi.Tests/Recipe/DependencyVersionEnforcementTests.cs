@@ -202,18 +202,25 @@ public sealed class DependencyVersionEnforcementTests
     /// <summary>
     /// Proves the check genuinely blocks/allows a REAL msiexec install (including multi-digit
     /// version components, which a lexicographic MSI condition would mis-compare), not just that
-    /// the right table rows exist. Gated behind <c>FALKFORGE_E2E=1</c> AND administrator elevation,
-    /// matching <see cref="UtilExecutionEmissionTests.FileShare_IsCreatedThenRemoved_OnRealInstall"/>
+    /// the right table rows exist. Gated behind <c>FALKFORGE_E2E=1</c> AND <c>FALKFORGE_REAL_SYSTEM_E2E=1</c>
+    /// AND administrator elevation, matching
+    /// <see cref="UtilExecutionEmissionTests.FileShare_IsCreatedThenRemoved_OnRealInstall"/>
     /// — a real per-machine msiexec install needs HKLM write access. Honestly skips (never a silent
-    /// fake pass) when the gate is closed. Seeds the provider side directly via the registry (the
-    /// exact HKLM path/value DependencyTableContributor itself writes) so the real msiexec engine
-    /// evaluates AppSearch + the JScript comparison against real machine state.
+    /// fake pass) when a gate is closed (<c>FALKFORGE_REAL_SYSTEM_E2E</c> is separate from the generic
+    /// <c>FALKFORGE_E2E</c> opt-in because GitHub-hosted Windows runners are always elevated — see
+    /// <see cref="ExecutionStepEmissionTests.FirewallRule_IsCreatedThenRemoved_OnRealInstall"/>). Seeds
+    /// the provider side directly via the registry (the exact HKLM path/value
+    /// DependencyTableContributor itself writes) so the real msiexec engine evaluates AppSearch + the
+    /// JScript comparison against real machine state.
     /// </summary>
     [Fact]
     public void VersionRangeCheck_BlocksRealInstall_WhenProviderMissingOrOutOfRange_AllowsWhenInRange()
     {
         if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
             Assert.Skip("Real dependency version-check install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real dependency version-check install mutates machine-wide state: set " +
+                        "FALKFORGE_REAL_SYSTEM_E2E=1 on a machine you own to run it.");
         if (!IsElevated())
             Assert.Skip("Real dependency version-check install requires administrator elevation; run the test host elevated.");
 
