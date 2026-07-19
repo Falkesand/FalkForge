@@ -201,7 +201,10 @@ FALKFORGE_E2E=1 dotnet test FalkForge.slnx             # bash
 ```
 
 Gated tests carry `[Trait("Category", "E2E")]` and skip through
-`tests/FalkForge.Integration.Tests/E2EGate.cs`, which documents the mechanism. Tests
+`tests/FalkForge.Integration.Tests/E2EGate.cs`, which documents the mechanism.
+A small set of install-execution tests additionally mutate real machine state
+(firewall rules, IIS sites, SQL databases, local users) and require a second
+opt-in on a machine you own: `FALKFORGE_REAL_SYSTEM_E2E=1` plus an elevated shell. Tests
 with additional external requirements still self-gate on those on top of the opt-in
 (e.g. the SignServer tests also need a Linux-capable Docker/Podman runtime, and the
 NuGet-consumer e2e needs the local feed produced by `scripts/pack.ps1`).
