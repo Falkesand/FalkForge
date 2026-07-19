@@ -63,7 +63,7 @@ Install the tool **or** add the one meta-package — never the 28 granular packa
 
 ```bash
 # Option 1 — the forge CLI scaffolds and builds installers
-dotnet tool install -g FalkForge.Tool
+dotnet tool install -g FalkForge.Tool --prerelease   # --prerelease needed while in beta
 forge init --name "My App"        # starter project (add --type bundle for an EXE bundle)
 dotnet run                        # -> My_App-1.0.0.msi
 
@@ -73,7 +73,7 @@ dotnet new falkforge-msi -n MyInstaller --ProductName "My App"
 cd MyInstaller && dotnet run
 
 # Option 3 — an existing project: ONE package brings everything
-dotnet add package FalkForge
+dotnet add package FalkForge --prerelease   # --prerelease needed while in beta
 ```
 
 The `FalkForge` meta-package transitively delivers the fluent API, the MSI and
