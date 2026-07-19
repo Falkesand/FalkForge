@@ -5,6 +5,7 @@ using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Compiler.Msi.Validation;
+using FalkForge.Configuration;
 using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 using FalkForge.Models;
@@ -520,7 +521,7 @@ public static class MsiAuthoring
     }
 
     private static bool IsIntegritySigningDisabled()
-        => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_NO_SIGN"));
+        => EnvVarCatalog.IsSigningDisabled();
 
     /// <summary>
     /// <see cref="IExtensionRegistry"/> implementation that collects registered

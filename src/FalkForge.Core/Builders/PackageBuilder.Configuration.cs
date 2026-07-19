@@ -1,3 +1,4 @@
+using FalkForge.Configuration;
 using FalkForge.Models;
 using FalkForge.Sbom;
 
@@ -86,15 +87,15 @@ public sealed partial class PackageBuilder
         {
             epoch = epochOverride.Value;
         }
-        else if (Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH") is { } envValue)
-        {
-            if (!long.TryParse(envValue, out epoch))
-                throw new ArgumentException($"RPR001: SOURCE_DATE_EPOCH '{envValue}' is not a valid Unix timestamp.");
-        }
         else
         {
-            throw new InvalidOperationException(
-                "RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
+            var lookup = EnvVarCatalog.TryGetSourceDateEpoch();
+            if (lookup.IsFailure)
+                throw new ArgumentException(lookup.Error.Message);
+            if (!lookup.Value.IsSet)
+                throw new InvalidOperationException(
+                    "RPR002: SOURCE_DATE_EPOCH is not set and no explicit epoch was provided.");
+            epoch = lookup.Value.Value;
         }
 
         _reproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = epoch };

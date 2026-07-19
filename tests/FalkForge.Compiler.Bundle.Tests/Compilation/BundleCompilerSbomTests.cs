@@ -11,6 +11,12 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// output when SbomOptions is configured on the model. The sidecar must be valid
 /// CycloneDX 1.6 JSON and list embedded payload hashes.
 /// </summary>
+/// <remarks>
+/// "BundleIntegrityEnv" collection: this class mutates the real FALKFORGE_GENERATE_SBOM
+/// process environment variable — see <see cref="BundleCompilerSigningTests"/> for why every
+/// bundle-integrity-env-mutating class in this assembly shares one collection.
+/// </remarks>
+[Collection("BundleIntegrityEnv")]
 public sealed class BundleCompilerSbomTests : IDisposable
 {
     private readonly string _tempDir;
@@ -114,6 +120,33 @@ public sealed class BundleCompilerSbomTests : IDisposable
 
         var sbomPath = result.Value + ".cdx.json";
         Assert.False(File.Exists(sbomPath), "SBOM sidecar must not be written when SbomOptions is null");
+    }
+
+    /// <summary>
+    /// Migration-equivalence pin: FALKFORGE_GENERATE_SBOM alone (no SbomOptions on the model)
+    /// must still trigger the sidecar end to end through BundleCompiler -&gt; BundleSbomHelper,
+    /// exactly as before BundleSbomHelper was migrated to read the flag via EnvVarCatalog.
+    /// </summary>
+    [Fact]
+    public void Compile_WithoutSbomOptions_ButGenerateSbomEnvVarSet_WritesSidecar()
+    {
+        Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", "1");
+        try
+        {
+            var model = BuildModel(sbomOptions: null);
+            var outDir = Path.Combine(_tempDir, "out-envsbom");
+            var compiler = new BundleCompiler { AllowPlaceholderStub = true };
+
+            var result = compiler.Compile(model, outDir);
+
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+            var sbomPath = result.Value + ".cdx.json";
+            Assert.True(File.Exists(sbomPath), $"Expected SBOM sidecar at {sbomPath} via env var trigger");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", null);
+        }
     }
 
     [Fact]

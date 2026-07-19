@@ -111,6 +111,9 @@ whether the artifact carries a verifiable publisher signature at all.
 
 ## Notes
 
+- See the "Environment Variables" reference in `documentation.html` (CLI Tool section) for the
+  full, canonical list of every variable FalkForge defines, including `SOURCE_DATE_EPOCH` and
+  `FALKFORGE_GENERATE_SBOM` used throughout this demo.
 - `SOURCE_DATE_EPOCH` is a Unix timestamp (seconds since 1970-01-01 UTC). Set it to any fixed
   integer for reproducible builds.
 - The SBOM serial number is a deterministic RFC 4122 v5 UUID derived from the build content when

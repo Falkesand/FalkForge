@@ -1,3 +1,4 @@
+using FalkForge.Configuration;
 using FalkForge.Engine.Protocol.Bundle;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
@@ -26,7 +27,7 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 /// </summary>
 internal static class ElevationCompanionLocator
 {
-    public const string EnvironmentVariableName = "FALKFORGE_ELEVATION_COMPANION";
+    public const string EnvironmentVariableName = EnvVarCatalog.ElevationCompanion;
 
     /// <summary>
     /// Resolves the companion executable to embed, honoring the shared stub/companion policy.
@@ -42,7 +43,7 @@ internal static class ElevationCompanionLocator
         bool omitCompanion,
         Func<Result<string>> engineResolver)
         => Resolve(explicitCompanionPath, explicitStubPath, allowPlaceholderStub, omitCompanion,
-            engineResolver, Environment.GetEnvironmentVariable(EnvironmentVariableName));
+            engineResolver, EnvVarCatalog.GetRaw(EnvironmentVariableName));
 
     /// <summary>
     /// Testable core of <see cref="Resolve(string?, string?, bool, bool, Func{Result{string}})"/>

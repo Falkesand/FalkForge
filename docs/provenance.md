@@ -4,6 +4,10 @@ FalkForge is the only installer framework that builds a complete provenance surf
 its compilation pipeline. This document is the authoritative reference for every provenance
 artifact: where it comes from, where it lands, and how to verify it.
 
+This document covers `SOURCE_DATE_EPOCH` and `FALKFORGE_GENERATE_SBOM` in their provenance
+context below; for the full list of environment variables FalkForge defines (name, type,
+effect, default), see the "Environment Variables" reference in `documentation.html`.
+
 ---
 
 ## Why Provenance Matters

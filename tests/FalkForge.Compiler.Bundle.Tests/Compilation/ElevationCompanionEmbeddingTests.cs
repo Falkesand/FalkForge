@@ -18,6 +18,12 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// integrity-signed, covered by the ECDSA signature envelope exactly like every other payload.
 /// The companion executes as SYSTEM, so it must never ride outside the payload-trust chain.
 /// </summary>
+/// <remarks>
+/// "BundleIntegrityEnv" collection: some cases here compile with Integrity configured and
+/// depend on signing actually running — see <see cref="BundleCompilerSigningTests"/> for why
+/// every bundle-integrity-env-mutating class in this assembly shares one collection.
+/// </remarks>
+[Collection("BundleIntegrityEnv")]
 public sealed class ElevationCompanionEmbeddingTests : IDisposable
 {
     private readonly string _tempDir;

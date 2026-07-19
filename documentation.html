@@ -807,6 +807,7 @@
           <a href="#cli-exit-codes">Exit Codes</a>
           <a href="#cli-json-config">JSON Configuration Format</a>
           <a href="#cli-scripting">C# Scripting Support</a>
+          <a href="#cli-env-vars">Environment Variables</a>
         </div>
       </div>
 
@@ -9345,6 +9346,133 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     The <code>ScriptLoader</code> class evaluates the script, which calls
     <code>Installer.Build()</code> or <code>Installer.BuildBundle()</code> to produce output.
 </p>
+
+<h3 id="cli-env-vars">Environment Variables</h3>
+<p>
+    Every environment variable FalkForge itself defines is listed here &mdash; the canonical,
+    single source of truth. Before this table existed, 25 production call sites (22 reads + 3
+    writes) across 12 files each touched one of these with an inline string literal, so there was
+    no one place to see the full set. All of them are centralized in
+    <code>EnvVarCatalog</code> (<code>src/FalkForge.Core/Configuration/EnvVarCatalog.cs</code>),
+    which owns the name constants and the shared parse/presence logic; each call site still
+    decides its own policy for what to do with an absent or malformed value (throw, report and
+    fall back, or silently ignore), so the &ldquo;Effect&rdquo; column below spells that out per
+    variable rather than assuming one behavior fits every caller.
+</p>
+<table class="api-table">
+    <thead><tr><th>Variable</th><th>Type / Effect</th><th>Default</th></tr></thead>
+    <tbody>
+        <tr>
+            <td><code>SOURCE_DATE_EPOCH</code></td>
+            <td>Unix timestamp (integer seconds). Pins reproducible-build timestamps and
+                content-digest IDs (<code>PackageCode</code>, SBOM serial/timestamp).
+                <code>PackageBuilder.Reproducible()</code> / <code>BundleBuilder.Reproducible()</code>
+                throw on a malformed value (<code>ArgumentException</code>, RPR001) or when absent
+                with no explicit override (<code>InvalidOperationException</code>, RPR002).
+                <code>forge build --reproducible</code> reports RPR001 and falls back to the
+                <code>git log</code> HEAD timestamp when absent. The SBOM identity path
+                (<code>ReproducibleSbomIdentity</code>) silently falls back to a fresh GUID/UTC-now
+                on either absent or malformed, since SBOM generation must never fail just because
+                reproducibility wasn&rsquo;t established.</td>
+            <td>Not set (non-reproducible build)</td>
+        </tr>
+        <tr>
+            <td><code>FALKFORGE_GENERATE_SBOM</code></td>
+            <td>Presence flag &mdash; any non-empty value (including <code>"0"</code> or
+                <code>"false"</code>) means on; this is not a bool parse. Generates a CycloneDX 1.6
+                SBOM sidecar (<code>&lt;output&gt;.cdx.json</code>) alongside the compiled MSI/bundle,
+                equivalent to <code>.Sbom()</code>. Set automatically by <code>forge build --sbom</code>.</td>
+            <td>Not set (no SBOM unless <code>.Sbom()</code> is configured)</td>
+        </tr>
+        <tr>
+            <td><code>FALKFORGE_NO_SIGN</code></td>
+            <td>Presence flag, same &ldquo;any non-empty value&rdquo; semantics as
+                <code>FALKFORGE_GENERATE_SBOM</code>. Skips ECDSA payload/manifest integrity signing
+                even when <code>.Integrity()</code> is configured. Set automatically by
+                <code>forge build --no-sign</code>; also used by <code>forge verify</code> to compare
+                unsigned bytes (<a href="#cli-commands">Commands</a>, above).</td>
+            <td>Not set (signs when <code>.Integrity()</code> is configured)</td>
+        </tr>
+        <tr>
+            <td><code>FALKFORGE_ENGINE_STUB</code></td>
+            <td>Path to <code>FalkForge.Engine.exe</code>, or a directory containing it. Authoritative
+                when set at bundle-compile time &mdash; an unresolvable value is a configuration error,
+                never a reason to probe elsewhere. Unset falls back to well-known locations beside the
+                host app, then the repository publish output.</td>
+            <td>Not set (auto-resolved)</td>
+        </tr>
+        <tr>
+            <td><code>FALKFORGE_ELEVATION_COMPANION</code></td>
+            <td>Path to <code>FalkForge.Engine.Elevation.exe</code>, or a directory containing it.
+                Authoritative when set; overrides the default resolution of the elevation companion
+                payload a runnable bundle embeds (<a href="#bundle-signing-trust">Bundle Signing,
+                Trust &amp; Key Rotation, 23</a>).</td>
+            <td>Not set (auto-resolved beside the embedded engine)</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_URL</code></td>
+            <td>Base URL of the Keyfactor SignServer instance for remote signing
+                (<code>SignServerConfig.FromEnvironment()</code>). Required, with
+                <code>SIGNSERVER_WORKER</code>, to configure SignServer signing via environment
+                variables rather than a JSON <code>signing</code> config section.</td>
+            <td>Not set (SGN024 fail loud if referenced without it)</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_WORKER</code></td>
+            <td>SignServer PlainSigner worker name or numeric id.</td>
+            <td>Not set (SGN024 fail loud)</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_AUTH</code></td>
+            <td>Enum string: <code>none</code> | <code>clientcert</code> | <code>basic</code> |
+                <code>bearer</code>. Selects which of the credential variables below are required.</td>
+            <td><code>none</code> &mdash; matches SignServer&rsquo;s NOAUTH mode; local CE test
+                containers only, never production</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_BEARER_TOKEN</code></td>
+            <td>Bearer token, required when <code>SIGNSERVER_AUTH=bearer</code>.</td>
+            <td>Not set (SGN024 fail loud if auth is <code>bearer</code>)</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_BASIC_USER</code> / <code>SIGNSERVER_BASIC_PASS</code></td>
+            <td>Basic-auth username/password, both required when
+                <code>SIGNSERVER_AUTH=basic</code>.</td>
+            <td>Not set (SGN024 fail loud if auth is <code>basic</code>)</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_CLIENT_CERT</code> / <code>SIGNSERVER_CLIENT_CERT_PASSWORD</code></td>
+            <td>Path to a PFX client certificate (and its optional password), required when
+                <code>SIGNSERVER_AUTH=clientcert</code>, for mTLS.</td>
+            <td>Not set (SGN024 fail loud if auth is <code>clientcert</code>)</td>
+        </tr>
+        <tr>
+            <td><code>SIGNSERVER_KEY_ID</code></td>
+            <td>Operator-facing key label copied verbatim into the signature envelope&rsquo;s
+                <code>keyId</code>. Informational only &mdash; never trusted, never affects
+                verification.</td>
+            <td>Empty string</td>
+        </tr>
+    </tbody>
+</table>
+<div class="warning">
+    The nine <code>SIGNSERVER_*</code> credential variables carry secrets (tokens, passwords,
+    certificate PFX paths). Never hardcode their values in a script, JSON config, or CI YAML file
+    &mdash; set them in your CI provider&rsquo;s secret store or an operator&rsquo;s local shell
+    profile. This mirrors the JSON <code>signing</code> config path (<a href="#bundle-signing-trust">23</a>),
+    which enforces the same rule at compile time (JSN015&ndash;JSN019): a config carries only an
+    environment-variable <em>name</em> or a file path, never a secret value inline.
+</div>
+<div class="note">
+    <strong>Scope.</strong> Two categories of environment-variable read are deliberately not in this
+    table. <code>SESSIONNAME</code> (Remote Desktop session detection during <code>Detecting</code>) is
+    a Windows-owned session variable, not something FalkForge defines, and is read through the existing
+    testable platform abstraction rather than this catalog. Dynamically-named variables &mdash; a JSON
+    <code>signing</code> config&rsquo;s <code>keyEnv</code>/<code>pqKeyEnv</code>/<code>bearerTokenEnv</code>/etc.
+    fields each name an environment variable whose value is the secret &mdash; have no fixed name to
+    catalog here, since the config supplies the name itself; see <a href="#bundle-signing-trust">Bundle
+    Signing, Trust &amp; Key Rotation (23)</a> for that mechanism.
+</div>
 </section>
 
 <!-- ============================================================ -->

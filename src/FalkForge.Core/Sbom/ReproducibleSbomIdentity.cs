@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Text;
+using FalkForge.Configuration;
 
 namespace FalkForge.Sbom;
 
@@ -41,13 +41,18 @@ public static class ReproducibleSbomIdentity
     {
         ArgumentNullException.ThrowIfNull(components);
 
-        var epoch = Environment.GetEnvironmentVariable("SOURCE_DATE_EPOCH");
-        if (epoch is null || !long.TryParse(epoch, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
+        // SBOM generation must never fail just because reproducibility wasn't (or couldn't be)
+        // established: an absent OR malformed SOURCE_DATE_EPOCH both fall back to a fresh
+        // identity here, unlike PackageBuilder.Reproducible()/BundleBuilder.Reproducible() which
+        // fail loud on malformed. See EnvVarCatalog.TryGetSourceDateEpoch's doc for why the parse
+        // is shared but this fallback policy is not.
+        var epoch = EnvVarCatalog.TryGetSourceDateEpoch();
+        if (epoch.IsFailure || !epoch.Value.IsSet)
             return new Identity("urn:uuid:" + Guid.NewGuid(), DateTimeOffset.UtcNow);
 
         var digestName = BuildContentDigestName(components, name, version);
         var serial = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, digestName);
-        return new Identity("urn:uuid:" + serial, DateTimeOffset.FromUnixTimeSeconds(seconds));
+        return new Identity("urn:uuid:" + serial, DateTimeOffset.FromUnixTimeSeconds(epoch.Value.Value));
     }
 
     // Builds a stable, order-independent name string over the document identity and its

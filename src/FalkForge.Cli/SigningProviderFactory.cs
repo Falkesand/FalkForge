@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using FalkForge.Cli.Models;
+using FalkForge.Configuration;
 using FalkForge.Signing;
 using FalkForge.Signing.SignServer;
 
@@ -200,7 +201,7 @@ internal static class SigningProviderFactory
         // The env var NAME is a user-supplied config value that charset validation (JSN016)
         // cannot distinguish from a mispasted alphanumeric token, so the error must reference
         // the config FIELD and never echo the value into CLI/CI logs.
-        var value = Environment.GetEnvironmentVariable(envName);
+        var value = EnvVarCatalog.GetRaw(envName);
         if (string.IsNullOrEmpty(value))
             return Result<string>.Failure(new Error(ErrorKind.SecurityError,
                 $"JSN019: The environment variable named by signing.{field} is not set — the build fails closed rather than signing without it."));

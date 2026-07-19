@@ -1,3 +1,4 @@
+using FalkForge.Configuration;
 using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
@@ -15,7 +16,7 @@ internal static class BundleSbomHelper
         IReadOnlyList<PayloadEntry> payloads,
         string bundleOutputPath)
     {
-        var envSet = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_GENERATE_SBOM"));
+        var envSet = EnvVarCatalog.IsSbomGenerationRequested();
 
         // Skip when neither SbomOptions nor env var triggers generation.
         if (model.SbomOptions is null && !envSet)

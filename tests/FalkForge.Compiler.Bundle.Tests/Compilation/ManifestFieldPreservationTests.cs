@@ -19,6 +19,13 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// integrity-sign pass. These tests encode the intent that neither rebuild path may drop a
 /// populated manifest field.
 /// </summary>
+/// <remarks>
+/// "BundleIntegrityEnv" collection: <c>Compile_WithIntegrity_PreservesUpdatePublisherThumbprintAndPreUIPackages</c>
+/// depends on signing actually running (asserts <c>ManifestSignature</c> is non-null) — see
+/// <see cref="BundleCompilerSigningTests"/> for why every bundle-integrity-env-mutating class in
+/// this assembly shares one collection.
+/// </remarks>
+[Collection("BundleIntegrityEnv")]
 public sealed class ManifestFieldPreservationTests : IDisposable
 {
     // A valid SHA-1 Authenticode thumbprint: 40 hexadecimal characters.

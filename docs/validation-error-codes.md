@@ -422,8 +422,8 @@ Historically auto-generated; the extraction script has been retired — this fil
 
 | Code | Message | Source |
 |------|---------|--------|
-| RPR001 | SOURCE_DATE_EPOCH '<x>' is not a valid Unix timestamp | `src/FalkForge.Compiler.Bundle/Builders/BundleBuilder.cs` |
-| RPR002 | SOURCE_DATE_EPOCH is not set and no explicit epoch was provided | `src/FalkForge.Compiler.Bundle/Builders/BundleBuilder.cs` |
+| RPR001 | SOURCE_DATE_EPOCH '<x>' is not a valid Unix timestamp | `src/FalkForge.Core/Configuration/EnvVarCatalog.cs` (parse), thrown by `PackageBuilder.Reproducible()`/`BundleBuilder.Reproducible()` |
+| RPR002 | SOURCE_DATE_EPOCH is not set and no explicit epoch was provided | `src/FalkForge.Core/Builders/PackageBuilder.Configuration.cs`, `src/FalkForge.Compiler.Bundle/Builders/BundleBuilder.cs` |
 
 ## RRG — RemoveRegistry
 

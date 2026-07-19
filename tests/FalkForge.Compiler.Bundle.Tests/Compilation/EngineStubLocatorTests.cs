@@ -41,6 +41,30 @@ public sealed class EngineStubLocatorTests : IDisposable
 
     // ── environment variable ─────────────────────────────────────────────────
 
+    /// <summary>
+    /// Migration-equivalence pin: the public parameterless <see cref="EngineStubLocator.Resolve()"/>
+    /// must still read the REAL FALKFORGE_ENGINE_STUB process environment variable end to end
+    /// (every other test in this file exercises the injectable 3-arg overload directly and never
+    /// touches the process environment at all).
+    /// </summary>
+    [Fact]
+    public void Resolve_Parameterless_ReadsRealEnvironmentVariable()
+    {
+        var engine = WriteFakeEngine(_tempDir);
+        Environment.SetEnvironmentVariable(EngineStubLocator.EnvironmentVariableName, engine);
+        try
+        {
+            var result = EngineStubLocator.Resolve();
+
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+            Assert.Equal(engine, result.Value);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(EngineStubLocator.EnvironmentVariableName, null);
+        }
+    }
+
     [Fact]
     public void Resolve_EnvVarPointsToFile_ReturnsThatFile()
     {

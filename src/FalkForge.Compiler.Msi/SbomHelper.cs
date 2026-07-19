@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using FalkForge.Configuration;
 using FalkForge.Models;
 using FalkForge.Sbom;
 
@@ -11,7 +12,7 @@ internal static class SbomHelper
         IReadOnlyList<ResolvedFile> files,
         string msiOutputPath)
     {
-        var envSet = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FALKFORGE_GENERATE_SBOM"));
+        var envSet = EnvVarCatalog.IsSbomGenerationRequested();
 
         // Skip when neither SbomOptions nor env var triggers generation
         if (package.SbomOptions is null && !envSet)

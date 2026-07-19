@@ -59,6 +59,10 @@ dotnet run --project demo/61-signserver-remote-signing/bundle -- -o ./out
 missing credentials for the selected auth mode, fails loud with `SGN024` rather than silently
 signing unauthenticated.
 
+All nine `SIGNSERVER_*` variables (name, type, effect, default) are also listed in the
+"Environment Variables" reference in `documentation.html`, alongside every other variable
+FalkForge defines — that table is the canonical, single source of truth.
+
 ## Key API Calls
 
 ```csharp
