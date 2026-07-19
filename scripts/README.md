@@ -46,6 +46,11 @@ dotnet tool install -g FalkForge.Tool --prerelease
 
 ## Engine stub resolution
 
+> For the full list of environment variables FalkForge defines (name, type, effect,
+> default), see the "Environment Variables" reference in `documentation.html` — the
+> canonical, single source of truth. This section covers `FALKFORGE_ENGINE_STUB`'s
+> resolution order in more depth than that table does.
+
 Bundles embed the published NativeAOT engine as their self-extracting front. The
 bundle compiler resolves it automatically (`EngineStubLocator`), in order:
 
