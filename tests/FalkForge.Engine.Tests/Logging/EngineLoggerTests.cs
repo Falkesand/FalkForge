@@ -594,10 +594,20 @@ public sealed class EngineLoggerTests : IDisposable
 
             var cycler = Task.Run(() =>
             {
+                // WHY: `i` is re-bounded to [0, levels.Length) on every iteration instead of
+                // growing unboundedly (the previous `levels[i++ % levels.Length]` form let `i`
+                // climb toward int.MaxValue). Under CI contention this loop's wall-clock window
+                // can balloon far past the intended ~200ms (CI run 29686231359 took 4.3s for this
+                // test), giving the tight loop enough iterations to overflow a 32-bit counter;
+                // once it wrapped negative, `i % levels.Length` returned a negative remainder
+                // (C#'s `%` keeps the dividend's sign) and `levels[negative]` threw
+                // IndexOutOfRangeException. Re-bounding `i` itself every step makes overflow
+                // structurally impossible, independent of iteration count or wall-clock duration.
                 var i = 0;
                 while (!Volatile.Read(ref stop))
                 {
-                    logger.SetMinimumLevel(levels[i++ % levels.Length]);
+                    logger.SetMinimumLevel(levels[i]);
+                    i = (i + 1) % levels.Length;
                 }
             });
 
@@ -618,6 +628,44 @@ public sealed class EngineLoggerTests : IDisposable
                 parts[0], "o", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
             Assert.True(ok, $"Malformed timestamp on line: {line}");
             Assert.Equal("INFO", parts[1]);
+        }
+    }
+
+    [Fact]
+    public void LevelCycling_CounterStaysBounded_RegardlessOfIterationCount()
+    {
+        // WHY: regression guard for CI run 29686231359 (Release, full-suite `dotnet test`),
+        // which failed SetMinimumLevel_ConcurrentWithLogCalls_NoCorruption above with
+        // "System.IndexOutOfRangeException: Index was outside the bounds of the array" — the
+        // TRX pinned the throw to the level-cycler's lambda (test ran 4.3s wall-clock instead of
+        // the intended ~200ms, giving its tight while-loop billions of iterations to work with).
+        // Root cause: the cycler previously selected the next level via
+        // `levels[i++ % levels.Length]`, incrementing an *unbounded* int `i` and only reducing
+        // it modulo levels.Length at the point of use. Once `i` overflowed past int.MaxValue it
+        // wrapped to a negative value, and C#'s `%` operator preserves the dividend's sign, so
+        // `negative % levels.Length` produced a negative index.
+        //
+        // Proven locally (not part of this suite — see fix commit notes) with the exact
+        // expression: starting `i` at int.MaxValue - 2 and driving it through the wrap reproduces
+        // "IndexOutOfRangeException: Index was outside the bounds of the array" verbatim, the
+        // same type and message as the CI failure.
+        //
+        // The fix re-bounds the counter itself every iteration (`i = (i + 1) % levels.Length`)
+        // instead of letting it grow. This test proves that invariant holds: `i` is asserted to
+        // stay in [0, levels.Length) for many iterations, using the exact update expression now
+        // used by the cycler loop above. Because each step is a pure function of an
+        // already-in-range `i` (adding 1 then reducing modulo a positive length always yields a
+        // value in [0, length)), the invariant holding for any prefix of iterations proves it
+        // holds for every iteration count, including the billions the cycler can accumulate
+        // under CI contention.
+        var levels = new[] { LogLevel.Verbose, LogLevel.Debug, LogLevel.Info, LogLevel.Warning };
+        var i = 0;
+
+        for (var n = 0; n < 10_000; n++)
+        {
+            Assert.InRange(i, 0, levels.Length - 1);
+            _ = levels[i]; // must never throw IndexOutOfRangeException
+            i = (i + 1) % levels.Length;
         }
     }
 
