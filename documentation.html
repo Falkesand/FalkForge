@@ -992,8 +992,8 @@
       </tr>
       <tr>
         <td><strong>JSON Configuration</strong></td>
-        <td>Declarative definitions, CI/CD pipelines</td>
-        <td>Write a JSON file describing your installer. Build with <code>forge build config.json</code>. No C# required.</td>
+        <td>Simple, no-compiler installers</td>
+        <td>Write a JSON file describing your installer. Build with <code>forge build config.json</code>. No C# required. <em>Experimental — see the work-in-progress note below.</em></td>
       </tr>
       <tr>
         <td><strong>FalkForge Studio</strong></td>
@@ -1005,9 +1005,20 @@
 
   <div class="note">
     <strong>FalkForge Studio is a work in progress.</strong> The visual editor lags behind the
-    fluent API and JSON paths: expect visual glitches and functional gaps, and treat it as a
-    preview rather than a daily driver during the beta. The C# fluent API and JSON configuration
-    are the stable, fully supported authoring paths.
+    fluent API: expect visual glitches and functional gaps, and treat it as a preview rather
+    than a daily driver during the beta. The C# fluent API is the primary, fully supported
+    authoring path.
+  </div>
+
+  <div class="warning">
+    <strong>JSON configuration is an experimental, incomplete subset &mdash; work in progress.</strong>
+    It covers product metadata, features, files, shortcuts, registry, services, environment
+    variables, major upgrade/downgrade, launch conditions, license, and signing. It does
+    <strong>not yet</strong> emit Firewall, IIS, SQL, or .NET-detection extension configuration
+    into the built installer &mdash; those sections are parsed and validated but silently
+    dropped at build time (see <a href="#cli-json-config">JSON Configuration Format</a>). For
+    any extension, or anything beyond this subset, use the C# fluent API, which <code>forge
+    init</code> scaffolds by default.
   </div>
 
   <h3>Key Features</h3>
@@ -9303,7 +9314,18 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
 </table>
 
 <h3 id="cli-json-config">JSON Configuration Format</h3>
-<p>The CLI accepts JSON files as an alternative to C# scripts. The schema is defined in <code>src/FalkForge.Cli/Models/InstallerConfig.cs</code>.</p>
+<div class="warning">
+    <strong>Work in progress.</strong> JSON configuration is an experimental, incomplete subset
+    of the C# fluent API &mdash; the primary, fully supported authoring model (what <code>forge
+    init</code> scaffolds). The fields below are the ones the loader actually reads and maps to
+    the compiler; fields not listed here are not recognized. In particular, the
+    <code>extensions</code> block (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>)
+    is parsed and structurally validated but is <strong>not yet emitted into the built
+    installer</strong> &mdash; a JSON build that only specifies extension configuration succeeds
+    and silently produces an installer without those extensions. Use the C# fluent API for any
+    of the four extensions today.
+</div>
+<p>The CLI accepts JSON files as an alternative to C# scripts. The schema is defined in <code>src/FalkForge.Cli/Models/InstallerConfig.cs</code> and its sibling <code>Models/*.cs</code> files &mdash; the fields below match those types exactly.</p>
 
 <pre><code class="language-json">{
   "product": {
@@ -9312,15 +9334,17 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     "version": "string (default: 1.0.0)",
     "upgradeCode": "GUID string",
     "platform": "X86 | X64 | Arm64",
-    "installScope": "PerMachine | PerUser",
-    "description": "string",
-    "comments": "string"
+    "description": "string"
   },
   "ui": "None | Minimal | InstallDir | FeatureTree | Mondo | Advanced",
   "license": "path to .rtf license file",
   "installDirectory": "default install directory",
   "majorUpgrade": {
-    "downgradeErrorMessage": "string"
+    "schedule": "MSI RemoveExistingProducts schedule, e.g. AfterInstallValidate"
+  },
+  "downgrade": {
+    "allow": "bool (default: false)",
+    "message": "string (block message, used when allow is false)"
   },
   "launchConditions": [
     { "condition": "MSI condition string", "message": "error message" }
@@ -9330,22 +9354,33 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
       "id": "string (required)",
       "title": "string",
       "description": "string",
+      "default": "bool (default: true)",
+      "required": "bool (default: false)",
       "files": [
-        { "source": "path", "targetDirectory": "path" }
+        { "source": "path", "shortcut": { "name": "string", "location": "desktop | startmenu | startup", "description": "string", "icon": "path" } }
       ],
-      "registry": [ ... ],
-      "shortcuts": [ ... ],
-      "services": [ ... ],
-      "environmentVariables": [ ... ]
+      "registry": [ { "root": "HKLM | HKCU | HKCR | HKU", "key": "path", "name": "string", "value": "string" } ],
+      "services": [ { "name": "string", "displayName": "string", "description": "string", "executable": "path", "startType": "string", "account": "string" } ],
+      "environmentVariables": [ { "name": "string", "value": "string", "action": "string", "system": "bool (default: true)" } ],
+      "features": [ "nested feature objects, same shape" ]
     }
   ],
   "extensions": {
-    "firewall": [ ... ],
-    "iis": { "appPools": [ ... ], "webSites": [ ... ] },
-    "sql": [ ... ],
-    "dotnet": [ ... ]
-  }
+    "firewall": [ "not yet emitted -- see warning above" ],
+    "iis": { "appPools": [ "..." ], "webSites": [ "..." ] },
+    "sql": [ "..." ],
+    "dotnet": [ "..." ]
+  },
+  "signing": "see Bundle Signing, Trust & Key Rotation (23)"
 }</code></pre>
+<p>
+    A file's <code>shortcut</code> is a single object nested on that file entry &mdash; there is
+    no separate top-level <code>shortcuts</code> array on a feature. Extension sub-schemas
+    (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>) are fully
+    documented in the <a href="docs/tutorials/json-config.html">JSON Configuration tutorial</a>;
+    the fields there are real and pass validation, they simply do not reach the compiled
+    installer yet.
+</p>
 
 <h3 id="cli-scripting">C# Scripting Support</h3>
 <p>
@@ -10794,7 +10829,10 @@ public sealed record WixUnmappedFeature(
 <h3 id="demo-gallery-json">JSON Mode (01&ndash;07)</h3>
 <p>
     Declarative JSON files validated and built by the <code>forge</code> CLI. No C# code required.
-    Located in <code>demo/json/</code>.
+    Located in <code>demo/json/</code>. JSON configuration is a work-in-progress subset (see
+    <a href="#cli-json-config">JSON Configuration Format</a>) &mdash; demos 06 and 07 build
+    successfully, but their <code>extensions</code> blocks (firewall/IIS/SQL/.NET) are validated
+    only and do not appear in the compiled MSI.
 </p>
 <table>
 <thead>
@@ -12171,15 +12209,28 @@ msix.Signing(s =&gt; s
   <!-- 21.9 CLI Integration                                             -->
   <!-- ================================================================ -->
   <h3 id="msix-cli">21.9 CLI Integration</h3>
+  <div class="warning">
+    <strong>Not supported via JSON, experimental via CLI.</strong> <code>forge build --format
+    msix</code> rejects JSON input outright (<code>BuildCommand</code> reports a validation
+    error: &ldquo;MSIX packages cannot be built from JSON configuration&rdquo;) &mdash; the
+    <code>JsonConfigLoader</code> has no MSIX path. Even from a <code>.csx</code> script, the
+    CLI's MSIX build is experimental and not yet implemented: it prints a warning and falls back
+    to an MSI build. To actually produce MSIX output today, call
+    <code>InstallerMsix.BuildMsix()</code> / <code>InstallerMsix.BuildMsixBundle()</code>
+    directly from a C# script or project (see the API examples above), not through
+    <code>forge build --format msix</code>.
+  </div>
   <p>
-    The <code>forge</code> CLI tool supports MSIX output via the <code>build</code> command.
-    Use the <code>--format msix</code> flag to target MSIX output from a script or JSON configuration.
+    The <code>forge</code> CLI's <code>build</code> command recognizes a <code>--format msix</code>
+    flag, but MSIX compilation is not yet wired up for CLI-driven builds &mdash; see the notice
+    above.
   </p>
 
-  <pre><code class="language-bash"># Build from a C# script
+  <pre><code class="language-bash"># Build from a C# script (falls back to MSI today; MSIX CLI build is not yet implemented)
 forge build myapp-msix.csx
 
-# Build from JSON configuration
+# JSON configuration cannot produce MSIX -- this fails with a validation error:
+# "MSIX packages cannot be built from JSON configuration."
 forge build msix-config.json --format msix</code></pre>
 
   <h4>SDK Integration</h4>
