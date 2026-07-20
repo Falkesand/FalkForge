@@ -25,7 +25,10 @@
     </div>
 
     <!-- Intro -->
-    <p>Not every team writes C#. FalkForge can build installers from JSON configuration files &mdash; no code required. Define your product, files, features, and extensions in JSON; run <code>forge build config.json</code> to produce an MSI.</p>
+    <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
+      <strong>Work in progress.</strong> The C# fluent API &mdash; what <code>forge init</code> scaffolds by default &mdash; is FalkForge's primary, fully supported authoring model. JSON configuration is an experimental, incomplete subset intended for simple, no-compiler installers. Most importantly: the <code>extensions</code> block covered in sections 5 and 6 below (Firewall, IIS, SQL, .NET detection) is <strong>parsed and validated but not yet wired into the compiled installer</strong> &mdash; a build with only extension configuration succeeds and silently ships without those extensions. Use the C# API for any of the four extensions today.
+    </div>
+    <p>Not every team writes C#. For simple, data-driven installers FalkForge can build from JSON configuration files instead &mdash; no code required. Define your product, files, features, and (for now, structurally only) extensions in JSON; run <code>forge build config.json</code> to produce an MSI.</p>
 
     <!-- Section 1: Minimal JSON Installer -->
     <h2>1. Minimal JSON Installer</h2>
@@ -65,15 +68,18 @@
       <div class="deep-dive-content">
         <p>FalkForge validates JSON configs with the same rigor as C# builds. The <code>JsonConfigLoader</code> maps your JSON to internal <code>PackageBuilder</code> calls and runs the full validation pipeline. Errors use the <code>JSN</code> prefix:</p>
         <ul>
-          <li><strong>JSN001</strong> &mdash; Invalid or missing JSON file.</li>
-          <li><strong>JSN002</strong> &mdash; Missing required <code>product</code> section.</li>
-          <li><strong>JSN003</strong> &mdash; Missing required <code>product.name</code>.</li>
-          <li><strong>JSN004</strong> &mdash; Missing required <code>product.manufacturer</code>.</li>
-          <li><strong>JSN005</strong> &mdash; Missing required <code>product.version</code>.</li>
-          <li><strong>JSN006</strong> &mdash; Invalid version format.</li>
-          <li><strong>JSN007&ndash;JSN014</strong> &mdash; Feature, file, registry, service, and extension validation.</li>
+          <li><strong>JSN001</strong> &mdash; Invalid JSON syntax.</li>
+          <li><strong>JSN002</strong> &mdash; Missing required <code>product.name</code>.</li>
+          <li><strong>JSN003</strong> &mdash; Missing required <code>product.manufacturer</code>.</li>
+          <li><strong>JSN004</strong> &mdash; Invalid version format.</li>
+          <li><strong>JSN005</strong> &mdash; Invalid upgrade code GUID.</li>
+          <li><strong>JSN006</strong> &mdash; Invalid UI dialog set value.</li>
+          <li><strong>JSN007</strong> &mdash; Invalid platform value.</li>
+          <li><strong>JSN009</strong> &mdash; Feature must have an id.</li>
+          <li><strong>JSN010</strong> &mdash; Configuration error during mapping.</li>
+          <li><strong>JSN011&ndash;JSN014</strong> &mdash; Firewall, IIS, SQL, and .NET extension field validation (structural only &mdash; these sections still don't reach the compiled installer; see the work-in-progress note above).</li>
         </ul>
-        <p>After JSON-specific checks pass, the standard <code>PKG</code>, <code>FEA</code>, and <code>SVC</code> validators run too. You get the same safety net as a C# build.</p>
+        <p>The full list, including the <code>JSN015&ndash;JSN019</code> signing-section codes, is in the <a href="../../documentation.html#error-codes">Reference Docs error code appendix</a>. After JSON-specific checks pass, the standard <code>PKG</code>, <code>FEA</code>, and <code>SVC</code> validators run too. You get the same safety net as a C# build.</p>
       </div>
     </details>
 
@@ -91,17 +97,19 @@
   <span class="punc">},</span>
   <span class="str">"ui"</span><span class="punc">:</span> <span class="str">"InstallDir"</span><span class="punc">,</span>
   <span class="str">"installDirectory"</span><span class="punc">:</span> <span class="str">"Contoso/NotepadClone"</span><span class="punc">,</span>
-  <span class="str">"majorUpgrade"</span><span class="punc">:</span> <span class="punc">{</span>
-    <span class="str">"downgradeMessage"</span><span class="punc">:</span> <span class="str">"A newer version is already installed."</span>
-  <span class="punc">},</span>
-  <span class="str">"features"</span><span class="punc">:</span> <span class="punc">[</span> <span class="cmt">...</span> <span class="punc">]</span>
+  <span class="str">"majorUpgrade"</span><span class="punc">:</span> <span class="punc">{}</span><span class="punc">,</span>
+  <span class="str">"features"</span><span class="punc">:</span> <span class="punc">[</span> <span class="cmt">...</span> <span class="punc">]</span><span class="punc">,</span>
+  <span class="str">"downgrade"</span><span class="punc">:</span> <span class="punc">{</span>
+    <span class="str">"message"</span><span class="punc">:</span> <span class="str">"A newer version is already installed."</span>
+  <span class="punc">}</span>
 <span class="punc">}</span></code></pre>
 
     <p>Key additions over the minimal example:</p>
     <ul>
       <li><strong><code>ui: "InstallDir"</code></strong> &mdash; shows a directory chooser dialog so users can pick where files go.</li>
       <li><strong><code>installDirectory</code></strong> &mdash; the default install path under Program Files. <code>"Contoso/NotepadClone"</code> becomes <code>C:\Program Files\Contoso\NotepadClone</code>.</li>
-      <li><strong><code>majorUpgrade</code></strong> &mdash; enables automatic upgrade detection. Windows removes the old version before installing the new one.</li>
+      <li><strong><code>majorUpgrade</code></strong> &mdash; enables automatic upgrade detection. Windows removes the old version before installing the new one. Takes an optional <code>schedule</code> field naming the MSI <code>RemoveExistingProducts</code> schedule; an empty object uses the builder's default.</li>
+      <li><strong><code>downgrade</code></strong> &mdash; a separate top-level object (not nested inside <code>majorUpgrade</code>) with <code>allow</code> (bool) and <code>message</code> (block message shown when a newer version is already installed and <code>allow</code> is false, the default).</li>
       <li><strong><code>upgradeCode</code></strong> &mdash; a fixed GUID that ties all versions together. Set this once and never change it.</li>
     </ul>
 
@@ -133,6 +141,7 @@
           <li><code>"ui": "InstallDir"</code> &rarr; <code>package.UseDialogSet(MsiDialogSet.InstallDir)</code></li>
           <li><code>"installDirectory": "Contoso/NotepadClone"</code> &rarr; <code>KnownFolder.ProgramFiles / "Contoso" / "NotepadClone"</code></li>
           <li><code>"majorUpgrade"</code> &rarr; <code>package.MajorUpgrade(mu =&gt; ...)</code></li>
+          <li><code>"downgrade"</code> (separate top-level object) &rarr; <code>package.Downgrade(d =&gt; ...)</code></li>
           <li><code>"shortcut"</code> on a file &rarr; <code>files.Add(...).WithShortcut(s =&gt; ...)</code></li>
           <li><code>"registry"</code> &rarr; <code>package.Registry(r =&gt; ...)</code></li>
         </ul>
@@ -250,28 +259,32 @@
       <div class="deep-dive-content">
         <p>Use <strong>JSON</strong> when:</p>
         <ul>
-          <li>Your installer is data-driven &mdash; files, registry, services, shortcuts.</li>
+          <li>Your installer is simple and data-driven &mdash; files, registry, services, shortcuts, feature trees.</li>
           <li>Your CI/CD pipeline generates or transforms the config.</li>
           <li>Your team doesn't use C# and you want a low-barrier format.</li>
           <li>You need fast iteration without a compile step.</li>
         </ul>
-        <p>Use <strong>C#</strong> when:</p>
+        <p>Use <strong>C#</strong> &mdash; the primary, fully supported path, and what <code>forge init</code> scaffolds by default &mdash; when:</p>
         <ul>
+          <li>You need the Firewall, IIS, SQL, or .NET-detection extensions (JSON validates but does not yet build these &mdash; see sections 5 and 6 above).</li>
           <li>You need custom actions (DLL, EXE, or script execution during install).</li>
           <li>You have conditional features based on detected system state.</li>
           <li>You need custom sequence table manipulation.</li>
           <li>You are building merge modules, patches, or transforms.</li>
           <li>You want compile-time type safety and IDE refactoring support.</li>
         </ul>
-        <p>You can start with JSON and migrate to C# later. The JSON format covers roughly 80% of typical installer scenarios.</p>
+        <p>JSON is a work-in-progress subset. You can start with JSON for the fields it actually supports (product, features, files, shortcuts, registry, services, environment variables, major upgrade/downgrade, launch conditions, license, signing) and move to C# once you need anything else, including any of the four extensions.</p>
       </div>
     </details>
 
     <!-- Section 5: Web Server Installer -->
     <h2>5. Web Server Installer</h2>
-    <p>Open <code>demo/json/06-web-server.json</code>. This config installs a web application with IIS and firewall rules &mdash; no C# needed.</p>
+    <p>Open <code>demo/json/06-web-server.json</code>. This config describes a web application with IIS and firewall rules.</p>
+    <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
+      <strong>Not yet functional via JSON.</strong> The <code>extensions</code> block below is parsed and structurally validated &mdash; <code>forge build</code> and <code>forge validate</code> both accept it and report real errors for malformed rules &mdash; but the validated configuration is <strong>not currently emitted into the compiled MSI</strong>. Building this demo produces an installer with no firewall rule and no IIS app pool or web site. Use the C# fluent API's Firewall and IIS extensions for a working installer today; this section documents the schema so JSON authors know what's accepted, not what's installed.
+    </div>
 
-    <h3>Firewall rules</h3>
+    <h3>Firewall rules (schema, not yet emitted)</h3>
     <pre><code><span class="str">"extensions"</span><span class="punc">:</span> <span class="punc">{</span>
   <span class="str">"firewall"</span><span class="punc">:</span> <span class="punc">[</span>
     <span class="punc">{</span>
@@ -285,9 +298,9 @@
     <span class="punc">}</span>
   <span class="punc">]</span>
 <span class="punc">}</span></code></pre>
-    <p>Each rule gets a unique <code>id</code>. The rule is created on install and removed on uninstall. Supported profiles: <code>All</code>, <code>Domain</code>, <code>Private</code>, <code>Public</code>.</p>
+    <p>Each rule gets a unique <code>id</code> and must specify <code>port</code> or <code>program</code>. Supported profiles: <code>All</code>, <code>Domain</code>, <code>Private</code>, <code>Public</code>. On the C# path the equivalent Firewall extension call creates the rule on install and removes it on uninstall; the JSON path validates this shape but does not yet build it into the installer (see the warning above).</p>
 
-    <h3>IIS app pools and web sites</h3>
+    <h3>IIS app pools and web sites (schema, not yet emitted)</h3>
     <pre><code><span class="str">"iis"</span><span class="punc">:</span> <span class="punc">{</span>
   <span class="str">"appPools"</span><span class="punc">:</span> <span class="punc">[</span>
     <span class="punc">{</span>
@@ -311,7 +324,7 @@
     <span class="punc">}</span>
   <span class="punc">]</span>
 <span class="punc">}</span></code></pre>
-    <p>The <code>appPool</code> field on a web site references an app pool by its <code>id</code>. FalkForge wires the relationship automatically. Bindings support <code>http</code> and <code>https</code> protocols with configurable port and host header.</p>
+    <p>The <code>appPool</code> field on a web site references an app pool by its <code>id</code> in the JSON document. Bindings support <code>http</code> and <code>https</code> protocols with configurable port and host header. As above, this shape validates but is not yet built into the MSI &mdash; use the C# IIS extension for a web site and app pool that actually get created.</p>
 
     <details class="deep-dive">
       <summary>Deep dive: Extension-specific JSON schemas</summary>
@@ -323,15 +336,18 @@
           <li><strong><code>sql</code></strong> &mdash; array of database objects with connection info and scripts.</li>
           <li><strong><code>dotnet</code></strong> &mdash; array of runtime detection checks.</li>
         </ul>
-        <p>Extension validation uses the same error code families as C#: <code>FWL</code> for firewall, <code>IIS</code> for IIS, <code>SQL</code> for SQL, <code>NET</code> for .NET detection. Invalid JSON extension configs fail fast with clear messages.</p>
+        <p>Extension validation uses the same error code families as C#: <code>JSN011</code> for firewall, <code>JSN012</code> for IIS, <code>JSN013</code> for SQL, <code>JSN014</code> for .NET detection (see <code>JsonConfigLoader.ValidateExtensions</code>). Invalid JSON extension configs fail fast with clear messages &mdash; but a config that passes this validation still does not reach the compiled installer today.</p>
       </div>
     </details>
 
     <!-- Section 6: Database Application -->
     <h2>6. Database Application</h2>
-    <p>Open <code>demo/json/07-database-app.json</code>. This config provisions a SQL Server database and detects .NET runtimes.</p>
+    <p>Open <code>demo/json/07-database-app.json</code>. This config describes a SQL Server database provision and a .NET runtime detection check.</p>
+    <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
+      <strong>Not yet functional via JSON</strong> &mdash; same gap as section 5: the <code>sql</code> and <code>dotnet</code> extension blocks below validate but are not emitted into the compiled installer. Use the C# fluent API's SQL and .NET-detection extensions for a working installer today.
+    </div>
 
-    <h3>SQL database creation</h3>
+    <h3>SQL database creation (schema, not yet emitted)</h3>
     <pre><code><span class="str">"extensions"</span><span class="punc">:</span> <span class="punc">{</span>
   <span class="str">"sql"</span><span class="punc">:</span> <span class="punc">[</span>
     <span class="punc">{</span>
@@ -365,7 +381,7 @@
       <li><strong><code>scripts</code></strong> &mdash; SQL files executed in <code>sequence</code> order. Schema first, then seed data.</li>
     </ul>
 
-    <h3>.NET runtime detection</h3>
+    <h3>.NET runtime detection (schema, not yet emitted)</h3>
     <pre><code><span class="str">"dotnet"</span><span class="punc">:</span> <span class="punc">[</span>
   <span class="punc">{</span>
     <span class="str">"runtimeType"</span><span class="punc">:</span> <span class="str">"Runtime"</span><span class="punc">,</span>
@@ -374,16 +390,16 @@
     <span class="str">"variableName"</span><span class="punc">:</span> <span class="str">"DOTNET8_INSTALLED"</span>
   <span class="punc">}</span>
 <span class="punc">]</span></code></pre>
-    <p>FalkForge probes the registry and filesystem for the specified .NET runtime. The result is stored in the MSI property named by <code>variableName</code>, which you can use in launch conditions or feature conditions.</p>
+    <p>On the C# path, the equivalent .NET-detection extension probes the registry and filesystem for the specified runtime and stores the result in the MSI property named by <code>variableName</code>. The JSON <code>dotnet</code> block above validates the same four required fields but, like <code>firewall</code>, <code>iis</code>, and <code>sql</code>, is not yet built into the installer.</p>
 
     <details class="deep-dive">
-      <summary>Deep dive: Connection string handling in JSON config</summary>
+      <summary>Deep dive: Connection string handling (C# SQL extension)</summary>
       <div class="deep-dive-content">
-        <p>The <code>server</code> field accepts MSI property references like <code>[SQLSERVER]</code>. At install time, Windows Installer resolves these to the actual values. This keeps connection strings out of the JSON file and lets the user (or admin deploying silently) provide the server name.</p>
+        <p>This describes the <strong>C# SQL extension's</strong> behavior, since the JSON <code>sql</code> block does not yet reach the compiled installer. The <code>server</code> field accepts MSI property references like <code>[SQLSERVER]</code>. At install time, Windows Installer resolves these to the actual values. This keeps connection strings out of the config and lets the user (or admin deploying silently) provide the server name.</p>
         <p>For silent deployments, pass the property on the command line:</p>
         <pre><code>msiexec /i DatabaseApp.msi /qn SQLSERVER=dbserver\SQLEXPRESS</code></pre>
-        <p>For interactive installs, use the <code>"InstallDir"</code> or <code>"Advanced"</code> UI template. The SQL plugin can display a server selection dialog if you use the C# API with the custom UI system.</p>
-        <p>Authentication uses Windows Integrated Security by default. For SQL authentication, combine with a custom UI page that collects credentials via <code>SetSecureProperty</code> &mdash; but that requires the C# API.</p>
+        <p>For interactive installs, use the <code>"InstallDir"</code> or <code>"Advanced"</code> UI template. The SQL extension can display a server selection dialog if you use the C# API with the custom UI system.</p>
+        <p>Authentication uses Windows Integrated Security by default. For SQL authentication, combine with a custom UI page that collects credentials via <code>SetSecureProperty</code> &mdash; that requires the C# API.</p>
       </div>
     </details>
 
@@ -433,7 +449,7 @@
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Files, shortcuts, registry</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Feature trees</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Services, environment variables</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
-        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">IIS, Firewall, SQL, .NET extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">IIS, Firewall, SQL, .NET extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No (WIP &mdash; validated, not emitted)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">CI/CD pipeline generation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Ideal</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Possible</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Signed bundle (integrity manifest, PEM or SignServer)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Custom actions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
@@ -444,7 +460,7 @@
       </tbody>
     </table>
 
-    <p>Start with JSON for straightforward installers and CI/CD pipelines. Move to C# when you need custom actions, conditional features, or advanced MSI capabilities. Both produce identical MSI output.</p>
+    <p>Start with JSON for straightforward, extension-free installers and CI/CD pipelines. Move to C# &mdash; the primary path &mdash; when you need custom actions, conditional features, advanced MSI capabilities, or any of the Firewall/IIS/SQL/.NET extensions. For the fields JSON does support, both produce identical MSI output.</p>
 
     <nav class="tutorial-nav">
       <span></span>
