@@ -47,7 +47,7 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
     {
         if (Directory.Exists(_tempDir))
         {
-            try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 
@@ -88,8 +88,8 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
     /// Proves the full <c>forge bundle detach</c> → <c>signtool</c> → <c>forge bundle reattach</c>
     /// ceremony PRESERVES a genuine Authenticode signature end-to-end. Gated on signtool.exe from
     /// the Windows SDK — present on the windows-latest CI image (so this runs in CI) and skipped
-    /// cleanly on machines without the SDK, mirroring the darice.cub probe/skip pattern the ICE
-    /// tests use.
+    /// cleanly on machines without the SDK: <see cref="FindSignTool"/> probes for signtool.exe on
+    /// disk and, if absent, the test skips itself via <see cref="Assert.SkipUnless"/>.
     /// <para>
     /// Authenticode locates the PE attribute-certificate table via the optional header's Security
     /// data directory and EXCLUDES that whole region from the signed digest. A naive reattach that
