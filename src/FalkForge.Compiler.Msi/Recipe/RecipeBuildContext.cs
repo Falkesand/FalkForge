@@ -18,6 +18,12 @@ internal sealed class RecipeBuildContext
 {
     private readonly Dictionary<TableId, ImmutableArray<RecipeRow>> _builtTables = new();
 
+    // Non-fatal diagnostics raised by producers during recipe build. Producers only see this
+    // context (not the IFalkLogger passed to MsiRecipeBuilder.Build), so a producer that needs
+    // to surface a warning queues it here; MsiRecipeBuilder drains the queue through the logger
+    // once the producer pipeline finishes.
+    private readonly List<(string Code, string Message)> _warnings = new();
+
     // Lazily cached filename→component map. Built once on first access and reused
     // by both MsiAssemblyTableProducer and MsiAssemblyNameTableProducer so the
     // O(components × files) scan runs at most once per build.
@@ -68,6 +74,14 @@ internal sealed class RecipeBuildContext
     /// <summary>Frozen view over all tables built so far. Producers may read but not mutate.</summary>
     public IReadOnlyDictionary<TableId, ImmutableArray<RecipeRow>> BuiltTables
         => _builtTables.ToFrozenDictionary();
+
+    /// <summary>Non-fatal diagnostics queued by producers via <see cref="AddWarning"/>.</summary>
+    internal IReadOnlyList<(string Code, string Message)> Warnings => _warnings;
+
+    /// <summary>Queues a non-fatal diagnostic to be logged as a <c>Warning</c> once the
+    /// producer pipeline finishes. <paramref name="code"/> is a stable diagnostic code
+    /// (e.g. <c>DLG004</c>) surfaced alongside <paramref name="message"/>.</summary>
+    internal void AddWarning(string code, string message) => _warnings.Add((code, message));
 
     /// <summary>
     /// Returns the filename-to-component lookup map, building and caching it on

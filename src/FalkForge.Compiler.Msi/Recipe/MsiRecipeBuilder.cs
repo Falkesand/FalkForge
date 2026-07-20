@@ -341,6 +341,15 @@ public static class MsiRecipeBuilder
             finalBuilder.AddRange(multiResult.Value);
         }
 
+        // Drain any non-fatal diagnostics producers queued on the context (e.g. DialogSetProducer's
+        // DLG004 LicenseFile-vs-dialog-set mismatch). Producers only see RecipeBuildContext, not the
+        // IFalkLogger passed to this method, so this is where the two are reconnected.
+        foreach ((string code, string message) in context.Warnings)
+        {
+            logger?.Log(LogLevel.Warning, "MsiRecipeBuilder", message,
+                new Dictionary<string, string> { ["code"] = code });
+        }
+
         ImmutableArray<RecipeTable> finalTables = finalBuilder.ToImmutable();
 
         var pkg = resolved.Package;
