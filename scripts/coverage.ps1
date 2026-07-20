@@ -56,7 +56,11 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 Write-Host "[2/3] Test with coverage..." -ForegroundColor Yellow
 
-dotnet-coverage collect -f cobertura -o "$coverageFile" "dotnet test `"$slnx`" --no-build -c $Configuration -v minimal --logger `"trx;LogFileName=test-results.trx`" --results-directory `"$resultsDir`""
+# The trx is produced by the Microsoft.Testing.Platform native TRX reporter (arguments after
+# the `--` are passed to the test host), NOT the classic VSTest `--logger trx`, which is a
+# silent no-op under MTP (xunit.v3 test projects run on MTP, not classic VSTest) and would
+# leave this report with no per-test results at all.
+dotnet-coverage collect -f cobertura -o "$coverageFile" "dotnet test `"$slnx`" --no-build -c $Configuration -v minimal -- --report-trx --report-trx-filename test-results.trx"
 $testExit = $LASTEXITCODE
 
 if ($testExit -ne 0) {
@@ -76,7 +80,11 @@ if (-not (Test-Path $coverageFile)) {
     exit 1
 }
 
-reportgenerator "-reports:$coverageFile" "-targetdir:$reportDir" "-reporttypes:JsonSummary;TextSummary;Html"
+# Src-only: keep FalkForge.* production assemblies, drop test assemblies (anything
+# ending .Tests or containing .Tests., e.g. FalkForge.Compiler.Msi.Tests.FakeSigil).
+# Demo projects build under a separate solution and never enter this cobertura file,
+# so the *Demo* exclusion is defensive only. Mirrors .github/workflows/ci.yml.
+reportgenerator "-reports:$coverageFile" "-targetdir:$reportDir" "-reporttypes:JsonSummary;TextSummary;Html" "-assemblyfilters:+FalkForge.*;-FalkForge.*.Tests;-FalkForge.*.Tests.*;-*Demo*"
 $reportExit = $LASTEXITCODE
 
 $summaryFile = Join-Path $reportDir "Summary.txt"
