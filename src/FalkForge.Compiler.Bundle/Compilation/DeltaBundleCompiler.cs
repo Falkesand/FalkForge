@@ -86,11 +86,7 @@ public sealed class DeltaBundleCompiler
             oldEntries[entry.PackageId] = entry;
 
         // Compute old bundle SHA-256 for manifest
-        string oldBundleSha256;
-        using (var oldStream = File.OpenRead(oldBundlePath))
-        {
-            oldBundleSha256 = Convert.ToHexString(SHA256.HashData(oldStream));
-        }
+        var oldBundleSha256 = ComputeFileSha256Hex(oldBundlePath);
 
         // Determine old version from manifest if available
         string? oldVersion = null;
@@ -120,13 +116,8 @@ public sealed class DeltaBundleCompiler
                 return Result<string>.Failure(ErrorKind.PayloadError,
                     $"Package source not found: {package.SourcePath}");
 
-            long originalSize;
-            string hash;
-            using (var fileStream = File.OpenRead(package.SourcePath))
-            {
-                originalSize = fileStream.Length;
-                hash = Convert.ToHexString(SHA256.HashData(fileStream));
-            }
+            var originalSize = new FileInfo(package.SourcePath).Length;
+            var hash = ComputeFileSha256Hex(package.SourcePath);
 
             payloads.Add(new PayloadEntry
             {
@@ -334,8 +325,7 @@ public sealed class DeltaBundleCompiler
                         baseSha256Hashes[i] = oldEntries[payload.PackageId].Sha256Hash;
                         reconstructedSha256Hashes[i] = payload.Sha256Hash;
                         // Sha256Hash for delta entries is the hash of the delta data itself.
-                        using var deltaFileStream = File.OpenRead(deltaTempPath);
-                        deltaSha256Hashes[i] = Convert.ToHexString(SHA256.HashData(deltaFileStream));
+                        deltaSha256Hashes[i] = ComputeFileSha256Hex(deltaTempPath);
                     }
                     else
                     {
@@ -441,5 +431,15 @@ public sealed class DeltaBundleCompiler
     {
         try { File.Delete(path); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort cleanup */ }
+    }
+
+    /// <summary>
+    /// Shared "open file, hash it, hex-encode" helper — recurs across the old-bundle hash, each
+    /// new payload's hash, and each delta temp file's hash.
+    /// </summary>
+    private static string ComputeFileSha256Hex(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream));
     }
 }
