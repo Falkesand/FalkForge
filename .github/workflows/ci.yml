@@ -114,17 +114,39 @@ jobs:
             tests/**/bin/**/TestResults/**
           if-no-files-found: warn
 
-      - name: Generate coverage report
-        run: reportgenerator "-reports:TestResults\coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:JsonSummary;TextSummary"
+      # Primary report: SRC-ONLY. The raw cobertura file also carries coverage
+      # for the test assemblies themselves (test fixtures, FakeSigil helper
+      # project) — reportgenerator counts those toward the headline % unless
+      # filtered out, which pollutes the number away from the meaningful
+      # "how much of our product code is exercised" figure. -assemblyfilters
+      # keeps every FalkForge.* production assembly and drops anything ending
+      # in .Tests or containing .Tests. (catches FalkForge.Compiler.Msi.Tests.FakeSigil).
+      # Demo projects (demo/*) build under a separate solution and are never
+      # part of the `dotnet test FalkForge.slnx` run this wraps, so they never
+      # appear in the cobertura file — the *Demo* exclusion below is defensive only.
+      - name: Generate coverage report (src-only)
+        run: reportgenerator "-reports:TestResults\coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:JsonSummary;TextSummary" "-assemblyfilters:+FalkForge.*;-FalkForge.*.Tests;-FalkForge.*.Tests.*;-*Demo*"
 
-      - name: Print coverage summary
+      - name: Print coverage summary (src-only)
         run: Get-Content CoverageReport\Summary.txt
 
-      - name: Upload coverage report
+      # Secondary report: all-assembly (unfiltered), kept as a separate artifact
+      # for anyone who wants the raw number including test-project code.
+      - name: Generate coverage report (all-assembly)
+        run: reportgenerator "-reports:TestResults\coverage.cobertura.xml" "-targetdir:CoverageReport-AllAssembly" "-reporttypes:JsonSummary;TextSummary"
+
+      - name: Upload coverage report (src-only)
         uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: CoverageReport/
+          if-no-files-found: warn
+
+      - name: Upload coverage report (all-assembly)
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-report-all-assembly
+          path: CoverageReport-AllAssembly/
           if-no-files-found: warn
 
   # SignServer container e2e: FalkForge.SignServer.E2E.Tests spins a live keyfactor/signserver-ce
