@@ -292,6 +292,19 @@ public static class BundleDetacher
                     }
                 }
 
+                // 3b. Align the file to an 8-byte boundary before the footer. WinVerifyTrust
+                // requires the PE attribute-certificate table to be a multiple of 8 bytes, and
+                // PreserveAuthenticodeSignature below extends that table to EOF — so a signed stub's
+                // signature only survives when EOF sits on an 8-byte boundary (the cert table starts
+                // 8-aligned). The footer is 24 bytes (itself a multiple of 8), so aligning the
+                // pre-footer position aligns EOF. These padding bytes live between the TOC and the
+                // footer and are never read by the reader (it locates the TOC via the footer's
+                // absolute offset), so they are inert for unsigned bundles too.
+                outputWriter.Flush();
+                var padCount = (int)((8 - outputStream.Position % 8) % 8);
+                for (var p = 0; p < padCount; p++)
+                    outputWriter.Write((byte)0);
+
                 // 4. Write footer
                 outputWriter.Write(BundleReader.BundleMagic.ToArray());
                 outputWriter.Write(newTocOffset);
@@ -313,6 +326,14 @@ public static class BundleDetacher
                 }
             }
 
+            // Preserve the signed stub's Authenticode signature across the append. The bundle data
+            // was written PAST the PE attribute-certificate table, which by itself pushes the cert
+            // table off EOF and makes Windows report the whole file as unsigned (TRUST_E_NOSIGNATURE).
+            // Extending the PE Security data-directory (and the last WIN_CERTIFICATE) to span the
+            // appended bytes puts the cert table back at EOF without touching any signed bytes — the
+            // signature remains valid. No-op (and never a failure) when the stub is not a signed PE.
+            PreserveAuthenticodeSignature(outputTmpPath, newStubSize);
+
             // Atomic rename on success
             File.Move(outputTmpPath, outputPath, true);
 
@@ -324,6 +345,162 @@ public static class BundleDetacher
             return Result<Unit>.Failure(ErrorKind.BundleError,
                 "BDS003: Failed to reattach bundle: " + ex.Message);
         }
+    }
+
+    /// <summary>
+    ///     Restores the Authenticode signature of a reattached bundle whose signed PE stub had its
+    ///     attribute-certificate table pushed off EOF by the appended bundle data.
+    ///     <para>
+    ///     Authenticode locates the certificate table via the PE optional header's
+    ///     <c>IMAGE_DIRECTORY_ENTRY_SECURITY</c> data directory (VirtualAddress = the table's file
+    ///     offset, Size = its byte length) and — critically — EXCLUDES that entire region from the
+    ///     signed digest. So growing the Security directory's <c>Size</c> to reach the new EOF, and
+    ///     the trailing <c>WIN_CERTIFICATE.dwLength</c> to match, makes the appended bundle bytes
+    ///     part of the (unhashed) certificate region. Neither patched field is part of the signed
+    ///     digest (the 8-byte Security directory entry and the whole cert region are both skipped),
+    ///     so the signature the publisher applied to the bare stub still verifies over the reattached
+    ///     file. The trailing bundle bytes sit inside the enlarged last WIN_CERTIFICATE as content
+    ///     past the PKCS#7 DER structure, which the signature decoder ignores.
+    ///     </para>
+    ///     <para>
+    ///     Purely a byte-level PE patch — no reflection or dynamic code — so it is safe under
+    ///     NativeAOT. It is a best-effort no-op when the stub is not a signed PE (an unsigned or
+    ///     non-PE stub, or a layout where the cert table was not exactly at the stub's EOF): in
+    ///     those cases the reattached bundle simply carries no Authenticode signature, exactly as
+    ///     before this method existed. It never alters bytes that are part of the signed digest.
+    ///     </para>
+    /// </summary>
+    private static void PreserveAuthenticodeSignature(string filePath, long signedStubSize)
+    {
+        const int DosLfanewOffset = 0x3C;
+        const int PeSignatureSize = 4; // "PE\0\0"
+        const int CoffHeaderSize = 20;
+        const int SecurityDirectoryIndex = 4;
+        const int DataDirectoryEntrySize = 8; // VirtualAddress (4) + Size (4)
+
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var fileLength = fs.Length;
+
+        // DOS header: 'M','Z' then e_lfanew at 0x3C pointing to the PE signature.
+        if (fileLength < DosLfanewOffset + 4)
+            return;
+        if (ReadU16(fs, 0) != 0x5A4D) // 'MZ'
+            return;
+
+        var peOffset = ReadU32(fs, DosLfanewOffset);
+        if (peOffset + PeSignatureSize + CoffHeaderSize > fileLength)
+            return;
+        if (ReadU32(fs, peOffset) != 0x00004550) // 'P','E',0,0 (little-endian)
+            return;
+
+        var optHeaderOffset = peOffset + PeSignatureSize + CoffHeaderSize;
+        if (optHeaderOffset + 2 > fileLength)
+            return;
+
+        // Optional header Magic: 0x10B = PE32, 0x20B = PE32+. The layout up to CheckSum is identical;
+        // only the offsets of NumberOfRvaAndSizes / the data directory differ between the two.
+        var optMagic = ReadU16(fs, optHeaderOffset);
+        int numberOfRvaAndSizesOffset;
+        int dataDirectoryOffset;
+        switch (optMagic)
+        {
+            case 0x10B: // PE32
+                numberOfRvaAndSizesOffset = 92;
+                dataDirectoryOffset = 96;
+                break;
+            case 0x20B: // PE32+
+                numberOfRvaAndSizesOffset = 108;
+                dataDirectoryOffset = 112;
+                break;
+            default:
+                return;
+        }
+
+        if (optHeaderOffset + numberOfRvaAndSizesOffset + 4 > fileLength)
+            return;
+
+        var numberOfRvaAndSizes = ReadU32(fs, optHeaderOffset + numberOfRvaAndSizesOffset);
+        if (numberOfRvaAndSizes <= SecurityDirectoryIndex)
+            return; // No Security data directory present — stub is not signed.
+
+        var securityEntryOffset =
+            optHeaderOffset + dataDirectoryOffset + SecurityDirectoryIndex * DataDirectoryEntrySize;
+        if (securityEntryOffset + DataDirectoryEntrySize > fileLength)
+            return;
+
+        var certTableOffset = ReadU32(fs, securityEntryOffset);
+        var certTableSize = ReadU32(fs, securityEntryOffset + 4);
+        if (certTableOffset == 0 || certTableSize == 0)
+            return; // Unsigned stub.
+
+        // The signtool-produced signature places the cert table exactly at the stub's EOF. Only
+        // preserve when that holds — otherwise extending the region would swallow non-cert bytes
+        // that WERE part of the signed digest and break the signature. Skip (leave unsigned) instead.
+        if (certTableOffset + certTableSize != signedStubSize)
+            return;
+
+        // The new region must reach the actual EOF, and the values are PE DWORDs (uint). A bundle
+        // large enough to overflow a uint cert region cannot use this technique; skip rather than
+        // silently wrap (the payloads still self-extract; only the Authenticode signature is lost).
+        var newCertRegionLength = fileLength - certTableOffset;
+        if (newCertRegionLength > uint.MaxValue)
+            return;
+
+        // The attribute-certificate table must be a multiple of 8 bytes for WinVerifyTrust to
+        // exclude it cleanly from the signed digest. Reattach pads the file to an 8-byte boundary
+        // and cert tables start 8-aligned, so this holds — but if some exotic signed stub violates
+        // it, skip rather than emit a table WinVerifyTrust would read as a bad digest (leaving the
+        // bundle unsigned is honest; a corrupt-signature file is not).
+        if (newCertRegionLength % 8 != 0)
+            return;
+
+        // Walk the WIN_CERTIFICATE entries within the ORIGINAL cert region to find the last one; only
+        // it is grown, so any earlier certificates (e.g. a dual signature) stay intact.
+        long lastCertOffset = certTableOffset;
+        var pos = (long)certTableOffset;
+        var regionEnd = (long)certTableOffset + certTableSize;
+        while (pos + 8 <= regionEnd)
+        {
+            var dwLength = ReadU32(fs, pos);
+            if (dwLength < 8)
+                return; // Malformed cert table — do not touch a signature we cannot parse.
+            lastCertOffset = pos;
+            pos += (dwLength + 7) & ~7; // 8-byte aligned stride to the next WIN_CERTIFICATE
+        }
+
+        var newLastCertLength = fileLength - lastCertOffset;
+        if (newLastCertLength > uint.MaxValue)
+            return;
+
+        // Patch order is irrelevant — both fields lie in Authenticode-excluded regions:
+        //   * the last WIN_CERTIFICATE.dwLength (inside the cert region), and
+        //   * the Security data-directory Size (the 8-byte directory entry, also skipped by the hash).
+        WriteU32(fs, lastCertOffset, (uint)newLastCertLength);
+        WriteU32(fs, securityEntryOffset + 4, (uint)newCertRegionLength);
+    }
+
+    private static ushort ReadU16(Stream stream, long offset)
+    {
+        stream.Seek(offset, SeekOrigin.Begin);
+        Span<byte> buffer = stackalloc byte[2];
+        stream.ReadExactly(buffer);
+        return BinaryPrimitives.ReadUInt16LittleEndian(buffer);
+    }
+
+    private static uint ReadU32(Stream stream, long offset)
+    {
+        stream.Seek(offset, SeekOrigin.Begin);
+        Span<byte> buffer = stackalloc byte[4];
+        stream.ReadExactly(buffer);
+        return BinaryPrimitives.ReadUInt32LittleEndian(buffer);
+    }
+
+    private static void WriteU32(Stream stream, long offset, uint value)
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer, value);
+        stream.Seek(offset, SeekOrigin.Begin);
+        stream.Write(buffer);
     }
 
     /// <summary>
