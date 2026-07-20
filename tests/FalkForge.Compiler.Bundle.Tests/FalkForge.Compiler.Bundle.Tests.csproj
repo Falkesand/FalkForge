@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
   </ItemGroup>
 </Project>
