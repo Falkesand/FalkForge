@@ -66,16 +66,7 @@ internal static class ExitDlgBuilder
                             OverrideHeight = 20,
                         }),
                 },
-                new RegionPlacement
-                {
-                    RegionName = "BottomLine",
-                    Controls = ImmutableArray.Create(
-                        new PlacedControl
-                        {
-                            Name = "BottomLine",
-                            Type = "Line",
-                        }),
-                },
+                DialogFooter.BottomLine(),
                 new RegionPlacement
                 {
                     RegionName = "ButtonRow",
