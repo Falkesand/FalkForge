@@ -27,19 +27,13 @@ internal static class BundleIntegritySigner
         BundleModel model,
         IReadOnlyList<PayloadEntry> payloads)
     {
-        if (model.Integrity is null)
+        var inputs = TryBuildSignerInputs(model, payloads);
+        if (inputs is null)
             return manifest;
 
-        if (EnvVarCatalog.IsSigningDisabled())
-            return manifest;
-
-        var config = model.Integrity;
+        var (config, entries) = inputs.Value;
 
         // Step 1: Sign payload hashes (pure-.NET ECDSA; no external tool required).
-        var entries = new List<PayloadHashEntry>(payloads.Count);
-        foreach (var payload in payloads)
-            entries.Add(new PayloadHashEntry(payload.PackageId, payload.Sha256Hash));
-
         var signResult = EcdsaManifestSigner.Sign(entries, config);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
@@ -59,23 +53,40 @@ internal static class BundleIntegritySigner
         IReadOnlyList<PayloadEntry> payloads,
         CancellationToken cancellationToken = default)
     {
-        if (model.Integrity is null)
+        var inputs = TryBuildSignerInputs(model, payloads);
+        if (inputs is null)
             return manifest;
 
-        if (EnvVarCatalog.IsSigningDisabled())
-            return manifest;
-
-        var config = model.Integrity;
-
-        var entries = new List<PayloadHashEntry>(payloads.Count);
-        foreach (var payload in payloads)
-            entries.Add(new PayloadHashEntry(payload.PackageId, payload.Sha256Hash));
+        var (config, entries) = inputs.Value;
 
         var signResult = await EcdsaManifestSigner.SignAsync(entries, config, cancellationToken).ConfigureAwait(false);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
         return Enrich(manifest, model, payloads, config, signResult.Value);
+    }
+
+    /// <summary>
+    /// Shared pre-flight for both the sync and async signing paths: applies the "no integrity
+    /// requested" / "signing explicitly disabled" early-outs and builds the per-payload hash
+    /// entries the signer needs. Returns null when either guard says "skip signing" — the caller
+    /// then returns the manifest unchanged, identically to before this was factored out.
+    /// </summary>
+    private static (IntegrityConfiguration Config, List<PayloadHashEntry> Entries)? TryBuildSignerInputs(
+        BundleModel model,
+        IReadOnlyList<PayloadEntry> payloads)
+    {
+        if (model.Integrity is null)
+            return null;
+
+        if (EnvVarCatalog.IsSigningDisabled())
+            return null;
+
+        var entries = new List<PayloadHashEntry>(payloads.Count);
+        foreach (var payload in payloads)
+            entries.Add(new PayloadHashEntry(payload.PackageId, payload.Sha256Hash));
+
+        return (model.Integrity, entries);
     }
 
     /// <summary>
