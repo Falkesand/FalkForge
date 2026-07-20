@@ -436,7 +436,7 @@ public static class BundleDetacher
         // The signtool-produced signature places the cert table exactly at the stub's EOF. Only
         // preserve when that holds — otherwise extending the region would swallow non-cert bytes
         // that WERE part of the signed digest and break the signature. Skip (leave unsigned) instead.
-        if (certTableOffset + certTableSize != signedStubSize)
+        if ((long)certTableOffset + certTableSize != signedStubSize)
             return;
 
         // The new region must reach the actual EOF, and the values are PE DWORDs (uint). A bundle
