@@ -102,6 +102,84 @@ public sealed class OnboardingEndToEndTests : IDisposable
         "and FalkForge.Templates not found at artifacts/nuget — run scripts/pack.ps1 first. " +
         "This gate exists because packing requires the multi-minute NativeAOT engine publish.";
 
+    /// <summary>
+    /// Extracts the FalkForge meta-package's version from its nupkg filename in the feed, using
+    /// the same "starts with a digit" rule <see cref="FindOnboardingFeed"/> already applies to
+    /// tell the meta-package apart from every granular sub-package (Engine.Runtime, Templates,
+    /// Compiler.*, ...) that shares its "FalkForge." prefix.
+    /// </summary>
+    private static bool TryGetOnboardingFeedVersion(string feed, out string? feedVersion)
+    {
+        var metaPackage = Directory.GetFiles(feed, "FalkForge.*.nupkg")
+            .FirstOrDefault(f => char.IsAsciiDigit(Path.GetFileName(f)["FalkForge.".Length]));
+        if (metaPackage is null)
+        {
+            feedVersion = null;
+            return false;
+        }
+
+        feedVersion = Regex.Match(Path.GetFileName(metaPackage), @"^FalkForge\.(.+)\.nupkg$")
+            .Groups[1].Value;
+        return true;
+    }
+
+    /// <summary>
+    /// Skips (never fails) an onboarding test whose local feed was packed at an older commit
+    /// than the current scaffold version: <c>forge init</c> stamps
+    /// <c>&lt;PackageReference Include="FalkForge" Version="{VersionInfo.CliVersion}" /&gt;</c>,
+    /// so a stale feed can't restore it — an environment artifact of <c>scripts/pack.ps1</c> not
+    /// having been re-run, not a product regression.
+    /// </summary>
+    private static void AssertFeedVersionMatchesScaffold(string feed)
+    {
+        var scaffoldVersion = VersionInfo.CliVersion.Split('+')[0];
+        TryGetOnboardingFeedVersion(feed, out var feedVersion);
+        Assert.SkipUnless(feedVersion == scaffoldVersion,
+            $"Local feed version {feedVersion} lags the scaffold version {scaffoldVersion}; " +
+            "re-pack with scripts/pack.ps1. (env artifact, not a regression)");
+    }
+
+    // ---- feed-version skip gate: must read the meta-package's own version, not a sub-package's ----
+
+    [Fact]
+    public void TryGetOnboardingFeedVersion_ReadsMetaPackage_NotAGranularSubPackage()
+    {
+        // Sub-packages (Engine.Runtime, Templates, Compiler.Bundle) share the "FalkForge." file
+        // prefix and can legitimately carry a different version than the meta-package during a
+        // partial re-pack; the skip gate must compare against the meta-package's version, not
+        // whichever "FalkForge.*.nupkg" file happens to be found first.
+        var feed = Path.Combine(_tempDir, "fake-feed");
+        Directory.CreateDirectory(feed);
+        foreach (var name in new[]
+                 {
+                     "FalkForge.1.2.3.nupkg",
+                     "FalkForge.Engine.Runtime.win-x64.9.9.9.nupkg",
+                     "FalkForge.Templates.9.9.9.nupkg",
+                     "FalkForge.Compiler.Bundle.9.9.9.nupkg"
+                 })
+            File.WriteAllBytes(Path.Combine(feed, name), []);
+
+        var found = TryGetOnboardingFeedVersion(feed, out var feedVersion);
+
+        Assert.True(found);
+        Assert.Equal("1.2.3", feedVersion);
+    }
+
+    [Fact]
+    public void TryGetOnboardingFeedVersion_NoMetaPackageInFeed_ReturnsFalse()
+    {
+        // A feed holding only sub-packages (e.g. a broken partial pack) must not be mistaken for
+        // a versioned meta-package — the caller needs a definite "no version" signal to skip on.
+        var feed = Path.Combine(_tempDir, "fake-feed-no-meta");
+        Directory.CreateDirectory(feed);
+        File.WriteAllBytes(Path.Combine(feed, "FalkForge.Templates.1.2.3.nupkg"), []);
+
+        var found = TryGetOnboardingFeedVersion(feed, out var feedVersion);
+
+        Assert.False(found);
+        Assert.Null(feedVersion);
+    }
+
     // ---- plumbing ----
 
     private void WriteNuGetConfig(string directory, string feed)
@@ -273,6 +351,7 @@ public sealed class OnboardingEndToEndTests : IDisposable
     {
         var feed = FindOnboardingFeed();
         Assert.SkipUnless(feed is not null, FeedSkipReason);
+        AssertFeedVersionMatchesScaffold(feed);
 
         var projectDir = Path.Combine(_tempDir, "init-msi");
         var initExit = RunForgeInit(new InitSettings { OutputDir = projectDir, Name = "Onboard App" });
@@ -289,6 +368,7 @@ public sealed class OnboardingEndToEndTests : IDisposable
     {
         var feed = FindOnboardingFeed();
         Assert.SkipUnless(feed is not null, FeedSkipReason);
+        AssertFeedVersionMatchesScaffold(feed);
 
         var projectDir = Path.Combine(_tempDir, "init-bundle");
         var initExit = RunForgeInit(new InitSettings
