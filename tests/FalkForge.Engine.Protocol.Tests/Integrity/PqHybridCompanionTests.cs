@@ -391,4 +391,108 @@ public sealed class PqHybridCompanionTests
             Assert.Empty(collected.Value);
         }
     }
+
+    // ── Duplicate-fingerprint poisoning (CodeRabbit) ──────────────────────────
+
+    // Produces a companion entry with an HONEST fingerprint (re-derived from its own SPKI) but a
+    // signature that will NOT verify — a base64-valid, tampered copy of a genuine signature. The
+    // fingerprint honesty check passes (same key), so the entry IS indexed; only its signature is bad.
+    private static SignatureEntry BogusButHonestPqEntry(MLDsa key, byte[] message, ReadOnlySpan<byte> context)
+    {
+        var entry = PqEntry(key, message, context);
+        var tampered = Convert.FromBase64String(entry.Signature);
+        tampered[100] ^= 0xFF; // corrupt so it fails ML-DSA verification, base64 stays well-formed
+        entry.Signature = Convert.ToBase64String(tampered);
+        return entry;
+    }
+
+    [Fact]
+    public void DuplicateFingerprint_BogusFirst_ValidSecond_MatchTrusted_Accepts()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+        // Attack: append a bogus ML-DSA companion carrying the genuine key's SPKI + a garbage
+        // signature, ORDERED BEFORE the real companion. Both entries re-derive to the SAME pinned
+        // fingerprint. The old single-entry index (TryAdd) kept only the FIRST (bogus) entry, so the
+        // legitimately hybrid-signed bundle was WRONGLY REJECTED (fail-closed denial). Retaining all
+        // companions per fingerprint and accepting if ANY verifies fixes this without weakening trust.
+        var files = Files(("App", "AAAA"));
+        var (envelope, classical, pq) = BuildHybrid(files);
+        using (classical)
+        using (pq)
+        {
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            envelope.Signatures =
+            [
+                envelope.Signatures[0],
+                BogusButHonestPqEntry(pq, message, SignatureAlgorithms.ManifestContext), // injected first
+                PqEntry(pq, message, SignatureAlgorithms.ManifestContext)                // genuine companion
+            ];
+
+            var result = IntegrityEnvelopeCodec.MatchTrustedSignature(
+                envelope, TrustSet(Fingerprint(classical)), revokedFingerprints: null,
+                Policy(Fingerprint(classical), Fingerprint(pq)));
+
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+            Assert.Equal(Fingerprint(classical), result.Value);
+        }
+    }
+
+    [Fact]
+    public void DuplicateFingerprint_BogusFirst_ValidSecond_CollectTrusted_CollectsSigner()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+        // The same injection over the quorum path: the hybrid signer must still be collected exactly
+        // once, because a genuine companion for the pinned fingerprint verifies.
+        var files = Files(("App", "AAAA"));
+        var (envelope, classical, pq) = BuildHybrid(files);
+        using (classical)
+        using (pq)
+        {
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            envelope.Signatures =
+            [
+                envelope.Signatures[0],
+                BogusButHonestPqEntry(pq, message, SignatureAlgorithms.ManifestContext),
+                PqEntry(pq, message, SignatureAlgorithms.ManifestContext)
+            ];
+
+            var collected = IntegrityEnvelopeCodec.CollectTrustedSignatures(
+                envelope, TrustSet(Fingerprint(classical)), _ => TrustRole.Release,
+                Policy(Fingerprint(classical), Fingerprint(pq)));
+
+            Assert.True(collected.IsSuccess, collected.IsFailure ? collected.Error.Message : null);
+            var one = Assert.Single(collected.Value);
+            Assert.Equal(Fingerprint(classical), one.Fingerprint);
+        }
+    }
+
+    [Fact]
+    public void DuplicateFingerprint_AllCompanionsBogus_StillRejectedWithInt011()
+    {
+        Assert.SkipUnless(MLDsa.IsSupported, "ML-DSA is not supported by the OS/CNG on this machine.");
+        // Fail-closed preservation: retaining all companions must NOT let a bundle pass when NONE of
+        // the entries for the pinned fingerprint verify. Two honest-fingerprint but bogus-signature
+        // companions → still INT011, exactly as a single stripped/invalid companion would be.
+        var files = Files(("App", "AAAA"));
+        var (envelope, classical, pq) = BuildHybrid(files);
+        using (classical)
+        using (pq)
+        {
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            envelope.Signatures =
+            [
+                envelope.Signatures[0],
+                BogusButHonestPqEntry(pq, message, SignatureAlgorithms.ManifestContext),
+                BogusButHonestPqEntry(pq, message, SignatureAlgorithms.ManifestContext)
+            ];
+
+            var result = IntegrityEnvelopeCodec.MatchTrustedSignature(
+                envelope, TrustSet(Fingerprint(classical)), revokedFingerprints: null,
+                Policy(Fingerprint(classical), Fingerprint(pq)));
+
+            Assert.True(result.IsFailure,
+                "no verifying companion for the pinned fingerprint must still fail closed");
+            Assert.Contains("INT011", result.Error.Message, StringComparison.Ordinal);
+        }
+    }
 }
