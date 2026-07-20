@@ -9,7 +9,9 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// Producer for the MSI <c>Property</c> table. Synthesizes the MSI built-in
 /// properties (<c>ProductName</c>, <c>Manufacturer</c>, <c>ProductVersion</c>,
 /// <c>ProductCode</c>, <c>UpgradeCode</c>, <c>ProductLanguage</c>,
-/// <c>ALLUSERS</c>, optional <c>MSIRMSHUTDOWN</c>) from the
+/// <c>ALLUSERS</c>, optional <c>MSIRMSHUTDOWN</c>) plus the optional Add/Remove
+/// Programs metadata (<c>ARPCOMMENTS</c>, <c>ARPCONTACT</c>, <c>ARPHELPLINK</c>,
+/// <c>ARPURLINFOABOUT</c>, <c>ARPURLUPDATEINFO</c>) from the
 /// <see cref="PackageModel"/> headline fields, then layers the user-supplied
 /// <see cref="PackageModel.Properties"/> on top — matching the order and
 /// override semantics of the legacy <c>TableEmitter</c> (deleted in Phase 9)
@@ -63,6 +65,34 @@ internal sealed class PropertyTableProducer : ITableProducer
         if (package.ProductIcon is { Length: > 0 } productIcon)
         {
             props["ARPPRODUCTICON"] = ProducerHelpers.ResolveIconName(productIcon);
+        }
+
+        // Add/Remove Programs metadata authored via PackageBuilder.Comments/Contact/HelpUrl/
+        // AboutUrl/UpdateUrl. PackageModel already carries these; without this block they never
+        // reached the Property table and silently vanished from ARP.
+        if (!string.IsNullOrEmpty(package.Comments))
+        {
+            props["ARPCOMMENTS"] = package.Comments;
+        }
+
+        if (!string.IsNullOrEmpty(package.Contact))
+        {
+            props["ARPCONTACT"] = package.Contact;
+        }
+
+        if (!string.IsNullOrEmpty(package.HelpUrl))
+        {
+            props["ARPHELPLINK"] = package.HelpUrl;
+        }
+
+        if (!string.IsNullOrEmpty(package.AboutUrl))
+        {
+            props["ARPURLINFOABOUT"] = package.AboutUrl;
+        }
+
+        if (!string.IsNullOrEmpty(package.UpdateUrl))
+        {
+            props["ARPURLUPDATEINFO"] = package.UpdateUrl;
         }
 
         foreach (PropertyModel property in package.Properties)

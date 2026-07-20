@@ -123,4 +123,82 @@ public sealed class MsiAuthoringTests : IDisposable
         Assert.Contains(rows, r => r[0] == "ProductName" && r[1] == "RecipeRoundTrip");
         Assert.Contains(rows, r => r[0] == "Manufacturer" && r[1] == "FalkForge");
     }
+
+    [Fact]
+    public void Compile_with_arp_metadata_round_trips_to_property_table()
+    {
+        // Regression guard: PackageBuilder.Comments/Contact/HelpUrl/AboutUrl/UpdateUrl used to
+        // reach PackageModel but PropertyTableProducer never emitted them, so Add/Remove Programs
+        // silently lost the metadata even though the model carried it end to end.
+        string sourceDir = Path.Combine(_tempDir, "src");
+        Directory.CreateDirectory(sourceDir);
+        string sourceFile = Path.Combine(sourceDir, "app.exe");
+        File.WriteAllText(sourceFile, "fake exe content");
+
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "ArpMetadata";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Comments = "Installs the ArpMetadata sample app.";
+            p.Contact = "support@example.com";
+            p.HelpUrl = "https://support.example.com";
+            p.AboutUrl = "https://example.com/about";
+            p.UpdateUrl = "https://example.com/update";
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "ArpMetadata"));
+        });
+
+        Result<string> compileResult = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
+
+        using MsiDatabase db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+        Result<List<string?[]>> queryResult =
+            db.QueryRows("SELECT `Property`, `Value` FROM `Property`", fieldCount: 2);
+        Assert.True(queryResult.IsSuccess);
+
+        List<string?[]> rows = queryResult.Value;
+        Assert.Contains(rows, r => r[0] == "ARPCOMMENTS" && r[1] == "Installs the ArpMetadata sample app.");
+        Assert.Contains(rows, r => r[0] == "ARPCONTACT" && r[1] == "support@example.com");
+        Assert.Contains(rows, r => r[0] == "ARPHELPLINK" && r[1] == "https://support.example.com");
+        Assert.Contains(rows, r => r[0] == "ARPURLINFOABOUT" && r[1] == "https://example.com/about");
+        Assert.Contains(rows, r => r[0] == "ARPURLUPDATEINFO" && r[1] == "https://example.com/update");
+    }
+
+    [Fact]
+    public void Compile_without_arp_metadata_omits_arp_rows()
+    {
+        string sourceDir = Path.Combine(_tempDir, "src");
+        Directory.CreateDirectory(sourceDir);
+        string sourceFile = Path.Combine(sourceDir, "app.exe");
+        File.WriteAllText(sourceFile, "fake exe content");
+
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "NoArpMetadata";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "NoArpMetadata"));
+        });
+
+        Result<string> compileResult = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
+
+        using MsiDatabase db = MsiDatabase.Open(compileResult.Value, readOnly: true).Value;
+        Result<List<string?[]>> queryResult =
+            db.QueryRows("SELECT `Property`, `Value` FROM `Property`", fieldCount: 2);
+        Assert.True(queryResult.IsSuccess);
+
+        List<string?[]> rows = queryResult.Value;
+        Assert.DoesNotContain(rows, r => r[0] == "ARPCOMMENTS");
+        Assert.DoesNotContain(rows, r => r[0] == "ARPCONTACT");
+        Assert.DoesNotContain(rows, r => r[0] == "ARPHELPLINK");
+        Assert.DoesNotContain(rows, r => r[0] == "ARPURLINFOABOUT");
+        Assert.DoesNotContain(rows, r => r[0] == "ARPURLUPDATEINFO");
+    }
 }
