@@ -2948,6 +2948,13 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>Advanced</code></td><td>Extended dialog set with install directory, feature tree, and advanced options.</td></tr>
     </tbody>
   </table>
+  <p>
+    <code>None</code> and <code>Minimal</code> have no license page. Setting <code>LicenseFile</code>
+    with one of those two active does not fail the build &mdash; the license is simply not shown &mdash;
+    but it logs a <code>DLG004</code> warning (via the optional <code>IFalkLogger</code> passed to
+    <code>MsiAuthoring.Compile</code>) so the mismatch is not silent. Use <code>InstallDir</code>,
+    <code>FeatureTree</code>, <code>Mondo</code>, or <code>Advanced</code> to actually render the license.
+  </p>
 
   <pre><code class="language-csharp">// Full-featured MSI package
 return Installer.Build(args, p =&gt;

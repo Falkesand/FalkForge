@@ -155,7 +155,7 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
 
         // Inject the license RTF into the ScrollableText license control's Text column.
         // Runs after localization resolution so the raw RTF is never scanned for !(loc.X).
-        Result<Unit> licenseResult = InjectLicenseText(dialogs, package);
+        Result<Unit> licenseResult = InjectLicenseText(dialogs, package, context);
         if (licenseResult.IsFailure)
         {
             return Result<ImmutableArray<RecipeTable>>.Failure(licenseResult.Error);
@@ -431,13 +431,16 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
     /// <remarks>
     /// No-op when no license file is configured. When a license file is set but the
     /// active dialog set has no license page (e.g. <see cref="MsiDialogSet.Minimal"/>),
-    /// there is no control to render into, so the method skips silently rather than
-    /// failing — the unused file is not an authoring error. A missing or unreadable
-    /// file <b>is</b> an authoring error and fails loud with
-    /// <see cref="ErrorKind.FileNotFound"/>: silently continuing is exactly the
+    /// there is no control to render into, so the method does not fail — the unused file
+    /// is not an authoring error — but it does queue a <c>DLG004</c> warning on
+    /// <paramref name="context"/> (drained to the build logger by
+    /// <see cref="MsiRecipeBuilder"/>) so the author is not left guessing why the license
+    /// never shows. A missing or unreadable file <b>is</b> an authoring error and fails
+    /// loud with <see cref="ErrorKind.FileNotFound"/>: silently continuing is exactly the
     /// blank-license bug this method fixes.
     /// </remarks>
-    private static Result<Unit> InjectLicenseText(List<MsiDialogModel> dialogs, PackageModel package)
+    private static Result<Unit> InjectLicenseText(
+        List<MsiDialogModel> dialogs, PackageModel package, RecipeBuildContext context)
     {
         if (string.IsNullOrEmpty(package.LicenseFile))
         {
@@ -462,10 +465,15 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         }
 
         // LicenseFile set but the dialog set has no license page (Minimal / None). Nothing
-        // to render into, so do not read the file and do not fail. (Follow-up: a validation
-        // warning for this LicenseFile-vs-dialog-set mismatch would be a nicer UX.)
+        // to render into, so do not read the file and do not fail — but warn (DLG004) so the
+        // mismatch is not silent.
         if (targets is null)
         {
+            context.AddWarning(
+                "DLG004",
+                $"LicenseFile is set ('{package.LicenseFile}') but dialog set '{package.DialogSet}' has " +
+                "no license page, so the license will not be shown. Use InstallDir, FeatureTree, Mondo, " +
+                "or Advanced instead.");
             return Unit.Value;
         }
 

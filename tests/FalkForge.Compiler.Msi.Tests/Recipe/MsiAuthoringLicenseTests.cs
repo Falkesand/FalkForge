@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Recipe;
+using FalkForge.Diagnostics;
 using FalkForge.Models;
 using FalkForge.Platform.Windows;
 using FalkForge.Testing;
@@ -145,5 +146,90 @@ public sealed class MsiAuthoringLicenseTests : IDisposable
         Result<string> result = MsiAuthoring.Compile(package, outputDir);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void Compile_with_license_file_but_minimal_dialog_set_logs_DLG004_warning()
+    {
+        // The Minimal dialog set has no license page, so InjectLicenseText has nothing to
+        // render into and used to skip silently. That leaves an author with a configured
+        // LicenseFile and no clue why it never shows. It must now surface a DLG004 warning.
+        string sourceFile = CreateSourceFile();
+        string licensePath = Path.Combine(_tempDir, "license.rtf");
+        File.WriteAllText(licensePath, LicenseRtf);
+
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LicensedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LicensedApp"));
+            p.UseDialogSet(MsiDialogSet.Minimal);
+            p.LicenseFile = licensePath;
+        });
+
+        var logger = new ListLogger();
+        Result<string> result = MsiAuthoring.Compile(package, outputDir, [], logger);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        var warnings = logger.EntriesAt(LogLevel.Warning);
+        var licenseWarning = Assert.Single(warnings, e => e.Message.Contains("LicenseFile"));
+        Assert.NotNull(licenseWarning.Properties);
+        Assert.Equal("DLG004", licenseWarning.Properties!["code"]);
+    }
+
+    [Fact]
+    public void Compile_with_license_file_and_wizard_dialog_set_does_not_log_DLG004_warning()
+    {
+        // A license-bearing dialog set (InstallDir) has a real target control, so the
+        // license renders and no warning should fire.
+        string sourceFile = CreateSourceFile();
+        string licensePath = Path.Combine(_tempDir, "license.rtf");
+        File.WriteAllText(licensePath, LicenseRtf);
+
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LicensedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LicensedApp"));
+            p.UseDialogSet(MsiDialogSet.InstallDir);
+            p.LicenseFile = licensePath;
+        });
+
+        var logger = new ListLogger();
+        Result<string> result = MsiAuthoring.Compile(package, outputDir, [], logger);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        Assert.DoesNotContain(logger.EntriesAt(LogLevel.Warning), e => e.Message.Contains("LicenseFile"));
+    }
+
+    [Fact]
+    public void Compile_without_license_file_does_not_log_DLG004_warning()
+    {
+        string sourceFile = CreateSourceFile();
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "NoLicenseApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "NoLicenseApp"));
+            p.UseDialogSet(MsiDialogSet.Minimal);
+        });
+
+        var logger = new ListLogger();
+        Result<string> result = MsiAuthoring.Compile(package, outputDir, [], logger);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        Assert.DoesNotContain(logger.EntriesAt(LogLevel.Warning), e => e.Message.Contains("LicenseFile"));
     }
 }
