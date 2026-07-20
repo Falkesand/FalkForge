@@ -25,9 +25,6 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 [SupportedOSPlatform("windows")]
 public sealed class BundleDetachSignRoundTripTests : IDisposable
 {
-    /// <summary>TRUST_E_NOSIGNATURE — Windows finds no signature on the file at all.</summary>
-    private const string NoSignatureStatus = "0x800B0100";
-
     /// <summary>
     /// CERT_E_UNTRUSTEDROOT — the signature's digest verified but the (self-signed) certificate
     /// does not chain to a trusted root. For a fresh, un-installed self-signed code-signing cert
@@ -88,40 +85,40 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
     }
 
     /// <summary>
-    /// Characterizes the REAL outcome of the full <c>forge bundle detach</c> → <c>signtool</c> →
-    /// <c>forge bundle reattach</c> ceremony with a genuine Authenticode signature. Gated on
-    /// signtool.exe from the Windows SDK — present on the windows-latest CI image (so this runs in
-    /// CI) and skipped cleanly on machines without the SDK, mirroring the darice.cub probe/skip
-    /// pattern the ICE tests use.
+    /// Proves the full <c>forge bundle detach</c> → <c>signtool</c> → <c>forge bundle reattach</c>
+    /// ceremony PRESERVES a genuine Authenticode signature end-to-end. Gated on signtool.exe from
+    /// the Windows SDK — present on the windows-latest CI image (so this runs in CI) and skipped
+    /// cleanly on machines without the SDK, mirroring the darice.cub probe/skip pattern the ICE
+    /// tests use.
     /// <para>
-    /// This test SURFACES A PRODUCT GAP. The signing ceremony's documented promise
-    /// (<c>demo/15-bundle-signing/README.md</c>, "The stub is signed bare and the payloads are
-    /// reattached afterward — <b>the signature stays valid</b>") does NOT hold on modern Windows.
-    /// Authenticode requires the PE attribute-certificate table to be the LAST bytes of the file;
-    /// <see cref="BundleDetacher.Reattach"/> copies the signed stub verbatim and then appends the
-    /// bundle data (manifest + payloads + TOC + footer) PAST the certificate table, so the cert
-    /// table is no longer at EOF. Windows then reports the reattached bundle as <b>unsigned</b>
-    /// (TRUST_E_NOSIGNATURE), not merely untrusted — the publisher's Authenticode signature is
-    /// silently discarded even though its bytes are still physically present in the file.
+    /// Authenticode locates the PE attribute-certificate table via the optional header's Security
+    /// data directory and EXCLUDES that whole region from the signed digest. A naive reattach that
+    /// simply appends the bundle data (manifest + payloads + TOC + footer) past the cert table
+    /// leaves the table short of EOF, and Windows then reports the file as <b>unsigned</b>
+    /// (TRUST_E_NOSIGNATURE). <see cref="BundleDetacher.Reattach"/> avoids that by extending the
+    /// Security data-directory size (and the trailing WIN_CERTIFICATE length) to span the appended
+    /// bytes, so the cert table again ends at EOF. Both patched fields lie inside Authenticode's
+    /// excluded regions, so the digest the publisher signed over the bare stub still matches: the
+    /// reattached bundle verifies to <see cref="UntrustedRootStatus"/> (the SAME status as the bare
+    /// signed stub), NOT TRUST_E_NOSIGNATURE.
     /// </para>
     /// <para>
-    /// Verified with two independent APIs (WinVerifyTrust via <see cref="AuthenticodeValidator"/>
-    /// AND <c>Get-AuthenticodeSignature</c>/signtool verify) on Windows 10.0.26200. A real fix
-    /// requires <see cref="BundleDetacher.Reattach"/> to extend the PE optional header's Security
-    /// data-directory size to span the appended bytes (so the cert table again ends at EOF), or to
-    /// change the signing order. Until then this test PINS the broken behavior so the gap cannot
-    /// regress unnoticed; when Reattach is fixed, the final assertion here must flip to
-    /// <see cref="UntrustedRootStatus"/> (the stub's own status).
+    /// Verified here via WinVerifyTrust (<see cref="AuthenticodeValidator"/>) on Windows 10.0.26200.
+    /// The self-signed, un-installed cert stops the chain at an untrusted root — which is exactly
+    /// what proves the DIGEST verified (not a bad digest, not a missing signature) without needing
+    /// to write to the machine Root store. NOTE: this relies on default WinVerifyTrust behavior;
+    /// a machine with the opt-in CVE-2013-3900 certificate-padding hardening enabled would reject
+    /// the trailing bytes inside the enlarged WIN_CERTIFICATE — see the demo README caveat.
     /// </para>
     /// <para>
-    /// The parts that genuinely DO hold are asserted positively: the bare stub signs and is
-    /// recognized by Windows, the signed stub's bytes survive reattach verbatim, and — because
-    /// FalkForge's payload trust is the independent in-manifest ECDSA layer, not Authenticode — the
-    /// reattached bundle still self-extracts its payloads byte-for-byte.
+    /// The supporting properties are asserted too: the bare stub signs and is recognized by Windows,
+    /// the signed stub's bytes survive reattach verbatim, and — because FalkForge's payload trust is
+    /// the independent in-manifest ECDSA layer, not Authenticode — the reattached bundle still
+    /// self-extracts its payloads byte-for-byte.
     /// </para>
     /// </summary>
     [Fact]
-    public void DetachSignReattach_SignedStubRecognized_ButReattachedBundleLosesAuthenticode()
+    public void DetachSignReattach_ReattachedBundlePreservesAuthenticode()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
 
@@ -154,7 +151,6 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
         // Apply a REAL Authenticode signature to the bare stub with an in-code self-signed
         // code-signing certificate, exactly as a publisher would with their own cert.
         SignWithSelfSignedCert(signtool!, detachedStub);
-        var signedStubBytes = File.ReadAllBytes(detachedStub);
 
         var validator = new AuthenticodeValidator();
 
@@ -168,23 +164,23 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
         var reattachedPath = Path.Combine(_tempDir, "signed_reattached.exe");
         Assert.True(BundleDetacher.Reattach(detachedStub, detachedData, reattachedPath).IsSuccess);
 
-        // (1) The reattached bundle begins with the signed stub verbatim — the signature blob is
-        //     still physically present; reattach did not corrupt it.
-        var reattachedFront = ReadPrefix(reattachedPath, signedStubBytes.Length);
-        Assert.Equal(signedStubBytes, reattachedFront);
-
-        // (2) The signed, reattached bundle still self-extracts every payload byte-for-byte — the
-        //     self-extraction path does not depend on Authenticode.
+        // (1) The signed, reattached bundle still self-extracts every payload byte-for-byte — the
+        //     self-extraction path does not depend on Authenticode. Reattach edits only the two
+        //     Authenticode-excluded header fields (the PE Security data-directory size and the last
+        //     WIN_CERTIFICATE length); the reattached bundle is therefore NOT byte-identical to the
+        //     signed stub in those fields — the meaningful proof that the signature blob survived
+        //     intact is the untrusted-root (digest-valid) status asserted in (2) below, which a
+        //     corrupted PKCS#7 blob could never produce.
         AssertPayloadsExtractByteForByte(reattachedPath, ("Signed1", payload1), ("Signed2", payload2));
 
-        // (3) THE GAP: despite the signature bytes being intact, Windows no longer recognizes ANY
-        //     signature on the reattached bundle because the certificate table is no longer at EOF
-        //     (payloads were appended after it). This contradicts the demo's "the signature stays
-        //     valid" claim. See the type-doc for the fix (extend the Security data-directory size).
-        //     When Reattach is fixed, change this to Assert.Equal(UntrustedRootStatus, ...).
+        // (2) THE FIX: Reattach extended the PE Security data-directory (and the trailing
+        //     WIN_CERTIFICATE) to span the appended bundle bytes, so the cert table again ends at
+        //     EOF and the publisher's digest still verifies. The reattached bundle reports the SAME
+        //     WinVerifyTrust status as the bare signed stub — untrusted-root, i.e. the signature is
+        //     PRESENT and digest-valid, stopping only at the self-signed root — NOT NoSignature.
         var reattachedStatus = VerifyStatus(validator, reattachedPath);
-        Assert.Equal(NoSignatureStatus, reattachedStatus);
-        Assert.NotEqual(stubStatus, reattachedStatus);
+        Assert.Equal(UntrustedRootStatus, reattachedStatus);
+        Assert.Equal(stubStatus, reattachedStatus);
     }
 
     // --------------------------------------------------------------------------------------------
@@ -333,14 +329,6 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
             Assert.True(payloadResult.IsSuccess, payloadResult.IsFailure ? payloadResult.Error.Message : null);
             Assert.Equal(data, payloadResult.Value);
         }
-    }
-
-    private static byte[] ReadPrefix(string path, int count)
-    {
-        using var stream = File.OpenRead(path);
-        var buffer = new byte[count];
-        stream.ReadExactly(buffer);
-        return buffer;
     }
 
     private string CreateStubFile(string content)
