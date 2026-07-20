@@ -31,7 +31,7 @@ public sealed class MsiInspectionResult
     /// entries. Merge Gate nit: shown under a separate label from <see cref="SignatureFingerprints"/>
     /// — a zero-config Integrity() build on a PQ-capable machine signs with both a classical and an
     /// ML-DSA key, and <c>forge verify --trusted-key</c> only ever matches the classical fingerprint
-    /// (see <c>IntegrityEnvelopeCodec.IsClassicalEntry</c>); showing both under one "Signing Key
+    /// (see <c>PqCompanionVerifier.IsClassicalEntry</c>); showing both under one "Signing Key
     /// Fingerprint" label would let an operator copy-paste the wrong one into <c>--trusted-key</c>
     /// and get a baffling INT001.</summary>
     public IReadOnlyList<string> PqCompanionFingerprints { get; init; } = [];
