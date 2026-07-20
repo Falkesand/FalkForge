@@ -27,24 +27,9 @@ internal static class CustomizeDlgBuilder
         System.ArgumentNullException.ThrowIfNull(flow);
 
         var events = ImmutableArray.Create(
-            new DialogControlEvent
-            {
-                Control = "Back",
-                Event = "NewDialog",
-                Argument = flow.BackDialog ?? string.Empty,
-            },
-            new DialogControlEvent
-            {
-                Control = "Next",
-                Event = "NewDialog",
-                Argument = flow.NextDialog ?? "ProgressDlg",
-            },
-            new DialogControlEvent
-            {
-                Control = "Cancel",
-                Event = "SpawnDialog",
-                Argument = flow.CancelDialog,
-            });
+            DialogFooter.BackEvent(flow),
+            DialogFooter.NextEvent(flow, defaultTarget: "ProgressDlg"),
+            DialogFooter.CancelEvent(flow));
 
         return new DialogContent
         {
@@ -121,38 +106,14 @@ internal static class CustomizeDlgBuilder
                             OverrideHeight = 30,
                         }),
                 },
-                new RegionPlacement
-                {
-                    RegionName = "BottomLine",
-                    Controls = ImmutableArray.Create(
-                        new PlacedControl
-                        {
-                            Name = "BottomLine",
-                            Type = "Line",
-                        }),
-                },
+                DialogFooter.BottomLine(),
                 new RegionPlacement
                 {
                     RegionName = "ButtonRow",
                     Controls = ImmutableArray.Create(
-                        new PlacedControl
-                        {
-                            Name = "Cancel",
-                            Type = "PushButton",
-                            TextOrLocKey = "!(loc.Button.Cancel)",
-                        },
-                        new PlacedControl
-                        {
-                            Name = "Next",
-                            Type = "PushButton",
-                            TextOrLocKey = "!(loc.Button.Next)",
-                        },
-                        new PlacedControl
-                        {
-                            Name = "Back",
-                            Type = "PushButton",
-                            TextOrLocKey = "!(loc.Button.Back)",
-                        }),
+                        DialogFooter.CancelButton(),
+                        DialogFooter.NextButton(),
+                        DialogFooter.BackButton()),
                 }),
         };
     }

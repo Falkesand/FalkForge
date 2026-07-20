@@ -25,13 +25,7 @@ internal static class ProgressDlgBuilder
     {
         System.ArgumentNullException.ThrowIfNull(flow);
 
-        var events = ImmutableArray.Create(
-            new DialogControlEvent
-            {
-                Control = "Cancel",
-                Event = "SpawnDialog",
-                Argument = flow.CancelDialog,
-            });
+        var events = ImmutableArray.Create(DialogFooter.CancelEvent(flow));
 
         // Mirrors legacy: ProgressBar tracks SetProgress, ActionText tracks ActionText.
         var eventMappings = ImmutableArray.Create(
@@ -105,26 +99,11 @@ internal static class ProgressDlgBuilder
                             OverrideHeight = 10,
                         }),
                 },
-                new RegionPlacement
-                {
-                    RegionName = "BottomLine",
-                    Controls = ImmutableArray.Create(
-                        new PlacedControl
-                        {
-                            Name = "BottomLine",
-                            Type = "Line",
-                        }),
-                },
+                DialogFooter.BottomLine(),
                 new RegionPlacement
                 {
                     RegionName = "ButtonRow",
-                    Controls = ImmutableArray.Create(
-                        new PlacedControl
-                        {
-                            Name = "Cancel",
-                            Type = "PushButton",
-                            TextOrLocKey = "!(loc.Button.Cancel)",
-                        }),
+                    Controls = ImmutableArray.Create(DialogFooter.CancelButton()),
                 }),
         };
     }
