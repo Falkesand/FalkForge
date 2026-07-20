@@ -315,15 +315,34 @@ internal static partial class Program
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(cts.Token);
-        return outcome.State switch
-        {
-            EngineTerminalState.Completed  => 0,
-            EngineTerminalState.Cancelled  => 2,
-            EngineTerminalState.RolledBack => 3,
-            EngineTerminalState.Failed     => 1,
-            _                              => 1
-        };
+        return ToExitCode(outcome.State);
     }
+
+    /// <summary>
+    /// Maps a terminal engine state to the process exit code the bootstrapper and the
+    /// direct-manifest path both return. Single-sourced so the two run paths can never drift.
+    /// </summary>
+    private static int ToExitCode(EngineTerminalState state) => state switch
+    {
+        EngineTerminalState.Completed  => 0,
+        EngineTerminalState.Cancelled  => 2,
+        EngineTerminalState.RolledBack => 3,
+        EngineTerminalState.Failed     => 1,
+        _                              => 1
+    };
+
+    /// <summary>
+    /// Loads the per-machine trust state for a payload-trust gate. On the require-signed path (update
+    /// launcher) the persisted store is loaded with ACL validation (C16) so the gate enforces the same
+    /// anti-downgrade epoch (INT008) + local revocations (INT001) as the bootstrapper; a non-conforming
+    /// (attacker-writable) store fails closed. Fresh / inspection extracts (requireSigned=false) do not
+    /// consult the store — it is advanced only during a verified update apply — so a neutral
+    /// <see cref="TrustState"/> is returned. Callers surface the failure in their own idiom.
+    /// </summary>
+    private static Result<TrustState> LoadTrustState(bool requireSigned) =>
+        requireSigned
+            ? TrustStateStore.LoadValidated(TrustStateStore.DefaultPath)
+            : Result<TrustState>.Success(new TrustState());
 
     /// <summary>
     /// Extracts the SBOM attestation from an installer manifest to a file.
@@ -365,20 +384,11 @@ internal static partial class Program
         // Anti-squat (C16): on the require-signed path, validate the store directory's ACL before trusting
         // its epoch/revocations; a non-conforming (attacker-writable) store fails closed rather than
         // silently weakening the anti-downgrade/revocation gate.
-        TrustState trustState;
-        if (requireSigned)
-        {
-            var loaded = TrustStateStore.LoadValidated(TrustStateStore.DefaultPath);
-            if (loaded.IsFailure)
-                return Result<Unit>.Failure(loaded.Error);
-            trustState = loaded.Value;
-        }
-        else
-        {
-            trustState = new TrustState();
-        }
+        var loaded = LoadTrustState(requireSigned);
+        if (loaded.IsFailure)
+            return Result<Unit>.Failure(loaded.Error);
 
-        return BundleTrustGate.Verify(content, requireSigned, trustState);
+        return BundleTrustGate.Verify(content, requireSigned, loaded.Value);
     }
 
     /// <summary>
@@ -487,23 +497,15 @@ internal static partial class Program
         // Anti-squat (C16): on the require-signed update path, validate the store directory's ACL before
         // trusting its epoch/revocations. A non-conforming (attacker-writable) store fails closed — the
         // update is refused rather than applied against a store an unprivileged process could have tampered.
-        TrustState trustState;
-        if (requireSigned)
+        var loadedTrust = LoadTrustState(requireSigned);
+        if (loadedTrust.IsFailure)
         {
-            var loaded = TrustStateStore.LoadValidated(TrustStateStore.DefaultPath);
-            if (loaded.IsFailure)
-            {
-                await Console.Error.WriteLineAsync(
-                    $"Bundle integrity verification failed: {loaded.Error.Message}");
-                return 1;
-            }
+            await Console.Error.WriteLineAsync(
+                $"Bundle integrity verification failed: {loadedTrust.Error.Message}");
+            return 1;
+        }
 
-            trustState = loaded.Value;
-        }
-        else
-        {
-            trustState = new TrustState();
-        }
+        var trustState = loadedTrust.Value;
 
         var bootstrapTrust = BundleTrustGate.Verify(manifest, content.TocEntries, requireSigned, trustState);
         if (bootstrapTrust.IsFailure)
@@ -710,14 +712,7 @@ internal static partial class Program
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
 
-        return outcome.State switch
-        {
-            EngineTerminalState.Completed  => 0,
-            EngineTerminalState.Cancelled  => 2,
-            EngineTerminalState.RolledBack => 3,
-            EngineTerminalState.Failed     => 1,
-            _                              => 1
-        };
+        return ToExitCode(outcome.State);
     }
 
     /// <summary>
