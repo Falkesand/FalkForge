@@ -1,5 +1,7 @@
 # FalkForge
 
+<!-- RULES_SYNCED_FROM_GLOBAL: 2026-07-20 — Hard Limits, Commit Sequence, Merge Gate, security and .NET rules live in the maintainer's global ~/.claude config and load automatically; intentionally not duplicated here. -->
+
 C# MSI/Bundle installer framework. Fluent API, MSI compiler via `msi.dll` P/Invoke, NativeAOT bundle engine with WPF UI. Extensions: Firewall, IIS, SQL, .NET, Dependency, Util, Driver, Http. Output: MSI, MSM, MSP, MST, EXE bundle.
 
 ## Build & Test
