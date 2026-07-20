@@ -237,14 +237,31 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
         foreach (var arg in new[] { "sign", "/fd", "sha256", "/f", pfxPath, "/p", pfxPassword, filePath })
             psi.ArgumentList.Add(arg);
 
-        using var process = Process.Start(psi)!;
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+        // Drain stdout/stderr via async event callbacks BEFORE waiting on exit: reading the two
+        // streams sequentially (ReadToEnd then ReadToEnd) can deadlock if signtool fills one pipe's
+        // OS buffer while blocked writing to the other and this process is still blocked reading the
+        // first — the event-driven pump reads both concurrently off the ThreadPool so neither side
+        // can back up.
+        var stdout = new StringBuilder();
+        var stderr = new StringBuilder();
+
+        using var process = new Process { StartInfo = psi };
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
         if (!process.WaitForExit(TimeSpan.FromMinutes(2)))
         {
             process.Kill(entireProcessTree: true);
             Assert.Fail("signtool did not exit within 2 minutes.");
         }
+
+        // Parameterless WaitForExit after the timed overload ensures the async output-relay events
+        // have fully drained before we read the buffers below (per Process.WaitForExit remarks).
+        process.WaitForExit();
 
         Assert.True(process.ExitCode == 0,
             $"signtool failed (exit {process.ExitCode}). stdout: {stdout} stderr: {stderr}");

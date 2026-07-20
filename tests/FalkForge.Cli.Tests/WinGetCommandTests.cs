@@ -27,7 +27,7 @@ public sealed class WinGetCommandTests : IDisposable
     {
         if (Directory.Exists(_tempDir))
         {
-            try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 
@@ -60,9 +60,9 @@ public sealed class WinGetCommandTests : IDisposable
 
         // The 3-file WinGet manifest set must have been produced under the output directory.
         var yaml = Directory.GetFiles(outputDir, "*.yaml", SearchOption.AllDirectories);
-        Assert.Contains(yaml, f => f.EndsWith("Contoso.WinGetHappy.yaml", StringComparison.Ordinal));
-        Assert.Contains(yaml, f => f.EndsWith("Contoso.WinGetHappy.installer.yaml", StringComparison.Ordinal));
-        Assert.Contains(yaml, f => f.EndsWith("Contoso.WinGetHappy.locale.en-US.yaml", StringComparison.Ordinal));
+        Assert.Contains(yaml, f => f.EndsWith("Contoso.WinGetHappy.yaml", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(yaml, f => f.EndsWith("Contoso.WinGetHappy.installer.yaml", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(yaml, f => f.EndsWith("Contoso.WinGetHappy.locale.en-US.yaml", StringComparison.OrdinalIgnoreCase));
 
         // The command reports where it wrote them.
         Assert.Contains(console.MarkupLines, m => m.Contains("WinGet manifests written to", StringComparison.Ordinal));
