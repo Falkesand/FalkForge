@@ -75,6 +75,27 @@ public abstract class InstallerShellViewModel : INavigationService
     }
 
     /// <summary>
+    /// Inserts a page at the given index without navigating. Used to fold in pages discovered at
+    /// runtime (e.g. after detection) at a fixed position in the wizard flow. The index is clamped
+    /// into range; the current page stays the same page (its index shifts if the insertion is at or
+    /// before it).
+    /// </summary>
+    protected void InsertPage(int index, InstallerPageViewModel page)
+    {
+        if (index < 0)
+            index = 0;
+        if (index > _pages.Count)
+            index = _pages.Count;
+
+        _pages.Insert(index, page);
+
+        if (_currentPageIndex < 0)
+            _currentPageIndex = 0;
+        else if (index <= _currentPageIndex)
+            _currentPageIndex++;
+    }
+
+    /// <summary>
     /// Inserts a page after the current page and navigates to it.
     /// </summary>
     protected async Task InsertPageAfterCurrentAndNavigateAsync(InstallerPageViewModel page)

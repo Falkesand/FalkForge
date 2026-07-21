@@ -51,6 +51,12 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
     {
         await Engine.DetectAsync(ct);
 
+        // Per-package MSI feature picker: the engine advertises a package's Feature rows during
+        // detect (via PackageMsiFeaturesMessage, accumulated on EngineClient). Register the picker
+        // page — right after the flat Features page — ONLY when at least one package actually
+        // advertised features, so the picker is never shown empty.
+        RegisterPackageFeaturePageIfAdvertised();
+
         if (Engine.DetectedState is InstallState.Installed
             or InstallState.OlderVersion
             or InstallState.NewerVersion)
@@ -58,6 +64,24 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
             IsMaintenanceMode = true;
             await NavigateTo<MaintenancePageViewModel>();
         }
+    }
+
+    private void RegisterPackageFeaturePageIfAdvertised()
+    {
+        if (Engine is not IPackageMsiFeatureChannel channel || channel.PackageMsiFeatures.Count == 0)
+            return;
+
+        var insertIndex = FindFeaturesPageIndex() + 1;
+        InsertPage(insertIndex, new PackageFeaturesPageViewModel(Engine, this));
+    }
+
+    private int FindFeaturesPageIndex()
+    {
+        for (var i = 0; i < Pages.Count; i++)
+            if (Pages[i] is FeaturesPageViewModel)
+                return i;
+
+        return Pages.Count - 1;
     }
 
     internal void ForwardUpdateDownloadProgress(int percent, long bytesReceived, long totalBytes)
