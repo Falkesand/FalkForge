@@ -38,14 +38,16 @@ public sealed class MsuExecutor
 
     internal static Result<string> BuildArguments(PlanAction action)
     {
-        if (action.Package.SourcePath.Contains('"'))
+        // EffectiveSourcePath resolves to the extracted payload when the bootstrapper forwarded a
+        // payload root (distributed bundle); otherwise the manifest's build-authored SourcePath.
+        if (action.EffectiveSourcePath.Contains('"'))
             return Result<string>.Failure(
                 ErrorKind.Validation, "MSU SourcePath contains embedded quotes, which is not allowed.");
 
         return action.ActionType switch
         {
             PlanActionType.Install => Result<string>.Success(
-                $"\"{action.Package.SourcePath}\" /quiet /norestart"),
+                $"\"{action.EffectiveSourcePath}\" /quiet /norestart"),
             PlanActionType.Uninstall => BuildUninstallArguments(action),
             _ => Result<string>.Failure(
                 ErrorKind.ExecutionError, $"Unsupported action type for MSU package: {action.ActionType}")

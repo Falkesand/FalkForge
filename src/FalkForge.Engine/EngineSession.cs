@@ -271,7 +271,13 @@ public sealed class EngineSession : IAsyncDisposable
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
         var cacheLayout = new CacheLayout(manifest.Scope);
-        var bundleExecutor = new BundleExecutor(processRunner, cacheLayout.BasePath);
+        // BundleExecutor's containment guard must check the SAME root ApplyStep resolves nested-bundle
+        // payloads under (PayloadPathResolver, keyed off options.PayloadRoot — the bootstrapper's per-run
+        // extraction dir), or a legitimately resolved path fails "outside the allowed cache directory".
+        // cacheLayout.BasePath (the persistent per-scope package cache) is a different root entirely and
+        // is kept only as the floor for the --manifest / plan / offline-layout path, where PayloadRoot is
+        // null and SourcePath stays manifest-authoritative — same guard behavior as before on that path.
+        var bundleExecutor = new BundleExecutor(processRunner, options.PayloadRoot ?? cacheLayout.BasePath);
         var exeExecutor = new ExeExecutor(processRunner);
         var netRuntimeExecutor = new NetRuntimeExecutor(processRunner);
         var packageExecutor = new PackageExecutor(

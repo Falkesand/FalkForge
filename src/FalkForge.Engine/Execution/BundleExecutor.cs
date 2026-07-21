@@ -11,6 +11,14 @@ public sealed class BundleExecutor
     private readonly IProcessRunner _processRunner;
     private readonly string? _allowedBasePath;
 
+    /// <param name="processRunner">Spawns the nested bundle's exe.</param>
+    /// <param name="allowedBasePath">
+    /// Containment root checked against <see cref="Planning.PlanAction.EffectiveSourcePath"/> — the
+    /// caller must supply the SAME root the caller resolved that path under (e.g. the bootstrapper's
+    /// payload extraction root when one was forwarded), or the guard rejects a legitimately resolved
+    /// path as "outside the allowed cache directory". Null disables the check (offline/plan paths
+    /// where SourcePath is manifest-authoritative and no single root applies).
+    /// </param>
     public BundleExecutor(IProcessRunner processRunner, string? allowedBasePath = null)
     {
         _processRunner = processRunner;
@@ -23,7 +31,9 @@ public sealed class BundleExecutor
         if (args.IsFailure)
             return Result<int>.Failure(args.Error);
 
-        var validationResult = ValidateSourcePath(action.Package.SourcePath);
+        // EffectiveSourcePath resolves to the extracted payload when the bootstrapper forwarded a
+        // payload root (distributed bundle); otherwise the manifest's build-authored SourcePath.
+        var validationResult = ValidateSourcePath(action.EffectiveSourcePath);
         if (validationResult.IsFailure)
             return Result<int>.Failure(validationResult.Error);
 
@@ -51,7 +61,7 @@ public sealed class BundleExecutor
             });
 
             var exitCode = await _processRunner.RunAsync(
-                action.Package.SourcePath,
+                action.EffectiveSourcePath,
                 args.Value,
                 pid => processId = pid,
                 ct);
