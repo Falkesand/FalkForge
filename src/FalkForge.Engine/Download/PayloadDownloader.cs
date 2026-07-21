@@ -13,6 +13,14 @@ public sealed class PayloadDownloader
     private const int MaxRetries = 3;
 
     /// <summary>
+    /// Test-visible accessor for the configured bandwidth limiter (null when unthrottled).
+    /// Exposed via <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so
+    /// wiring tests can assert a caller-configured throttle actually reached the downloader
+    /// without asserting on wall-clock download speed.
+    /// </summary>
+    internal TokenBucket? ThrottleBucket => _tokenBucket;
+
+    /// <summary>
     /// Absolute download ceiling applied when the caller has no expected payload size
     /// (disk-fill DoS defense). 16 GiB is deliberately generous: real-world installer
     /// payloads (game installers, SQL Server media, multi-MSI bundles) top out at a few
