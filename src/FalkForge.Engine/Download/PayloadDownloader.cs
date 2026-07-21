@@ -21,6 +21,14 @@ public sealed class PayloadDownloader
     internal TokenBucket? ThrottleBucket => _tokenBucket;
 
     /// <summary>
+    /// Size of each read-loop chunk (see <see cref="DownloadAsync"/>) and the file-stream write
+    /// buffer. Also the floor a caller should pass as <c>TokenBucket</c>'s burst-capacity ceiling
+    /// when constructing a throttle for this downloader -- a bucket capped below this size can
+    /// never satisfy a single chunk's <c>WaitForTokensAsync</c> request and hangs.
+    /// </summary>
+    internal const int ReadBufferSizeBytes = 81920;
+
+    /// <summary>
     /// Absolute download ceiling applied when the caller has no expected payload size
     /// (disk-fill DoS defense). 16 GiB is deliberately generous: real-world installer
     /// payloads (game installers, SQL Server media, multi-MSI bundles) top out at a few
@@ -185,9 +193,9 @@ public sealed class PayloadDownloader
                 // Append when resuming; overwrite from scratch otherwise.
                 var fileMode = isResuming ? FileMode.Append : FileMode.Create;
                 await using var fileStream = new FileStream(
-                    partialPath, fileMode, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true);
+                    partialPath, fileMode, FileAccess.Write, FileShare.None, bufferSize: ReadBufferSizeBytes, useAsync: true);
 
-                var buffer = new byte[81920];
+                var buffer = new byte[ReadBufferSizeBytes];
                 long totalRead = existingSize; // progress bar starts from where we left off
 
                 // Per-chunk idle CTS: resets after every successful ReadAsync so that a
