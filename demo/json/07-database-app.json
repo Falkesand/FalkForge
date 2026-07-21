@@ -1,9 +1,10 @@
 {
+  "_note": "JSON cannot author SQL or .NET-detection configuration -- a JSON 'extensions' block is a hard build error (JSN019). This is a plain file-only installer. For SQL database + scripts and .NET runtime detection, use the C# fluent API: see demo/ 07 (Extensions Showcase, all four extensions in one project) or demos 31 (SQL) and 32 (.NET Detection).",
   "product": {
     "name": "DatabaseApp",
     "manufacturer": "Contoso",
     "version": "1.0.0",
-    "description": "Application with SQL Server database setup"
+    "description": "Database application installer"
   },
   "ui": "InstallDir",
   "installDirectory": "Contoso/DatabaseApp",
@@ -23,39 +24,6 @@
       ]
     }
   ],
-  "extensions": {
-    "sql": [
-      {
-        "id": "AppDatabase",
-        "server": "[SQLSERVER]",
-        "database": "ContosoDb",
-        "createOnInstall": true,
-        "dropOnUninstall": false,
-        "scripts": [
-          {
-            "id": "CreateSchema",
-            "sourceFile": "payload/sql/create-schema.sql",
-            "executeOnInstall": true,
-            "sequence": 1
-          },
-          {
-            "id": "SeedData",
-            "sourceFile": "payload/sql/seed-data.sql",
-            "executeOnInstall": true,
-            "sequence": 2
-          }
-        ]
-      }
-    ],
-    "dotnet": [
-      {
-        "runtimeType": "Runtime",
-        "platform": "X64",
-        "minimumVersion": "8.0.0",
-        "variableName": "DOTNET8_INSTALLED"
-      }
-    ]
-  },
   "downgrade": {
     "message": "A newer version is already installed."
   }

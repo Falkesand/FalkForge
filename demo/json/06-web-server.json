@@ -1,9 +1,10 @@
 {
+  "_note": "JSON cannot author Firewall or IIS configuration -- a JSON 'extensions' block is a hard build error (JSN019). This is a plain file-only installer. For IIS app pool + web site + firewall rules, use the C# fluent API: see demo/ 07 (Extensions Showcase, all four extensions in one project) or demos 29 (Firewall) and 30 (IIS).",
   "product": {
     "name": "WebServerApp",
     "manufacturer": "Contoso",
     "version": "1.0.0",
-    "description": "Web application with IIS and firewall configuration"
+    "description": "Web application installer"
   },
   "ui": "InstallDir",
   "installDirectory": "Contoso/WebServerApp",
@@ -26,59 +27,6 @@
       ]
     }
   ],
-  "extensions": {
-    "firewall": [
-      {
-        "id": "HttpRule",
-        "name": "WebServerApp HTTP",
-        "protocol": "Tcp",
-        "port": "80",
-        "direction": "Inbound",
-        "action": "Allow",
-        "profile": "All"
-      },
-      {
-        "id": "HttpsRule",
-        "name": "WebServerApp HTTPS",
-        "protocol": "Tcp",
-        "port": "443",
-        "direction": "Inbound",
-        "action": "Allow",
-        "profile": "All"
-      }
-    ],
-    "iis": {
-      "appPools": [
-        {
-          "id": "WebAppPool",
-          "name": "WebServerAppPool",
-          "runtimeVersion": "v4.0",
-          "pipelineMode": "Integrated",
-          "identity": "ApplicationPoolIdentity"
-        }
-      ],
-      "webSites": [
-        {
-          "id": "WebSite",
-          "description": "WebServerApp Site",
-          "directory": "[INSTALLDIR]",
-          "appPool": "WebAppPool",
-          "bindings": [
-            {
-              "protocol": "http",
-              "port": 80,
-              "host": "localhost"
-            },
-            {
-              "protocol": "https",
-              "port": 443,
-              "host": "localhost"
-            }
-          ]
-        }
-      ]
-    }
-  },
   "downgrade": {
     "message": "A newer version is already installed."
   }
