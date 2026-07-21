@@ -42,14 +42,16 @@ public sealed partial class MspExecutor
         // The install arguments are built as a raw string; an embedded quote in the
         // build-time-authored SourcePath would break out of the quoting and inject extra
         // msiexec switches. Mirrors the MsuExecutor guard (defense-in-depth consistency).
-        if (action.Package.SourcePath.Contains('"'))
+        // EffectiveSourcePath resolves to the extracted payload when the bootstrapper forwarded a
+        // payload root (distributed bundle); otherwise the manifest's build-authored SourcePath.
+        if (action.EffectiveSourcePath.Contains('"'))
             return Result<string>.Failure(
                 ErrorKind.Validation, "MSP SourcePath contains embedded quotes, which is not allowed.");
 
         return action.ActionType switch
         {
             PlanActionType.Install => Result<string>.Success(
-                $"/p \"{action.Package.SourcePath}\" /quiet /norestart"),
+                $"/p \"{action.EffectiveSourcePath}\" /quiet /norestart"),
             PlanActionType.Uninstall => BuildUninstallArguments(action),
             _ => Result<string>.Failure(
                 ErrorKind.ExecutionError, $"Unsupported action type for MSP package: {action.ActionType}")

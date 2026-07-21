@@ -41,6 +41,50 @@ public sealed class PayloadPathResolutionTests
             Properties = new Dictionary<string, string> { ["InstallArguments"] = "/quiet" }
         };
 
+    private static PackageInfo MsuPackage(
+        string id = "AppMsu", string sourcePath = @"C:\build\out\App.msu") =>
+        new()
+        {
+            Id = id,
+            Type = PackageType.MsuPackage,
+            DisplayName = "App",
+            SourcePath = sourcePath,
+            Sha256Hash = "AABBCCDD"
+        };
+
+    private static PackageInfo MspPackage(
+        string id = "AppMsp", string sourcePath = @"C:\build\out\App.msp") =>
+        new()
+        {
+            Id = id,
+            Type = PackageType.MspPackage,
+            DisplayName = "App",
+            SourcePath = sourcePath,
+            Sha256Hash = "AABBCCDD"
+        };
+
+    private static PackageInfo NetRuntimePackage(
+        string id = "AppNetRuntime", string sourcePath = @"C:\build\out\dotnet-runtime.exe") =>
+        new()
+        {
+            Id = id,
+            Type = PackageType.NetRuntime,
+            DisplayName = "App",
+            SourcePath = sourcePath,
+            Sha256Hash = "AABBCCDD"
+        };
+
+    private static PackageInfo BundlePackage(
+        string id = "AppBundle", string sourcePath = @"C:\build\out\nested-setup.exe") =>
+        new()
+        {
+            Id = id,
+            Type = PackageType.BundlePackage,
+            DisplayName = "App",
+            SourcePath = sourcePath,
+            Sha256Hash = "AABBCCDD"
+        };
+
     private static (PackageExecutor executor, MockMsiApi msiApi, MockProcessRunner runner) BuildExecutor()
     {
         var msiApi = new MockMsiApi();
@@ -143,6 +187,162 @@ public sealed class PayloadPathResolutionTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(resolved, runner.LastFileName);
+    }
+
+    [Fact]
+    public async Task MsuExecutor_UsesResolvedSourcePath_WhenSet()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new MsuExecutor(runner);
+        var resolved = @"C:\cache\bundle\AppMsu";
+        var action = new PlanAction
+        {
+            PackageId = "AppMsu",
+            ActionType = PlanActionType.Install,
+            Package = MsuPackage(sourcePath: @"C:\build\out\App.msu"),
+            ResolvedSourcePath = resolved
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(resolved, runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task MsuExecutor_UsesManifestSourcePath_WhenResolvedNull()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new MsuExecutor(runner);
+        var action = new PlanAction
+        {
+            PackageId = "AppMsu",
+            ActionType = PlanActionType.Install,
+            Package = MsuPackage(sourcePath: @"C:\build\out\App.msu"),
+            ResolvedSourcePath = null
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(@"C:\build\out\App.msu", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task MspExecutor_UsesResolvedSourcePath_WhenSet()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new MspExecutor(runner);
+        var resolved = @"C:\cache\bundle\AppMsp";
+        var action = new PlanAction
+        {
+            PackageId = "AppMsp",
+            ActionType = PlanActionType.Install,
+            Package = MspPackage(sourcePath: @"C:\build\out\App.msp"),
+            ResolvedSourcePath = resolved
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(resolved, runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task MspExecutor_UsesManifestSourcePath_WhenResolvedNull()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new MspExecutor(runner);
+        var action = new PlanAction
+        {
+            PackageId = "AppMsp",
+            ActionType = PlanActionType.Install,
+            Package = MspPackage(sourcePath: @"C:\build\out\App.msp"),
+            ResolvedSourcePath = null
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(@"C:\build\out\App.msp", runner.LastArguments);
+    }
+
+    [Fact]
+    public async Task NetRuntimeExecutor_UsesResolvedSourcePath_WhenSet()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new NetRuntimeExecutor(runner);
+        var resolved = @"C:\cache\bundle\AppNetRuntime";
+        var action = new PlanAction
+        {
+            PackageId = "AppNetRuntime",
+            ActionType = PlanActionType.Install,
+            Package = NetRuntimePackage(sourcePath: @"C:\build\out\dotnet-runtime.exe"),
+            ResolvedSourcePath = resolved
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(resolved, runner.LastFileName);
+    }
+
+    [Fact]
+    public async Task NetRuntimeExecutor_UsesManifestSourcePath_WhenResolvedNull()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new NetRuntimeExecutor(runner);
+        var action = new PlanAction
+        {
+            PackageId = "AppNetRuntime",
+            ActionType = PlanActionType.Install,
+            Package = NetRuntimePackage(sourcePath: @"C:\build\out\dotnet-runtime.exe"),
+            ResolvedSourcePath = null
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(@"C:\build\out\dotnet-runtime.exe", runner.LastFileName);
+    }
+
+    [Fact]
+    public async Task BundleExecutor_UsesResolvedSourcePath_WhenSet()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner);
+        var resolved = @"C:\cache\bundle\AppBundle.exe";
+        var action = new PlanAction
+        {
+            PackageId = "AppBundle",
+            ActionType = PlanActionType.Install,
+            Package = BundlePackage(sourcePath: @"C:\build\out\nested-setup.exe"),
+            ResolvedSourcePath = resolved
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(resolved, runner.LastFileName);
+    }
+
+    [Fact]
+    public async Task BundleExecutor_UsesManifestSourcePath_WhenResolvedNull()
+    {
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new BundleExecutor(runner);
+        var action = new PlanAction
+        {
+            PackageId = "AppBundle",
+            ActionType = PlanActionType.Install,
+            Package = BundlePackage(sourcePath: @"C:\build\out\nested-setup.exe"),
+            ResolvedSourcePath = null
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(@"C:\build\out\nested-setup.exe", runner.LastFileName);
     }
 
     // ── ApplyStep — end-to-end resolution through the pipeline step ────────────
