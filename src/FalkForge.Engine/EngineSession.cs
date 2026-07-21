@@ -69,6 +69,14 @@ public sealed class EngineSession : IAsyncDisposable
     internal IElevatedCommandGateway? ElevationGateway => _elevationGateway;
 
     /// <summary>
+    /// Test-visible accessor for the payload extraction root the bootstrapper forwarded via
+    /// <see cref="EngineSessionOptions.PayloadRoot"/>. Surfaces the value actually wired into the
+    /// pipeline context so a test can prove the option flows through <see cref="BindToPipe"/> without
+    /// driving a full install.
+    /// </summary>
+    internal string? PayloadRoot => (_pipeline as InstallerPipeline)?.PayloadRoot;
+
+    /// <summary>
     /// Test-visible accessor for the update-feed payload downloader (null when the manifest
     /// carries no update feed). Exposed via
     /// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so wiring tests

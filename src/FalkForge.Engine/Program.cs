@@ -683,6 +683,11 @@ internal static partial class Program
                 PipeOptions = pipeOptions,
                 LogPath = programArgs?.LogPath,
                 MinimumLogLevel = programArgs?.MinimumLogLevel,
+                // Bug #56: forward where this bundle's payloads were extracted (each at
+                // {cacheDir}/{PackageId}). Without this the pipeline uses the manifest's build-machine
+                // SourcePath and every install fails "file not found" off the build box. The pipeline
+                // resolves each package's install path under this root (ApplyStep) with a containment guard.
+                PayloadRoot = cacheDir,
                 // The bootstrapper-extracted, hash-verified elevation companion (null when the
                 // bundle declares none). This is what makes per-machine elevated installs work
                 // from a lone distributed bundle exe.
