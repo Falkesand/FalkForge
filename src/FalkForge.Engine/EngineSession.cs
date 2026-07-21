@@ -47,6 +47,8 @@ public sealed class EngineSession : IAsyncDisposable
     private readonly IDisposable? _instanceLock;
     // Shared HttpClient for the auto-update feed/payload downloads; owned by the session.
     private readonly HttpClient? _updateHttpClient;
+    // The update-feed payload downloader (null when the manifest carries no update feed).
+    private readonly FalkForge.Engine.Download.PayloadDownloader? _updatePayloadDownloader;
     private readonly bool _isPlanOnly;
     private readonly string? _planOnlyOutputPath;
     private bool _disposed;
@@ -65,6 +67,15 @@ public sealed class EngineSession : IAsyncDisposable
     /// policy tests can assert whether a companion was wired without starting it.
     /// </summary>
     internal IElevatedCommandGateway? ElevationGateway => _elevationGateway;
+
+    /// <summary>
+    /// Test-visible accessor for the update-feed payload downloader (null when the manifest
+    /// carries no update feed). Exposed via
+    /// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so wiring tests
+    /// can assert <see cref="Protocol.Manifest.InstallerManifest.MaxBytesPerSecond"/> actually
+    /// reached the downloader's <see cref="FalkForge.Engine.Download.PayloadDownloader.ThrottleBucket"/>.
+    /// </summary>
+    internal FalkForge.Engine.Download.PayloadDownloader? UpdatePayloadDownloader => _updatePayloadDownloader;
 
     /// <summary>
     /// The session correlation id stamped on every log entry emitted by this session.
@@ -88,7 +99,8 @@ public sealed class EngineSession : IAsyncDisposable
         IDisposable? instanceLock = null,
         HttpClient? updateHttpClient = null,
         bool isPlanOnly = false,
-        string? planOnlyOutputPath = null)
+        string? planOnlyOutputPath = null,
+        FalkForge.Engine.Download.PayloadDownloader? updatePayloadDownloader = null)
     {
         _channel = channel;
         _pipeline = pipeline;
@@ -100,6 +112,7 @@ public sealed class EngineSession : IAsyncDisposable
         _updateHttpClient = updateHttpClient;
         _isPlanOnly = isPlanOnly;
         _planOnlyOutputPath = planOnlyOutputPath;
+        _updatePayloadDownloader = updatePayloadDownloader;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -326,12 +339,21 @@ public sealed class EngineSession : IAsyncDisposable
         // and (per policy) launches. The shared HttpClient is built via EngineHttpClientFactory
         // so the redirect cap is enforced; its lifetime is owned by the session.
         HttpClient? updateHttpClient = null;
+        FalkForge.Engine.Download.PayloadDownloader? payloadDownloader = null;
         FalkForge.Engine.Pipeline.UpdateService? updateService = null;
         FalkForge.Engine.Download.UpdateChecker? updateCheckerForBuilder = null;
         if (manifest.UpdateFeed is not null)
         {
             updateHttpClient = EngineHttpClientFactory.Create();
-            var payloadDownloader = new FalkForge.Engine.Download.PayloadDownloader(updateHttpClient);
+            // Fix (silent drop): DownloadThrottle(bytesPerSecond) authored via the fluent API
+            // round-trips faithfully through BundleModel -> InstallerManifest.MaxBytesPerSecond
+            // but was never read here — the downloader always ran full-speed. A positive value
+            // meters the download via TokenBucket; 0/unset (the default) stays unthrottled.
+            var throttleBucket = manifest.MaxBytesPerSecond > 0
+                ? new FalkForge.Engine.Download.TokenBucket(manifest.MaxBytesPerSecond)
+                : null;
+            payloadDownloader = new FalkForge.Engine.Download.PayloadDownloader(
+                updateHttpClient, tokenBucket: throttleBucket);
             var updateChecker = new FalkForge.Engine.Download.UpdateChecker(updateHttpClient, logger);
 
             // The update cache lives under the bundle's cache directory. DefaultUpdateLauncher
@@ -403,7 +425,8 @@ public sealed class EngineSession : IAsyncDisposable
             uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway,
             instanceLock, updateHttpClient,
             isPlanOnly: options.IsPlanOnly,
-            planOnlyOutputPath: options.PlanOnlyOutputPath);
+            planOnlyOutputPath: options.PlanOnlyOutputPath,
+            updatePayloadDownloader: payloadDownloader);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
