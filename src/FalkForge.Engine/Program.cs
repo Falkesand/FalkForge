@@ -544,6 +544,29 @@ internal static partial class Program
             }
         }
 
+        // A6: acquire any external/downloadable containers. Each container declared in the manifest is
+        // downloaded, its whole-file hash verified against the manifest, its payloads bound to the same
+        // ECDSA-signed set the embedded payloads were just checked against (BundleTrustGate), and then
+        // extracted into the SAME cacheDir the resolved-path install chain (#56) reads from — so an
+        // external payload installs exactly like an embedded one. A failure here (bad hash, untrusted or
+        // missing payload, unreadable container) aborts the install; an unverified container is never used.
+        //
+        // LIVE-NETWORK GAP (honest-flagged, like #56 Stage 4): the download below runs against real
+        // publisher URLs over the network via the engine's verified PayloadDownloader. That transport is
+        // only exercisable with a real URL/host, so it is validated end-to-end against a live host, not in
+        // unit tests. The verify → membership → signed-set-bind → extract logic IS unit-tested through
+        // ExternalContainerAcquirer with a faithful in-process download seam.
+        if (manifest.ExternalContainers.Length > 0)
+        {
+            var acquireResult = await AcquireExternalContainersAsync(manifest, cacheDir, requireSigned, trustState);
+            if (acquireResult.IsFailure)
+            {
+                await Console.Error.WriteLineAsync(
+                    $"External container acquisition failed: {acquireResult.Error.Message}");
+                return 1;
+            }
+        }
+
         // Elevation companion: complete the trust chain before it can ever be wired for elevated
         // execution. Extraction above verified the companion's bytes against its TOC hash (and
         // BundleTrustGate bound the TOC to the ECDSA signature for signed bundles); the resolver
@@ -718,6 +741,36 @@ internal static partial class Program
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
 
         return ToExitCode(outcome.State);
+    }
+
+    /// <summary>
+    /// Downloads, verifies, and extracts every external/downloadable container the manifest declares (A6),
+    /// placing each member payload at <c>{cacheDir}/{PackageId}</c> for the resolved-path install chain.
+    /// Reuses the engine's verified <see cref="FalkForge.Engine.Download.PayloadDownloader"/> for the
+    /// download (whole-file SHA-256 verified) and <see cref="Integrity.BundleTrustGate"/> to bind each
+    /// container's payloads to the bundle's signed manifest set before extraction. Extracted here (with a
+    /// <c>return await</c> owning the HttpClient's lifetime) so the disposable never outlives the download.
+    /// </summary>
+    private static async Task<Result<Unit>> AcquireExternalContainersAsync(
+        InstallerManifest manifest, string cacheDir, bool requireSigned, TrustState trustState)
+    {
+        // Explicit try/finally rather than `using` because the download is awaited within this scope
+        // (IDISP013 forbids awaiting under a `using`); the HttpClient is disposed only after the awaited
+        // acquisition completes, so it never outlives an in-flight download.
+        var httpClient = FalkForge.Engine.Download.EngineHttpClientFactory.Create();
+        try
+        {
+            var downloader = new FalkForge.Engine.Download.PayloadDownloader(httpClient);
+            var acquirer = new ExternalContainerAcquirer(
+                (url, sha, target, token) => downloader.DownloadAsync(url, sha, target, ct: token),
+                (m, toc) => BundleTrustGate.Verify(m, toc, requireSigned, trustState));
+
+            return await acquirer.AcquireAllAsync(manifest, cacheDir, CancellationToken.None);
+        }
+        finally
+        {
+            httpClient.Dispose();
+        }
     }
 
     /// <summary>
