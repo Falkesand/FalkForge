@@ -10,10 +10,12 @@ public sealed class BuildCommandMsixTests
         new([], new EmptyRemainingArguments(), "build", null);
 
     [Fact]
-    public void Execute_FormatMsix_ShowsMessage()
+    public void Execute_FormatMsix_FailsLoud_InsteadOfFallingBackToMsi()
     {
-        // Arrange: create a real .csx file so the command reaches the format check
-        var tempFile = Path.Combine(Path.GetTempPath(), $"msix_test_{Guid.NewGuid():N}.cs");
+        // Arrange: create a real .cs script so the command reaches the format check
+        var tempDir = Path.Combine(Path.GetTempPath(), $"msix_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var tempFile = Path.Combine(tempDir, "build.cs");
         File.WriteAllText(tempFile, "// empty script");
         try
         {
@@ -22,19 +24,26 @@ public sealed class BuildCommandMsixTests
             var settings = new Settings.BuildSettings
             {
                 ProjectPath = tempFile,
-                Format = "msix"
+                Format = "msix",
+                OutputPath = tempDir
             };
 
             // Act
-            command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
+            var result = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
 
-            // Assert
-            Assert.Contains(console.MarkupLines,
-                line => line.Contains("MSIX CLI build is experimental and not yet implemented."));
+            // Assert: non-zero exit, clear message, and — critically — no MSI silently produced
+            // in place of the requested MSIX output.
+            Assert.Equal(ExitCodes.ValidationFailure, result);
+            Assert.Contains(console.Errors,
+                e => e.Contains("MSIX packages cannot be built via 'forge build --format msix' yet"));
+            Assert.Contains(console.Errors,
+                e => e.Contains("InstallerMsix.BuildMsix()"));
+            Assert.DoesNotContain(console.MarkupLines, line => line.Contains("Build succeeded"));
+            Assert.Empty(Directory.GetFiles(tempDir, "*.msi"));
         }
         finally
         {
-            File.Delete(tempFile);
+            Directory.Delete(tempDir, recursive: true);
         }
     }
 
