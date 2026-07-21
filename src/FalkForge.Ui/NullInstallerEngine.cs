@@ -9,16 +9,26 @@ internal sealed class NullInstallerEngine : IInstallerEngine
     private readonly Dictionary<string, string> _properties = [];
     private readonly Dictionary<string, SensitiveBytes> _secureProperties = [];
 
-    public InstallerManifest Manifest { get; } = new()
+    /// <summary>
+    /// Creates a design-time engine. When <paramref name="manifest"/> is supplied (e.g. the
+    /// built-in UI host running against a real bundle manifest) the window renders that product's
+    /// branding; otherwise a neutral placeholder manifest is used.
+    /// </summary>
+    public NullInstallerEngine(InstallerManifest? manifest = null)
     {
-        Name = "Standalone",
-        Manufacturer = string.Empty,
-        Version = "0.0.0",
-        BundleId = Guid.Empty,
-        UpgradeCode = Guid.Empty,
-        Packages = [],
-        Scope = InstallScope.PerUser
-    };
+        Manifest = manifest ?? new InstallerManifest
+        {
+            Name = "Standalone",
+            Manufacturer = string.Empty,
+            Version = "0.0.0",
+            BundleId = Guid.Empty,
+            UpgradeCode = Guid.Empty,
+            Packages = [],
+            Scope = InstallScope.PerUser
+        };
+    }
+
+    public InstallerManifest Manifest { get; }
 
     public InstallState DetectedState { get; } = InstallState.NotInstalled;
     public string? InstalledProductVersion => null;
