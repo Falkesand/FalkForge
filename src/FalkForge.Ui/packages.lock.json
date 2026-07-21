@@ -122,20 +122,20 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
+          "FalkForge.Core": "[0.5.0-beta.2, )",
           "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.localization": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.ui.abstractions": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.1, )"
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.2, )"
         }
       },
       "Octopus.Octodiff": {
