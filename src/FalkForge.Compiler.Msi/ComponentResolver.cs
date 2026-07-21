@@ -20,12 +20,24 @@ public sealed class ComponentResolver
         _fileSystem = fileSystem;
     }
 
-    public Result<ResolvedPackage> Resolve(PackageModel package)
+    /// <param name="package">The package whose <see cref="PackageModel.Files"/> are resolved.</param>
+    /// <param name="additionalFiles">
+    /// Extra file entries to resolve alongside <paramref name="package"/>'s own files — e.g. the
+    /// output of <see cref="FalkForge.Extensibility.IComponentContributor.GetAdditionalFiles"/>.
+    /// Routed through the exact same directory-harvest / single-file resolution logic as
+    /// <see cref="PackageModel.Files"/>, so an entry with a <see langword="null"/>
+    /// <see cref="FileEntryModel.FeatureRef"/> defaults the same way a regular file does.
+    /// </param>
+    public Result<ResolvedPackage> Resolve(PackageModel package, IReadOnlyList<FileEntryModel>? additionalFiles = null)
     {
         var components = new List<ResolvedComponent>();
         var fileEntries = new List<ResolvedFile>();
 
-        foreach (var file in package.Files)
+        IEnumerable<FileEntryModel> allFiles = additionalFiles is { Count: > 0 }
+            ? [.. package.Files, .. additionalFiles]
+            : package.Files;
+
+        foreach (var file in allFiles)
             if (file.FileName == "*" && _fileSystem.DirectoryExists(file.SourcePath))
             {
                 // Directory harvest
