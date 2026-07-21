@@ -9328,12 +9328,13 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     <strong>Work in progress.</strong> JSON configuration is an experimental, incomplete subset
     of the C# fluent API &mdash; the primary, fully supported authoring model (what <code>forge
     init</code> scaffolds). The fields below are the ones the loader actually reads and maps to
-    the compiler; fields not listed here are not recognized. In particular, the
-    <code>extensions</code> block (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>)
-    is parsed and structurally validated but JSON <strong>cannot author extensions</strong>
-    &mdash; a build with any non-empty <code>extensions</code> content fails closed with
-    <strong>JSN019</strong> rather than silently dropping it. Use the C# fluent API for any of
-    the four extensions today (<code>new MsiCompiler().Use(extension)</code>).
+    the compiler; fields not listed here are not recognized. The <code>extensions</code> block
+    now authors the <code>firewall</code>, <code>iis</code>, and <code>sql</code> extensions:
+    each is translated into the same real extension the C# API attaches via
+    <code>new MsiCompiler().Use(extension)</code> and emitted into the compiled MSI. The one
+    exception is <code>dotnet</code> (.NET runtime detection), a bundle-engine feature with no
+    standalone-MSI representation &mdash; a <code>dotnet</code> block fails closed with
+    <strong>JSN019</strong> rather than producing an installer that does not gate on the runtime.
 </div>
 <p>The CLI accepts JSON files as an alternative to C# scripts. The schema is defined in <code>src/FalkForge.Cli/Models/InstallerConfig.cs</code> and its sibling <code>Models/*.cs</code> files &mdash; the fields below match those types exactly.</p>
 
@@ -9376,10 +9377,10 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     }
   ],
   "extensions": {
-    "firewall": [ "REJECTED -- fails the build with JSN019, see warning above" ],
+    "firewall": [ "authored -> WixFirewallException table" ],
     "iis": { "appPools": [ "..." ], "webSites": [ "..." ] },
     "sql": [ "..." ],
-    "dotnet": [ "..." ]
+    "dotnet": [ "REJECTED -- fails the build with JSN019 (bundle-engine feature, see warning above)" ]
   },
   "signing": "see Bundle Signing, Trust & Key Rotation (23)"
 }</code></pre>
@@ -9388,9 +9389,9 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     no separate top-level <code>shortcuts</code> array on a feature. Extension sub-schemas
     (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>) are fully
     documented in the <a href="docs/tutorials/json-config.html">JSON Configuration tutorial</a>;
-    the fields there are real and pass structural validation, but any non-empty
-    <code>extensions</code> content fails the build with JSN019 &mdash; JSON cannot author
-    extensions, use the C# fluent API instead.
+    the <code>firewall</code>/<code>iis</code>/<code>sql</code> fields are authored into the MSI,
+    while a <code>dotnet</code> block fails the build with JSN019 (use the C# fluent API for .NET
+    runtime detection).
 </p>
 
 <h3 id="cli-scripting">C# Scripting Support</h3>
@@ -10409,7 +10410,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>JSN016</td><td>Inline secret material in the signing config &mdash; keys and credentials must be referenced by file path or environment-variable name, never pasted into the JSON</td></tr>
         <tr><td>JSN017</td><td>Ambiguous or missing key source for the pem provider (exactly one of keyPath/keyEnv; at most one of pqKeyPath/pqKeyEnv)</td></tr>
         <tr><td>JSN018</td><td>Invalid signserver signing config (missing baseUrl/worker, unknown/incomplete authMode, or pqKeyPath/pqKeyEnv on the signserver provider &mdash; hybrid post-quantum signing via JSON requires provider pem)</td></tr>
-        <tr><td>JSN019</td><td>Fail-closed guard, two triggers: (1) a JSON <code>extensions</code> block (firewall/IIS/SQL/.NET) carries any content &mdash; JSON cannot author extensions, so the build fails rather than silently dropping them; use the C# fluent API instead. (2) A signing key or auth material is unresolvable at build time (e.g. referenced environment variable unset) &mdash; the build fails closed, never falling back to unsigned output</td></tr>
+        <tr><td>JSN019</td><td>Fail-closed guard, two triggers: (1) a JSON <code>extensions.dotnet</code> block carries content &mdash; .NET runtime detection is a bundle-engine feature with no standalone-MSI representation, so the build fails rather than emitting an installer that does not gate on the runtime; use the C# fluent API instead (<code>firewall</code>/<code>iis</code>/<code>sql</code> blocks ARE authored into the MSI and do not trip this). (2) A signing key or auth material is unresolvable at build time (e.g. referenced environment variable unset) &mdash; the build fails closed, never falling back to unsigned output</td></tr>
     </tbody>
 </table>
 
@@ -10841,10 +10842,12 @@ public sealed record WixUnmappedFeature(
 <p>
     Declarative JSON files validated and built by the <code>forge</code> CLI. No C# code required.
     Located in <code>demo/json/</code>. JSON configuration is a work-in-progress subset (see
-    <a href="#cli-json-config">JSON Configuration Format</a>) &mdash; JSON cannot author the
-    Firewall/IIS/SQL/.NET extensions (a non-empty <code>extensions</code> block fails the build
-    with JSN019), so demos 06 and 07 are plain file-only installers. Use the C# fluent API
-    (Demo 07, &ldquo;Extensions Showcase&rdquo;) for those four extensions.
+    <a href="#cli-json-config">JSON Configuration Format</a>) that now authors the Firewall, IIS,
+    and SQL extensions: demo 06 (<code>06-web-server.json</code>) adds a firewall rule plus an IIS
+    app pool and web site, and demo 07 (<code>07-database-app.json</code>) provisions a SQL
+    database and install script &mdash; all emitted into the compiled MSI. Only .NET runtime
+    detection cannot be authored in JSON (a <code>dotnet</code> block fails the build with JSN019);
+    use the C# fluent API for that (Demo 32).
 </p>
 <table>
 <thead>

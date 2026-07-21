@@ -1,5 +1,5 @@
 {
-  "_note": "JSON cannot author Firewall or IIS configuration -- a JSON 'extensions' block is a hard build error (JSN019). This is a plain file-only installer. For IIS app pool + web site + firewall rules, use the C# fluent API: see demo/ 07 (Extensions Showcase, all four extensions in one project) or demos 29 (Firewall) and 30 (IIS).",
+  "_note": "JSON can author Firewall and IIS extension configuration: the 'extensions' block below is translated into the same FirewallExtension / IisExtension the C# fluent API attaches via new MsiCompiler().Use(...), and emitted into the compiled MSI. (.NET runtime detection is the one extension JSON cannot author -- it is a bundle-engine feature; use the C# API, demo 32.) For the full C# equivalents see demos 29 (Firewall) and 30 (IIS).",
   "product": {
     "name": "WebServerApp",
     "manufacturer": "Contoso",
@@ -27,6 +27,43 @@
       ]
     }
   ],
+  "extensions": {
+    "firewall": [
+      {
+        "id": "AllowHttp",
+        "name": "WebServerApp HTTP",
+        "protocol": "Tcp",
+        "port": "8080",
+        "direction": "Inbound",
+        "action": "Allow",
+        "profile": "All"
+      }
+    ],
+    "iis": {
+      "appPools": [
+        {
+          "id": "WebServerAppPool",
+          "name": "WebServerAppPool",
+          "pipelineMode": "Integrated",
+          "identity": "ApplicationPoolIdentity"
+        }
+      ],
+      "webSites": [
+        {
+          "id": "WebServerAppSite",
+          "description": "WebServerApp Web Site",
+          "directory": "[INSTALLDIR]wwwroot",
+          "appPool": "WebServerAppPool",
+          "bindings": [
+            {
+              "protocol": "http",
+              "port": 8080
+            }
+          ]
+        }
+      ]
+    }
+  },
   "downgrade": {
     "message": "A newer version is already installed."
   }
