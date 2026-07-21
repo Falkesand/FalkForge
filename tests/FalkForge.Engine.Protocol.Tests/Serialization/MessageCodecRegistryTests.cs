@@ -40,7 +40,7 @@ public sealed class MessageCodecRegistryTests
     }
 
     [Fact]
-    public void All_contains_exactly_35_registered_codecs()
+    public void All_contains_exactly_37_registered_codecs()
     {
         // WHY: This count assertion is the meta-gate that prevents a new codec from
         // shipping without a corresponding golden-byte test. When a new codec is added
@@ -49,12 +49,15 @@ public sealed class MessageCodecRegistryTests
         //   2. Bump this expected count by one.
         // Do not bump the count without adding the golden-byte test first.
         //
-        // Current count: 35 codecs for 35 MessageType enum values.
+        // Current count: 37 codecs for 37 MessageType enum values.
         // (Log and PhaseChanged each have exactly one codec — WireVersion 2 only;
         //  the removed WireVersion 1 codecs are intentionally absent per single-version contract.)
         // The 6 per-package/related-bundle lifecycle codecs (0x0111–0x0116) were added
         // together with their golden-byte tests in the matching *CodecTests files.
-        Assert.Equal(35, MessageCodecRegistry.All.Count);
+        // The 2 per-package MSI feature codecs (PackageMsiFeatures 0x0117,
+        // SetPackageFeatureSelection 0x020A) ship with golden-byte tests in
+        // PerPackageFeatureCodecTests.
+        Assert.Equal(37, MessageCodecRegistry.All.Count);
     }
 
     [Fact]

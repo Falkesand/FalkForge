@@ -747,6 +747,51 @@ public class MessageRoundtripTests
     }
 
     [Fact]
+    public void RoundTrip_PackageMsiFeaturesMessage()
+    {
+        var original = new PackageMsiFeaturesMessage
+        {
+            SequenceId = 50,
+            PackageId = "app-main",
+            Features =
+            [
+                new MsiFeatureInfo("Core", "Core Components", "Core runtime", null, 1, 1, 0L),
+                new MsiFeatureInfo("Docs", "Documentation", null, "Core", 1000, 2, 0L),
+            ],
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.PackageMsiFeatures, deserialized.Type);
+        Assert.Equal(50u, deserialized.SequenceId);
+        Assert.Equal("app-main", deserialized.PackageId);
+        Assert.Equal(2, deserialized.Features.Length);
+        Assert.Equal("Core", deserialized.Features[0].FeatureId);
+        Assert.Null(deserialized.Features[0].Parent);
+        Assert.Equal("Core", deserialized.Features[1].Parent);
+        Assert.Null(deserialized.Features[1].Description);
+        Assert.Equal(1000, deserialized.Features[1].Level);
+    }
+
+    [Fact]
+    public void RoundTrip_SetPackageFeatureSelectionMessage()
+    {
+        var original = new SetPackageFeatureSelectionMessage
+        {
+            SequenceId = 51,
+            PackageId = "app-main",
+            SelectedFeatureIds = ["Core", "Docs"],
+        };
+
+        var deserialized = RoundTrip(original);
+
+        Assert.Equal(MessageType.SetPackageFeatureSelection, deserialized.Type);
+        Assert.Equal(51u, deserialized.SequenceId);
+        Assert.Equal("app-main", deserialized.PackageId);
+        Assert.Equal(["Core", "Docs"], deserialized.SelectedFeatureIds);
+    }
+
+    [Fact]
     public void RoundTrip_LargeFeatureArray()
     {
         var features = new FeatureState[100];
