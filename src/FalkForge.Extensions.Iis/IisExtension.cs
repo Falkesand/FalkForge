@@ -29,19 +29,18 @@ public sealed class IisExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(new IisAppPoolTableContributor(() => _appPools));
         registry.RegisterTableContributor(new IisWebSiteTableContributor(() => _webSites));
         // ...and make those tables LIVE: schedule deferred, elevated custom actions that create the
-        // application pools and web sites (with ALL their bindings) at install via
-        // Microsoft.Web.Administration, and remove them on uninstall (with rollback on a failed
-        // install). This replaces the former inert placeholder CustomAction.
+        // application pools and web sites (with ALL their bindings, SSL-certificate binding for HTTPS
+        // bindings, sub-applications, and virtual directories) at install via Microsoft.Web.Administration,
+        // and remove them on uninstall (with rollback on a failed install). This replaces the former inert
+        // placeholder CustomAction.
         // Each SpecificUser pool's create step declares its ExecutionStep.HiddenProperties; the compiler
         // aggregates those across all extensions into a single MsiHiddenProperties row that scrubs the
         // app-pool password (carried through the CustomActionData channel) from verbose MSI logs.
-        registry.RegisterExecutionContributor(new IisExecutionContributor(() => _appPools, () => _webSites));
-
-        // Deferred to a follow-up (surfaced as fail-loud IIS013/IIS014 warnings so they are never a silent
-        // no-op): certificate emission + SSL-certificate binding, and sub-application creation. The HTTPS
-        // binding entry itself is still written into the site configuration. Virtual directories, by
-        // contrast, ARE live: IisCommandFactory creates each one (under its parent application, defaulting
-        // to the site root "/") once its site exists, and removes it on uninstall.
+        // Certificates feed the SSL binding: an HTTPS binding referencing one is bound at install to the
+        // pre-provisioned certificate located in its authored store (FalkForge binds, it does not import —
+        // warned via IIS013).
+        registry.RegisterExecutionContributor(
+            new IisExecutionContributor(() => _appPools, () => _webSites, () => _certificates));
     }
 
     public IisExtension AddWebSite(Action<WebSiteBuilder> configure)

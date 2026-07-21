@@ -20,10 +20,10 @@ iis.AddWebSite(site => site
     .AppPool(appPool)
     .Binding(8080)
     .AutoStart(true)
-    // Virtual directories are genuinely created (and removed on uninstall) at install time via
-    // Microsoft.Web.Administration — unlike sub-applications, which are still authored-only (IIS014).
-    // The physical directory need not exist at compile time (IIS does not validate it); a real
-    // deployment would ensure "reports" is populated under INSTALLDIR, e.g. via package.Files(...).
+    // Virtual directories AND sub-applications are genuinely created (and removed on uninstall) at
+    // install time via Microsoft.Web.Administration. The physical directory need not exist at compile
+    // time (IIS does not validate it); a real deployment would ensure "reports" is populated under
+    // INSTALLDIR, e.g. via package.Files(...).
     .VirtualDirectory(vdir => vdir
         .Id("DemoReports")
         .Alias("/reports")
@@ -34,8 +34,8 @@ Console.WriteLine($"IIS: {iis.AppPools.Count} pool(s), {iis.WebSites.Count} site
     "Validation runs automatically during compilation.");
 
 // Attach the extension to the compiler with .Use(...). This emits the IIsAppPool
-// and IIsWebSite configuration tables (plus a placeholder configure CustomAction)
-// into the compiled MSI.
+// and IIsWebSite configuration tables plus the deferred, elevated custom actions
+// that create the pool, site, and virtual directory at install time.
 return Installer.Build(args, package =>
 {
     package.Name = "IIS Demo";
