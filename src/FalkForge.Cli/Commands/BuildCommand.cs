@@ -112,9 +112,12 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         var outputPath = settings.OutputPath ?? Directory.GetCurrentDirectory();
         var isJson = projectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
 
-        // MSIX is a separate output format with its own compiler path. JSON input
-        // cannot produce MSIX today; script input would need Installer.BuildMsix()
-        // inside the script, which BuildCommand does not invoke on its behalf.
+        // MSIX is a separate output format with its own compiler path. Neither JSON nor
+        // script input can produce MSIX through this command today; script input would need
+        // Installer.BuildMsix() inside the script, which BuildCommand does not invoke on its
+        // behalf. Both cases fail loud rather than silently falling back to an MSI build --
+        // producing the wrong output format under a `--format msix` request would be worse
+        // than refusing to build at all.
         if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
         {
             if (isJson)
@@ -123,14 +126,8 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
                 return ExitCodes.ValidationFailure;
             }
 
-            if (!OperatingSystem.IsWindows())
-            {
-                _console.WriteError("MSIX compilation requires Windows.");
-                return ExitCodes.RuntimeError;
-            }
-
-            _console.MarkupLine("[yellow]MSIX CLI build is experimental and not yet implemented.[/]");
-            _console.MarkupLine("[grey]For MSIX/MSIX-bundle output, call InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() directly from a .csx build script (see FalkForge.Compiler.Msix.InstallerMsix). Falling back to MSI build.[/]");
+            _console.WriteError("MSIX packages cannot be built via 'forge build --format msix' yet. Call InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() directly from your .cs/.csx build script instead (see FalkForge.Compiler.Msix.InstallerMsix).");
+            return ExitCodes.ValidationFailure;
         }
 
         var loadResult = BuildInputResolver.Load(projectPath);
