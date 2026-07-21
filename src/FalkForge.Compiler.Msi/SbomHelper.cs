@@ -44,10 +44,11 @@ internal static class SbomHelper
             if (package.SbomOptions is not null)
                 components.AddRange(package.SbomOptions.AdditionalComponents);
 
-            // Deterministic serial + timestamp under SOURCE_DATE_EPOCH so a reproducible build
-            // emits a byte-identical SBOM sidecar (was Guid.NewGuid + UtcNow).
+            // Deterministic serial + timestamp under an explicit Reproducible() epoch override
+            // or, absent that, SOURCE_DATE_EPOCH — so a reproducible build emits a
+            // byte-identical SBOM sidecar (was Guid.NewGuid + UtcNow).
             var identity = ReproducibleSbomIdentity.Resolve(
-                components, package.Name, package.Version.ToString());
+                components, package.Name, package.Version.ToString(), package.ReproducibleOptions?.SourceDateEpoch);
 
             var doc = new SbomDocument
             {
