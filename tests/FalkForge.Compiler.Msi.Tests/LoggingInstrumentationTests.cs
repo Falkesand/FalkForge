@@ -295,11 +295,13 @@ public sealed class LoggingInstrumentationTests : IDisposable
     }
 
     [Fact]
-    public void Compile_WithRegistryDryRunContributor_LogsEXT003Warning()
+    public void Compile_WithRegistryDryRunContributor_LogsNoEXT003Warning()
     {
-        // An extension that registers an IDryRunContributor through the registry gets it discarded by
-        // the compile pipeline; EXT003 makes that non-silent instead of dropping it without a trace.
-        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithRegistryDryRunContributor_LogsEXT003Warning));
+        // Registry-based IDryRunContributor registration is inert BY DESIGN during Compile: the real
+        // consumer is 'forge build --dry-run' / 'forge validate', which iterate the extension list
+        // directly (see BuildCommandDryRunTests for that coverage) rather than going through
+        // IExtensionRegistry. Nothing is silently dropped here, so EXT003 is retired.
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithRegistryDryRunContributor_LogsNoEXT003Warning));
         var package = InstallerTestHost.BuildPackage(p =>
         {
             p.Name = "DryRunContribApp";
@@ -314,10 +316,7 @@ public sealed class LoggingInstrumentationTests : IDisposable
         var result = compiler.Compile(package, outputDir);
 
         Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
-
-        var ext003 = Assert.Single(logger.EntriesAt(LogLevel.Warning),
-            e => e.Category == "MsiAuthoring" && HasCode(e, "EXT003"));
-        Assert.Contains("dry-run", ext003.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(logger.Entries, e => HasCode(e, "EXT003"));
     }
 
     [Fact]

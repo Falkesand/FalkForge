@@ -9,6 +9,7 @@ using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Compiler.Msi;
 using FalkForge.Configuration;
+using FalkForge.Extensibility;
 using FalkForge.Models;
 using FalkForge.Platform.Windows;
 using FalkForge.Signing;
@@ -34,13 +35,25 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     private readonly string? _gitWorkingDirectory;
     private readonly System.IO.TextWriter _jsonSink;
 
+    // Extensions attached programmatically for dry-run preview purposes (see RunDryRun). The CLI's
+    // .json/.cs/.csx loaders do not yet produce IFalkForgeExtension instances (JSON extension
+    // authoring fails loud with JSN019; scripts return a bare PackageModel), so this defaults to
+    // empty for every real `forge build` invocation today; it exists so a programmatic caller (and
+    // tests) can attach extensions the same way `new MsiCompiler().Use(extension)` does.
+    private readonly IReadOnlyList<IFalkForgeExtension> _extensions;
+
     public BuildCommand() : this(new SpectreConsoleOutput()) { }
 
-    public BuildCommand(IConsoleOutput console, string? gitWorkingDirectory = null, System.IO.TextWriter? jsonSink = null)
+    public BuildCommand(
+        IConsoleOutput console,
+        string? gitWorkingDirectory = null,
+        System.IO.TextWriter? jsonSink = null,
+        IReadOnlyList<IFalkForgeExtension>? extensions = null)
     {
         _console = console;
         _gitWorkingDirectory = gitWorkingDirectory;
         _jsonSink = jsonSink ?? Console.Out;
+        _extensions = extensions ?? [];
     }
 
     protected override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] BuildSettings settings, CancellationToken cancellationToken)
@@ -258,6 +271,10 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     /// Executes the dry-run path: runs model validation and a lightweight planning pass
     /// (component/file/feature counts, payload size, predicted output filename) without
     /// invoking the MSI compiler. No artifacts are written to <paramref name="outputPath"/>.
+    /// Also surfaces every attached extension's <see cref="IDryRunContributor.GetDryRunActions"/>
+    /// preview directly (not via <c>IExtensionRegistry</c> — see <c>EXT003</c>'s retirement note
+    /// in <c>MsiAuthoring</c>: registry-based dry-run registration is inert by design because this
+    /// method, not the compile pipeline, is the real consumer).
     /// Returns <see cref="ExitCodes.ValidationFailure"/> when the model has validation
     /// errors, <see cref="ExitCodes.Success"/> otherwise.
     /// </summary>
@@ -290,6 +307,23 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         _console.MarkupLine($"[grey]Components:[/] {componentCount}");
         _console.MarkupLine($"[grey]Features:[/] {featureCount}");
         _console.MarkupLine($"[grey]Payload size:[/] {payloadBytes:N0} bytes");
+
+        var dryRunActionCount = 0;
+        foreach (var extension in _extensions)
+        {
+            if (extension is not IDryRunContributor contributor)
+                continue;
+
+            foreach (var action in contributor.GetDryRunActions(DryRunIntent.Install))
+            {
+                if (dryRunActionCount == 0)
+                    _console.MarkupLine("[grey]Extension actions:[/]");
+
+                _console.MarkupLine($"  [grey]- ({action.Kind}) {Markup.Escape(action.Description)}[/]");
+                dryRunActionCount++;
+            }
+        }
+
         _console.MarkupLine("[green]Validation passed.[/]");
 
         return ExitCodes.Success;

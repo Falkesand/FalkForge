@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.Text.Json;
 using FalkForge.Cli.Commands;
 using FalkForge.Cli.Settings;
+using FalkForge.Extensibility;
 using Spectre.Console.Cli;
 using Xunit;
 
@@ -186,6 +187,62 @@ public sealed class BuildCommandDryRunTests
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public void Build_DryRun_WithDryRunContributorExtension_PrintsExtensionActions()
+    {
+        // A4/A7 sibling fix: IDryRunContributor.GetDryRunActions used to be collected via the
+        // extension registry and only ever produce an EXT003 warning at COMPILE time — dry-run
+        // itself never called it. BuildCommand now iterates its attached extensions directly
+        // (bypassing the registry entirely, matching the documented "forge build --dry-run /
+        // forge validate iterate extensions directly" design) and prints each action.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var (tempDir, projectPath, outputDir) = CreateValidJsonProject();
+        try
+        {
+            var console = new TestConsoleOutput();
+            var extension = new DryRunActionExtension();
+            var command = new BuildCommand(console, extensions: [extension]);
+            var settings = new BuildSettings
+            {
+                ProjectPath = projectPath,
+                OutputPath = outputDir,
+                DryRun = true
+            };
+
+            var exitCode = command.ExecuteSync(CreateContext(), settings, CancellationToken.None);
+
+            Assert.Equal(ExitCodes.Success, exitCode);
+            var allOutput = string.Join("\n", console.AllOutput);
+            Assert.Contains("Extension actions", allOutput, StringComparison.Ordinal);
+            Assert.Contains("would open TCP port 8080", allOutput, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    private sealed class DryRunActionExtension : IFalkForgeExtension, IDryRunContributor
+    {
+        public string Name => "TestDryRunPreview";
+
+        public void Register(IExtensionRegistry registry)
+        {
+            // Deliberately does NOT call registry.RegisterDryRunContributor(this) — dry-run preview
+            // consumption is via direct extension-list iteration (BuildCommand.RunDryRun), not the
+            // registry (see MsiAuthoring's EXT003 retirement note).
+        }
+
+        public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) =>
+        [
+            new DryRunAction { Kind = DryRunActionKind.Network, Description = "would open TCP port 8080" },
+        ];
     }
 
     [Fact]
