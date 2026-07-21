@@ -5,6 +5,7 @@ using FalkForge.Diagnostics;
 using FalkForge.Engine.Detection;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Logging;
+using FalkForge.Engine.Msi;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Platform;
@@ -101,6 +102,12 @@ internal sealed class DetectStep : IDetectStep
                     $"Detection complete: state={detection.State}, version={detection.CurrentVersion ?? "none"}"),
                 ct);
 
+            // Per-package MSI feature advertisement (A5 Stage 4): for each feature-selectable MSI whose
+            // payload is extracted on this machine, read its Feature table and offer it to the UI's
+            // per-package picker. No-op on the offline / --manifest / forge-plan path (no PayloadRoot) and
+            // on non-Windows (no msi.dll) — the picker simply stays dormant there.
+            await AdvertisePackageFeaturesAsync(ctx, ct);
+
             // Update check: best-effort, never fails the detection phase. An unexpected throw from
             // the update flow (e.g. a download blow-up) must be swallowed and logged so detection —
             // and therefore the install — still proceeds. Cancellation is the one exception we must
@@ -130,6 +137,68 @@ internal sealed class DetectStep : IDetectStep
         {
             var elapsedMs = Stopwatch.GetElapsedTime(startTs).TotalMilliseconds;
             EngineMeter.RecordPhaseTransition(EnginePhase.Detecting, elapsedMs);
+        }
+    }
+
+    /// <summary>
+    /// Reads the <c>Feature</c> table of each feature-selectable MSI whose payload the bootstrapper
+    /// extracted under <see cref="PipelineContext.PayloadRoot"/>, and advertises non-empty results to the
+    /// UI as <see cref="PipelineEvent.PackageMsiFeatures"/> so it can drive an interactive per-package
+    /// <c>ADDLOCAL</c> picker. Best-effort and observational: a resolve/read failure for one package is
+    /// logged and skipped, never failing detection. No-op when:
+    /// <list type="bullet">
+    ///   <item><description><see cref="PipelineContext.PayloadRoot"/> is null — the offline /
+    ///   <c>--manifest</c> / <c>forge plan</c> path has no extracted MSI on disk to read.</description></item>
+    ///   <item><description>the host is not Windows — <see cref="MsiFeatureReader"/> needs msi.dll (a real
+    ///   install only ever runs on Windows).</description></item>
+    /// </list>
+    /// </summary>
+    private async Task AdvertisePackageFeaturesAsync(PipelineContext ctx, CancellationToken ct)
+    {
+        // Only the distributed self-extract path carries a PayloadRoot (each payload at {PayloadRoot}/{Id}).
+        if (ctx.PayloadRoot is null)
+            return;
+
+        // MsiFeatureReader relies on msi.dll — Windows only. Skip rather than crash on any other OS.
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        foreach (var package in _manifest.Packages)
+        {
+            if (!package.EnableFeatureSelection || package.Type != PackageType.MsiPackage)
+                continue;
+
+            var resolved = PayloadPathResolver.Resolve(ctx.PayloadRoot, package.Id);
+            if (resolved.IsFailure)
+            {
+                // A crafted/traversing id is a security concern, but this advertise is read-only and
+                // observational; ApplyStep enforces the same containment guard hard before any install.
+                // Log loudly and skip so detection still completes.
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        $"Feature advertisement skipped for package '{package.Id}': {resolved.Error.Message}"),
+                    ct);
+                continue;
+            }
+
+            var featuresResult = MsiFeatureReader.Read(resolved.Value);
+            if (featuresResult.IsFailure)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        $"Feature advertisement skipped for package '{package.Id}': {featuresResult.Error.Message}"),
+                    ct);
+                continue;
+            }
+
+            // Only advertise when the MSI actually exposes selectable features; an empty Feature table
+            // means there is nothing to pick, so the picker stays hidden for that package.
+            if (featuresResult.Value.Count == 0)
+                continue;
+
+            await _uiChannel.SendAsync(
+                new PipelineEvent.PackageMsiFeatures(package.Id, [.. featuresResult.Value]),
+                ct);
         }
     }
 

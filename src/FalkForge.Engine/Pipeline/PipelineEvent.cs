@@ -126,4 +126,16 @@ public abstract record PipelineEvent
     public sealed record UpdateReady(
         string Version,
         string LocalPath) : PipelineEvent;
+
+    /// <summary>
+    /// Advertises the features found inside one feature-selectable MSI package so the UI can present a
+    /// per-package feature picker. Emitted by <see cref="DetectStep"/> at detect time, once per package
+    /// that (a) sets <c>EnableFeatureSelection</c>, (b) is an MSI, and (c) has a non-empty
+    /// <c>Feature</c> table on the extracted payload on disk. Maps to the UI's
+    /// <c>PackageMsiFeaturesMessage</c>; the user's choice returns as a
+    /// <c>SetPackageFeatureSelectionMessage</c> and drives that package's <c>ADDLOCAL</c> at plan time.
+    /// </summary>
+    public sealed record PackageMsiFeatures(
+        string PackageId,
+        MsiFeatureInfo[] Features) : PipelineEvent;
 }

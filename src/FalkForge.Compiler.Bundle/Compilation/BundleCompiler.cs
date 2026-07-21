@@ -13,8 +13,8 @@ public sealed class BundleCompiler
     /// <summary>
     /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every existing
     /// caller compiles unchanged. When supplied, the compiler surfaces authoring-honesty warnings
-    /// for inputs it accepts but does not yet fully materialize (per-package feature selection —
-    /// BDL034; external container download URLs — BDL035) instead of dropping them silently.
+    /// for inputs it accepts but does not yet fully materialize (external container download URLs —
+    /// BDL035) instead of dropping them silently.
     /// </summary>
     public IFalkLogger? Logger { get; init; }
 
@@ -194,29 +194,20 @@ public sealed class BundleCompiler
 
     /// <summary>
     /// Surfaces non-fatal warnings for accepted-but-not-yet-materialized authoring inputs so they are
-    /// never silently ignored: per-package feature selection (BDL034, an MSI ADDLOCAL feature is not
-    /// yet emitted so the package installs its default feature set) and external container download
-    /// URLs (BDL035, all payloads are embedded in the single self-extracting exe today). No-op when no
-    /// <see cref="Logger"/> is configured.
+    /// never silently ignored: external container download URLs (BDL035, all payloads are embedded in the
+    /// single self-extracting exe today). No-op when no <see cref="Logger"/> is configured.
+    /// <para>
+    /// Per-package MSI feature selection (<c>EnableFeatureSelection</c>) is no longer warned about: the
+    /// engine now advertises each feature-selectable MSI's Feature table at detect time and honors the
+    /// user's interactive choice as that package's <c>ADDLOCAL</c> at plan time, so the flag is a
+    /// materialized feature rather than an accepted-but-ignored input. (There was formerly a BDL034
+    /// warning here; it was retired when the runtime loop was wired.)
+    /// </para>
     /// </summary>
     private void EmitAuthoringWarnings(BundleModel model)
     {
         if (Logger is null)
             return;
-
-        foreach (var package in model.Packages)
-        {
-            // Non-MSI + EnableFeatureSelection already fails validation (BDL027); this warns for the
-            // valid MSI case where the flag is carried but not turned into an ADDLOCAL selection.
-            if (package.EnableFeatureSelection && package.Type == BundlePackageType.MsiPackage)
-            {
-                Logger.Log(LogLevel.Warning, "BundleCompiler",
-                    $"BDL034: package '{package.Id}' sets EnableFeatureSelection, but per-package MSI feature " +
-                    "selection is not yet honored — the package installs its default feature set (no ADDLOCAL " +
-                    "is emitted). Configure features inside the MSI itself for now.",
-                    new Dictionary<string, string> { ["code"] = "BDL034" });
-            }
-        }
 
         foreach (var container in model.Containers)
         {
