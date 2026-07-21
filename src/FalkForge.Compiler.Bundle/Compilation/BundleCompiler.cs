@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using FalkForge.Compiler.Bundle.Validation;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
@@ -8,6 +9,14 @@ public sealed class BundleCompiler
 {
     private readonly ManifestGenerator _manifestGenerator = new();
     private readonly BundleValidator _validator = new();
+
+    /// <summary>
+    /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every existing
+    /// caller compiles unchanged. When supplied, the compiler surfaces authoring-honesty warnings
+    /// for inputs it accepts but does not yet fully materialize (per-package feature selection —
+    /// BDL034; external container download URLs — BDL035) instead of dropping them silently.
+    /// </summary>
+    public IFalkLogger? Logger { get; init; }
 
     /// <summary>
     /// Explicit path to the engine executable to embed as the bundle's self-extracting front.
@@ -100,6 +109,11 @@ public sealed class BundleCompiler
         if (validation.IsFailure)
             return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(validation.Error);
 
+        // Step 1.5: Authoring-honesty warnings. These inputs are structurally valid and accepted,
+        // but the current compiler does not fully materialize them — warn loudly rather than let an
+        // author believe a behavior is in effect when it is not.
+        EmitAuthoringWarnings(model);
+
         // Step 2: Generate manifest
         var manifestResult = _manifestGenerator.Generate(model);
         if (manifestResult.IsFailure)
@@ -176,6 +190,45 @@ public sealed class BundleCompiler
             return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(companionResult.Error);
 
         return (companionResult.Value, payloads);
+    }
+
+    /// <summary>
+    /// Surfaces non-fatal warnings for accepted-but-not-yet-materialized authoring inputs so they are
+    /// never silently ignored: per-package feature selection (BDL034, an MSI ADDLOCAL feature is not
+    /// yet emitted so the package installs its default feature set) and external container download
+    /// URLs (BDL035, all payloads are embedded in the single self-extracting exe today). No-op when no
+    /// <see cref="Logger"/> is configured.
+    /// </summary>
+    private void EmitAuthoringWarnings(BundleModel model)
+    {
+        if (Logger is null)
+            return;
+
+        foreach (var package in model.Packages)
+        {
+            // Non-MSI + EnableFeatureSelection already fails validation (BDL027); this warns for the
+            // valid MSI case where the flag is carried but not turned into an ADDLOCAL selection.
+            if (package.EnableFeatureSelection && package.Type == BundlePackageType.MsiPackage)
+            {
+                Logger.Log(LogLevel.Warning, "BundleCompiler",
+                    $"BDL034: package '{package.Id}' sets EnableFeatureSelection, but per-package MSI feature " +
+                    "selection is not yet honored — the package installs its default feature set (no ADDLOCAL " +
+                    "is emitted). Configure features inside the MSI itself for now.",
+                    new Dictionary<string, string> { ["code"] = "BDL034" });
+            }
+        }
+
+        foreach (var container in model.Containers)
+        {
+            if (!string.IsNullOrWhiteSpace(container.DownloadUrl))
+            {
+                Logger.Log(LogLevel.Warning, "BundleCompiler",
+                    $"BDL035: container '{container.Id}' sets DownloadUrl, but external/remote containers are not " +
+                    "yet produced — every payload is embedded in the single self-extracting bundle exe and the " +
+                    "download URL is ignored.",
+                    new Dictionary<string, string> { ["code"] = "BDL035" });
+            }
+        }
     }
 
     /// <summary>

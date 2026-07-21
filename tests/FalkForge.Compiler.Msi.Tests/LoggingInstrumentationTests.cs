@@ -1,5 +1,7 @@
 using System.Runtime.Versioning;
 using FalkForge.Diagnostics;
+using FalkForge.Extensibility;
+using FalkForge.Models;
 using FalkForge.Platform.Windows;
 using FalkForge.Testing;
 using Xunit;
@@ -244,5 +246,119 @@ public sealed class LoggingInstrumentationTests : IDisposable
         var dlgError = Assert.Single(errors, e => e.Category == "MsiAuthoring" && e.Message.Contains("Dialog customization"));
         Assert.NotNull(dlgError.Properties);
         Assert.Contains("DLG001", dlgError.Properties!["code"]);
+    }
+
+    [Fact]
+    public void Compile_WithComponentContributorExtension_LogsEXT002Warning()
+    {
+        // An extension whose GetAdditionalFiles output the recipe pipeline does not yet consume must
+        // surface EXT002 rather than silently drop the contribution. Previously this warning was
+        // logger-gated; it is now emitted unconditionally (WarnAlways) — a supplied logger observes it.
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithComponentContributorExtension_LogsEXT002Warning));
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "ComponentContribApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "ComponentContribApp"));
+        });
+
+        var logger = new ListLogger();
+        var compiler = new MsiCompiler(new WindowsFileSystem(), [new ComponentContributingExtension()], logger);
+
+        var result = compiler.Compile(package, outputDir);
+
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var ext002 = Assert.Single(logger.EntriesAt(LogLevel.Warning),
+            e => e.Category == "MsiAuthoring" && HasCode(e, "EXT002"));
+        Assert.Contains("GetAdditionalFiles", ext002.Message);
+    }
+
+    [Fact]
+    public void Compile_WithoutComponentContributor_LogsNoEXT002Warning()
+    {
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithoutComponentContributor_LogsNoEXT002Warning));
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "NoContribApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "NoContribApp"));
+        });
+
+        var logger = new ListLogger();
+        var compiler = new MsiCompiler(new WindowsFileSystem(), [], logger);
+
+        var result = compiler.Compile(package, outputDir);
+
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+        Assert.DoesNotContain(logger.Entries, e => HasCode(e, "EXT002"));
+    }
+
+    [Fact]
+    public void Compile_WithRegistryDryRunContributor_LogsEXT003Warning()
+    {
+        // An extension that registers an IDryRunContributor through the registry gets it discarded by
+        // the compile pipeline; EXT003 makes that non-silent instead of dropping it without a trace.
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithRegistryDryRunContributor_LogsEXT003Warning));
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "DryRunContribApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "DryRunContribApp"));
+        });
+
+        var logger = new ListLogger();
+        var compiler = new MsiCompiler(new WindowsFileSystem(), [new DryRunContributingExtension()], logger);
+
+        var result = compiler.Compile(package, outputDir);
+
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var ext003 = Assert.Single(logger.EntriesAt(LogLevel.Warning),
+            e => e.Category == "MsiAuthoring" && HasCode(e, "EXT003"));
+        Assert.Contains("dry-run", ext003.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Compile_WithoutDryRunContributor_LogsNoEXT003Warning()
+    {
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithoutDryRunContributor_LogsNoEXT003Warning));
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "NoDryRunApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "NoDryRunApp"));
+        });
+
+        var logger = new ListLogger();
+        var compiler = new MsiCompiler(new WindowsFileSystem(), [], logger);
+
+        var result = compiler.Compile(package, outputDir);
+
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+        Assert.DoesNotContain(logger.Entries, e => HasCode(e, "EXT003"));
+    }
+
+    private static bool HasCode(LogEntry entry, string code)
+        => entry.Properties is not null
+        && entry.Properties.TryGetValue("code", out var actual)
+        && actual == code;
+
+    private sealed class ComponentContributingExtension : IFalkForgeExtension, IComponentContributor
+    {
+        public string Name => "TestComponentContributor";
+        public void Register(IExtensionRegistry registry) => registry.RegisterComponentContributor(this);
+        public IReadOnlyList<FileEntryModel> GetAdditionalFiles(ExtensionContext context) => [];
+    }
+
+    private sealed class DryRunContributingExtension : IFalkForgeExtension, IDryRunContributor
+    {
+        public string Name => "TestDryRunContributor";
+        public void Register(IExtensionRegistry registry) => registry.RegisterDryRunContributor(this);
+        public IReadOnlyList<DryRunAction> GetDryRunActions(DryRunIntent intent) => [];
     }
 }
