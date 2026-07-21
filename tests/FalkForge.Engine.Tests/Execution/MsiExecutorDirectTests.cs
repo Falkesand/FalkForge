@@ -120,6 +120,29 @@ public sealed class MsiExecutorDirectTests
     }
 
     [Fact]
+    public async Task DirectExecution_AddLocalProperty_ComposesCommaSeparatedArg()
+    {
+        // Per-package feature selection is stamped by the planner as ADDLOCAL="F1,F2".
+        // The comma is not in the prohibited-value set, so it must survive into the
+        // composed MSI command line unmodified (no executor change needed for this).
+        var mockApi = new MockMsiApi();
+        var executor = new MsiExecutor(() => null, () => null, () => mockApi);
+        var action = CreateMsiAction(
+            PlanActionType.Install,
+            properties: new Dictionary<string, string>
+            {
+                ["ADDLOCAL"] = "Feature.A,Feature.B"
+            });
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, mockApi.InstallProductCallCount);
+        Assert.NotNull(mockApi.LastCommandLine);
+        Assert.Contains("ADDLOCAL=\"Feature.A,Feature.B\"", mockApi.LastCommandLine);
+    }
+
+    [Fact]
     public async Task DirectExecution_Install_SetsInternalUIToNone()
     {
         // Arrange

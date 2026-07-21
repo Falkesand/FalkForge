@@ -27,6 +27,12 @@ public sealed class NamedPipeUiChannel : IUiChannel
     private volatile string? _pendingInstallDirectory;
     private readonly ConcurrentDictionary<string, bool> _pendingFeatures = new();
 
+    // Per-package interactive MSI feature selections accumulated from
+    // SetPackageFeatureSelection messages (packageId → the full selected feature-id set).
+    // Parallel to _pendingFeatures but a different concern: whole-package gating vs.
+    // which features WITHIN one MSI package are selected (drives that package's ADDLOCAL).
+    private readonly ConcurrentDictionary<string, IReadOnlyList<string>> _pendingPackageFeatures = new();
+
     // License state accumulated from LicenseMessage(Accepted/Declined) before RequestPlan
     private volatile bool _licenseAccepted;
     private volatile bool _licenseResponseReceived;
@@ -285,7 +291,8 @@ public sealed class NamedPipeUiChannel : IUiChannel
         IDictionary<string, bool>? pendingFeatures,
         bool? licenseAccepted = null,
         IDictionary<string, string>? pendingProperties = null,
-        IDictionary<string, SensitiveBytes>? pendingSecureProperties = null) => message switch
+        IDictionary<string, SensitiveBytes>? pendingSecureProperties = null,
+        IDictionary<string, IReadOnlyList<string>>? pendingPackageFeatures = null) => message switch
     {
         CancelMessage => new UiRequest.Cancel(),
         ShutdownRequestMessage => new UiRequest.Shutdown(),
@@ -303,7 +310,8 @@ public sealed class NamedPipeUiChannel : IUiChannel
                     ?? new Dictionary<string, string>(),
                 (IReadOnlyDictionary<string, SensitiveBytes>?)pendingSecureProperties
                     ?? new Dictionary<string, SensitiveBytes>(),
-                licenseAccepted),
+                licenseAccepted,
+                (IReadOnlyDictionary<string, IReadOnlyList<string>>?)pendingPackageFeatures),
 
         _ => null
     };
@@ -320,6 +328,14 @@ public sealed class NamedPipeUiChannel : IUiChannel
         if (message is SetFeatureSelectionMessage featureMsg)
         {
             _pendingFeatures[featureMsg.FeatureId] = featureMsg.IsSelected;
+            return Task.CompletedTask;
+        }
+
+        // Per-package MSI feature selection: the message carries the full selected set for
+        // one package, so each message replaces that package's entry.
+        if (message is SetPackageFeatureSelectionMessage pkgFeatureMsg)
+        {
+            _pendingPackageFeatures[pkgFeatureMsg.PackageId] = pkgFeatureMsg.SelectedFeatureIds;
             return Task.CompletedTask;
         }
 
@@ -362,7 +378,8 @@ public sealed class NamedPipeUiChannel : IUiChannel
             _pendingFeatures,
             licenseAccepted,
             _pendingProperties.IsEmpty ? null : new Dictionary<string, string>(_pendingProperties),
-            _pendingSecureProperties.IsEmpty ? null : new Dictionary<string, SensitiveBytes>(_pendingSecureProperties));
+            _pendingSecureProperties.IsEmpty ? null : new Dictionary<string, SensitiveBytes>(_pendingSecureProperties),
+            _pendingPackageFeatures.IsEmpty ? null : new Dictionary<string, IReadOnlyList<string>>(_pendingPackageFeatures));
         if (request is not null)
             _requests.Writer.TryWrite(request);
 
