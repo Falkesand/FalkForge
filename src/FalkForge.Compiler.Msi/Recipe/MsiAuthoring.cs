@@ -89,16 +89,10 @@ public static class MsiAuthoring
             if (extensionRules.Length > 0)
                 ModelValidator.RegisterExtensionRules(extensionRules);
 
-            // IDryRunContributor registered via the extension registry is likewise not honored by the
-            // compile pipeline (dry-run previews are produced by 'forge build --dry-run' / 'forge
-            // validate', which iterate extensions directly). Warn rather than silently discard.
-            if (extensionRegistry.DryRunContributors.Count > 0)
-            {
-                WarnAlways(logger, "EXT003",
-                    $"{extensionRegistry.DryRunContributors.Count} IDryRunContributor(s) were registered via the extension " +
-                    "registry, but the MSI compile pipeline does not consume registry-registered dry-run contributors; their " +
-                    "GetDryRunActions output is ignored here. Dry-run previews surface via 'forge build --dry-run' / 'forge validate'.");
-            }
+            // Registry-based IDryRunContributor registration (registry.RegisterDryRunContributor) is
+            // intentionally inert here: dry-run previews are produced by 'forge build --dry-run' /
+            // 'forge validate', which iterate the extension list directly and call
+            // GetDryRunActions themselves — nothing is dropped, so no EXT003-style warning is needed.
         }
 
         // Step 1.5: Validate the package (core + extension rules). Produces the same error
@@ -534,27 +528,6 @@ public static class MsiAuthoring
 
     private static bool IsIntegritySigningDisabled()
         => EnvVarCatalog.IsSigningDisabled();
-
-    /// <summary>
-    /// Emits a non-fatal <paramref name="code"/> warning so an unsupported/ignored authoring input is
-    /// never silently dropped. When a <paramref name="logger"/> is supplied it routes through the
-    /// structured <see cref="IFalkLogger"/> (with the <c>code</c> property, matching every other
-    /// pipeline diagnostic); when it is <see langword="null"/> — the default for programmatic
-    /// <c>Installer.Build</c>-style callers — it falls back to <see cref="Console.Error"/> so the
-    /// warning still surfaces rather than vanishing. Deliberately unconditional (FAIL LOUD).
-    /// </summary>
-    private static void WarnAlways(IFalkLogger? logger, string code, string message)
-    {
-        if (logger is not null)
-        {
-            logger.Log(LogLevel.Warning, "MsiAuthoring", message,
-                new Dictionary<string, string> { ["code"] = code });
-        }
-        else
-        {
-            Console.Error.WriteLine($"warning {code}: MsiAuthoring: {message}");
-        }
-    }
 
     /// <summary>
     /// <see cref="IExtensionRegistry"/> implementation that collects registered
