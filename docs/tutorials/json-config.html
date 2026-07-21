@@ -26,9 +26,9 @@
 
     <!-- Intro -->
     <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
-      <strong>Work in progress.</strong> The C# fluent API &mdash; what <code>forge init</code> scaffolds by default &mdash; is FalkForge's primary, fully supported authoring model. JSON configuration is an experimental, incomplete subset intended for simple, no-compiler installers. Most importantly: the <code>extensions</code> block covered in sections 5 and 6 below (Firewall, IIS, SQL, .NET detection) is <strong>parsed and validated but not yet wired into the compiled installer</strong> &mdash; a build with only extension configuration succeeds and silently ships without those extensions. Use the C# API for any of the four extensions today.
+      <strong>Work in progress.</strong> The C# fluent API &mdash; what <code>forge init</code> scaffolds by default &mdash; is FalkForge's primary, fully supported authoring model. JSON configuration is an experimental, incomplete subset intended for simple, no-compiler installers. Most importantly: JSON <strong>cannot author extensions</strong> (Firewall, IIS, SQL, .NET detection &mdash; covered in sections 5 and 6 below). The <code>extensions</code> block is parsed and structurally validated, but a build with any non-empty <code>extensions</code> content fails closed with <strong>JSN019</strong> rather than silently shipping without them. Use the C# API for any of the four extensions today.
     </div>
-    <p>Not every team writes C#. For simple, data-driven installers FalkForge can build from JSON configuration files instead &mdash; no code required. Define your product, files, features, and (for now, structurally only) extensions in JSON; run <code>forge build config.json</code> to produce an MSI.</p>
+    <p>Not every team writes C#. For simple, data-driven installers FalkForge can build from JSON configuration files instead &mdash; no code required. Define your product, files, and features in JSON; run <code>forge build config.json</code> to produce an MSI. (JSON also recognizes the shape of an <code>extensions</code> block, structurally only &mdash; see sections 5 and 6.)</p>
 
     <!-- Section 1: Minimal JSON Installer -->
     <h2>1. Minimal JSON Installer</h2>
@@ -77,9 +77,10 @@
           <li><strong>JSN007</strong> &mdash; Invalid platform value.</li>
           <li><strong>JSN009</strong> &mdash; Feature must have an id.</li>
           <li><strong>JSN010</strong> &mdash; Configuration error during mapping.</li>
-          <li><strong>JSN011&ndash;JSN014</strong> &mdash; Firewall, IIS, SQL, and .NET extension field validation (structural only &mdash; these sections still don't reach the compiled installer; see the work-in-progress note above).</li>
+          <li><strong>JSN011&ndash;JSN014</strong> &mdash; Firewall, IIS, SQL, and .NET extension field validation (structural only &mdash; see the work-in-progress note above).</li>
+          <li><strong>JSN019</strong> &mdash; also fires here: once structural validation passes, any non-empty <code>extensions</code> content fails the build outright, since JSON cannot author extensions (see sections 5 and 6).</li>
         </ul>
-        <p>The full list, including the <code>JSN015&ndash;JSN019</code> signing-section codes, is in the <a href="../../documentation.html#error-codes">Reference Docs error code appendix</a>. After JSON-specific checks pass, the standard <code>PKG</code>, <code>FEA</code>, and <code>SVC</code> validators run too. You get the same safety net as a C# build.</p>
+        <p>The full list, including the <code>JSN015&ndash;JSN019</code> signing-section codes (JSN019 is reused for both the extensions guard above and unresolvable signing key/auth material), is in the <a href="../../documentation.html#error-codes">Reference Docs error code appendix</a>. After JSON-specific checks pass, the standard <code>PKG</code>, <code>FEA</code>, and <code>SVC</code> validators run too. You get the same safety net as a C# build.</p>
       </div>
     </details>
 
@@ -266,7 +267,7 @@
         </ul>
         <p>Use <strong>C#</strong> &mdash; the primary, fully supported path, and what <code>forge init</code> scaffolds by default &mdash; when:</p>
         <ul>
-          <li>You need the Firewall, IIS, SQL, or .NET-detection extensions (JSON validates but does not yet build these &mdash; see sections 5 and 6 above).</li>
+          <li>You need the Firewall, IIS, SQL, or .NET-detection extensions (JSON cannot author these &mdash; a non-empty <code>extensions</code> block fails the build with JSN019; see sections 5 and 6 above).</li>
           <li>You need custom actions (DLL, EXE, or script execution during install).</li>
           <li>You have conditional features based on detected system state.</li>
           <li>You need custom sequence table manipulation.</li>
@@ -279,12 +280,12 @@
 
     <!-- Section 5: Web Server Installer -->
     <h2>5. Web Server Installer</h2>
-    <p>Open <code>demo/json/06-web-server.json</code>. This config describes a web application with IIS and firewall rules.</p>
+    <p>Open <code>demo/json/06-web-server.json</code>. This is a plain, file-only JSON installer &mdash; JSON cannot author IIS or firewall configuration, so this demo does not attempt to. It shows the shape the loader would reject if it did.</p>
     <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
-      <strong>Not yet functional via JSON.</strong> The <code>extensions</code> block below is parsed and structurally validated &mdash; <code>forge build</code> and <code>forge validate</code> both accept it and report real errors for malformed rules &mdash; but the validated configuration is <strong>not currently emitted into the compiled MSI</strong>. Building this demo produces an installer with no firewall rule and no IIS app pool or web site. Use the C# fluent API's Firewall and IIS extensions for a working installer today; this section documents the schema so JSON authors know what's accepted, not what's installed.
+      <strong>JSON cannot author this.</strong> The <code>extensions</code> block below is parsed and structurally validated &mdash; <code>forge build</code> and <code>forge validate</code> both accept the shape and report real errors for malformed rules &mdash; but once that block carries any content, the build fails closed with <strong>JSN019</strong> instead of silently shipping without those extensions. Use the C# fluent API's Firewall and IIS extensions for a working installer today (see Demo 07 &ldquo;Extensions Showcase&rdquo;, or the focused Demos 29/30); this section documents the schema so JSON authors know what's recognized, not what can be built.
     </div>
 
-    <h3>Firewall rules (schema, not yet emitted)</h3>
+    <h3>Firewall rules (schema only &mdash; rejected with JSN019)</h3>
     <pre><code><span class="str">"extensions"</span><span class="punc">:</span> <span class="punc">{</span>
   <span class="str">"firewall"</span><span class="punc">:</span> <span class="punc">[</span>
     <span class="punc">{</span>
@@ -298,9 +299,9 @@
     <span class="punc">}</span>
   <span class="punc">]</span>
 <span class="punc">}</span></code></pre>
-    <p>Each rule gets a unique <code>id</code> and must specify <code>port</code> or <code>program</code>. Supported profiles: <code>All</code>, <code>Domain</code>, <code>Private</code>, <code>Public</code>. On the C# path the equivalent Firewall extension call creates the rule on install and removes it on uninstall; the JSON path validates this shape but does not yet build it into the installer (see the warning above).</p>
+    <p>Each rule gets a unique <code>id</code> and must specify <code>port</code> or <code>program</code>. Supported profiles: <code>All</code>, <code>Domain</code>, <code>Private</code>, <code>Public</code>. On the C# path the equivalent Firewall extension call creates the rule on install and removes it on uninstall; the JSON path validates this shape then fails the build with JSN019 (see the warning above) &mdash; it never builds it into the installer.</p>
 
-    <h3>IIS app pools and web sites (schema, not yet emitted)</h3>
+    <h3>IIS app pools and web sites (schema only &mdash; rejected with JSN019)</h3>
     <pre><code><span class="str">"iis"</span><span class="punc">:</span> <span class="punc">{</span>
   <span class="str">"appPools"</span><span class="punc">:</span> <span class="punc">[</span>
     <span class="punc">{</span>
@@ -324,7 +325,7 @@
     <span class="punc">}</span>
   <span class="punc">]</span>
 <span class="punc">}</span></code></pre>
-    <p>The <code>appPool</code> field on a web site references an app pool by its <code>id</code> in the JSON document. Bindings support <code>http</code> and <code>https</code> protocols with configurable port and host header. As above, this shape validates but is not yet built into the MSI &mdash; use the C# IIS extension for a web site and app pool that actually get created.</p>
+    <p>The <code>appPool</code> field on a web site references an app pool by its <code>id</code> in the JSON document. Bindings support <code>http</code> and <code>https</code> protocols with configurable port and host header. As above, this shape validates structurally then fails the build with JSN019 &mdash; use the C# IIS extension for a web site and app pool that actually get created.</p>
 
     <details class="deep-dive">
       <summary>Deep dive: Extension-specific JSON schemas</summary>
@@ -336,18 +337,18 @@
           <li><strong><code>sql</code></strong> &mdash; array of database objects with connection info and scripts.</li>
           <li><strong><code>dotnet</code></strong> &mdash; array of runtime detection checks.</li>
         </ul>
-        <p>Extension validation uses the same error code families as C#: <code>JSN011</code> for firewall, <code>JSN012</code> for IIS, <code>JSN013</code> for SQL, <code>JSN014</code> for .NET detection (see <code>JsonConfigLoader.ValidateExtensions</code>). Invalid JSON extension configs fail fast with clear messages &mdash; but a config that passes this validation still does not reach the compiled installer today.</p>
+        <p>Extension validation uses the same error code families as C#: <code>JSN011</code> for firewall, <code>JSN012</code> for IIS, <code>JSN013</code> for SQL, <code>JSN014</code> for .NET detection (see <code>JsonConfigLoader.ValidateExtensions</code>). Invalid JSON extension configs fail fast with clear messages &mdash; and once a config passes that structural check, a non-empty <code>extensions</code> block fails the build outright with JSN019, because JSON cannot author extensions at all.</p>
       </div>
     </details>
 
     <!-- Section 6: Database Application -->
     <h2>6. Database Application</h2>
-    <p>Open <code>demo/json/07-database-app.json</code>. This config describes a SQL Server database provision and a .NET runtime detection check.</p>
+    <p>Open <code>demo/json/07-database-app.json</code>. This is a plain, file-only JSON installer &mdash; JSON cannot author SQL provisioning or .NET runtime detection, so this demo does not attempt to. It shows the shape the loader would reject if it did.</p>
     <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
-      <strong>Not yet functional via JSON</strong> &mdash; same gap as section 5: the <code>sql</code> and <code>dotnet</code> extension blocks below validate but are not emitted into the compiled installer. Use the C# fluent API's SQL and .NET-detection extensions for a working installer today.
+      <strong>JSON cannot author this</strong> &mdash; same as section 5: the <code>sql</code> and <code>dotnet</code> extension blocks below validate structurally, then a non-empty block fails the build with JSN019. Use the C# fluent API's SQL and .NET-detection extensions for a working installer today (see Demo 07 &ldquo;Extensions Showcase&rdquo;, or the focused Demos 31/32).
     </div>
 
-    <h3>SQL database creation (schema, not yet emitted)</h3>
+    <h3>SQL database creation (schema only &mdash; rejected with JSN019)</h3>
     <pre><code><span class="str">"extensions"</span><span class="punc">:</span> <span class="punc">{</span>
   <span class="str">"sql"</span><span class="punc">:</span> <span class="punc">[</span>
     <span class="punc">{</span>
@@ -381,7 +382,7 @@
       <li><strong><code>scripts</code></strong> &mdash; SQL files executed in <code>sequence</code> order. Schema first, then seed data.</li>
     </ul>
 
-    <h3>.NET runtime detection (schema, not yet emitted)</h3>
+    <h3>.NET runtime detection (schema only &mdash; rejected with JSN019)</h3>
     <pre><code><span class="str">"dotnet"</span><span class="punc">:</span> <span class="punc">[</span>
   <span class="punc">{</span>
     <span class="str">"runtimeType"</span><span class="punc">:</span> <span class="str">"Runtime"</span><span class="punc">,</span>
@@ -390,12 +391,12 @@
     <span class="str">"variableName"</span><span class="punc">:</span> <span class="str">"DOTNET8_INSTALLED"</span>
   <span class="punc">}</span>
 <span class="punc">]</span></code></pre>
-    <p>On the C# path, the equivalent .NET-detection extension probes the registry and filesystem for the specified runtime and stores the result in the MSI property named by <code>variableName</code>. The JSON <code>dotnet</code> block above validates the same four required fields but, like <code>firewall</code>, <code>iis</code>, and <code>sql</code>, is not yet built into the installer.</p>
+    <p>On the C# path, the equivalent .NET-detection extension probes the registry and filesystem for the specified runtime and stores the result in the MSI property named by <code>variableName</code>. The JSON <code>dotnet</code> block above validates the same four required fields structurally, then fails the build with JSN019 &mdash; like <code>firewall</code>, <code>iis</code>, and <code>sql</code>, it is never built into the installer.</p>
 
     <details class="deep-dive">
       <summary>Deep dive: Connection string handling (C# SQL extension)</summary>
       <div class="deep-dive-content">
-        <p>This describes the <strong>C# SQL extension's</strong> behavior, since the JSON <code>sql</code> block does not yet reach the compiled installer. The <code>server</code> field accepts MSI property references like <code>[SQLSERVER]</code>. At install time, Windows Installer resolves these to the actual values. This keeps connection strings out of the config and lets the user (or admin deploying silently) provide the server name.</p>
+        <p>This describes the <strong>C# SQL extension's</strong> behavior, since the JSON <code>sql</code> block cannot reach the compiled installer. The <code>server</code> field accepts MSI property references like <code>[SQLSERVER]</code>. At install time, Windows Installer resolves these to the actual values. This keeps connection strings out of the config and lets the user (or admin deploying silently) provide the server name.</p>
         <p>For silent deployments, pass the property on the command line:</p>
         <pre><code>msiexec /i DatabaseApp.msi /qn SQLSERVER=dbserver\SQLEXPRESS</code></pre>
         <p>For interactive installs, use the <code>"InstallDir"</code> or <code>"Advanced"</code> UI template. The SQL extension can display a server selection dialog if you use the C# API with the custom UI system.</p>
@@ -449,7 +450,7 @@
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Files, shortcuts, registry</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Feature trees</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Services, environment variables</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
-        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">IIS, Firewall, SQL, .NET extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No (WIP &mdash; validated, not emitted)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">IIS, Firewall, SQL, .NET extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No (structural validation only &mdash; build fails with JSN019)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">CI/CD pipeline generation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Ideal</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Possible</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Signed bundle (integrity manifest, PEM or SignServer)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Custom actions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
@@ -460,7 +461,7 @@
       </tbody>
     </table>
 
-    <p>Start with JSON for straightforward, extension-free installers and CI/CD pipelines. Move to C# &mdash; the primary path &mdash; when you need custom actions, conditional features, advanced MSI capabilities, or any of the Firewall/IIS/SQL/.NET extensions. For the fields JSON does support, both produce identical MSI output.</p>
+    <p>Start with JSON for straightforward, extension-free installers and CI/CD pipelines. Move to C# &mdash; the primary path &mdash; when you need custom actions, conditional features, advanced MSI capabilities, or any of the Firewall/IIS/SQL/.NET extensions (JSON authoring of these is a hard build error, JSN019, not a silent gap). For the fields JSON does support, both produce identical MSI output.</p>
 
     <nav class="tutorial-nav">
       <span></span>

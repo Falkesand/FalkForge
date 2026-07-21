@@ -304,10 +304,11 @@ Which FalkForge features each MSI-producing demo covers:
 | Major Upgrade           |    | x  | x  | x  | x  | x  | x  |
 | Launch Conditions       |    |    | x  | x  | x  |    |    |
 | License File            |    |    |    | x  | x  |    |    |
-| Ext: Firewall           |    |    |    |    |    | x  |    |
-| Ext: IIS                |    |    |    |    |    | x  |    |
-| Ext: SQL                |    |    |    |    |    |    | x  |
-| Ext: .NET Detection     |    |    |    |    |    |    | x  |
+
+JSON cannot author the Firewall, IIS, SQL, or .NET-detection extensions -- an `extensions`
+block with any content is a hard build error (JSN019). Demos 06 and 07 are plain file-only
+JSON installers; for the extensions, use the C# fluent API (demo 07 "Extensions Showcase",
+or the focused demos 29-32).
 
 ## Production Demo
 
@@ -818,11 +819,17 @@ Progressive complexity from a single-file Minimal installer through to an Advanc
 
 ### JSON 06 -- Web Server
 
-IIS + Firewall extension demo. Configures an IIS application pool and web site with HTTP/HTTPS bindings, plus inbound firewall rules for ports 80 and 443.
+A plain file-only JSON installer (InstallDir UI). JSON cannot author the IIS or Firewall
+extensions -- an `extensions` block is a hard build error (JSN019) -- so for the app pool +
+web site + HTTP/HTTPS bindings and inbound firewall rules this demo's name references, see
+the C# **07 -- Extensions Showcase** demo or the focused **29 -- Firewall** / **30 -- IIS** demos.
 
 ### JSON 07 -- Database App
 
-SQL + .NET extension demo. Creates a SQL Server database with schema and seed scripts, and detects .NET 8.0+ runtime availability.
+A plain file-only JSON installer (InstallDir UI). JSON cannot author the SQL or .NET-detection
+extensions -- an `extensions` block is a hard build error (JSN019) -- so for the SQL Server
+database + scripts and .NET 8.0+ runtime detection this demo's name references, see the C#
+**07 -- Extensions Showcase** demo or the focused **31 -- SQL** / **32 -- .NET Detection** demos.
 
 ## Architecture Overview
 

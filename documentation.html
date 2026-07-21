@@ -564,7 +564,7 @@
   <!-- Sidebar -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <h1><span>Falk</span>Forge Docs <span class="version-tag">v0.5.0-beta.1</span><!-- update per release --></h1>
+      <h1><span>Falk</span>Forge Docs <span class="version-tag">v0.5.0-beta.2</span><!-- update per release --></h1>
       <div class="sidebar-controls">
         <input type="text" class="search-box" id="searchBox" placeholder="Search docs..." autocomplete="off">
         <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">&#9790;</button>
@@ -9327,10 +9327,10 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     init</code> scaffolds). The fields below are the ones the loader actually reads and maps to
     the compiler; fields not listed here are not recognized. In particular, the
     <code>extensions</code> block (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>)
-    is parsed and structurally validated but is <strong>not yet emitted into the built
-    installer</strong> &mdash; a JSON build that only specifies extension configuration succeeds
-    and silently produces an installer without those extensions. Use the C# fluent API for any
-    of the four extensions today.
+    is parsed and structurally validated but JSON <strong>cannot author extensions</strong>
+    &mdash; a build with any non-empty <code>extensions</code> content fails closed with
+    <strong>JSN019</strong> rather than silently dropping it. Use the C# fluent API for any of
+    the four extensions today (<code>new MsiCompiler().Use(extension)</code>).
 </div>
 <p>The CLI accepts JSON files as an alternative to C# scripts. The schema is defined in <code>src/FalkForge.Cli/Models/InstallerConfig.cs</code> and its sibling <code>Models/*.cs</code> files &mdash; the fields below match those types exactly.</p>
 
@@ -9373,7 +9373,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     }
   ],
   "extensions": {
-    "firewall": [ "not yet emitted -- see warning above" ],
+    "firewall": [ "REJECTED -- fails the build with JSN019, see warning above" ],
     "iis": { "appPools": [ "..." ], "webSites": [ "..." ] },
     "sql": [ "..." ],
     "dotnet": [ "..." ]
@@ -9385,8 +9385,9 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     no separate top-level <code>shortcuts</code> array on a feature. Extension sub-schemas
     (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>) are fully
     documented in the <a href="docs/tutorials/json-config.html">JSON Configuration tutorial</a>;
-    the fields there are real and pass validation, they simply do not reach the compiled
-    installer yet.
+    the fields there are real and pass structural validation, but any non-empty
+    <code>extensions</code> content fails the build with JSN019 &mdash; JSON cannot author
+    extensions, use the C# fluent API instead.
 </p>
 
 <h3 id="cli-scripting">C# Scripting Support</h3>
@@ -10405,7 +10406,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>JSN016</td><td>Inline secret material in the signing config &mdash; keys and credentials must be referenced by file path or environment-variable name, never pasted into the JSON</td></tr>
         <tr><td>JSN017</td><td>Ambiguous or missing key source for the pem provider (exactly one of keyPath/keyEnv; at most one of pqKeyPath/pqKeyEnv)</td></tr>
         <tr><td>JSN018</td><td>Invalid signserver signing config (missing baseUrl/worker, unknown/incomplete authMode, or pqKeyPath/pqKeyEnv on the signserver provider &mdash; hybrid post-quantum signing via JSON requires provider pem)</td></tr>
-        <tr><td>JSN019</td><td>Signing key or auth material unresolvable at build time (e.g. referenced environment variable unset) &mdash; the build fails closed, never falling back to unsigned output</td></tr>
+        <tr><td>JSN019</td><td>Fail-closed guard, two triggers: (1) a JSON <code>extensions</code> block (firewall/IIS/SQL/.NET) carries any content &mdash; JSON cannot author extensions, so the build fails rather than silently dropping them; use the C# fluent API instead. (2) A signing key or auth material is unresolvable at build time (e.g. referenced environment variable unset) &mdash; the build fails closed, never falling back to unsigned output</td></tr>
     </tbody>
 </table>
 
@@ -10837,9 +10838,10 @@ public sealed record WixUnmappedFeature(
 <p>
     Declarative JSON files validated and built by the <code>forge</code> CLI. No C# code required.
     Located in <code>demo/json/</code>. JSON configuration is a work-in-progress subset (see
-    <a href="#cli-json-config">JSON Configuration Format</a>) &mdash; demos 06 and 07 build
-    successfully, but their <code>extensions</code> blocks (firewall/IIS/SQL/.NET) are validated
-    only and do not appear in the compiled MSI.
+    <a href="#cli-json-config">JSON Configuration Format</a>) &mdash; JSON cannot author the
+    Firewall/IIS/SQL/.NET extensions (a non-empty <code>extensions</code> block fails the build
+    with JSN019), so demos 06 and 07 are plain file-only installers. Use the C# fluent API
+    (Demo 07, &ldquo;Extensions Showcase&rdquo;) for those four extensions.
 </p>
 <table>
 <thead>
@@ -10851,8 +10853,8 @@ public sealed record WixUnmappedFeature(
 <tr><td>03</td><td>03-featuretree.json</td><td>FeatureTree UI, nested features, services</td><td>FeatureTree</td></tr>
 <tr><td>04</td><td>04-mondo.json</td><td>Mondo UI, environment variables, license, services</td><td>Mondo</td></tr>
 <tr><td>05</td><td>05-advanced.json</td><td>Advanced UI, nested services, env vars, all features</td><td>Advanced</td></tr>
-<tr><td>06</td><td>06-web-server.json</td><td>IIS app pool + web site, firewall rules</td><td>InstallDir</td></tr>
-<tr><td>07</td><td>07-database-app.json</td><td>SQL database + scripts, .NET runtime detection</td><td>InstallDir</td></tr>
+<tr><td>06</td><td>06-web-server.json</td><td>Basic file installer (JSON can't author IIS/firewall &mdash; see C# Demo 07)</td><td>InstallDir</td></tr>
+<tr><td>07</td><td>07-database-app.json</td><td>Basic file installer (JSON can't author SQL/.NET detection &mdash; see C# Demo 07)</td><td>InstallDir</td></tr>
 </tbody>
 </table>
 
