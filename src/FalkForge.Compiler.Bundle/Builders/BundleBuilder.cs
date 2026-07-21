@@ -423,7 +423,8 @@ public sealed class BundleBuilder
             Integrity = _integrity,
             IsDryRun = _isDryRun,
             PreUIPackages = _preUIPackages.AsReadOnly(),
-            OmitElevationCompanion = _omitElevationCompanion
+            OmitElevationCompanion = _omitElevationCompanion,
+            ReproducibleOptions = _reproducibleOptions
         };
     }
 }
