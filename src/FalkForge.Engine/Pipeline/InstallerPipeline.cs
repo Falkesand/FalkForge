@@ -35,6 +35,13 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     private Phase _phase = Phase.Initial;
     private bool _disposed;
 
+    /// <summary>
+    /// Test-visible accessor for the payload extraction root wired into the shared context. Exposed via
+    /// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/> so wiring tests can
+    /// assert the bootstrapper-forwarded root reached the pipeline without driving a full apply.
+    /// </summary>
+    internal string? PayloadRoot => _ctx.PayloadRoot;
+
     internal InstallerPipeline(
         IDetectStep? detectStep,
         IPlanStep? planStep,
