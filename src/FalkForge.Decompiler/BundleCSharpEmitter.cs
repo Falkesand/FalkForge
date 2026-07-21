@@ -168,6 +168,21 @@ internal static class BundleCSharpEmitter
         if (uiConfig.LicenseFile is not null)
             args.Add($"licenseFile: {Quote(uiConfig.LicenseFile)}");
 
+        if (uiConfig.LogoFile is not null)
+            args.Add($"logoFile: {Quote(uiConfig.LogoFile)}");
+
+        if (uiConfig.ThemeColor is not null)
+            args.Add($"themeColor: {Quote(uiConfig.ThemeColor)}");
+
+        if (uiConfig.WatermarkImage is not null)
+            args.Add($"watermarkImage: {Quote(uiConfig.WatermarkImage)}");
+
+        if (uiConfig.BannerImage is not null)
+            args.Add($"bannerImage: {Quote(uiConfig.BannerImage)}");
+
+        if (uiConfig.BannerIcon is not null)
+            args.Add($"bannerIcon: {Quote(uiConfig.BannerIcon)}");
+
         if (args.Count == 0)
         {
             appendLine("b.UseBuiltInUI();");
