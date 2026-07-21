@@ -94,13 +94,14 @@ public sealed class IisExtensionTests
     }
 
     [Fact]
-    public void GetValidationRules_ReturnsSeventeenRules()
+    public void GetValidationRules_ReturnsEighteenRules()
     {
         var extension = new IisExtension();
-        // IIS001-011 plus the runtime-era rules: IIS012 (literal password), IIS013 (cert/https deferred),
-        // IIS014 (web-application deferred), IIS015 (virtual directory targeting a non-root application),
-        // IIS016 (virtual directory missing Alias), IIS017 (virtual directory missing Directory).
-        Assert.Equal(17, extension.GetValidationRules().Length);
+        // IIS001-011 plus the runtime-era rules: IIS012 (literal password), IIS013 (HTTPS certificate must be
+        // pre-provisioned in the store), IIS014 (web application missing Alias), IIS015 (virtual directory
+        // targeting an undefined parent application), IIS016 (virtual directory missing Alias), IIS017
+        // (virtual directory missing Directory), IIS018 (web application missing Directory).
+        Assert.Equal(18, extension.GetValidationRules().Length);
     }
 
     private static PackageModel MinimalPackage() => InstallerTestHost.BuildPackage(p =>

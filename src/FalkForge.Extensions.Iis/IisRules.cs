@@ -174,61 +174,70 @@ public static class IisRules
                         $"IIS012: AppPool '{p.Name}' embeds a literal password in plaintext in the MSI. " +
                         "Use IdentitySecure(...) with a PasswordProperty populated by SetSecureProperty instead."))),
 
-            // Fail-loud deferrals: surface configuration that is authored but whose install-time execution is
-            // NOT yet wired in this core branch, so an author is never silently misled into thinking it runs.
-
+            // Honest runtime caveat: an HTTPS binding's SSL certificate is BOUND at install (find hash in the
+            // authored store -> Binding.CertificateHash), but FalkForge does not IMPORT the certificate — it
+            // must be pre-provisioned in the target store, or the deferred bind fails loud at install.
             new ValidationRule(
                 new RuleId("IIS013"),
                 Severity.Warning,
                 ModelSection.Extension_Iis,
-                "HTTPS/certificate binding runtime is not wired",
-                "Certificate emission and SSL-certificate binding are deferred; an HTTPS/certificate binding is created without an SSL certificate at install.",
+                "HTTPS certificate must be pre-provisioned in the target store",
+                "FalkForge binds the referenced certificate to the HTTPS binding at install but does not import it; the certificate must already exist in the target certificate store (located by thumbprint/subject).",
                 ctx => getWebSites().SelectMany(s =>
                     s.Bindings
-                        .Where(b => string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase)
-                                    || !string.IsNullOrWhiteSpace(b.CertificateRef))
+                        .Where(b => !string.IsNullOrWhiteSpace(b.CertificateRef))
                         .Select(b => new Violation(
                             new RuleId("IIS013"), Severity.Warning,
                             ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("Binding"),
-                            $"IIS013: HTTPS/certificate binding on site '{s.Description}' is authored, but certificate " +
-                            "emission and SSL-certificate binding are NOT yet wired at install; the binding is skipped " +
-                            "at runtime. Bind the certificate out-of-band, or apply it in a follow-up.")))),
+                            $"IIS013: HTTPS binding on site '{s.Description}' binds certificate '{b.CertificateRef}' at " +
+                            "install, but FalkForge does not import it — ensure the certificate is already present in the " +
+                            "target certificate store (located by thumbprint/subject) before install, or the deferred " +
+                            "bind fails loud.")))),
 
+            // Required-field error mirroring IIS016 (virtual directory Alias): an empty WebApplication Alias
+            // makes IisCommandFactory.BuildSteps silently skip the sub-application (never created at install),
+            // so — like every other silently-skipped shape in this extension — it must be a build-blocking
+            // Error, never a quiet no-op.
             new ValidationRule(
                 new RuleId("IIS014"),
-                Severity.Warning,
+                Severity.Error,
                 ModelSection.Extension_Iis,
-                "WebApplication runtime is not wired",
-                "Sub-application (WebApplication) creation is deferred; only the root site, its bindings, its app pool, and any virtual directories are created at install.",
-                ctx => getWebSites()
-                    .Where(s => s.WebApplications.Count > 0)
-                    .Select(s => new Violation(
-                        new RuleId("IIS014"), Severity.Warning,
-                        ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty),
-                        $"IIS014: WebSite '{s.Description}' authors sub-application(s), but WebApplication creation is " +
-                        "NOT yet wired at install; only the root site, bindings, app pool, and virtual directories are " +
-                        "created. Create sub-applications out-of-band, or apply them in a follow-up."))),
+                "WebApplication must have an Alias",
+                "Each IIS web application (sub-application) must have a non-empty Alias.",
+                ctx => getWebSites().SelectMany(s =>
+                    s.WebApplications
+                        .Where(a => string.IsNullOrWhiteSpace(a.Alias))
+                        .Select(a => new Violation(
+                            new RuleId("IIS014"), Severity.Error,
+                            ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("WebApplication"),
+                            $"IIS014: A web application on site '{s.Description}' must have a non-empty Alias.")))),
 
-            // Fail-loud deferral for virtual directories targeting a non-root parent application: virtual
-            // directories ARE created at install, but only under the root application ("/"), since
-            // sub-application creation itself is still deferred (IIS014).
+            // Fail-loud guard for virtual directories targeting a non-root parent application: sub-applications
+            // ARE created at install now, but only those authored as WebApplications on the site. A virtual
+            // directory targeting a non-root application that is not among them will not find its parent at
+            // install and its deferred create action fails loud.
             new ValidationRule(
                 new RuleId("IIS015"),
                 Severity.Warning,
                 ModelSection.Extension_Iis,
-                "Virtual directory targets a non-root parent application that is not created",
-                "A virtual directory references a parent WebApplication other than the site root ('/'); WebApplication creation is deferred (IIS014), so the referenced application will not exist at install and the virtual directory's deferred create action fails loud.",
+                "Virtual directory targets a parent application that is not defined",
+                "A virtual directory references a parent WebApplication other than the site root ('/') that is not defined as a WebApplication on the site, so the referenced application will not exist at install and the virtual directory's deferred create action fails loud.",
                 ctx => getWebSites().SelectMany(s =>
-                    s.VirtualDirectories
-                        .Where(v => !string.IsNullOrWhiteSpace(v.WebApplication) && v.WebApplication != "/")
+                {
+                    var appAliases = new HashSet<string>(
+                        s.WebApplications.Select(a => a.Alias ?? string.Empty), StringComparer.OrdinalIgnoreCase);
+                    return s.VirtualDirectories
+                        .Where(v => !string.IsNullOrWhiteSpace(v.WebApplication)
+                                    && v.WebApplication != "/"
+                                    && !appAliases.Contains(v.WebApplication!))
                         .Select(v => new Violation(
                             new RuleId("IIS015"), Severity.Warning,
                             ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("VirtualDirectory").Field(v.Alias ?? string.Empty),
                             $"IIS015: Virtual directory '{v.Alias}' on site '{s.Description}' targets parent application " +
-                            $"'{v.WebApplication}', but WebApplication creation is NOT yet wired at install (IIS014) — " +
-                            "only the root application ('/') exists automatically, so this virtual directory will fail " +
-                            "to create at install. Target the root application, or create the parent application " +
-                            "out-of-band.")))),
+                            $"'{v.WebApplication}', which is not defined as a WebApplication on this site — the parent " +
+                            "will not exist at install, so the deferred create action fails loud. Define it via " +
+                            "AddApplication(...), or target the root application ('/')."));
+                })),
 
             // Required-field errors, mirroring IIS001/IIS002/IIS005: an empty Alias or Directory makes
             // IisCommandFactory.BuildSteps silently skip the virtual directory (never created at install),
@@ -261,6 +270,23 @@ public static class IisRules
                             new RuleId("IIS017"), Severity.Error,
                             ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("VirtualDirectory").Field(v.Alias),
                             $"IIS017: Virtual directory '{v.Alias}' on site '{s.Description}' must have a non-empty Directory.")))),
+
+            // Required-field error mirroring IIS017 (virtual directory Directory): an empty WebApplication
+            // Directory makes IisCommandFactory.BuildSteps silently skip the sub-application (never created at
+            // install), so it must be a build-blocking Error, never a quiet no-op.
+            new ValidationRule(
+                new RuleId("IIS018"),
+                Severity.Error,
+                ModelSection.Extension_Iis,
+                "WebApplication must have a Directory",
+                "Each IIS web application (sub-application) must have a non-empty physical Directory.",
+                ctx => getWebSites().SelectMany(s =>
+                    s.WebApplications
+                        .Where(a => !string.IsNullOrWhiteSpace(a.Alias) && string.IsNullOrWhiteSpace(a.Directory))
+                        .Select(a => new Violation(
+                            new RuleId("IIS018"), Severity.Error,
+                            ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("WebApplication").Field(a.Alias),
+                            $"IIS018: Web application '{a.Alias}' on site '{s.Description}' must have a non-empty Directory.")))),
         ];
     }
 

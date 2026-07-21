@@ -121,6 +121,86 @@ public sealed class IisExecutionEmissionTests
     }
 
     [Fact]
+    public void CreateWebApplication_ProducesDeferredCreateRollbackAndUninstall_SequencedAfterSite()
+    {
+        using var scratch = new Scratch();
+
+        var iis = new IisExtension();
+        var poolRef = iis.DefineAppPool(p => p.Id("ApiPool").Name("ApiPool"));
+        iis.AddWebSite(s => s
+            .Id("WebSite").Description("FalkForgeSite").Directory("[INSTALLDIR]web")
+            .Binding(80)
+            .AddApplication(a => a.Id("Api").Alias("/api").Directory("[INSTALLDIR]api").AppPool(poolRef)));
+
+        using var db = Compile(scratch, "IisExecAppApp", iis);
+        var actions = QueryCustomActions(db);
+        var sequence = QuerySequence(db);
+
+        // Sub-application create: deferred + SYSTEM, drives Microsoft.Web.Administration, runs AFTER the site.
+        var appCreate = actions["IisApp_Api"];
+        Assert.True((appCreate.Type & InScript) != 0 && (appCreate.Type & NoImpersonate) != 0,
+            "web application create action must be deferred + SYSTEM");
+        string createScript = DecodeEncoded(appCreate.Target);
+        Assert.Contains("Applications.Add", createScript, StringComparison.Ordinal);
+        Assert.Contains("ApplicationPoolName = 'ApiPool'", createScript, StringComparison.Ordinal);
+        Assert.True(sequence["IisApp_Api"] > sequence["IisSite_WebSite"],
+            "web application must be created after its parent site");
+
+        // Physical path rides the CustomActionData channel via a type-51 SetProperty action.
+        var setProp = actions["IisApp_Api_d"];
+        Assert.Equal(SetProperty, setProp.Type);
+        Assert.Equal("IisApp_Api", setProp.Source);
+        Assert.Equal("[INSTALLDIR]api", setProp.Target);
+
+        // Rollback (undo a failed install) and uninstall (removal) both remove the application.
+        Assert.True((actions["IisApp_Api_rb"].Type & Rollback) != 0);
+        Assert.Contains("Applications.Remove", DecodeEncoded(actions["IisApp_Api_rb"].Target), StringComparison.Ordinal);
+        Assert.Contains("Applications.Remove", DecodeEncoded(actions["IisApp_Api_un"].Target), StringComparison.Ordinal);
+        Assert.True(sequence["IisApp_Api_rb"] < sequence["IisApp_Api"]);
+
+        int init = sequence["InstallInitialize"];
+        int finalize = sequence["InstallFinalize"];
+        Assert.InRange(sequence["IisApp_Api"], init + 1, finalize - 1);
+        Assert.InRange(sequence["IisApp_Api_un"], init + 1, finalize - 1);
+    }
+
+    [Fact]
+    public void HttpsBindingWithCertificate_BindsCertificateHash_InCompiledSiteAction()
+    {
+        using var scratch = new Scratch();
+
+        var iis = new IisExtension();
+        var certRef = iis.DefineCertificate(c => c
+            .Id("web").FindByThumbprint("ABCDEF1234567890ABCDEF1234567890ABCDEF12"));
+        iis.AddWebSite(s => s
+            .Id("SecureSite").Description("SecureSite").Directory("[INSTALLDIR]web")
+            .Binding(b => b.Port(443).Certificate(certRef)));
+
+        using var db = Compile(scratch, "IisExecCertApp", iis);
+        var actions = QueryCustomActions(db);
+        var sequence = QuerySequence(db);
+
+        // The certificate binding is its own deferred, elevated action (kept separate from the site-create
+        // action so no single script exceeds the MSI CustomAction.Target size limit), sequenced after the
+        // site so the binding exists.
+        var certBind = actions["IisCert_SecureSite_0"];
+        Assert.True((certBind.Type & InScript) != 0 && (certBind.Type & NoImpersonate) != 0,
+            "certificate bind action must be deferred + SYSTEM");
+        Assert.True(sequence["IisCert_SecureSite_0"] > sequence["IisSite_SecureSite"],
+            "certificate must be bound after its site (and binding) exist");
+
+        string script = DecodeEncoded(certBind.Target);
+        // The HTTPS binding's SSL certificate is genuinely located in the store and bound at install — not
+        // merely written into site config as inert HTTPS metadata.
+        Assert.Contains("Cert:\\LocalMachine\\My", script, StringComparison.Ordinal);
+        Assert.Contains("$_.Thumbprint -eq 'ABCDEF1234567890ABCDEF1234567890ABCDEF12'", script, StringComparison.Ordinal);
+        Assert.Contains(".CertificateHash = $__c.GetCertHash()", script, StringComparison.Ordinal);
+        Assert.Contains(".CertificateStoreName = 'MY'", script, StringComparison.Ordinal);
+        // Fail loud, never a silent unbound HTTPS binding, when the certificate is not pre-provisioned.
+        Assert.Contains("if ($null -eq $__c) { throw", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void UninstallSiteRemove_RunsBeforePoolRemove_InCompiledSequence()
     {
         using var scratch = new Scratch();

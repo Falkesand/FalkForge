@@ -43,21 +43,28 @@ namespace FalkForge.Extensions.Iis;
 /// concatenated into a shell command — so a malicious site name or host header cannot break out of the
 /// SYSTEM-context action.</para>
 ///
-/// <para><b>Scope / deferrals (fail-loud, warned via IIS013/IIS014).</b> HTTPS/certificate bindings are
-/// written into the site configuration but the SSL certificate itself is <i>not</i> bound at install
-/// (certificate emission is a follow-up). Sub-applications (<see cref="WebSiteModel.WebApplications"/>) are
-/// not created at install — the IIS validator surfaces this as a warning (IIS014). Virtual directories
-/// (<see cref="WebSiteModel.VirtualDirectories"/>) ARE live: each is created under its parent application
-/// (the site's root application, <c>/</c>, by default — the only application guaranteed to exist) once its
-/// site has been created, and removed on uninstall. A virtual directory authored under a non-root parent
-/// application is warned (IIS015): the referenced application does not exist at install, so the deferred
-/// create action fails loud rather than silently no-opping.</para>
+/// <para><b>SSL certificate binding.</b> An HTTPS binding that references a certificate is genuinely bound
+/// at install: the generated script locates the referenced certificate's thumbprint hash in its authored
+/// store (LocalMachine/CurrentUser, My/Root/CA) and applies it to the binding via
+/// <c>Binding.CertificateHash</c>/<c>CertificateStoreName</c>. FalkForge <i>binds</i> a pre-provisioned
+/// certificate; it does not <i>import</i> one — the certificate must already exist in the target store
+/// (warned via IIS013). If it is absent the deferred action fails loud rather than leaving an unbound HTTPS
+/// binding.</para>
+///
+/// <para><b>Sub-applications.</b> Each authored sub-application (<see cref="WebSiteModel.WebApplications"/>)
+/// is created at install after its site and before that site's virtual directories, and removed on
+/// uninstall (with rollback on a failed install). Virtual directories
+/// (<see cref="WebSiteModel.VirtualDirectories"/>) are created under their parent application — the site's
+/// root application (<c>/</c>) by default, or an authored sub-application. A virtual directory targeting a
+/// non-root application that is neither the root nor an authored sub-application is warned (IIS015) and its
+/// deferred create action fails loud rather than silently no-opping.</para>
 /// </summary>
 internal static class IisCommandFactory
 {
     internal static IReadOnlyList<ExecutionStep> BuildSteps(
         IReadOnlyList<AppPoolModel> pools,
-        IReadOnlyList<WebSiteModel> sites)
+        IReadOnlyList<WebSiteModel> sites,
+        IReadOnlyList<CertificateModel> certificates)
     {
         var steps = new List<ExecutionStep>();
 
@@ -69,6 +76,15 @@ internal static class IisCommandFactory
                 poolNamesById[pool.Id] = pool.Name;
         }
 
+        // Map certificate Id -> definition so an HTTPS binding referencing a certificate by ref resolves the
+        // store/find parameters used to locate its thumbprint hash and bind it at install.
+        var certsById = new Dictionary<string, CertificateModel>(StringComparer.Ordinal);
+        foreach (CertificateModel cert in certificates)
+        {
+            if (!string.IsNullOrWhiteSpace(cert.Id))
+                certsById[cert.Id] = cert;
+        }
+
         // (1) Create application pools first so sites can reference them.
         foreach (AppPoolModel pool in pools)
         {
@@ -78,14 +94,32 @@ internal static class IisCommandFactory
             steps.Add(BuildPoolCreateStep(pool));
         }
 
-        // (2) Create web sites (install real + uninstall remove). Sites created after pools. Each site's
-        // virtual directories are created immediately after their parent site (they need it to exist).
+        // (2) Create web sites (install real + uninstall remove). Sites created after pools. A site's
+        // sub-applications are created immediately after it, then its virtual directories (a virtual
+        // directory may be parented under one of those sub-applications, so the applications come first).
         foreach (WebSiteModel site in sites)
         {
             if (string.IsNullOrWhiteSpace(site.Description) || site.Bindings.Count == 0)
                 continue;
 
             steps.Add(BuildSiteStep(site, poolNamesById));
+
+            // Bind the SSL certificate for each HTTPS binding that references one, in its own dedicated step
+            // (the site + binding exist by now). A separate step per binding keeps each generated script well
+            // within the MSI CustomAction.Target size limit.
+            for (int i = 0; i < site.Bindings.Count; i++)
+            {
+                if (HasResolvableCertificate(site.Bindings[i], certsById))
+                    steps.Add(BuildCertBindStep(site, site.Bindings[i], i, certsById[site.Bindings[i].CertificateRef!]));
+            }
+
+            foreach (WebApplicationModel app in site.WebApplications)
+            {
+                if (string.IsNullOrWhiteSpace(app.Alias) || string.IsNullOrWhiteSpace(app.Directory))
+                    continue;
+
+                steps.Add(BuildAppStep(site, app, poolNamesById));
+            }
 
             foreach (WebVirtualDirectoryModel vdir in site.VirtualDirectories)
             {
@@ -181,6 +215,78 @@ internal static class IisCommandFactory
         };
     }
 
+    // ── web application (sub-application) create / remove ─────────────────────
+
+    private static ExecutionStep BuildAppStep(
+        WebSiteModel site,
+        WebApplicationModel app,
+        IReadOnlyDictionary<string, string> poolNamesById)
+    {
+        // The physical path rides the CustomActionData channel, same as the site's own physical path — an
+        // MSI Formatted token (e.g. [INSTALLDIR]) is resolved at schedule time, outside the base64 blob.
+        string createScript = BuildAppCreateScript(site, app, poolNamesById);
+        string removeScript = BuildAppRemoveScript(site, app);
+
+        return new ExecutionStep
+        {
+            Id = IisStepId.Make("IisApp_", app.Id),
+            InstallCommand = IisPowerShellEncoder.EncodeWithTrailingArgument(createScript, "[CustomActionData]"),
+            CustomActionData = app.Directory,
+            RollbackCommand = IisPowerShellEncoder.Encode(removeScript),
+            UninstallCommand = IisPowerShellEncoder.Encode(removeScript),
+        };
+    }
+
+    private static string BuildAppCreateScript(
+        WebSiteModel site,
+        WebApplicationModel app,
+        IReadOnlyDictionary<string, string> poolNamesById)
+    {
+        string siteName = CommandLine.PowerShellSingleQuote(site.Description);
+        string appAlias = CommandLine.PowerShellSingleQuote(app.Alias);
+
+        var body = new StringBuilder(384);
+        body.Append("  $__site = $__mgr.Sites[").Append(siteName).Append("]\n");
+        body.Append("  if ($null -eq $__site) { throw 'FalkForge IIS: parent site not found while creating web application.' }\n");
+        // Idempotent: drop an existing application at this path, then recreate from the authored definition.
+        // $__arg is the resolved physical path (CustomActionData channel).
+        body.Append("  $__existing = $__site.Applications[").Append(appAlias).Append("]\n");
+        body.Append("  if ($null -ne $__existing) { $__site.Applications.Remove($__existing) }\n");
+        body.Append("  $__app = $__site.Applications.Add(").Append(appAlias).Append(", $__arg)\n");
+
+        if (!string.IsNullOrWhiteSpace(app.AppPool))
+        {
+            string appPoolName = poolNamesById.TryGetValue(app.AppPool!, out string? resolved) ? resolved : app.AppPool!;
+            body.Append("  $__app.ApplicationPoolName = ")
+                .Append(CommandLine.PowerShellSingleQuote(appPoolName)).Append('\n');
+        }
+
+        return WrapScript(body.ToString(), tolerant: false, readsArg: true);
+    }
+
+    /// <summary>
+    /// Defense-in-depth: on uninstall the site's own remove action is scheduled earlier and removing a site
+    /// cascades removal of everything under it, including this application. So by the time this script runs
+    /// <c>$__site</c> is typically already gone and every guard short-circuits to a tolerant no-op. It still
+    /// exists (rather than being dropped) so an application removed independently of its site — a rollback of
+    /// a failed install where the site is NOT being removed, or a future partial-uninstall path — is
+    /// genuinely cleaned up rather than silently orphaned.
+    /// </summary>
+    private static string BuildAppRemoveScript(WebSiteModel site, WebApplicationModel app)
+    {
+        string siteName = CommandLine.PowerShellSingleQuote(site.Description);
+        string appAlias = CommandLine.PowerShellSingleQuote(app.Alias);
+
+        var body = new StringBuilder(256);
+        body.Append("  $__site = $__mgr.Sites[").Append(siteName).Append("]\n");
+        body.Append("  if ($null -ne $__site) {\n");
+        body.Append("    $__app = $__site.Applications[").Append(appAlias).Append("]\n");
+        body.Append("    if ($null -ne $__app) { $__site.Applications.Remove($__app) }\n");
+        body.Append("  }\n");
+
+        return WrapScript(body.ToString(), tolerant: true, readsArg: false);
+    }
+
     // ── virtual directory create / remove ────────────────────────────────────
 
     private static ExecutionStep BuildVdirStep(WebSiteModel site, WebVirtualDirectoryModel vdir)
@@ -210,12 +316,12 @@ internal static class IisCommandFactory
         body.Append("  $__site = $__mgr.Sites[").Append(siteName).Append("]\n");
         body.Append("  if ($null -eq $__site) { throw 'FalkForge IIS: parent site not found while creating virtual directory.' }\n");
         body.Append("  $__app = $__site.Applications[").Append(appAlias).Append("]\n");
-        // Fail loud rather than silently no-op: sub-application creation is deferred (IIS014/IIS015), so a
-        // virtual directory targeting anything other than the root application ('/') will not find its
-        // parent here unless that application was created out-of-band.
+        // Fail loud rather than silently no-op: the parent application must exist by the time this runs. The
+        // site's own sub-applications are created before its virtual directories (see BuildSteps ordering),
+        // so a virtual directory targeting one of them resolves here; one targeting an application that is
+        // neither the root ('/') nor an authored WebApplication (warned via IIS015) will not.
         body.Append("  if ($null -eq $__app) { throw 'FalkForge IIS: parent application not found for virtual directory " +
-                    "(sub-application creation is not wired at install; target the root application \"/\", or create " +
-                    "the parent application out-of-band).' }\n");
+                    "(target the root application \"/\", or define the parent as a WebApplication on the site).' }\n");
         body.Append("  $__existing = $__app.VirtualDirectories[").Append(vdirAlias).Append("]\n");
         body.Append("  if ($null -ne $__existing) { $__app.VirtualDirectories.Remove($__existing) }\n");
         body.Append("  [void]$__app.VirtualDirectories.Add(").Append(vdirAlias).Append(", $__arg)\n");
@@ -312,7 +418,9 @@ internal static class IisCommandFactory
             .Append(CommandLine.PowerShellSingleQuote(first.Protocol)).Append(", ")
             .Append(CommandLine.PowerShellSingleQuote(BindingInformation(first))).Append(", $__arg)\n");
 
-        // ALL remaining bindings (fixes the historical bindings[1..] drop).
+        // ALL remaining bindings (fixes the historical bindings[1..] drop). An HTTPS binding's SSL certificate
+        // is bound by a separate, dedicated cert-bind step (see BuildCertBindStep) so no single generated
+        // script grows past the MSI CustomAction.Target size limit.
         for (int i = 1; i < site.Bindings.Count; i++)
         {
             WebBindingModel b = site.Bindings[i];
@@ -374,6 +482,102 @@ internal static class IisCommandFactory
             : "} catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }\n");
         return sb.ToString();
     }
+
+    // ── SSL certificate binding ──────────────────────────────────────────────
+
+    /// <summary>
+    /// True when the binding references a certificate that resolves to an authored
+    /// <see cref="CertificateModel"/> — i.e. a dedicated cert-bind step must locate its thumbprint and bind
+    /// it. A dangling reference is a build-blocking error (IIS011), so it never reaches here in a valid build.
+    /// </summary>
+    private static bool HasResolvableCertificate(
+        WebBindingModel binding,
+        IReadOnlyDictionary<string, CertificateModel> certsById)
+        => !string.IsNullOrWhiteSpace(binding.CertificateRef)
+           && certsById.ContainsKey(binding.CertificateRef!);
+
+    /// <summary>
+    /// A dedicated deferred, elevated step that binds one HTTPS binding's SSL certificate at install. Kept
+    /// separate from the site-create step so no single generated script's base64 payload grows past the MSI
+    /// <c>CustomAction.Target</c> size limit. Install-only: the binding (and its certificate association) is
+    /// removed when the site itself is removed on uninstall / rolled back, so this step needs no rollback or
+    /// uninstall command of its own.
+    /// </summary>
+    private static ExecutionStep BuildCertBindStep(
+        WebSiteModel site,
+        WebBindingModel binding,
+        int bindingIndex,
+        CertificateModel cert)
+    {
+        string bindScript = BuildCertBindScript(site, binding, cert);
+        return new ExecutionStep
+        {
+            Id = IisStepId.Make("IisCert_", site.Id + "_" + Int(bindingIndex)),
+            InstallCommand = IisPowerShellEncoder.Encode(bindScript),
+        };
+    }
+
+    /// <summary>
+    /// PowerShell that locates the referenced certificate in its authored store (fail loud when absent —
+    /// FalkForge binds a pre-provisioned certificate, it does not import one; warned via IIS013) and applies
+    /// its thumbprint hash + store name to the site's matching HTTPS binding, so the binding is genuinely
+    /// served with SSL at install. All author-supplied values (site description, binding information, find
+    /// value, certificate id) are single-quoted literals; store/find enums map to fixed, non-author constants.
+    /// </summary>
+    private static string BuildCertBindScript(WebSiteModel site, WebBindingModel binding, CertificateModel cert)
+    {
+        string desc = CommandLine.PowerShellSingleQuote(site.Description);
+        string info = CommandLine.PowerShellSingleQuote(BindingInformation(binding));
+        string drivePath = CommandLine.PowerShellSingleQuote(
+            "Cert:\\" + X509StoreLocation(cert.StoreLocation) + "\\" + X509StoreName(cert.StoreName));
+        string findValue = CommandLine.PowerShellSingleQuote(cert.FindValue);
+        string certId = CommandLine.PowerShellSingleQuote(cert.Id);
+        // FindByThumbprint is an exact thumbprint match; FindBySubjectName mirrors X509 semantics (a
+        // subject substring match), expressed compactly over the Cert: provider.
+        string match = cert.FindType == CertificateFindType.FindBySubjectName
+            ? "$_.Subject -like ('*' + " + findValue + " + '*')"
+            : "$_.Thumbprint -eq " + findValue;
+
+        var body = new StringBuilder(512);
+        body.Append("  $__site = $__mgr.Sites[").Append(desc).Append("]\n");
+        body.Append("  if ($null -eq $__site) { throw 'FalkForge IIS: site not found while binding certificate.' }\n");
+        body.Append("  $__b = $__site.Bindings | Where-Object { $_.BindingInformation -eq ").Append(info)
+            .Append(" } | Select-Object -First 1\n");
+        body.Append("  if ($null -eq $__b) { throw 'FalkForge IIS: HTTPS binding not found while binding certificate.' }\n");
+        // Locate the certificate in the authored store via the Cert: provider, failing loud if it is not
+        // present — never a silent unbound HTTPS binding (FalkForge binds a pre-provisioned certificate; it
+        // does not import one — IIS013).
+        body.Append("  $__c = @(Get-ChildItem -Path ").Append(drivePath)
+            .Append(" | Where-Object { ").Append(match).Append(" }) | Select-Object -First 1\n");
+        body.Append("  if ($null -eq $__c) { throw ('FalkForge IIS: certificate ' + ").Append(certId)
+            .Append(" + ' not found; provision it in the target store before install.') }\n");
+        // Apply the certificate to the binding (HTTP.sys SSL binding: hash + store name).
+        body.Append("  $__b.CertificateStoreName = '").Append(HttpStoreName(cert.StoreName)).Append("'\n");
+        body.Append("  $__b.CertificateHash = $__c.GetCertHash()\n");
+
+        return WrapScript(body.ToString(), tolerant: false, readsArg: false);
+    }
+
+    private static string X509StoreName(CertificateStoreName store) => store switch
+    {
+        CertificateStoreName.Root => "Root",
+        CertificateStoreName.CA => "CA",
+        _ => "My",
+    };
+
+    private static string X509StoreLocation(CertificateStoreLocation location) =>
+        location == CertificateStoreLocation.CurrentUser ? "CurrentUser" : "LocalMachine";
+
+    /// <summary>
+    /// The HTTP.sys certificate store name for an SSL binding. HTTP.sys uses <c>MY</c> for the personal
+    /// store; other stores keep their canonical name.
+    /// </summary>
+    private static string HttpStoreName(CertificateStoreName store) => store switch
+    {
+        CertificateStoreName.Root => "Root",
+        CertificateStoreName.CA => "CA",
+        _ => "MY",
+    };
 
     // ── credential channel helpers ───────────────────────────────────────────
 

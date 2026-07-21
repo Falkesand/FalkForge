@@ -5279,12 +5279,15 @@ public sealed class BundleCompiler
     The shipped extensions below don't just author inert MSI table rows: Firewall, SQL, IIS
     (application pools and web sites), HTTP, Dependency, and Util schedule real deferred, elevated
     custom actions that create the firewall rule, database, site, URL reservation, or registry
-    provider entry <em>at install time</em>. IIS virtual directories are created (and removed on
-    uninstall) at install time when parented under the site's root application; a virtual directory
-    targeting a non-root parent application is warned via IIS015, since sub-application creation
-    itself is not yet wired. Two gaps remain: IIS certificate bindings and sub-applications are
-    still written into site configuration only &mdash; they are not yet bound or created at install
-    (the validator warns via IIS013/IIS014).
+    provider entry <em>at install time</em>. For IIS this now covers the full site graph: application
+    pools, web sites with all their bindings, HTTPS/SSL certificate binding, sub-applications, and
+    virtual directories are all created (and removed on uninstall, with rollback on a failed install)
+    at install time via <code>Microsoft.Web.Administration</code>. An HTTPS binding's certificate is
+    <em>bound</em> to a pre-provisioned certificate located in its authored store &mdash; FalkForge
+    does not <em>import</em> the certificate, so it must already exist in the target store or the
+    deferred bind fails loud (a pre-provisioning caveat surfaced via IIS013). A virtual directory
+    targeting a parent application that is neither the site root (<code>/</code>) nor an authored
+    sub-application is warned via IIS015 (its parent will not exist at install).
   </p>
 
   <!-- 10.1 Extension Interfaces -->
