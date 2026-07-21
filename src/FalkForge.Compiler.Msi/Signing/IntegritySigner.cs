@@ -180,10 +180,11 @@ internal static class IntegritySigner
         if (package.SbomOptions is not null)
             components.AddRange(package.SbomOptions.AdditionalComponents);
 
-        // Deterministic serial + timestamp under SOURCE_DATE_EPOCH so the attestation SBOM is
-        // reproducible (was Guid.NewGuid + UtcNow, which broke byte-identical rebuilds).
+        // Deterministic serial + timestamp under an explicit Reproducible() epoch override or,
+        // absent that, SOURCE_DATE_EPOCH — so the attestation SBOM is reproducible (was
+        // Guid.NewGuid + UtcNow, which broke byte-identical rebuilds).
         var identity = ReproducibleSbomIdentity.Resolve(
-            components, package.Name, package.Version.ToString());
+            components, package.Name, package.Version.ToString(), package.ReproducibleOptions?.SourceDateEpoch);
 
         var doc = new SbomDocument
         {
