@@ -6,7 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
-    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
     <!-- Build-order dependency only, never referenced from C#; see FakeSigil's own csproj

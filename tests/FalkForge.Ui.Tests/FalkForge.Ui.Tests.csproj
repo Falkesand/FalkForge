@@ -10,7 +10,6 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Xunit.StaFact" />
-    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Ui\FalkForge.Ui.csproj" />
