@@ -162,7 +162,11 @@ public sealed partial class MsiExecutor
                 using var stream = new MemoryStream();
                 using (var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true))
                 {
-                    writer.Write(action.Package.SourcePath);
+                    // EffectiveSourcePath = the extraction-resolved path when the bootstrapper forwarded
+                    // a payload root (distributed bundle), else the manifest SourcePath. This is the path
+                    // the elevated MsiInstallCommand File.Exists-checks and installs, so it must be the
+                    // one that exists on the target machine.
+                    writer.Write(action.EffectiveSourcePath);
                     writer.Write(additionalArgs);
                 }
                 payload = stream.ToArray();
@@ -214,7 +218,7 @@ public sealed partial class MsiExecutor
             uint exitCode = action.ActionType switch
             {
                 PlanActionType.Install => msiApi.InstallProduct(
-                    action.Package.SourcePath,
+                    action.EffectiveSourcePath,
                     string.IsNullOrEmpty(additionalArgs) ? null : additionalArgs.TrimStart()),
 
                 PlanActionType.Uninstall => msiApi.ConfigureProduct(
@@ -224,7 +228,7 @@ public sealed partial class MsiExecutor
                     2), // INSTALLSTATE_ABSENT
 
                 PlanActionType.Repair => msiApi.InstallProduct(
-                    action.Package.SourcePath,
+                    action.EffectiveSourcePath,
                     string.IsNullOrEmpty(additionalArgs)
                         ? "REINSTALL=ALL REINSTALLMODE=vomus"
                         : $"REINSTALL=ALL REINSTALLMODE=vomus{additionalArgs}"),

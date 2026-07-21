@@ -404,6 +404,13 @@ public sealed class EngineSession : IAsyncDisposable
         if (elevationGateway is not null)
             pipelineBuilder = pipelineBuilder.WithElevationGateway(elevationGateway);
 
+        // Payload extraction root: when the bootstrapper forwarded where it unpacked the bundle's
+        // payloads, hand it to the pipeline so ApplyStep resolves each package's install path to its
+        // extracted location under this root (this is what makes a distributed bundle install off the
+        // build machine). Null on the --manifest / plan / offline-layout path — SourcePath authoritative.
+        if (options.PayloadRoot is not null)
+            pipelineBuilder = pipelineBuilder.WithPayloadRoot(options.PayloadRoot);
+
         if (updateService is not null && updateCheckerForBuilder is not null)
             pipelineBuilder = pipelineBuilder.WithUpdateServices(updateCheckerForBuilder, updateService);
 

@@ -45,6 +45,7 @@ public sealed class InstallerPipelineBuilder
     private UpdateService? _updateService;
     private bool _advanceTrustStoreOnVerifiedApply;
     private FalkForge.Engine.Integrity.TrustPolicy? _integrityTrustPolicy;
+    private string? _payloadRoot;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -213,6 +214,20 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Registers the payload extraction root the self-extract bootstrapper unpacked this bundle into
+    /// (each payload at <c>{payloadRoot}/{PackageId}</c>). When set, <see cref="ApplyStep"/> resolves
+    /// every action's install path to its extracted location under this root — with a containment guard
+    /// — so a distributed bundle installs off the target machine's cache rather than the manifest's
+    /// build-machine <see cref="FalkForge.Engine.Protocol.Manifest.PackageInfo.SourcePath"/>. Not called
+    /// on the <c>--manifest</c> / <c>forge plan</c> / offline-layout path, where SourcePath is authoritative.
+    /// </summary>
+    public InstallerPipelineBuilder WithPayloadRoot(string payloadRoot)
+    {
+        _payloadRoot = payloadRoot;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -256,6 +271,6 @@ public sealed class InstallerPipelineBuilder
 
         return new InstallerPipeline(
             detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest,
-            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy);
+            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy, _payloadRoot);
     }
 }

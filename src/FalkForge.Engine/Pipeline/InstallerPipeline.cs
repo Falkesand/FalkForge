@@ -44,7 +44,8 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         UpdateService? updateService = null,
         FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null,
         bool advanceTrustStoreOnVerifiedApply = false,
-        FalkForge.Engine.Integrity.TrustPolicy? integrityTrustPolicy = null)
+        FalkForge.Engine.Integrity.TrustPolicy? integrityTrustPolicy = null,
+        string? payloadRoot = null)
     {
         _detectStep = detectStep;
         _planStep = planStep;
@@ -53,6 +54,11 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         _rollbackStep = rollbackStep;
         _updateService = updateService;
         _ctx.AdvanceTrustStoreOnVerifiedApply = advanceTrustStoreOnVerifiedApply;
+
+        // Payload extraction root forwarded by the self-extract bootstrapper. When present, ApplyStep
+        // resolves each package's install path to its extracted location under this root (distributed
+        // bundles install off the build box). Null keeps the manifest SourcePath authoritative.
+        _ctx.PayloadRoot = payloadRoot;
 
         // Update-path trust policy override (C19 quorum uniformity): the apply-time integrity gate must
         // resolve Update vs KeyChange against the persisted epoch on the path that advances the store,

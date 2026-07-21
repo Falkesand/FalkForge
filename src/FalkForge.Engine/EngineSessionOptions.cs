@@ -135,6 +135,17 @@ public sealed record EngineSessionOptions
     /// </summary>
     public int? UpdatePathStoredEpoch { get; init; }
 
+    /// <summary>
+    /// Root directory the self-extract bootstrapper unpacked the bundle's payloads into (each payload at
+    /// <c>{PayloadRoot}/{PackageId}</c>). When set, the pipeline resolves every package's install path to
+    /// its extracted location under this root instead of the manifest's build-machine
+    /// <see cref="Protocol.Manifest.PackageInfo.SourcePath"/> — this is what lets a distributed bundle
+    /// install on a machine other than the one it was built on. Null (the default) on the
+    /// <c>--manifest</c> / <c>forge plan</c> / offline-layout path, where SourcePath is genuinely the
+    /// path to use and behaviour must stay unchanged.
+    /// </summary>
+    public string? PayloadRoot { get; init; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Test-only injection point (exposed via EngineSession.BindToChannel)
     // ──────────────────────────────────────────────────────────────────────────
