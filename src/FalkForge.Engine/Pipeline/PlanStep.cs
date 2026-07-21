@@ -136,7 +136,10 @@ internal sealed class PlanStep : IPlanStep
             userProperties: request.Properties.Count > 0
                 ? request.Properties
                 : null,
-            secretPropertyNames: secretNames);
+            secretPropertyNames: secretNames,
+            packageFeatureSelections: request.PackageFeatureSelections is { Count: > 0 }
+                ? request.PackageFeatureSelections
+                : null);
 
         if (planResult.IsFailure)
             return Result<Unit>.Failure(planResult.Error);

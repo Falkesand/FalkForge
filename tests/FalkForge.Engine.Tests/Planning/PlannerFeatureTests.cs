@@ -200,6 +200,89 @@ public sealed class PlannerFeatureTests
     }
 
     [Fact]
+    public void Plan_PackageFeatureSelection_StampsAddLocalOnMatchingActionOnly()
+    {
+        // Per-package interactive MSI feature selection stamps ADDLOCAL only on the
+        // matching package's action — and does NOT gate any package in/out (that is the
+        // separate bundle-level featureSelections concern).
+        var planner = new Planner();
+        var manifest = CreateManifest([CreatePackage("Pkg1"), CreatePackage("Pkg2")]);
+
+        var selections = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Pkg1"] = ["FeatureA", "FeatureB"],
+        };
+
+        var result = planner.CreatePlan(
+            manifest,
+            NotInstalledDetection,
+            InstallAction.Install,
+            packageFeatureSelections: selections);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Actions.Count);
+        var pkg1 = result.Value.Actions.Single(a => a.PackageId == "Pkg1");
+        var pkg2 = result.Value.Actions.Single(a => a.PackageId == "Pkg2");
+        Assert.Equal("FeatureA,FeatureB", pkg1.Properties["ADDLOCAL"]);
+        Assert.False(pkg2.Properties.ContainsKey("ADDLOCAL"));
+    }
+
+    [Fact]
+    public void Plan_PackageFeatureSelection_OverridesStaticAddLocalFromUserProperties()
+    {
+        // A static ADDLOCAL (arriving via user properties) must lose to an interactive
+        // per-package selection for that package.
+        var planner = new Planner();
+        var manifest = CreateManifest([CreatePackage("Pkg1")]);
+
+        var userProps = new Dictionary<string, string> { ["ADDLOCAL"] = "StaticFeature" };
+        var selections = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Pkg1"] = ["Interactive"],
+        };
+
+        var result = planner.CreatePlan(
+            manifest,
+            NotInstalledDetection,
+            InstallAction.Install,
+            userProperties: userProps,
+            packageFeatureSelections: selections);
+
+        Assert.True(result.IsSuccess);
+        var pkg1 = result.Value.Actions.Single();
+        Assert.Equal("Interactive", pkg1.Properties["ADDLOCAL"]);
+    }
+
+    [Fact]
+    public void Plan_PackageFeatureSelection_DoesNotAffectBundleFeatureGating()
+    {
+        // Guard the separation: providing a per-package ADDLOCAL selection for a
+        // feature-gated package must not itself select the package — bundle-level
+        // featureSelections still decides whether the package installs at all.
+        var planner = new Planner();
+        var manifest = CreateManifest(
+            [CreatePackage("Pkg1")],
+            [new ManifestFeature("F1", "Feature 1", null, true, false, ["Pkg1"])]);
+
+        // F1 deselected → Pkg1 excluded, regardless of any per-package ADDLOCAL selection.
+        var featureSelections = new Dictionary<string, bool> { ["F1"] = false };
+        var packageSelections = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Pkg1"] = ["FeatureA"],
+        };
+
+        var result = planner.CreatePlan(
+            manifest,
+            NotInstalledDetection,
+            InstallAction.Install,
+            featureSelections: featureSelections,
+            packageFeatureSelections: packageSelections);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Actions);
+    }
+
+    [Fact]
     public void Plan_Uninstall_AllPackagesIncluded()
     {
         var planner = new Planner();

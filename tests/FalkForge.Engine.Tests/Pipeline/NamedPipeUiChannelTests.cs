@@ -178,6 +178,42 @@ public sealed class NamedPipeUiChannelTests
     }
 
     [Fact]
+    public void TranslateMessage_RequestPlan_Bundles_PendingPackageFeatures()
+    {
+        var pkgFeatures = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Pkg1"] = ["F1", "F2"],
+        };
+
+        var request = NamedPipeUiChannel.TranslateMessage(
+            new RequestPlanMessage { Action = InstallAction.Install },
+            pendingInstallDirectory: null,
+            pendingFeatures: null,
+            licenseAccepted: null,
+            pendingProperties: null,
+            pendingSecureProperties: null,
+            pendingPackageFeatures: pkgFeatures);
+
+        var plan = Assert.IsType<UiRequest.Plan>(request);
+        Assert.NotNull(plan.PackageFeatureSelections);
+        Assert.Equal(["F1", "F2"], plan.PackageFeatureSelections!["Pkg1"]);
+    }
+
+    [Fact]
+    public void TranslateMessage_RequestPlan_NoPackageFeatures_LeavesSelectionsNull()
+    {
+        // Distinct from the bundle-level FeatureSelections (which defaults to an empty dict):
+        // per-package selections stay null when the UI advertised no per-package picker.
+        var request = NamedPipeUiChannel.TranslateMessage(
+            new RequestPlanMessage { Action = InstallAction.Install },
+            pendingInstallDirectory: null,
+            pendingFeatures: null);
+
+        var plan = Assert.IsType<UiRequest.Plan>(request);
+        Assert.Null(plan.PackageFeatureSelections);
+    }
+
+    [Fact]
     public void TranslateEvent_UpdateAvailable_Returns_UpdateAvailableMessage()
     {
         var msg = NamedPipeUiChannel.TranslateEvent(

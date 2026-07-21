@@ -15,13 +15,20 @@ public abstract record UiRequest
     public sealed record Detect : UiRequest;
 
     /// <summary>UI asks the engine to plan with the given action and user inputs.</summary>
+    /// <param name="PackageFeatureSelections">
+    /// Per-package interactive MSI feature selections: packageId → selected feature ids.
+    /// Distinct from <paramref name="FeatureSelections"/> (whole-package, bundle-level
+    /// feature gating); this drives the <c>ADDLOCAL</c> property for a single MSI package.
+    /// Null when the UI advertised no per-package feature picker.
+    /// </param>
     public sealed record Plan(
         InstallAction Action,
         string? InstallDirectory,
         IReadOnlyDictionary<string, bool> FeatureSelections,
         IReadOnlyDictionary<string, string> Properties,
         IReadOnlyDictionary<string, SensitiveBytes> SecureProperties,
-        bool? LicenseAccepted = null) : UiRequest;
+        bool? LicenseAccepted = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? PackageFeatureSelections = null) : UiRequest;
 
     /// <summary>UI confirms it is ready to start applying the plan.</summary>
     public sealed record Apply : UiRequest;

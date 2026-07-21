@@ -16,7 +16,8 @@ public sealed class Planner
         IReadOnlyDictionary<string, bool>? featureSelections = null,
         IReadOnlyDictionary<string, string>? userProperties = null,
         IReadOnlySet<string>? secretPropertyNames = null,
-        IReadOnlyDictionary<string, InstallState>? detectedPackageStates = null)
+        IReadOnlyDictionary<string, InstallState>? detectedPackageStates = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? packageFeatureSelections = null)
     {
         var orderedPackages = OrderWithPrerequisites(manifest.Packages, detectedPackageStates);
         var actions = new List<PlanAction>();
@@ -68,6 +69,14 @@ public sealed class Planner
 
         // Propagate user-set properties and secret references to all planned actions
         ApplyUserProperties(actions, userProperties, secretPropertyNames);
+
+        // Stamp interactive per-package MSI feature selections as ADDLOCAL. Applied AFTER
+        // ApplyUserProperties so an interactive selection authoritatively overrides any
+        // static ADDLOCAL a package carried via user properties. This is orthogonal to the
+        // whole-package feature gating above (IsPackageSelectedByFeatures) — that decides
+        // whether a package installs at all; this decides which features WITHIN an installed
+        // MSI are selected.
+        ApplyPackageFeatureSelections(actions, packageFeatureSelections);
 
         var segments = BuildSegments(manifest.Chain, actions);
 
@@ -426,6 +435,34 @@ public sealed class Planner
                     action.Properties[name] = $"[{name}]";
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Stamps <c>ADDLOCAL</c> on each install/repair action whose package has an interactive
+    /// per-package feature selection. The selected feature ids are joined with commas
+    /// (<see cref="Execution.MsiExecutor"/> permits commas in property values and turns this
+    /// into <c>ADDLOCAL="F1,F2"</c>). Uninstall actions are never stamped. This intentionally
+    /// does not touch the bundle-level <see cref="IsPackageSelectedByFeatures"/> gating —
+    /// the two feature concepts are kept separate.
+    /// </summary>
+    private static void ApplyPackageFeatureSelections(
+        List<PlanAction> actions,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? packageFeatureSelections)
+    {
+        if (packageFeatureSelections is null || packageFeatureSelections.Count == 0)
+            return;
+
+        foreach (var action in actions)
+        {
+            // ADDLOCAL only makes sense when a product is being (re)installed.
+            if (action.ActionType == PlanActionType.Uninstall)
+                continue;
+
+            if (!packageFeatureSelections.TryGetValue(action.PackageId, out var selectedIds))
+                continue;
+
+            action.Properties["ADDLOCAL"] = string.Join(',', selectedIds);
         }
     }
 
