@@ -227,6 +227,24 @@ public sealed class MsiDatabase : IDisposable
         }
     }
 
+    /// <summary>
+    /// Applies an MSI transform (<c>.mst</c>) to this open database in memory. Benign merge
+    /// conditions are suppressed so a language transform applies cleanly for inspection. The
+    /// change is not persisted unless <see cref="Commit"/> is called afterwards.
+    /// </summary>
+    public Result<Unit> ApplyTransform(string transformPath)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var result = NativeMethods.MsiDatabaseApplyTransform(
+            _handle.DangerousGetHandle(), transformPath, NativeMethods.MSITRANSFORM_ERROR_ALL);
+        if (result != NativeMethods.ERROR_SUCCESS)
+            return Result<Unit>.Failure(ErrorKind.CompilationError,
+                $"Failed to apply transform '{transformPath}'. Error code: {result}");
+
+        return Unit.Value;
+    }
+
     internal nint DangerousGetHandle()
     {
         return _handle.DangerousGetHandle();
