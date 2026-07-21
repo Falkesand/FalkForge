@@ -40,9 +40,14 @@ internal static class ManifestBranding
         {
             return (Color)ColorConverter.ConvertFromString(hex);
         }
-        catch (FormatException)
+        catch (Exception ex) when (ex is FormatException or InvalidOperationException or NotSupportedException)
         {
             // Best-effort: an unparseable theme color is ignored rather than fatal.
+            // ColorConverter.ConvertFromString throws FormatException for malformed hex/name
+            // strings, but its TypeConverter plumbing can also surface InvalidOperationException
+            // (culture-info conversion failure) or NotSupportedException (unconvertible value) --
+            // catch the realistic set instead of just FormatException so a bad author-supplied
+            // theme color never crashes UI startup.
             return null;
         }
     }

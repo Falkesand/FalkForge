@@ -349,8 +349,14 @@ public sealed class EngineSession : IAsyncDisposable
             // round-trips faithfully through BundleModel -> InstallerManifest.MaxBytesPerSecond
             // but was never read here — the downloader always ran full-speed. A positive value
             // meters the download via TokenBucket; 0/unset (the default) stays unthrottled.
+            // The burst-capacity floor is PayloadDownloader's read-buffer size: without it a
+            // throttle rate below that size caps the bucket's capacity under a single chunk's
+            // request, which can never be granted (see TokenBucket's burstCapacityBytes doc).
+            // The floor only raises the burst ceiling -- the average rate (refill) is unchanged.
             var throttleBucket = manifest.MaxBytesPerSecond > 0
-                ? new FalkForge.Engine.Download.TokenBucket(manifest.MaxBytesPerSecond)
+                ? new FalkForge.Engine.Download.TokenBucket(
+                    manifest.MaxBytesPerSecond,
+                    burstCapacityBytes: FalkForge.Engine.Download.PayloadDownloader.ReadBufferSizeBytes)
                 : null;
             payloadDownloader = new FalkForge.Engine.Download.PayloadDownloader(
                 updateHttpClient, tokenBucket: throttleBucket);
