@@ -91,10 +91,14 @@ public sealed class BundleCompilerAuthoringWarningTests : IDisposable
         Assert.DoesNotContain(logger.Entries, e => HasCode(e, "BDL034"));
     }
 
-    // ── BDL035: external container download URL ──────────────────────────────
+    // ── BDL035: external container download URL with no payload assigned ──────
+    // A6 materialized external containers, so BDL035 no longer means "URL ignored". It now fires only
+    // for the inert sub-case: a container that sets a DownloadUrl but has no payload assigned to it
+    // (so no container file is produced). The model here declares such a dangling container — its
+    // single package is NOT assigned to the container.
 
     [Fact]
-    public void Compile_WithContainerDownloadUrl_LogsBDL035Warning()
+    public void Compile_WithContainerDownloadUrl_NoPayloadAssigned_LogsBDL035Warning()
     {
         var logger = new ListLogger();
         var result = NewCompiler(logger).Compile(
@@ -104,7 +108,7 @@ public sealed class BundleCompilerAuthoringWarningTests : IDisposable
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var warning = Assert.Single(logger.Entries, e => HasCode(e, "BDL035"));
         Assert.Contains("extern", warning.Message, StringComparison.Ordinal);
-        Assert.Contains("embedded", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("no payload is assigned", warning.Message, StringComparison.Ordinal);
     }
 
     [Fact]
