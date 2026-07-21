@@ -18,6 +18,40 @@ public sealed record InstallerManifest
     public string? UiType { get; init; }
     public string? CustomUiProjectPath { get; init; }
     public string? LicenseFile { get; init; }
+
+    /// <summary>
+    /// Optional logo image path authored via <c>BundleBuilder.UseBuiltInUI(logoFile: ...)</c>.
+    /// The built-in UI maps it onto the installer window icon. Null (the default) leaves the
+    /// window without a custom logo. Additive/nullable so older engines skip it on
+    /// deserialization — backward compatible in both directions.
+    /// </summary>
+    public string? LogoFile { get; init; }
+
+    /// <summary>
+    /// Optional accent/theme color (hex, e.g. <c>#0078D4</c>) authored via
+    /// <c>BundleBuilder.UseBuiltInUI(themeColor: ...)</c>. The built-in UI parses it into the
+    /// window accent brush. Null (the default) keeps the framework's default accent.
+    /// </summary>
+    public string? ThemeColor { get; init; }
+
+    /// <summary>
+    /// Optional watermark image path (side/background art) authored via
+    /// <c>BundleBuilder.UseBuiltInUI(watermarkImage: ...)</c>. Null (the default) means no watermark.
+    /// </summary>
+    public string? WatermarkImage { get; init; }
+
+    /// <summary>
+    /// Optional banner image path (top strip) authored via
+    /// <c>BundleBuilder.UseBuiltInUI(bannerImage: ...)</c>. Null (the default) means no banner.
+    /// </summary>
+    public string? BannerImage { get; init; }
+
+    /// <summary>
+    /// Optional banner icon path authored via <c>BundleBuilder.UseBuiltInUI(bannerIcon: ...)</c>.
+    /// Null (the default) means no banner icon.
+    /// </summary>
+    public string? BannerIcon { get; init; }
+
     public ManifestUpdateFeed? UpdateFeed { get; init; }
     public required InstallScope Scope { get; init; }
     public long MaxBytesPerSecond { get; init; }
