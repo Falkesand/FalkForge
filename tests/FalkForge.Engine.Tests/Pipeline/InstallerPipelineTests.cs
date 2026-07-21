@@ -134,4 +134,23 @@ public sealed class InstallerPipelineTests
         var ex = await Record.ExceptionAsync(async () => await pipeline.DisposeAsync());
         Assert.Null(ex);
     }
+
+    [Fact]
+    public async Task DisposeAsync_ZeroesSecretMemory_InOwnedVariableStore()
+    {
+        // The pipeline is the sole runtime owner of the VariableStore handed to it at
+        // construction (EngineSession.BindToPipe creates it and never retains its own
+        // reference). Secret variable memory must be zeroed at pipeline shutdown — the
+        // correct, and only, place left to do it — not leaked until GC finalization.
+        var store = new FalkForge.Engine.Variables.VariableStore();
+        store.SetSecret("Password", "s3cret!");
+
+        var pipeline = new InstallerPipelineBuilder()
+            .WithVariableStore(store)
+            .Build();
+
+        await pipeline.DisposeAsync();
+
+        Assert.True(store.GetSecret("Password").IsFailure);
+    }
 }
