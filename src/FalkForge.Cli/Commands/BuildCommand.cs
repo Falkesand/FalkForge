@@ -194,7 +194,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
 
             if (resolvedSigning.IsEnabled)
             {
-                var bundleLogger = new ConsoleOutputLogger(_console, settings.Verbose);
+                using var bundleLogger = new ConsoleOutputLogger(_console, settings.Verbose);
                 var bundleResult = await CompileSignedBundleAsync(
                     compileResult.Value, package, outputPath, resolvedSigning.Provider,
                     resolvedSigning.PqProvider, settings.NoEngine, bundleLogger, cancellationToken).ConfigureAwait(false);
