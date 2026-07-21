@@ -91,6 +91,15 @@ public sealed record InstallerManifest
     public PreUIPackageInfo[] PreUIPackages { get; init; } = [];
 
     /// <summary>
+    /// External, separately-downloadable payload containers (A6). Each entry names a container the
+    /// publisher hosts at a URL instead of embedding in the bundle exe; the engine downloads, verifies,
+    /// and extracts it at runtime before installing its member packages. Empty (the default) means every
+    /// payload is embedded in the exe — the historical behavior, so older bundles and older engines both
+    /// see an empty array and behave exactly as before.
+    /// </summary>
+    public ExternalContainerInfo[] ExternalContainers { get; init; } = [];
+
+    /// <summary>
     /// SHA-256 (hex) of the elevation companion payload embedded in the bundle under the reserved
     /// TOC id <see cref="FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId"/>.
     /// <para>

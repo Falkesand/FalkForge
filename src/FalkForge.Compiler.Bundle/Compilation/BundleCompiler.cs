@@ -60,18 +60,20 @@ public sealed class BundleCompiler
     /// </summary>
     public Result<string> Compile(BundleModel model, string outputPath)
     {
-        var prep = Prepare(model);
+        var prep = Prepare(model, outputPath);
         if (prep.IsFailure)
             return Result<string>.Failure(prep.Error);
 
-        var (manifest, payloads) = prep.Value;
+        var (manifest, allPayloads, embeddedPayloads) = prep.Value;
 
-        // Step 3.5: Integrity signing (sync bridge; fails loud on an async provider).
-        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, payloads);
+        // Step 3.5: Integrity signing (sync bridge; fails loud on an async provider). Signs EVERY
+        // payload — embedded and external-container alike — so a downloaded container payload binds
+        // to the same ECDSA-signed set the engine verifies before extraction.
+        var integrityResult = BundleIntegritySigner.SignAndEnrich(manifest, model, allPayloads);
         if (integrityResult.IsFailure)
             return Result<string>.Failure(integrityResult.Error);
 
-        return Finish(model, outputPath, integrityResult.Value, payloads);
+        return Finish(model, outputPath, integrityResult.Value, embeddedPayloads, allPayloads);
     }
 
     /// <summary>
@@ -82,32 +84,34 @@ public sealed class BundleCompiler
     public async ValueTask<Result<string>> CompileAsync(
         BundleModel model, string outputPath, CancellationToken cancellationToken = default)
     {
-        var prep = Prepare(model);
+        var prep = Prepare(model, outputPath);
         if (prep.IsFailure)
             return Result<string>.Failure(prep.Error);
 
-        var (manifest, payloads) = prep.Value;
+        var (manifest, allPayloads, embeddedPayloads) = prep.Value;
 
         // Step 3.5: Integrity signing (async seam; drives remote/async providers without blocking).
+        // Signs every payload (embedded + external-container) — see the sync path for why.
         var integrityResult = await BundleIntegritySigner
-            .SignAndEnrichAsync(manifest, model, payloads, cancellationToken)
+            .SignAndEnrichAsync(manifest, model, allPayloads, cancellationToken)
             .ConfigureAwait(false);
         if (integrityResult.IsFailure)
             return Result<string>.Failure(integrityResult.Error);
 
-        return Finish(model, outputPath, integrityResult.Value, payloads);
+        return Finish(model, outputPath, integrityResult.Value, embeddedPayloads, allPayloads);
     }
 
     /// <summary>
     /// Validate → generate manifest → hash + collect embeddable payloads. Shared, signing-agnostic prefix of
     /// both the sync and async compile paths.
     /// </summary>
-    private Result<(InstallerManifest Manifest, List<PayloadEntry> Payloads)> Prepare(BundleModel model)
+    private Result<(InstallerManifest Manifest, List<PayloadEntry> AllPayloads, List<PayloadEntry> EmbeddedPayloads)> Prepare(
+        BundleModel model, string outputPath)
     {
         // Step 1: Validate
         var validation = _validator.Validate(model);
         if (validation.IsFailure)
-            return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(validation.Error);
+            return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(validation.Error);
 
         // Step 1.5: Authoring-honesty warnings. These inputs are structurally valid and accepted,
         // but the current compiler does not fully materialize them — warn loudly rather than let an
@@ -117,7 +121,7 @@ public sealed class BundleCompiler
         // Step 2: Generate manifest
         var manifestResult = _manifestGenerator.Generate(model);
         if (manifestResult.IsFailure)
-            return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(manifestResult.Error);
+            return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(manifestResult.Error);
 
         var manifest = manifestResult.Value;
 
@@ -130,7 +134,7 @@ public sealed class BundleCompiler
                 continue;
 
             if (!File.Exists(package.SourcePath))
-                return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
+                return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
                     $"Package source not found: {package.SourcePath}");
 
             long originalSize;
@@ -158,7 +162,7 @@ public sealed class BundleCompiler
                 continue; // remote payload — not embedded in the bundle
 
             if (!File.Exists(prereq.SourcePath))
-                return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
+                return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
                     $"Pre-UI prerequisite source not found: {prereq.SourcePath}");
 
             long originalSize;
@@ -179,23 +183,49 @@ public sealed class BundleCompiler
             });
         }
 
+        // Step 3b.5 (A6): partition payloads assigned to an external container (one carrying a
+        // DownloadUrl) out of the embed set. Each external container is written to its own standalone
+        // container file next to the bundle exe, and the manifest records the URL + whole-file hash +
+        // membership. The external payloads still flow into the SIGNED set (returned as AllPayloads) so
+        // the engine binds each downloaded container payload to the same ECDSA signature before
+        // extraction. Pre-UI payloads are never externalized — they must be present for the pre-UI
+        // bootstrap that runs before any download step.
+        var packaged = ExternalContainerPackager.Package(model, payloads, outputPath);
+        if (packaged.IsFailure)
+            return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(packaged.Error);
+
+        var embeddedPayloads = packaged.Value.EmbeddedPayloads;
+        var externalPayloads = packaged.Value.ExternalPayloads;
+        manifest = manifest with { ExternalContainers = packaged.Value.Containers };
+
         // Step 3c: Embed the elevation companion as a trust-covered payload (reserved TOC id,
         // hash declared in the manifest, inside the signature envelope when Integrity is on).
         // Added BEFORE signing so the companion — which executes as SYSTEM — is covered by the
-        // exact same payload-trust chain as every installable payload.
+        // exact same payload-trust chain as every installable payload. The companion is always
+        // embedded in the exe (never externalized), so it is appended to the embed set.
         var companionResult = ElevationCompanionAppender.Append(
-            payloads, manifest, model, ElevationCompanionPath, EngineStubPath, AllowPlaceholderStub,
+            embeddedPayloads, manifest, model, ElevationCompanionPath, EngineStubPath, AllowPlaceholderStub,
             EngineStubResolver);
         if (companionResult.IsFailure)
-            return Result<(InstallerManifest, List<PayloadEntry>)>.Failure(companionResult.Error);
+            return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(companionResult.Error);
 
-        return (companionResult.Value, payloads);
+        // Sign over embedded (incl. companion) ∪ external. The verifier accepts a signed set that is a
+        // superset of any single artifact's TOC, so the exe's embedded TOC and each external container's
+        // TOC both bind to this one signature.
+        var allPayloads = new List<PayloadEntry>(embeddedPayloads.Count + externalPayloads.Count);
+        allPayloads.AddRange(embeddedPayloads);
+        allPayloads.AddRange(externalPayloads);
+
+        return (companionResult.Value, allPayloads, embeddedPayloads);
     }
 
     /// <summary>
-    /// Surfaces non-fatal warnings for accepted-but-not-yet-materialized authoring inputs so they are
-    /// never silently ignored: external container download URLs (BDL035, all payloads are embedded in the
-    /// single self-extracting exe today). No-op when no <see cref="Logger"/> is configured.
+    /// Surfaces non-fatal authoring-honesty warnings. External container download URLs are now fully
+    /// materialized — a container with a <c>DownloadUrl</c> and at least one assigned payload is written
+    /// to its own downloadable container file and recorded in the manifest — so BDL035 no longer means
+    /// "ignored". It now fires only for the one genuinely-inert sub-case: a container that sets a
+    /// <c>DownloadUrl</c> but has no payload assigned to it, so no external container file is produced.
+    /// No-op when no <see cref="Logger"/> is configured.
     /// <para>
     /// Per-package MSI feature selection (<c>EnableFeatureSelection</c>) is no longer warned about: the
     /// engine now advertises each feature-selectable MSI's Feature table at detect time and honors the
@@ -209,14 +239,22 @@ public sealed class BundleCompiler
         if (Logger is null)
             return;
 
+        var assignedContainerIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var package in model.Packages)
+        {
+            if (package.ContainerId is not null)
+                assignedContainerIds.Add(package.ContainerId);
+        }
+
         foreach (var container in model.Containers)
         {
-            if (!string.IsNullOrWhiteSpace(container.DownloadUrl))
+            if (!string.IsNullOrWhiteSpace(container.DownloadUrl)
+                && !assignedContainerIds.Contains(container.Id))
             {
                 Logger.Log(LogLevel.Warning, "BundleCompiler",
-                    $"BDL035: container '{container.Id}' sets DownloadUrl, but external/remote containers are not " +
-                    "yet produced — every payload is embedded in the single self-extracting bundle exe and the " +
-                    "download URL is ignored.",
+                    $"BDL035: container '{container.Id}' sets DownloadUrl but no payload is assigned to it, " +
+                    "so no external container file is produced. Assign a package to the container " +
+                    "(package.Container(...)) or remove the download URL.",
                     new Dictionary<string, string> { ["code"] = "BDL035" });
             }
         }
@@ -228,7 +266,8 @@ public sealed class BundleCompiler
     /// signature was produced, never in what is embedded.
     /// </summary>
     private Result<string> Finish(
-        BundleModel model, string outputPath, InstallerManifest manifest, List<PayloadEntry> payloads)
+        BundleModel model, string outputPath, InstallerManifest manifest,
+        List<PayloadEntry> embeddedPayloads, List<PayloadEntry> allPayloads)
     {
         // Step 4: Create stub — the resolved NativeAOT engine by default; the empty design-time
         // placeholder only via the explicit AllowPlaceholderStub opt-in. Fails loud otherwise.
@@ -239,10 +278,12 @@ public sealed class BundleCompiler
 
         var stubPath = stubResult.Value;
 
-        // Step 5: Embed payloads
+        // Step 5: Embed payloads — only the embedded set. External-container payloads live in their own
+        // container files (already written next to the exe by ExternalContainerPackager) and must NOT be
+        // duplicated inside the exe.
         var outputFilePath = Path.Combine(outputPath, $"{model.Name}.exe");
         var embedder = new PayloadEmbedder();
-        var embedResult = embedder.Embed(stubPath, outputFilePath, manifest, payloads);
+        var embedResult = embedder.Embed(stubPath, outputFilePath, manifest, embeddedPayloads);
 
         // Clean up stub
         try
@@ -258,8 +299,9 @@ public sealed class BundleCompiler
             return Result<string>.Failure(embedResult.Error);
 
         // Step 6: SBOM sidecar — opt-in via SbomOptions or FALKFORGE_GENERATE_SBOM env var.
-        // Uses the already-computed payload hashes; never re-reads files.
-        var sbomResult = BundleSbomHelper.WriteSbomSidecar(model, payloads, outputFilePath);
+        // Uses the already-computed payload hashes; never re-reads files. Covers EVERY payload
+        // (embedded + external-container) so the SBOM inventories the whole product, not just the exe.
+        var sbomResult = BundleSbomHelper.WriteSbomSidecar(model, allPayloads, outputFilePath);
         if (sbomResult.IsFailure)
             return Result<string>.Failure(sbomResult.Error);
 
