@@ -121,6 +121,21 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         PackageModel package = context.Resolved.Package;
         MsiDialogSet dialogSet = package.DialogSet;
 
+        // Localization honesty (DLG005): SetLocalizationData only feeds the !(loc.*) string resolver
+        // for the single base MSI (the first culture). Providing more than one culture implies the
+        // author expects per-culture MST transforms / multi-language output, but none are generated —
+        // the extra cultures are silently dropped. Warn rather than mislead. Queued before the
+        // "no dialogs → empty" early return so the drop surfaces even for a UI-less package.
+        if (package.LocalizationData.Count > 1)
+        {
+            context.AddWarning(
+                "DLG005",
+                $"{package.LocalizationData.Count} localization cultures were provided but per-culture MST " +
+                $"transforms are not generated — only the first culture ('{package.LocalizationData[0].Culture}') " +
+                "is applied to the base MSI and the remaining cultures are dropped. Multi-language output " +
+                "(one .mst per culture) is not yet supported; author a single culture to silence this warning.");
+        }
+
         // Compose the dialog set: stock template dialogs first (when a stock set is active),
         // then author-defined custom dialogs translated into the same internal model, then any
         // extension-contributed dialog steps referenced by DialogCustomization.InsertStep. The

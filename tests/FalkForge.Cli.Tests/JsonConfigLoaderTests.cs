@@ -821,8 +821,13 @@ public sealed class JsonConfigLoaderTests
         Assert.True(result.IsSuccess);
     }
 
+    // A well-formed extension block validates, but JSON-authored extensions are not yet applied to
+    // the compiled MSI. Rather than silently drop security-relevant config, LoadFromString must fail
+    // loud with JSN019 (see JsonConfigLoader Extensions guard). These three tests previously asserted
+    // success — that encoded the silent drop and is exactly the bug being fixed.
+
     [Fact]
-    public void LoadFromString_WithExtensionsFirewall_ParsesSuccessfully()
+    public void LoadFromString_WithExtensionsFirewall_ReturnsJSN019()
     {
         var json = """
         {
@@ -850,11 +855,13 @@ public sealed class JsonConfigLoaderTests
 
         var result = JsonConfigLoader.LoadFromString(json, BaseDir);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.Contains("fluent API", result.Error.Message);
     }
 
     [Fact]
-    public void LoadFromString_WithExtensionsSql_ParsesSuccessfully()
+    public void LoadFromString_WithExtensionsSql_ReturnsJSN019()
     {
         var json = """
         {
@@ -880,11 +887,12 @@ public sealed class JsonConfigLoaderTests
 
         var result = JsonConfigLoader.LoadFromString(json, BaseDir);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
     }
 
     [Fact]
-    public void LoadFromString_WithExtensionsDotNet_ParsesSuccessfully()
+    public void LoadFromString_WithExtensionsDotNet_ReturnsJSN019()
     {
         var json = """
         {
@@ -905,6 +913,28 @@ public sealed class JsonConfigLoaderTests
                     }
                 ]
             }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadFromString(json, BaseDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadFromString_WithoutExtensions_IsUnaffectedByJSN019()
+    {
+        // Negative case: a config with no extensions block must never trip the JSN019 guard.
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ]
         }
         """;
 
@@ -1128,8 +1158,11 @@ public sealed class JsonConfigLoaderTests
     }
 
     [Fact]
-    public void LoadFromString_FirewallWithPortOnly_IsValid()
+    public void LoadFromString_FirewallWithPortOnly_PassesFieldValidationThenJSN019()
     {
+        // Port-only is field-valid (must NOT trip JSN011 — kills the "port-only wrongly errors"
+        // mutation). Because the firewall block is well-formed, the not-yet-applied guard then
+        // fails loud with JSN019 rather than JSN011, proving field validation ran and passed.
         var json = """
         {
             "product": {"name": "App", "manufacturer": "Corp"},
@@ -1141,7 +1174,9 @@ public sealed class JsonConfigLoaderTests
 
         var result = JsonConfigLoader.LoadFromString(json, BaseDir);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN019", result.Error.Message);
+        Assert.DoesNotContain("JSN011", result.Error.Message);
     }
 
     [Fact]

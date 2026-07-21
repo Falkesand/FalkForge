@@ -92,14 +92,25 @@ public static class MsiAuthoring
             // IComponentContributor is collected but not yet consumed by the recipe pipeline
             // (merging additional files requires a PackageModel rebuild that is out of scope
             // for this change). Surface a Warning rather than dropping it silently so an author
-            // relying on GetAdditionalFiles is not misled by a green build. Table contributors
-            // ARE routed through the recipe below.
+            // relying on GetAdditionalFiles is not misled by a green build. Emitted UNCONDITIONALLY
+            // (WarnAlways falls back to stderr when no logger is supplied) so the drop is not hidden
+            // from programmatic callers that pass no logger. Table contributors ARE routed below.
             if (extensionRegistry.ComponentContributors.Count > 0)
             {
-                logger?.Log(LogLevel.Warning, "MsiAuthoring",
+                WarnAlways(logger, "EXT002",
                     $"{extensionRegistry.ComponentContributors.Count} IComponentContributor(s) were registered but the " +
-                    "MSI recipe pipeline does not yet emit contributed components; their GetAdditionalFiles output is ignored.",
-                    new Dictionary<string, string> { ["code"] = "EXT002" });
+                    "MSI recipe pipeline does not yet emit contributed components; their GetAdditionalFiles output is ignored.");
+            }
+
+            // IDryRunContributor registered via the extension registry is likewise not honored by the
+            // compile pipeline (dry-run previews are produced by 'forge build --dry-run' / 'forge
+            // validate', which iterate extensions directly). Warn rather than silently discard.
+            if (extensionRegistry.DryRunContributors.Count > 0)
+            {
+                WarnAlways(logger, "EXT003",
+                    $"{extensionRegistry.DryRunContributors.Count} IDryRunContributor(s) were registered via the extension " +
+                    "registry, but the MSI compile pipeline does not consume registry-registered dry-run contributors; their " +
+                    "GetDryRunActions output is ignored here. Dry-run previews surface via 'forge build --dry-run' / 'forge validate'.");
             }
         }
 
@@ -524,6 +535,27 @@ public static class MsiAuthoring
         => EnvVarCatalog.IsSigningDisabled();
 
     /// <summary>
+    /// Emits a non-fatal <paramref name="code"/> warning so an unsupported/ignored authoring input is
+    /// never silently dropped. When a <paramref name="logger"/> is supplied it routes through the
+    /// structured <see cref="IFalkLogger"/> (with the <c>code</c> property, matching every other
+    /// pipeline diagnostic); when it is <see langword="null"/> — the default for programmatic
+    /// <c>Installer.Build</c>-style callers — it falls back to <see cref="Console.Error"/> so the
+    /// warning still surfaces rather than vanishing. Deliberately unconditional (FAIL LOUD).
+    /// </summary>
+    private static void WarnAlways(IFalkLogger? logger, string code, string message)
+    {
+        if (logger is not null)
+        {
+            logger.Log(LogLevel.Warning, "MsiAuthoring", message,
+                new Dictionary<string, string> { ["code"] = code });
+        }
+        else
+        {
+            Console.Error.WriteLine($"warning {code}: MsiAuthoring: {message}");
+        }
+    }
+
+    /// <summary>
     /// <see cref="IExtensionRegistry"/> implementation that collects registered
     /// extension contributions (table contributors, component contributors, dialog
     /// step builders) for batch processing after every extension has registered.
@@ -538,6 +570,8 @@ public static class MsiAuthoring
 
         public List<IExecutionContributor> ExecutionContributors { get; } = [];
 
+        public List<IDryRunContributor> DryRunContributors { get; } = [];
+
         public void RegisterDialogStep(IDialogStepBuilder builder)
             => DialogStepBuilders.Add(builder);
 
@@ -550,6 +584,7 @@ public static class MsiAuthoring
         public void RegisterExecutionContributor(IExecutionContributor contributor)
             => ExecutionContributors.Add(contributor);
 
-        public void RegisterDryRunContributor(IDryRunContributor contributor) { }
+        public void RegisterDryRunContributor(IDryRunContributor contributor)
+            => DryRunContributors.Add(contributor);
     }
 }

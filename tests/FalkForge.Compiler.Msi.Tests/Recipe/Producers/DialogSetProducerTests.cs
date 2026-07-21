@@ -455,6 +455,65 @@ public sealed class DialogSetProducerTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // ── DLG005: multi-culture localization implies MST output that is not generated ──────────
+
+    [Fact]
+    public void Produce_with_multiple_localization_cultures_queues_DLG005_warning()
+    {
+        // DLG005 is queued before dialog composition, so it is independent of the dialog set. Using
+        // None keeps the test focused on the multi-culture drop without needing every !(loc.*) key
+        // the stock templates reference to be present in these (deliberately minimal) culture tables.
+        RecipeBuildContext context = MakeContextWithLocalization(
+            MsiDialogSet.None,
+            new LocalizationData { Culture = "en-US" },
+            new LocalizationData { Culture = "de-DE" });
+
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
+
+        Assert.True(result.IsSuccess);
+        // Surfaces via the context warning queue with no logger required.
+        (string Code, string Message) warning = Assert.Single(context.Warnings, w => w.Code == "DLG005");
+        Assert.Contains("MST", warning.Message);
+        Assert.Contains("en-US", warning.Message);
+    }
+
+    [Fact]
+    public void Produce_with_single_localization_culture_queues_no_DLG005_warning()
+    {
+        RecipeBuildContext context = MakeContextWithLocalization(
+            MsiDialogSet.None,
+            new LocalizationData { Culture = "en-US" });
+
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(context.Warnings, w => w.Code == "DLG005");
+    }
+
+    private static RecipeBuildContext MakeContextWithLocalization(
+        MsiDialogSet dialogSet, params LocalizationData[] cultures)
+    {
+        var resolved = new ResolvedPackage
+        {
+            Package = new PackageModel
+            {
+                Name = "Test",
+                Manufacturer = "M",
+                Version = new Version(1, 0, 0),
+                DialogSet = dialogSet,
+                LocalizationData = cultures,
+            },
+            Components = [],
+            Files = [],
+        };
+
+        return new RecipeBuildContext(
+            resolved,
+            new MsiRecipeBuildOptions(),
+            new NoOpFileSequencer(),
+            new DictionaryStreamRegistry());
+    }
+
     private static ImmutableArray<RecipeTable> ProduceTables(MsiDialogSet dialogSet)
     {
         RecipeBuildContext context = MakeContext(dialogSet);

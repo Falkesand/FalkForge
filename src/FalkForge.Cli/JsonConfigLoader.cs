@@ -318,12 +318,22 @@ public static class JsonConfigLoader
             }
         }
 
-        // Extensions (validate configuration; actual extension compilation is a separate concern)
+        // Extensions: the block is structurally validated (JSN011–JSN014) but JSON-authored
+        // extensions (firewall/IIS/SQL/.NET) are NOT yet applied to the compiled MSI. Silently
+        // dropping security-relevant configuration is dangerous, so once a well-formed extension
+        // block carries any content we fail loud (JSN019) rather than emit an installer that is
+        // missing the firewall rules / IIS sites / SQL scripts / .NET checks the author declared.
         if (config.Extensions is not null)
         {
             var extensionResult = ValidateExtensions(config.Extensions);
             if (extensionResult.IsFailure)
                 return Result<PackageModel>.Failure(extensionResult.Error);
+
+            if (HasAnyExtensionContent(config.Extensions))
+                return Result<PackageModel>.Failure(new Error(ErrorKind.Validation,
+                    "JSN019: JSON extension authoring (firewall/IIS/SQL/.NET) is validated but not yet " +
+                    "applied to the compiled build — proceeding would silently drop it. Author extensions " +
+                    "with the C# fluent API instead (new MsiCompiler().Use(extension))."));
         }
 
         try
@@ -533,6 +543,18 @@ public static class JsonConfigLoader
             _ => RegistryRoot.LocalMachine,
         };
     }
+
+    /// <summary>
+    /// True when the extension block declares any actual firewall/IIS/SQL/.NET content (as opposed
+    /// to an empty or all-null <c>extensions</c> object). Used to decide whether the not-yet-applied
+    /// authoring must fail loud (JSN019); an empty block is a no-op and must not trip the guard.
+    /// </summary>
+    private static bool HasAnyExtensionContent(ExtensionsConfig extensions)
+        => extensions.Firewall is { Count: > 0 }
+        || (extensions.Iis is not null
+            && ((extensions.Iis.AppPools is { Count: > 0 }) || (extensions.Iis.WebSites is { Count: > 0 })))
+        || extensions.Sql is { Count: > 0 }
+        || extensions.DotNet is { Count: > 0 };
 
     private static Result<Unit> ValidateExtensions(ExtensionsConfig extensions)
     {

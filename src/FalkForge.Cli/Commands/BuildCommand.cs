@@ -181,9 +181,10 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
 
             if (resolvedSigning.IsEnabled)
             {
+                var bundleLogger = new ConsoleOutputLogger(_console, settings.Verbose);
                 var bundleResult = await CompileSignedBundleAsync(
                     compileResult.Value, package, outputPath, resolvedSigning.Provider,
-                    resolvedSigning.PqProvider, settings.NoEngine, cancellationToken).ConfigureAwait(false);
+                    resolvedSigning.PqProvider, settings.NoEngine, bundleLogger, cancellationToken).ConfigureAwait(false);
                 if (bundleResult.IsFailure)
                 {
                     _console.WriteError(bundleResult.Error.Message);
@@ -230,6 +231,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         ISignatureProvider provider,
         ISignatureProvider? pqProvider,
         bool allowPlaceholderStub,
+        FalkForge.Diagnostics.IFalkLogger? logger,
         CancellationToken cancellationToken)
     {
         var bundle = new BundleBuilder()
@@ -248,7 +250,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
             })
             .Build();
 
-        return await new BundleCompiler { AllowPlaceholderStub = allowPlaceholderStub }
+        return await new BundleCompiler { AllowPlaceholderStub = allowPlaceholderStub, Logger = logger }
             .CompileAsync(bundle, outputPath, cancellationToken).ConfigureAwait(false);
     }
 
