@@ -286,21 +286,21 @@
       "falkforge.compiler.bundle": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.1, )",
-          "FalkForge.Platform": "[0.5.0-beta.1, )",
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.2, )",
+          "FalkForge.Platform": "[0.5.0-beta.2, )",
           "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.compiler.msi": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )",
-          "FalkForge.Localization": "[0.5.0-beta.1, )",
-          "FalkForge.Platform": "[0.5.0-beta.1, )",
-          "FalkForge.Platform.Windows": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )",
+          "FalkForge.Localization": "[0.5.0-beta.2, )",
+          "FalkForge.Platform": "[0.5.0-beta.2, )",
+          "FalkForge.Platform.Windows": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.core": {
@@ -309,123 +309,123 @@
       "falkforge.decompiler": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Compiler.Bundle": "[0.5.0-beta.1, )",
-          "FalkForge.Compiler.Msi": "[0.5.0-beta.1, )",
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )"
+          "FalkForge.Compiler.Bundle": "[0.5.0-beta.2, )",
+          "FalkForge.Compiler.Msi": "[0.5.0-beta.2, )",
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.engine": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Compiler.Msi": "[0.5.0-beta.1, )",
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.1, )",
-          "FalkForge.Platform.Windows": "[0.5.0-beta.1, )"
+          "FalkForge.Compiler.Msi": "[0.5.0-beta.2, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.2, )",
+          "FalkForge.Platform.Windows": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.engine.elevation": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.1, )",
-          "FalkForge.Platform.Windows": "[0.5.0-beta.1, )"
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.2, )",
+          "FalkForge.Platform.Windows": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
+          "FalkForge.Core": "[0.5.0-beta.2, )",
           "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.extensibility": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.extensions.dotnet": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )",
-          "FalkForge.Platform": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )",
+          "FalkForge.Platform": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.extensions.firewall": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.extensions.iis": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.extensions.sql": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.extensions.util": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.localization": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.platform": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Platform": "[0.5.0-beta.1, )"
+          "FalkForge.Platform": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.signing.signserver": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.testing": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Engine": "[0.5.0-beta.1, )",
-          "FalkForge.Platform": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Engine": "[0.5.0-beta.2, )",
+          "FalkForge.Platform": "[0.5.0-beta.2, )"
         }
       },
       "FalkForge.Tool": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Compiler.Bundle": "[0.5.0-beta.1, )",
-          "FalkForge.Compiler.Msi": "[0.5.0-beta.1, )",
-          "FalkForge.Core": "[0.5.0-beta.1, )",
-          "FalkForge.Decompiler": "[0.5.0-beta.1, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.1, )",
-          "FalkForge.Extensions.DotNet": "[0.5.0-beta.1, )",
-          "FalkForge.Extensions.Firewall": "[0.5.0-beta.1, )",
-          "FalkForge.Extensions.Iis": "[0.5.0-beta.1, )",
-          "FalkForge.Extensions.Sql": "[0.5.0-beta.1, )",
-          "FalkForge.Extensions.Util": "[0.5.0-beta.1, )",
-          "FalkForge.Localization": "[0.5.0-beta.1, )",
-          "FalkForge.Signing.SignServer": "[0.5.0-beta.1, )",
+          "FalkForge.Compiler.Bundle": "[0.5.0-beta.2, )",
+          "FalkForge.Compiler.Msi": "[0.5.0-beta.2, )",
+          "FalkForge.Core": "[0.5.0-beta.2, )",
+          "FalkForge.Decompiler": "[0.5.0-beta.2, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.2, )",
+          "FalkForge.Extensions.DotNet": "[0.5.0-beta.2, )",
+          "FalkForge.Extensions.Firewall": "[0.5.0-beta.2, )",
+          "FalkForge.Extensions.Iis": "[0.5.0-beta.2, )",
+          "FalkForge.Extensions.Sql": "[0.5.0-beta.2, )",
+          "FalkForge.Extensions.Util": "[0.5.0-beta.2, )",
+          "FalkForge.Localization": "[0.5.0-beta.2, )",
+          "FalkForge.Signing.SignServer": "[0.5.0-beta.2, )",
           "Microsoft.CodeAnalysis.CSharp.Scripting": "[5.6.0, )",
           "Spectre.Console": "[0.57.2, )",
           "Spectre.Console.Cli": "[0.55.0, )"

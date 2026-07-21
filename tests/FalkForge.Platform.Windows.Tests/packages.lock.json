@@ -198,13 +198,13 @@
       "falkforge.platform": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.1, )"
+          "FalkForge.Core": "[0.5.0-beta.2, )"
         }
       },
       "falkforge.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Platform": "[0.5.0-beta.1, )"
+          "FalkForge.Platform": "[0.5.0-beta.2, )"
         }
       }
     }
