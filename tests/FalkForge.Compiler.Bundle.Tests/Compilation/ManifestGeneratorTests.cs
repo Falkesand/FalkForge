@@ -224,6 +224,55 @@ public sealed class ManifestGeneratorTests : IDisposable
     }
 
     [Fact]
+    public void Generate_SetsBrandingFromUiConfig()
+    {
+        // Intent: every branding argument accepted by BundleBuilder.UseBuiltInUI must survive into
+        // the signed InstallerManifest. Before this wiring the generator forwarded only UiType /
+        // CustomUiProjectPath / LicenseFile, silently dropping the logo, theme color, watermark,
+        // banner and banner icon — so a newcomer's `.UseBuiltInUI(themeColor: "#0078D4")` produced
+        // an unbranded installer.
+        var sourceFile = CreateTempFile("app.msi", "content");
+
+        var model = new BundleModel
+        {
+            Name = "TestApp",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "App",
+                    SourcePath = sourceFile
+                }
+            ],
+            UiConfig = new BundleUiConfig
+            {
+                UiType = BundleUiType.BuiltIn,
+                LogoFile = "logo.png",
+                ThemeColor = "#0078D4",
+                WatermarkImage = "watermark.png",
+                BannerImage = "banner.png",
+                BannerIcon = "banner.ico"
+            }
+        };
+
+        var result = _generator.Generate(model);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("logo.png", result.Value.LogoFile);
+        Assert.Equal("#0078D4", result.Value.ThemeColor);
+        Assert.Equal("watermark.png", result.Value.WatermarkImage);
+        Assert.Equal("banner.png", result.Value.BannerImage);
+        Assert.Equal("banner.ico", result.Value.BannerIcon);
+    }
+
+    [Fact]
     public void Generate_WithVariables_SerializesCorrectly()
     {
         var sourceFile = CreateTempFile("app.msi", "content");

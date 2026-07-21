@@ -59,6 +59,11 @@ public static class InstallerApp
 
         var engine = ResolveEngine(args) ?? new NullInstallerEngine();
 
+        // Fold bundle-authored branding (logo/theme/watermark/banner, carried on the manifest via
+        // BundleBuilder.UseBuiltInUI) into the window config. Explicit InstallerUIBuilder.Window(...)
+        // settings win; the manifest only fills fields the caller left unset.
+        config = ManifestBranding.Merge(config, engine.Manifest);
+
         foreach (var page in pages)
         {
             page.Engine = engine;
