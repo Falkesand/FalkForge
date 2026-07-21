@@ -33,6 +33,11 @@ public enum MessageType : ushort
     ApplyPackageBegin = 0x0115,
     ApplyPackageComplete = 0x0116,
 
+    // Per-package MSI feature advertise (Engine -> UI). Carries the Feature table of one
+    // MSI so the UI can offer a per-package feature picker; the choice returns as
+    // SetPackageFeatureSelection (0x020A).
+    PackageMsiFeatures = 0x0117,
+
     // UI -> Engine (0x02xx)
     Cancel = 0x0201,
     ShutdownRequest = 0x0202,
@@ -43,6 +48,10 @@ public enum MessageType : ushort
     RequestApply = 0x0207,
     SetProperty = 0x0208,
     SetSecureProperty = 0x0209,
+
+    // Per-package MSI feature selection (UI -> Engine). The user's chosen feature-id set
+    // for one MSI package, applied by the planner as that package's ADDLOCAL property.
+    SetPackageFeatureSelection = 0x020A,
 
     // Engine -> Elevated (0x03xx)
     ElevateExecute = 0x0301,

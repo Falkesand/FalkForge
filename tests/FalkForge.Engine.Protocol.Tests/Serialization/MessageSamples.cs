@@ -145,5 +145,21 @@ internal static class MessageSamples
             DisplayName = "Package A",
             Succeeded = true,
         };
+        yield return new PackageMsiFeaturesMessage
+        {
+            SequenceId = 39,
+            PackageId = "pkg-a",
+            Features =
+            [
+                new MsiFeatureInfo("Core", "Core", "Core runtime", null, 1, 1, 0L),
+                new MsiFeatureInfo("Docs", "Docs", null, "Core", 1000, 2, 0L),
+            ],
+        };
+        yield return new SetPackageFeatureSelectionMessage
+        {
+            SequenceId = 40,
+            PackageId = "pkg-a",
+            SelectedFeatureIds = ["Core", "Docs"],
+        };
     }
 }

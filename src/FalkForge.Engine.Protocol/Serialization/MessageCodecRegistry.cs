@@ -67,6 +67,8 @@ public static class MessageCodecRegistry
         PlanPackageCompleteCodec.Instance,
         ApplyPackageBeginCodec.Instance,
         ApplyPackageCompleteCodec.Instance,
+        PackageMsiFeaturesCodec.Instance,
+        SetPackageFeatureSelectionCodec.Instance,
     ];
 
     private static readonly MessageCodecRegistryInstance s_instance = new(s_codecs);
