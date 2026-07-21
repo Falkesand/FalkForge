@@ -89,19 +89,6 @@ public static class MsiAuthoring
             if (extensionRules.Length > 0)
                 ModelValidator.RegisterExtensionRules(extensionRules);
 
-            // IComponentContributor is collected but not yet consumed by the recipe pipeline
-            // (merging additional files requires a PackageModel rebuild that is out of scope
-            // for this change). Surface a Warning rather than dropping it silently so an author
-            // relying on GetAdditionalFiles is not misled by a green build. Emitted UNCONDITIONALLY
-            // (WarnAlways falls back to stderr when no logger is supplied) so the drop is not hidden
-            // from programmatic callers that pass no logger. Table contributors ARE routed below.
-            if (extensionRegistry.ComponentContributors.Count > 0)
-            {
-                WarnAlways(logger, "EXT002",
-                    $"{extensionRegistry.ComponentContributors.Count} IComponentContributor(s) were registered but the " +
-                    "MSI recipe pipeline does not yet emit contributed components; their GetAdditionalFiles output is ignored.");
-            }
-
             // IDryRunContributor registered via the extension registry is likewise not honored by the
             // compile pipeline (dry-run previews are produced by 'forge build --dry-run' / 'forge
             // validate', which iterate extensions directly). Warn rather than silently discard.
@@ -160,12 +147,31 @@ public static class MsiAuthoring
                 logger.Debug("MsiAuthoring", "Step 1.6: dialog customization validation passed.");
         }
 
+        // Step 1.7: Build the ExtensionContext ahead of component resolution (rather than at Step 4,
+        // where it used to be constructed) so IComponentContributor.GetAdditionalFiles can run before
+        // Step 2 and route its output through the SAME ComponentResolver pass as package.Files —
+        // no parallel file-emission path, no PackageModel rebuild.
+        ExtensionContext extensionContext = new()
+        {
+            Package = package,
+            OutputDirectory = outputPath,
+            SourceDirectory = Directory.GetCurrentDirectory(),
+        };
+
+        List<FileEntryModel>? additionalFiles = null;
+        if (extensionRegistry.ComponentContributors.Count > 0)
+        {
+            additionalFiles = [];
+            foreach (IComponentContributor contributor in extensionRegistry.ComponentContributors)
+                additionalFiles.AddRange(contributor.GetAdditionalFiles(extensionContext));
+        }
+
         // Step 2: Resolve components. ComponentResolver materializes
-        // PackageModel.Files into ResolvedComponent / ResolvedFile records
-        // with deterministic IDs and component GUIDs.
+        // PackageModel.Files (plus any extension-contributed additionalFiles) into
+        // ResolvedComponent / ResolvedFile records with deterministic IDs and component GUIDs.
         IFileSystem fileSystem = new WindowsFileSystem();
         ComponentResolver resolver = new(fileSystem);
-        Result<ResolvedPackage> resolveResult = resolver.Resolve(package);
+        Result<ResolvedPackage> resolveResult = resolver.Resolve(package, additionalFiles);
         if (resolveResult.IsFailure)
         {
             logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 2: component resolution failed: {resolveResult.Error.Message}",
@@ -199,12 +205,7 @@ public static class MsiAuthoring
         // TextStyle, UIText) when a DialogSet is active. Extension-registered
         // IMsiTableContributor rows are routed through MsiRecipeBuilder →
         // ExtensionTableEmitter (custom tables created, built-in tables merged).
-        ExtensionContext extensionContext = new()
-        {
-            Package = package,
-            OutputDirectory = outputPath,
-            SourceDirectory = Directory.GetCurrentDirectory(),
-        };
+        // extensionContext was built at Step 1.7, ahead of component resolution.
 
         // Drain MSI-capable extension dialog step builders so DialogSetProducer can emit any
         // InsertStep-referenced extension dialogs (not just validate their names).

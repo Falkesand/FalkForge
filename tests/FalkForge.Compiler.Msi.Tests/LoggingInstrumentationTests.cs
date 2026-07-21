@@ -249,12 +249,13 @@ public sealed class LoggingInstrumentationTests : IDisposable
     }
 
     [Fact]
-    public void Compile_WithComponentContributorExtension_LogsEXT002Warning()
+    public void Compile_WithComponentContributorExtensionReturningNoFiles_LogsNoEXT002Warning()
     {
-        // An extension whose GetAdditionalFiles output the recipe pipeline does not yet consume must
-        // surface EXT002 rather than silently drop the contribution. Previously this warning was
-        // logger-gated; it is now emitted unconditionally (WarnAlways) — a supplied logger observes it.
-        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithComponentContributorExtension_LogsEXT002Warning));
+        // GetAdditionalFiles output is now routed through the same file-emission path as regular
+        // package files (see ComponentContributorEmissionTests for the positive emission case), so
+        // EXT002 is retired entirely — a registered contributor that happens to return zero files
+        // still logs no warning, since nothing was dropped.
+        var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithComponentContributorExtensionReturningNoFiles_LogsNoEXT002Warning));
         var package = InstallerTestHost.BuildPackage(p =>
         {
             p.Name = "ComponentContribApp";
@@ -269,10 +270,7 @@ public sealed class LoggingInstrumentationTests : IDisposable
         var result = compiler.Compile(package, outputDir);
 
         Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
-
-        var ext002 = Assert.Single(logger.EntriesAt(LogLevel.Warning),
-            e => e.Category == "MsiAuthoring" && HasCode(e, "EXT002"));
-        Assert.Contains("GetAdditionalFiles", ext002.Message);
+        Assert.DoesNotContain(logger.Entries, e => HasCode(e, "EXT002"));
     }
 
     [Fact]
