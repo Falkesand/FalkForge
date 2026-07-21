@@ -16,7 +16,12 @@ public sealed class ManifestMapperTests
         ManifestChainItem[]? chain = null,
         string? licenseFile = null,
         string? uiType = null,
-        string? customUiProjectPath = null) => new()
+        string? customUiProjectPath = null,
+        string? logoFile = null,
+        string? themeColor = null,
+        string? watermarkImage = null,
+        string? bannerImage = null,
+        string? bannerIcon = null) => new()
     {
         Name = name,
         Manufacturer = manufacturer,
@@ -29,7 +34,12 @@ public sealed class ManifestMapperTests
         Chain = chain ?? [],
         LicenseFile = licenseFile,
         UiType = uiType,
-        CustomUiProjectPath = customUiProjectPath
+        CustomUiProjectPath = customUiProjectPath,
+        LogoFile = logoFile,
+        ThemeColor = themeColor,
+        WatermarkImage = watermarkImage,
+        BannerImage = bannerImage,
+        BannerIcon = bannerIcon
     };
 
     private static PackageInfo CreatePackageInfo(
@@ -270,6 +280,31 @@ public sealed class ManifestMapperTests
         Assert.NotNull(result.Value.UiConfig);
         Assert.Equal(BundleUiType.BuiltIn, result.Value.UiConfig.UiType);
         Assert.Equal("eula.rtf", result.Value.UiConfig.LicenseFile);
+    }
+
+    [Fact]
+    public void Map_UiTypeBuiltInWithBranding_MapsAllBrandingFieldsToUiConfig()
+    {
+        var manifest = CreateManifest(
+            uiType: "BuiltIn",
+            licenseFile: "eula.rtf",
+            logoFile: "logo.png",
+            themeColor: "#0078D4",
+            watermarkImage: "watermark.png",
+            bannerImage: "banner.png",
+            bannerIcon: "banner.ico");
+
+        var result = ManifestMapper.Map(manifest, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value.UiConfig);
+        Assert.Equal(BundleUiType.BuiltIn, result.Value.UiConfig.UiType);
+        Assert.Equal("eula.rtf", result.Value.UiConfig.LicenseFile);
+        Assert.Equal("logo.png", result.Value.UiConfig.LogoFile);
+        Assert.Equal("#0078D4", result.Value.UiConfig.ThemeColor);
+        Assert.Equal("watermark.png", result.Value.UiConfig.WatermarkImage);
+        Assert.Equal("banner.png", result.Value.UiConfig.BannerImage);
+        Assert.Equal("banner.ico", result.Value.UiConfig.BannerIcon);
     }
 
     [Fact]

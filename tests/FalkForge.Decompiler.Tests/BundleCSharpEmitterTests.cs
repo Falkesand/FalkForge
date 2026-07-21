@@ -416,6 +416,27 @@ public sealed class BundleCSharpEmitterTests
     }
 
     [Fact]
+    public void Emit_UiConfigBuiltInWithAllBrandingFields_EmitsAllArgs()
+    {
+        var model = CreateMinimalBundle(uiConfig: new BundleUiConfig
+        {
+            UiType = BundleUiType.BuiltIn,
+            LicenseFile = "license.rtf",
+            LogoFile = "logo.png",
+            ThemeColor = "#0078D4",
+            WatermarkImage = "watermark.png",
+            BannerImage = "banner.png",
+            BannerIcon = "banner.ico"
+        });
+
+        var source = BundleCSharpEmitter.Emit(model);
+
+        Assert.Contains(
+            "b.UseBuiltInUI(licenseFile: \"license.rtf\", logoFile: \"logo.png\", themeColor: \"#0078D4\", watermarkImage: \"watermark.png\", bannerImage: \"banner.png\", bannerIcon: \"banner.ico\");",
+            source);
+    }
+
+    [Fact]
     public void Emit_UiConfigBuiltInNoArgs_EmitsUseBuiltInUI()
     {
         var model = CreateMinimalBundle(uiConfig: new BundleUiConfig

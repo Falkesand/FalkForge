@@ -12,7 +12,15 @@ internal static class ManifestMapper
         var relatedBundles = MapRelatedBundles(manifest.RelatedBundles);
         var chain = MapChain(manifest.Chain, packages);
         var containers = CollectContainers(manifest.Packages);
-        var uiConfig = MapUiConfig(manifest.UiType, manifest.CustomUiProjectPath, manifest.LicenseFile);
+        var uiConfig = MapUiConfig(
+            manifest.UiType,
+            manifest.CustomUiProjectPath,
+            manifest.LicenseFile,
+            manifest.LogoFile,
+            manifest.ThemeColor,
+            manifest.WatermarkImage,
+            manifest.BannerImage,
+            manifest.BannerIcon);
         var variables = MapVariables(manifest.Variables);
         var features = MapFeatures(manifest.Features);
 
@@ -194,7 +202,15 @@ internal static class ManifestMapper
         }).ToList();
     }
 
-    private static BundleUiConfig? MapUiConfig(string? uiType, string? customUiProjectPath, string? licenseFile)
+    private static BundleUiConfig? MapUiConfig(
+        string? uiType,
+        string? customUiProjectPath,
+        string? licenseFile,
+        string? logoFile,
+        string? themeColor,
+        string? watermarkImage,
+        string? bannerImage,
+        string? bannerIcon)
     {
         if (uiType is not null && Enum.TryParse<BundleUiType>(uiType, ignoreCase: true, out var parsedType))
         {
@@ -202,7 +218,12 @@ internal static class ManifestMapper
             {
                 UiType = parsedType,
                 LicenseFile = licenseFile,
-                CustomUiProjectPath = parsedType == BundleUiType.Custom ? customUiProjectPath : null
+                CustomUiProjectPath = parsedType == BundleUiType.Custom ? customUiProjectPath : null,
+                LogoFile = logoFile,
+                ThemeColor = themeColor,
+                WatermarkImage = watermarkImage,
+                BannerImage = bannerImage,
+                BannerIcon = bannerIcon
             };
         }
 
@@ -213,7 +234,12 @@ internal static class ManifestMapper
         return new BundleUiConfig
         {
             UiType = BundleUiType.BuiltIn,
-            LicenseFile = licenseFile
+            LicenseFile = licenseFile,
+            LogoFile = logoFile,
+            ThemeColor = themeColor,
+            WatermarkImage = watermarkImage,
+            BannerImage = bannerImage,
+            BannerIcon = bannerIcon
         };
     }
 }
