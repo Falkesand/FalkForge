@@ -53,10 +53,10 @@ Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](
 
 ## Get Started in a Minute
 
-**0.5.0-beta.2.** The core compiler and engine are exercised
+**0.5.0-beta.3.** The core compiler and engine are exercised
 by ~8,000+ tests and used on real installs, but APIs can still shift before 1.0
 and a few features are intentionally incomplete -- see the
-[release notes](https://github.com/Falkesand/FalkForge/blob/main/docs/release-notes/v0.5.0-beta.2.md)
+[release notes](https://github.com/Falkesand/FalkForge/blob/main/docs/release-notes/v0.5.0-beta.3.md)
 for what's stable and what's flagged.
 
 Install the tool **or** add the one meta-package — never the 28 granular packages:
