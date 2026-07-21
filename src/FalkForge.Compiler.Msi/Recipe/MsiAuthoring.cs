@@ -60,6 +60,34 @@ public static class MsiAuthoring
         string outputPath,
         IReadOnlyList<IFalkForgeExtension> extensions,
         IFalkLogger? logger = null)
+        => Compile(package, outputPath, extensions, logger, new CompileOptions());
+
+    /// <summary>
+    /// Knobs used internally to rebuild a package as a localized variant when generating
+    /// per-culture MST language transforms. The public entry points always use the defaults.
+    /// </summary>
+    private sealed record CompileOptions
+    {
+        /// <summary>Culture used as the <c>!(loc.*)</c> resolver default, overriding the first configured culture.</summary>
+        public string? DefaultCultureOverride { get; init; }
+
+        /// <summary>When <see langword="true"/>, emit per-culture MST transforms after the base MSI commit.</summary>
+        public bool EmitLanguageTransforms { get; init; } = true;
+
+        /// <summary>
+        /// When <see langword="true"/>, run the post-commit steps (reproducible-timestamp patch,
+        /// code signing, integrity signing, ICE, SBOM, WinGet). Localized-variant rebuilds skip
+        /// them: the variant is a throwaway used only to diff the localizable tables.
+        /// </summary>
+        public bool PostProcess { get; init; } = true;
+    }
+
+    private static Result<string> Compile(
+        PackageModel package,
+        string outputPath,
+        IReadOnlyList<IFalkForgeExtension> extensions,
+        IFalkLogger? logger,
+        CompileOptions options)
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(outputPath);
@@ -211,7 +239,7 @@ public static class MsiAuthoring
             resolved,
             contributors: extensionRegistry.TableContributors,
             options: new MsiRecipeBuildOptions(),
-            multiProducers: [new CustomTablesProducer(), new DialogSetProducer(msiDialogStepBuilders)],
+            multiProducers: [new CustomTablesProducer(), new DialogSetProducer(msiDialogStepBuilders, options.DefaultCultureOverride)],
             extensionContext: extensionContext,
             logger: logger,
             executionContributors: extensionRegistry.ExecutionContributors);
@@ -368,11 +396,27 @@ public static class MsiAuthoring
             }
         }
 
+        // Step 6.6: Per-culture MST language transforms. SetLocalizationData with more than one
+        // culture means the author wants one installer that presents each culture. The base MSI
+        // above resolved !(loc.*) with the first culture; here, for every additional culture, the
+        // package is rebuilt with that culture as the resolver default and the byte-difference
+        // against the (still pristine, unsigned) base is emitted as '<msi-name>.<culture>.mst'
+        // next to the MSI. Runs before signing/timestamp-patching so the base and the localized
+        // variant differ only in the localizable tables (cabinets are byte-identical rebuilds),
+        // keeping each transform a clean language-only diff.
+        if (options.EmitLanguageTransforms && package.LocalizationData.Count > 1)
+        {
+            Result<string> transformResult = GenerateLanguageTransforms(
+                package, msiPath, outputPath, extensions, logger);
+            if (transformResult.IsFailure)
+                return Result<string>.Failure(transformResult.Error);
+        }
+
         // Step 7: Reproducible timestamp patching — Windows MsiSummaryInfoPersist
         // always stamps PID_LASTSAVE_DTM with current time, so for reproducible
         // builds the patcher walks the OLE compound document and overwrites the
         // FILETIME values in place.
-        if (package.ReproducibleOptions is { } reproducibleOpts)
+        if (options.PostProcess && package.ReproducibleOptions is { } reproducibleOpts)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 7: patching reproducible timestamps.");
@@ -387,7 +431,7 @@ public static class MsiAuthoring
         }
 
         // Step 8: Code signing.
-        if (package.Signing is not null)
+        if (options.PostProcess && package.Signing is not null)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 8: code signing.");
@@ -406,7 +450,7 @@ public static class MsiAuthoring
         // Integrity() is configured (FALKFORGE_NO_SIGN is the only opt-out) — it no longer depends on
         // the external sigil CLI. Sigil, when present, opportunistically adds a DSSE SBOM attestation on
         // top; see IntegritySigner.SignAndEmbed.
-        if (!IsIntegritySigningDisabled() && package.Integrity is not null)
+        if (options.PostProcess && !IsIntegritySigningDisabled() && package.Integrity is not null)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 8.5: integrity signing.");
@@ -443,7 +487,7 @@ public static class MsiAuthoring
         // the explicit config path or set SkipWhenCubUnavailable = false.
         IceConfiguration iceConfig = package.IceConfiguration
             ?? new IceConfiguration { SkipWhenCubUnavailable = true };
-        if (iceConfig.Enabled && package.ReproducibleOptions is null)
+        if (options.PostProcess && iceConfig.Enabled && package.ReproducibleOptions is null)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 9: ICE validation.");
@@ -482,22 +526,25 @@ public static class MsiAuthoring
         }
 
         // Step 10: SBOM sidecar (opt-in). SBOM failure is non-fatal.
-        if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-            logger.Debug("MsiAuthoring", "Step 10: SBOM sidecar.");
-
-        Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
-        if (sbomResult.IsFailure)
+        if (options.PostProcess)
         {
-            // Previously silently dropped (`_ = sbomResult;`) — now surfaced as a Warning so a
-            // `forge build --verbose` user can see the sidecar was not written. Compile still
-            // succeeds; SBOM generation remains opt-in and non-fatal.
-            logger?.Log(LogLevel.Warning, "MsiAuthoring",
-                $"Step 10: SBOM sidecar generation failed: {sbomResult.Error.Message}",
-                new Dictionary<string, string> { ["code"] = sbomResult.Error.Kind.ToString() });
+            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
+                logger.Debug("MsiAuthoring", "Step 10: SBOM sidecar.");
+
+            Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
+            if (sbomResult.IsFailure)
+            {
+                // Previously silently dropped (`_ = sbomResult;`) — now surfaced as a Warning so a
+                // `forge build --verbose` user can see the sidecar was not written. Compile still
+                // succeeds; SBOM generation remains opt-in and non-fatal.
+                logger?.Log(LogLevel.Warning, "MsiAuthoring",
+                    $"Step 10: SBOM sidecar generation failed: {sbomResult.Error.Message}",
+                    new Dictionary<string, string> { ["code"] = sbomResult.Error.Kind.ToString() });
+            }
         }
 
         // Step 11: WinGet manifest (opt-in via PackageBuilder.WinGet()).
-        if (package.WinGet is not null)
+        if (options.PostProcess && package.WinGet is not null)
         {
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 11: WinGet manifest.");
@@ -524,6 +571,97 @@ public static class MsiAuthoring
             $"Compile complete: '{msiPath}' ({msiSize:N0} bytes) in {stopwatch.ElapsedMilliseconds}ms.");
 
         return Result<string>.Success(msiPath);
+    }
+
+    /// <summary>
+    /// For each configured culture after the first, rebuilds <paramref name="package"/> localized
+    /// to that culture (a throwaway build in a temp directory, without signing/SBOM/etc.) and emits
+    /// the byte-difference against the pristine base MSI as an MST language transform next to it.
+    /// A culture that yields no localizable difference (e.g. no <c>!(loc.*)</c> UI text) produces no
+    /// file and a <c>DLG005</c> warning instead of a silent single-language installer.
+    /// </summary>
+    private static Result<string> GenerateLanguageTransforms(
+        PackageModel package,
+        string baseMsiPath,
+        string outputPath,
+        IReadOnlyList<IFalkForgeExtension> extensions,
+        IFalkLogger? logger)
+    {
+        string baseCulture = package.LocalizationData[0].Culture;
+        string baseName = Path.GetFileNameWithoutExtension(baseMsiPath);
+
+        for (int i = 1; i < package.LocalizationData.Count; i++)
+        {
+            string culture = package.LocalizationData[i].Culture;
+
+            string variantDir = Path.Combine(Path.GetTempPath(), $"FalkForge_lang_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(variantDir);
+            try
+            {
+                // Rebuild the package with this culture as the resolver default. The variant is a
+                // throwaway used only for the diff, so post-processing (signing, SBOM, WinGet, ICE)
+                // and nested transform generation are all skipped.
+                Result<string> variantResult = Compile(
+                    package,
+                    variantDir,
+                    extensions,
+                    logger: null,
+                    new CompileOptions
+                    {
+                        DefaultCultureOverride = culture,
+                        EmitLanguageTransforms = false,
+                        PostProcess = false,
+                    });
+                if (variantResult.IsFailure)
+                {
+                    logger?.Log(LogLevel.Error, "MsiAuthoring",
+                        $"Step 6.6: building localized MSI for culture '{culture}' failed: {variantResult.Error.Message}",
+                        new Dictionary<string, string> { ["code"] = variantResult.Error.Kind.ToString() });
+                    return Result<string>.Failure(variantResult.Error.Kind,
+                        $"Failed to build localized MSI for culture '{culture}': {variantResult.Error.Message}");
+                }
+
+                string mstFileName = $"{baseName}.{FileNameSanitizer.Sanitize(culture)}.mst";
+                string mstPath = Path.Combine(outputPath, mstFileName);
+
+                Result<bool> genResult = LanguageTransformGenerator.Generate(
+                    baseMsiPath, variantResult.Value, mstPath);
+                if (genResult.IsFailure)
+                {
+                    logger?.Log(LogLevel.Error, "MsiAuthoring",
+                        $"Step 6.6: generating language transform for culture '{culture}' failed: {genResult.Error.Message}",
+                        new Dictionary<string, string> { ["code"] = genResult.Error.Kind.ToString() });
+                    return Result<string>.Failure(genResult.Error);
+                }
+
+                if (genResult.Value)
+                {
+                    logger?.Info("MsiAuthoring",
+                        $"Step 6.6: generated language transform '{mstFileName}' for culture '{culture}'.");
+                }
+                else
+                {
+                    logger?.Log(LogLevel.Warning, "MsiAuthoring",
+                        $"Step 6.6: culture '{culture}' produced no localizable difference from base culture " +
+                        $"'{baseCulture}', so no .mst was generated. Add !(loc.*) text to a dialog set or custom " +
+                        "dialog for this culture to differ from the base, or drop the extra culture.",
+                        new Dictionary<string, string> { ["code"] = "DLG005" });
+                }
+            }
+            finally
+            {
+                try
+                {
+                    Directory.Delete(variantDir, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // Best-effort cleanup of the throwaway localized build.
+                }
+            }
+        }
+
+        return Result<string>.Success(baseMsiPath);
     }
 
     private static bool IsIntegritySigningDisabled()

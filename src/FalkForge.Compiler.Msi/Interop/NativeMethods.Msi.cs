@@ -45,6 +45,11 @@ internal static partial class NativeMethods
 
     internal const uint ERROR_NO_MORE_ITEMS = 259;
 
+    // MsiDatabaseGenerateTransform returns ERROR_NO_DATA when the two databases are
+    // identical (no transform is written). Used by the language-transform generator to
+    // distinguish "nothing to localize" from a real failure.
+    internal const uint ERROR_NO_DATA = 232;
+
     // MSI Database operations
     [LibraryImport("msi.dll", EntryPoint = "MsiOpenDatabaseW", StringMarshalling = StringMarshalling.Utf16)]
     internal static partial uint MsiOpenDatabase(string szDatabasePath, nint szPersist, out nint phDatabase);
@@ -130,6 +135,18 @@ internal static partial class NativeMethods
         StringMarshalling = StringMarshalling.Utf16)]
     internal static partial uint MsiCreateTransformSummaryInfo(nint hDatabase, nint hDatabaseReference,
         string szTransformFile, int iErrorConditions, int iValidation);
+
+    // Transform application. Applies a .mst to an open database handle in memory. Used to
+    // verify a generated language transform yields the expected localized rows.
+    [LibraryImport("msi.dll", EntryPoint = "MsiDatabaseApplyTransformW",
+        StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial uint MsiDatabaseApplyTransform(nint hDatabase, string szTransformFile,
+        int iErrorConditions);
+
+    // Error-condition suppression flags for MsiDatabaseApplyTransform. The combined mask
+    // (0x3F) tolerates every benign merge condition (add/delete/update of existing/missing
+    // rows/tables, codepage change) so a language transform applies cleanly for inspection.
+    internal const int MSITRANSFORM_ERROR_ALL = 0x3F;
 
     // MSI Modify modes
     internal enum MsiModify : uint
