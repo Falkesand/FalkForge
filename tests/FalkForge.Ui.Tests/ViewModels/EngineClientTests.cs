@@ -192,6 +192,46 @@ public class EngineClientTests
     }
 
     [Fact]
+    public async Task EngineClient_PackageMsiFeaturesMessage_AccumulatesPerPackage()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+
+        await client.SimulateMessageAsync(new PackageMsiFeaturesMessage
+        {
+            PackageId = "Pkg1",
+            Features = [new MsiFeatureInfo("Complete", "Complete", null, null, 1, 1, 0)]
+        });
+        await client.SimulateMessageAsync(new PackageMsiFeaturesMessage
+        {
+            PackageId = "Pkg2",
+            Features = [new MsiFeatureInfo("Core", "Core", null, null, 1, 1, 0)]
+        });
+
+        Assert.Equal(2, client.PackageMsiFeatures.Count);
+        Assert.Equal("Complete", Assert.Single(client.PackageMsiFeatures["Pkg1"]).FeatureId);
+        Assert.Equal("Core", Assert.Single(client.PackageMsiFeatures["Pkg2"]).FeatureId);
+    }
+
+    [Fact]
+    public async Task EngineClient_PackageMsiFeaturesMessage_LatestMessageReplacesPackageEntry()
+    {
+        await using var client = new EngineClient(CreateOptions(), CreateManifest());
+
+        await client.SimulateMessageAsync(new PackageMsiFeaturesMessage
+        {
+            PackageId = "Pkg1",
+            Features = [new MsiFeatureInfo("Old", null, null, null, 1, 1, 0)]
+        });
+        await client.SimulateMessageAsync(new PackageMsiFeaturesMessage
+        {
+            PackageId = "Pkg1",
+            Features = [new MsiFeatureInfo("New", null, null, null, 1, 1, 0)]
+        });
+
+        Assert.Equal("New", Assert.Single(client.PackageMsiFeatures["Pkg1"]).FeatureId);
+    }
+
+    [Fact]
     public async Task EngineClient_UpdateReadyMessage_RaisesUpdateReadyEvent()
     {
         await using var client = new EngineClient(CreateOptions(), CreateManifest());

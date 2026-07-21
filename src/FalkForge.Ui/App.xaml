@@ -22,6 +22,9 @@
             <DataTemplate DataType="{x:Type vm:FeaturesPageViewModel}">
                 <views:FeaturesPage />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:PackageFeaturesPageViewModel}">
+                <views:PackageFeaturesPage />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:MaintenancePageViewModel}">
                 <views:MaintenancePage />
             </DataTemplate>

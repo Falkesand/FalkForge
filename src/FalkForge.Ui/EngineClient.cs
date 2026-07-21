@@ -7,9 +7,16 @@ using FalkForge.Ui.Abstractions;
 
 namespace FalkForge.Ui;
 
-public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IAsyncDisposable
+public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IPackageMsiFeatureChannel, IAsyncDisposable
 {
     private readonly List<FeatureState> _features = [];
+
+    // Per-package MSI features advertised by the engine at detect time (packageId → that MSI's
+    // Feature rows). Accumulated from PackageMsiFeaturesMessage; each message replaces its
+    // package's entry (the engine sends the full set for a package in one message). Ordinal keys:
+    // package ids are opaque identifiers, not culture-sensitive text.
+    private readonly Dictionary<string, IReadOnlyList<MsiFeatureInfo>> _packageMsiFeatures =
+        new(StringComparer.Ordinal);
     private readonly Subject<EnginePhase> _phase = new();
     private readonly PipeClient _pipe;
     private readonly Subject<InstallProgress> _progress = new();
@@ -64,6 +71,8 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IA
     public string? InstalledProductVersion { get; private set; }
 
     public IReadOnlyList<FeatureState> Features => _features.AsReadOnly();
+
+    public IReadOnlyDictionary<string, IReadOnlyList<MsiFeatureInfo>> PackageMsiFeatures => _packageMsiFeatures;
 
     public string InstallDirectory
     {
@@ -138,6 +147,14 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IA
         _ = SendSetSecurePropertyAsync(name, copy);
     }
 
+    public void SetPackageFeatureSelection(string packageId, IReadOnlyList<string> selectedFeatureIds)
+    {
+        // Snapshot the ids into a fresh array so the message is unaffected if the caller mutates
+        // its list after this returns (the message contract requires a string[]).
+        var ids = selectedFeatureIds as string[] ?? [.. selectedFeatureIds];
+        _ = SendSetPackageFeatureSelectionAsync(packageId, ids);
+    }
+
     public async Task<int> ShutdownAsync()
     {
         _shutdownTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -175,6 +192,12 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IA
                 _features.Clear();
                 _features.AddRange(detect.Features);
                 _detectTcs?.TrySetResult(new DetectResult(detect.State, detect.CurrentVersion, detect.Features));
+                break;
+
+            case PackageMsiFeaturesMessage features:
+                // Each message carries the full Feature set for one package, so it replaces that
+                // package's entry (a re-advertised package overwrites, never appends).
+                _packageMsiFeatures[features.PackageId] = features.Features;
                 break;
 
             case PlanCompleteMessage plan:
@@ -343,6 +366,16 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IA
     private async Task SendSetPropertyAsync(string name, string value)
     {
         if (_pipe.IsConnected) await _pipe.SendAsync(new SetPropertyMessage { PropertyName = name, Value = value });
+    }
+
+    private async Task SendSetPackageFeatureSelectionAsync(string packageId, string[] selectedFeatureIds)
+    {
+        if (_pipe.IsConnected)
+            await _pipe.SendAsync(new SetPackageFeatureSelectionMessage
+            {
+                PackageId = packageId,
+                SelectedFeatureIds = selectedFeatureIds
+            });
     }
 
     private async Task SendSetSecurePropertyAsync(string name, SensitiveBytes secureValue)
