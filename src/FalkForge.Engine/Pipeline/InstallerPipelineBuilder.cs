@@ -271,6 +271,6 @@ public sealed class InstallerPipelineBuilder
 
         return new InstallerPipeline(
             detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest,
-            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy, _payloadRoot);
+            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy, _payloadRoot, _variableStore);
     }
 }

@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Detection;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Variables;
 
 /// <summary>
 /// <see cref="IInstallerPipeline"/> implementation. Enforces Detect → Plan → Apply
@@ -21,6 +22,11 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     private readonly IApplyStep? _applyStep;
     private readonly IRollbackStep? _rollbackStep;
     private readonly UpdateService? _updateService;
+
+    // Owned so its secret memory is zeroed at pipeline shutdown (see DisposeAsync). Created by
+    // EngineSession.BindToPipe and handed in via InstallerPipelineBuilder.WithVariableStore — the
+    // pipeline is the sole runtime owner from that point on (PlanStep only borrows the reference).
+    private readonly VariableStore? _variableStore;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Shared mutable context threaded through all phase steps
@@ -52,7 +58,8 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         FalkForge.Engine.Protocol.Manifest.InstallerManifest? seedManifest = null,
         bool advanceTrustStoreOnVerifiedApply = false,
         FalkForge.Engine.Integrity.TrustPolicy? integrityTrustPolicy = null,
-        string? payloadRoot = null)
+        string? payloadRoot = null,
+        VariableStore? variableStore = null)
     {
         _detectStep = detectStep;
         _planStep = planStep;
@@ -60,6 +67,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         _applyStep = applyStep;
         _rollbackStep = rollbackStep;
         _updateService = updateService;
+        _variableStore = variableStore;
         _ctx.AdvanceTrustStoreOnVerifiedApply = advanceTrustStoreOnVerifiedApply;
 
         // Payload extraction root forwarded by the self-extract bootstrapper. When present, ApplyStep
@@ -228,6 +236,12 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     public ValueTask DisposeAsync()
     {
         _disposed = true;
+
+        // Zero secret variable memory at pipeline shutdown — the correct (and only) time to do
+        // it, since nothing runs after this point. VariableStore.Dispose() is idempotent, so a
+        // repeat DisposeAsync call (guarded by _disposed above, but kept safe regardless) is fine.
+        _variableStore?.Dispose();
+
         return default;
     }
 }
