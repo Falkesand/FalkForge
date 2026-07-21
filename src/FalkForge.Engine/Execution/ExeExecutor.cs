@@ -37,7 +37,9 @@ public sealed class ExeExecutor
 
         try
         {
-            var exitCode = await _processRunner.RunAsync(action.Package.SourcePath, arguments, ct);
+            // EffectiveSourcePath resolves to the extracted payload when the bootstrapper forwarded a
+            // payload root (distributed bundle); otherwise the manifest's build-authored SourcePath.
+            var exitCode = await _processRunner.RunAsync(action.EffectiveSourcePath, arguments, ct);
             return exitCode;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

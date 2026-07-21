@@ -86,6 +86,27 @@ internal sealed class ApplyStep : IApplyStep
             }
         }
 
+        // Payload path resolution (bug #56): the manifest's SourcePath is the BUILD machine's absolute
+        // path, meaningless on any other box. When the bootstrapper forwarded where it extracted the
+        // bundle's payloads (ctx.PayloadRoot), resolve every action to its extracted location under that
+        // root — with the same containment guard as PreUIPrerequisiteInstaller — and stash it on the
+        // action so every executor (direct + elevated) installs the file that actually exists here. Must
+        // run BEFORE Restart Manager registration so the resolved paths reach RM too. A crafted package
+        // id that escapes the root aborts the install loudly. Null root = the --manifest / plan /
+        // offline-layout path where SourcePath is authoritative — untouched.
+        if (ctx.PayloadRoot is not null)
+        {
+            var resolveResult = ResolvePayloadPaths(ctx.Plan!, ctx.PayloadRoot);
+            if (resolveResult.IsFailure)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Error,
+                        $"Payload path resolution failed — installation aborted: {resolveResult.Error.Message}"),
+                    ct);
+                return resolveResult;
+            }
+        }
+
         // Restart Manager: start session and shut down conflicting processes before apply.
         // Best-effort — RM failures are logged but never abort the installation.
         var rmShutdownPerformed = false;
@@ -282,13 +303,36 @@ internal sealed class ApplyStep : IApplyStep
         }
     }
 
+    /// <summary>
+    /// Resolves each action's payload to its extracted location under <paramref name="payloadRoot"/>
+    /// (see <see cref="PayloadPathResolver"/>) and records it on
+    /// <see cref="PlanAction.ResolvedSourcePath"/>. Fails loud (SecurityError) on a package id that
+    /// escapes the root, so a tampered manifest cannot redirect the install to an out-of-cache file.
+    /// </summary>
+    private static Result<Unit> ResolvePayloadPaths(InstallPlan plan, string payloadRoot)
+    {
+        foreach (var action in plan.Actions)
+        {
+            var resolved = PayloadPathResolver.Resolve(payloadRoot, action.Package.Id);
+            if (resolved.IsFailure)
+                return Result<Unit>.Failure(resolved.Error);
+
+            action.ResolvedSourcePath = resolved.Value;
+        }
+
+        return Unit.Value;
+    }
+
     private static List<string> CollectSourcePaths(InstallPlan plan)
     {
         var paths = new List<string>(plan.Actions.Count);
         foreach (var action in plan.Actions)
         {
-            if (!string.IsNullOrEmpty(action.Package.SourcePath))
-                paths.Add(action.Package.SourcePath);
+            // Use the extraction-resolved path when present (distributed bundle) so Restart Manager
+            // registers the file that actually exists on this machine; else the manifest SourcePath.
+            var sourcePath = action.EffectiveSourcePath;
+            if (!string.IsNullOrEmpty(sourcePath))
+                paths.Add(sourcePath);
         }
 
         return paths;

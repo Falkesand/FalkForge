@@ -110,6 +110,18 @@ internal sealed class PipelineContext
             FalkForge.Engine.Protocol.Integrity.BakedTrustPolicy.Default,
             FalkForge.Engine.Integrity.EngineTrustAnchor.EffectivePqCompanions);
 
+    /// <summary>
+    /// Root directory the self-extract bootstrapper unpacked this bundle's payloads into (each payload
+    /// lands at <c>{PayloadRoot}/{PackageId}</c>). When non-null, <see cref="ApplyStep"/> resolves every
+    /// action's payload to its extracted location under this root — with a containment guard — and
+    /// stores it on <see cref="FalkForge.Engine.Planning.PlanAction.ResolvedSourcePath"/> so the install
+    /// runs off the target machine's cache rather than the manifest's build-machine
+    /// <see cref="FalkForge.Engine.Protocol.Manifest.PackageInfo.SourcePath"/>. Null (the default) on the
+    /// <c>--manifest</c> / <c>forge plan</c> / offline-layout path, where SourcePath is authoritative and
+    /// behaviour is unchanged.
+    /// </summary>
+    public string? PayloadRoot { get; set; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Populated by ElevateStep
     // ──────────────────────────────────────────────────────────────────────────
