@@ -131,6 +131,125 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
     }
 
     [Fact]
+    public void Compile_with_partially_translated_culture_falls_back_to_primary_for_untranslated_strings()
+    {
+        // A language transform overrides only the strings a culture localizes; anything the extra
+        // culture leaves untranslated must keep the primary (default) culture's value — exactly how
+        // MSI language transforms behave. So a PARTIAL translation must build successfully, and the
+        // .mst must override ONLY the strings the extra culture actually redefines.
+        //
+        // Primary en-US defines both Welcome.Title and Other; German ('de') translates ONLY Other
+        // and deliberately omits Welcome.Title. Before the fallback fix this hard-failed with LOC003
+        // ("String ID 'Welcome.Title' not found in any culture") because the per-culture rebuild
+        // resolved 'de' with no fallback to en-US.
+        string sourceFile = CreateSourceFile();
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LocalizedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LocalizedApp"));
+            p.AddCustomDialog("GreetingDlg", dlg => dlg
+                .Title("Welcome")
+                .Sequence(1200)
+                .FirstControl("Welcome")
+                .Text("Welcome", 20, 20, 330, 40, "!(loc.Welcome.Title)")
+                .Text("Other", 20, 70, 330, 40, "!(loc.Other)"));
+            p.SetLocalizationData(
+            [
+                new LocalizationData
+                {
+                    Culture = "en-US",
+                    Strings = new Dictionary<string, string>
+                    {
+                        ["Welcome.Title"] = "Hello",
+                        ["Other"] = "X",
+                    },
+                },
+                // Partial translation: 'de' localizes only Other, not Welcome.Title.
+                new LocalizationData
+                {
+                    Culture = "de",
+                    Strings = new Dictionary<string, string> { ["Other"] = "Y" },
+                },
+            ]);
+        });
+
+        Result<string> result = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        string msiPath = result.Value;
+
+        // The partial culture still yields a transform (Other differs from the base).
+        string[] transforms = Directory.GetFiles(outputDir, "*.mst");
+        string mstPath = Assert.Single(transforms);
+        Assert.Contains("de", Path.GetFileName(mstPath));
+
+        // Apply the de transform to a writable copy of the base and read the Control table back.
+        string copyPath = Path.Combine(_tempDir, "applied.msi");
+        File.Copy(msiPath, copyPath);
+        using MsiDatabase copyDb = MsiDatabase.Open(copyPath, readOnly: false).Value;
+        Result<Unit> apply = copyDb.ApplyTransform(mstPath);
+        Assert.True(apply.IsSuccess, apply.IsFailure ? apply.Error.Message : null);
+
+        // Other is localized to the German value...
+        Result<List<string?[]>> other = copyDb.QueryRows(
+            "SELECT `Text` FROM `Control` WHERE `Dialog_` = 'GreetingDlg' AND `Control` = 'Other'",
+            fieldCount: 1);
+        Assert.True(other.IsSuccess);
+        Assert.Equal("Y", Assert.Single(other.Value)[0]);
+
+        // ...while the untranslated Welcome.Title falls back to the primary en-US value.
+        Result<List<string?[]>> welcome = copyDb.QueryRows(
+            "SELECT `Text` FROM `Control` WHERE `Dialog_` = 'GreetingDlg' AND `Control` = 'Welcome'",
+            fieldCount: 1);
+        Assert.True(welcome.IsSuccess);
+        Assert.Equal("Hello", Assert.Single(welcome.Value)[0]);
+    }
+
+    [Fact]
+    public void Compile_with_reference_undefined_in_every_culture_still_fails_LOC003()
+    {
+        // Fallback is to the PRIMARY culture, not silence: a !(loc.*) token defined in NO culture
+        // (including the primary) is a genuine authoring bug and must still fail LOC003.
+        string sourceFile = CreateSourceFile();
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LocalizedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LocalizedApp"));
+            p.AddCustomDialog("GreetingDlg", dlg => dlg
+                .Title("Welcome")
+                .Sequence(1200)
+                .FirstControl("Greeting")
+                .Text("Greeting", 20, 20, 330, 40, "!(loc.Nowhere)"));
+            p.SetLocalizationData(
+            [
+                new LocalizationData
+                {
+                    Culture = "en-US",
+                    Strings = new Dictionary<string, string> { ["Greeting"] = "Hello" },
+                },
+                new LocalizationData
+                {
+                    Culture = "de",
+                    Strings = new Dictionary<string, string> { ["Greeting"] = "Hallo" },
+                },
+            ]);
+        });
+
+        Result<string> result = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(result.IsFailure);
+        Assert.Contains("LOC003", result.Error.Message);
+    }
+
+    [Fact]
     public void Compile_with_three_cultures_generates_one_transform_per_additional_culture()
     {
         string outputDir = Path.Combine(_tempDir, "out");
