@@ -35,11 +35,10 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     private readonly string? _gitWorkingDirectory;
     private readonly System.IO.TextWriter _jsonSink;
 
-    // Extensions attached programmatically for dry-run preview purposes (see RunDryRun). The CLI's
-    // .json/.cs/.csx loaders do not yet produce IFalkForgeExtension instances (JSON extension
-    // authoring fails loud with JSN019; scripts return a bare PackageModel), so this defaults to
-    // empty for every real `forge build` invocation today; it exists so a programmatic caller (and
-    // tests) can attach extensions the same way `new MsiCompiler().Use(extension)` does.
+    // Extensions attached programmatically (a caller/test can supply the same instances
+    // `new MsiCompiler().Use(extension)` would). A JSON `extensions` block is additionally translated
+    // into real extensions at build time (JsonConfigLoader.LoadExtensionsFromFile) and merged with these;
+    // .cs/.csx scripts return a bare PackageModel, so this is their only extension source.
     private readonly IReadOnlyList<IFalkForgeExtension> _extensions;
 
     public BuildCommand() : this(new SpectreConsoleOutput()) { }
@@ -145,6 +144,10 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         // signature backend. Structural validation happens here so a broken section fails
         // before any artifact is produced.
         SigningConfig? signingConfig = null;
+        // Extensions attached to the compiler for this run: the ctor-injected _extensions (programmatic /
+        // test attach) plus any translated from a JSON `extensions` block. For .cs/.csx input jsonExtensions
+        // stays empty (scripts return a bare PackageModel).
+        IReadOnlyList<IFalkForgeExtension> effectiveExtensions = _extensions;
         if (isJson)
         {
             var signingLoad = JsonConfigLoader.LoadSigningFromFile(projectPath);
@@ -154,10 +157,20 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
                 return ExitCodes.FromErrorKind(signingLoad.Error.Kind);
             }
             signingConfig = signingLoad.Value;
+
+            var extensionsLoad = JsonConfigLoader.LoadExtensionsFromFile(projectPath);
+            if (extensionsLoad.IsFailure)
+            {
+                _console.WriteError(extensionsLoad.Error.Message);
+                return ExitCodes.FromErrorKind(extensionsLoad.Error.Kind);
+            }
+
+            if (extensionsLoad.Value.Count > 0)
+                effectiveExtensions = [.. _extensions, .. extensionsLoad.Value];
         }
 
         if (settings.DryRun)
-            return RunDryRun(package, outputPath);
+            return RunDryRun(package, outputPath, effectiveExtensions);
 
         if (!OperatingSystem.IsWindows())
         {
@@ -180,7 +193,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
             foreach (var warning in resolvedSigning.Warnings)
                 _console.MarkupLine($"[yellow]Warning:[/] {Markup.Escape(warning)}");
 
-            var compileResult = CompilePackage(package, outputPath, settings);
+            var compileResult = CompilePackage(package, outputPath, settings, effectiveExtensions);
             if (compileResult.IsFailure)
             {
                 _console.WriteError(compileResult.Error.Message);
@@ -275,7 +288,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     /// Returns <see cref="ExitCodes.ValidationFailure"/> when the model has validation
     /// errors, <see cref="ExitCodes.Success"/> otherwise.
     /// </summary>
-    private int RunDryRun(PackageModel package, string outputPath)
+    private int RunDryRun(PackageModel package, string outputPath, IReadOnlyList<IFalkForgeExtension> extensions)
     {
         var validation = ModelValidator.Inspect(package);
 
@@ -306,7 +319,7 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         _console.MarkupLine($"[grey]Payload size:[/] {payloadBytes:N0} bytes");
 
         var dryRunActionCount = 0;
-        foreach (var extension in _extensions)
+        foreach (var extension in extensions)
         {
             if (extension is not IDryRunContributor contributor)
                 continue;
@@ -376,13 +389,13 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
     }
 
     [SupportedOSPlatform("windows")]
-    private Result<string> CompilePackage(PackageModel package, string outputPath, BuildSettings settings)
+    private Result<string> CompilePackage(PackageModel package, string outputPath, BuildSettings settings, IReadOnlyList<IFalkForgeExtension> extensions)
     {
         if (!Directory.Exists(outputPath))
             Directory.CreateDirectory(outputPath);
 
         var logger = new ConsoleOutputLogger(_console, settings.Verbose);
-        var compiler = new MsiCompiler(new WindowsFileSystem(), [], logger);
+        var compiler = new MsiCompiler(new WindowsFileSystem(), extensions, logger);
         return compiler.Compile(package, outputPath);
     }
 

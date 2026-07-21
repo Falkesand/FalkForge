@@ -1,5 +1,5 @@
 {
-  "_note": "JSON cannot author SQL or .NET-detection configuration -- a JSON 'extensions' block is a hard build error (JSN019). This is a plain file-only installer. For SQL database + scripts and .NET runtime detection, use the C# fluent API: see demo/ 07 (Extensions Showcase, all four extensions in one project) or demos 31 (SQL) and 32 (.NET Detection).",
+  "_note": "JSON can author SQL extension configuration: the 'extensions.sql' block below is translated into the same SqlExtension the C# fluent API attaches via new MsiCompiler().Use(...), emitting the SqlDatabase and SqlScript tables into the compiled MSI. (.NET runtime detection is the one extension JSON cannot author -- it is a bundle-engine feature; use the C# API, demo 32.) For the full C# equivalent see demo 31 (SQL).",
   "product": {
     "name": "DatabaseApp",
     "manufacturer": "Contoso",
@@ -20,10 +20,32 @@
         },
         {
           "source": "payload/dbapp.dll"
+        },
+        {
+          "source": "payload/sql/create-schema.sql"
         }
       ]
     }
   ],
+  "extensions": {
+    "sql": [
+      {
+        "id": "AppDb",
+        "server": ".",
+        "database": "DatabaseAppDb",
+        "createOnInstall": true,
+        "dropOnUninstall": false,
+        "scripts": [
+          {
+            "id": "CreateSchema",
+            "sourceFile": "payload/sql/create-schema.sql",
+            "executeOnInstall": true,
+            "sequence": 1
+          }
+        ]
+      }
+    ]
+  },
   "downgrade": {
     "message": "A newer version is already installed."
   }

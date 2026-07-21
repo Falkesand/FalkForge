@@ -3,16 +3,17 @@
 Declarative JSON installer definitions built and validated by the `forge` CLI. Use these when you need a standard MSI without custom C# code.
 
 > **Work in progress.** The C# fluent API is FalkForge's primary, fully supported authoring
-> path (what `forge init` scaffolds). JSON configuration is an experimental subset. Most
-> notably, JSON **cannot author the Firewall, IIS, SQL, or .NET-detection extensions** — an
-> `extensions` block with any content is a hard build error (JSN019), not a silent no-op.
-> `06-web-server.json` and `07-database-app.json` are plain file-only installers; use the C#
-> fluent API for any of the four extensions today (see demo 07, "Extensions Showcase", or the
-> focused demos 29–32).
+> path (what `forge init` scaffolds). JSON configuration is an experimental subset. JSON **can**
+> now author the Firewall, IIS, and SQL extensions — an `extensions` block is translated into the
+> same real extensions the C# API attaches via `new MsiCompiler().Use(...)` and emitted into the
+> compiled MSI (`06-web-server.json` shows firewall + IIS, `07-database-app.json` shows SQL). The
+> one exception is **.NET runtime detection**, a bundle-engine feature with no standalone-MSI
+> representation: a `dotnet` block still fails the build with JSN019. Use the C# fluent API for
+> .NET detection (demo 32) and for anything beyond the JSON subset.
 
 ## Overview
 
-JSON configs cover a subset of the FalkForge fluent API: files, shortcuts, registry, services, environment variables, features, major upgrade, downgrade, launch conditions, and license. The Firewall, IIS, SQL, and .NET extension sections are structurally recognized and validated (see below), but authoring any of them in JSON fails the build with JSN019 — for anything beyond the working subset — custom actions, file operations, sequence scheduling, custom tables, and the four extensions — use the C# fluent API demos instead.
+JSON configs cover a subset of the FalkForge fluent API: files, shortcuts, registry, services, environment variables, features, major upgrade, downgrade, launch conditions, license, and the Firewall / IIS / SQL extensions. The `dotnet` extension section is structurally recognized and validated but cannot be authored in JSON (JSN019). For anything beyond that subset — custom actions, file operations, sequence scheduling, custom tables, and .NET detection — use the C# fluent API demos instead.
 
 ## The 7 Configurations
 
@@ -23,8 +24,8 @@ JSON configs cover a subset of the FalkForge fluent API: files, shortcuts, regis
 | `03-featuretree.json` | FeatureTree | Nested features, services, launch conditions |
 | `04-mondo.json` | Mondo | License, environment variables, services, downgrade |
 | `05-advanced.json` | Advanced | Nested service features, env vars, all feature types |
-| `06-web-server.json` | InstallDir | Basic file installer (JSON can't author IIS/firewall — see note above) |
-| `07-database-app.json` | InstallDir | Basic file installer (JSON can't author SQL/.NET detection — see note above) |
+| `06-web-server.json` | InstallDir | Web app with firewall rule + IIS app pool & web site (JSON `extensions`) |
+| `07-database-app.json` | InstallDir | Database app with SQL database + install script (JSON `extensions`) |
 
 ### Payload files
 
@@ -65,10 +66,10 @@ The JSON format is documented in the [JSON Configuration Format](../../documenta
 | `downgrade` | object | `allow` (bool) and `message` (string) for downgrade behavior |
 | `launchConditions` | array | `condition` + `message` pairs |
 | `features` | array | Feature tree: `id`, `title`, `files` (each with an optional nested `shortcut` object), `registry`, `services`, `environmentVariables`, nested `features` |
-| `extensions` | object | `firewall`, `iis`, `sql`, `dotnet` sub-objects — structurally validated, but any non-empty content fails the build (JSN019); not usable to actually author extensions |
+| `extensions` | object | `firewall`, `iis`, `sql` sub-objects are translated into the real extensions and emitted into the MSI; the `dotnet` sub-object is structurally validated but not buildable in JSON (JSN019) |
 
 ## Key Differences from the C# API
 
 - Major upgrade schedule lives in `"majorUpgrade": { "schedule": "..." }`.
 - Downgrade settings live in a separate top-level `"downgrade": { "allow": false, "message": "..." }` object — they are **not** nested inside `majorUpgrade`.
-- Extension configuration (IIS, SQL, Firewall, .NET) has a place in the top-level `"extensions"` object and is structurally validated the same way as a C# build — but, unlike the C# API, JSON cannot actually author those extensions: any non-empty `extensions` content fails the build with JSN019 rather than producing an installer that silently lacks them. Use the C# fluent API for Firewall, IIS, SQL, or .NET-detection configuration.
+- Extension configuration lives in the top-level `"extensions"` object. The `firewall`, `iis`, and `sql` sections are translated into the same real extensions the C# API attaches via `new MsiCompiler().Use(...)`, so a JSON build emits the identical firewall / IIS / SQL tables into the MSI. The `dotnet` (.NET runtime detection) section is the exception: it is a bundle-engine feature with no standalone-MSI representation, so a `dotnet` block fails the build with JSN019 (rather than silently producing an installer that does not gate on the runtime). Use the C# fluent API for .NET-detection configuration (demo 32).
