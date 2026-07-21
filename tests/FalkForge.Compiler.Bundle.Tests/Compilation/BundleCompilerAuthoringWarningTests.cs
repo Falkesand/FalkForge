@@ -9,9 +9,15 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// <summary>
 /// Verifies the bundle compiler's authoring-honesty warnings: inputs it accepts but does not yet
 /// fully materialize must surface a loud, discoverable warning instead of being silently ignored.
-/// Covers per-package feature selection (BDL034) and external container download URLs (BDL035),
-/// including the negative cases (no warning when the triggering input is absent) and backward
-/// compatibility (no <see cref="BundleCompiler.Logger"/> configured ⇒ no crash, warning suppressed).
+/// Covers external container download URLs (BDL035), including the negative case (no warning when the
+/// URL is absent) and backward compatibility (no <see cref="BundleCompiler.Logger"/> configured ⇒ no
+/// crash, warning suppressed).
+/// <para>
+/// Also pins the RETIREMENT of BDL034: per-package MSI feature selection is now honored end-to-end
+/// (the engine advertises the MSI's features at detect time and applies the interactive choice as
+/// <c>ADDLOCAL</c> at plan time), so <c>EnableFeatureSelection</c> must NOT emit a "not yet honored"
+/// warning any more.
+/// </para>
 /// </summary>
 public sealed class BundleCompilerAuthoringWarningTests : IDisposable
 {
@@ -69,27 +75,17 @@ public sealed class BundleCompilerAuthoringWarningTests : IDisposable
         && e.Properties.TryGetValue("code", out var actual)
         && actual == code;
 
-    // ── BDL034: per-package feature selection ────────────────────────────────
+    // ── BDL034 retired: per-package feature selection is now honored ─────────
 
     [Fact]
-    public void Compile_WithEnableFeatureSelection_LogsBDL034Warning()
+    public void Compile_WithEnableFeatureSelection_DoesNotLogBDL034Warning()
     {
+        // BDL034 was an authoring-honesty warning for the era when EnableFeatureSelection was accepted
+        // but never turned into an ADDLOCAL selection. The runtime loop is now wired (advertise → picker
+        // → ADDLOCAL), so setting the flag is a materialized feature and must emit no "not honored" warning.
         var logger = new ListLogger();
         var result = NewCompiler(logger).Compile(
             BuildModel(enableFeatureSelection: true), Path.Combine(_tempDir, "out-bdl034"));
-
-        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-        var warning = Assert.Single(logger.Entries, e => HasCode(e, "BDL034"));
-        Assert.Contains("payload.msi", warning.Message, StringComparison.Ordinal);
-        Assert.Contains("ADDLOCAL", warning.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Compile_WithoutEnableFeatureSelection_LogsNoBDL034Warning()
-    {
-        var logger = new ListLogger();
-        var result = NewCompiler(logger).Compile(
-            BuildModel(enableFeatureSelection: false), Path.Combine(_tempDir, "out-no-bdl034"));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.DoesNotContain(logger.Entries, e => HasCode(e, "BDL034"));

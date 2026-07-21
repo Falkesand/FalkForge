@@ -225,6 +225,13 @@ public sealed class NamedPipeUiChannel : IUiChannel
                 LocalPath = localPath
             },
 
+        PipelineEvent.PackageMsiFeatures(var packageId, var features) =>
+            new PackageMsiFeaturesMessage
+            {
+                PackageId = packageId,
+                Features = features
+            },
+
         PipelineEvent.DetectPackageComplete(var packageId, var state, var version) =>
             new DetectPackageCompleteMessage
             {
