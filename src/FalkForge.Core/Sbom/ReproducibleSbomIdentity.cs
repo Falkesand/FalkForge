@@ -8,8 +8,12 @@ namespace FalkForge.Sbom;
 /// SerialNumber (a UUID) and the metadata Timestamp — into deterministic values when a
 /// reproducible build is in effect.
 ///
-/// <para>The reproducible-build signal is the well-known <c>SOURCE_DATE_EPOCH</c> environment
-/// variable. When it is set to a valid Unix timestamp:</para>
+/// <para>The reproducible-build signal is either an explicit epoch passed by the caller (e.g.
+/// <c>PackageModel.ReproducibleOptions</c>/<c>BundleModel.ReproducibleOptions</c>, populated from
+/// <c>Reproducible(epochOverride)</c>) or, absent that, the well-known
+/// <c>SOURCE_DATE_EPOCH</c> environment variable. The explicit value always takes precedence so a
+/// caller-supplied override is honored even when the env var is unset. When a valid epoch is
+/// resolved from either source:</para>
 /// <list type="bullet">
 ///   <item>the <see cref="Identity.SerialNumber"/> is a deterministic RFC 4122 v5 UUID derived
 ///   (via <see cref="GuidUtility"/>) from a content digest of the document name, version, and
@@ -19,9 +23,9 @@ namespace FalkForge.Sbom;
 ///   clock.</item>
 /// </list>
 ///
-/// <para>When <c>SOURCE_DATE_EPOCH</c> is absent the build is not claiming reproducibility, so
-/// a fresh random GUID and the current UTC time are returned — preserving the prior behaviour
-/// for ordinary (non-reproducible) builds.</para>
+/// <para>When neither an explicit epoch nor <c>SOURCE_DATE_EPOCH</c> is set the build is not
+/// claiming reproducibility, so a fresh random GUID and the current UTC time are returned —
+/// preserving the prior behaviour for ordinary (non-reproducible) builds.</para>
 /// </summary>
 public static class ReproducibleSbomIdentity
 {
@@ -34,25 +38,40 @@ public static class ReproducibleSbomIdentity
     public readonly record struct Identity(string SerialNumber, DateTimeOffset Timestamp);
 
     /// <summary>
-    /// Resolves the SBOM serial number and timestamp. Deterministic under
-    /// <c>SOURCE_DATE_EPOCH</c>; fresh otherwise. See the type summary for the full contract.
+    /// Resolves the SBOM serial number and timestamp. Deterministic when an epoch is available
+    /// (explicit <paramref name="explicitEpoch"/> takes precedence, then
+    /// <c>SOURCE_DATE_EPOCH</c>); fresh otherwise. See the type summary for the full contract.
     /// </summary>
-    public static Identity Resolve(IEnumerable<SbomComponent> components, string name, string version)
+    /// <param name="explicitEpoch">
+    /// The caller's own resolved epoch (e.g. from <c>BundleModel.ReproducibleOptions</c>), or
+    /// <see langword="null"/> to fall back to the <c>SOURCE_DATE_EPOCH</c> env var.
+    /// </param>
+    public static Identity Resolve(
+        IEnumerable<SbomComponent> components, string name, string version, long? explicitEpoch = null)
     {
         ArgumentNullException.ThrowIfNull(components);
 
-        // SBOM generation must never fail just because reproducibility wasn't (or couldn't be)
-        // established: an absent OR malformed SOURCE_DATE_EPOCH both fall back to a fresh
-        // identity here, unlike PackageBuilder.Reproducible()/BundleBuilder.Reproducible() which
-        // fail loud on malformed. See EnvVarCatalog.TryGetSourceDateEpoch's doc for why the parse
-        // is shared but this fallback policy is not.
-        var epoch = EnvVarCatalog.TryGetSourceDateEpoch();
-        if (epoch.IsFailure || !epoch.Value.IsSet)
-            return new Identity("urn:uuid:" + Guid.NewGuid(), DateTimeOffset.UtcNow);
+        long epoch;
+        if (explicitEpoch.HasValue)
+        {
+            epoch = explicitEpoch.Value;
+        }
+        else
+        {
+            // SBOM generation must never fail just because reproducibility wasn't (or couldn't
+            // be) established: an absent OR malformed SOURCE_DATE_EPOCH both fall back to a
+            // fresh identity here, unlike PackageBuilder.Reproducible()/BundleBuilder.Reproducible()
+            // which fail loud on malformed. See EnvVarCatalog.TryGetSourceDateEpoch's doc for why
+            // the parse is shared but this fallback policy is not.
+            var envEpoch = EnvVarCatalog.TryGetSourceDateEpoch();
+            if (envEpoch.IsFailure || !envEpoch.Value.IsSet)
+                return new Identity("urn:uuid:" + Guid.NewGuid(), DateTimeOffset.UtcNow);
+            epoch = envEpoch.Value.Value;
+        }
 
         var digestName = BuildContentDigestName(components, name, version);
         var serial = GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, digestName);
-        return new Identity("urn:uuid:" + serial, DateTimeOffset.FromUnixTimeSeconds(epoch.Value.Value));
+        return new Identity("urn:uuid:" + serial, DateTimeOffset.FromUnixTimeSeconds(epoch));
     }
 
     // Builds a stable, order-independent name string over the document identity and its

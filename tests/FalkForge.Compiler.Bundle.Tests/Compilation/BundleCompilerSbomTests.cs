@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FalkForge.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Models;
 using FalkForge.Sbom;
@@ -38,7 +39,10 @@ public sealed class BundleCompilerSbomTests : IDisposable
             Directory.Delete(_tempDir, recursive: true);
     }
 
-    private BundleModel BuildModel(SbomOptions? sbomOptions, string manufacturer = "Contoso")
+    private BundleModel BuildModel(
+        SbomOptions? sbomOptions,
+        string manufacturer = "Contoso",
+        ReproducibleBuildOptions? reproducibleOptions = null)
     {
         var packages = new List<BundlePackageModel>
         {
@@ -60,7 +64,8 @@ public sealed class BundleCompilerSbomTests : IDisposable
             UpgradeCode = Guid.NewGuid(),
             Scope = InstallScope.PerMachine,
             Packages = packages.AsReadOnly(),
-            SbomOptions = sbomOptions
+            SbomOptions = sbomOptions,
+            ReproducibleOptions = reproducibleOptions
         };
     }
 
@@ -106,6 +111,41 @@ public sealed class BundleCompilerSbomTests : IDisposable
             var alg = hashes[0].GetProperty("alg").GetString();
             Assert.Equal("SHA-256", alg);
         }
+    }
+
+    /// <summary>
+    /// <see cref="Builders.BundleBuilder.Reproducible"/> with an explicit epoch override must
+    /// reach the SBOM sidecar's identity (serial number + timestamp), not just the deterministic
+    /// GUIDs (BundleId/UpgradeCode). Previously <see cref="BundleModel"/> carried no
+    /// reproducible/epoch field at all, so <see cref="ReproducibleSbomIdentity.Resolve"/> only
+    /// ever saw the process-global SOURCE_DATE_EPOCH env var — an explicit override passed in
+    /// code (with no env var set) was silently dropped and the SBOM fell back to
+    /// Guid.NewGuid()/UtcNow, breaking byte-identical rebuilds. This test asserts precedence
+    /// without touching the env var at all (see SourceDateEpochCollection for why mutating it is
+    /// unsafe here), which also proves the override wins regardless of ambient env state.
+    /// </summary>
+    [Fact]
+    public void Compile_WithReproducibleEpoch_SbomIdentityIsDeterministicAcrossBuilds()
+    {
+        var reproducible = new ReproducibleBuildOptions { SourceDateEpoch = 1_700_000_000L };
+        var model = BuildModel(new SbomOptions(), reproducibleOptions: reproducible);
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
+
+        var result1 = compiler.Compile(model, Path.Combine(_tempDir, "out-repro-1"));
+        var result2 = compiler.Compile(model, Path.Combine(_tempDir, "out-repro-2"));
+
+        Assert.True(result1.IsSuccess, result1.IsFailure ? result1.Error.Message : null);
+        Assert.True(result2.IsSuccess, result2.IsFailure ? result2.Error.Message : null);
+
+        using var doc1 = JsonDocument.Parse(File.ReadAllText(result1.Value + ".cdx.json"));
+        using var doc2 = JsonDocument.Parse(File.ReadAllText(result2.Value + ".cdx.json"));
+
+        var serial1 = doc1.RootElement.GetProperty("serialNumber").GetString();
+        var serial2 = doc2.RootElement.GetProperty("serialNumber").GetString();
+        Assert.Equal(serial1, serial2);
+
+        var timestamp1 = doc1.RootElement.GetProperty("metadata").GetProperty("timestamp").GetString();
+        Assert.Equal("2023-11-14T22:13:20Z", timestamp1);
     }
 
     [Fact]

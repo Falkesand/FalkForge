@@ -42,9 +42,11 @@ internal static class BundleSbomHelper
             if (model.SbomOptions is not null)
                 components.AddRange(model.SbomOptions.AdditionalComponents);
 
-            // Serial number + timestamp are deterministic under SOURCE_DATE_EPOCH so a
-            // reproducible build emits a byte-identical SBOM sidecar (was Guid.NewGuid + UtcNow).
-            var identity = ReproducibleSbomIdentity.Resolve(components, model.Name, model.Version);
+            // Serial number + timestamp are deterministic under an explicit Reproducible()
+            // epoch override or, absent that, SOURCE_DATE_EPOCH — so a reproducible build emits
+            // a byte-identical SBOM sidecar (was Guid.NewGuid + UtcNow).
+            var identity = ReproducibleSbomIdentity.Resolve(
+                components, model.Name, model.Version, model.ReproducibleOptions?.SourceDateEpoch);
 
             var doc = new SbomDocument
             {

@@ -1,5 +1,6 @@
 namespace FalkForge.Compiler.Bundle;
 
+using FalkForge.Builders;
 using FalkForge.Compiler.Bundle.Models;
 using FalkForge.Models;
 using FalkForge.Sbom;
@@ -23,6 +24,16 @@ public sealed class BundleModel
     public IReadOnlyList<BundleDependencyRequirementModel> DependencyRequirements { get; init; } = [];
     public BundleUiConfig? UiConfig { get; init; }
     public UpdateFeedConfig? UpdateFeed { get; init; }
+
+    /// <summary>
+    /// Set by <see cref="Builders.BundleBuilder.Reproducible"/> to the resolved
+    /// <see cref="ReproducibleBuildOptions.SourceDateEpoch"/> (explicit override or the
+    /// <c>SOURCE_DATE_EPOCH</c> env var, resolved at build time). Mirrors
+    /// <c>PackageModel.ReproducibleOptions</c> on the MSI side. Threaded into
+    /// <see cref="ReproducibleSbomIdentity.Resolve"/> so an explicit epoch reaches the SBOM
+    /// sidecar's serial/timestamp — not just the deterministic BundleId/UpgradeCode GUIDs.
+    /// </summary>
+    public ReproducibleBuildOptions? ReproducibleOptions { get; init; }
 
     /// <summary>
     /// Pinned Authenticode publisher thumbprint as authored via
