@@ -17,7 +17,7 @@ public sealed class VersionSingleSourceTests
     /// Update this constant together with VersionPrefix/VersionSuffix on every bump —
     /// that is deliberate: a version change must be an explicit, reviewed act.
     /// </summary>
-    internal const string ExpectedVersion = "0.5.0-beta.2";
+    internal const string ExpectedVersion = "0.5.0-beta.3";
 
     [Fact]
     public void CoreAssembly_InformationalVersion_EqualsSingleSourceVersion()

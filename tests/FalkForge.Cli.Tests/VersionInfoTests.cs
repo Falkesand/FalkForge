@@ -10,7 +10,7 @@ namespace FalkForge.Cli.Tests;
 public sealed class VersionInfoTests
 {
     /// <summary>Must match VersionPrefix-VersionSuffix in the root Directory.Build.props.</summary>
-    private const string ExpectedVersion = "0.5.0-beta.2";
+    private const string ExpectedVersion = "0.5.0-beta.3";
 
     [Fact]
     public void CliVersion_EqualsSingleSourceVersion()
