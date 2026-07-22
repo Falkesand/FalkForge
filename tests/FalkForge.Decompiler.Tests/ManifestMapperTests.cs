@@ -259,6 +259,29 @@ public sealed class ManifestMapperTests
     }
 
     [Fact]
+    public void Map_DuplicateExternalContainerIds_DoesNotThrow()
+    {
+        // WHY: nothing in BundleValidator rejects two ContainerModel entries sharing an Id (only
+        // "package references an undefined container" is checked), so ExternalContainerPackager can
+        // legitimately emit two ExternalContainerInfo rows with the same Id into the manifest.
+        // CollectContainers used externalContainers.ToDictionary(c => c.Id, ...), which throws
+        // ArgumentException on a duplicate key — turning a malformed-but-reachable manifest into an
+        // unhandled crash instead of a Result-shaped outcome, contrary to the Result<T> convention
+        // (exceptions reserved for genuinely unrecoverable situations).
+        var external = new[]
+        {
+            new ExternalContainerInfo { Id = "dup", DownloadUrl = "https://cdn.example.com/first.container", Sha256 = "AAAA", FileName = "first.container", PackageIds = ["p1"] },
+            new ExternalContainerInfo { Id = "dup", DownloadUrl = "https://cdn.example.com/second.container", Sha256 = "BBBB", FileName = "second.container", PackageIds = ["p2"] }
+        };
+        var manifest = CreateManifest(externalContainers: external);
+
+        var result = ManifestMapper.Map(manifest, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Containers, c => c.Id == "dup");
+    }
+
+    [Fact]
     public void Map_ReturnsNullUiConfigWhenNoLicenseFileAndNoUiType()
     {
         var manifest = CreateManifest(licenseFile: null, uiType: null);
