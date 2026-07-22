@@ -36,6 +36,14 @@ public static partial class MsiPackageReconstructor
         return BuildTree(rawFeatures, null, featureCompMap);
     }
 
+    /// <summary>msidbFeatureAttributesUIDisallowAbsent — matches <c>FeatureTableProducer</c>'s
+    /// <c>FeatureUiDisallowAbsentAttribute</c>, the bit that marks a feature required.</summary>
+    private const int FeatureUiDisallowAbsentAttribute = 16;
+
+    /// <summary>Level value <c>FeatureTableProducer</c> writes for an installed (required or
+    /// optional-default) feature. Non-installed features get Level=1000; there is no Level=0 case.</summary>
+    private const int FeatureLevelInstall = 1;
+
     private static List<FeatureModel> BuildTree(
         IReadOnlyList<dynamic> all,
         string? parentId,
@@ -51,8 +59,8 @@ public static partial class MsiPackageReconstructor
                 Id = r.Feature,
                 Title = r.Title,
                 Description = r.Description,
-                IsRequired = r.Level == 0,
-                IsDefault = r.Level >= 1,
+                IsRequired = ((int)r.Attributes & FeatureUiDisallowAbsentAttribute) != 0,
+                IsDefault = r.Level == FeatureLevelInstall,
                 DisplayLevel = r.Level,
                 Children = BuildTree(all, (string)r.Feature, compMap),
                 ComponentRefs = refs ?? []
