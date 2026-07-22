@@ -1,18 +1,12 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
-using System.Security.Cryptography;
-using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Recipe.Producers;
-using FalkForge.Compiler.Msi.Signing;
-using FalkForge.Compiler.Msi.Validation;
-using FalkForge.Configuration;
 using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 using FalkForge.Models;
 using FalkForge.Platform;
 using FalkForge.Platform.Windows;
 using FalkForge.Validation;
-using FalkForge.WinGet;
 
 namespace FalkForge.Compiler.Msi.Recipe;
 
@@ -24,9 +18,16 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// Phase 8 introduces this facade in parallel to <see cref="MsiCompiler"/>;
 /// phase 9 will byte-diff the two paths, and phase 12 will flip
 /// <see cref="MsiCompiler.Compile"/> into a one-line forwarder.
+///
+/// The pipeline is split across partial-class files: this file holds the
+/// orchestration entry points, <see cref="MsiAuthoring.Cabinets"/> holds
+/// Step 5 (cabinet build + embed), <see cref="MsiAuthoring.PostProcess"/>
+/// holds Steps 7-11 (timestamp patch, signing, ICE, SBOM, WinGet), and
+/// <see cref="MsiAuthoring.LanguageTransforms"/> holds Step 6.6 (per-culture
+/// MST generation).
 /// </summary>
 [SupportedOSPlatform("windows")]
-public static class MsiAuthoring
+public static partial class MsiAuthoring
 {
     // Cabinet names and stream names are now determined at compile time by
     // CabinetPlanner, which is the single source of truth shared with
@@ -258,90 +259,21 @@ public static class MsiAuthoring
         // then attach embedded cabs to the recipe via CabinetEmbeddings. External
         // cabs are written next to the MSI via ExternalFileCabinetSink. The planner
         // is the single source of truth shared with MediaTableProducer so the Media
-        // table rows and the _Streams entries cannot drift.
+        // table rows and the _Streams entries cannot drift. See BuildCabinetsAndEmbed
+        // in MsiAuthoring.Cabinets.cs.
         string? cabTempDir = null;
         try
         {
             if (resolved.Files.Count > 0)
             {
-                IReadOnlyList<CabinetPlan> plans = CabinetPlanner.Plan(
-                    resolved.Files,
-                    package.MediaTemplate);
-
-                if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                    logger.Debug("MsiAuthoring", $"Step 5: building {plans.Count} cabinet(s).");
-
-                cabTempDir = Path.Combine(Path.GetTempPath(), $"FalkForge_recipe_{Guid.NewGuid():N}");
-                Directory.CreateDirectory(cabTempDir);
-
-                var externalSink = new ExternalFileCabinetSink(outputPath);
-                System.Collections.Immutable.ImmutableArray<CabinetEmbedding>.Builder embeddingsBuilder =
-                    System.Collections.Immutable.ImmutableArray.CreateBuilder<CabinetEmbedding>(plans.Count);
-
-                foreach (CabinetPlan plan in plans)
+                Result<MsiDatabaseRecipe> cabResult = BuildCabinetsAndEmbed(
+                    resolved, package, outputPath, recipe, logger, out cabTempDir);
+                if (cabResult.IsFailure)
                 {
-                    // Extract the file slice for this cabinet.
-                    int sliceCount = plan.FileEndIndex - plan.FileStartIndex;
-                    List<ResolvedFile> slice = new(sliceCount);
-                    for (int i = plan.FileStartIndex; i < plan.FileEndIndex; i++)
-                        slice.Add(resolved.Files[i]);
-
-                    string diskTempDir = Path.Combine(cabTempDir, $"disk{plan.DiskId}");
-                    Directory.CreateDirectory(diskTempDir);
-
-                    using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp, logger);
-                    Result<string> cabResult = cabBuilder.BuildCabinet(
-                        slice,
-                        diskTempDir,
-                        package.Compression,
-                        plan.CabinetFileName);
-                    if (cabResult.IsFailure)
-                    {
-                        logger?.Log(LogLevel.Error, "MsiAuthoring",
-                            $"Step 5: cabinet '{plan.CabinetFileName}' (disk {plan.DiskId}) failed: {cabResult.Error.Message}",
-                            new Dictionary<string, string> { ["code"] = cabResult.Error.Kind.ToString() });
-                        return Result<string>.Failure(cabResult.Error);
-                    }
-
-                    string cabPath = cabResult.Value;
-
-                    if (plan.Embedded)
-                    {
-                        // Compute SHA-256 and length for the StreamSource so the
-                        // recipe content hash covers the cabinet payload.
-                        long cabLength = new FileInfo(cabPath).Length;
-                        ReadOnlyMemory<byte> cabSha;
-                        using (FileStream cabStream = File.OpenRead(cabPath))
-                        {
-                            cabSha = SHA256.HashData(cabStream);
-                        }
-
-                        StreamSource cabSource = new StreamSource.FilePath(cabPath, cabSha, cabLength);
-                        // Stream name in _Streams must NOT carry the '#' prefix — that prefix appears
-                        // only in the Media.Cabinet column to signal embedding. Legacy EmbeddedStreamCabinetSink
-                        // uses the bare cabinet file name (e.g. "Data.cab"), so we must match that exactly.
-                        embeddingsBuilder.Add(new CabinetEmbedding(plan.CabinetFileName, cabSource));
-                    }
-                    else
-                    {
-                        Result<Unit> placeResult = externalSink.Place(cabPath, plan.CabinetFileName);
-                        if (placeResult.IsFailure)
-                        {
-                            logger?.Log(LogLevel.Error, "MsiAuthoring",
-                                $"Step 5: placing cabinet '{plan.CabinetFileName}' failed: {placeResult.Error.Message}",
-                                new Dictionary<string, string> { ["code"] = placeResult.Error.Kind.ToString() });
-                            return Result<string>.Failure(placeResult.Error);
-                        }
-                    }
+                    return Result<string>.Failure(cabResult.Error);
                 }
 
-                if (embeddingsBuilder.Count > 0)
-                {
-                    recipe = recipe with
-                    {
-                        CabinetEmbeddings = embeddingsBuilder.ToImmutable(),
-                    };
-                }
+                recipe = cabResult.Value;
             }
 
             // Step 6: Open the MSI database, apply the recipe, commit. The
@@ -396,14 +328,8 @@ public static class MsiAuthoring
             }
         }
 
-        // Step 6.6: Per-culture MST language transforms. SetLocalizationData with more than one
-        // culture means the author wants one installer that presents each culture. The base MSI
-        // above resolved !(loc.*) with the first culture; here, for every additional culture, the
-        // package is rebuilt with that culture as the resolver default and the byte-difference
-        // against the (still pristine, unsigned) base is emitted as '<msi-name>.<culture>.mst'
-        // next to the MSI. Runs before signing/timestamp-patching so the base and the localized
-        // variant differ only in the localizable tables (cabinets are byte-identical rebuilds),
-        // keeping each transform a clean language-only diff.
+        // Step 6.6: Per-culture MST language transforms. See GenerateLanguageTransforms
+        // in MsiAuthoring.LanguageTransforms.cs.
         if (options.EmitLanguageTransforms && package.LocalizationData.Count > 1)
         {
             Result<string> transformResult = GenerateLanguageTransforms(
@@ -412,158 +338,12 @@ public static class MsiAuthoring
                 return Result<string>.Failure(transformResult.Error);
         }
 
-        // Step 7: Reproducible timestamp patching — Windows MsiSummaryInfoPersist
-        // always stamps PID_LASTSAVE_DTM with current time, so for reproducible
-        // builds the patcher walks the OLE compound document and overwrites the
-        // FILETIME values in place.
-        if (options.PostProcess && package.ReproducibleOptions is { } reproducibleOpts)
-        {
-            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                logger.Debug("MsiAuthoring", "Step 7: patching reproducible timestamps.");
-
-            Result<Unit> patchResult = SummaryInfoPatcher.PatchTimestamps(msiPath, reproducibleOpts.Timestamp);
-            if (patchResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 7: timestamp patching failed: {patchResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = patchResult.Error.Kind.ToString() });
-                return Result<string>.Failure(patchResult.Error);
-            }
-        }
-
-        // Step 8: Code signing.
-        if (options.PostProcess && package.Signing is not null)
-        {
-            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                logger.Debug("MsiAuthoring", "Step 8: code signing.");
-
-            CodeSigner signer = new();
-            Result<Unit> signResult = signer.Sign(msiPath, package.Signing);
-            if (signResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 8: code signing failed: {signResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = signResult.Error.Kind.ToString() });
-                return Result<string>.Failure(signResult.Error);
-            }
-        }
-
-        // Step 8.5: Integrity signing. The ECDSA envelope is pure .NET and always signs when
-        // Integrity() is configured (FALKFORGE_NO_SIGN is the only opt-out) — it no longer depends on
-        // the external sigil CLI. Sigil, when present, opportunistically adds a DSSE SBOM attestation on
-        // top; see IntegritySigner.SignAndEmbed.
-        if (options.PostProcess && !IsIntegritySigningDisabled() && package.Integrity is not null)
-        {
-            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                logger.Debug("MsiAuthoring", "Step 8.5: integrity signing.");
-
-            // ECDSA signatures are nondeterministic (fresh random nonce per call), so embedding one
-            // in-band in the MSI would defeat Reproducible() the moment Integrity() is also configured.
-            // IntegritySigner.SignAndEmbed skips the in-band _FalkForgeIntegrity table in that case and
-            // writes the signature sidecar-only — surfaced here at Info level (not gated behind
-            // --verbose) since it is a real, user-visible change of where the signature lives.
-            if (package.ReproducibleOptions is not null)
-            {
-                logger?.Info("MsiAuthoring",
-                    "Step 8.5: Reproducible() + Integrity() are both configured. The MSI's in-band " +
-                    "_FalkForgeIntegrity table is skipped so the artifact stays byte-identical across " +
-                    "builds; the ECDSA signature is written sidecar-only ('<msi>.sig.json'). Verify via " +
-                    "the sidecar, not the embedded table.");
-            }
-
-            Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
-            if (integrityResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 8.5: integrity signing failed: {integrityResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = integrityResult.Error.Kind.ToString() });
-                return Result<string>.Failure(integrityResult.Error);
-            }
-        }
-
-        // Step 9: ICE validation. Reproducible builds skip ICE because ICE
-        // dialog boxes can perturb the file in ways that drift the digest.
-        // Default IceConfiguration for forge build uses lenient cub-absent behavior:
-        // developer machines without the Windows SDK should not fail the build unless
-        // the user has explicitly configured strict ICE via PackageBuilder.Ice().
-        // CLI forge validate --ice and CI pipelines that need strict checking must use
-        // the explicit config path or set SkipWhenCubUnavailable = false.
-        IceConfiguration iceConfig = package.IceConfiguration
-            ?? new IceConfiguration { SkipWhenCubUnavailable = true };
-        if (options.PostProcess && iceConfig.Enabled && package.ReproducibleOptions is null)
-        {
-            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                logger.Debug("MsiAuthoring", "Step 9: ICE validation.");
-
-            IceValidator iceValidator = new();
-            Result<IceValidationResult> iceResult = iceValidator.Validate(msiPath, iceConfig);
-            if (iceResult.IsSuccess)
-            {
-                if (iceConfig.ReportPath is not null)
-                {
-                    IceReportExporter.Export(iceResult.Value, iceConfig.ReportPath);
-                }
-
-                if (iceResult.Value.Errors.Count > 0 || iceResult.Value.Failures.Count > 0)
-                {
-                    string iceErrors = string.Join("; ", iceResult.Value.Messages
-                        .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
-                        .Select(m => $"{m.IceName}: {m.Description}"));
-                    string iceCodes = string.Join(",", iceResult.Value.Messages
-                        .Where(m => m.Severity is IceMessageSeverity.Error or IceMessageSeverity.Failure)
-                        .Select(m => m.IceName));
-                    logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 9: ICE validation failed: {iceErrors}",
-                        new Dictionary<string, string> { ["code"] = iceCodes });
-                    return Result<string>.Failure(ErrorKind.Validation, $"ICE validation failed: {iceErrors}");
-                }
-            }
-            else
-            {
-                // ICE infrastructure failure (e.g. darice.cub missing/unreadable, native MSI API
-                // failure) is non-fatal — mirror MsiCompiler. Previously silently dropped; now
-                // surfaced as a Warning so a `forge build --verbose` user can see ICE never ran.
-                logger?.Log(LogLevel.Warning, "MsiAuthoring",
-                    $"Step 9: ICE validation could not run: {iceResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = iceResult.Error.Kind.ToString() });
-            }
-        }
-
-        // Step 10: SBOM sidecar (opt-in). SBOM failure is non-fatal.
-        if (options.PostProcess)
-        {
-            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                logger.Debug("MsiAuthoring", "Step 10: SBOM sidecar.");
-
-            Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
-            if (sbomResult.IsFailure)
-            {
-                // Previously silently dropped (`_ = sbomResult;`) — now surfaced as a Warning so a
-                // `forge build --verbose` user can see the sidecar was not written. Compile still
-                // succeeds; SBOM generation remains opt-in and non-fatal.
-                logger?.Log(LogLevel.Warning, "MsiAuthoring",
-                    $"Step 10: SBOM sidecar generation failed: {sbomResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = sbomResult.Error.Kind.ToString() });
-            }
-        }
-
-        // Step 11: WinGet manifest (opt-in via PackageBuilder.WinGet()).
-        if (options.PostProcess && package.WinGet is not null)
-        {
-            if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
-                logger.Debug("MsiAuthoring", "Step 11: WinGet manifest.");
-
-            using FileStream msiStream = File.OpenRead(msiPath);
-            string sha256 = Convert.ToHexString(SHA256.HashData(msiStream));
-            Result<string> wingetResult = WinGetManifestWriter.Write(
-                package,
-                package.WinGet,
-                outputPath,
-                sha256,
-                Path.GetFileName(msiPath));
-            if (wingetResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 11: WinGet manifest generation failed: {wingetResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = wingetResult.Error.Kind.ToString() });
-                return Result<string>.Failure(wingetResult.Error);
-            }
-        }
+        // Steps 7-11: reproducible-timestamp patch, code signing, integrity signing,
+        // ICE validation, SBOM sidecar, WinGet manifest. See RunPostProcessSteps in
+        // MsiAuthoring.PostProcess.cs.
+        Result<Unit> postProcessResult = RunPostProcessSteps(package, msiPath, outputPath, options, resolved, logger);
+        if (postProcessResult.IsFailure)
+            return Result<string>.Failure(postProcessResult.Error);
 
         stopwatch.Stop();
         long msiSize = new FileInfo(msiPath).Length;
@@ -571,132 +351,5 @@ public static class MsiAuthoring
             $"Compile complete: '{msiPath}' ({msiSize:N0} bytes) in {stopwatch.ElapsedMilliseconds}ms.");
 
         return Result<string>.Success(msiPath);
-    }
-
-    /// <summary>
-    /// For each configured culture after the first, rebuilds <paramref name="package"/> localized
-    /// to that culture (a throwaway build in a temp directory, without signing/SBOM/etc.) and emits
-    /// the byte-difference against the pristine base MSI as an MST language transform next to it.
-    /// A culture that yields no localizable difference (e.g. no <c>!(loc.*)</c> UI text) produces no
-    /// file and a <c>DLG005</c> warning instead of a silent single-language installer.
-    /// </summary>
-    private static Result<string> GenerateLanguageTransforms(
-        PackageModel package,
-        string baseMsiPath,
-        string outputPath,
-        IReadOnlyList<IFalkForgeExtension> extensions,
-        IFalkLogger? logger)
-    {
-        string baseCulture = package.LocalizationData[0].Culture;
-        string baseName = Path.GetFileNameWithoutExtension(baseMsiPath);
-
-        for (int i = 1; i < package.LocalizationData.Count; i++)
-        {
-            string culture = package.LocalizationData[i].Culture;
-
-            string variantDir = Path.Combine(Path.GetTempPath(), $"FalkForge_lang_{Guid.NewGuid():N}");
-            Directory.CreateDirectory(variantDir);
-            try
-            {
-                // Rebuild the package with this culture as the resolver default. The variant is a
-                // throwaway used only for the diff, so post-processing (signing, SBOM, WinGet, ICE)
-                // and nested transform generation are all skipped.
-                Result<string> variantResult = Compile(
-                    package,
-                    variantDir,
-                    extensions,
-                    logger: null,
-                    new CompileOptions
-                    {
-                        DefaultCultureOverride = culture,
-                        EmitLanguageTransforms = false,
-                        PostProcess = false,
-                    });
-                if (variantResult.IsFailure)
-                {
-                    logger?.Log(LogLevel.Error, "MsiAuthoring",
-                        $"Step 6.6: building localized MSI for culture '{culture}' failed: {variantResult.Error.Message}",
-                        new Dictionary<string, string> { ["code"] = variantResult.Error.Kind.ToString() });
-                    return Result<string>.Failure(variantResult.Error.Kind,
-                        $"Failed to build localized MSI for culture '{culture}': {variantResult.Error.Message}");
-                }
-
-                string mstFileName = $"{baseName}.{FileNameSanitizer.Sanitize(culture)}.mst";
-                string mstPath = Path.Combine(outputPath, mstFileName);
-
-                Result<bool> genResult = LanguageTransformGenerator.Generate(
-                    baseMsiPath, variantResult.Value, mstPath);
-                if (genResult.IsFailure)
-                {
-                    logger?.Log(LogLevel.Error, "MsiAuthoring",
-                        $"Step 6.6: generating language transform for culture '{culture}' failed: {genResult.Error.Message}",
-                        new Dictionary<string, string> { ["code"] = genResult.Error.Kind.ToString() });
-                    return Result<string>.Failure(genResult.Error);
-                }
-
-                if (genResult.Value)
-                {
-                    logger?.Info("MsiAuthoring",
-                        $"Step 6.6: generated language transform '{mstFileName}' for culture '{culture}'.");
-                }
-                else
-                {
-                    logger?.Log(LogLevel.Warning, "MsiAuthoring",
-                        $"Step 6.6: culture '{culture}' produced no localizable difference from base culture " +
-                        $"'{baseCulture}', so no .mst was generated. Add !(loc.*) text to a dialog set or custom " +
-                        "dialog for this culture to differ from the base, or drop the extra culture.",
-                        new Dictionary<string, string> { ["code"] = "DLG005" });
-                }
-            }
-            finally
-            {
-                try
-                {
-                    Directory.Delete(variantDir, recursive: true);
-                }
-                catch (IOException)
-                {
-                    // Best-effort cleanup of the throwaway localized build.
-                }
-            }
-        }
-
-        return Result<string>.Success(baseMsiPath);
-    }
-
-    private static bool IsIntegritySigningDisabled()
-        => EnvVarCatalog.IsSigningDisabled();
-
-    /// <summary>
-    /// <see cref="IExtensionRegistry"/> implementation that collects registered
-    /// extension contributions (table contributors, component contributors, dialog
-    /// step builders) for batch processing after every extension has registered.
-    /// </summary>
-    private sealed class CollectingExtensionRegistry : IExtensionRegistry
-    {
-        public List<IDialogStepBuilder> DialogStepBuilders { get; } = [];
-
-        public List<IMsiTableContributor> TableContributors { get; } = [];
-
-        public List<IComponentContributor> ComponentContributors { get; } = [];
-
-        public List<IExecutionContributor> ExecutionContributors { get; } = [];
-
-        public List<IDryRunContributor> DryRunContributors { get; } = [];
-
-        public void RegisterDialogStep(IDialogStepBuilder builder)
-            => DialogStepBuilders.Add(builder);
-
-        public void RegisterTableContributor(IMsiTableContributor contributor)
-            => TableContributors.Add(contributor);
-
-        public void RegisterComponentContributor(IComponentContributor contributor)
-            => ComponentContributors.Add(contributor);
-
-        public void RegisterExecutionContributor(IExecutionContributor contributor)
-            => ExecutionContributors.Add(contributor);
-
-        public void RegisterDryRunContributor(IDryRunContributor contributor)
-            => DryRunContributors.Add(contributor);
     }
 }
