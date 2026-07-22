@@ -244,7 +244,11 @@ public sealed class BundleCompiler
         var assignedContainerIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var package in model.Packages)
         {
-            if (package.ContainerId is not null)
+            // A RemotePayload package is skipped before ExternalContainerPackager.Package ever
+            // sees it (Prepare's Step 3 has no local bytes to hash/embed for it), so it never
+            // materializes into a container file. Counting it as "assigned" here would wrongly
+            // suppress BDL035 for a container whose only payload is remote-only.
+            if (package.ContainerId is not null && package.RemotePayload is null)
                 assignedContainerIds.Add(package.ContainerId);
         }
 

@@ -122,6 +122,55 @@ public sealed class BundleCompilerAuthoringWarningTests : IDisposable
         Assert.DoesNotContain(logger.Entries, e => HasCode(e, "BDL035"));
     }
 
+    [Fact]
+    public void Compile_ContainerAssignedOnlyToRemotePayloadPackage_StillLogsBDL035Warning()
+    {
+        // A RemotePayload package is never materialized into a container file: Prepare's Step 3
+        // skips it (it has no local bytes to hash/embed) before the surviving payload list ever
+        // reaches ExternalContainerPackager.Package. Assigning such a package's ContainerId to a
+        // DownloadUrl container therefore produces no .ffcontainer — but the OLD
+        // EmitAuthoringWarnings counted the ContainerId assignment regardless of RemotePayload,
+        // so it wrongly treated the container as "assigned" and suppressed BDL035, leaving authors
+        // with a silently dead DownloadUrl and no warning telling them so.
+        var model = new BundleModel
+        {
+            Name = "RemoteOnlyContainerBundle",
+            Manufacturer = "Contoso",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = new List<BundlePackageModel>
+            {
+                new()
+                {
+                    Id = "remote.msi",
+                    SourcePath = string.Empty,
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "Remote Payload",
+                    ContainerId = "extern",
+                    RemotePayload = new RemotePayloadModel
+                    {
+                        DownloadUrl = "https://cdn.example.com/remote.msi",
+                        Sha256Hash = new string('a', 64),
+                        Size = 100,
+                    }
+                }
+            }.AsReadOnly(),
+            Containers = new List<ContainerModel>
+            {
+                new() { Id = "extern", DownloadUrl = "https://cdn.example.com/extern.cab" }
+            }.AsReadOnly(),
+        };
+
+        var logger = new ListLogger();
+        var result = NewCompiler(logger).Compile(model, Path.Combine(_tempDir, "out-bdl035-remote"));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var warning = Assert.Single(logger.Entries, e => HasCode(e, "BDL035"));
+        Assert.Contains("extern", warning.Message, StringComparison.Ordinal);
+    }
+
     // ── Backward compatibility: no logger configured ─────────────────────────
 
     [Fact]
