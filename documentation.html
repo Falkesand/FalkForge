@@ -12245,11 +12245,12 @@ msix.Signing(s =&gt; s
   <!-- ================================================================ -->
   <h3 id="msix-cli">21.9 CLI Integration</h3>
   <div class="warning">
+    <p>
     <strong>Not reachable through <code>forge build</code> &mdash; by design, not just
     &ldquo;not implemented yet.&rdquo;</strong> <code>forge build --format msix</code> fails
     loud with a validation error for every input type; it never silently falls back to an MSI
     build. There are two independent reasons this input path cannot carry MSIX output:
-  </p>
+    </p>
   <ol>
     <li>
       <code>MsixModel</code> needs data <code>PackageModel</code> has no equivalent for
@@ -12296,7 +12297,8 @@ dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output</code></pre>
 
   <h4>SDK Integration</h4>
   <div class="warning">
-    <strong><code>FalkOutputType&gt;Msix&lt;</code>/<code>MsixBundle</code> is not a working
+    <strong><code>&lt;FalkOutputType&gt;Msix&lt;/FalkOutputType&gt;</code> /
+    <code>&lt;FalkOutputType&gt;MsixBundle&lt;/FalkOutputType&gt;</code> is not a working
     path &mdash; and the SDK now fails the build loudly instead of pretending to build
     anything.</strong> <code>Sdk.targets</code>' <code>FalkGenerateInstaller</code> target raises
     an MSBuild <code>&lt;Error&gt;</code> as soon as it sees
