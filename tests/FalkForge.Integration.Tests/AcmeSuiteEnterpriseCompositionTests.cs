@@ -109,12 +109,20 @@ public sealed class AcmeSuiteEnterpriseCompositionTests
     [Fact]
     public void AcmeSuite_RealInstall_CreatesIisSiteSqlDbAndService()
     {
-        // A genuine install must run elevated on a host with IIS and SQL Server present and would
-        // mutate real machine state (create an app pool, a web site, a database and a service). None
-        // of that is available or safe in CI, so this is an honest skip — never a fake pass. The
-        // always-on compile+structure test above is the real guard.
-        Assert.Skip("Real AcmeSuite install requires an elevated host with IIS + SQL Server; " +
-                    "not run in CI. The compile/structure test is the always-on guard.");
+        // Unlike the eight real-system e2e tests under FalkForge.Compiler.Msi.Tests/Recipe/*
+        // (gated on FALKFORGE_E2E + FALKFORGE_REAL_SYSTEM_E2E + elevation, and actually exercising
+        // a real install when all three are met), this test has no implementation behind it: it is
+        // an unconditional skip that can never pass in any configuration, not an env-var-gated
+        // real-install test that merely stays off in CI. Tracked as a follow-up if a composed
+        // (IIS + SQL + service together) real install ever gets automated coverage; until then the
+        // manual checklist in docs/testing/real-machine-verification.md (Part 2.2 and Part 2.3)
+        // plus the individual IIS/SQL real-system tests are the only coverage of the pieces. The
+        // always-on compile+structure test above is this file's real guard.
+        Assert.Skip("Not implemented: no automated real-install path exists for the composed " +
+                    "AcmeSuite stack (IIS + SQL + service together). This is an unconditional " +
+                    "skip, not an env-var-gated real-system test like the ones in " +
+                    "FalkForge.Compiler.Msi.Tests/Recipe/*. See " +
+                    "docs/testing/real-machine-verification.md for manual coverage.");
     }
 
     // Re-composes the same enterprise MSI the demo builds, through the real public APIs.
