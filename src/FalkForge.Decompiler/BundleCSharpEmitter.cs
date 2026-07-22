@@ -55,7 +55,6 @@ internal static class BundleCSharpEmitter
         AppendLine($"// Decompiled from bundle: {bundle.Name}");
         AppendLine("// NOTE: Some information is lost during decompilation:");
         AppendLine("//   - UI configuration (logo, theme, watermark, banner) is not preserved");
-        AppendLine("//   - Container download URLs are not preserved");
         AppendLine("//   - Custom UI project paths may not be preserved in older bundles");
         AppendLine();
 
@@ -127,7 +126,13 @@ internal static class BundleCSharpEmitter
         appendLine("");
         foreach (var container in containers)
         {
-            appendLine($"b.Container({Quote(container.Id)});");
+            // A6: round-trip the external container's DownloadUrl through the ContainerBuilder
+            // configure lambda so a decompiled/migrated bundle still declares the container as
+            // externally downloadable instead of silently reverting it to embedded.
+            if (container.DownloadUrl is not null)
+                appendLine($"b.Container({Quote(container.Id)}, c => c.DownloadUrl({Quote(container.DownloadUrl)}));");
+            else
+                appendLine($"b.Container({Quote(container.Id)});");
         }
     }
 

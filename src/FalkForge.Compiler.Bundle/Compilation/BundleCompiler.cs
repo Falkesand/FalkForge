@@ -13,8 +13,10 @@ public sealed class BundleCompiler
     /// <summary>
     /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every existing
     /// caller compiles unchanged. When supplied, the compiler surfaces authoring-honesty warnings
-    /// for inputs it accepts but does not yet fully materialize (external container download URLs —
-    /// BDL035) instead of dropping them silently.
+    /// for inputs it accepts but cannot materialize (BDL035 — a container that sets a
+    /// <c>DownloadUrl</c> but has no payload assigned to it) instead of dropping them silently.
+    /// External container download URLs themselves ARE fully materialized (see
+    /// <see cref="EmitAuthoringWarnings"/>).
     /// </summary>
     public IFalkLogger? Logger { get; init; }
 

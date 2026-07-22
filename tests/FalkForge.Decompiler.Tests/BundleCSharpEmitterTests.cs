@@ -402,6 +402,24 @@ public sealed class BundleCSharpEmitterTests
     }
 
     [Fact]
+    public void Emit_ContainerWithDownloadUrl_EmitsDownloadUrlConfigure()
+    {
+        // WHY: A6 external containers carry a DownloadUrl. Before this fix the emitter only
+        // ever wrote `b.Container(id);`, silently dropping the download URL so a decompiled/
+        // migrated bundle could never reconstruct an external container (beta.4 audit N1).
+        var model = CreateMinimalBundle(containers:
+        [
+            new ContainerModel { Id = "ExtContainer", DownloadUrl = "https://cdn.example.com/ext.container" }
+        ]);
+
+        var source = BundleCSharpEmitter.Emit(model);
+
+        Assert.Contains(
+            "b.Container(\"ExtContainer\", c => c.DownloadUrl(\"https://cdn.example.com/ext.container\"));",
+            source);
+    }
+
+    [Fact]
     public void Emit_UiConfigBuiltInWithLicense_EmitsUseBuiltInUI()
     {
         var model = CreateMinimalBundle(uiConfig: new BundleUiConfig
@@ -549,8 +567,10 @@ public sealed class BundleCSharpEmitterTests
         Assert.Contains("// Decompiled from bundle: Test Bundle", source);
         Assert.Contains("// NOTE: Some information is lost during decompilation:", source);
         Assert.Contains("//   - UI configuration (logo, theme, watermark, banner) is not preserved", source);
-        Assert.Contains("//   - Container download URLs are not preserved", source);
         Assert.Contains("//   - Custom UI project paths may not be preserved in older bundles", source);
+        // Container download URLs ARE preserved (A6 round-trip fix, beta.4 audit N1) — must
+        // NOT appear in the information-loss list anymore.
+        Assert.DoesNotContain("Container download URLs are not preserved", source);
     }
 
     [Fact]
