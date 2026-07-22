@@ -1,3 +1,4 @@
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Models;
 using FalkForge.Signing;
 
@@ -44,9 +45,10 @@ public static class EcdsaManifestSigner
     /// </summary>
     public static Result<string> Sign(
         IReadOnlyList<PayloadHashEntry> entries,
-        IntegrityConfiguration? config)
+        IntegrityConfiguration? config,
+        IReadOnlyList<ExternalContainerInfo>? externalContainers = null)
     {
-        var task = SignAsync(entries, config, CancellationToken.None);
+        var task = SignAsync(entries, config, externalContainers, CancellationToken.None);
 
         // Built-in providers (PEM/ephemeral) always complete synchronously and successfully — the common,
         // no-block path.
@@ -72,18 +74,23 @@ public static class EcdsaManifestSigner
     public static async ValueTask<Result<string>> SignAsync(
         IReadOnlyList<PayloadHashEntry> entries,
         IntegrityConfiguration? config,
+        IReadOnlyList<ExternalContainerInfo>? externalContainers = null,
         CancellationToken cancellationToken = default)
     {
         var files = new List<ManifestFileEntry>(entries.Count);
         foreach (var entry in entries)
             files.Add(new ManifestFileEntry { Name = entry.PackageId, Sha256 = entry.Sha256 });
 
-        // Fold the publisher's epoch + declared revocations into the signed message (C14 Stage 2).
-        // Neutral values (epoch 0, no revocations) reproduce the legacy files-only signed bytes, so an
-        // unchanged config keeps producing byte-identical signed bytes across v1/v2.
+        // Fold the publisher's epoch + declared revocations (C14 Stage 2) and the external-container set
+        // (A6) into the signed message. Neutral values (epoch 0, no revocations, no external containers)
+        // reproduce the legacy files-only signed bytes, so a container-free build keeps producing
+        // byte-identical signed bytes across v1/v2.
         var epoch = config?.Epoch ?? 0;
         IReadOnlyList<string> revoked = config?.RevokedFingerprints ?? [];
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch, revoked);
+        // Normalize empty → null so the envelope's container field is omitted on the wire for a
+        // container-free bundle (byte-identical envelope), and the signed bytes append nothing.
+        var containers = externalContainers is { Count: > 0 } ? externalContainers : null;
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch, revoked, containers);
 
         var providers = BuildProviders(config);
         // PQ-hybrid Stage 1: classical entries are ordered before post-quantum entries regardless of
@@ -152,7 +159,8 @@ public static class EcdsaManifestSigner
             Files = files,
             Signatures = signatures,
             Epoch = epoch,
-            Revoked = revoked
+            Revoked = revoked,
+            ExternalContainers = containers
         };
 
         return IntegrityEnvelopeCodec.Serialize(envelope);
