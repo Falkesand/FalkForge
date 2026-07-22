@@ -341,7 +341,13 @@ public static class BundleReader
         if (ReadU16(stream, 0) != 0x5A4D) // 'MZ'
             return false;
 
-        var peOffset = ReadU32(stream, DosLfanewOffset);
+        // e_lfanew is a fully untrusted, attacker-controlled offset read straight from the DOS
+        // header. Cast to long immediately: peOffset + a const int operand otherwise binds to the
+        // (uint, uint) overload (the int operands are compile-time constants, which C# implicitly
+        // converts to uint), so a peOffset near uint.MaxValue would wrap the sum to a small value
+        // and defeat this bounds check. Every downstream use of peOffset below inherits this long
+        // type, so the same wrap cannot recur later in the method.
+        var peOffset = (long)ReadU32(stream, DosLfanewOffset);
         if (peOffset + PeSignatureSize + CoffHeaderSize > fileLength)
             return false;
         if (ReadU32(stream, peOffset) != 0x00004550) // 'P','E',0,0 (little-endian)
