@@ -236,6 +236,26 @@ public sealed class DialogSetProducerTests
             sv.Value == "InstallScopeDlg");
     }
 
+    // ── UIText: MenuAllLocal must not read the same as MenuLocal ──────────────
+    // MenuAllLocal/MenuLocal drive the SelectionTree control's feature context menu: MenuLocal is
+    // "install just this feature", MenuAllLocal is "install this feature AND its subfeatures". A
+    // package with no custom LocalizationData resolves UIText from the built-in en-US culture, so
+    // this exercises the real default en-US.json text an end user would see.
+
+    [Fact]
+    public void Produce_Mondo_UIText_MenuAllLocal_DiffersFromMenuLocal()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTables(MsiDialogSet.Mondo);
+        RecipeTable uiText = GetTable(tables, "UIText");
+
+        string MenuText(string key) => uiText.Rows
+            .Where(r => r.Cells[0] is CellValue.StringValue sv && sv.Value == key)
+            .Select(r => ((CellValue.StringValue)r.Cells[1]).Value)
+            .Single();
+
+        Assert.NotEqual(MenuText("MenuLocal"), MenuText("MenuAllLocal"));
+    }
+
     // ── Schema: Dialog table has 10 columns ──────────────────────────────────
 
     [Fact]
