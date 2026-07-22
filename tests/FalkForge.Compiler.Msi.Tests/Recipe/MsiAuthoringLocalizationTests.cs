@@ -131,6 +131,208 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
     }
 
     [Fact]
+    public void Compile_with_two_cultures_localizes_dialog_title_and_generates_a_transform_that_applies_it()
+    {
+        // Dialog.Title is a separate localizable MSI column from Control.Text. This proves title
+        // resolution + per-culture MST override work exactly like Control.Text already does.
+        string sourceFile = CreateSourceFile();
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LocalizedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LocalizedApp"));
+            p.AddCustomDialog("TitledDlg", dlg => dlg
+                .Title("!(loc.DialogTitle)")
+                .Sequence(1200)
+                .FirstControl("Static")
+                .Text("Static", 20, 20, 330, 40, "Just text"));
+            p.SetLocalizationData(
+            [
+                new LocalizationData
+                {
+                    Culture = "en-US",
+                    Strings = new Dictionary<string, string> { ["DialogTitle"] = "Hello Title" },
+                },
+                new LocalizationData
+                {
+                    Culture = "de-DE",
+                    Strings = new Dictionary<string, string> { ["DialogTitle"] = "Hallo Titel" },
+                },
+            ]);
+        });
+
+        Result<string> result = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        string msiPath = result.Value;
+
+        string[] transforms = Directory.GetFiles(outputDir, "*.mst");
+        string mstPath = Assert.Single(transforms);
+
+        // The base MSI carries the primary-culture title.
+        using (MsiDatabase baseDb = MsiDatabase.Open(msiPath, readOnly: true).Value)
+        {
+            Result<List<string?[]>> baseTitle = baseDb.QueryRows(
+                "SELECT `Title` FROM `Dialog` WHERE `Dialog` = 'TitledDlg'",
+                fieldCount: 1);
+            Assert.True(baseTitle.IsSuccess);
+            Assert.Equal("Hello Title", Assert.Single(baseTitle.Value)[0]);
+        }
+
+        // Applying the de-DE transform yields the localized title — proof the .mst actually
+        // carries the Dialog.Title column, not just Control.Text.
+        string copyPath = Path.Combine(_tempDir, "applied_title.msi");
+        File.Copy(msiPath, copyPath);
+        using MsiDatabase copyDb = MsiDatabase.Open(copyPath, readOnly: false).Value;
+        Result<Unit> apply = copyDb.ApplyTransform(mstPath);
+        Assert.True(apply.IsSuccess, apply.IsFailure ? apply.Error.Message : null);
+
+        Result<List<string?[]>> localizedTitle = copyDb.QueryRows(
+            "SELECT `Title` FROM `Dialog` WHERE `Dialog` = 'TitledDlg'",
+            fieldCount: 1);
+        Assert.True(localizedTitle.IsSuccess);
+        Assert.Equal("Hallo Titel", Assert.Single(localizedTitle.Value)[0]);
+    }
+
+    [Fact]
+    public void Compile_with_two_cultures_localizes_UIText_entry_and_generates_a_transform_that_applies_it()
+    {
+        // The 21 fixed UIText rows (bytes, GB, MenuAbsent, ...) previously passed through as
+        // hardcoded English literals with no !(loc.*) indirection. Authors can now override any
+        // entry via a "UiText.<Key>" string in their own LocalizationData, and — like Control.Text
+        // and Title — it participates in the per-culture MST rebuild.
+        string sourceFile = CreateSourceFile();
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LocalizedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LocalizedApp"));
+            p.AddCustomDialog("PlainDlg", dlg => dlg
+                .Title("Plain")
+                .Sequence(1200)
+                .FirstControl("Static")
+                .Text("Static", 20, 20, 330, 40, "Just text"));
+            p.SetLocalizationData(
+            [
+                new LocalizationData
+                {
+                    Culture = "en-US",
+                    Strings = new Dictionary<string, string> { ["UiText.bytes"] = "Bytes!" },
+                },
+                new LocalizationData
+                {
+                    Culture = "de-DE",
+                    Strings = new Dictionary<string, string> { ["UiText.bytes"] = "Byte" },
+                },
+            ]);
+        });
+
+        Result<string> result = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        string msiPath = result.Value;
+
+        string[] transforms = Directory.GetFiles(outputDir, "*.mst");
+        string mstPath = Assert.Single(transforms);
+
+        using (MsiDatabase baseDb = MsiDatabase.Open(msiPath, readOnly: true).Value)
+        {
+            Result<List<string?[]>> baseText = baseDb.QueryRows(
+                "SELECT `Text` FROM `UIText` WHERE `Key` = 'bytes'",
+                fieldCount: 1);
+            Assert.True(baseText.IsSuccess);
+            Assert.Equal("Bytes!", Assert.Single(baseText.Value)[0]);
+        }
+
+        string copyPath = Path.Combine(_tempDir, "applied_uitext.msi");
+        File.Copy(msiPath, copyPath);
+        using MsiDatabase copyDb = MsiDatabase.Open(copyPath, readOnly: false).Value;
+        Result<Unit> apply = copyDb.ApplyTransform(mstPath);
+        Assert.True(apply.IsSuccess, apply.IsFailure ? apply.Error.Message : null);
+
+        Result<List<string?[]>> localizedText = copyDb.QueryRows(
+            "SELECT `Text` FROM `UIText` WHERE `Key` = 'bytes'",
+            fieldCount: 1);
+        Assert.True(localizedText.IsSuccess);
+        Assert.Equal("Byte", Assert.Single(localizedText.Value)[0]);
+    }
+
+    [Fact]
+    public void Compile_with_partially_translated_culture_falls_back_to_primary_for_untranslated_title()
+    {
+        // Mirrors the Control.Text partial-fallback proof above, for Dialog.Title: a culture that
+        // does not translate the title must still build (no LOC003) and fall back to the primary
+        // culture's title, while a control it DOES translate proves the transform isn't a no-op.
+        string sourceFile = CreateSourceFile();
+        string outputDir = Path.Combine(_tempDir, "out");
+        Directory.CreateDirectory(outputDir);
+
+        PackageModel package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "LocalizedApp";
+            p.Manufacturer = "FalkForge";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "LocalizedApp"));
+            p.AddCustomDialog("TitledDlg", dlg => dlg
+                .Title("!(loc.DialogTitle)")
+                .Sequence(1200)
+                .FirstControl("Other")
+                .Text("Other", 20, 20, 330, 40, "!(loc.Other)"));
+            p.SetLocalizationData(
+            [
+                new LocalizationData
+                {
+                    Culture = "en-US",
+                    Strings = new Dictionary<string, string>
+                    {
+                        ["DialogTitle"] = "Hello Title",
+                        ["Other"] = "X",
+                    },
+                },
+                // Partial translation: 'de' localizes only Other, not DialogTitle.
+                new LocalizationData
+                {
+                    Culture = "de",
+                    Strings = new Dictionary<string, string> { ["Other"] = "Y" },
+                },
+            ]);
+        });
+
+        Result<string> result = MsiAuthoring.Compile(package, outputDir);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        string msiPath = result.Value;
+
+        string[] transforms = Directory.GetFiles(outputDir, "*.mst");
+        string mstPath = Assert.Single(transforms);
+
+        string copyPath = Path.Combine(_tempDir, "applied_partial_title.msi");
+        File.Copy(msiPath, copyPath);
+        using MsiDatabase copyDb = MsiDatabase.Open(copyPath, readOnly: false).Value;
+        Result<Unit> apply = copyDb.ApplyTransform(mstPath);
+        Assert.True(apply.IsSuccess, apply.IsFailure ? apply.Error.Message : null);
+
+        // Title (untranslated by 'de') falls back to the primary en-US value...
+        Result<List<string?[]>> title = copyDb.QueryRows(
+            "SELECT `Title` FROM `Dialog` WHERE `Dialog` = 'TitledDlg'",
+            fieldCount: 1);
+        Assert.True(title.IsSuccess);
+        Assert.Equal("Hello Title", Assert.Single(title.Value)[0]);
+
+        // ...while Other IS localized to the German value, proving the transform isn't a no-op.
+        Result<List<string?[]>> other = copyDb.QueryRows(
+            "SELECT `Text` FROM `Control` WHERE `Dialog_` = 'TitledDlg' AND `Control` = 'Other'",
+            fieldCount: 1);
+        Assert.True(other.IsSuccess);
+        Assert.Equal("Y", Assert.Single(other.Value)[0]);
+    }
+
+    [Fact]
     public void Compile_with_partially_translated_culture_falls_back_to_primary_for_untranslated_strings()
     {
         // A language transform overrides only the strings a culture localizes; anything the extra

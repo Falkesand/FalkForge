@@ -26,11 +26,12 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </para>
 ///
 /// <para>
-/// Localization: <c>!(loc.X)</c> references in control text are resolved via
-/// the built-in en-US strings (same fallback the legacy <c>DialogEmitter</c> used)
-/// before the rows are frozen into immutable cells. The resolver runs on the
-/// mutable <see cref="MsiDialogModel"/> list returned by the template, so the
-/// resolution is non-destructive to the original model objects.
+/// Localization: <c>!(loc.X)</c> references in control text, dialog titles, and the fixed
+/// UIText table entries are resolved via the built-in en-US strings (same fallback the legacy
+/// <c>DialogEmitter</c> used) before the rows are frozen into immutable cells. Control text and
+/// dialog titles are resolved in place on the mutable <see cref="MsiDialogModel"/> list returned
+/// by the template; UIText entries are resolved into a fresh array (the fixed key/text source is
+/// a shared static array and must never be mutated in place).
 /// </para>
 ///
 /// <para>
@@ -176,8 +177,10 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
                 ImmutableArray<RecipeTable>.Empty);
         }
 
-        // Resolve !(loc.X) references in control text, mirroring DialogEmitter.BuildStringResolver.
-        Result<Unit> resolveResult = ResolveLocalizationRefs(dialogs, package, _defaultCultureOverride);
+        // Resolve !(loc.X) references in control text, dialog titles, and UIText entries,
+        // mirroring DialogEmitter.BuildStringResolver (extended beyond Control.Text in beta.4).
+        Result<ImmutableArray<(string Key, string Text)>> resolveResult =
+            ResolveLocalizationRefs(dialogs, package, _defaultCultureOverride);
         if (resolveResult.IsFailure)
         {
             return Result<ImmutableArray<RecipeTable>>.Failure(resolveResult.Error);
@@ -191,7 +194,8 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             return Result<ImmutableArray<RecipeTable>>.Failure(licenseResult.Error);
         }
 
-        return Result<ImmutableArray<RecipeTable>>.Success(BuildDialogTables(dialogs));
+        return Result<ImmutableArray<RecipeTable>>.Success(
+            BuildDialogTables(dialogs, resolveResult.Value));
     }
 
     // ── Template selection (mirrors legacy DialogEmitter.GetTemplate) ────────────────

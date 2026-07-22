@@ -1,12 +1,34 @@
+using System.Collections.Immutable;
 using FalkForge.Compiler.Msi.UI;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
 
-// !(loc.X) control-text resolution (mirrors legacy DialogEmitter.BuildStringResolver).
+// !(loc.X) resolution for dialog Control.Text, dialog Title, and the fixed UIText table entries
+// (mirrors legacy DialogEmitter.BuildStringResolver; Title/UIText resolution added in beta.4 —
+// previously only Control.Text was resolved, so a localized installer's dialog titles and UIText
+// stayed in the primary language for every additional culture).
 internal sealed partial class DialogSetProducer
 {
-    private static Result<Unit> ResolveLocalizationRefs(
+    // "UiText.<Key>" -> literal English default, derived once from the fixed UiTextEntries. Seeded
+    // into the PRIMARY culture whenever a package supplies custom LocalizationData (which otherwise
+    // excludes the built-in en-US/sv-SE strings entirely, per the branch below) so authors are never
+    // forced to translate all 21 framework UIText keys just to localize their own dialogs — an
+    // author-defined "UiText.X" key in their own data still wins over this default.
+    private static readonly IReadOnlyDictionary<string, string> UiTextLocDefaults = BuildUiTextLocDefaults();
+
+    private static Dictionary<string, string> BuildUiTextLocDefaults()
+    {
+        var defaults = new Dictionary<string, string>(UiTextEntries.Length);
+        for (int i = 0; i < UiTextEntries.Length; i++)
+        {
+            defaults[$"UiText.{UiTextEntries[i].Key}"] = UiTextEntries[i].Text;
+        }
+
+        return defaults;
+    }
+
+    private static Result<ImmutableArray<(string Key, string Text)>> ResolveLocalizationRefs(
         IReadOnlyList<MsiDialogModel> dialogs,
         PackageModel package,
         string? defaultCultureOverride)
@@ -21,7 +43,7 @@ internal sealed partial class DialogSetProducer
             Result<System.Collections.Generic.IReadOnlyList<Localization.LocalizationModel>> buildResult = builder.Build();
             if (buildResult.IsFailure)
             {
-                return Result<Unit>.Failure(buildResult.Error);
+                return Result<ImmutableArray<(string, string)>>.Failure(buildResult.Error);
             }
 
             // Pass built-in list directly — no projection needed, types already match. The
@@ -36,11 +58,30 @@ internal sealed partial class DialogSetProducer
             var locModels = new List<Localization.LocalizationModel>(locData.Count);
             for (int i = 0; i < locData.Count; i++)
             {
-                locModels.Add(new Localization.LocalizationModel
+                if (i == 0)
                 {
-                    Culture = locData[i].Culture,
-                    Strings = locData[i].Strings,
-                });
+                    // Seed the framework UIText defaults under the author's primary-culture
+                    // strings; author-defined keys are applied after and therefore win.
+                    var primaryStrings = new Dictionary<string, string>(UiTextLocDefaults);
+                    foreach (System.Collections.Generic.KeyValuePair<string, string> kv in locData[i].Strings)
+                    {
+                        primaryStrings[kv.Key] = kv.Value;
+                    }
+
+                    locModels.Add(new Localization.LocalizationModel
+                    {
+                        Culture = locData[i].Culture,
+                        Strings = primaryStrings,
+                    });
+                }
+                else
+                {
+                    locModels.Add(new Localization.LocalizationModel
+                    {
+                        Culture = locData[i].Culture,
+                        Strings = locData[i].Strings,
+                    });
+                }
             }
 
             // The resolver default is always the primary (first configured) culture. MsiAuthoring
@@ -58,6 +99,18 @@ internal sealed partial class DialogSetProducer
         for (int di = 0; di < dialogs.Count; di++)
         {
             MsiDialogModel dialog = dialogs[di];
+
+            if (dialog.Title is not null && dialog.Title.Contains("!(loc."))
+            {
+                Result<string> titleResult = resolver.Resolve(dialog.Title, requestedCulture);
+                if (titleResult.IsFailure)
+                {
+                    return Result<ImmutableArray<(string, string)>>.Failure(titleResult.Error);
+                }
+
+                dialog.Title = titleResult.Value;
+            }
+
             for (int ci = 0; ci < dialog.Controls.Count; ci++)
             {
                 MsiControlModel control = dialog.Controls[ci];
@@ -66,7 +119,7 @@ internal sealed partial class DialogSetProducer
                     Result<string> r = resolver.Resolve(control.Text, requestedCulture);
                     if (r.IsFailure)
                     {
-                        return Result<Unit>.Failure(r.Error);
+                        return Result<ImmutableArray<(string, string)>>.Failure(r.Error);
                     }
 
                     control.Text = r.Value;
@@ -74,6 +127,24 @@ internal sealed partial class DialogSetProducer
             }
         }
 
-        return Unit.Value;
+        // UIText rows are a fixed static array shared across every build (never mutated in
+        // place — see the ImmutableArray comment on BuiltInCultures in
+        // BuiltInLocalizationExtensions for why a shared mutable array would corrupt future
+        // builds); resolve into a fresh array local to this call instead.
+        ImmutableArray<(string Key, string Text)>.Builder resolvedUiText =
+            ImmutableArray.CreateBuilder<(string Key, string Text)>(UiTextEntries.Length);
+        for (int i = 0; i < UiTextEntries.Length; i++)
+        {
+            string key = UiTextEntries[i].Key;
+            Result<string> uiTextResult = resolver.Resolve($"!(loc.UiText.{key})", requestedCulture);
+            if (uiTextResult.IsFailure)
+            {
+                return Result<ImmutableArray<(string, string)>>.Failure(uiTextResult.Error);
+            }
+
+            resolvedUiText.Add((key, uiTextResult.Value));
+        }
+
+        return resolvedUiText.ToImmutable();
     }
 }
