@@ -183,6 +183,62 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
         Assert.Equal(stubStatus, reattachedStatus);
     }
 
+    /// <summary>
+    /// Proves the ALTERNATIVE to detach/sign/reattach: signing the FULLY ASSEMBLED bundle EXE
+    /// directly (no detach step at all). signtool appends the PE attribute-certificate table
+    /// AFTER the FALKBUNDLE footer that <see cref="PayloadEmbedder"/> already wrote, which moves
+    /// the physical end of file past the footer. Unlike <see cref="DetachSignReattach_ReattachedBundlePreservesAuthenticode"/>
+    /// — where <see cref="BundleDetacher.Reattach"/> must extend the certificate table to swallow
+    /// the appended bundle bytes (the CVE-2013-3900 padding trick, rejected by machines with strict
+    /// cert-padding checks) — this path needs no such trick: the certificate table only ever
+    /// covers real, signtool-authored certificate bytes, and the digest legitimately spans the
+    /// whole file including the embedded container.
+    /// <para>
+    /// This is the KEY test for whole-bundle signing viability: it proves <see cref="BundleReader.Extract"/>
+    /// (and by extension <see cref="BundleReader.HasBundleFooter"/>) still locates the FALKBUNDLE
+    /// footer and self-extracts every payload byte-for-byte even though the footer is no longer
+    /// the physical last 24 bytes of the file — the reader falls back to the PE optional header's
+    /// Security data directory to find where the footer actually ends when the plain
+    /// physical-EOF lookup misses.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void WholeBundleSign_SignedDirectly_StillSelfExtractsAndVerifiesAuthenticode()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
+
+        var signtool = FindSignTool();
+        Assert.SkipUnless(signtool is not null,
+            "signtool.exe not found (Windows SDK absent) — skipping the whole-bundle Authenticode " +
+            "round-trip. The signtool-independent self-extraction guarantee is covered elsewhere.");
+
+        var payload1 = RandomBytes(8_200);
+        var payload2 = RandomBytes(15_900);
+
+        // The stub MUST be a genuine PE for signtool to sign it.
+        var realPe = typeof(BundleDetacher).Assembly.Location;
+        Assert.False(string.IsNullOrEmpty(realPe), "Expected a real on-disk assembly to use as a PE stub.");
+        var stubSource = Path.Combine(_tempDir, "whole_pe_stub.dll");
+        File.Copy(realPe, stubSource, overwrite: true);
+
+        // Build the FULLY ASSEMBLED bundle — stub + FALKBUNDLE container + footer — with no
+        // detach step at all, then sign that single file directly.
+        var bundlePath = BuildBundle(stubSource, ("Whole1", payload1), ("Whole2", payload2));
+        SignWithSelfSignedCert(signtool!, bundlePath);
+
+        var validator = new AuthenticodeValidator();
+
+        // Same digest-valid-but-untrusted-root status as the bare-stub and reattached cases:
+        // proves the signature is present and cryptographically intact over the whole file.
+        var status = VerifyStatus(validator, bundlePath);
+        Assert.Equal(UntrustedRootStatus, status);
+
+        // THE KEY PROPERTY: the bundle still self-extracts every payload byte-for-byte even
+        // though the certificate table now sits after the FALKBUNDLE footer, past physical EOF
+        // relative to where the footer's fixed-offset lookup alone would look.
+        AssertPayloadsExtractByteForByte(bundlePath, ("Whole1", payload1), ("Whole2", payload2));
+    }
+
     // --------------------------------------------------------------------------------------------
     // Helpers
     // --------------------------------------------------------------------------------------------
