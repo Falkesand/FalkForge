@@ -170,7 +170,13 @@ internal static class ManifestMapper
         PackageInfo[] packages,
         ExternalContainerInfo[] externalContainers)
     {
-        var downloadUrlById = externalContainers.ToDictionary(c => c.Id, c => c.DownloadUrl);
+        // Nothing in BundleValidator rejects two ContainerModel entries sharing an Id, so a
+        // malformed-but-reachable manifest can legitimately carry duplicate ExternalContainerInfo
+        // ids. ToDictionary would throw on that; build the lookup with last-wins semantics instead
+        // so a duplicate id degrades gracefully rather than crashing the whole decompile/migrate.
+        var downloadUrlById = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var c in externalContainers)
+            downloadUrlById[c.Id] = c.DownloadUrl;
 
         var ids = packages
             .Where(p => p.ContainerId is not null)
