@@ -9145,6 +9145,26 @@ forge bundle detach installer.exe --stub stub.exe --data bundle.dat
 
 # Reattach signed PE stub to bundle data
 forge bundle reattach --stub signed.exe --data bundle.dat -o installer.exe</code></pre>
+<p>
+    <strong>An alternative to detach/reattach: sign the fully assembled bundle directly.</strong> Once
+    <code>installer.exe</code> is fully compiled (stub + FALKBUNDLE container already embedded), you can hand
+    that single file straight to <code>signtool</code> &mdash; no detach step needed:
+</p>
+<pre><code class="language-bash">signtool sign /fd sha256 /f mycert.pfx /p &lt;password&gt; installer.exe</code></pre>
+<p>
+    This is the <strong>recommended</strong> path when it fits your pipeline (you have the whole file and a
+    local or CI-reachable signing tool at compile time): the Authenticode signature legitimately covers the
+    entire file &mdash; stub and container both &mdash; with the certificate table appended at the genuine
+    end of file, no trick involved. <code>BundleReader</code> locates the FALKBUNDLE footer even though the
+    appended certificate table now sits after it (it falls back to the PE Security data directory when the
+    footer isn't the file's last 24 bytes), so the bundle still self-extracts normally.
+    Detach/reattach remains the right choice when the stub must be signed by a process that only ever sees
+    the bare PE (e.g. a remote signing service that never receives your payloads, or a pipeline where
+    signing happens before the payloads are known) &mdash; but that path relies on the CVE-2013-3900
+    certificate-padding leniency (see <a href="#demos">Demo 15 &mdash; bundle-signing</a>'s README) and is
+    rejected on machines with the opt-in strict certificate-padding check. Signing the whole assembled
+    bundle has no such caveat.
+</p>
 
 <h4>migrate</h4>
 <p>
