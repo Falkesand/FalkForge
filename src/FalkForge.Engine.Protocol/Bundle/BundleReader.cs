@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,6 +11,9 @@ public static class BundleReader
     private static readonly byte[] Magic = Encoding.ASCII.GetBytes("FALKBUNDLE\0\0\0\0\0\0");
 
     public static ReadOnlySpan<byte> BundleMagic => Magic;
+
+    private const int MagicLength = 16;
+    private const int FooterLength = MagicLength + sizeof(long); // 24: magic + int64 TOC offset
 
     /// <summary>
     /// Copy-buffer size for the streaming decompress/verify/extract paths. Rented from
@@ -45,13 +49,11 @@ public static class BundleReader
             using var stream = File.OpenRead(bundlePath);
             using var reader = new BinaryReader(stream);
 
-            // Read footer (last 24 bytes: 16 magic + 8 TOC offset)
-            stream.Seek(-24, SeekOrigin.End);
-            var footerMagic = reader.ReadBytes(16);
-            if (!footerMagic.AsSpan().SequenceEqual(Magic))
+            // Locate the footer (16 magic + 8 TOC offset). Usually the physical last 24 bytes of
+            // the file; TryLocateFooter also tolerates a trailing PE Authenticode certificate
+            // table appended AFTER the footer (whole-bundle signing — see its doc comment).
+            if (!TryLocateFooter(stream, out var tocOffset))
                 return Result<BundleContent>.Failure(ErrorKind.PayloadError, "Not a valid FalkForge bundle");
-
-            var tocOffset = reader.ReadInt64();
 
             // Read TOC
             stream.Seek(tocOffset, SeekOrigin.Begin);
@@ -235,18 +237,181 @@ public static class BundleReader
         try
         {
             using var stream = File.OpenRead(filePath);
-            if (stream.Length < 24) return false;
+            if (stream.Length < FooterLength) return false;
 
-            stream.Seek(-24, SeekOrigin.End);
-            Span<byte> footer = stackalloc byte[16];
-            stream.ReadExactly(footer);
-
-            return footer.SequenceEqual(Magic);
+            return TryLocateFooter(stream, out _);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException)
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Locates the FALKBUNDLE footer (16-byte magic + 8-byte TOC offset) and returns the TOC
+    /// offset it encodes.
+    /// <para>
+    /// PRIMARY: the footer is the physical last 24 bytes of the file. This covers unsigned
+    /// bundles and the <c>forge bundle detach</c> → sign → <c>forge bundle reattach</c> path —
+    /// <see cref="BundleDetacher"/>'s reattach step (in FalkForge.Compiler.Bundle) deliberately
+    /// extends the PE attribute-certificate table to swallow the appended bundle bytes so the
+    /// footer stays physically last (the CVE-2013-3900 certificate-padding technique).
+    /// </para>
+    /// <para>
+    /// FALLBACK: signing the FULLY ASSEMBLED bundle EXE directly — no detach step — is the
+    /// alternative that sidesteps that padding trick: the Authenticode signature legitimately
+    /// covers the whole file, and the certificate table signtool appends lands AFTER the
+    /// FALKBUNDLE footer, pushing physical EOF past it. When the primary lookup misses, this
+    /// consults the PE optional header's Security data directory (<see cref="TryFindTrailingCertTableOffset"/>)
+    /// to find where the appended certificate table starts and looks for the footer just before
+    /// it. The WIN_CERTIFICATE table itself must start on an 8-byte file boundary, so signtool
+    /// inserts 0-7 zero padding bytes ahead of it whenever the pre-signing file length was not
+    /// already 8-aligned — the footer therefore ends somewhere in the last 8 bytes before the
+    /// table start, not necessarily immediately before it, so every offset in that window is
+    /// tried. Read-only and self-validating (the magic must still match at the tried position),
+    /// so a file that merely happens to carry PE headers with an unrelated Security directory
+    /// cannot spoof a footer here.
+    /// </para>
+    /// </summary>
+    private static bool TryLocateFooter(Stream stream, out long tocOffset)
+    {
+        if (TryReadFooterAt(stream, stream.Length, out tocOffset))
+            return true;
+
+        if (TryFindTrailingCertTableOffset(stream, out var certTableOffset))
+        {
+            // certTableOffset is 8-aligned by the PE spec; the real (unaligned) pre-signing EOF —
+            // where our footer actually ends — is at most 7 bytes before it.
+            for (var pad = 0; pad < 8; pad++)
+            {
+                if (TryReadFooterAt(stream, certTableOffset - pad, out tocOffset))
+                    return true;
+            }
+        }
+
+        tocOffset = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Reads the 24-byte footer ending exactly at <paramref name="end"/> and validates its magic.
+    /// </summary>
+    private static bool TryReadFooterAt(Stream stream, long end, out long tocOffset)
+    {
+        tocOffset = 0;
+        if (end < FooterLength)
+            return false;
+
+        stream.Seek(end - FooterLength, SeekOrigin.Begin);
+        Span<byte> footer = stackalloc byte[FooterLength];
+        stream.ReadExactly(footer);
+
+        if (!footer[..MagicLength].SequenceEqual(Magic))
+            return false;
+
+        tocOffset = BinaryPrimitives.ReadInt64LittleEndian(footer[MagicLength..]);
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the PE optional header's Security data directory (<c>IMAGE_DIRECTORY_ENTRY_SECURITY</c>),
+    /// reporting the attribute-certificate table's start offset only when that table ends EXACTLY
+    /// at the current end of <paramref name="stream"/> — the shape produced by Authenticode-signing
+    /// the fully assembled bundle directly (the certificate table is always the last thing
+    /// signtool appends). Read-only counterpart to the byte-level PE patch in
+    /// <c>BundleDetacher.PreserveAuthenticodeSignature</c> (FalkForge.Compiler.Bundle); the parsing
+    /// is duplicated rather than shared because this project (Engine.Protocol) sits BELOW
+    /// Compiler.Bundle in the dependency graph and must not depend upward. Never throws on
+    /// untrusted bytes — every read is bounds-checked first, and any unsigned, non-PE, or
+    /// malformed-header file simply returns <see langword="false"/>.
+    /// </summary>
+    private static bool TryFindTrailingCertTableOffset(Stream stream, out long certTableOffset)
+    {
+        certTableOffset = 0;
+
+        const int DosLfanewOffset = 0x3C;
+        const int PeSignatureSize = 4; // "PE\0\0"
+        const int CoffHeaderSize = 20;
+        const int SecurityDirectoryIndex = 4;
+        const int DataDirectoryEntrySize = 8; // VirtualAddress (4) + Size (4)
+
+        var fileLength = stream.Length;
+        if (fileLength < DosLfanewOffset + 4)
+            return false;
+        if (ReadU16(stream, 0) != 0x5A4D) // 'MZ'
+            return false;
+
+        var peOffset = ReadU32(stream, DosLfanewOffset);
+        if (peOffset + PeSignatureSize + CoffHeaderSize > fileLength)
+            return false;
+        if (ReadU32(stream, peOffset) != 0x00004550) // 'P','E',0,0 (little-endian)
+            return false;
+
+        var optHeaderOffset = peOffset + PeSignatureSize + CoffHeaderSize;
+        if (optHeaderOffset + 2 > fileLength)
+            return false;
+
+        // Optional header Magic: 0x10B = PE32, 0x20B = PE32+. Only NumberOfRvaAndSizes / the data
+        // directory offset differ between the two.
+        var optMagic = ReadU16(stream, optHeaderOffset);
+        int numberOfRvaAndSizesOffset;
+        int dataDirectoryOffset;
+        switch (optMagic)
+        {
+            case 0x10B: // PE32
+                numberOfRvaAndSizesOffset = 92;
+                dataDirectoryOffset = 96;
+                break;
+            case 0x20B: // PE32+
+                numberOfRvaAndSizesOffset = 108;
+                dataDirectoryOffset = 112;
+                break;
+            default:
+                return false;
+        }
+
+        if (optHeaderOffset + numberOfRvaAndSizesOffset + 4 > fileLength)
+            return false;
+
+        var numberOfRvaAndSizes = ReadU32(stream, optHeaderOffset + numberOfRvaAndSizesOffset);
+        if (numberOfRvaAndSizes <= SecurityDirectoryIndex)
+            return false; // No Security data directory present — not signed.
+
+        var securityEntryOffset =
+            optHeaderOffset + dataDirectoryOffset + SecurityDirectoryIndex * DataDirectoryEntrySize;
+        if (securityEntryOffset + DataDirectoryEntrySize > fileLength)
+            return false;
+
+        var certOffset = ReadU32(stream, securityEntryOffset);
+        var certSize = ReadU32(stream, securityEntryOffset + 4);
+        if (certOffset == 0 || certSize == 0)
+            return false; // Unsigned.
+
+        // Only report when the certificate table ends exactly at EOF — the shape a direct
+        // whole-bundle sign produces. (The reattach path's deliberately enlarged table also ends
+        // at EOF, but its footer is already found by the physical-EOF primary lookup in
+        // TryLocateFooter, so this fallback is never reached for that case.)
+        if ((long)certOffset + certSize != fileLength)
+            return false;
+
+        certTableOffset = certOffset;
+        return true;
+    }
+
+    private static ushort ReadU16(Stream stream, long offset)
+    {
+        stream.Seek(offset, SeekOrigin.Begin);
+        Span<byte> buffer = stackalloc byte[2];
+        stream.ReadExactly(buffer);
+        return BinaryPrimitives.ReadUInt16LittleEndian(buffer);
+    }
+
+    private static uint ReadU32(Stream stream, long offset)
+    {
+        stream.Seek(offset, SeekOrigin.Begin);
+        Span<byte> buffer = stackalloc byte[4];
+        stream.ReadExactly(buffer);
+        return BinaryPrimitives.ReadUInt32LittleEndian(buffer);
     }
 
     /// <summary>
