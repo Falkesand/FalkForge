@@ -100,7 +100,7 @@ internal sealed partial class DialogSetProducer
         {
             MsiDialogModel dialog = dialogs[di];
 
-            if (dialog.Title is not null && dialog.Title.Contains("!(loc."))
+            if (dialog.Title is not null && dialog.Title.Contains("!(loc.", StringComparison.Ordinal))
             {
                 Result<string> titleResult = resolver.Resolve(dialog.Title, requestedCulture);
                 if (titleResult.IsFailure)
@@ -114,7 +114,7 @@ internal sealed partial class DialogSetProducer
             for (int ci = 0; ci < dialog.Controls.Count; ci++)
             {
                 MsiControlModel control = dialog.Controls[ci];
-                if (control.Text is not null && control.Text.Contains("!(loc."))
+                if (control.Text is not null && control.Text.Contains("!(loc.", StringComparison.Ordinal))
                 {
                     Result<string> r = resolver.Resolve(control.Text, requestedCulture);
                     if (r.IsFailure)
