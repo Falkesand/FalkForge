@@ -3,7 +3,9 @@ namespace FalkForge.Compiler.Msi.UI;
 internal sealed class MsiDialogModel
 {
     public required string Name { get; init; }
-    public string? Title { get; init; }
+    // Settable (not init): DialogSetProducer.Localization.cs resolves !(loc.X) references in
+    // place after the template/translator constructs the model, mirroring Control.Text below.
+    public string? Title { get; set; }
     public int Width { get; init; } = 370;
     public int Height { get; init; } = 270;
     public int HCentering { get; init; } = 50;

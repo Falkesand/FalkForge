@@ -15,7 +15,8 @@ internal sealed partial class DialogSetProducer
     /// rows. Called once <paramref name="dialogs"/> has been composed, localized, and had its license
     /// text injected.
     /// </summary>
-    private static ImmutableArray<RecipeTable> BuildDialogTables(List<MsiDialogModel> dialogs)
+    private static ImmutableArray<RecipeTable> BuildDialogTables(
+        List<MsiDialogModel> dialogs, ImmutableArray<(string Key, string Text)> uiTextEntries)
     {
         // Build per-table row lists by iterating dialogs once each.
         ImmutableArray<RecipeRow>.Builder dialogRows  = ImmutableArray.CreateBuilder<RecipeRow>();
@@ -130,11 +131,12 @@ internal sealed partial class DialogSetProducer
             });
         }
 
-        // UIText rows — fixed set, same as legacy DialogEmitter.EmitUIText.
-        ImmutableArray<RecipeRow>.Builder uitRows = ImmutableArray.CreateBuilder<RecipeRow>(UiTextEntries.Length);
-        for (int i = 0; i < UiTextEntries.Length; i++)
+        // UIText rows — fixed key set (same as legacy DialogEmitter.EmitUIText), text resolved
+        // through !(loc.UiText.<Key>) by ResolveLocalizationRefs before this is called.
+        ImmutableArray<RecipeRow>.Builder uitRows = ImmutableArray.CreateBuilder<RecipeRow>(uiTextEntries.Length);
+        for (int i = 0; i < uiTextEntries.Length; i++)
         {
-            (string key, string text) = UiTextEntries[i];
+            (string key, string text) = uiTextEntries[i];
             uitRows.Add(new RecipeRow
             {
                 Cells = ImmutableArray.Create<CellValue>(
