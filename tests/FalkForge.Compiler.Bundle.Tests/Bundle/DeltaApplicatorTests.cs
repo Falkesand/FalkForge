@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -182,6 +183,35 @@ public sealed class DeltaApplicatorTests : IDisposable
     }
 
     [Fact]
+    public void ReconstructPayloadToFile_DeltaBlobNotValidOctodiffFormat_FailsLoud_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // Bytes that pass BundleReader's own SHA-256 check (the cloned entry below declares the
+        // hash of THESE exact bytes) but are not a valid Octodiff delta stream at all — distinct
+        // from DeltaBlobCorruptedOnDisk above, which flips bytes so the hash itself no longer
+        // matches and BundleReader rejects it before Octodiff ever runs. Here the blob is
+        // well-formed enough to pass hash verification (e.g. a delta built by a mismatched/buggy
+        // pipeline) but Octodiff's BinaryDeltaReader.EnsureMetadata throws
+        // Octodiff.Core.CorruptFileFormatException when it parses the payload — a type that
+        // derives directly from System.Exception with no shared base with the
+        // IOException/InvalidDataException/InvalidOperationException family ApplyDelta already
+        // caught, so it used to escape unhandled instead of producing a fail-loud Result.
+        var garbage = "not an octodiff delta blob"u8.ToArray();
+        var garbageHash = Convert.ToHexString(SHA256.HashData(garbage));
+        ReplaceCompressedPayloadBytes(deltaBundle, deltaEntry, garbage);
+        var malformed = CloneWithSha256Hash(deltaEntry, garbageHash);
+
+        var destDir = Path.Combine(_tempDir, "out_malformedoctodiff");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, malformed, basisBundle, destDir, malformed.PackageId);
+
+        Assert.True(result.IsFailure,
+            "Reconstruction must fail loudly (not throw) when the delta blob is not a valid Octodiff stream");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
     public void ReconstructPayloadToFile_BasisPayloadCorruptedOnDisk_FailsLoud_WritesNoOutput()
     {
         var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
@@ -323,6 +353,19 @@ public sealed class DeltaApplicatorTests : IDisposable
         IsPreUI = entry.IsPreUI
     };
 
+    private static TocEntry CloneWithSha256Hash(TocEntry entry, string sha256Hash) => new()
+    {
+        PackageId = entry.PackageId,
+        Offset = entry.Offset,
+        CompressedSize = entry.CompressedSize,
+        OriginalSize = entry.OriginalSize,
+        Sha256Hash = sha256Hash,
+        IsDelta = entry.IsDelta,
+        BaseSha256Hash = entry.BaseSha256Hash,
+        ReconstructedSha256Hash = entry.ReconstructedSha256Hash,
+        IsPreUI = entry.IsPreUI
+    };
+
     private static TocEntry CloneWithBaseHash(TocEntry entry, string? baseHash) => new()
     {
         PackageId = entry.PackageId,
@@ -347,6 +390,31 @@ public sealed class DeltaApplicatorTests : IDisposable
         var start = (int)entry.Offset;
         for (var i = 0; i < 8 && start + i < bytes.Length; i++)
             bytes[start + i] ^= 0xFF;
+        File.WriteAllBytes(bundlePath, bytes);
+    }
+
+    /// <summary>
+    /// Gzip-compresses <paramref name="rawContent"/> and overwrites <paramref name="entry"/>'s
+    /// payload slot (its own offset, within its declared compressed-size bound) in
+    /// <paramref name="bundlePath"/> with it — same offset/size metadata, entirely different
+    /// decompressed bytes underneath. Callers pair this with a cloned <see cref="TocEntry"/>
+    /// whose <see cref="TocEntry.Sha256Hash"/> matches <paramref name="rawContent"/>, so
+    /// BundleReader's own integrity check passes and whatever consumes the decompressed bytes
+    /// next (Octodiff, here) is the one that has to reject them.
+    /// </summary>
+    private static void ReplaceCompressedPayloadBytes(string bundlePath, TocEntry entry, byte[] rawContent)
+    {
+        using var compressed = new MemoryStream();
+        using (var gzip = new GZipStream(compressed, System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+            gzip.Write(rawContent, 0, rawContent.Length);
+        var compressedBytes = compressed.ToArray();
+
+        Assert.True(compressedBytes.Length <= entry.CompressedSize,
+            "Test fixture bug: replacement payload compresses larger than the slot it must fit in");
+
+        var bytes = File.ReadAllBytes(bundlePath);
+        var start = (int)entry.Offset;
+        Array.Copy(compressedBytes, 0, bytes, start, compressedBytes.Length);
         File.WriteAllBytes(bundlePath, bytes);
     }
 

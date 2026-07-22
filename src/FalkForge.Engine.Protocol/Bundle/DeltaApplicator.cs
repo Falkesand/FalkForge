@@ -187,8 +187,15 @@ public static class DeltaApplicator
 
             return Unit.Value;
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException
+                                       or CorruptFileFormatException or UsageException)
         {
+            // CorruptFileFormatException/UsageException are Octodiff's own apply-time failure
+            // types (BinaryDeltaReader.EnsureMetadata / DeltaApplier.Apply) — both derive directly
+            // from System.Exception with no shared base with the IOException family above, so they
+            // must be named explicitly. Malformed-but-hash-matching delta bytes (e.g. corrupted in
+            // a way that preserves the blob hash, or produced by a mismatched pipeline) hit this
+            // path; the fail-loud contract documented on this type requires a Result, not a crash.
             return Result<Unit>.Failure(ErrorKind.BundleError, $"Delta application failed: {ex.Message}");
         }
     }
