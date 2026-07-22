@@ -12296,20 +12296,20 @@ dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output</code></pre>
 
   <h4>SDK Integration</h4>
   <div class="warning">
-    <strong><code>FalkOutputType&gt;Msix&lt;</code>/<code>MsixBundle</code> is a silent no-op, not
-    a working path.</strong> <code>Sdk.targets</code>' <code>FalkGenerateInstaller</code> target
-    computes an artifact path for these values and prints a
-    &ldquo;Generating Msix installer...&rdquo; message, but the <code>Exec</code> that actually
-    invokes <code>--forge-build</code> is conditioned on
-    <code>'$(FalkOutputType)' == 'Msi' or '$(FalkOutputType)' == 'Bundle'</code> only. Setting
-    <code>FalkOutputType</code> to <code>Msix</code> or <code>MsixBundle</code> today builds your
-    project normally and produces <em>no installer artifact and no error</em> &mdash; worse than
-    the CLI's fail-loud behavior above. Do not rely on this until the SDK path is wired up; use
-    the standalone script/program approach instead.
+    <strong><code>FalkOutputType&gt;Msix&lt;</code>/<code>MsixBundle</code> is not a working
+    path &mdash; and the SDK now fails the build loudly instead of pretending to build
+    anything.</strong> <code>Sdk.targets</code>' <code>FalkGenerateInstaller</code> target raises
+    an MSBuild <code>&lt;Error&gt;</code> as soon as it sees
+    <code>FalkOutputType</code> set to <code>Msix</code> or <code>MsixBundle</code> &mdash; before
+    printing any &ldquo;Generating&hellip;&rdquo; message and before the <code>Exec</code> that
+    invokes <code>--forge-build</code> (which is conditioned on
+    <code>'$(FalkOutputType)' == 'Msi' or '$(FalkOutputType)' == 'Bundle'</code> and has no MSIX
+    branch). The error message matches the CLI's fail-loud guidance above: build MSIX with the
+    standalone script/program approach instead.
   </div>
 
-  <pre><code class="language-xml">&lt;!-- NOTE: does not currently build an MSIX -- see warning above. Reserved for when the
-     SDK's FalkGenerateInstaller target gains an MSIX Exec branch. --&gt;
+  <pre><code class="language-xml">&lt;!-- Fails the build loudly: FalkGenerateInstaller has no MSIX Exec branch. Use the
+     standalone script/program approach (InstallerMsix.BuildMsix()) instead -- see above. --&gt;
 &lt;PropertyGroup&gt;
     &lt;FalkOutputType&gt;Msix&lt;/FalkOutputType&gt;
 &lt;/PropertyGroup&gt;

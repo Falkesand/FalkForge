@@ -159,6 +159,15 @@ File.WriteAllText(OutputFile, sb.ToString(), new UTF8Encoding(false));
           AfterTargets="Build"
           Condition="'$(FalkOutputType)' != 'None'">
 
+    <!-- Msix/MsixBundle have no Exec branch below: MsixModel needs MSIX-specific data
+         (Publisher distinguished name, per-application executable + visual elements,
+         capabilities) that this pipeline's PackageModel-based build does not carry. Without
+         this check the target fell through to the "Generating..." message and then silently
+         produced no artifact and no error, worse than forge build's fail-loud behavior for
+         the same case (see FalkForge.Cli/Commands/BuildCommand.cs). Fail loud instead. -->
+    <Error Condition="'$(FalkOutputType)' == 'Msix' or '$(FalkOutputType)' == 'MsixBundle'"
+           Text="FalkForge: FalkOutputType=$(FalkOutputType) is not supported by the FalkForge MSBuild SDK / 'forge build'. MsixModel needs MSIX-specific data (Publisher distinguished name, per-application executable + visual elements, capabilities) that this pipeline does not carry. Build MSIX with a standalone script or program instead, calling InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() directly (see FalkForge.Compiler.Msix.InstallerMsix, demo/15-msix-basic). Set FalkOutputType to None in this project so the SDK does not attempt this step." />
+
     <Message Importance="high" Text="FalkForge: Generating $(FalkOutputType) installer..." />
 
     <!-- Belt-and-braces beside the copy-to-output probe: the FalkForge.Engine.Runtime.win-x64
