@@ -11,7 +11,7 @@ internal static class ManifestMapper
         var packages = MapPackages(manifest.Packages, tocEntries);
         var relatedBundles = MapRelatedBundles(manifest.RelatedBundles);
         var chain = MapChain(manifest.Chain, packages);
-        var containers = CollectContainers(manifest.Packages);
+        var containers = CollectContainers(manifest.Packages, manifest.ExternalContainers);
         var uiConfig = MapUiConfig(
             manifest.UiType,
             manifest.CustomUiProjectPath,
@@ -162,13 +162,28 @@ internal static class ManifestMapper
         };
     }
 
-    private static List<ContainerModel> CollectContainers(PackageInfo[] packages)
+    // A6: an external container's DownloadUrl lives on InstallerManifest.ExternalContainers,
+    // not on the packages themselves — package.ContainerId only carries the id. Without
+    // consulting ExternalContainers here, a decompiled/migrated bundle would silently drop
+    // every external container's DownloadUrl (beta.4 audit N1).
+    private static List<ContainerModel> CollectContainers(
+        PackageInfo[] packages,
+        ExternalContainerInfo[] externalContainers)
     {
-        return packages
+        var downloadUrlById = externalContainers.ToDictionary(c => c.Id, c => c.DownloadUrl);
+
+        var ids = packages
             .Where(p => p.ContainerId is not null)
             .Select(p => p.ContainerId!)
-            .Distinct()
-            .Select(id => new ContainerModel { Id = id })
+            .Concat(externalContainers.Select(c => c.Id))
+            .Distinct();
+
+        return ids
+            .Select(id => new ContainerModel
+            {
+                Id = id,
+                DownloadUrl = downloadUrlById.GetValueOrDefault(id)
+            })
             .ToList();
     }
 

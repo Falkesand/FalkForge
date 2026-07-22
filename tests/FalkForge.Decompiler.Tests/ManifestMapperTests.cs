@@ -14,6 +14,7 @@ public sealed class ManifestMapperTests
         PackageInfo[]? packages = null,
         RelatedBundleEntry[]? relatedBundles = null,
         ManifestChainItem[]? chain = null,
+        ExternalContainerInfo[]? externalContainers = null,
         string? licenseFile = null,
         string? uiType = null,
         string? customUiProjectPath = null,
@@ -32,6 +33,7 @@ public sealed class ManifestMapperTests
         Packages = packages ?? [],
         RelatedBundles = relatedBundles ?? [],
         Chain = chain ?? [],
+        ExternalContainers = externalContainers ?? [],
         LicenseFile = licenseFile,
         UiType = uiType,
         CustomUiProjectPath = customUiProjectPath,
@@ -218,6 +220,42 @@ public sealed class ManifestMapperTests
         Assert.Equal(2, result.Value.Containers.Count);
         Assert.Contains(result.Value.Containers, c => c.Id == "c1");
         Assert.Contains(result.Value.Containers, c => c.Id == "c2");
+    }
+
+    [Fact]
+    public void Map_ExternalContainer_MapsDownloadUrlOntoContainerModel()
+    {
+        // WHY: A6 external containers carry a DownloadUrl the manifest records separately from
+        // package.ContainerId. Before this fix, the decompiler derived containers purely from
+        // package.ContainerId and never consulted manifest.ExternalContainers, so a decompiled
+        // bundle silently lost every external-container DownloadUrl (regression coverage for
+        // the beta.4 audit finding N1).
+        var pkg = new PackageInfo
+        {
+            Id = "p1",
+            Type = PackageType.MsiPackage,
+            DisplayName = "P1",
+            SourcePath = "a.msi",
+            Sha256Hash = "h1",
+            ContainerId = "ext1"
+        };
+        var external = new ExternalContainerInfo
+        {
+            Id = "ext1",
+            DownloadUrl = "https://cdn.example.com/ext1.container",
+            Sha256 = "DEADBEEF",
+            FileName = "ext1.container",
+            PackageIds = ["p1"]
+        };
+        var manifest = CreateManifest(packages: [pkg], externalContainers: [external]);
+
+        var result = ManifestMapper.Map(manifest, []);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Containers);
+        var container = result.Value.Containers[0];
+        Assert.Equal("ext1", container.Id);
+        Assert.Equal("https://cdn.example.com/ext1.container", container.DownloadUrl);
     }
 
     [Fact]
