@@ -12,6 +12,15 @@ public static partial class MsiPackageReconstructor
 {
     private static List<PropertyModel> BuildUserProperties(IReadOnlyList<PropertyRow> propertyRows)
     {
+        // All-uppercase names make an MSI property PUBLIC (overridable from the command line) — that
+        // is a different concept from SECURE (passed through to the elevated execute sequence). Only
+        // names listed in SecureCustomProperties are secure; read that value and test membership
+        // instead of re-deriving "secure" from the naming convention that only proves "public".
+        var secureNames = propertyRows
+            .FirstOrDefault(p => p.Property == "SecureCustomProperties")
+            ?.Value?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal) ?? [];
+
         // User-defined properties (non-internal)
         var internalProps = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -27,7 +36,7 @@ public static partial class MsiPackageReconstructor
             {
                 Name = p.Property,
                 Value = p.Value,
-                IsSecure = p.Property == p.Property.ToUpperInvariant(),
+                IsSecure = secureNames.Contains(p.Property),
                 IsHidden = false
             })
             .ToList();
