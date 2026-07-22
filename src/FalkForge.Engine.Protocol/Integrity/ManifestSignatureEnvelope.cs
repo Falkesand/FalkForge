@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Protocol.Integrity;
 
 using System.Text.Json.Serialization;
+using FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
 /// The envelope stored in <see cref="FalkForge.Engine.Protocol.Manifest.InstallerManifest.ManifestSignature"/>.
@@ -77,4 +78,21 @@ public sealed class ManifestSignatureEnvelope
     [JsonPropertyName("revoked")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public IReadOnlyList<string> Revoked { get; set; } = [];
+
+    /// <summary>
+    /// The external, separately-downloadable payload containers (A6) covered by the signature. Each entry
+    /// mirrors the manifest's <see cref="FalkForge.Engine.Protocol.Manifest.InstallerManifest.ExternalContainers"/>
+    /// so the container <b>download URL</b>, whole-file <b>hash</b>, and declared <b>package membership</b> are
+    /// bound into the ECDSA-signed message — closing the A6 SSRF/DoS residual where a tampered bundle could
+    /// repoint <c>DownloadUrl</c> at an internal host without invalidating the signature (payloads were
+    /// already bound, the URL was not). Folded into the signed message <b>only when present</b> (same compat
+    /// rule as <see cref="Epoch"/>/<see cref="Revoked"/>), so a bundle with no external containers signs the
+    /// byte-identical files-only message every already-shipped bundle signed — see
+    /// <see cref="IntegrityEnvelopeCodec.ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo})"/>.
+    /// Null (and omitted from the wire) on v1 and container-free envelopes;
+    /// <see cref="SignedPayloadTocVerifier"/> binds the manifest's declared set to this signed copy (INT013).
+    /// </summary>
+    [JsonPropertyName("externalContainers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ExternalContainerInfo>? ExternalContainers { get; set; }
 }

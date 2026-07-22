@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Protocol.Integrity;
 
 using System.Text.Json.Serialization;
+using FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
 /// AOT-safe source-generated JSON context for the integrity envelope wire types.
@@ -12,6 +13,8 @@ using System.Text.Json.Serialization;
 [JsonSerializable(typeof(SignatureEntry))]
 [JsonSerializable(typeof(IReadOnlyList<SignatureEntry>))]
 [JsonSerializable(typeof(IReadOnlyList<string>))]
+[JsonSerializable(typeof(ExternalContainerInfo))]
+[JsonSerializable(typeof(IReadOnlyList<ExternalContainerInfo>))]
 public sealed partial class IntegrityEnvelopeJsonContext : JsonSerializerContext
 {
 }

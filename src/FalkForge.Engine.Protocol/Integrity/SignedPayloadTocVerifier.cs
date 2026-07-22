@@ -215,6 +215,22 @@ public static class SignedPayloadTocVerifier
                     $"INT010: The signing quorum for this update ('{operation}') is not satisfied. {decision.Diagnostic}");
         }
 
+        // External-container declaration ↔ signed set binding (INT013, A6 SSRF hardening). The runtime
+        // ExternalContainerAcquirer downloads from manifest.ExternalContainers, but that is a plain manifest
+        // field — the ECDSA signature covers the envelope's OWN copy of the set (folded into the signed
+        // bytes: URL + whole-file hash + package membership). Bind the two so a tampered DownloadUrl (SSRF /
+        // DoS repoint), swapped hash, edited membership, or an added/removed container on the manifest fails
+        // closed BEFORE any container is fetched. Both sides are reduced to the identical canonical form the
+        // signature covers, so the compared value is exactly what was signed. Editing the envelope's own copy
+        // to match is not an escape: it changes the signed bytes and fails the signature verify above (INT001).
+        var signedContainers = IntegrityEnvelopeCodec.CanonicalizeExternalContainers(envelope.ExternalContainers);
+        var declaredContainers = IntegrityEnvelopeCodec.CanonicalizeExternalContainers(manifest.ExternalContainers);
+        if (!string.Equals(signedContainers, declaredContainers, StringComparison.Ordinal))
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                "INT013: The manifest's external-container set (download URLs, whole-file hashes, or package " +
+                "membership) does not match the ECDSA-signed set. The external-container declaration was " +
+                "edited after signing — refusing to download or install from an unauthenticated container source.");
+
         // Signed hash per package id — the ECDSA-covered source of truth for payload integrity.
         var signedHashes = new Dictionary<string, string>(envelope.Files.Count, StringComparer.Ordinal);
         foreach (var file in envelope.Files)

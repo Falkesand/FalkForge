@@ -4,6 +4,7 @@ using System.Collections.Frozen;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Signing;
 
 /// <summary>
@@ -50,30 +51,48 @@ public static class IntegrityEnvelopeCodec
     /// legacy message; delegates to the epoch/revocation-aware overload with the neutral values.
     /// </summary>
     public static byte[] ComputeSignedBytes(IReadOnlyList<ManifestFileEntry> files) =>
-        ComputeSignedBytes(files, epoch: 0, revoked: []);
+        ComputeSignedBytes(files, epoch: 0, revoked: [], externalContainers: null);
+
+    /// <summary>
+    /// Epoch/revocation-aware overload retained for existing callers. Delegates to the container-aware
+    /// overload with no external containers, so the signed bytes are byte-identical to before the A6
+    /// external-container hardening.
+    /// </summary>
+    public static byte[] ComputeSignedBytes(
+        IReadOnlyList<ManifestFileEntry> files, int epoch, IReadOnlyList<string> revoked) =>
+        ComputeSignedBytes(files, epoch, revoked, externalContainers: null);
 
     /// <summary>
     /// Computes the canonical bytes that are hashed and signed. The base message is the UTF-8 encoding
     /// of the source-generated JSON for the file entries array (unchanged from v1).
     ///
-    /// <para><b>Backward-compatibility rule (§6.3, the epoch compat trap).</b> The key epoch and the
-    /// revocation list are folded into the signed message <b>only when present</b> — a non-zero
-    /// <paramref name="epoch"/> or a non-empty <paramref name="revoked"/> list. When both are neutral
-    /// (epoch 0, no revocations) the message is exactly <c>UTF-8(JSON(files))</c>, byte-identical to what
-    /// v1 and Stage-1 v2 envelopes signed, so every already-shipped bundle still verifies. When either is
-    /// present it is appended under a unit-separator (U+001F, which never appears in the JSON), so an
-    /// attacker cannot lower the epoch or strip/forge a revocation without invalidating the signature. A
-    /// v1 bundle is always treated as epoch 0 with no revocations.</para>
+    /// <para><b>Backward-compatibility rule (§6.3, the epoch compat trap; A6 SSRF hardening).</b> The key
+    /// epoch, the revocation list, and the external-container set are folded into the signed message
+    /// <b>only when present</b> — a non-zero <paramref name="epoch"/>, a non-empty <paramref name="revoked"/>
+    /// list, or a non-empty <paramref name="externalContainers"/> set. When all three are neutral (epoch 0,
+    /// no revocations, no external containers) the message is exactly <c>UTF-8(JSON(files))</c>,
+    /// byte-identical to what v1 and every earlier envelope signed, so every already-shipped bundle still
+    /// verifies. Each present segment is appended under a unit-separator (U+001F, which never appears in the
+    /// JSON), so an attacker cannot lower the epoch, strip/forge a revocation, or repoint a container's
+    /// <c>DownloadUrl</c>/hash/membership without invalidating the signature. A v1 bundle is always treated
+    /// as epoch 0, no revocations, no external containers.</para>
     /// </summary>
     public static byte[] ComputeSignedBytes(
-        IReadOnlyList<ManifestFileEntry> files, int epoch, IReadOnlyList<string> revoked)
+        IReadOnlyList<ManifestFileEntry> files, int epoch, IReadOnlyList<string> revoked,
+        IReadOnlyList<ExternalContainerInfo>? externalContainers)
     {
         var filesJson = JsonSerializer.Serialize(
             files, IntegrityEnvelopeJsonContext.Default.IReadOnlyListManifestFileEntry);
 
-        // Neutral (epoch 0, no revocations) → the exact legacy files-only bytes. This is the property
-        // that keeps v1 and Stage-1 v2 (epoch-0) envelopes verifiable after Stage 2.
-        if (epoch == 0 && (revoked is null || revoked.Count == 0))
+        var hasEpochOrRevoked = epoch != 0 || revoked is { Count: > 0 };
+        // The container canonical form is empty for a null/empty set, so a container-free bundle appends
+        // nothing — the exact property that keeps every already-shipped bundle byte-identical here.
+        var containersCanonical = CanonicalizeExternalContainers(externalContainers);
+        var hasContainers = containersCanonical.Length > 0;
+
+        // Neutral (epoch 0, no revocations, no external containers) → the exact legacy files-only bytes.
+        // This is the property that keeps v1 and every earlier envelope verifiable.
+        if (!hasEpochOrRevoked && !hasContainers)
             return Encoding.UTF8.GetBytes(filesJson);
 
         // Present → bind epoch + revocations into the signed message under a separator that cannot occur
@@ -89,7 +108,71 @@ public static class IntegrityEnvelopeCodec
         sb.Append('').Append("epoch=").Append(epoch.ToString(System.Globalization.CultureInfo.InvariantCulture));
         sb.Append('').Append("revoked=").Append(revokedJson);
 
+        // External containers, when present, are bound under their own separated, length-prefixed segment
+        // (A6): the whole ExternalContainerInfo set — download URL, whole-file hash, and package membership —
+        // is cryptographically covered, so a tampered bundle cannot repoint a container download at an
+        // internal host (SSRF) or swap its hash without breaking the signature. Appended AFTER the
+        // epoch/revocation segment; a container-free bundle appends nothing here and stays byte-identical.
+        if (hasContainers)
+            sb.Append('').Append("extcontainers=").Append(containersCanonical);
+
         return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
+    /// <summary>
+    /// The canonical, injective, order-independent string form of an external-container set (A6). This is
+    /// the exact representation folded into the signed message by
+    /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo})"/>
+    /// and the value <see cref="SignedPayloadTocVerifier"/> compares for the INT013 binding. A null or empty
+    /// set yields the empty string, so a bundle with no external containers appends nothing to the signed
+    /// message — the backward-compatibility property that keeps every already-shipped bundle's signed bytes
+    /// byte-identical.
+    ///
+    /// <para><b>Determinism:</b> containers are ordered by <see cref="ExternalContainerInfo.Id"/> and each
+    /// container's package ids by value (ordinal), so an equivalent-but-reordered set canonicalizes
+    /// identically (reordering the download list is benign, not tamper). <b>Injectivity:</b> every string
+    /// field is length-prefixed (<c>len:value;</c>) with an element count, so no crafted field value
+    /// containing a separator can make two distinct sets collide — the same non-injective-join trap the
+    /// revocation-list serialization documents.</para>
+    /// </summary>
+    public static string CanonicalizeExternalContainers(IReadOnlyList<ExternalContainerInfo>? containers)
+    {
+        if (containers is null || containers.Count == 0)
+            return string.Empty;
+
+        var sorted = new ExternalContainerInfo[containers.Count];
+        for (var i = 0; i < containers.Count; i++)
+            sorted[i] = containers[i];
+        Array.Sort(sorted, static (a, b) => string.CompareOrdinal(a.Id, b.Id));
+
+        var sb = new StringBuilder();
+        sb.Append(sorted.Length).Append(';');
+        foreach (var c in sorted)
+        {
+            AppendField(sb, c.Id);
+            AppendField(sb, c.DownloadUrl);
+            AppendField(sb, c.Sha256);
+            AppendField(sb, c.FileName);
+
+            var pkgIds = c.PackageIds ?? [];
+            var sortedPkgs = new string[pkgIds.Length];
+            Array.Copy(pkgIds, sortedPkgs, pkgIds.Length);
+            Array.Sort(sortedPkgs, StringComparer.Ordinal);
+
+            sb.Append(sortedPkgs.Length).Append(';');
+            foreach (var pkg in sortedPkgs)
+                AppendField(sb, pkg);
+        }
+
+        return sb.ToString();
+
+        // len:value; — the length prefix pins the field boundary regardless of what the value contains,
+        // so the encoding is injective (two distinct field tuples can never produce the same string).
+        static void AppendField(StringBuilder sb, string? value)
+        {
+            value ??= string.Empty;
+            sb.Append(value.Length).Append(':').Append(value).Append(';');
+        }
     }
 
     /// <summary>
@@ -129,14 +212,28 @@ public static class IntegrityEnvelopeCodec
     /// The caller owns each key's lifetime.
     /// </summary>
     public static ManifestSignatureEnvelope Sign(
-        IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys, int epoch, IReadOnlyList<string> revoked)
+        IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys, int epoch, IReadOnlyList<string> revoked) =>
+        Sign(files, keys, epoch, revoked, externalContainers: null);
+
+    /// <summary>
+    /// Builds and signs a v2 envelope for the supplied file entries using one or more keys, additionally
+    /// binding the external-container set (A6) into the signed message. Every key signs the identical
+    /// message — <c>SHA-256</c> of
+    /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo})"/> —
+    /// and the container set is stored on the envelope so the verifier reproduces the identical signed bytes.
+    /// A null or empty <paramref name="externalContainers"/> set signs the byte-identical container-free
+    /// message and leaves the envelope's container field null. The caller owns each key's lifetime.
+    /// </summary>
+    public static ManifestSignatureEnvelope Sign(
+        IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys, int epoch, IReadOnlyList<string> revoked,
+        IReadOnlyList<ExternalContainerInfo>? externalContainers)
     {
         ArgumentNullException.ThrowIfNull(keys);
         ArgumentNullException.ThrowIfNull(revoked);
         if (keys.Count == 0)
             throw new ArgumentException("At least one signing key is required.", nameof(keys));
 
-        var hash = SHA256.HashData(ComputeSignedBytes(files, epoch, revoked));
+        var hash = SHA256.HashData(ComputeSignedBytes(files, epoch, revoked, externalContainers));
 
         var signatures = new List<SignatureEntry>(keys.Count);
         foreach (var key in keys)
@@ -161,7 +258,10 @@ public static class IntegrityEnvelopeCodec
             Files = files,
             Signatures = signatures,
             Epoch = epoch,
-            Revoked = revoked
+            Revoked = revoked,
+            // Normalize empty → null so a container-free envelope's wire form is byte-identical to before
+            // (the field is omitted entirely under WhenWritingNull).
+            ExternalContainers = externalContainers is { Count: > 0 } ? externalContainers : null
         };
     }
 
@@ -306,11 +406,12 @@ public static class IntegrityEnvelopeCodec
             return Result<string>.Failure(ErrorKind.IntegrityError,
                 "INT003: Manifest integrity envelope carries no signatures.");
 
-        // The signed message covers the files and, when present, the epoch + revocation list (§6.3), so
-        // compute the hash once for all entries. Epoch 0 + no revocations reproduces the legacy files-only
-        // bytes, keeping v1 and Stage-1 v2 envelopes verifiable. The raw message is kept alongside the
-        // hash: ML-DSA companion verification is over the message itself (pure ML-DSA, no pre-hash).
-        var message = ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        // The signed message covers the files and, when present, the epoch + revocation list (§6.3) and the
+        // external-container set (A6), so compute the hash once for all entries. Neutral values reproduce the
+        // legacy files-only bytes, keeping v1 and every earlier envelope verifiable. The raw message is kept
+        // alongside the hash: ML-DSA companion verification is over the message itself (pure ML-DSA, no pre-hash).
+        var message = ComputeSignedBytes(
+            envelope.Files, envelope.Epoch, envelope.Revoked, envelope.ExternalContainers);
         var hash = SHA256.HashData(message);
         var haveTrustSet = trustedFingerprints.Count > 0;
         var sawRevoked = false;
@@ -473,9 +574,10 @@ public static class IntegrityEnvelopeCodec
             return Result<IReadOnlyList<TrustedSignature>>.Failure(ErrorKind.IntegrityError,
                 "INT003: Manifest integrity envelope carries no signatures.");
 
-        // Same signed message as MatchTrustedSignature — files plus, when present, epoch + revocations.
-        // The raw message is kept for ML-DSA companion verification (pure ML-DSA, no pre-hash).
-        var message = ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        // Same signed message as MatchTrustedSignature — files plus, when present, epoch + revocations and
+        // the external-container set. The raw message is kept for ML-DSA companion verification (no pre-hash).
+        var message = ComputeSignedBytes(
+            envelope.Files, envelope.Epoch, envelope.Revoked, envelope.ExternalContainers);
         var hash = SHA256.HashData(message);
 
         // PQ side map, mirroring MatchTrustedSignature: companions consulted after a classical entry

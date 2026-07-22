@@ -33,8 +33,11 @@ internal static class BundleIntegritySigner
 
         var (config, entries) = inputs.Value;
 
-        // Step 1: Sign payload hashes (pure-.NET ECDSA; no external tool required).
-        var signResult = EcdsaManifestSigner.Sign(entries, config);
+        // Step 1: Sign payload hashes (pure-.NET ECDSA; no external tool required). The external-container
+        // set (A6) is bound into the signature too, so a tampered bundle cannot repoint a container
+        // DownloadUrl (SSRF) or swap its hash — the manifest already carries the finalized containers here
+        // (set by BundleCompiler before signing), and the verifier binds them back via INT013.
+        var signResult = EcdsaManifestSigner.Sign(entries, config, manifest.ExternalContainers);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
@@ -59,7 +62,9 @@ internal static class BundleIntegritySigner
 
         var (config, entries) = inputs.Value;
 
-        var signResult = await EcdsaManifestSigner.SignAsync(entries, config, cancellationToken).ConfigureAwait(false);
+        var signResult = await EcdsaManifestSigner
+            .SignAsync(entries, config, manifest.ExternalContainers, cancellationToken)
+            .ConfigureAwait(false);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
