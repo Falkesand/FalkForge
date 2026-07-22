@@ -1,7 +1,4 @@
 using System.Collections.Immutable;
-using System.Text;
-using FalkForge.Compiler.Msi.Recipe.Producers;
-using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 
@@ -25,8 +22,14 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// rows — parity with the legacy <see cref="Tables.TableEmitter"/> which gates
 /// certain CREATE TABLE statements on the presence of matching data (marked *
 /// above).
+///
+/// The build pipeline is split across partial-class files by sub-responsibility:
+/// <see cref="RunBuiltInProducers"/> (Producers.cs), extension contributor
+/// merging (Extensions.cs), PK/FK validation and multi-table producers
+/// (Validation.cs), package-code derivation and summary info (Metadata.cs),
+/// and CREATE TABLE / INSERT SQL lookups (Sql.cs).
 /// </summary>
-public static class MsiRecipeBuilder
+public static partial class MsiRecipeBuilder
 {
     /// <summary>
     /// Build a recipe from the resolved package, extension contributors, and
@@ -103,111 +106,17 @@ public static class MsiRecipeBuilder
             new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
-        // Fixed producer order. Order matches legacy TableEmitter.CreateTables exactly so that
-        // the two-phase executor (CREATE all → INSERT all) writes tables in the same sequence
-        // as legacy, producing byte-identical OLE compound document page allocation.
-        // Legacy order: Directory → Component → File → Feature → FeatureComponents → Media →
-        //   Property → Registry → Shortcut → ServiceInstall → ServiceControl → Upgrade →
-        //   LaunchCondition → InstallExecuteSequence → InstallUISequence → Environment →
-        //   Font → IniFile → RemoveIniFile → Extension → Verb → MIME → ProgId →
-        //   CustomAction → Binary → RemoveRegistry → RemoveFile → CreateFolder →
-        //   MoveFile → DuplicateFile → MsiAssembly → MsiAssemblyName → Condition →
-        //   Class → TypeLib → [LockPermissions] → [MsiLockPermissionsEx]
-        // All producers whose tables appear unconditionally in legacy are listed in the
-        // same order; LockPermissions and MsiLockPermissionsEx are at the end with
-        // EmitWhenEmpty=false so they are suppressed when no permission entries exist.
-        // MsiServiceConfigFailureActionsTableProducer has no legacy counterpart (issue C3
-        // fix) — it is slotted next to the other service producers and is likewise
-        // EmitWhenEmpty=false so packages without ServiceBuilder.FailureActions(...) are
-        // unaffected.
-        ITableProducer[] producers =
-        {
-            new DirectoryTableProducer(),
-            new ComponentTableProducer(),
-            new FileTableProducer(),
-            new FeatureTableProducer(),
-            new FeatureComponentsTableProducer(),
-            new MediaTableProducer(),
-            new PropertyTableProducer(),
-            new RegistryTableProducer(),
-            new ShortcutTableProducer(),
-            new ServiceInstallTableProducer(),
-            new ServiceControlTableProducer(),
-            new MsiServiceConfigFailureActionsTableProducer(),
-            new UpgradeTableProducer(),
-            new LaunchConditionTableProducer(),
-            new InstallExecuteSequenceTableProducer(),
-            new InstallUISequenceTableProducer(),
-            new EnvironmentTableProducer(),
-            new FontTableProducer(),
-            new IniFileTableProducer(),
-            new RemoveIniFileTableProducer(),
-            new ExtensionTableProducer(),
-            new VerbTableProducer(),
-            new MIMETableProducer(),
-            new ProgIdTableProducer(),
-            new CustomActionTableProducer(),
-            new BinaryTableProducer(),
-            new IconTableProducer(),
-            new RemoveRegistryTableProducer(),
-            new RemoveFileTableProducer(),
-            new CreateFolderTableProducer(),
-            new MoveFileTableProducer(),
-            new DuplicateFileTableProducer(),
-            new MsiAssemblyTableProducer(),
-            new MsiAssemblyNameTableProducer(),
-            new FeatureConditionTableProducer(),
-            new ClassTableProducer(),
-            new TypeLibTableProducer(),
-            new LockPermissionsTableProducer(),
-            new MsiLockPermissionsExTableProducer(),
-        };
-
         // Level-guarded: with 36 producers running on every compile, skip the interpolated
         // message allocation entirely unless Debug logging is actually enabled (D2/D6).
         bool logProducerDebug = logger is not null && logger.MinimumLevel <= LogLevel.Debug;
 
-        ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(producers.Length);
-        foreach (ITableProducer producer in producers)
+        Result<ImmutableArray<RecipeTable>> producersResult = RunBuiltInProducers(context, logProducerDebug, logger);
+        if (producersResult.IsFailure)
         {
-            Result<ImmutableArray<RecipeRow>> producerResult = producer.Produce(context);
-            if (producerResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
-                    $"Producer '{producer.Schema.Name}' failed: {producerResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = producerResult.Error.Kind.ToString() });
-                return Result<MsiDatabaseRecipe>.Failure(producerResult.Error);
-            }
-
-            ImmutableArray<RecipeRow> rows = producerResult.Value;
-            context.AddBuiltTable(producer.Schema.Name, rows);
-
-            if (logProducerDebug)
-                logger!.Debug("MsiRecipeBuilder", $"Producer '{producer.Schema.Name}' produced {rows.Length} row(s).");
-
-            // Honour the producer's EmitWhenEmpty flag: when false and the
-            // producer returned zero rows, suppress both the RecipeTable entry
-            // and the CREATE TABLE statement. This mirrors legacy TableEmitter
-            // behaviour for tables such as LockPermissions and
-            // MsiLockPermissionsEx which are only created when at least one
-            // matching permission entry is present.
-            if (!producer.Schema.EmitWhenEmpty && rows.IsEmpty)
-            {
-                continue;
-            }
-
-            RecipeTable table = new()
-            {
-                Name = producer.Schema.Name,
-                Columns = producer.Schema.Columns,
-                Rows = rows,
-                PrimaryKey = producer.Schema.PrimaryKey,
-                CreateTableSql = LookupCreateTableSql(producer.Schema.Name),
-                InsertViewSql = BuildInsertViewSql(producer.Schema),
-                ForeignKeys = producer.Schema.ForeignKeys,
-            };
-            tableBuilder.Add(table);
+            return Result<MsiDatabaseRecipe>.Failure(producersResult.Error);
         }
+
+        ImmutableArray<RecipeTable> builtInTables = producersResult.Value;
 
         // Phase 5a.5: route extension table contributors into the recipe. Registered
         // IMsiTableContributor rows are either MERGED into a matching built-in table
@@ -217,9 +126,11 @@ public static class MsiRecipeBuilder
         // dropping the rows — this is the wiring that the earlier "phase 11" note deferred.
         // When there are no contributors the built-in tables pass through unchanged, preserving the
         // byte-identical recipe/legacy parity for extension-less packages.
-        ImmutableArray<RecipeTable> builtInTables = tableBuilder.ToImmutable();
-        ImmutableArray<RecipeTable> extensionCustomTables = ImmutableArray<RecipeTable>.Empty;
-
+        //
+        // Phase 5a.4: extension-contributed execution steps are translated into synthetic
+        // CustomAction + InstallExecuteSequence contributors inside ApplyExtensionContributors,
+        // which is what makes extension work actually RUN at install time (deferred, elevated
+        // custom actions) rather than only landing as inert table data.
         ExtensionContext emitContext = extensionContext ?? new ExtensionContext
         {
             Package = resolved.Package,
@@ -227,174 +138,49 @@ public static class MsiRecipeBuilder
             SourceDirectory = string.Empty,
         };
 
-        // Phase 5a.4: translate extension-contributed execution steps into synthetic CustomAction +
-        // InstallExecuteSequence contributors. This is what makes extension work actually RUN at
-        // install time (deferred, elevated custom actions) rather than only landing as inert table
-        // data. Steps from every contributor are gathered in registration order so ExecutionStepEmitter
-        // allocates sequence numbers from a single deterministic pool — multiple execution-contributing
-        // extensions in one package cannot collide. The synthetic contributors merge into the built-in
-        // CustomAction / InstallExecuteSequence tables through the same path as any other contributor.
-        IReadOnlyList<IMsiTableContributor> effectiveContributors = contributors;
-        if (executionContributors is { Count: > 0 })
+        Result<(ImmutableArray<RecipeTable> BuiltInTables, ImmutableArray<RecipeTable> CustomTables)> extResult =
+            ApplyExtensionContributors(contributors, executionContributors, builtInTables, emitContext, context, logger);
+        if (extResult.IsFailure)
         {
-            var steps = new List<ExecutionStep>();
-            foreach (IExecutionContributor executionContributor in executionContributors)
-            {
-                IReadOnlyList<ExecutionStep> contributed = executionContributor.GetExecutionSteps(emitContext);
-                if (contributed is { Count: > 0 })
-                    steps.AddRange(contributed);
-            }
-
-            if (steps.Count > 0)
-            {
-                Result<ImmutableArray<IMsiTableContributor>> execResult =
-                    ExecutionStepEmitter.BuildContributors(steps);
-                if (execResult.IsFailure)
-                {
-                    logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
-                        $"Execution step emission failed: {execResult.Error.Message}",
-                        new Dictionary<string, string> { ["code"] = execResult.Error.Kind.ToString() });
-                    return Result<MsiDatabaseRecipe>.Failure(execResult.Error);
-                }
-
-                var merged = new List<IMsiTableContributor>(contributors.Count + execResult.Value.Length);
-                merged.AddRange(contributors);
-                merged.AddRange(execResult.Value);
-                effectiveContributors = merged;
-            }
+            return Result<MsiDatabaseRecipe>.Failure(extResult.Error);
         }
 
-        if (effectiveContributors.Count > 0)
-        {
-            Result<ExtensionTableEmitter.EmissionOutcome> emitResult = ExtensionTableEmitter.Emit(
-                effectiveContributors, builtInTables, emitContext, context.Streams, logger);
-            if (emitResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
-                    $"Extension table emission failed: {emitResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = emitResult.Error.Kind.ToString() });
-                return Result<MsiDatabaseRecipe>.Failure(emitResult.Error);
-            }
+        builtInTables = extResult.Value.BuiltInTables;
+        ImmutableArray<RecipeTable> extensionCustomTables = extResult.Value.CustomTables;
 
-            builtInTables = emitResult.Value.BuiltInTables;
-            extensionCustomTables = emitResult.Value.CustomTables;
+        // Phase 5: run recipe-level validators after every producer has emitted rows
+        // (extension merges into built-in tables included).
+        Result<ImmutableArray<RecipeTable>> validationResult = ValidateBuiltInTables(builtInTables, logger);
+        if (validationResult.IsFailure)
+        {
+            return Result<MsiDatabaseRecipe>.Failure(validationResult.Error);
         }
 
-        // Phase 5: run recipe-level validators after every producer has
-        // emitted rows (extension merges into built-in tables included). Both
-        // validators are pure functions over the already-built tables, so failure
-        // here unambiguously indicates a producer-level bug or a malformed input
-        // package — never a transient condition that retrying would fix.
-        ImmutableArray<RecipeTable> validatedTables = builtInTables;
-        Result<Unit> pkResult = PrimaryKeyValidator.Validate(validatedTables);
-        if (pkResult.IsFailure)
+        ImmutableArray<RecipeTable> validatedTables = validationResult.Value;
+
+        // Phase 5b: run multi-table producers and drain any non-fatal diagnostics queued on the
+        // context. Assembles the final table set in deterministic order: built-in (validated,
+        // with any extension merges) → extension custom tables → multi-table producer output.
+        Result<ImmutableArray<RecipeTable>> finalResult = RunMultiTableProducersAndDrainWarnings(
+            context, validatedTables, extensionCustomTables, multiProducers, logProducerDebug, logger);
+        if (finalResult.IsFailure)
         {
-            logger?.Log(LogLevel.Error, "MsiRecipeBuilder", $"Primary-key validation failed: {pkResult.Error.Message}",
-                new Dictionary<string, string> { ["code"] = pkResult.Error.Kind.ToString() });
-            return Result<MsiDatabaseRecipe>.Failure(pkResult.Error);
+            return Result<MsiDatabaseRecipe>.Failure(finalResult.Error);
         }
 
-        Result<Unit> fkResult = ForeignKeyValidator.Validate(validatedTables);
-        if (fkResult.IsFailure)
-        {
-            logger?.Log(LogLevel.Error, "MsiRecipeBuilder", $"Foreign-key validation failed: {fkResult.Error.Message}",
-                new Dictionary<string, string> { ["code"] = fkResult.Error.Kind.ToString() });
-            return Result<MsiDatabaseRecipe>.Failure(fkResult.Error);
-        }
-
-        // Phase 5b: run multi-table producers. These emit dynamic-schema tables
-        // (e.g. user-defined custom tables) and are appended after the built-in
-        // pipeline. They are intentionally excluded from PK/FK validation because
-        // their schemas are not known at compile time and have no FK relationships
-        // to the fixed built-in tables.
-        //
-        // FK validation gap — by design: PrimaryKeyValidator and ForeignKeyValidator
-        // run only over the fixed built-in tables (validatedTables) above. Tables
-        // emitted here are NOT checked. Each IMultiTableProducer implementation is
-        // solely responsible for FK integrity within its tables and against the
-        // built-in tables. See IMultiTableProducer XML doc for the full contract.
-        // Assemble the final table set in deterministic order:
-        //   built-in (validated, with any extension merges) → extension custom tables →
-        //   multi-table producer output (user custom tables, dialog tables).
-        // Extension custom tables and multi-producer tables share the multi-producer FK
-        // validation exemption: their schemas are not known to the fixed-table validators.
-        ImmutableArray<RecipeTable>.Builder finalBuilder = ImmutableArray.CreateBuilder<RecipeTable>(
-            validatedTables.Length + extensionCustomTables.Length + multiProducers.Count);
-        finalBuilder.AddRange(validatedTables);
-        finalBuilder.AddRange(extensionCustomTables);
-
-        foreach (IMultiTableProducer multiProducer in multiProducers)
-        {
-            Result<ImmutableArray<RecipeTable>> multiResult = multiProducer.Produce(context);
-            if (multiResult.IsFailure)
-            {
-                logger?.Log(LogLevel.Error, "MsiRecipeBuilder",
-                    $"Multi-table producer '{multiProducer.GetType().Name}' failed: {multiResult.Error.Message}",
-                    new Dictionary<string, string> { ["code"] = multiResult.Error.Kind.ToString() });
-                return Result<MsiDatabaseRecipe>.Failure(multiResult.Error);
-            }
-
-            if (logProducerDebug)
-                logger!.Debug("MsiRecipeBuilder",
-                    $"Multi-table producer '{multiProducer.GetType().Name}' produced {multiResult.Value.Length} table(s).");
-
-            finalBuilder.AddRange(multiResult.Value);
-        }
-
-        // Drain any non-fatal diagnostics producers queued on the context (e.g. DialogSetProducer's
-        // DLG004 LicenseFile-vs-dialog-set mismatch). Producers only see RecipeBuildContext, not the
-        // IFalkLogger passed to this method, so this is where the two are reconnected.
-        foreach ((string code, string message) in context.Warnings)
-        {
-            logger?.Log(LogLevel.Warning, "MsiRecipeBuilder", message,
-                new Dictionary<string, string> { ["code"] = code });
-        }
-
-        ImmutableArray<RecipeTable> finalTables = finalBuilder.ToImmutable();
+        ImmutableArray<RecipeTable> finalTables = finalResult.Value;
 
         var pkg = resolved.Package;
 
-        // PID_REVNUMBER is the MSI PackageCode — must be unique per distinct package
-        // byte sequence (SECREPAIR / KB2918614). Resolution order:
-        //   1. Explicit PackageCode on the model (rare — pinned re-releases only).
-        //   2. Reproducible mode → content digest via PackageCodeDerivation.Derive().
-        //   3. Normal mode (null PackageCode) → derive from content + ResolvedPackage.InstanceId.
-        //      InstanceId is a per-instance Guid assigned at ResolvedPackage construction,
-        //      so two separate packaging events (different ResolvedPackage objects) produce
-        //      different PackageCodes even with identical content, while multiple
-        //      MsiRecipeBuilder.Build() calls on the *same* instance remain stable.
-        Guid packageCode;
-        if (pkg.PackageCode.HasValue)
+        Result<Guid> packageCodeResult = ResolvePackageCode(resolved);
+        if (packageCodeResult.IsFailure)
         {
-            packageCode = pkg.PackageCode.Value;
-        }
-        else
-        {
-            var deriveResult = PackageCodeDerivation.Derive(resolved);
-            if (deriveResult.IsFailure)
-                return Result<MsiDatabaseRecipe>.Failure(deriveResult.Error);
-            packageCode = deriveResult.Value;
+            return Result<MsiDatabaseRecipe>.Failure(packageCodeResult.Error);
         }
 
-        SummaryInfoRecipe summaryInfo = new()
-        {
-            Title = "Installation Database",
-            Subject = pkg.Name,
-            Author = pkg.Manufacturer,
-            Keywords = "Installer",
-            Comments = pkg.Description ??
-                       $"This installer database contains the logic and data required to install {pkg.Name}.",
-            Template = GetPlatformTemplate(pkg.Architecture),
-            RevisionNumber = packageCode.ToString("B").ToUpperInvariant(),
-            CodePage = 1252,
-            CreatingApplication = "FalkForge",
-            // WordCount 2 = compressed cabinet + long file-names support flag.
-            WordCount = 2,
-            // PageCount 200 = minimum required Windows Installer version (2.0).
-            PageCount = 200,
-            // Security 2 = read-only recommended (standard for shipped MSIs).
-            Security = 2,
-        };
+        Guid packageCode = packageCodeResult.Value;
+
+        SummaryInfoRecipe summaryInfo = BuildSummaryInfo(pkg, packageCode);
 
         // Construct the recipe with an empty ContentHash placeholder, then
         // rebuild it via a with-expression carrying the digest. The hashing
@@ -421,88 +207,5 @@ public static class MsiRecipeBuilder
 
         recipe = recipe with { ContentHash = RecipeContentHasher.Compute(recipe) };
         return Result<MsiDatabaseRecipe>.Success(recipe);
-    }
-
-    private static string LookupCreateTableSql(TableId table)
-    {
-        // Hard-wired lookup against MsiTableDefinitions. Each producer
-        // registered in the pipeline above must have its CREATE TABLE SQL
-        // wired here; later phases will either extend this lookup or migrate
-        // to a contributor-driven map.
-        return table.Value switch
-        {
-            "Property" => MsiTableDefinitions.CreatePropertyTable,
-            "Directory" => MsiTableDefinitions.CreateDirectoryTable,
-            "Component" => MsiTableDefinitions.CreateComponentTable,
-            "File" => MsiTableDefinitions.CreateFileTable,
-            "Feature" => MsiTableDefinitions.CreateFeatureTable,
-            "FeatureComponents" => MsiTableDefinitions.CreateFeatureComponentsTable,
-            "Condition" => MsiTableDefinitions.CreateConditionTable,
-            "Upgrade" => MsiTableDefinitions.CreateUpgradeTable,
-            "Media" => MsiTableDefinitions.CreateMediaTable,
-            "Registry" => MsiTableDefinitions.CreateRegistryTable,
-            "RemoveRegistry" => MsiTableDefinitions.CreateRemoveRegistryTable,
-            "ServiceInstall" => MsiTableDefinitions.CreateServiceInstallTable,
-            "ServiceControl" => MsiTableDefinitions.CreateServiceControlTable,
-            "MsiServiceConfigFailureActions" => MsiTableDefinitions.CreateMsiServiceConfigFailureActionsTable,
-            "Shortcut" => MsiTableDefinitions.CreateShortcutTable,
-            "Environment" => MsiTableDefinitions.CreateEnvironmentTable,
-            "Font" => MsiTableDefinitions.CreateFontTable,
-            "LaunchCondition" => MsiTableDefinitions.CreateLaunchConditionTable,
-            "IniFile" => MsiTableDefinitions.CreateIniFileTable,
-            "RemoveIniFile" => MsiTableDefinitions.CreateRemoveIniFileTable,
-            "CreateFolder" => MsiTableDefinitions.CreateCreateFolderTable,
-            "DuplicateFile" => MsiTableDefinitions.CreateDuplicateFileTable,
-            "Binary" => MsiTableDefinitions.CreateBinaryTable,
-            "Icon" => MsiTableDefinitions.CreateIconTable,
-            "CustomAction" => MsiTableDefinitions.CreateCustomActionTable,
-            "LockPermissions" => MsiTableDefinitions.CreateLockPermissionsTable,
-            "MsiLockPermissionsEx" => MsiTableDefinitions.CreateMsiLockPermissionsExTable,
-            "MIME" => MsiTableDefinitions.CreateMimeTable,
-            "ProgId" => MsiTableDefinitions.CreateProgIdTable,
-            "Extension" => MsiTableDefinitions.CreateExtensionTable,
-            "Class" => MsiTableDefinitions.CreateClassTable,
-            "TypeLib" => MsiTableDefinitions.CreateTypeLibTable,
-            "MsiAssembly" => MsiTableDefinitions.CreateMsiAssemblyTable,
-            "MsiAssemblyName" => MsiTableDefinitions.CreateMsiAssemblyNameTable,
-            "Verb" => MsiTableDefinitions.CreateVerbTable,
-            "MoveFile" => MsiTableDefinitions.CreateMoveFileTable,
-            "RemoveFile" => MsiTableDefinitions.CreateRemoveFileTable,
-            "InstallUISequence" => MsiTableDefinitions.CreateInstallUISequenceTable,
-            "InstallExecuteSequence" => MsiTableDefinitions.CreateInstallExecuteSequenceTable,
-            _ => throw new InvalidOperationException(
-                $"No CREATE TABLE SQL registered for table '{table.Value}'."),
-        };
-    }
-
-    private static string GetPlatformTemplate(ProcessorArchitecture architecture)
-        => architecture switch
-        {
-            ProcessorArchitecture.X86 => "Intel;1033",
-            ProcessorArchitecture.X64 => "x64;1033",
-            ProcessorArchitecture.Arm64 => "Arm64;1033",
-            _ => "x64;1033",
-        };
-
-    private static string BuildInsertViewSql(TableSchema schema)
-    {
-        // Mirrors the SQL string TableEmitter passes to MsiDatabase.InsertRow:
-        //   "SELECT `c1`, `c2` FROM `Table`"
-        // Identifiers are validated at TableId/RecipeColumn construction so
-        // direct interpolation is safe.
-        StringBuilder builder = new("SELECT ");
-        ImmutableArray<RecipeColumn> columns = schema.Columns;
-        for (int i = 0; i < columns.Length; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(", ");
-            }
-
-            builder.Append('`').Append(columns[i].Name).Append('`');
-        }
-
-        builder.Append(" FROM `").Append(schema.Name.Value).Append('`');
-        return builder.ToString();
     }
 }
