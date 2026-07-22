@@ -30,7 +30,10 @@ public static partial class MsiRecipeBuilder
         // MsiServiceConfigFailureActionsTableProducer has no legacy counterpart (issue C3
         // fix) — it is slotted next to the other service producers and is likewise
         // EmitWhenEmpty=false so packages without ServiceBuilder.FailureActions(...) are
-        // unaffected.
+        // unaffected. IconTableProducer is the other new-only producer (not part of the legacy
+        // enumeration above) — it is slotted after Binary with EmitWhenEmpty=false, so packages
+        // with no icon (ProductIcon/shortcut icons) are unaffected and the ordering invariant
+        // above still holds for every table legacy actually emitted.
         ITableProducer[] producers =
         {
             new DirectoryTableProducer(),
