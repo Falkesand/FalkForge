@@ -96,6 +96,7 @@ if ($Full) {
     $target = $msiTestsProject
 }
 
+$runStart = Get-Date
 dotnet test $target -c $Configuration -v minimal -- --report-trx --report-trx-filename $trxName
 $testExit = $LASTEXITCODE
 Write-Host ""
@@ -105,7 +106,12 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 Write-Host "[3/3] Summary" -ForegroundColor Yellow
 
-$trxPath = Get-ChildItem -Path $resultsDir -Filter $trxName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+# Only consider TRX files written by THIS run — a stale report matching the same filename
+# (left over from a previous invocation) must never be summarized as if it were fresh.
+$trxPath = Get-ChildItem -Path $resultsDir -Filter $trxName -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -ge $runStart } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
 if ($null -eq $trxPath) {
     Write-Host "  No TRX found under $resultsDir matching $trxName — cannot summarize; check dotnet test output above." -ForegroundColor Red
 } else {

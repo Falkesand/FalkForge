@@ -148,8 +148,10 @@ prerequisite is missing — e.g. `IisExecutionEmissionTests` skips with "Real II
 administrator elevation" or similar if IIS isn't present. A `Skipped` outcome on this run means
 the gate didn't fully open (check elevation, `FALKFORGE_REAL_SYSTEM_E2E`, and — for the IIS and
 SQL tests — that IIS/SQL are actually installed), not that the feature is broken. Only a `Failed`
-outcome means something is actually wrong. Pretty-print the TRX with the `trx` tool
-(`~/.claude/rules/dotnet.md` workflow) if you want a readable summary instead of raw XML.
+outcome means something is actually wrong. `scripts/verify-real-machine.ps1` already parses the
+TRX and prints a Passed/Failed/Skipped summary for you; if you ran `dotnet test` directly instead,
+open the TRX in Visual Studio's Test Explorer (or any TRX viewer) for a readable summary instead of
+raw XML.
 
 This part only exercises MSI-recipe extension actions (Firewall, IIS pool/site/vdir, HTTP URL
 ACL, SQL, User/Group, FileShare). It does **not** touch anything bundle-level — Part 2 covers the
@@ -171,9 +173,8 @@ dotnet run --project demo/41-bundle-rollback -- -o out
 ```
 
 Run `out\Rollback Boundaries Bundle-1.0.0.exe` elevated. It should install cleanly (both MSIs
-succeed). Confirm via `Get-Package "My Application"` / `Get-Package "Runtime Prerequisites"`
-(or `Get-WmiObject Win32_Product` — slow, but authoritative) that both products are present.
-Uninstall through Programs & Features to leave the machine clean.
+succeed). Confirm via `Get-Package "My Application"` / `Get-Package "Runtime Prerequisites"` that
+both products are present. Uninstall through Programs & Features to leave the machine clean.
 
 To prove the *rollback scoping* itself — the actual live-verify gap — force the second package
 to fail: replace `demo/41-bundle-rollback/MyApp.msi` with a corrupt/invalid MSI (e.g.
