@@ -398,6 +398,8 @@ FodyWeavers.xsd
 *.msm
 *.msp
 *.msu
+# Per-culture MST language transforms (A8), written to demo/output dirs at build time
+*.mst
 
 # Stub payload artifacts provisioned at test time by PayloadProvisioner (demo/ dirs)
 demo/35-bundle-simple/MyApp.msi
