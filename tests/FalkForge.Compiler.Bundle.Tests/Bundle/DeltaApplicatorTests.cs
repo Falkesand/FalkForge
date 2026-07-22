@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Engine.Protocol.Bundle;
 using Xunit;
@@ -103,6 +104,132 @@ public sealed class DeltaApplicatorTests : IDisposable
         AssertNoFileWritten(destDir);
     }
 
+    [Fact]
+    public void ReconstructPayloadToFile_EntryNotMarkedAsDelta_FailsLoud_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // A TOC entry that isn't flagged IsDelta must never be routed through DeltaApplicator —
+        // this is the dispatch boundary between the full-payload extraction path and delta
+        // reconstruction; misrouting it would (at best) apply a delta algorithm to a full
+        // payload's bytes, producing garbage.
+        var notDelta = CloneWithIsDelta(deltaEntry, isDelta: false);
+
+        var destDir = Path.Combine(_tempDir, "out_notdelta");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, notDelta, basisBundle, destDir, notDelta.PackageId);
+
+        Assert.True(result.IsFailure, "DeltaApplicator must refuse an entry not marked IsDelta");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_MissingBaseHashMetadata_FailsLoud_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // A malformed delta bundle whose TOC never recorded which base payload the delta was
+        // computed against — nothing to pin the supplied basis to, so reconstruction must refuse
+        // rather than silently trusting whatever basis bundle the caller happens to pass in.
+        var missingBaseHash = CloneWithBaseHash(deltaEntry, string.Empty);
+
+        var destDir = Path.Combine(_tempDir, "out_missingbasehash");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, missingBaseHash, basisBundle, destDir, missingBaseHash.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly when BaseSha256Hash metadata is missing");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_MissingReconstructedHashMetadata_FailsLoud_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // No ReconstructedSha256Hash means there is no final integrity gate to check the applied
+        // delta against — refuse up front rather than reconstructing a payload nothing can ever
+        // verify. Distinct from the TamperedReconstructedHash test above, which exercises the
+        // gate itself with a present-but-wrong hash; this exercises the missing-metadata guard
+        // that runs before any reconstruction work starts.
+        var missingReconHash = CloneWithReconstructedHash(deltaEntry, string.Empty);
+
+        var destDir = Path.Combine(_tempDir, "out_missingreconhash");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, missingReconHash, basisBundle, destDir, missingReconHash.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly when ReconstructedSha256Hash metadata is missing");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_DeltaBlobCorruptedOnDisk_FailsLoud_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // Flip bytes inside the delta bundle at the delta blob's own offset (TOC/footer left
+        // untouched) — simulates bit rot or a tampered delta payload itself, as opposed to a
+        // tampered/wrong basis. BundleReader's own SHA-256 check over the delta blob (verifying
+        // TocEntry.Sha256Hash — the delta-blob hash) must catch this before Octodiff ever sees
+        // the bytes.
+        CorruptBytesAtOffset(deltaBundle, deltaEntry);
+
+        var destDir = Path.Combine(_tempDir, "out_deltacorrupt");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, deltaEntry, basisBundle, destDir, deltaEntry.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly when the delta blob itself is corrupted");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_BasisPayloadCorruptedOnDisk_FailsLoud_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        var basisExtract = BundleReader.Extract(basisBundle);
+        Assert.True(basisExtract.IsSuccess, basisExtract.IsFailure ? basisExtract.Error.Message : "");
+        var basisEntry = basisExtract.Value.TocEntries.Single(e => e.PackageId == deltaEntry.PackageId);
+
+        // Flip bytes inside the BASIS bundle itself — not swap in a different, valid basis (that
+        // is the WrongBaseVersion test above). Here the basis bundle's own TOC still claims the
+        // original (correct) hash, but the bytes on disk no longer match it: corruption of the
+        // exact right version. BundleReader's SHA-256 check on the basis payload must catch this
+        // when DeltaApplicator extracts it — a different code path than the explicit
+        // BaseSha256Hash pin comparison, which never even sees a mismatch here.
+        CorruptBytesAtOffset(basisBundle, basisEntry);
+
+        var destDir = Path.Combine(_tempDir, "out_basiscorrupt");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, deltaEntry, basisBundle, destDir, deltaEntry.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly when the basis payload bytes are corrupted");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_FailureDoesNotClobberExistingDestinationFile()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        var tampered = CloneWithReconstructedHash(deltaEntry,
+            "0000000000000000000000000000000000000000000000000000000000000000");
+
+        var destDir = Path.Combine(_tempDir, "out_preexisting");
+        Directory.CreateDirectory(destDir);
+        var destPath = Path.Combine(destDir, tampered.PackageId);
+        var staleBytes = Encoding.UTF8.GetBytes("stale previously-installed payload — must survive a failed update");
+        File.WriteAllBytes(destPath, staleBytes);
+
+        // Atomic-publish contract: a failed reconstruction (integrity mismatch here) must never
+        // touch a payload already sitting at the destination — a failed update leaves the install
+        // on its last known-good version instead of wiping or half-writing it.
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, tampered, basisBundle, destDir, tampered.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly on a reconstructed-hash mismatch");
+        Assert.Equal(staleBytes, File.ReadAllBytes(destPath));
+    }
+
     /// <summary>
     /// Builds a v1 full bundle and a v2 delta bundle (against v1) for a single package, returning
     /// the basis (v1) bundle path, the delta bundle path, the v1 bytes, the v2 bytes, and the delta
@@ -182,6 +309,46 @@ public sealed class DeltaApplicatorTests : IDisposable
         ReconstructedSha256Hash = reconstructedHash,
         IsPreUI = entry.IsPreUI
     };
+
+    private static TocEntry CloneWithIsDelta(TocEntry entry, bool isDelta) => new()
+    {
+        PackageId = entry.PackageId,
+        Offset = entry.Offset,
+        CompressedSize = entry.CompressedSize,
+        OriginalSize = entry.OriginalSize,
+        Sha256Hash = entry.Sha256Hash,
+        IsDelta = isDelta,
+        BaseSha256Hash = entry.BaseSha256Hash,
+        ReconstructedSha256Hash = entry.ReconstructedSha256Hash,
+        IsPreUI = entry.IsPreUI
+    };
+
+    private static TocEntry CloneWithBaseHash(TocEntry entry, string? baseHash) => new()
+    {
+        PackageId = entry.PackageId,
+        Offset = entry.Offset,
+        CompressedSize = entry.CompressedSize,
+        OriginalSize = entry.OriginalSize,
+        Sha256Hash = entry.Sha256Hash,
+        IsDelta = entry.IsDelta,
+        BaseSha256Hash = baseHash,
+        ReconstructedSha256Hash = entry.ReconstructedSha256Hash,
+        IsPreUI = entry.IsPreUI
+    };
+
+    /// <summary>
+    /// Flips a few bytes at <paramref name="entry"/>'s own offset directly on disk (TOC/footer
+    /// untouched), so the entry's declared metadata (offset/size/hash) still points at the
+    /// corrupted bytes — mirrors <c>DeltaBundleCompilerTests.CorruptOldPayload</c>.
+    /// </summary>
+    private static void CorruptBytesAtOffset(string bundlePath, TocEntry entry)
+    {
+        var bytes = File.ReadAllBytes(bundlePath);
+        var start = (int)entry.Offset;
+        for (var i = 0; i < 8 && start + i < bytes.Length; i++)
+            bytes[start + i] ^= 0xFF;
+        File.WriteAllBytes(bundlePath, bytes);
+    }
 
     private static BundleModel CreateModel(string name, string packageId, string sourcePath)
     {
