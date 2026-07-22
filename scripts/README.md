@@ -6,6 +6,7 @@
 | `publish.ps1` | Build Release and publish the shippable executables: the `forge` CLI plus the NativeAOT `FalkForge.Engine` / `FalkForge.Engine.Elevation` binaries. Default output `./artifacts/publish`. `-SkipEngine` skips the slow NativeAOT publishes. |
 | `coverage.ps1` | Code coverage via `dotnet-coverage` (works under Microsoft.Testing.Platform where `--collect` is a no-op). |
 | `scan-deps.ps1` | Dependency scanning. |
+| `verify-real-machine.ps1` | Runs the real-system e2e suite (`FALKFORGE_E2E=1` + `FALKFORGE_REAL_SYSTEM_E2E=1`) on an elevated machine. **Mutates machine state** — run only on a disposable VM. See [`docs/testing/real-machine-verification.md`](../docs/testing/real-machine-verification.md) for the full runbook, including the manual checks it can't automate. |
 | `pack-docs.ps1` | Zips the static HTML documentation site (`documentation.html` as both itself and `index.html`, plus `docs/tutorials/*.html` and its `shared/` assets -- no markdown, no internal plans) into `./artifacts/falkforge-docs-<version>.zip`. Same content published to GitHub Pages ([`.github/workflows/pages.yml`](../.github/workflows/pages.yml)) and attached to GitHub Releases ([`.github/workflows/release.yml`](../.github/workflows/release.yml)). `-Version` overrides the single-source version; `-Output` overrides the destination folder. |
 
 ## Single-source version

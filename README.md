@@ -208,6 +208,9 @@ opt-in on a machine you own: `FALKFORGE_REAL_SYSTEM_E2E=1` plus an elevated shel
 with additional external requirements still self-gate on those on top of the opt-in
 (e.g. the SignServer tests also need a Linux-capable Docker/Podman runtime, and the
 NuGet-consumer e2e needs the local feed produced by `scripts/pack.ps1`).
+See [`docs/testing/real-machine-verification.md`](docs/testing/real-machine-verification.md)
+for a full runbook (VM setup, exact commands, and the manual checklist for live paths that
+have no automated real-machine coverage yet).
 
 A stuck test cannot hang the run indefinitely: every test project runs under the
 Microsoft.Testing.Platform hang-dump guard (see `tests/Directory.Build.props`), which
