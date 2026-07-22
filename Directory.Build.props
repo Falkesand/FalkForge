@@ -15,7 +15,7 @@
              (kept in sync by FalkForge.Integration.Tests/TemplatePackTests.cs).
              ============================================================================ -->
         <VersionPrefix>0.5.0</VersionPrefix>
-        <VersionSuffix>beta.3</VersionSuffix>
+        <VersionSuffix>beta.4</VersionSuffix>
 
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
