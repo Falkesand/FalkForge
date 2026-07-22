@@ -96,7 +96,11 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             ("VerdanaBold13", "Verdana", 13, null, 1),
         ];
 
-    // ── Fixed UIText rows — identical to legacy DialogEmitter.EmitUIText ─────────────
+    // ── Fixed UIText rows — mirrors legacy DialogEmitter.EmitUIText, with one intentional
+    // deviation: MenuAllLocal (SelectionTree's "install this feature AND its subfeatures" menu
+    // entry) used to read identically to MenuLocal ("install just this feature"), which is wrong
+    // per the Windows Installer SelectionTree control contract — the two options must read
+    // differently or the feature-picker context menu is meaningless.
     private static readonly (string Key, string Text)[] UiTextEntries =
     [
         ("AbsentPath",             ""),
@@ -105,7 +109,7 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         ("KB",                     "KB"),
         ("MB",                     "MB"),
         ("MenuAbsent",             "Entire feature will be unavailable."),
-        ("MenuAllLocal",           "Will be installed on local hard drive."),
+        ("MenuAllLocal",           "Entire feature will be installed on local hard drive."),
         ("MenuLocal",              "Will be installed on local hard drive."),
         ("NewFolder",              "New Folder|"),
         ("SelAbsentAbsent",        "This feature will remain uninstalled."),
