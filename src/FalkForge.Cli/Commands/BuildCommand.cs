@@ -111,21 +111,29 @@ public sealed class BuildCommand : AsyncCommand<BuildSettings>
         var outputPath = settings.OutputPath ?? Directory.GetCurrentDirectory();
         var isJson = projectPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
 
-        // MSIX is a separate output format with its own compiler path. Neither JSON nor
-        // script input can produce MSIX through this command today; script input would need
-        // Installer.BuildMsix() inside the script, which BuildCommand does not invoke on its
-        // behalf. Both cases fail loud rather than silently falling back to an MSI build --
-        // producing the wrong output format under a `--format msix` request would be worse
-        // than refusing to build at all.
+        // MSIX is a separate output format with its own compiler path, and it cannot be reached
+        // through this command's existing input pipeline -- not just "not implemented yet":
+        //   1. MsixModel carries data PackageModel/JsonConfigLoader have no equivalent for
+        //      (Publisher distinguished name, per-application executable + visual elements,
+        //      capabilities) -- there is no lossless way to derive it from a loaded PackageModel.
+        //   2. Even for .cs/.csx input, ScriptLoader.LoadPackageModel evaluates the script via
+        //      CSharpScript.EvaluateAsync<PackageModel>, so the script MUST evaluate to a
+        //      PackageModel. A script whose entry point calls InstallerMsix.BuildMsix() (which
+        //      returns int) can never satisfy that contract.
+        // The real MSIX build path is a standalone script/program run directly (e.g. via
+        // `dotnet script`, see demo/15-msix-basic), entirely outside `forge build`. Both cases
+        // here fail loud rather than silently falling back to an MSI build -- producing the
+        // wrong output format under a `--format msix` request would be worse than refusing to
+        // build at all.
         if (string.Equals(settings.Format, "msix", StringComparison.OrdinalIgnoreCase))
         {
             if (isJson)
             {
-                _console.WriteError("MSIX packages cannot be built from JSON configuration. Use the C# script API with InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() instead (see FalkForge.Compiler.Msix.InstallerMsix).");
+                _console.WriteError("MSIX packages cannot be built from JSON configuration, and 'forge build --format msix' cannot build them from any input today: MsixModel needs MSIX-specific data (Publisher distinguished name, per-application executable + visual elements, capabilities) that PackageModel/JsonConfigLoader do not carry. Build MSIX by running the script directly instead, e.g. 'dotnet script your-package.csx -- -o <output>', calling InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() (see FalkForge.Compiler.Msix.InstallerMsix, demo/15-msix-basic).");
                 return ExitCodes.ValidationFailure;
             }
 
-            _console.WriteError("MSIX packages cannot be built via 'forge build --format msix' yet. Call InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() directly from your .cs/.csx build script instead (see FalkForge.Compiler.Msix.InstallerMsix).");
+            _console.WriteError("MSIX packages cannot be built via 'forge build --format msix': forge's script loader requires the script to evaluate to a PackageModel, and MsixModel needs MSIX-specific data (Publisher distinguished name, per-application executable + visual elements, capabilities) that PackageModel does not carry. Run the script directly instead, e.g. 'dotnet script your-package.csx -- -o <output>', calling InstallerMsix.BuildMsix() / InstallerMsix.BuildMsixBundle() (see FalkForge.Compiler.Msix.InstallerMsix, demo/15-msix-basic).");
             return ExitCodes.ValidationFailure;
         }
 
