@@ -259,6 +259,44 @@ public sealed class DeltaBundleCompilerTests : IDisposable
     }
 
     [Fact]
+    public void Compile_DeltaNotSmallerThanNewPayload_FallsBackToFullEmbed()
+    {
+        // Fully independent random old/new payloads: with no shared structure, Octodiff's rsync
+        // match almost certainly finds zero copy-worthy blocks, so the raw delta is the entire new
+        // payload re-emitted as a literal DATA command plus header/footer overhead — never smaller
+        // than the new payload itself. The compiler's `deltaLength < payload.OriginalSize` gate
+        // (DeltaBundleCompiler.EmbedWithDeltas is fed via the deltaEntries dictionary populated in
+        // Compile) must catch this and fall back to a full embed rather than shipping a delta that
+        // is pure waste over the wire.
+        var rng = new Random(2024);
+        var oldData = new byte[20_000];
+        rng.NextBytes(oldData);
+        var oldBundlePath = CreateFullBundle("unrelated_old", oldData, "Pkg1");
+
+        var newData = new byte[20_000];
+        rng.NextBytes(newData); // Independently random — negligible byte-level overlap with oldData.
+        var newPayloadPath = CreatePayloadFile(newData, "unrelated_new.bin");
+
+        var model = CreateModel("UnrelatedDelta", [("Pkg1", newPayloadPath)]);
+        var outputDir = Path.Combine(_tempDir, "unrelated_output");
+
+        var deltaCompiler = new DeltaBundleCompiler { AllowPlaceholderStub = true };
+        var result = deltaCompiler.Compile(model, outputDir, oldBundlePath);
+        Assert.True(result.IsSuccess, $"Delta compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var extractResult = BundleReader.Extract(result.Value);
+        Assert.True(extractResult.IsSuccess, extractResult.IsFailure ? extractResult.Error.Message : "");
+        var entry = extractResult.Value.TocEntries.Single();
+
+        Assert.False(entry.IsDelta,
+            "A delta that is not actually smaller than the new payload must fall back to a full embed");
+
+        var payload = BundleReader.ExtractPayload(result.Value, entry);
+        Assert.True(payload.IsSuccess, payload.IsFailure ? payload.Error.Message : "");
+        Assert.Equal(newData, payload.Value);
+    }
+
+    [Fact]
     public void Compile_DeletesItsScratchTempDirectory_OnSuccess()
     {
         var tempRoot = Path.Combine(_tempDir, "scratch_root_success");
