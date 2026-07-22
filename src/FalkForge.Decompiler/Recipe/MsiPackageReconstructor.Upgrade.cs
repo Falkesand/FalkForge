@@ -28,8 +28,11 @@ public static partial class MsiPackageReconstructor
         {
             var attrs = row.Attributes;
             if ((attrs & MsidbUpgradeAttributesMigrateFeatures) != 0) migrateFeatures  = true;
+            // UpgradeTableProducer writes the NEWERVERSIONFOUND/OnlyDetect row with the current
+            // version in VersionMin and an EMPTY VersionMax — so the "is this a real detection
+            // row" check must key off VersionMin, not VersionMax.
             if ((attrs & MsidbUpgradeAttributesOnlyDetect)       != 0 &&
-                !string.IsNullOrEmpty(row.VersionMax))              downgradeBlocked = true;
+                !string.IsNullOrEmpty(row.VersionMin))              downgradeBlocked = true;
             if ((attrs & MsidbUpgradeAttributesVersionMaxIncl)   != 0) allowSameVersion = true;
         }
 
