@@ -35,9 +35,15 @@ public sealed class BuildCommandMsixTests
             // in place of the requested MSIX output.
             Assert.Equal(ExitCodes.ValidationFailure, result);
             Assert.Contains(console.Errors,
-                e => e.Contains("MSIX packages cannot be built via 'forge build --format msix' yet"));
+                e => e.Contains("MSIX packages cannot be built via 'forge build --format msix'"));
             Assert.Contains(console.Errors,
                 e => e.Contains("InstallerMsix.BuildMsix()"));
+            // The guidance must point at the real build path (a standalone dotnet-script run),
+            // not imply forge build itself can execute a BuildMsix()-calling script — its
+            // ScriptLoader forces the script to evaluate to a PackageModel, which a BuildMsix()
+            // call (returns int) can never satisfy.
+            Assert.Contains(console.Errors,
+                e => e.Contains("dotnet script"));
             Assert.DoesNotContain(console.MarkupLines, line => line.Contains("Build succeeded"));
             Assert.Empty(Directory.GetFiles(tempDir, "*.msi"));
         }
@@ -87,6 +93,8 @@ public sealed class BuildCommandMsixTests
                 e => e.Contains("MSIX packages cannot be built from JSON configuration"));
             Assert.Contains(console.Errors,
                 e => e.Contains("InstallerMsix.BuildMsix()"));
+            Assert.Contains(console.Errors,
+                e => e.Contains("dotnet script"));
         }
         finally
         {

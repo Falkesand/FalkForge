@@ -12225,41 +12225,76 @@ msix.Signing(s =&gt; s
   <!-- ================================================================ -->
   <h3 id="msix-cli">21.9 CLI Integration</h3>
   <div class="warning">
-    <strong>Not supported via JSON, experimental via CLI.</strong> <code>forge build --format
-    msix</code> rejects JSON input outright (<code>BuildCommand</code> reports a validation
-    error: &ldquo;MSIX packages cannot be built from JSON configuration&rdquo;) &mdash; the
-    <code>JsonConfigLoader</code> has no MSIX path. Even from a <code>.csx</code> script, the
-    CLI's MSIX build is experimental and not yet implemented: it prints a warning and falls back
-    to an MSI build. To actually produce MSIX output today, call
-    <code>InstallerMsix.BuildMsix()</code> / <code>InstallerMsix.BuildMsixBundle()</code>
-    directly from a C# script or project (see the API examples above), not through
-    <code>forge build --format msix</code>.
-  </div>
-  <p>
-    The <code>forge</code> CLI's <code>build</code> command recognizes a <code>--format msix</code>
-    flag, but MSIX compilation is not yet wired up for CLI-driven builds &mdash; see the notice
-    above.
+    <strong>Not reachable through <code>forge build</code> &mdash; by design, not just
+    &ldquo;not implemented yet.&rdquo;</strong> <code>forge build --format msix</code> fails
+    loud with a validation error for every input type; it never silently falls back to an MSI
+    build. There are two independent reasons this input path cannot carry MSIX output:
   </p>
+  <ol>
+    <li>
+      <code>MsixModel</code> needs data <code>PackageModel</code> has no equivalent for
+      &mdash; a <code>Publisher</code> distinguished name (<code>CN=...</code>, distinct from
+      the free-text MSI <code>Manufacturer</code>), one or more <code>Applications</code>
+      (executable + visual elements per app), and a <code>Capabilities</code> list. Neither
+      <code>JsonConfigLoader</code> nor the script-loaded <code>PackageModel</code> carries
+      this, so there is no lossless way to derive an <code>MsixModel</code> from what
+      <code>forge build</code> already loads.
+    </li>
+    <li>
+      Even for <code>.cs</code>/<code>.csx</code> input, <code>ScriptLoader.LoadPackageModel</code>
+      evaluates the script via <code>CSharpScript.EvaluateAsync&lt;PackageModel&gt;</code> &mdash;
+      the script's final expression <em>must</em> be a <code>PackageModel</code>. A script whose
+      entry point calls <code>InstallerMsix.BuildMsix()</code> (which returns <code>int</code>,
+      not <code>PackageModel</code>) can never satisfy that contract, so it can't run through
+      <code>forge build</code> even in principle.
+    </li>
+  </ol>
+  <div class="warning">
+    To actually produce MSIX output today, run the script directly as a standalone
+    <code>dotnet-script</code> invocation (or a compiled console program) that calls
+    <code>InstallerMsix.BuildMsix()</code> / <code>InstallerMsix.BuildMsixBundle()</code> &mdash;
+    see <a href="#msix-example">21.11 Complete Example</a> and <code>demo/15-msix-basic</code>.
+    This is a completely separate invocation from <code>forge build</code>, not a flag on it.
+  </div>
 
-  <pre><code class="language-bash"># Build from a C# script (falls back to MSI today; MSIX CLI build is not yet implemented)
-forge build myapp-msix.csx
+  <pre><code class="language-bash"># forge build --format msix fails loud for every input -- it never produces an MSI as a
+# silent fallback and it never produces an MSIX either:
+forge build myapp.csx --format msix
+# error: MSIX packages cannot be built via 'forge build --format msix': forge's script loader
+# requires the script to evaluate to a PackageModel, and MsixModel needs MSIX-specific data
+# (Publisher distinguished name, per-application executable + visual elements, capabilities)
+# that PackageModel does not carry. Run the script directly instead, e.g.
+# 'dotnet script your-package.csx -- -o &lt;output&gt;', calling InstallerMsix.BuildMsix() /
+# InstallerMsix.BuildMsixBundle() (see FalkForge.Compiler.Msix.InstallerMsix, demo/15-msix-basic).
 
-# JSON configuration cannot produce MSIX -- this fails with a validation error:
-# "MSIX packages cannot be built from JSON configuration."
-forge build msix-config.json --format msix</code></pre>
+forge build msix-config.json --format msix
+# error: MSIX packages cannot be built from JSON configuration, and 'forge build --format msix'
+# cannot build them from any input today: ... (same guidance as above)
+
+# The actual MSIX build path -- a standalone script run, not `forge build`:
+dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output</code></pre>
 
   <h4>SDK Integration</h4>
-  <p>
-    The FalkForge SDK supports MSIX and MSIX Bundle outputs via the <code>FalkOutputType</code> property
-    in your project file:
-  </p>
+  <div class="warning">
+    <strong><code>FalkOutputType&gt;Msix&lt;</code>/<code>MsixBundle</code> is a silent no-op, not
+    a working path.</strong> <code>Sdk.targets</code>' <code>FalkGenerateInstaller</code> target
+    computes an artifact path for these values and prints a
+    &ldquo;Generating Msix installer...&rdquo; message, but the <code>Exec</code> that actually
+    invokes <code>--forge-build</code> is conditioned on
+    <code>'$(FalkOutputType)' == 'Msi' or '$(FalkOutputType)' == 'Bundle'</code> only. Setting
+    <code>FalkOutputType</code> to <code>Msix</code> or <code>MsixBundle</code> today builds your
+    project normally and produces <em>no installer artifact and no error</em> &mdash; worse than
+    the CLI's fail-loud behavior above. Do not rely on this until the SDK path is wired up; use
+    the standalone script/program approach instead.
+  </div>
 
-  <pre><code class="language-xml">&lt;!-- Single MSIX package --&gt;
+  <pre><code class="language-xml">&lt;!-- NOTE: does not currently build an MSIX -- see warning above. Reserved for when the
+     SDK's FalkGenerateInstaller target gains an MSIX Exec branch. --&gt;
 &lt;PropertyGroup&gt;
     &lt;FalkOutputType&gt;Msix&lt;/FalkOutputType&gt;
 &lt;/PropertyGroup&gt;
 
-&lt;!-- MSIX bundle (multi-architecture) --&gt;
+&lt;!-- Same caveat for the bundle variant --&gt;
 &lt;PropertyGroup&gt;
     &lt;FalkOutputType&gt;MsixBundle&lt;/FalkOutputType&gt;
 &lt;/PropertyGroup&gt;</code></pre>
