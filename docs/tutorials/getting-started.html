@@ -41,6 +41,18 @@
     <h2>Prerequisites</h2>
     <p>.NET 10 SDK installed. A text editor or IDE. That's it.</p>
 
+    <div class="note">
+      No repo checkout? This walkthrough opens <code>demo/01-hello-world</code> from the
+      FalkForge source tree, but you don't need to clone anything to follow along.
+      <code>dotnet tool install -g FalkForge.Tool --prerelease</code> then
+      <code>forge init --name "My App"</code> scaffolds an equivalent starter project (same
+      <code>Installer.Build</code> entry point, <code>MsiDialogSet.Minimal</code>, and a
+      Start Menu shortcut) you can open side by side with this page &mdash;
+      <code>dotnet run</code> builds it the same way. The scaffold skips the localization,
+      cabinet, and reproducible-build calls covered further down; add them yourself once
+      you've read those sections.
+    </div>
+
     <!-- The Code -->
     <h2>The Code</h2>
     <p>Open <code>demo/01-hello-world/Program.cs</code>. This is the entire installer &mdash; about 35 lines of C#.</p>

@@ -96,8 +96,10 @@ cd My_App && dotnet run    # -> My_App-1.0.0.msi
 
 `forge init` (see [CLI Tool](#cli-tool) below) writes a project that references the
 `FalkForge` meta-package by version. The
-[tutorials](https://falkesand.github.io/FalkForge/docs/tutorials/index.html) walk
-through the same flow step by step.
+[tutorials](https://falkesand.github.io/FalkForge/docs/tutorials/index.html) teach the
+same concepts against the checked-out demo repo; [Getting
+Started](https://falkesand.github.io/FalkForge/docs/tutorials/getting-started.html) notes
+the `forge init` equivalent for anyone following along without a clone.
 
 ## Quick Start
 
