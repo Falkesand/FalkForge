@@ -5807,7 +5807,7 @@ var seedData = new SqlStringBuilder()
       <tr><td><code>Name</code></td><td><code>string</code></td><td>Returns <code>"DotNet"</code>.</td></tr>
       <tr><td><code>SearchForRuntime()</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>Factory for a new runtime search.</td></tr>
       <tr><td><code>AddSearch(DotNetCoreSearchModel model)</code></td><td><code>Result&lt;Unit&gt;</code></td><td>Adds a built search. Re-validates the whole set (including cross-search duplicate <code>VariableName</code> detection, NET003) so a model built outside <code>DotNetCoreSearchBuilder</code> cannot bypass validation. NET006 if <code>model</code> is null.</td></tr>
-      <tr><td><code>Register(IExtensionRegistry registry)</code></td><td><code>void</code></td><td>Registers <code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code> table contributors for every added search, plus a <code>LaunchCondition</code> contributor for searches that carry a message. A package that never calls <code>AddSearch</code> contributes no tables.</td></tr>
+      <tr><td><code>Register(IExtensionRegistry registry)</code></td><td><code>void</code></td><td>Registers <code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code> table contributors for every added search, plus a <code>LaunchCondition</code> contributor that emits conditions only for searches that carry a message. A package that never calls <code>AddSearch</code> contributes no tables.</td></tr>
     </tbody>
   </table>
 
