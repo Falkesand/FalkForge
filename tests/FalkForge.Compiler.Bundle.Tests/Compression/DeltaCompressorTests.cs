@@ -122,6 +122,30 @@ public sealed class DeltaCompressorTests
     }
 
     /// <summary>
+    /// GAP-8: <see cref="DeltaCompressor.CreateDelta"/> wraps Octodiff's <c>SignatureBuilder</c>/
+    /// <c>DeltaBuilder</c> calls in a broad <c>catch (Exception)</c> that maps any failure to
+    /// <see cref="ErrorKind.BundleError"/>. That catch was never forced to fire. A disposed
+    /// <see cref="MemoryStream"/> is a genuine, non-mocked bad input a caller could realistically
+    /// pass (e.g. a stream from a <c>using</c> block that already exited): Octodiff's
+    /// <c>SignatureBuilder.WriteMetadata</c> immediately calls <c>stream.Seek(0, SeekOrigin.Begin)</c>
+    /// on the basis stream, which throws <see cref="ObjectDisposedException"/> on a disposed stream —
+    /// proving the catch converts that exception into a typed failure instead of letting it escape.
+    /// </summary>
+    [Fact]
+    public void CreateDelta_DisposedBasisStream_ReturnsBundleErrorInsteadOfThrowing()
+    {
+        var basisStream = new MemoryStream(Encoding.UTF8.GetBytes("basis content"));
+        basisStream.Dispose();
+        using var newStream = new MemoryStream(Encoding.UTF8.GetBytes("new content"));
+        using var outputStream = new MemoryStream();
+
+        var result = DeltaCompressor.CreateDelta(basisStream, newStream, outputStream);
+
+        Assert.True(result.IsFailure, "A disposed basis stream must be caught, not thrown, by CreateDelta");
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+    }
+
+    /// <summary>
     /// Regression test for the A3 streaming refactor: <see cref="DeltaCompressor.CreateDelta"/> and
     /// <see cref="DeltaCompressor.ApplyDelta"/> now take file-backed <see cref="Stream"/>s instead
     /// of in-memory byte arrays. This exercises the actual FileStream path (not MemoryStream) to

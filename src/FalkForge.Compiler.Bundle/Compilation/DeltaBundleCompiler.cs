@@ -191,6 +191,19 @@ public sealed class DeltaBundleCompiler
                         using (var newStream = File.OpenRead(payload.SourcePath))
                         using (var deltaOutputStream = new FileStream(deltaTempPath, FileMode.Create, FileAccess.Write))
                         {
+                            // This is the only route into `firstError` (the whole-compile abort,
+                            // Step 5 below) — it only fires if Octodiff itself throws inside
+                            // CreateDelta. basisStream/newStream here are always freshly-opened,
+                            // seekable FileStreams over files whose existence was already verified
+                            // (extraction succeeded above; the new payload's File.Exists check is
+                            // Step 4), so under realistic single-process input this branch is not
+                            // reachable — corrupted/unreadable old payloads and delta-not-smaller
+                            // both take separate non-aborting fallback paths instead (see the
+                            // comment above and the `deltaLength < payload.OriginalSize` check
+                            // below). Kept as a defensive guard against a third-party (Octodiff)
+                            // internal failure; see DeltaCompressorTests
+                            // .CreateDelta_DisposedBasisStream_ReturnsBundleErrorInsteadOfThrowing
+                            // for where that broad catch itself is proven.
                             var deltaResult = DeltaCompressor.CreateDelta(basisStream, newStream, deltaOutputStream);
                             if (deltaResult.IsFailure)
                             {
