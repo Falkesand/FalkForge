@@ -1013,12 +1013,15 @@
   <div class="warning">
     <strong>JSON configuration is an experimental, incomplete subset &mdash; work in progress.</strong>
     It covers product metadata, features, files, shortcuts, registry, services, environment
-    variables, major upgrade/downgrade, launch conditions, license, and signing. It does
-    <strong>not yet</strong> emit Firewall, IIS, SQL, or .NET-detection extension configuration
-    into the built installer &mdash; those sections are parsed and validated but silently
-    dropped at build time (see <a href="#cli-json-config">JSON Configuration Format</a>). For
-    any extension, or anything beyond this subset, use the C# fluent API, which <code>forge
-    init</code> scaffolds by default.
+    variables, major upgrade/downgrade, launch conditions, license, and signing. The
+    <code>extensions</code> block now authors the Firewall, IIS, and SQL extensions &mdash; each
+    is translated into the same real extension the C# API attaches via <code>new
+    MsiCompiler().Use(extension)</code> and emitted into the compiled MSI (see <a
+    href="#cli-json-config">JSON Configuration Format</a>). The one exception is
+    <code>dotnet</code> (.NET runtime detection), a bundle-engine feature with no standalone-MSI
+    representation &mdash; a <code>dotnet</code> block fails loud with <strong>JSN019</strong>
+    rather than producing an installer that does not gate on the runtime. For that, or anything
+    beyond this subset, use the C# fluent API, which <code>forge init</code> scaffolds by default.
   </div>
 
   <h3>Key Features</h3>
@@ -5017,6 +5020,17 @@ Installer.BuildBundle(args, bundle =&gt;
     </tbody>
   </table>
 
+  <div class="note">
+    <strong>Runtime acquisition.</strong> At install time, <code>ExternalContainerAcquirer</code>
+    (<code>src/FalkForge.Engine/Bootstrap/ExternalContainerAcquirer.cs</code>) downloads each
+    declared external container and verifies it through a three-layer integrity chain before any
+    byte is extracted: (1) whole-file SHA-256 against the manifest's declared container hash, (2)
+    declared-membership check that the container's table of contents carries exactly the package
+    ids the manifest promised for it, and (3) signed-set binding of the container's payloads to
+    the bundle's ECDSA-signed manifest &mdash; the authoritative gate for a signed bundle. Any
+    layer failing aborts the whole acquisition; no partial or unverified install proceeds.
+  </div>
+
   <!-- 9.8 RelatedBundleBuilder -->
   <h3 id="bundle-related-bundle-builder">9.8 RelatedBundleBuilder</h3>
   <p>
@@ -7711,6 +7725,19 @@ public sealed record EngineSessionOptions
     </tbody>
 </table>
 
+<div class="note">
+    <strong>Distributed install (payload path resolution).</strong> Each executor reads
+    <code>PlanAction.EffectiveSourcePath</code> (<code>ResolvedSourcePath ?? Package.SourcePath</code>,
+    <code>src/FalkForge.Engine/Planning/PlanAction.cs</code>) rather than the build-time
+    <code>SourcePath</code>, so a package installs from wherever the bundle actually extracted it on
+    the target machine, not from the build box. The extracted location is computed by
+    <code>PayloadPathResolver.Resolve</code> (<code>src/FalkForge.Engine/Pipeline/PayloadPathResolver.cs</code>),
+    which combines the payload extraction root with the package id and enforces path containment: a
+    traversal (e.g. <code>..\evil</code>), a rooted path, or a UNC/device-namespace package id resolves
+    outside the root and is rejected with <code>ErrorKind.SecurityError</code> rather than being handed
+    to an installer.
+</div>
+
 <h4>IProcessRunner</h4>
 <p><code>src/FalkForge.Engine/Execution/IProcessRunner.cs</code></p>
 <pre><code class="language-csharp">public interface IProcessRunner
@@ -8218,6 +8245,7 @@ Transport framing (length-prefix):
         <tr><td>0x0114</td><td>PlanPackageComplete</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName, PlannedAction</td><td>Planning finished for a single package, sent immediately after its <code>PlanPackageBegin</code></td></tr>
         <tr><td>0x0115</td><td>ApplyPackageBegin</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName</td><td>A package's installer is about to run during the Apply phase, in execution order</td></tr>
         <tr><td>0x0116</td><td>ApplyPackageComplete</td><td>Engine &rarr; UI</td><td>PackageId, DisplayName, Succeeded</td><td>A package's installer returned; <code>Succeeded</code> is false for the package whose failure aborts the apply</td></tr>
+        <tr><td>0x0117</td><td>PackageMsiFeatures</td><td>Engine &rarr; UI</td><td>PackageId, Features (<code>MsiFeatureInfo[]</code>)</td><td>Advertises the <code>Feature</code> rows found inside one MSI package, so the UI can present a per-package feature picker; the user's choice comes back as <code>SetPackageFeatureSelection</code></td></tr>
         <tr><td>0x0201</td><td>Cancel</td><td>UI &rarr; Engine</td><td>(none)</td><td>User requested cancellation</td></tr>
         <tr><td>0x0202</td><td>ShutdownRequest</td><td>UI &rarr; Engine</td><td>(none)</td><td>UI requests engine shutdown</td></tr>
         <tr><td>0x0203</td><td>SetInstallDirectory</td><td>UI &rarr; Engine</td><td>Directory (string)</td><td>User changed install directory</td></tr>
@@ -8227,6 +8255,7 @@ Transport framing (length-prefix):
         <tr><td>0x0207</td><td>RequestApply</td><td>UI &rarr; Engine</td><td>(none)</td><td>UI confirms readiness to apply</td></tr>
         <tr><td>0x0208</td><td>SetProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), Value (string)</td><td>Sets an MSI property for package execution. Phase-gated: only accepted during Initializing, Detecting, or Planning.</td></tr>
         <tr><td>0x0209</td><td>SetSecureProperty</td><td>UI &rarr; Engine</td><td>PropertyName (string), SecureValue (<code>SensitiveBytes</code>)</td><td>Sets a secret property via named pipe. <code>SecureValue</code> is a <code>SensitiveBytes</code> struct that zeroes its backing array on dispose. The codec applies three-layer zeroing (write reveal, read scratch, PostWrite). Never appears on the command line.</td></tr>
+        <tr><td>0x020A</td><td>SetPackageFeatureSelection</td><td>UI &rarr; Engine</td><td>PackageId, SelectedFeatureIds (string[])</td><td>Per-package feature selection: the full set of feature ids the user chose for one MSI package; the engine turns this into an <code>ADDLOCAL</code> property for that package's install action. Distinct from <code>SetFeatureSelection</code> (0x0204), which toggles a single whole-package feature</td></tr>
         <tr><td>0x0301</td><td>ElevateExecute</td><td>Engine &rarr; Elevated</td><td>CommandName, CommandPayload (byte[])</td><td>Execute an elevated command</td></tr>
         <tr><td>0x0302</td><td>SessionStart</td><td>Engine &rarr; Elevated</td><td>CorrelationId (Guid), StartedUtc (DateTimeOffset)</td><td>Sent once right after the HMAC handshake completes; carries a correlation id so elevated-process logs can be matched back to engine/UI logs</td></tr>
         <tr><td>0x0401</td><td>ElevateResult</td><td>Elevated &rarr; Engine</td><td>Success, ErrorMessage?, ResultPayload?</td><td>Result of an elevated command execution</td></tr>
@@ -8827,6 +8856,7 @@ public interface IDialogStepBuilder
         <tr><td>DLG001</td><td>Error</td><td>An <code>InsertedDialogStep</code> references a step name that is not registered in the <code>DialogStepRegistry</code>. Fix: register the builder via the owning extension before compiling.</td></tr>
         <tr><td>DLG002</td><td>Error</td><td>Two <code>InsertedDialogStep</code> entries declare the same logical position (same <code>before</code>/<code>after</code> anchor with the same target). Fix: give them distinct anchors or merge them.</td></tr>
         <tr><td>DLG003</td><td>Error</td><td><code>DialogCustomization.BannerBitmap</code>/<code>DialogBitmap</code>/<code>HeaderIcon</code> names a Binary stream key that is not registered in <code>PackageModel.Binaries</code> (via <code>PackageBuilder.Binary(name, sourcePath)</code>). Fix: register the key with <code>PackageBuilder.Binary()</code> before compiling, or fix the typo.</td></tr>
+        <tr><td>DLG005</td><td>Warning</td><td>A culture in <code>PackageModel.LocalizationData</code> produced no localizable difference from the base culture during MST language transform generation (see <a href="#loc-mst-transforms">MST Language Transforms</a>), so no <code>.mst</code> was emitted for it. Fix: add <code>!(loc.*)</code> text to a dialog set or custom dialog for that culture, or drop the extra culture.</td></tr>
     </tbody>
 </table>
 
@@ -9691,6 +9721,19 @@ builder.Localization(loc =&gt; loc
     See <a href="#demos">Demo 08 &mdash; localization</a> for a runnable multi-language example and the
     <a href="docs/tutorials/localization.html">Localization tutorial</a> for a narrative walkthrough of
     the whole culture fallback + detection story.
+</p>
+
+<h3 id="loc-mst-transforms">MST Language Transforms</h3>
+<p>
+    When a package has more than one culture (<code>PackageModel.LocalizationData.Count &gt; 1</code>)
+    and <code>CompileOptions.EmitLanguageTransforms</code> is left at its default (<code>true</code>),
+    <code>MsiAuthoring</code> Step 6.6 (<code>src/FalkForge.Compiler.Msi/Recipe/MsiAuthoring.LanguageTransforms.cs</code>)
+    rebuilds the package once per extra culture in a throwaway directory, then diffs each localized
+    build against the pristine base MSI via <code>LanguageTransformGenerator</code> (which wraps the
+    native <code>MsiDatabaseGenerateTransform</code>) to emit one <code>.mst</code> transform per
+    culture next to the base MSI. A culture that produces no localizable difference from the base
+    (e.g. no <code>!(loc.*)</code> text reaches a dialog set or custom dialog) emits no <code>.mst</code>
+    file and a <strong>DLG005</strong> warning instead of silently shipping a single-language installer.
 </p>
 
 <h3 id="loc-error-codes">Error Codes</h3>
