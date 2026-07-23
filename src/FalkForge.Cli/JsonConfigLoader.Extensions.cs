@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using FalkForge;
 using FalkForge.Cli.Models;
 using FalkForge.Extensibility;
+using FalkForge.Extensions.DotNet;
 using FalkForge.Extensions.Firewall;
 using FalkForge.Extensions.Iis;
 using FalkForge.Extensions.Iis.Models;
@@ -14,21 +15,14 @@ public static partial class JsonConfigLoader
     /// <summary>
     /// Translates a validated <see cref="ExtensionsConfig"/> into real extension instances. Reuses the
     /// extensions' own fluent builders (never re-implements their MSI emission), so the JSON path and the
-    /// C# path produce identical tables. .NET detection is rejected up front (JSN019) rather than silently
-    /// dropped, because attaching a detection-only extension to an MSI build gates on nothing.
+    /// C# path produce identical tables. A <c>dotnet</c> block builds a real <see cref="DotNetExtension"/>
+    /// with MSI-native detection (<c>Signature</c>/<c>DrLocator</c>/<c>AppSearch</c>) and its own
+    /// <c>LaunchCondition</c> — the JSON path has no separate call to gate on the detected property the
+    /// way <c>package.Require(...)</c> does for the C# fluent path, so <c>BuildDotNet</c> always supplies
+    /// a message (author-provided or a sensible default).
     /// </summary>
     private static Result<IReadOnlyList<IFalkForgeExtension>> BuildExtensions(ExtensionsConfig extensions)
     {
-        // .NET runtime detection is a bundle-engine feature: the DotNet extension contributes no MSI
-        // tables (its Register is empty) and the runtime variable it names is populated by the engine's
-        // detect phase, not by the MSI. Emitting it into a standalone MSI would produce an installer that
-        // does NOT actually gate on the runtime — a silent security-relevant drop — so we fail loud.
-        if (extensions.DotNet is { Count: > 0 })
-            return Result<IReadOnlyList<IFalkForgeExtension>>.Failure(new Error(ErrorKind.Validation,
-                "JSN019: JSON '.NET runtime detection' authoring is not supported — .NET detection is a " +
-                "bundle-engine feature with no standalone-MSI representation. Author it with the C# fluent " +
-                "API instead (new DotNetExtension().SearchForRuntime()... combined with package.Require(...))."));
-
         var result = new List<IFalkForgeExtension>();
 
         if (extensions.Firewall is { Count: > 0 })
@@ -61,6 +55,14 @@ public static partial class JsonConfigLoader
             if (sql.IsFailure)
                 return Result<IReadOnlyList<IFalkForgeExtension>>.Failure(sql.Error);
             result.Add(sql.Value);
+        }
+
+        if (extensions.DotNet is { Count: > 0 })
+        {
+            var dotnet = BuildDotNet(extensions.DotNet);
+            if (dotnet.IsFailure)
+                return Result<IReadOnlyList<IFalkForgeExtension>>.Failure(dotnet.Error);
+            result.Add(dotnet.Value);
         }
 
         return Result<IReadOnlyList<IFalkForgeExtension>>.Success(result);
@@ -237,6 +239,55 @@ public static partial class JsonConfigLoader
 
         return Result<Extensions.Sql.SqlExtension>.Success(extension);
     }
+
+    private static Result<DotNetExtension> BuildDotNet(List<DotNetSearchConfig> searches)
+    {
+        var extension = new DotNetExtension();
+
+        foreach (var search in searches)
+        {
+            // runtimeType/platform/minimumVersion/variableName presence is guaranteed by
+            // ValidateExtensions (JSN014); only their VALUES are checked here.
+            if (!TryParseEnum(search.RuntimeType!, out DotNetRuntimeType runtimeType))
+                return DotNetEnumFailure("runtimeType", search.RuntimeType!, Enum.GetNames<DotNetRuntimeType>());
+
+            if (!TryParseEnum(search.Platform!, out DotNetPlatform platform))
+                return DotNetEnumFailure("platform", search.Platform!, Enum.GetNames<DotNetPlatform>());
+
+            if (!Version.TryParse(search.MinimumVersion, out var minimumVersion))
+                return Result<DotNetExtension>.Failure(new Error(ErrorKind.Validation,
+                    $"JSN014: .NET detection has invalid minimumVersion '{search.MinimumVersion}'. Expected a " +
+                    "dotted version string (e.g. '8.0.0')."));
+
+            // The JSON path has no separate call (like package.Require) to gate on the detected
+            // property, so it always needs a LaunchCondition message — author-provided, or a
+            // sensible default naming the exact requirement.
+            var message = string.IsNullOrWhiteSpace(search.Message)
+                ? $".NET {runtimeType} {minimumVersion}+ ({platform}) is required. Install it from " +
+                  "https://dotnet.microsoft.com/download"
+                : search.Message;
+
+            var model = extension.SearchForRuntime()
+                .RuntimeType(runtimeType)
+                .Platform(platform)
+                .MinVersion(minimumVersion)
+                .Variable(search.VariableName!)
+                .Message(message)
+                .Build();
+            if (model.IsFailure)
+                return Result<DotNetExtension>.Failure(model.Error);
+
+            var added = extension.AddSearch(model.Value);
+            if (added.IsFailure)
+                return Result<DotNetExtension>.Failure(added.Error);
+        }
+
+        return Result<DotNetExtension>.Success(extension);
+    }
+
+    private static Result<DotNetExtension> DotNetEnumFailure(string field, string value, string[] valid) =>
+        Result<DotNetExtension>.Failure(new Error(ErrorKind.Validation,
+            $"JSN014: .NET detection has invalid {field} '{value}'. Valid values: {string.Join(", ", valid)}"));
 
     private static Result<FirewallExtension> FirewallEnumFailure(string id, string field, string value, string[] valid) =>
         Result<FirewallExtension>.Failure(new Error(ErrorKind.Validation,

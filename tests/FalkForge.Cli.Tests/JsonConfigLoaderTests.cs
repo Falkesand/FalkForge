@@ -1,4 +1,5 @@
 using FalkForge.Cli;
+using FalkForge.Extensions.DotNet;
 using Xunit;
 
 namespace FalkForge.Cli.Tests;
@@ -821,10 +822,10 @@ public sealed class JsonConfigLoaderTests
         Assert.True(result.IsSuccess);
     }
 
-    // A well-formed firewall / IIS / SQL block is now translated into the real extension by
+    // A well-formed firewall / IIS / SQL / dotnet block is now translated into the real extension by
     // LoadExtensionsFromString and applied to the compiled MSI (see BuildCommandJsonExtensionsIntegrationTests
     // for the end-to-end emission proof). LoadFromString itself returns only the PackageModel, so a valid
-    // extension block leaves it a success. Only a `dotnet` block still fails loud (JSN019).
+    // extension block leaves it a success.
 
     [Fact]
     public void LoadExtensions_Firewall_BuildsFirewallExtension()
@@ -897,10 +898,11 @@ public sealed class JsonConfigLoaderTests
     }
 
     [Fact]
-    public void LoadExtensions_DotNet_ReturnsJSN019()
+    public void LoadExtensions_DotNet_BuildsDotNetExtension()
     {
-        // .NET runtime detection has no standalone-MSI representation, so it stays a fail-loud
-        // (scoped JSN019) rather than a silent drop.
+        // .NET runtime detection now emits real MSI-native detection (Signature/DrLocator/AppSearch)
+        // via the same generic custom-table contributor path Firewall/IIS/SQL already use — see
+        // DotNetDetectionEmissionTests for the end-to-end read-back proof.
         var json = """
         {
             "product": {
@@ -916,6 +918,40 @@ public sealed class JsonConfigLoaderTests
                         "runtimeType": "Runtime",
                         "platform": "X64",
                         "minimumVersion": "8.0.0",
+                        "variableName": "DOTNET8_FOUND",
+                        "message": ".NET 8.0 Runtime (x64) or later is required."
+                    }
+                ]
+            }
+        }
+        """;
+
+        Assert.True(JsonConfigLoader.LoadFromString(json, BaseDir).IsSuccess);
+
+        var result = JsonConfigLoader.LoadExtensionsFromString(json);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Single(result.Value);
+        Assert.IsType<DotNetExtension>(result.Value[0]);
+    }
+
+    [Fact]
+    public void LoadExtensions_DotNet_InvalidRuntimeType_ReturnsJSN014()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ],
+            "extensions": {
+                "dotnet": [
+                    {
+                        "runtimeType": "NotARuntimeType",
+                        "platform": "X64",
+                        "minimumVersion": "8.0.0",
                         "variableName": "DOTNET8_FOUND"
                     }
                 ]
@@ -926,8 +962,38 @@ public sealed class JsonConfigLoaderTests
         var result = JsonConfigLoader.LoadExtensionsFromString(json);
 
         Assert.True(result.IsFailure);
-        Assert.Contains("JSN019", result.Error.Message);
-        Assert.Contains("fluent API", result.Error.Message);
+        Assert.Contains("JSN014", result.Error.Message);
+    }
+
+    [Fact]
+    public void LoadExtensions_DotNet_InvalidVersion_ReturnsJSN014()
+    {
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ],
+            "extensions": {
+                "dotnet": [
+                    {
+                        "runtimeType": "Runtime",
+                        "platform": "X64",
+                        "minimumVersion": "not-a-version",
+                        "variableName": "DOTNET8_FOUND"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadExtensionsFromString(json);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("JSN014", result.Error.Message);
     }
 
     [Fact]

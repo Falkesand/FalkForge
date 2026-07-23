@@ -36,15 +36,14 @@ public static partial class JsonConfigLoader
 
     /// <summary>
     /// Loads the optional <c>extensions</c> section of a forge JSON config and translates each
-    /// present block (firewall / IIS / SQL) into the corresponding real
+    /// present block (firewall / IIS / SQL / dotnet) into the corresponding real
     /// <see cref="IFalkForgeExtension"/> instance — the SAME types the C# fluent API attaches via
     /// <c>new MsiCompiler().Use(extension)</c>. <see cref="Commands.BuildCommand"/> attaches the
-    /// returned extensions to the compiler so a JSON-authored firewall rule / IIS site / SQL script
-    /// is emitted into the compiled MSI. Loaded separately from <see cref="LoadFromFile"/> (which
-    /// returns only the <see cref="PackageModel"/>), mirroring <see cref="LoadSigningFromFile"/>.
-    /// An absent extensions section, or one whose blocks are all empty, returns an empty list.
-    /// A <c>dotnet</c> block fails loud (JSN019): .NET runtime detection is a bundle-engine feature
-    /// with no standalone-MSI representation.
+    /// returned extensions to the compiler so a JSON-authored firewall rule / IIS site / SQL script /
+    /// .NET runtime search is emitted into the compiled MSI. Loaded separately from
+    /// <see cref="LoadFromFile"/> (which returns only the <see cref="PackageModel"/>), mirroring
+    /// <see cref="LoadSigningFromFile"/>. An absent extensions section, or one whose blocks are all
+    /// empty, returns an empty list.
     /// </summary>
     public static Result<IReadOnlyList<IFalkForgeExtension>> LoadExtensionsFromFile(string jsonPath)
     {
