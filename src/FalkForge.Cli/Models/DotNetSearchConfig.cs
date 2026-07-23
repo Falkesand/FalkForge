@@ -15,4 +15,7 @@ public sealed class DotNetSearchConfig
 
     [JsonPropertyName("variableName")]
     public string? VariableName { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
 }
