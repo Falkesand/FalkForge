@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.Versioning;
+using System.Security.Principal;
 using FalkForge.Builders;
 using FalkForge.Extensions.DotNet;
 using FalkForge.Models;
@@ -133,6 +135,103 @@ public sealed class DotNetDetectionEmissionTests
         Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : "");
         var row = Assert.Single(rows.Value);
         Assert.Equal(".NET 8.0 Runtime (x64) or later is required.", row[1]);
+    }
+
+    /// <summary>
+    /// Proves the MSI-native search genuinely blocks/allows a REAL msiexec install against REAL
+    /// machine state, not just that the right table rows exist (that is
+    /// <see cref="EmitsSignatureDrLocatorAppSearch_ReadBackFromCompiledMsi"/>'s job). Gated behind
+    /// <c>FALKFORGE_E2E=1</c> AND <c>FALKFORGE_REAL_SYSTEM_E2E=1</c> AND administrator elevation,
+    /// matching <see cref="DependencyVersionEnforcementTests.VersionRangeCheck_BlocksRealInstall_WhenProviderMissingOrOutOfRange_AllowsWhenInRange"/>
+    /// — a real per-machine msiexec install needs HKLM/Program-Files write access.
+    /// <para>
+    /// Unlike the Dependency e2e (which seeds a synthetic registry value), there is no safe way to
+    /// fabricate a real <c>coreclr.dll</c> with an arbitrary file-version resource from a unit test —
+    /// so this test relies on the REAL, already-installed .NET runtime on the host running it (the
+    /// test host itself is a .NET 10 process, so a real <c>coreclr.dll</c> genuinely exists under
+    /// <c>[ProgramFiles64Folder]dotnet\shared\Microsoft.NETCore.App\</c>). A search for
+    /// <c>Runtime</c>/<c>X64</c> with an absurdly high minimum version (never satisfiable by any real
+    /// release) proves the block path; the same search with a trivially low minimum version proves the
+    /// allow path against that same real installation. This is honestly narrower than the Dependency
+    /// e2e (it cannot prove an ABSENT runtime blocks install, only that a too-new requirement does) —
+    /// documented here rather than silently assumed.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void DotNetDetection_BlocksInstall_WhenVersionRequirementUnmet_AllowsWhenSatisfied()
+    {
+        if (Environment.GetEnvironmentVariable("FALKFORGE_E2E") != "1")
+            Assert.Skip("Real .NET detection install e2e is opt-in: set FALKFORGE_E2E=1 to run it.");
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REAL_SYSTEM_E2E") != "1")
+            Assert.Skip("Real .NET detection install mutates machine-wide state: set " +
+                        "FALKFORGE_REAL_SYSTEM_E2E=1 on a machine you own to run it.");
+        if (!IsElevated())
+            Assert.Skip("Real .NET detection install requires administrator elevation; run the test host elevated.");
+
+        using var scratchBlocked = new Scratch();
+        var blockedDotNet = new DotNetExtension();
+        var blockedAdd = blockedDotNet.AddSearch(new DotNetCoreSearchModel
+        {
+            RuntimeType = DotNetRuntimeType.Runtime,
+            Platform = DotNetPlatform.X64,
+            MinimumVersion = new Version(999, 0, 0),
+            VariableName = "DOTNET_E2E_FOUND",
+            Message = "An impossibly high .NET version is required (deliberately unsatisfiable).",
+        });
+        Assert.True(blockedAdd.IsSuccess, blockedAdd.IsFailure ? blockedAdd.Error.Message : "");
+        string blockedMsi = CompileToMsi(scratchBlocked, "DotNetE2eBlockedApp", blockedDotNet);
+        int blocked = RunMsiExec($"/i \"{blockedMsi}\" /qn /norestart");
+        Assert.False(blocked is 0 or 3010,
+            $"install should have been blocked (version requirement unsatisfiable) but exit code was {blocked}");
+
+        using var scratchAllowed = new Scratch();
+        var allowedDotNet = new DotNetExtension();
+        var allowedAdd = allowedDotNet.AddSearch(new DotNetCoreSearchModel
+        {
+            RuntimeType = DotNetRuntimeType.Runtime,
+            Platform = DotNetPlatform.X64,
+            MinimumVersion = new Version(1, 0, 0),
+            VariableName = "DOTNET_E2E_FOUND",
+            Message = "A trivially low .NET version is required (deliberately always satisfied).",
+        });
+        Assert.True(allowedAdd.IsSuccess, allowedAdd.IsFailure ? allowedAdd.Error.Message : "");
+        string allowedMsi = CompileToMsi(scratchAllowed, "DotNetE2eAllowedApp", allowedDotNet);
+        int allowed = RunMsiExec($"/i \"{allowedMsi}\" /qn /norestart");
+        Assert.True(allowed is 0 or 3010, $"install should have proceeded (trivial version requirement) but exit code was {allowed}");
+
+        int uninstall = RunMsiExec($"/x \"{allowedMsi}\" /qn /norestart");
+        Assert.True(uninstall is 0 or 3010, $"uninstall exit code {uninstall}");
+    }
+
+    private static string CompileToMsi(Scratch scratch, string name, DotNetExtension dotnet)
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = name;
+            p.Manufacturer = "Corp";
+            p.Version = new Version(1, 0, 0);
+        });
+        var compiler = new MsiCompiler(new WindowsFileSystem());
+        compiler.Use(dotnet);
+        var compileResult = compiler.Compile(package, scratch.OutputDir);
+        Assert.True(compileResult.IsSuccess, $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+        return compileResult.Value;
+    }
+
+    private static int RunMsiExec(string arguments)
+    {
+        using var process = Process.Start(new ProcessStartInfo("msiexec.exe", arguments)
+        {
+            UseShellExecute = false,
+        })!;
+        process.WaitForExit();
+        return process.ExitCode;
+    }
+
+    private static bool IsElevated()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
     private static MsiDatabase Compile(
