@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Extensibility;
 
@@ -123,15 +122,11 @@ internal static class DependencyVersionCheckPlanner
     /// <summary>
     ///     Stable 8-hex-char content hash of the provider+consumer keys, used to salt the synthetic
     ///     MSI identifiers so they are unique per requirement and collision-free across multiple
-    ///     extension instances.
+    ///     extension instances. Shared with <c>DotNetSearchPlanner.Suffix</c> via
+    ///     <see cref="MsiSearchNaming.Suffix"/>.
     /// </summary>
     private static string Suffix(DependencyConsumerModel consumer)
-    {
-        var material = $"{consumer.ProviderKey} {consumer.ConsumerKey}";
-        Span<byte> hash = stackalloc byte[32];
-        SHA256.HashData(Encoding.UTF8.GetBytes(material), hash);
-        return Convert.ToHexStringLower(hash[..4]);
-    }
+        => MsiSearchNaming.Suffix($"{consumer.ProviderKey} {consumer.ConsumerKey}");
 
     /// <summary>
     ///     Builds the immediate-JScript body: reads the property, performs a component-wise numeric
@@ -192,14 +187,11 @@ internal static class DependencyVersionCheckPlanner
 
     /// <summary>
     ///     Normalizes a <see cref="Version"/> to a full four-part string (missing Build/Revision
-    ///     become 0) so the JScript comparison operands are unambiguous.
+    ///     become 0) so the JScript comparison operands are unambiguous. Shared with
+    ///     <c>DotNetSearchPlanner.FormatVersion</c> via <see cref="MsiSearchNaming.FormatVersion"/>.
     /// </summary>
     private static string FormatVersion(Version version)
-        => new Version(
-            version.Major,
-            version.Minor,
-            Math.Max(version.Build, 0),
-            Math.Max(version.Revision, 0)).ToString(4);
+        => MsiSearchNaming.FormatVersion(version);
 
     /// <summary>
     ///     Renders the effective range as bracket-free English (never MSI interval notation, whose
