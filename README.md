@@ -24,7 +24,7 @@ live here.
 | Approach | Best For | How |
 |----------|----------|-----|
 | **C# Fluent API** | Developers who want full control | Define installers as C# programs with IntelliSense and type safety. `dotnet build` compiles them. |
-| **JSON Configuration** | Simple, no-compiler installers | Write a JSON file, build with `forge build config.json`. No C# required. *Work in progress — experimental subset; Firewall/IIS/SQL/.NET extensions validate but are not yet emitted into the installer, see [documentation.html](documentation.html#cli-json-config).* |
+| **JSON Configuration** | Simple, no-compiler installers | Write a JSON file, build with `forge build config.json`. No C# required. *Work in progress — experimental subset; Firewall/IIS/SQL extensions are emitted into the installer, but .NET runtime detection fails loud (JSN019) — use the C# API for that, see [documentation.html](documentation.html#cli-json-config).* |
 | **FalkForge Studio** | Visual designers, non-developers | WPF desktop IDE. Import from MSI/WiX, export to C# or CI/CD pipelines. *Work in progress — expect visual and functional rough edges during the beta.* |
 
 ## Why FalkForge?
