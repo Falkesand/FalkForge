@@ -26,7 +26,7 @@
 
     <!-- Intro -->
     <div class="warning" style="border-left:4px solid #d9822b;background:rgba(217,130,43,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
-      <strong>Work in progress.</strong> The C# fluent API &mdash; what <code>forge init</code> scaffolds by default &mdash; is FalkForge's primary, fully supported authoring model. JSON configuration is an experimental, incomplete subset intended for simple, no-compiler installers. JSON now authors the Firewall, IIS, and SQL extensions (sections 5 and 6 below): each <code>extensions</code> block is translated into the same real extension the C# API attaches and emitted into the compiled MSI. The one exception is <strong>.NET runtime detection</strong> &mdash; a bundle-engine feature with no standalone-MSI representation &mdash; where a <code>dotnet</code> block fails closed with <strong>JSN019</strong>. Use the C# API for .NET detection and for anything beyond the JSON subset.
+      <strong>Work in progress.</strong> The C# fluent API &mdash; what <code>forge init</code> scaffolds by default &mdash; is FalkForge's primary, fully supported authoring model. JSON configuration is an experimental, incomplete subset intended for simple, no-compiler installers. JSON now authors the Firewall, IIS, SQL, and .NET-detection extensions (sections 5 and 6 below): each <code>extensions</code> block is translated into the same real extension the C# API attaches and emitted into the compiled MSI. Use the C# API for anything beyond the JSON subset.
     </div>
     <p>Not every team writes C#. For simple, data-driven installers FalkForge can build from JSON configuration files instead &mdash; no code required. Define your product, files, and features in JSON; run <code>forge build config.json</code> to produce an MSI. (JSON also authors the Firewall, IIS, and SQL <code>extensions</code> &mdash; see sections 5 and 6.)</p>
 
@@ -78,7 +78,6 @@
           <li><strong>JSN009</strong> &mdash; Feature must have an id.</li>
           <li><strong>JSN010</strong> &mdash; Configuration error during mapping.</li>
           <li><strong>JSN011&ndash;JSN014</strong> &mdash; Firewall, IIS, SQL, and .NET extension field validation (runs first, before the block is translated into an extension).</li>
-          <li><strong>JSN019</strong> &mdash; a <code>dotnet</code> block fails the build outright (.NET runtime detection has no standalone-MSI representation); <code>firewall</code>/<code>iis</code>/<code>sql</code> blocks are authored into the MSI and do not trip this (see sections 5 and 6).</li>
         </ul>
         <p>The full list, including the <code>JSN015&ndash;JSN019</code> signing-section codes (JSN019 also covers unresolvable signing key/auth material), is in the <a href="../../documentation.html#error-codes">Reference Docs error code appendix</a>. After JSON-specific checks pass, the standard <code>PKG</code>, <code>FEA</code>, and <code>SVC</code> validators run too. You get the same safety net as a C# build.</p>
       </div>
@@ -267,14 +266,13 @@
         </ul>
         <p>Use <strong>C#</strong> &mdash; the primary, fully supported path, and what <code>forge init</code> scaffolds by default &mdash; when:</p>
         <ul>
-          <li>You need the .NET-detection extension (JSON cannot author this one &mdash; a <code>dotnet</code> block fails the build with JSN019; the Firewall, IIS, and SQL extensions <em>are</em> authorable from JSON, see sections 5 and 6 above).</li>
           <li>You need custom actions (DLL, EXE, or script execution during install).</li>
           <li>You have conditional features based on detected system state.</li>
           <li>You need custom sequence table manipulation.</li>
           <li>You are building merge modules, patches, or transforms.</li>
           <li>You want compile-time type safety and IDE refactoring support.</li>
         </ul>
-        <p>JSON is a work-in-progress subset. You can start with JSON for the fields it actually supports (product, features, files, shortcuts, registry, services, environment variables, major upgrade/downgrade, launch conditions, license, signing, and the Firewall/IIS/SQL extensions) and move to C# once you need anything else, including .NET-detection.</p>
+        <p>JSON is a work-in-progress subset. You can start with JSON for the fields it actually supports (product, features, files, shortcuts, registry, services, environment variables, major upgrade/downgrade, launch conditions, license, signing, and the Firewall/IIS/SQL/.NET-detection extensions) and move to C# once you need anything else.</p>
       </div>
     </details>
 
@@ -337,7 +335,7 @@
           <li><strong><code>sql</code></strong> &mdash; array of database objects with connection info and scripts.</li>
           <li><strong><code>dotnet</code></strong> &mdash; array of runtime detection checks.</li>
         </ul>
-        <p>Extension validation uses the same error code families as C#: <code>JSN011</code> for firewall, <code>JSN012</code> for IIS, <code>JSN013</code> for SQL, <code>JSN014</code> for .NET detection (see <code>JsonConfigLoader.ValidateExtensions</code>). Invalid JSON extension configs fail fast with clear messages. Once a config passes that structural check, the <code>firewall</code>, <code>iis</code>, and <code>sql</code> blocks are translated into real extensions and emitted into the MSI (see <code>JsonConfigLoader.LoadExtensionsFromFile</code>); only a <code>dotnet</code> block fails the build with JSN019 (.NET detection has no standalone-MSI representation).</p>
+        <p>Extension validation uses the same error code families as C#: <code>JSN011</code> for firewall, <code>JSN012</code> for IIS, <code>JSN013</code> for SQL, <code>JSN014</code> for .NET detection (see <code>JsonConfigLoader.ValidateExtensions</code>). Invalid JSON extension configs fail fast with clear messages. Once a config passes that structural check, the <code>firewall</code>, <code>iis</code>, <code>sql</code>, and <code>dotnet</code> blocks are all translated into real extensions and emitted into the MSI (see <code>JsonConfigLoader.LoadExtensionsFromFile</code>).</p>
       </div>
     </details>
 
@@ -345,7 +343,7 @@
     <h2>6. Database Application</h2>
     <p>Open <code>demo/json/07-database-app.json</code>. It installs a database app and provisions a SQL database with an install script &mdash; authored from JSON and emitted into the compiled MSI.</p>
     <div class="warning" style="border-left:4px solid #2b8a3e;background:rgba(43,138,62,0.12);padding:1rem;border-radius:0 6px 6px 0;margin:1rem 0">
-      <strong>JSON authors the <code>sql</code> block</strong> &mdash; it is translated into the same <code>SqlExtension</code> the C# API attaches, emitting the <code>SqlDatabase</code> and <code>SqlScript</code> tables into the MSI (see Demo 31 for the C# equivalent). The <code>dotnet</code> block below is the exception: .NET runtime detection is a bundle-engine feature with no standalone-MSI representation, so it validates structurally then fails the build with <strong>JSN019</strong>. Use the C# .NET-detection extension for that (Demo 32).
+      <strong>JSON authors both the <code>sql</code> and <code>dotnet</code> blocks below</strong> &mdash; each is translated into the same extension the C# API attaches: <code>SqlExtension</code> emits the <code>SqlDatabase</code> and <code>SqlScript</code> tables (see Demo 31 for the C# equivalent), and <code>DotNetExtension</code> emits MSI-native <code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code> runtime detection plus a <code>LaunchCondition</code> gate (see Demo 32).
     </div>
 
     <h3>SQL database creation</h3>
@@ -382,16 +380,17 @@
       <li><strong><code>scripts</code></strong> &mdash; SQL files executed in <code>sequence</code> order. Schema first, then seed data.</li>
     </ul>
 
-    <h3>.NET runtime detection (schema only &mdash; rejected with JSN019)</h3>
+    <h3>.NET runtime detection (MSI-native)</h3>
     <pre><code><span class="str">"dotnet"</span><span class="punc">:</span> <span class="punc">[</span>
   <span class="punc">{</span>
     <span class="str">"runtimeType"</span><span class="punc">:</span> <span class="str">"Runtime"</span><span class="punc">,</span>
     <span class="str">"platform"</span><span class="punc">:</span> <span class="str">"X64"</span><span class="punc">,</span>
     <span class="str">"minimumVersion"</span><span class="punc">:</span> <span class="str">"8.0.0"</span><span class="punc">,</span>
-    <span class="str">"variableName"</span><span class="punc">:</span> <span class="str">"DOTNET8_INSTALLED"</span>
+    <span class="str">"variableName"</span><span class="punc">:</span> <span class="str">"DOTNET8_INSTALLED"</span><span class="punc">,</span>
+    <span class="str">"message"</span><span class="punc">:</span> <span class="str">".NET 8 Runtime is required to run this application."</span>
   <span class="punc">}</span>
 <span class="punc">]</span></code></pre>
-    <p>On the C# path, the equivalent .NET-detection extension probes the registry and filesystem for the specified runtime and stores the result in the MSI property named by <code>variableName</code>. The JSON <code>dotnet</code> block above validates the same four required fields structurally, then fails the build with JSN019 &mdash; unlike <code>firewall</code>, <code>iis</code>, and <code>sql</code> (which are authored into the MSI), .NET detection is a bundle-engine feature with no standalone-MSI representation, so it is never built into the installer.</p>
+    <p>The JSON <code>dotnet</code> block reaches the compiled installer via the same <code>DotNetExtension</code> the C# API attaches, emitting real MSI-native detection &mdash; a <code>Signature</code> (sentinel-file version) plus a <code>DrLocator</code> search over the platform-appropriate shared-framework directory, bound to <code>variableName</code> via <code>AppSearch</code> (see <a href="../../documentation.html#ext-dotnet">Reference Docs &sect;10.5 .NET Extension</a>). <code>runtimeType</code>, <code>platform</code>, <code>minimumVersion</code>, and <code>variableName</code> are required (JSN014 if any is missing); <code>message</code> is optional. <code>variableName</code> must be an all-uppercase public MSI property identifier (NET005 otherwise); <code>runtimeType: "Sdk"</code> is not supported for MSI-native detection because the SDK has no shared-framework sentinel to search for (NET004). Because the JSON path has no separate call like the C# fluent API's <code>package.Require(...)</code>, <code>DotNetExtension</code> always emits its own <code>LaunchCondition</code> gate using <code>message</code> &mdash; or, if <code>message</code> is omitted, a generated default naming the exact requirement.</p>
 
     <details class="deep-dive">
       <summary>Deep dive: Connection string handling (C# SQL extension)</summary>
@@ -451,7 +450,7 @@
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Feature trees</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Services, environment variables</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Firewall, IIS, SQL extensions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
-        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">.NET-detection extension</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No (build fails with JSN019 &mdash; bundle-engine feature)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
+        <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">.NET-detection extension</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">CI/CD pipeline generation</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Ideal</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Possible</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Signed bundle (integrity manifest, PEM or SignServer)</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
         <tr><td style="padding:0.5rem;border-bottom:1px solid var(--border)">Custom actions</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">No</td><td style="text-align:center;padding:0.5rem;border-bottom:1px solid var(--border)">Yes</td></tr>
@@ -462,7 +461,7 @@
       </tbody>
     </table>
 
-    <p>Start with JSON for straightforward installers and CI/CD pipelines &mdash; including those needing the Firewall, IIS, or SQL extensions. Move to C# &mdash; the primary path &mdash; when you need custom actions, conditional features, advanced MSI capabilities, or the .NET-detection extension (the one extension JSON cannot author &mdash; a hard build error, JSN019, not a silent gap). For the fields JSON does support, both produce identical MSI output.</p>
+    <p>Start with JSON for straightforward installers and CI/CD pipelines &mdash; including those needing the Firewall, IIS, SQL, or .NET-detection extensions. Move to C# &mdash; the primary path &mdash; when you need custom actions, conditional features, or advanced MSI capabilities. For the fields JSON does support, both produce identical MSI output.</p>
 
     <nav class="tutorial-nav">
       <span></span>
