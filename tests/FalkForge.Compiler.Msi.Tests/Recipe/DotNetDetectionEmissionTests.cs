@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using FalkForge.Builders;
 using FalkForge.Extensions.DotNet;
 using FalkForge.Models;
 using FalkForge.Platform.Windows;
@@ -74,7 +75,68 @@ public sealed class DotNetDetectionEmissionTests
         Assert.Equal(".NET 8.0 Runtime (x64) or later is required.", lcRow[1]);
     }
 
-    private static MsiDatabase Compile(Scratch scratch, string name, Action<MsiCompiler> attach)
+    [Fact]
+    public void CSharpPath_NoModelMessage_EmitsNoLaunchCondition_ReliesOnPackageRequire()
+    {
+        using var scratch = new Scratch();
+
+        // C# fluent authoring path: the model carries NO Message (the demo's shape) — the author
+        // gates via package.Require(...) themselves.
+        var dotnet = new DotNetExtension();
+        var addResult = dotnet.AddSearch(new DotNetCoreSearchModel
+        {
+            RuntimeType = DotNetRuntimeType.Runtime,
+            Platform = DotNetPlatform.X64,
+            MinimumVersion = new Version(8, 0, 0),
+            VariableName = "DOTNET8_FOUND",
+        });
+        Assert.True(addResult.IsSuccess, addResult.IsFailure ? addResult.Error.Message : "");
+
+        using var db = Compile(
+            scratch,
+            "DotNetCSharpGateApp",
+            c => c.Use(dotnet),
+            p => p.Require("DOTNET8_FOUND", ".NET 8.0 Runtime (x64) or later is required."));
+
+        // Exactly ONE LaunchCondition row for DOTNET8_FOUND (from package.Require) — proves the
+        // extension's own contributor did NOT also emit one, which would collide on the Condition
+        // primary key.
+        var rows = db.QueryRows(
+            "SELECT `Condition`, `Description` FROM `LaunchCondition` WHERE `Condition`='DOTNET8_FOUND'", 2);
+        Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : "");
+        var row = Assert.Single(rows.Value);
+        Assert.Equal(".NET 8.0 Runtime (x64) or later is required.", row[1]);
+    }
+
+    [Fact]
+    public void JsonStylePath_ModelMessage_EmitsLaunchCondition()
+    {
+        using var scratch = new Scratch();
+
+        // JSON authoring path shape: the model carries a Message and the package has NO Require —
+        // the extension's own contributor must be the sole source of the gate.
+        var dotnet = new DotNetExtension();
+        var addResult = dotnet.AddSearch(new DotNetCoreSearchModel
+        {
+            RuntimeType = DotNetRuntimeType.Runtime,
+            Platform = DotNetPlatform.X64,
+            MinimumVersion = new Version(8, 0, 0),
+            VariableName = "DOTNET8_FOUND",
+            Message = ".NET 8.0 Runtime (x64) or later is required.",
+        });
+        Assert.True(addResult.IsSuccess, addResult.IsFailure ? addResult.Error.Message : "");
+
+        using var db = Compile(scratch, "DotNetJsonGateApp", c => c.Use(dotnet));
+
+        var rows = db.QueryRows(
+            "SELECT `Condition`, `Description` FROM `LaunchCondition` WHERE `Condition`='DOTNET8_FOUND'", 2);
+        Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : "");
+        var row = Assert.Single(rows.Value);
+        Assert.Equal(".NET 8.0 Runtime (x64) or later is required.", row[1]);
+    }
+
+    private static MsiDatabase Compile(
+        Scratch scratch, string name, Action<MsiCompiler> attach, Action<PackageBuilder>? configurePackage = null)
     {
         var package = InstallerTestHost.BuildPackage(p =>
         {
@@ -82,6 +144,7 @@ public sealed class DotNetDetectionEmissionTests
             p.Manufacturer = "Corp";
             p.Version = new Version(1, 0, 0);
             p.UseDialogSet(MsiDialogSet.Minimal);
+            configurePackage?.Invoke(p);
         });
 
         var compiler = new MsiCompiler(new WindowsFileSystem());
