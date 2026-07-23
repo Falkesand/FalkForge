@@ -12,7 +12,7 @@ public sealed class DotNetCoreSearchBuilderTests
             .RuntimeType(DotNetRuntimeType.AspNetCore)
             .Platform(DotNetPlatform.X64)
             .MinVersion(new Version(8, 0))
-            .Variable("DotNet_AspNetCore_X64")
+            .Variable("DOTNET_ASPNETCORE_X64")
             .Build();
 
         Assert.True(result.IsSuccess);
@@ -20,7 +20,7 @@ public sealed class DotNetCoreSearchBuilderTests
         Assert.Equal(DotNetRuntimeType.AspNetCore, model.RuntimeType);
         Assert.Equal(DotNetPlatform.X64, model.Platform);
         Assert.Equal(new Version(8, 0), model.MinimumVersion);
-        Assert.Equal("DotNet_AspNetCore_X64", model.VariableName);
+        Assert.Equal("DOTNET_ASPNETCORE_X64", model.VariableName);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class DotNetCoreSearchBuilderTests
             .RuntimeType(DotNetRuntimeType.Sdk)
             .Platform(DotNetPlatform.X64)
             .MinVersion(new Version(8, 0))
-            .Variable("DotNet_Sdk_X64")
+            .Variable("DOTNET_SDK_X64")
             .Build();
 
         Assert.True(result.IsFailure);
@@ -118,7 +118,7 @@ public sealed class DotNetCoreSearchBuilderTests
             .RuntimeType(DotNetRuntimeType.AspNetCore)
             .Platform(DotNetPlatform.X64)
             .MinVersion(new Version(8, 0))
-            .Variable("DotNet_AspNetCore_X64")
+            .Variable("DOTNET_ASPNETCORE_X64")
             .Build();
 
         Assert.True(result.IsSuccess);
