@@ -1,6 +1,8 @@
+using System.Text.RegularExpressions;
+
 namespace FalkForge.Extensions.DotNet;
 
-public static class DotNetSearchValidator
+public static partial class DotNetSearchValidator
 {
     public static Result<Unit> Validate(DotNetCoreSearchModel model)
     {
@@ -9,6 +11,14 @@ public static class DotNetSearchValidator
 
         if (model.MinimumVersion is null)
             return Result<Unit>.Failure(ErrorKind.Validation, "NET002: MinimumVersion is required.");
+
+        if (!MsiIdentifierPattern().IsMatch(model.VariableName))
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                $"NET005: variable name '{model.VariableName}' is not a valid MSI property identifier " +
+                "(must match [A-Za-z_][A-Za-z0-9_.]*; use an UPPERCASE public property like " +
+                "DOTNET8_FOUND so the gate is reliable). The name flows verbatim into a LaunchCondition " +
+                "expression — an illegal name (e.g. containing spaces or operators) can be evaluated by " +
+                "msiexec as an always-true expression, silently defeating the install gate.");
 
         if (model.RuntimeType == DotNetRuntimeType.Sdk)
             return Result<Unit>.Failure(ErrorKind.Validation,
@@ -35,4 +45,15 @@ public static class DotNetSearchValidator
 
         return Unit.Value;
     }
+
+    /// <summary>
+    ///     Legal MSI identifier grammar for a <c>Property</c> name (per the MSI SDK's Identifier data
+    ///     type): starts with a letter or underscore, followed by letters/digits/underscore/period.
+    ///     Anything else — leading digit, whitespace, operators (<c>OR</c>, <c>=</c>, etc.) — either
+    ///     fails <c>msi.dll</c> table insertion outright or, worse, is silently accepted as a
+    ///     <c>LaunchCondition</c> EXPRESSION rather than a property reference (e.g. <c>"1 OR 1"</c>
+    ///     evaluates to always-true), defeating the install gate without any build-time error.
+    /// </summary>
+    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_.]*$")]
+    private static partial Regex MsiIdentifierPattern();
 }
