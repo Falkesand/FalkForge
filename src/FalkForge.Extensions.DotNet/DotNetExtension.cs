@@ -25,7 +25,8 @@ public sealed class DotNetExtension : IFalkForgeExtension, IDryRunContributor
     /// </summary>
     public Result<Unit> AddSearch(DotNetCoreSearchModel model)
     {
-        ArgumentNullException.ThrowIfNull(model);
+        if (model is null)
+            return Result<Unit>.Failure(ErrorKind.Validation, "NET006: search model is required.");
 
         var candidate = new List<DotNetCoreSearchModel>(_searches.Count + 1);
         candidate.AddRange(_searches);
