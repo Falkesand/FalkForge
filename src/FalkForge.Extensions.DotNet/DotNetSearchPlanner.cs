@@ -45,9 +45,9 @@ internal static class DotNetSearchPlanner
     }
 
     /// <summary>
-    ///     Stable 8-hex-char content hash of the variable name + runtime type + platform, salting the
+    ///     Stable 32-hex-char content hash of the variable name + runtime type + platform, salting the
     ///     synthetic <c>Signature</c> key so two searches (even across separate <see cref="DotNetExtension"/>
-    ///     instances in one package) never collide. Shared with
+    ///     instances in one package) stay collision-resistant. Shared with
     ///     <c>DependencyVersionCheckPlanner.Suffix</c> via <see cref="MsiSearchNaming.Suffix"/>.
     /// </summary>
     private static string Suffix(DotNetCoreSearchModel search)

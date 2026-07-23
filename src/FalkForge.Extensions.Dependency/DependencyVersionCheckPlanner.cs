@@ -120,8 +120,8 @@ internal static class DependencyVersionCheckPlanner
     }
 
     /// <summary>
-    ///     Stable 8-hex-char content hash of the provider+consumer keys, used to salt the synthetic
-    ///     MSI identifiers so they are unique per requirement and collision-free across multiple
+    ///     Stable 32-hex-char content hash of the provider+consumer keys, used to salt the synthetic
+    ///     MSI identifiers so they are unique per requirement and collision-resistant across multiple
     ///     extension instances. Shared with <c>DotNetSearchPlanner.Suffix</c> via
     ///     <see cref="MsiSearchNaming.Suffix"/>.
     /// </summary>

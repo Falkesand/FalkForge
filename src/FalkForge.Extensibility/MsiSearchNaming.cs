@@ -8,7 +8,7 @@ namespace FalkForge.Extensibility;
 /// search planner and the Dependency extension's version-check planner both need them): a stable
 /// content-hash suffix that salts synthetic <c>Signature</c>/<c>Property</c> identifiers so two
 /// independently-authored searches — even across separate extension instances in one package —
-/// never collide, and a normalizer that renders a <see cref="Version"/> as the unambiguous
+/// stay collision-resistant, and a normalizer that renders a <see cref="Version"/> as the unambiguous
 /// four-part string the MSI file-version / JScript comparison operands expect. Public rather than
 /// <c>internal</c> because the DotNet and Dependency extension assemblies are not granted
 /// <c>InternalsVisibleTo</c> by this assembly.
@@ -16,15 +16,15 @@ namespace FalkForge.Extensibility;
 public static class MsiSearchNaming
 {
     /// <summary>
-    /// Stable 8-hex-char content hash (first 4 bytes of SHA-256, lowercase hex) of
-    /// <paramref name="material"/>, used to salt synthetic MSI identifiers.
+    /// Stable, collision-resistant 32-hex-char content hash (first 16 bytes of SHA-256, lowercase
+    /// hex) of <paramref name="material"/>, used to salt synthetic MSI identifiers.
     /// </summary>
     public static string Suffix(string material)
     {
         ArgumentNullException.ThrowIfNull(material);
         Span<byte> hash = stackalloc byte[32];
         SHA256.HashData(Encoding.UTF8.GetBytes(material), hash);
-        return Convert.ToHexStringLower(hash[..4]);
+        return Convert.ToHexStringLower(hash[..16]);
     }
 
     /// <summary>
