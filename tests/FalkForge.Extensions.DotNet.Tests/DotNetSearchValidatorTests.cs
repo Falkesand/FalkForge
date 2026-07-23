@@ -37,6 +37,34 @@ public sealed class DotNetSearchValidatorTests
         Assert.True(result.IsSuccess);
     }
 
+    [Theory]
+    [InlineData("8")] // leading digit — not a legal MSI identifier
+    [InlineData("1 OR 1")] // operators + spaces — would make the LaunchCondition always-true
+    [InlineData("NET 8")] // embedded space breaks the MSI property/condition grammar
+    public void Validate_IllegalVariableName_ReturnsNET005(string variableName)
+    {
+        // A LaunchCondition built from an illegal property name (e.g. "1 OR 1") is evaluated by
+        // msiexec as an expression, not a property reference — "1 OR 1" is ALWAYS true, so the
+        // .NET runtime gate would silently pass even without the runtime installed. This must be
+        // rejected at author time, not discovered by a machine missing the runtime.
+        var model = CreateModel(variableName: variableName);
+
+        var result = DotNetSearchValidator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("NET005", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_UppercaseVariableName_StillSucceeds()
+    {
+        var model = CreateModel(variableName: "DOTNET8_FOUND");
+
+        var result = DotNetSearchValidator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
+
     private static DotNetCoreSearchModel CreateModel(
         DotNetRuntimeType runtimeType = DotNetRuntimeType.Runtime,
         DotNetPlatform platform = DotNetPlatform.X64,

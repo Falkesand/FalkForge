@@ -966,6 +966,41 @@ public sealed class JsonConfigLoaderTests
     }
 
     [Fact]
+    public void LoadExtensions_DotNet_IllegalVariableName_ReturnsNET005()
+    {
+        // The JSON path funnels the authored variableName through DotNetCoreSearchBuilder.Build()
+        // (see BuildDotNet), which runs DotNetSearchValidator.Validate — the same NET005 identifier
+        // check as the C# fluent path. An illegal name here (space + operators) must fail loud
+        // rather than silently building a LaunchCondition msiexec evaluates as always-true.
+        var json = """
+        {
+            "product": {
+                "name": "TestApp",
+                "manufacturer": "TestCorp"
+            },
+            "features": [
+                { "id": "Main", "title": "Main" }
+            ],
+            "extensions": {
+                "dotnet": [
+                    {
+                        "runtimeType": "Runtime",
+                        "platform": "X64",
+                        "minimumVersion": "8.0.0",
+                        "variableName": "1 OR 1"
+                    }
+                ]
+            }
+        }
+        """;
+
+        var result = JsonConfigLoader.LoadExtensionsFromString(json);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("NET005", result.Error.Message);
+    }
+
+    [Fact]
     public void LoadExtensions_DotNet_InvalidVersion_ReturnsJSN014()
     {
         var json = """
