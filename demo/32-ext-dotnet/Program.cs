@@ -45,6 +45,7 @@ return Installer.Build(args, package =>
     package.Files(files => files
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "DotNetDemo"));
-    // Attach the extension with .Use(...). Since AddSearch was called above, the extension now
-    // contributes real MSI tables (Signature/DrLocator/AppSearch) alongside the launch condition.
+    // Attach the extension with .Use(...). The extension contributes Signature/DrLocator/AppSearch
+    // to populate DOTNET8_FOUND — it emits no LaunchCondition of its own here; the actual install
+    // gate is the package.Require(...) call above, not the extension.
 }, new MsiCompiler().Use(dotnet));

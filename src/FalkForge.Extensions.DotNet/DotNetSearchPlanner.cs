@@ -1,5 +1,4 @@
-using System.Security.Cryptography;
-using System.Text;
+using FalkForge.Extensibility;
 
 namespace FalkForge.Extensions.DotNet;
 
@@ -48,16 +47,11 @@ internal static class DotNetSearchPlanner
     /// <summary>
     ///     Stable 8-hex-char content hash of the variable name + runtime type + platform, salting the
     ///     synthetic <c>Signature</c> key so two searches (even across separate <see cref="DotNetExtension"/>
-    ///     instances in one package) never collide, mirroring
-    ///     <c>DependencyVersionCheckPlanner.Suffix</c>.
+    ///     instances in one package) never collide. Shared with
+    ///     <c>DependencyVersionCheckPlanner.Suffix</c> via <see cref="MsiSearchNaming.Suffix"/>.
     /// </summary>
     private static string Suffix(DotNetCoreSearchModel search)
-    {
-        var material = $"{search.VariableName} {search.RuntimeType} {search.Platform}";
-        Span<byte> hash = stackalloc byte[32];
-        SHA256.HashData(Encoding.UTF8.GetBytes(material), hash);
-        return Convert.ToHexStringLower(hash[..4]);
-    }
+        => MsiSearchNaming.Suffix($"{search.VariableName} {search.RuntimeType} {search.Platform}");
 
     /// <summary>
     ///     The shared-framework subdirectory name (under <c>dotnet\shared\</c>) and the sentinel DLL whose
@@ -87,13 +81,9 @@ internal static class DotNetSearchPlanner
 
     /// <summary>
     ///     Normalizes a <see cref="Version"/> to a full four-part string (missing Build/Revision become 0)
-    ///     so the <c>Signature.MinVersion</c> file-version comparison operand is unambiguous, mirroring
-    ///     <c>DependencyVersionCheckPlanner.FormatVersion</c>.
+    ///     so the <c>Signature.MinVersion</c> file-version comparison operand is unambiguous. Shared with
+    ///     <c>DependencyVersionCheckPlanner.FormatVersion</c> via <see cref="MsiSearchNaming.FormatVersion"/>.
     /// </summary>
     private static string FormatVersion(Version version)
-        => new Version(
-            version.Major,
-            version.Minor,
-            Math.Max(version.Build, 0),
-            Math.Max(version.Revision, 0)).ToString(4);
+        => MsiSearchNaming.FormatVersion(version);
 }
