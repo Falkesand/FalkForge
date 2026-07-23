@@ -1014,14 +1014,15 @@
     <strong>JSON configuration is an experimental, incomplete subset &mdash; work in progress.</strong>
     It covers product metadata, features, files, shortcuts, registry, services, environment
     variables, major upgrade/downgrade, launch conditions, license, and signing. The
-    <code>extensions</code> block now authors the Firewall, IIS, and SQL extensions &mdash; each
-    is translated into the same real extension the C# API attaches via <code>new
-    MsiCompiler().Use(extension)</code> and emitted into the compiled MSI (see <a
-    href="#cli-json-config">JSON Configuration Format</a>). The one exception is
-    <code>dotnet</code> (.NET runtime detection), a bundle-engine feature with no standalone-MSI
-    representation &mdash; a <code>dotnet</code> block fails loud with <strong>JSN019</strong>
-    rather than producing an installer that does not gate on the runtime. For that, or anything
-    beyond this subset, use the C# fluent API, which <code>forge init</code> scaffolds by default.
+    <code>extensions</code> block now authors the Firewall, IIS, SQL, and <code>.NET</code>
+    extensions &mdash; each is translated into the same real extension the C# API attaches via
+    <code>new MsiCompiler().Use(extension)</code> and emitted into the compiled MSI (see <a
+    href="#cli-json-config">JSON Configuration Format</a>). A <code>dotnet</code> block now emits
+    real MSI-native runtime detection &mdash; <code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code>
+    rows plus a <code>LaunchCondition</code> gate on the block's own <code>message</code> &mdash;
+    into a standalone MSI; the old <strong>JSN019</strong> hard-fail for a <code>dotnet</code> block
+    is gone. For anything beyond this subset, use the C# fluent API, which <code>forge init</code>
+    scaffolds by default.
   </div>
 
   <h3>Key Features</h3>
@@ -5770,11 +5771,31 @@ var seedData = new SqlStringBuilder()
   <!-- 10.5 .NET Extension -->
   <h3 id="ext-dotnet">10.5 .NET Extension</h3>
   <p>
-    Detects installed .NET runtimes via registry and filesystem probing. This is a detection-only
-    extension -- it does not contribute MSI tables or components. Detection results are populated
-    as variables by the engine during the detect phase.
+    Detects installed .NET runtimes and emits real MSI-native detection into the compiled
+    installer &mdash; a <code>Signature</code> (sentinel-file version) plus a <code>DrLocator</code>
+    search over the platform-appropriate Program Files shared-framework directory, bound to the
+    author's own property name via <code>AppSearch</code>. The built-in <code>AppSearch</code>
+    standard action evaluates these natively at install time; no custom action is required (unlike
+    the Dependency extension's version-range check, which needs one). Detection targets the
+    shared-framework sentinel per <code>RuntimeType</code>: <code>Runtime</code> &rarr;
+    <code>coreclr.dll</code> under <code>Microsoft.NETCore.App</code>, <code>AspNetCore</code>
+    &rarr; <code>Microsoft.AspNetCore.dll</code> under <code>Microsoft.AspNetCore.App</code>,
+    <code>WindowsDesktop</code> &rarr; <code>PresentationCore.dll</code> under
+    <code>Microsoft.WindowsDesktop.App</code>. <code>Sdk</code> has no shared-framework directory
+    (it is versioned via <code>dotnet\sdk\{version}\</code>, a different layout) and is rejected at
+    author time with NET004. <code>X64</code>/<code>Arm64</code> search under
+    <code>[ProgramFiles64Folder]</code>; <code>X86</code> searches
+    <code>[ProgramFilesFolder]</code> (the WOW64 tree).
     Located in <code>src/FalkForge.Extensions.DotNet/</code>.
-    Validation error codes: NET001-003.
+    Validation error codes: NET001&ndash;NET007.
+  </p>
+  <p>
+    Gating is author-chosen, two shapes: the C# fluent path leaves the search's message unset and
+    gates explicitly with <code>package.Require(variableName, message)</code> (see Demo 32); the
+    JSON authoring path (see <a href="#cli-json-config">JSON Configuration Format</a>) has no
+    separate <code>Require</code> call, so <code>DotNetExtension</code> emits its own
+    <code>LaunchCondition</code> whenever a search carries a message (author-provided, or a
+    generated default naming the requirement).
   </p>
 
   <h4>DotNetExtension</h4>
@@ -5784,7 +5805,9 @@ var seedData = new SqlStringBuilder()
     </thead>
     <tbody>
       <tr><td><code>Name</code></td><td><code>string</code></td><td>Returns <code>"DotNet"</code>.</td></tr>
-      <tr><td><code>Register(IExtensionRegistry registry)</code></td><td><code>void</code></td><td>No-op. Detection capabilities only, no table or component contributions.</td></tr>
+      <tr><td><code>SearchForRuntime()</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>Factory for a new runtime search.</td></tr>
+      <tr><td><code>AddSearch(DotNetCoreSearchModel model)</code></td><td><code>Result&lt;Unit&gt;</code></td><td>Adds a built search. Re-validates the whole set (including cross-search duplicate <code>VariableName</code> detection, NET003) so a model built outside <code>DotNetCoreSearchBuilder</code> cannot bypass validation. NET006 if <code>model</code> is null.</td></tr>
+      <tr><td><code>Register(IExtensionRegistry registry)</code></td><td><code>void</code></td><td>Registers <code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code> table contributors for every added search, plus a <code>LaunchCondition</code> contributor for searches that carry a message. A package that never calls <code>AddSearch</code> contributes no tables.</td></tr>
     </tbody>
   </table>
 
@@ -5795,20 +5818,34 @@ var seedData = new SqlStringBuilder()
       <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>RuntimeType(DotNetRuntimeType runtimeType)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>The type of runtime to search for: <code>Runtime</code>, <code>AspNetCore</code>, <code>WindowsDesktop</code>, or <code>Sdk</code>.</td></tr>
-      <tr><td><code>Platform(DotNetPlatform platform)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>The platform architecture: <code>X64</code>, <code>X86</code>, or <code>Arm64</code>.</td></tr>
-      <tr><td><code>MinVersion(Version minimumVersion)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>Minimum acceptable version. Required (NET002 if missing).</td></tr>
-      <tr><td><code>Variable(string variableName)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>Bundle variable name to populate with the result. Required (NET001 if missing).</td></tr>
+      <tr><td><code>RuntimeType(DotNetRuntimeType runtimeType)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>The type of runtime to search for: <code>Runtime</code>, <code>AspNetCore</code>, or <code>WindowsDesktop</code>. <code>Sdk</code> is accepted here but rejected at <code>Build()</code> (NET004) &mdash; it has no MSI-native shared-framework sentinel.</td></tr>
+      <tr><td><code>Platform(DotNetPlatform platform)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>The platform architecture: <code>X64</code>, <code>X86</code>, or <code>Arm64</code> (NET007 if unrecognized).</td></tr>
+      <tr><td><code>MinVersion(Version minimumVersion)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>Minimum acceptable version, compared against the sentinel file's on-disk version. Required (NET002 if missing).</td></tr>
+      <tr><td><code>Variable(string variableName)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>The MSI property <code>AppSearch</code> populates on a match. Required (NET001 if missing); must be a public MSI property identifier &mdash; all-uppercase, matching <code>[A-Z_][A-Z0-9_.]*</code> (NET005 otherwise).</td></tr>
+      <tr><td><code>Message(string message)</code></td><td><code>DotNetCoreSearchBuilder</code></td><td>Optional. When set, <code>DotNetExtension</code> emits its own <code>LaunchCondition</code> blocking install unless <code>Variable</code>'s property was found (the JSON authoring path's shape). Leave unset to gate via <code>package.Require(variableName, message)</code> instead (the C# fluent path).</td></tr>
       <tr><td><code>Build()</code></td><td><code>Result&lt;DotNetCoreSearchModel&gt;</code></td><td>Validates and builds the search model.</td></tr>
     </tbody>
   </table>
 
-  <pre><code class="language-csharp">var search = new DotNetCoreSearchBuilder()
+  <pre><code class="language-csharp">var dotnet = new DotNetExtension();
+var search = dotnet.SearchForRuntime()
     .RuntimeType(DotNetRuntimeType.AspNetCore)
     .Platform(DotNetPlatform.X64)
     .MinVersion(new Version(8, 0))
-    .Variable("DotNetAspNetCore8")
-    .Build();</code></pre>
+    .Variable("DOTNET8_ASPNETCORE_FOUND")
+    .Build();
+
+dotnet.AddSearch(search.Value);</code></pre>
+  <p>
+    Attach the extension with <code>new MsiCompiler().Use(dotnet)</code>; without a message on the
+    search, gate explicitly with <code>package.Require("DOTNET8_ASPNETCORE_FOUND", "...")</code>
+    (see Demo 32, <code>demo/32-ext-dotnet/Program.cs</code>). Emission &mdash; the table rows
+    landing correctly in the compiled MSI &mdash; is proven by a compile-and-read-back test
+    (<code>DotNetDetectionEmissionTests</code>); a real <code>msiexec</code> install exercising the
+    runtime gate end-to-end is not part of the default test run &mdash; it is gated the same way as
+    the project's other real-system e2e tests (<code>FALKFORGE_E2E</code> +
+    <code>FALKFORGE_REAL_SYSTEM_E2E</code> plus elevation).
+  </p>
 
   <!-- 10.6 Util Extension -->
   <h3 id="ext-util">10.6 Util Extension</h3>
@@ -9379,12 +9416,14 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     of the C# fluent API &mdash; the primary, fully supported authoring model (what <code>forge
     init</code> scaffolds). The fields below are the ones the loader actually reads and maps to
     the compiler; fields not listed here are not recognized. The <code>extensions</code> block
-    now authors the <code>firewall</code>, <code>iis</code>, and <code>sql</code> extensions:
-    each is translated into the same real extension the C# API attaches via
-    <code>new MsiCompiler().Use(extension)</code> and emitted into the compiled MSI. The one
-    exception is <code>dotnet</code> (.NET runtime detection), a bundle-engine feature with no
-    standalone-MSI representation &mdash; a <code>dotnet</code> block fails closed with
-    <strong>JSN019</strong> rather than producing an installer that does not gate on the runtime.
+    now authors the <code>firewall</code>, <code>iis</code>, <code>sql</code>, and
+    <code>dotnet</code> extensions: each is translated into the same real extension the C# API
+    attaches via <code>new MsiCompiler().Use(extension)</code> and emitted into the compiled MSI.
+    A <code>dotnet</code> block builds a real <code>DotNetExtension</code> with MSI-native
+    detection (<code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code>) and its own
+    <code>LaunchCondition</code>, gated by the block's <code>message</code> field (author-provided
+    or a generated default) &mdash; the old <strong>JSN019</strong> hard-fail for a
+    <code>dotnet</code> block is gone.
 </div>
 <p>The CLI accepts JSON files as an alternative to C# scripts. The schema is defined in <code>src/FalkForge.Cli/Models/InstallerConfig.cs</code> and its sibling <code>Models/*.cs</code> files &mdash; the fields below match those types exactly.</p>
 
@@ -9430,7 +9469,7 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     "firewall": [ "authored -> WixFirewallException table" ],
     "iis": { "appPools": [ "..." ], "webSites": [ "..." ] },
     "sql": [ "..." ],
-    "dotnet": [ "REJECTED -- fails the build with JSN019 (bundle-engine feature, see warning above)" ]
+    "dotnet": [ { "runtimeType": "Runtime | AspNetCore | WindowsDesktop", "platform": "X64 | X86 | Arm64", "minimumVersion": "8.0.0", "variableName": "PUBLIC_MSI_PROPERTY", "message": "optional; default LaunchCondition text generated when omitted" } ]
   },
   "signing": "see Bundle Signing, Trust & Key Rotation (23)"
 }</code></pre>
@@ -9439,9 +9478,9 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     no separate top-level <code>shortcuts</code> array on a feature. Extension sub-schemas
     (<code>firewall</code>/<code>iis</code>/<code>sql</code>/<code>dotnet</code>) are fully
     documented in the <a href="docs/tutorials/json-config.html">JSON Configuration tutorial</a>;
-    the <code>firewall</code>/<code>iis</code>/<code>sql</code> fields are authored into the MSI,
-    while a <code>dotnet</code> block fails the build with JSN019 (use the C# fluent API for .NET
-    runtime detection).
+    all four are now authored into the compiled MSI, including <code>dotnet</code> (real
+    <code>Signature</code>/<code>DrLocator</code>/<code>AppSearch</code> detection plus a
+    <code>LaunchCondition</code> gate &mdash; see <a href="#ext-dotnet">10.5 .NET Extension</a>).
 </p>
 
 <h3 id="cli-scripting">C# Scripting Support</h3>
@@ -10326,6 +10365,10 @@ public sealed record WixUnmappedFeature(
         <tr><td>NET001</td><td>VariableName is required</td></tr>
         <tr><td>NET002</td><td>MinimumVersion is required</td></tr>
         <tr><td>NET003</td><td>Duplicate VariableName</td></tr>
+        <tr><td>NET004</td><td>RuntimeType is <code>Sdk</code> (no shared-framework directory to search &mdash; the SDK is versioned via <code>dotnet\sdk\{version}\</code>, a different layout) or an unrecognized value; supported values are <code>Runtime</code>, <code>AspNetCore</code>, <code>WindowsDesktop</code></td></tr>
+        <tr><td>NET005</td><td>VariableName is not a valid PUBLIC MSI property identifier (<code>[A-Z_][A-Z0-9_.]*</code>, all uppercase &mdash; e.g. <code>DOTNET8_FOUND</code>)</td></tr>
+        <tr><td>NET006</td><td>Search model passed to <code>DotNetExtension.AddSearch</code> is null</td></tr>
+        <tr><td>NET007</td><td>Platform is not a recognized value; supported values are <code>X64</code>, <code>X86</code>, <code>Arm64</code></td></tr>
     </tbody>
 </table>
 
@@ -10473,7 +10516,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>JSN016</td><td>Inline secret material in the signing config &mdash; keys and credentials must be referenced by file path or environment-variable name, never pasted into the JSON</td></tr>
         <tr><td>JSN017</td><td>Ambiguous or missing key source for the pem provider (exactly one of keyPath/keyEnv; at most one of pqKeyPath/pqKeyEnv)</td></tr>
         <tr><td>JSN018</td><td>Invalid signserver signing config (missing baseUrl/worker, unknown/incomplete authMode, or pqKeyPath/pqKeyEnv on the signserver provider &mdash; hybrid post-quantum signing via JSON requires provider pem)</td></tr>
-        <tr><td>JSN019</td><td>Fail-closed guard, two triggers: (1) a JSON <code>extensions.dotnet</code> block carries content &mdash; .NET runtime detection is a bundle-engine feature with no standalone-MSI representation, so the build fails rather than emitting an installer that does not gate on the runtime; use the C# fluent API instead (<code>firewall</code>/<code>iis</code>/<code>sql</code> blocks ARE authored into the MSI and do not trip this). (2) A signing key or auth material is unresolvable at build time (e.g. referenced environment variable unset) &mdash; the build fails closed, never falling back to unsigned output</td></tr>
+        <tr><td>JSN019</td><td>Fail-closed guard: a signing key or auth material is unresolvable at build time (e.g. a referenced environment variable is unset) &mdash; the build fails closed, never falling back to unsigned output. (Previously also covered a JSON <code>extensions.dotnet</code> block; that block now emits real MSI-native detection instead of failing &mdash; see NET001&ndash;NET007 and JSN014.)</td></tr>
     </tbody>
 </table>
 
@@ -10906,11 +10949,12 @@ public sealed record WixUnmappedFeature(
     Declarative JSON files validated and built by the <code>forge</code> CLI. No C# code required.
     Located in <code>demo/json/</code>. JSON configuration is a work-in-progress subset (see
     <a href="#cli-json-config">JSON Configuration Format</a>) that now authors the Firewall, IIS,
-    and SQL extensions: demo 06 (<code>06-web-server.json</code>) adds a firewall rule plus an IIS
-    app pool and web site, and demo 07 (<code>07-database-app.json</code>) provisions a SQL
-    database and install script &mdash; all emitted into the compiled MSI. Only .NET runtime
-    detection cannot be authored in JSON (a <code>dotnet</code> block fails the build with JSN019);
-    use the C# fluent API for that (Demo 32).
+    SQL, and <code>.NET</code> extensions: demo 06 (<code>06-web-server.json</code>) adds a
+    firewall rule plus an IIS app pool and web site, and demo 07 (<code>07-database-app.json</code>)
+    provisions a SQL database and install script &mdash; all emitted into the compiled MSI. A
+    <code>dotnet</code> block now emits real MSI-native runtime detection the same way (see
+    <a href="#ext-dotnet">10.5 .NET Extension</a>); the demo gallery does not yet include a
+    dedicated JSON <code>dotnet</code> demo &mdash; the C# fluent equivalent is Demo 32.
 </p>
 <table>
 <thead>
