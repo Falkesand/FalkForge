@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\FalkForge.Extensibility\FalkForge.Extensibility.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Dependency\FalkForge.Extensions.Dependency.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Driver\FalkForge.Extensions.Driver.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Extensions.DotNet\FalkForge.Extensions.DotNet.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Firewall\FalkForge.Extensions.Firewall.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Http\FalkForge.Extensions.Http.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Extensions.Iis\FalkForge.Extensions.Iis.csproj" />
