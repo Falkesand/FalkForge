@@ -201,7 +201,7 @@ internal static partial class Program
                 // a crafted PackageId (e.g. "..\..\evil") that would escape extractDir — the TOC
                 // is attacker-controlled, so the destination is never composed from it unguarded.
                 // Delta entries are reconstructed against --base-bundle instead of written raw.
-                var payloadResult = ExtractOrReconstructPayload(
+                var payloadResult = PayloadReconstructionDispatcher.Dispatch(
                     selfPath, entry, extractDir!, Path.Combine(entry.PackageId, $"{entry.PackageId}.dat"), baseBundlePath);
                 if (payloadResult.IsFailure)
                 {
@@ -392,35 +392,6 @@ internal static partial class Program
     }
 
     /// <summary>
-    /// Extracts a payload to a file, reconstructing delta payloads against the base bundle.
-    /// For a full payload this streams + verifies straight to disk (BundleReader). For a delta
-    /// payload it reconstructs the finished payload from the base bundle via DeltaApplicator,
-    /// verifying the reconstructed SHA-256 before anything is published. A delta payload with no
-    /// base bundle available fails loudly — the raw delta blob is never written as if it were the
-    /// finished payload, and the honest recovery is to download the full (non-delta) installer.
-    /// </summary>
-    private static Result<string> ExtractOrReconstructPayload(
-        string bundlePath, TocEntry entry, string destinationDirectory, string relativeDestination, string? baseBundlePath)
-    {
-        if (!entry.IsDelta)
-            return BundleReader.ExtractPayloadToFile(bundlePath, entry, destinationDirectory, relativeDestination);
-
-        if (string.IsNullOrEmpty(baseBundlePath))
-            return Result<string>.Failure(ErrorKind.BundleError,
-                $"Payload '{entry.PackageId}' is a delta payload but no base bundle is available to reconstruct it. " +
-                "A delta update requires the exact previously-installed bundle as its base; pass " +
-                "--base-bundle <path> or download the full installer instead.");
-
-        if (!File.Exists(baseBundlePath))
-            return Result<string>.Failure(ErrorKind.BundleError,
-                $"Payload '{entry.PackageId}' is a delta payload but the base bundle " +
-                $"'{Path.GetFileName(baseBundlePath)}' was not found. Download the full installer instead.");
-
-        return DeltaApplicator.ReconstructPayloadToFile(
-            bundlePath, entry, baseBundlePath, destinationDirectory, relativeDestination);
-    }
-
-    /// <summary>
     /// Checks whether the current process executable has an embedded FALKBUNDLE footer.
     /// </summary>
     private static bool HasEmbeddedBundle()
@@ -529,7 +500,7 @@ internal static partial class Program
             // Delta payloads (relaunched delta update) are reconstructed against baseBundlePath;
             // a delta payload with no base bundle available fails loudly rather than writing the
             // raw delta blob.
-            var payloadResult = ExtractOrReconstructPayload(content.BundlePath, entry, cacheDir, payloadFileName, baseBundlePath);
+            var payloadResult = PayloadReconstructionDispatcher.Dispatch(content.BundlePath, entry, cacheDir, payloadFileName, baseBundlePath);
             if (payloadResult.IsFailure)
             {
                 await Console.Error.WriteLineAsync($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
