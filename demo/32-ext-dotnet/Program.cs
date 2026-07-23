@@ -18,6 +18,16 @@ if (search.IsFailure)
     return 1;
 }
 
+// Register the search so the extension emits real MSI-native detection (Signature + DrLocator +
+// AppSearch — the built-in AppSearch standard action evaluates these natively at install time, no
+// custom action required) into the compiled MSI's own tables.
+var addResult = dotnet.AddSearch(search.Value);
+if (addResult.IsFailure)
+{
+    Console.Error.WriteLine(addResult.Error);
+    return 1;
+}
+
 Console.WriteLine($".NET Detection: search for {search.Value.RuntimeType} >= {search.Value.MinimumVersion}");
 
 return Installer.Build(args, package =>
@@ -26,13 +36,15 @@ return Installer.Build(args, package =>
     package.Manufacturer = "Demo";
     package.Version = new Version(1, 0, 0);
 
-    // Use the search variable as a launch condition — block install if .NET 8 is missing
+    // The search model above carries no Message, so the extension emits no LaunchCondition of its
+    // own (see DotNetLaunchConditionContributor) — this is the C# fluent authoring path's shape: the
+    // author gates explicitly on the AppSearch-populated property.
     package.Require("DOTNET8_FOUND",
         ".NET 8.0 Runtime (x64) or later is required. Please install it from https://dotnet.microsoft.com/download");
 
     package.Files(files => files
         .Add("payload/app.exe")
         .To(KnownFolder.ProgramFiles / "Demo" / "DotNetDemo"));
-    // Attach the extension with .Use(...). The .NET extension is detection-only (it
-    // contributes no MSI tables); the launch condition above does the gating.
+    // Attach the extension with .Use(...). Since AddSearch was called above, the extension now
+    // contributes real MSI tables (Signature/DrLocator/AppSearch) alongside the launch condition.
 }, new MsiCompiler().Use(dotnet));
