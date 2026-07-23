@@ -10,6 +10,12 @@ public static class DotNetSearchValidator
         if (model.MinimumVersion is null)
             return Result<Unit>.Failure(ErrorKind.Validation, "NET002: MinimumVersion is required.");
 
+        if (model.RuntimeType == DotNetRuntimeType.Sdk)
+            return Result<Unit>.Failure(ErrorKind.Validation,
+                "NET004: RuntimeType 'Sdk' is not supported for MSI-native detection — the SDK has no " +
+                "shared-framework directory to search (it is versioned via dotnet\\sdk\\{version}\\, a " +
+                "different layout). Search for Runtime, AspNetCore, or WindowsDesktop instead.");
+
         return Unit.Value;
     }
 

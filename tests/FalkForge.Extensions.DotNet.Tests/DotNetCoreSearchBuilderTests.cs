@@ -63,6 +63,53 @@ public sealed class DotNetCoreSearchBuilderTests
     }
 
     [Fact]
+    public void Build_Sdk_ReturnsNET004()
+    {
+        // Sdk has no MSI-native shared-framework directory to search (the SDK is versioned via
+        // dotnet\sdk\{version}\, a different layout than the sharedfx directories the planner
+        // targets), so it is rejected at author time rather than silently producing a plan that
+        // can never find anything.
+        var result = new DotNetCoreSearchBuilder()
+            .RuntimeType(DotNetRuntimeType.Sdk)
+            .Platform(DotNetPlatform.X64)
+            .MinVersion(new Version(8, 0))
+            .Variable("DotNet_Sdk_X64")
+            .Build();
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("NET004", result.Error.Message);
+    }
+
+    [Fact]
+    public void Build_WithMessage_SetsMessage()
+    {
+        var result = new DotNetCoreSearchBuilder()
+            .RuntimeType(DotNetRuntimeType.Runtime)
+            .Platform(DotNetPlatform.X64)
+            .MinVersion(new Version(8, 0))
+            .Variable("DOTNET8_FOUND")
+            .Message(".NET 8.0 Runtime (x64) or later is required.")
+            .Build();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(".NET 8.0 Runtime (x64) or later is required.", result.Value.Message);
+    }
+
+    [Fact]
+    public void Build_WithoutMessage_LeavesMessageNull()
+    {
+        var result = new DotNetCoreSearchBuilder()
+            .RuntimeType(DotNetRuntimeType.Runtime)
+            .Platform(DotNetPlatform.X64)
+            .MinVersion(new Version(8, 0))
+            .Variable("DOTNET8_FOUND")
+            .Build();
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value.Message);
+    }
+
+    [Fact]
     public void SearchForRuntime_ReturnsBuilder_ThatBuildsSuccessfully()
     {
         var builder = new DotNetExtension().SearchForRuntime();
