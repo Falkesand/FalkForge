@@ -208,6 +208,12 @@ public sealed class DeltaApplicatorTests : IDisposable
 
         Assert.True(result.IsFailure,
             "Reconstruction must fail loudly (not throw) when the delta blob is not a valid Octodiff stream");
+        // Pin the fail-loud contract precisely: the widened catch in ApplyDelta must surface as
+        // ErrorKind.BundleError with its documented "Delta application failed" prefix, not just
+        // "some failure Result" — a caller distinguishing this from, say, IntegrityError needs
+        // the Kind to be stable, and the message prefix is what a support engineer greps logs for.
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.StartsWith("Delta application failed:", result.Error.Message, StringComparison.Ordinal);
         AssertNoFileWritten(destDir);
     }
 
@@ -258,6 +264,100 @@ public sealed class DeltaApplicatorTests : IDisposable
 
         Assert.True(result.IsFailure, "Reconstruction must fail loudly on a reconstructed-hash mismatch");
         Assert.Equal(staleBytes, File.ReadAllBytes(destPath));
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_BasisBundlePathDoesNotExist_FailsLoud_WritesNoOutput()
+    {
+        var (_, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // The basis bundle path itself does not exist on disk — distinct from
+        // BasisBundleMissingPackage above (a real, readable bundle that just lacks this
+        // package's TOC entry). This exercises the BundleReader.Extract(basisBundlePath)
+        // failure guard directly, before the TOC is even consulted. A delta update whose basis
+        // was never downloaded/staged must fail loudly, not throw or silently no-op.
+        var missingBasisPath = Path.Combine(_tempDir, $"nonexistent_basis_{Guid.NewGuid():N}.falkbundle");
+
+        var destDir = Path.Combine(_tempDir, "out_basisnotfound");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, deltaEntry, missingBasisPath, destDir, deltaEntry.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly when the basis bundle path does not exist");
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_BasisBundleFileIsNotAValidBundle_FailsLoud_WritesNoOutput()
+    {
+        var (_, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // A file exists at the basis path, but it is arbitrary garbage bytes — no FALKBUNDLE
+        // magic/footer at all. Distinct from the nonexistent-path case above: a truncated or
+        // corrupted basis download (partial write, disk corruption) must be rejected by
+        // BundleReader.Extract just as loudly as a missing file, never parsed as if valid.
+        var garbageBasisPath = Path.Combine(_tempDir, "garbage_basis.falkbundle");
+        File.WriteAllBytes(garbageBasisPath, RandomBytes(512, seed: 77));
+
+        var destDir = Path.Combine(_tempDir, "out_basisgarbage");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, deltaEntry, garbageBasisPath, destDir, deltaEntry.PackageId);
+
+        Assert.True(result.IsFailure,
+            "Reconstruction must fail loudly when the basis bundle file is not a valid bundle");
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_TraversalRelativeDestination_IsRejectedAsSecurityError_WritesNoOutput()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // The public overload's relativeDestination is untrusted in real callers (derived from
+        // the delta TOC's PackageId, same as BundleReader.ExtractPayloadToFile) — a crafted
+        // "..\..\evil.dll" must be rejected by ContainedPathResolver's containment check before
+        // any reconstruction work (basis extraction, Octodiff apply) ever runs, the same
+        // choke-point contract proven for the full-payload path in
+        // BundleReaderContainmentTests.ExtractPayloadToFile_TraversalPackageId_IsRejectedAndNothingWrittenOutside.
+        var hostileRelativeDestination = Path.Combine("..", "..", "evil.dll");
+        var escapedTargetPath = Path.GetFullPath(Path.Combine(_tempDir, "out_zipslip", hostileRelativeDestination));
+
+        var destDir = Path.Combine(_tempDir, "out_zipslip");
+        Directory.CreateDirectory(destDir);
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, deltaEntry, basisBundle, destDir, hostileRelativeDestination);
+
+        Assert.True(result.IsFailure, "Reconstruction must reject a traversal relative destination");
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.False(File.Exists(escapedTargetPath), "Nothing may be written outside the destination directory");
+        AssertNoFileWritten(destDir);
+    }
+
+    [Fact]
+    public void ReconstructPayloadToFile_FailedReconstruction_LeavesNoLeftoverTempFilesBesideDestination()
+    {
+        var (basisBundle, deltaBundle, _, _, deltaEntry) = BuildV1AndDelta();
+
+        // Reaches the point where all three per-attempt temp files (*.basis.tmp / *.delta.tmp /
+        // *.recon.tmp) have been created — basis + delta both extract and Octodiff applies
+        // cleanly — before failing at the final ReconstructedSha256Hash gate. This is an
+        // explicit contract test on the `finally` block's TryDeleteFile calls: a failed
+        // reconstruction must not leak temp files beside the destination on every failed
+        // update attempt, not merely "no output file" (AssertNoFileWritten alone would pass
+        // even if cleanup silently failed to delete a temp file, since none of these three
+        // extensions is the published destination file).
+        var tampered = CloneWithReconstructedHash(deltaEntry,
+            "0000000000000000000000000000000000000000000000000000000000000000");
+
+        var destDir = Path.Combine(_tempDir, "out_tempcleanup");
+        var result = DeltaApplicator.ReconstructPayloadToFile(
+            deltaBundle, tampered, basisBundle, destDir, tampered.PackageId);
+
+        Assert.True(result.IsFailure, "Reconstruction must fail loudly when the reconstructed hash does not match");
+        Assert.Empty(Directory.GetFiles(destDir, "*.basis.tmp"));
+        Assert.Empty(Directory.GetFiles(destDir, "*.delta.tmp"));
+        Assert.Empty(Directory.GetFiles(destDir, "*.recon.tmp"));
     }
 
     /// <summary>
