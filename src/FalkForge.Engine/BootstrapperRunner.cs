@@ -265,20 +265,15 @@ internal static class BootstrapperRunner
         // Launch the UI process. BuildUiArgs forwards --log / --log-level when the user
         // supplied them so a `installer.exe --log foo.log` invocation actually produces a log.
         var uiArgs = Bootstrapper.BuildUiArgs(manifestPath, pipeName, secretPipeName, programArgs);
-        var process = Process.Start(new ProcessStartInfo
-        {
-            FileName = uiExePath,
-            Arguments = uiArgs,
-            UseShellExecute = false,
-            CreateNoWindow = false
-        });
-
-        if (process is null)
+        var launch = UiProcessLauncher.TryStartUiProcess(uiExePath, uiArgs);
+        if (launch.IsFailure)
         {
             await initPipe.DisposeAsync();
             await Console.Error.WriteLineAsync("Failed to launch UI process.");
             return 1;
         }
+
+        var process = launch.Value;
 
         // Deliver secret via init pipe in the background
         _ = DeliverSecretAsync(initPipe, secret);
