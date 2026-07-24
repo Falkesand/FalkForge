@@ -220,9 +220,7 @@ public sealed class BundleBuilder
     ///     rollback boundaries are positional chain items registered when passed to
     ///     <see cref="ChainBuilder.RollbackBoundary(RollbackBoundaryRef, Action{RollbackBoundaryBuilder}?)" />.
     /// </summary>
-#pragma warning disable CA1822 // Intentional instance method for API consistency
     public RollbackBoundaryRef DefineRollbackBoundary(string id) => new(id);
-#pragma warning restore CA1822
 
     /// <summary>
     ///     Creates a rollback boundary reference with an auto-generated id. Unlike <see cref="DefineContainer()" />,

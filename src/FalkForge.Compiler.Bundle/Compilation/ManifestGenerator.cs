@@ -3,7 +3,6 @@ using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
-#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class ManifestGenerator
 {
     public Result<InstallerManifest> Generate(BundleModel model)

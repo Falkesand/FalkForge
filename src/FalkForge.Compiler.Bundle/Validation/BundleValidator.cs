@@ -2,7 +2,6 @@ namespace FalkForge.Compiler.Bundle.Validation;
 
 using FalkForge.Engine.Protocol.Manifest;
 
-#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class BundleValidator
 {
     public Result<Unit> Validate(BundleModel model)

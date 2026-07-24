@@ -155,10 +155,8 @@ internal sealed class VerifyCommand : Command<VerifySettings>
         RebuildResult rebuild;
         try
         {
-#pragma warning disable VSTHRD002 // Console app — no sync context, no deadlock risk.
             rebuild = _runner.RebuildAsync(projectPath, tempDir, epoch, RebuildTimeout, ct)
                 .GetAwaiter().GetResult();
-#pragma warning restore VSTHRD002
         }
         catch (OperationCanceledException)
         {

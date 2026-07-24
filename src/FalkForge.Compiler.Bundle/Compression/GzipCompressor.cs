@@ -2,7 +2,6 @@ using System.IO.Compression;
 
 namespace FalkForge.Compiler.Bundle.Compression;
 
-#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class GzipCompressor
 {
     public Result<byte[]> CompressFile(string sourcePath)

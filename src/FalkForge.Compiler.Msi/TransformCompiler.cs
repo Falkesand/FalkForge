@@ -6,7 +6,6 @@ using FalkForge.Validation;
 namespace FalkForge.Compiler.Msi;
 
 [SupportedOSPlatform("windows")]
-#pragma warning disable CA1822 // Stateless compiler; instance method for future extensibility
 public sealed class TransformCompiler
 {
     public Result<string> Compile(TransformModel transform, string outputPath)

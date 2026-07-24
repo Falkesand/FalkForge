@@ -7,7 +7,6 @@ using FalkForge.Validation;
 namespace FalkForge.Compiler.Msi;
 
 [SupportedOSPlatform("windows")]
-#pragma warning disable CA1822 // Stateless compiler; instance method for future extensibility
 public sealed class MsmCompiler
 {
     public Result<string> Compile(MergeModuleModel module, string outputPath)
