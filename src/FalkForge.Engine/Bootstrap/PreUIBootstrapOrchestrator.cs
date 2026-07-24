@@ -6,7 +6,7 @@ using FalkForge.Engine.Protocol.Manifest;
 /// <summary>
 /// Coordinates the pre-UI prerequisite bootstrap sequence: detect missing packages,
 /// install them (with elevation if required), and return the outcome so
-/// <c>Program.RunAsBootstrapper</c> can decide whether to launch the UI or exit.
+/// <c>BootstrapperRunner.RunAsync</c> can decide whether to launch the UI or exit.
 /// </summary>
 /// <remarks>
 /// <para>

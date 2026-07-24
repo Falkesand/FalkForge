@@ -6,7 +6,7 @@ using FalkForge.Engine.Protocol.Manifest;
 /// <summary>
 /// Resolves the extracted elevation companion for the self-extract bootstrapper and proves it may
 /// be wired for elevated execution. Extracted (like <see cref="Bootstrapper"/>) from
-/// <c>Program.RunAsBootstrapper</c> so the decision is unit-testable without processes or pipes.
+/// <c>BootstrapperRunner.RunAsync</c> so the decision is unit-testable without processes or pipes.
 ///
 /// <para><b>The trust chain this completes.</b> Before this runs, the bootstrapper has already
 /// (1) bound the overlay TOC hashes to the ECDSA-signed manifest for signed bundles

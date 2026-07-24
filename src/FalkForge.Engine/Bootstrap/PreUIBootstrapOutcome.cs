@@ -2,7 +2,7 @@ namespace FalkForge.Engine.Bootstrap;
 
 /// <summary>
 /// Describes the decision <see cref="PreUIBootstrapOrchestrator"/> communicates back to
-/// <c>Program.RunAsBootstrapper</c> after the pre-UI prerequisite phase completes.
+/// <c>BootstrapperRunner.RunAsync</c> after the pre-UI prerequisite phase completes.
 /// </summary>
 public enum PreUIBootstrapOutcome
 {
