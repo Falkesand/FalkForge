@@ -1,6 +1,6 @@
 {
   "stryker-config": {
-    "project": "FalkForge.Compiler.Msi.csproj",
+    "project": "FalkForge.Signing.SignServer.csproj",
     "test-runner": "mtp",
     "coverage-analysis": "perTest",
     "concurrency": 12,
@@ -10,10 +10,6 @@
       "high": 80,
       "low": 60,
       "break": 0
-    },
-    "mutate": [
-      "**/*.cs",
-      "!UI/Templates/**/*.cs"
-    ]
+    }
   }
 }

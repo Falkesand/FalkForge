@@ -1,6 +1,16 @@
 {
   "stryker-config": {
     "project": "FalkForge.Plugins.Sql.csproj",
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
+    "concurrency": 12,
+    "mutation-level": "Standard",
+    "reporters": ["cleartext", "progress", "json", "html"],
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    },
     "additional-timeout": 300000,
     "mutate": [
       "**/*.cs"
