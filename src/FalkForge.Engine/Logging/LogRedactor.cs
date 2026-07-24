@@ -14,6 +14,16 @@ namespace FalkForge.Engine.Logging;
 /// not interpolate secret values into log messages — pass them as properties instead, where this
 /// redactor can see and mask them.
 /// </para>
+///
+/// <para>
+/// <strong>Exemption applies to <c>exception.message</c> too.</strong> Because redaction is
+/// key-based, not value-based, <see cref="FalkForge.Diagnostics.LogProperties.MergeException"/>'s
+/// <c>exception.message</c> property (the raw <see cref="Exception.Message"/> text) is exempt from
+/// the same free-text limitation as the <c>message</c> field: a secret embedded in an exception's
+/// message (e.g. a connection string surfaced by a <c>SqlException</c>) is <em>not</em> masked.
+/// Callers must not let secrets reach exception text any more than they let them reach log
+/// messages.
+/// </para>
 /// </summary>
 internal static class LogRedactor
 {
@@ -45,6 +55,9 @@ internal static class LogRedactor
         "authorization",
         "bearer",
         "connectionstring",
+        "signingkey",
+        "pfx",
+        "pem",
     ];
 
     /// <summary>
