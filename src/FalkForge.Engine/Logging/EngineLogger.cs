@@ -121,6 +121,11 @@ public sealed class EngineLogger : IFalkLogger
         if (_disposed)
             return;
 
+        // Mask secret-keyed property values before the entry is built, so both the file writer
+        // below and the pipe-callback fork see only the redacted values (props-only; message is
+        // a pre-formatted opaque string — see LogRedactor's XML doc for that limitation).
+        properties = LogRedactor.Redact(properties, _options.RedactionKeyTokens);
+
         var entry = new LogEntry(DateTimeOffset.UtcNow, level, category, message, properties, SessionCorrelationId);
 
         _queue.Enqueue(entry);
