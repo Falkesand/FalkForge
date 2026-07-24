@@ -108,12 +108,171 @@ Only verified, actually-executed runs are recorded here. Do not add a row for a
 project that has not been run end-to-end with this script — an unverified number is
 worse than no number.
 
-| Date | Project | Mutants created | Tested | Killed | Survived | Timeout | Compile error | Ignored | Mutation score |
-|---|---|---|---|---|---|---|---|---|---|
-| 2026-07-24 | FalkForge.Signing.SignServer | 165 | 137 | 88 | 48 | 1 | 13 | 15 | 64.96% |
+**2026-07-24 sweep** — 5 trust-critical projects, Stryker.NET 4.16.0, MTP runner,
+`coverage-analysis: perTest`, `concurrency: 12`, `mutation-level: Standard`:
 
-Further project results will be appended to this table as sweeps complete — this is
-the only verified row so far.
+| Project | Score | Mutants created | Tested | Killed | Survived | Timeout | NoCoverage | Ignored | CompileError | Wall |
+|---|---|---|---|---|---|---|---|---|---|---|
+| FalkForge.Core | 80.17% | 4163 | 2831 | 2491 | 339 | 0 | 277 | 441 | 614 | 2m03s |
+| FalkForge.Compiler.Bundle | 68.27% | 1691 | 1047 | 802 | 240 | 5 | 135 | 217 | 292 | 5m40s |
+| FalkForge.Signing.SignServer | 64.96% | 165 | 137 | 88 | 25 | 1 | 23 | 15 | 13 | 0m16s |
+| FalkForge.Engine.Protocol | 57.75% | 2269 | 1319 | 919 | 366 | 31 | 329 | 285 | 336 | 4m53s |
+| FalkForge.Engine.Elevation | 48.37% | 628 | 294 | 237 | 56 | 1 | 198 | 94 | 42 | 0m41s |
+
+Every number above was cross-checked by re-parsing each `mutation-report.json`
+(counting mutant `status` values per project) rather than trusting the console
+transcript — the JSON's per-mutant `status` field is the ground truth. One row
+needed a real correction against the number that had been recorded here before this
+sweep: **FalkForge.Signing.SignServer's "Survived" figure was 48, but the JSON shows
+only 25 true `Survived` mutants plus 23 separate `NoCoverage` mutants (25 + 23 =
+48).** The original 48 conflated the two categories because the console's plain
+summary block does not print `NoCoverage` as its own line the way the other four
+projects' runs happened to have logged it; `Tested` (137 = Killed + Survived +
+Timeout + NoCoverage) and the 64.96% score itself were already correct and are
+unchanged. The other four projects' Survived/NoCoverage columns already matched the
+JSON exactly and needed no correction. `RuntimeError` mutants (1 in Core, 3 in
+Protocol) exist in the raw data but have no column here — they count toward `Tested`
+but are excluded from the score denominator, matching Stryker's own formula
+`(Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)`.
+
+Known caveats — read before trusting any single number in isolation:
+
+- **NoCoverage counts against the score.** Stryker treats an uncovered mutant as
+  "not killed," so a project with many execution paths no test reaches at all scores
+  low even in files where the code that *is* tested is tested well. NoCoverage is a
+  reach problem, not necessarily an assertion-quality problem — don't conflate it
+  with Survived when reading the table.
+- **`FalkForge.Core\Validation\CustomTableRules.cs` is effectively unmeasured.**
+  Stryker hit `CS0165 Use of unassigned local variable 'strVal'` while compiling a
+  mutant in this file, engaged its "Safe Mode," and discarded every mutation in the
+  whole file as `CompileError` (273 of Core's 614 CompileError count comes from this
+  one file alone — confirmed by re-parsing the JSON: 0 Killed, 0 Survived, 0
+  NoCoverage, 0 Timeout, 0 Ignored, 273 CompileError for that file, score `N/A`).
+  This file's real mutation resistance is unknown, not 100%.
+- **The MTP runner is upstream-preview**, not just here — Stryker prints its own
+  preview banner on every run regardless of project. Treat every score in this table
+  as directional.
+- **FalkForge.Engine.Protocol had 31 timeouts.** Timeouts count as killed in
+  Stryker's score, so they inflate the score slightly versus a hypothetical run
+  where the same mutants died from an assertion instead of a hang. 31 out of 2269
+  mutants is not large, but it is worth watching if the number grows on a re-run —
+  it can mean a mutant introduced an infinite loop / deadlock the suite happened to
+  time out of rather than a test that actually pins the behavior.
+
+### Notable surviving mutants
+
+This is a findings record, not a fix list — none of these have been touched.
+Selected from the files with the most `Survived` mutants (not merely `NoCoverage`)
+across all 5 projects, favoring bundle/integrity/signing/elevation code over pure
+MSI-table validation rules. Full per-mutant detail (mutator, exact location,
+replacement text) lives in each run's `mutation-report.json`.
+
+**FalkForge.Compiler.Bundle**
+
+- `Compilation/BundleDetacher.cs` (74 survived, worst count of any file in the
+  sweep) — the TOC `entryCount < 0 || entryCount > 100_000` crafted-bundle guard
+  (line 58) survives both as a whole (`&&` swap) and at each individual boundary
+  (`<= 0`, `>= 100_000`): no test feeds a bundle with `entryCount` of exactly `-1`,
+  `0`, `100_000`, or `100_001` to pin the fence precisely. Same class of gap repeats
+  at the PE certificate-table region-end boundary (`pos + 8 > regionEnd`, line 462).
+- `Validation/BundleValidator.cs` (31 survived) — the hex-digit range checks in
+  `IsValidSha1Thumbprint`/`IsValidSha256Hex` (lines 272, 292:
+  `c is (>= '0' and <= '9') or (>= 'a' and <= 'f') or (>= 'A' and <= 'F')`) survive
+  almost every boundary flip (`and`→`or`, `<`↔`>`) on every character class. No test
+  supplies a thumbprint/public-key-pin string with a character just outside a valid
+  hex range (e.g. `'g'`, `':'`, `'@'`) to prove the validator actually rejects it.
+- `Compilation/BundleIntegritySigner.cs` (14 survived, worst score of the top
+  offenders at 42.3%) — two whole-block removals survive intact: lines 180-188 (the
+  entire SBOM component-population loop reduced to a no-op) and lines 158-160. The
+  first means no test asserts the generated SBOM actually contains the payload
+  component list — the loop could be deleted and nothing would notice. The
+  `!SigilDetector.IsAvailable()` gate (line 130) and the `IsFailure` early-return
+  checks (lines 140, 152) also survive negated, but that is lower severity: the
+  feature is explicitly documented as "opportunistic, never fatal," so the test
+  environment's fixed sigil-availability state naturally can't exercise both sides.
+
+**FalkForge.Engine.Protocol**
+
+- `Bundle/BundleReader.cs` (49 survived) — the runtime twin of BundleDetacher's TOC
+  guard, same unpinned `entryCount` boundary (line 62). More urgent than the
+  compiler-side copy because this is the code that actually runs against an
+  untrusted bundle at install time. The negative-size / payload-cap / physical-file
+  bound checks (lines 98-109), despite being explicitly commented as allocation-DoS
+  defenses, have every boundary (`< 0` vs `<= 0`, `>` vs `>=`) survive too — no test
+  supplies a TOC entry at exactly the cap or exactly the file length.
+- `Integrity/SignedPayloadTocVerifier.cs` (22 survived) — `!revokedFingerprints
+  .Contains(signature.Fingerprint)` (line 63) survives negated. This is the
+  signature-revocation filter itself; a negated check would silently invert it to
+  "keep only revoked signatures." No test builds a real revoked-fingerprint set,
+  runs it against a collected-signatures list containing a match, and asserts the
+  match is dropped — the revocation control's core behavior is unproven by the
+  suite. This is the most concrete finding in the sweep.
+- `Integrity/IntegrityEnvelopeCodec.cs` (21 survived; also 130 CompileError in this
+  one file — the highest CompileError count of any file below Core's
+  CustomTableRules.cs, worth a look separately) — `hasEpochOrRevoked = epoch != 0 ||
+  revoked is { Count: > 0 }` (line 87) survives both the `is not {Count: >0}` flip
+  and the `>= 0` boundary. This flag decides whether the canonical signed bytes
+  include the epoch/revocation extension at all; no test pins the
+  epoch-zero-with-empty-revoked vs. epoch-zero-with-nonempty-revoked matrix, so a
+  regression here could silently downgrade a revocation-carrying envelope to the
+  legacy (v1) signed shape. The v1→v2 adapter guard (lines 297-299, three ANDed
+  conditions) also survives with one conjunct dropped — no test constructs an
+  envelope where exactly one of the three legacy-shape conditions is false.
+- `Transport/PipeTransportBase.cs` (20 survived, plus 14 timeout — the highest
+  timeout count of any file) — the send-side (`data.Length > MaxMessageSize`, line
+  49) and receive-side (`messageLength <= 0 || messageLength > MaxMessageSize`, line
+  96) message-size caps both survive at their exact boundary. No test sends a
+  message of exactly `MaxMessageSize` bytes to prove the fence is where the code
+  says it is.
+- `Integrity/QuorumEvaluator.cs` (18 survived) — the bipartite-matching sentinel
+  `Array.Fill(slotToSig, -1)` (line 55) survives mutated to `Array.Fill(..., +1)`.
+  `+1` is a real, reachable signature index (not an obviously-invalid sentinel like
+  `-1`), so this is not cosmetic: no test exercises a case where a slot is genuinely
+  unmatched *and* signature index `1` exists, which would be needed to observe the
+  sentinel collision. This is the highest-priority finding in Engine.Protocol next
+  to the revocation-filter negate above, because a wrong sentinel could make the
+  quorum matcher misreport a slot as matched when it isn't. The negative-count
+  clamp `req.Count < 0 ? 0 : req.Count` (line 44) also survives with the clamp
+  removed — no test builds a `PolicyRule` with a negative `Count` requirement.
+
+**FalkForge.Signing.SignServer**
+
+- `EcdsaSignatureFormatConverter.cs` (9 survived) — the DER-vs-P1363 format sniff
+  `signature.Length >= 2 && signature[0] == 0x30` (line 32) survives with the `&&`
+  weakened to `||` and the `>= 2` narrowed to `> 2`. No test supplies a 1-byte or
+  exactly-2-byte signature starting with `0x30` to prove the length guard runs
+  before the `signature[1]` access it protects — in a file whose entire job is
+  resolving signature-format ambiguity, the ambiguous short-buffer case itself is
+  untested.
+- `SignServerSignatureProvider.cs` (12 survived) — the mTLS wiring guard
+  `config.AuthMode == SignServerAuthMode.ClientCert && config.ClientCertificate is
+  not null` (line 180) survives with the `&&` weakened to `||`. No test constructs
+  `AuthMode = ClientCert` with a null certificate, or a non-ClientCert mode carrying
+  a leftover certificate object, to prove the AND is load-bearing — worth a look
+  since an auth-mode/certificate mismatch is exactly the kind of confusion `Result<T>`
+  strong typing is supposed to prevent elsewhere in this codebase.
+
+**FalkForge.Engine.Elevation**
+
+- `Commands/MsiInstallCommand.cs` (11 survived) — `ValidateAdditionalArgs`'s own doc
+  comment calls it an injection guard ("A forged or misused peer must not be able to
+  inject an extra MSI property"), which makes its survivors the most concrete
+  finding in this project. `value.IndexOfAny(prohibited) >= 0` (line 150) survives
+  narrowed to `> 0`: a prohibited character at index 0 (the very first character of
+  the value) would no longer be rejected under the mutant, and no test supplies a
+  malicious value starting with a prohibited character to catch that. The embedded-
+  quote-smuggle guard (line 136, `i + 1 >= span.Length || span[i] != '=' ||
+  span[i + 1] != '"'`) has its own off-by-one arithmetic (`i - 1`) and boundary
+  (`i + 1 > span.Length`) survive similarly — the value-ends-exactly-at-buffer-end
+  edge case is unpinned.
+
+### How to re-run
+
+Re-run any of the above with `scripts/mutation.ps1` (see "How to run it" above) —
+e.g. `pwsh scripts/mutation.ps1 -TestProject FalkForge.Engine.Protocol.Tests
+-SourceProject FalkForge.Engine.Protocol`. Diff the new `mutation-report.json`
+against the ones referenced above to see whether a specific survivor got killed by
+a newly added test.
 
 ## Config set
 

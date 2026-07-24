@@ -104,7 +104,23 @@ if ($LASTEXITCODE -ne 0 -or -not $sdkVersion) {
     exit 1
 }
 
-$msbuildPath = Join-Path "C:\Program Files\dotnet\sdk" $sdkVersion "MSBuild.dll"
+# Resolve the dotnet install root portably instead of hardcoding the default Windows
+# path: prefer $env:DOTNET_ROOT when set, else derive it from the directory containing
+# whichever `dotnet` executable actually resolves on PATH, falling back to the default
+# "C:\Program Files\dotnet" only as a last resort (e.g. DOTNET_ROOT unset and Get-Command
+# somehow fails).
+if ($env:DOTNET_ROOT) {
+    $dotnetRoot = $env:DOTNET_ROOT
+} else {
+    $dotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
+    if ($dotnetCommand) {
+        $dotnetRoot = Split-Path $dotnetCommand.Source -Parent
+    } else {
+        $dotnetRoot = "C:\Program Files\dotnet"
+    }
+}
+
+$msbuildPath = Join-Path $dotnetRoot "sdk" $sdkVersion "MSBuild.dll"
 
 if (-not (Test-Path $msbuildPath)) {
     Write-Host "  Resolved SDK $sdkVersion but $msbuildPath does not exist." -ForegroundColor Red
