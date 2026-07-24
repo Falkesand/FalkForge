@@ -1,5 +1,15 @@
 {
   "stryker-config": {
-    "project": "FalkForge.Extensions.Util.csproj"
+    "project": "FalkForge.Extensions.Util.csproj",
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
+    "concurrency": 12,
+    "mutation-level": "Standard",
+    "reporters": ["cleartext", "progress", "json", "html"],
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    }
   }
 }
