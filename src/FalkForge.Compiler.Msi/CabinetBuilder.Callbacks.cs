@@ -12,23 +12,13 @@ public sealed partial class CabinetBuilder
 {
     // ── Callback implementations ────────────────────────────────────────
 
-    private nint CbAlloc(uint cb)
-    {
-        return Marshal.AllocHGlobal((int)cb);
-    }
-
-    private void CbFree(nint memory)
-    {
-        Marshal.FreeHGlobal(memory);
-    }
-
     private nint CbOpen(string pszFile, int oflag, int pmode, out int err, nint pv)
     {
         err = 0;
         try
         {
             // Map C-style open flags to .NET FileMode/FileAccess
-            var (mode, access) = MapOpenFlags(oflag);
+            var (mode, access) = CabinetCallbackShim.MapOpenFlags(oflag);
             var stream = new FileStream(pszFile, mode, access, FileShare.ReadWrite);
             var handle = (nint)_nextHandle++;
             _openStreams[handle] = stream;
@@ -263,39 +253,5 @@ public sealed partial class CabinetBuilder
     internal static ushort ToDosTime(DateTime dt)
     {
         return (ushort)((dt.Hour << 11) | (dt.Minute << 5) | (dt.Second / 2));
-    }
-
-    // ── C-style open flag mapping ───────────────────────────────────────
-
-    private static (FileMode mode, FileAccess access) MapOpenFlags(int oflag)
-    {
-        // C runtime flags: _O_RDONLY=0, _O_WRONLY=1, _O_RDWR=2
-        // _O_CREAT=0x100, _O_TRUNC=0x200, _O_BINARY=0x8000
-        const int oRdonly = 0x0000;
-        const int oWronly = 0x0001;
-        const int oRdwr = 0x0002;
-        const int oCreat = 0x0100;
-        const int oTrunc = 0x0200;
-
-        var accessMode = oflag & 0x0003;
-        var access = accessMode switch
-        {
-            oRdonly => FileAccess.Read,
-            oWronly => FileAccess.Write,
-            oRdwr => FileAccess.ReadWrite,
-            _ => FileAccess.ReadWrite
-        };
-
-        FileMode mode;
-        if ((oflag & oCreat) != 0 && (oflag & oTrunc) != 0)
-            mode = FileMode.Create;
-        else if ((oflag & oCreat) != 0)
-            mode = FileMode.OpenOrCreate;
-        else if ((oflag & oTrunc) != 0)
-            mode = FileMode.Truncate;
-        else
-            mode = FileMode.Open;
-
-        return (mode, access);
     }
 }

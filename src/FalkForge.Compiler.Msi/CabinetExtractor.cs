@@ -275,8 +275,8 @@ public sealed partial class CabinetExtractor : IDisposable
 
     private void InitializeCallbacks()
     {
-        _allocCallback = CbAlloc;
-        _freeCallback = CbFree;
+        _allocCallback = CabinetCallbackShim.Alloc;
+        _freeCallback = CabinetCallbackShim.Free;
         _openCallback = CbOpen;
         _readCallback = CbRead;
         _writeCallback = CbWrite;
