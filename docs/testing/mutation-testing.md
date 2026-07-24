@@ -88,8 +88,8 @@ that exit code.
 
 ## Reading the report
 
-Each run writes to `artifacts/mutation/<SourceProject>/<timestamp>/reports/`
-(the exact path is echoed at the end of the script run):
+Each run writes to `artifacts/mutation/<SourceProject>/reports/` (the exact path is
+echoed at the end of the script run):
 
 - `mutation-report.html` — open in a browser; per-file, per-mutant view with source
   overlay showing exactly which mutants survived and why.
@@ -109,31 +109,52 @@ project that has not been run end-to-end with this script — an unverified numb
 worse than no number.
 
 **2026-07-24 sweep** — 5 trust-critical projects, Stryker.NET 4.16.0, MTP runner,
-`coverage-analysis: perTest`, `concurrency: 12`, `mutation-level: Standard`:
+`coverage-analysis: perTest`, `concurrency: 12`, `mutation-level: Standard`. The
+documented behaviors above (MTP runner being preview, `--coverage-analysis` being
+config-file-only, the `--msbuild-path` workaround) were all verified against this
+exact `dotnet-stryker` 4.16.0. A future contributor running against a newer Stryker
+version should re-verify each of those before trusting them — none are guaranteed
+to still hold upstream:
 
 | Project | Score | Mutants created | Tested | Killed | Survived | Timeout | NoCoverage | Ignored | CompileError | Wall |
 |---|---|---|---|---|---|---|---|---|---|---|
 | FalkForge.Core | 80.17% | 4163 | 2831 | 2491 | 339 | 0 | 277 | 441 | 614 | 2m03s |
 | FalkForge.Compiler.Bundle | 68.27% | 1691 | 1047 | 802 | 240 | 5 | 135 | 217 | 292 | 5m40s |
-| FalkForge.Signing.SignServer | 64.96% | 165 | 137 | 88 | 25 | 1 | 23 | 15 | 13 | 0m16s |
+| FalkForge.Signing.SignServer | 64.96% | 165 | 114 | 88 | 25 | 1 | 23 | 15 | 13 | 0m16s |
 | FalkForge.Engine.Protocol | 57.75% | 2269 | 1319 | 919 | 366 | 31 | 329 | 285 | 336 | 4m53s |
 | FalkForge.Engine.Elevation | 48.37% | 628 | 294 | 237 | 56 | 1 | 198 | 94 | 42 | 0m41s |
 
 Every number above was cross-checked by re-parsing each `mutation-report.json`
 (counting mutant `status` values per project) rather than trusting the console
-transcript — the JSON's per-mutant `status` field is the ground truth. One row
-needed a real correction against the number that had been recorded here before this
-sweep: **FalkForge.Signing.SignServer's "Survived" figure was 48, but the JSON shows
-only 25 true `Survived` mutants plus 23 separate `NoCoverage` mutants (25 + 23 =
-48).** The original 48 conflated the two categories because the console's plain
-summary block does not print `NoCoverage` as its own line the way the other four
-projects' runs happened to have logged it; `Tested` (137 = Killed + Survived +
-Timeout + NoCoverage) and the 64.96% score itself were already correct and are
-unchanged. The other four projects' Survived/NoCoverage columns already matched the
-JSON exactly and needed no correction. `RuntimeError` mutants (1 in Core, 3 in
-Protocol) exist in the raw data but have no column here — they count toward `Tested`
-but are excluded from the score denominator, matching Stryker's own formula
-`(Killed + Timeout) / (Killed + Survived + Timeout + NoCoverage)`.
+transcript — the JSON's per-mutant `status` field is the ground truth for every
+column except `Wall`, which is console-only timing not present in the JSON schema
+and is taken from the console output as-is. `Tested` is defined consistently across
+every row in this table as `Killed + Survived + Timeout + RuntimeError`
+(`NoCoverage` is deliberately excluded — those mutants were never reached by a test,
+so they were not "tested").
+
+Two cells needed a real correction against what had been recorded here before this
+pass: **FalkForge.Signing.SignServer's `Survived` figure was originally 48**, but the
+JSON shows only 25 true `Survived` mutants plus 23 separate `NoCoverage` mutants
+(25 + 23 = 48) — the original 48 conflated the two categories because the console's
+plain summary block does not print `NoCoverage` as its own line the way the other
+four projects' runs happened to have logged it. That same conflation also corrupted
+**`Tested`, originally recorded as 137** — that number is `Killed + Survived[48] +
+Timeout + NoCoverage`, i.e. it double-counts the 23 `NoCoverage` mutants (once
+folded into the wrong `Survived` figure, once added again directly) and uses a
+different formula than the other four rows. Applying the same `Tested = Killed +
+Survived + Timeout + RuntimeError` formula as every other row gives the correct
+value: **114** (88 + 25 + 1 + 0). The 64.96% score itself was already correct and is
+unchanged — Stryker's score formula includes `NoCoverage` in its own denominator
+independently of the `Tested` column (see below), so the `Survived`/`Tested` bug
+never touched the score math. The other four projects' Survived/NoCoverage/Tested
+columns already matched the JSON exactly and needed no correction. `RuntimeError`
+mutants (1 in Core, 3 in Protocol) exist in the raw data but have no column here —
+they count toward `Tested` but are excluded from the score denominator, matching
+Stryker's own formula `(Killed + Timeout) / (Killed + Survived + Timeout +
+NoCoverage)`. Do not conflate the two formulas: `Tested` counts what tests actually
+exercised; the score denominator additionally counts `NoCoverage` because an
+unreached mutant still counts against the score.
 
 Known caveats — read before trusting any single number in isolation:
 
@@ -270,9 +291,13 @@ replacement text) lives in each run's `mutation-report.json`.
 
 Re-run any of the above with `scripts/mutation.ps1` (see "How to run it" above) —
 e.g. `pwsh scripts/mutation.ps1 -TestProject FalkForge.Engine.Protocol.Tests
--SourceProject FalkForge.Engine.Protocol`. Diff the new `mutation-report.json`
-against the ones referenced above to see whether a specific survivor got killed by
-a newly added test.
+-SourceProject FalkForge.Engine.Protocol`. The **tables and findings in this
+document are the durable record** — 4 of the 5 JSON reports behind this sweep lived
+in a temporary scratchpad directory that does not persist, and `artifacts/mutation/`
+is gitignored, so none of the original `mutation-report.json` files backing this
+sweep survive past the session that produced them. A re-run produces a fresh report;
+compare its numbers against the tables/findings recorded here, not against the
+original files (they are gone).
 
 ## Config set
 
@@ -286,3 +311,13 @@ these). `FalkForge.Integration.Tests` deliberately sets `"mutate": []` and zeroe
 thresholds: it tests across multiple assemblies rather than one 1:1 source project, so
 it is intentionally excluded from mutation (there is no single project to point
 Stryker at) rather than misconfigured.
+
+**Proven vs. unproven configs.** 19 `stryker-config.json` files exist under `tests/`.
+Only **5 have ever actually been run end-to-end**: `FalkForge.Core`,
+`FalkForge.Compiler.Bundle`, `FalkForge.Signing.SignServer`,
+`FalkForge.Engine.Protocol`, `FalkForge.Engine.Elevation` — those are the ones with
+real results in the table above. `FalkForge.Integration.Tests` is intentionally
+excluded (see above, not a mutation target). The remaining 13 configs share the same
+config shape but have **never been executed** — they are untested config shape, not
+verified results, and may fail the first time they are run (e.g. the same class of
+issue this document already documents for the `global.json` / Buildalyzer trap).

@@ -212,7 +212,10 @@ with additional external requirements still self-gate on those on top of the opt
 NuGet-consumer e2e needs the local feed produced by `scripts/pack.ps1`).
 See [`docs/testing/real-machine-verification.md`](docs/testing/real-machine-verification.md)
 for a full runbook (VM setup, exact commands, and the manual checklist for live paths that
-have no automated real-machine coverage yet).
+have no automated real-machine coverage yet). See also
+[`docs/testing/coverage-baseline.md`](docs/testing/coverage-baseline.md) (src-only line/branch
+coverage baseline) and [`docs/testing/mutation-testing.md`](docs/testing/mutation-testing.md)
+(mutation testing via Stryker.NET — measures test effectiveness, not just reach).
 
 A stuck test cannot hang the run indefinitely: every test project runs under the
 Microsoft.Testing.Platform hang-dump guard (see `tests/Directory.Build.props`), which
