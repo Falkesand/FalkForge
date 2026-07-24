@@ -8,7 +8,7 @@ using FalkForge.Platform.Windows;
 
 // ── Concrete adapters wrapping the static helpers for production DI wiring ────────────────────
 // These thin wrappers are the ONLY production implementations of the seam interfaces; tests use
-// fakes. All adapters are internal — they are only instantiated in Program.RunAsBootstrapper.
+// fakes. All adapters are internal — they are only instantiated in BootstrapperRunner.RunAsync.
 
 /// <summary>
 /// Production <see cref="IPreUIPrerequisiteDetector"/> that delegates to

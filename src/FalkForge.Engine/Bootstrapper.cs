@@ -3,7 +3,7 @@ namespace FalkForge.Engine;
 using FalkForge.Engine.Protocol;
 
 /// <summary>
-/// Helpers used by <c>Program.RunAsBootstrapper</c>. Extracted here so the argument-construction
+/// Helpers used by <c>BootstrapperRunner.RunAsync</c>. Extracted here so the argument-construction
 /// logic can be unit-tested without spawning real processes or named pipes.
 /// </summary>
 internal static class Bootstrapper

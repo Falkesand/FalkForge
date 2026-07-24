@@ -345,7 +345,7 @@ public sealed class PreUIBootstrapOrchestratorTests
         // The installer must have seen a cancelled token — not CancellationToken.None.
         Assert.True(installer.ReceivedToken.IsCancellationRequested,
             "Orchestrator must forward the caller's CancellationToken to the installer. " +
-            "Program.RunAsBootstrapper must pass cts.Token, not CancellationToken.None.");
+            "BootstrapperRunner.RunAsync must pass cts.Token, not CancellationToken.None.");
         Assert.Equal(PreUIBootstrapOutcome.ExitCancelled, outcome);
     }
 

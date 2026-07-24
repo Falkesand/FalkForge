@@ -10,7 +10,7 @@ using FalkForge.Engine.Protocol.Manifest;
 /// (<see cref="EngineTrustAnchor"/>), consulting the caller-supplied persisted trust state
 /// (anti-downgrade epoch + local revocations) on the require-signed path.
 ///
-/// <para>Extracted from <c>Program.RunAsBootstrapper</c> / <c>Program.VerifySignedPayloadTrust</c> so both
+/// <para>Extracted from <c>BootstrapperRunner.RunAsync</c> / <c>EnginePayloadTrust.VerifySignedPayloadTrust</c> so both
 /// call sites make the identical decision and the decision itself is unit-testable. The staged-update path
 /// (<see cref="StagedUpdateVerifier"/>) applies the same verification over a downloaded artifact before it
 /// is ever relaunched.</para>
