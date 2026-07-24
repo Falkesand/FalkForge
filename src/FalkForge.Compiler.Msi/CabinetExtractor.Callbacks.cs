@@ -10,21 +10,11 @@ public sealed partial class CabinetExtractor
 {
     // ── Callback implementations ────────────────────────────────────────
 
-    private static nint CbAlloc(uint cb)
-    {
-        return Marshal.AllocHGlobal((int)cb);
-    }
-
-    private static void CbFree(nint memory)
-    {
-        Marshal.FreeHGlobal(memory);
-    }
-
     private nint CbOpen(string pszFile, int oflag, int pmode)
     {
         try
         {
-            var (mode, access) = MapOpenFlags(oflag);
+            var (mode, access) = CabinetCallbackShim.MapOpenFlags(oflag);
             var stream = new FileStream(pszFile, mode, access, FileShare.Read);
             var handle = (nint)_nextInputHandle++;
             _openStreams[handle] = stream;
@@ -290,37 +280,5 @@ public sealed partial class CabinetExtractor
             _lastCallbackError = $"Notify failed (fdint={fdint}): {ex.Message}";
             return -1;
         }
-    }
-
-    // ── C-style open flag mapping ───────────────────────────────────────
-
-    private static (FileMode mode, FileAccess access) MapOpenFlags(int oflag)
-    {
-        const int oRdonly = 0x0000;
-        const int oWronly = 0x0001;
-        const int oRdwr = 0x0002;
-        const int oCreat = 0x0100;
-        const int oTrunc = 0x0200;
-
-        var accessMode = oflag & 0x0003;
-        var access = accessMode switch
-        {
-            oRdonly => FileAccess.Read,
-            oWronly => FileAccess.Write,
-            oRdwr => FileAccess.ReadWrite,
-            _ => FileAccess.ReadWrite
-        };
-
-        FileMode mode;
-        if ((oflag & oCreat) != 0 && (oflag & oTrunc) != 0)
-            mode = FileMode.Create;
-        else if ((oflag & oCreat) != 0)
-            mode = FileMode.OpenOrCreate;
-        else if ((oflag & oTrunc) != 0)
-            mode = FileMode.Truncate;
-        else
-            mode = FileMode.Open;
-
-        return (mode, access);
     }
 }
