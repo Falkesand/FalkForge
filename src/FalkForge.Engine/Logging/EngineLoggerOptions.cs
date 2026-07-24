@@ -28,7 +28,16 @@ public sealed record EngineLoggerOptions
     public int RetentionCount { get; init; } = 5;
 
     /// <summary>
-    /// Default options: no size rotation, keep 5 backups.
+    /// Deny-list of secret-indicating key tokens (case-insensitive substring match against a
+    /// property key) applied by <see cref="LogRedactor"/> before a log entry is built, so
+    /// secret-valued properties (passwords, tokens, connection strings, …) never reach the log
+    /// file or the pipe-callback sink. Defaults to <see cref="LogRedactor.DefaultSecretKeyTokens"/>.
+    /// Pass an empty list to disable redaction entirely.
+    /// </summary>
+    public IReadOnlyList<string> RedactionKeyTokens { get; init; } = LogRedactor.DefaultSecretKeyTokens;
+
+    /// <summary>
+    /// Default options: no size rotation, keep 5 backups, default redaction deny-list.
     /// </summary>
     public static EngineLoggerOptions Default { get; } = new();
 }

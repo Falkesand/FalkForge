@@ -841,4 +841,127 @@ public sealed class EngineLoggerTests : IDisposable
 
         Assert.Equal(string.Empty, File.ReadAllText(path));
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Property redaction (assessment P2): secret-keyed property VALUES must never
+    // reach the on-disk log file or the pipe-callback sink. See LogRedactor.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("Password")]
+    [InlineData("ApiKey")]
+    [InlineData("SignServerToken")]
+    public void Log_SecretKeyedProperty_ValueMaskedInFile(string secretKey)
+    {
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { [secretKey] = "hunter2" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Info, "Cat", "Msg", props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Contains($"\"{secretKey}\":\"***REDACTED***\"", json);
+        Assert.DoesNotContain("hunter2", json);
+    }
+
+    [Theory]
+    [InlineData("PublicKeyThumbprint")]
+    [InlineData("KeyId")]
+    [InlineData("KeyName")]
+    public void Log_BenignKeyResemblingSecretToken_ValueNotMasked(string benignKey)
+    {
+        // WHY: guard against over-masking. "KeyId"/"KeyName"/"PublicKeyThumbprint" are
+        // benign identifiers, not secrets — the deny-list must not match on bare "key".
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { [benignKey] = "ABCD1234" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Info, "Cat", "Msg", props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Contains($"\"{benignKey}\":\"ABCD1234\"", json);
+    }
+
+    [Fact]
+    public void Log_NonSecretProperties_FormatUnchanged()
+    {
+        // WHY: redaction must be a strict no-op passthrough for entries with no
+        // secret-keyed properties — existing format/escaping assertions must stay green.
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { ["PackageId"] = "MyApp" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Info, "Install", "Installing package", props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Equal("{\"PackageId\":\"MyApp\"}", json);
+    }
+
+    [Theory]
+    [InlineData("PASSWORD")]
+    [InlineData("password")]
+    [InlineData("Secret")]
+    public void Log_SecretKeyedProperty_CaseInsensitiveMatch(string secretKey)
+    {
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { [secretKey] = "hunter2" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Info, "Cat", "Msg", props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Contains($"\"{secretKey}\":\"***REDACTED***\"", json);
+        Assert.DoesNotContain("hunter2", json);
+    }
+
+    [Fact]
+    public void Log_WithExceptionOverload_SecretKeyedProperty_ValueMasked()
+    {
+        // WHY: the Exception? overload merges caller properties then delegates through
+        // the same funnel — redaction must apply there too, not just the 4-arg path.
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { ["Password"] = "hunter2" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Error, "Cat", "Failed", new InvalidOperationException("boom"), props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Contains("\"Password\":\"***REDACTED***\"", json);
+        Assert.DoesNotContain("hunter2", json);
+    }
+
+    [Fact]
+    public void PipeCallback_SecretKeyedProperty_ValueMaskedInCapturedEntry()
+    {
+        // WHY: redaction happens once, before LogEntry construction, so both the file
+        // sink and the pipe-callback sink (used to forward entries to the UI) see the
+        // same masked value — proves there's no unmasked path via the pipe.
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { ["Password"] = "hunter2" };
+        LogEntry? captured = null;
+
+        using (var logger = new EngineLogger(path, entry => captured = entry))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Info, "Cat", "Msg", props);
+        }
+
+        Assert.NotNull(captured);
+        Assert.Equal("***REDACTED***", captured!.Value.Properties!["Password"]);
+    }
 }
