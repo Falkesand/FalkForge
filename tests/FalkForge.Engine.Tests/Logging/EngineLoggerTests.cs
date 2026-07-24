@@ -863,7 +863,7 @@ public sealed class EngineLoggerTests : IDisposable
         }
 
         var json = File.ReadAllLines(path)[0].Split('\t')[4];
-        Assert.Contains($"\"{secretKey}\":\"***REDACTED***\"", json);
+        Assert.Contains($"\"{secretKey}\":\"{LogRedactor.RedactedValue}\"", json);
         Assert.DoesNotContain("hunter2", json);
     }
 
@@ -922,7 +922,7 @@ public sealed class EngineLoggerTests : IDisposable
         }
 
         var json = File.ReadAllLines(path)[0].Split('\t')[4];
-        Assert.Contains($"\"{secretKey}\":\"***REDACTED***\"", json);
+        Assert.Contains($"\"{secretKey}\":\"{LogRedactor.RedactedValue}\"", json);
         Assert.DoesNotContain("hunter2", json);
     }
 
@@ -941,7 +941,7 @@ public sealed class EngineLoggerTests : IDisposable
         }
 
         var json = File.ReadAllLines(path)[0].Split('\t')[4];
-        Assert.Contains("\"Password\":\"***REDACTED***\"", json);
+        Assert.Contains($"\"Password\":\"{LogRedactor.RedactedValue}\"", json);
         Assert.DoesNotContain("hunter2", json);
     }
 
@@ -962,6 +962,6 @@ public sealed class EngineLoggerTests : IDisposable
         }
 
         Assert.NotNull(captured);
-        Assert.Equal("***REDACTED***", captured!.Value.Properties!["Password"]);
+        Assert.Equal(LogRedactor.RedactedValue, captured!.Value.Properties!["Password"]);
     }
 }
