@@ -49,83 +49,18 @@ internal static partial class Program
 
         var programArgs = argsResult.Value;
 
-        string? pipeName = null;
-        string? secretPipeName = null;
-        string? manifestPath = null;
-        var planOnly = false;
-        string? planOutputPath = null;
-        string? sbomOutputPath = null;
-        string? extractDir = null;
-        var extractList = false;
-        var extractPackages = new List<string>();
-        string? baseBundlePath = null;
-        // Set by the update launcher (DefaultUpdateLauncher) when it relaunches a downloaded update
-        // bundle. On this path a signature is mandatory (C14 Stage 2 / B2): a stripped/unsigned or
-        // untrusted-signed update is rejected before any payload is extracted or executed. A fresh
-        // install never receives this flag, so an unsigned bundle the user chose to run still installs.
-        var requireSigned = false;
-
-        for (var i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
-            {
-                case "--pipe":
-                    if (i + 1 < args.Length) pipeName = args[++i];
-                    break;
-                case "--secret-pipe":
-                    secretPipeName = args[++i];
-                    break;
-                // SECURITY: DEPRECATED — --secret is accepted for backward compatibility but the
-                // value is discarded. The engine uses the init-pipe pattern (like Engine.Elevation)
-                // to receive secrets over a short-lived pipe instead of command-line arguments,
-                // which are visible in process listings and event logs.
-                case "--secret":
-                    if (i + 1 < args.Length) _ = args[++i]; // consume and discard
-                    break;
-                case "--manifest":
-                    if (i + 1 < args.Length) manifestPath = args[++i];
-                    break;
-                case "--plan-only":
-                    planOnly = true;
-                    break;
-                case "--plan-output":
-                    if (i + 1 < args.Length) planOutputPath = args[++i];
-                    break;
-                case "--sbom":
-                    if (i + 1 < args.Length) sbomOutputPath = args[++i];
-                    break;
-                case "--extract":
-                    extractDir = args[++i];
-                    break;
-                case "--extract-list":
-                    extractList = true;
-                    break;
-                case "--package":
-                    extractPackages.Add(args[++i]);
-                    break;
-                // Path to the previously-installed (base) bundle, supplied by the update launcher
-                // when relaunching a delta update. Delta payloads are reconstructed against this
-                // base bundle's payloads; without it a delta payload cannot be applied.
-                case "--base-bundle":
-                    if (i + 1 < args.Length) baseBundlePath = args[++i];
-                    break;
-                // Asserted by the update launcher for a downloaded update bundle: require a valid,
-                // trusted signature before extracting or executing any payload (C14 Stage 2 / B2).
-                case "--require-signed":
-                    requireSigned = true;
-                    break;
-                // Logging flags are parsed by ProgramArgs.Parse above. Consume their
-                // values here so the inline parser does not mistake the value for a
-                // standalone flag on the next iteration.
-                case "--log":
-                case "/log":
-                case "/L":
-                case "--log-level":
-                case "/lv":
-                    if (i + 1 < args.Length) i++;
-                    break;
-            }
-        }
+        var inv = EngineInvocationArgs.Parse(args);
+        var pipeName = inv.PipeName;
+        var secretPipeName = inv.SecretPipeName;
+        var manifestPath = inv.ManifestPath;
+        var planOnly = inv.PlanOnly;
+        var planOutputPath = inv.PlanOutputPath;
+        var sbomOutputPath = inv.SbomOutputPath;
+        var extractDir = inv.ExtractDir;
+        var extractList = inv.ExtractList;
+        var extractPackages = inv.ExtractPackages;
+        var baseBundlePath = inv.BaseBundlePath;
+        var requireSigned = inv.RequireSigned;
 
         // Self-extraction mode: list or extract payloads and exit
         if (extractList || extractDir is not null)
