@@ -964,4 +964,59 @@ public sealed class EngineLoggerTests : IDisposable
         Assert.NotNull(captured);
         Assert.Equal(LogRedactor.RedactedValue, captured!.Value.Properties!["Password"]);
     }
+
+    [Fact]
+    public void Log_RedactionTokenListMutatedAfterConstruction_StillMasksUsingFrozenSnapshot()
+    {
+        // WHY (CodeRabbit finding B): EngineLoggerOptions.RedactionKeyTokens is a live
+        // IReadOnlyList<string> view over a caller-owned List<string>. If the logger read it
+        // fresh on every Log() call, a caller could clear it after construction to silently
+        // disable redaction (or mutate it concurrently and throw mid-enumeration on the log
+        // path). The logger must snapshot the tokens once, in the constructor.
+        var path = GetLogPath();
+        var tokens = new List<string> { "password" };
+        var options = new EngineLoggerOptions { RedactionKeyTokens = tokens };
+        var props = new Dictionary<string, string> { ["Password"] = "hunter2" };
+
+        using (var logger = new EngineLogger(path, options: options))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+
+            // Mutate the caller-owned list AFTER construction — the frozen snapshot inside
+            // the logger must be unaffected.
+            tokens.Clear();
+
+            logger.Log(LogLevel.Info, "Cat", "Msg", props);
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.Contains($"\"Password\":\"{LogRedactor.RedactedValue}\"", json);
+        Assert.DoesNotContain("hunter2", json);
+    }
+
+    [Fact]
+    public void Log_PropertiesDictionaryMutatedAfterLogReturns_DoesNotLeakIntoWrittenEntry()
+    {
+        // WHY (CodeRabbit finding C): entries are queued and flushed asynchronously (on the
+        // next threshold flush or on Dispose), so LogRedactor.Redact must hand back a
+        // point-in-time snapshot rather than the caller's live dictionary — otherwise a secret
+        // added to that same dictionary after Log() returns, but before the flush writes the
+        // entry, would appear in the persisted log unredacted.
+        var path = GetLogPath();
+        var props = new Dictionary<string, string> { ["PackageId"] = "MyApp" };
+
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Log(LogLevel.Info, "Cat", "Msg", props);
+
+            // Mutate AFTER Log() returns but before Dispose() flushes — this dictionary
+            // reference must not be the one the entry was built from.
+            props["Password"] = "hunter2";
+        }
+
+        var json = File.ReadAllLines(path)[0].Split('\t')[4];
+        Assert.DoesNotContain("hunter2", json);
+        Assert.DoesNotContain("Password", json);
+    }
 }

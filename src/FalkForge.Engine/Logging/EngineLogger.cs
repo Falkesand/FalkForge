@@ -37,6 +37,12 @@ public sealed class EngineLogger : IFalkLogger
     private readonly string _currentFilePath;
     private readonly Action<LogEntry>? _pipeCallback;
     private readonly EngineLoggerOptions _options;
+    // WHY: snapshotted at construction time (not read live from _options.RedactionKeyTokens)
+    // so a caller cannot mutate/clear the underlying list post-construction to silently
+    // disable redaction, and so concurrent mutation of a caller-owned List<string> can never
+    // throw mid-enumeration on the log path. Matching is substring-based, so a plain array is
+    // sufficient — a FrozenSet would not speed up substring lookups.
+    private readonly string[] _redactionTokens;
     private readonly object _flushLock = new();
     // WHY: Track bytes written ourselves rather than calling BaseStream.Length/Position,
     // which can behave unexpectedly on write-only FileStream handles on some platforms.
@@ -75,6 +81,7 @@ public sealed class EngineLogger : IFalkLogger
     {
         _currentFilePath = Path.GetFullPath(filePath);
         _options = options ?? EngineLoggerOptions.Default;
+        _redactionTokens = [.. _options.RedactionKeyTokens ?? []];
         _pipeCallback = pipeCallback;
 
         var directory = Path.GetDirectoryName(_currentFilePath);
@@ -124,7 +131,9 @@ public sealed class EngineLogger : IFalkLogger
         // Mask secret-keyed property values before the entry is built, so both the file writer
         // below and the pipe-callback fork see only the redacted values (props-only; message is
         // a pre-formatted opaque string — see LogRedactor's XML doc for that limitation).
-        properties = LogRedactor.Redact(properties, _options.RedactionKeyTokens);
+        // Uses the frozen _redactionTokens snapshot (not the live _options.RedactionKeyTokens),
+        // so the redaction policy is immutable once the logger is constructed.
+        properties = LogRedactor.Redact(properties, _redactionTokens);
 
         var entry = new LogEntry(DateTimeOffset.UtcNow, level, category, message, properties, SessionCorrelationId);
 

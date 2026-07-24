@@ -34,10 +34,17 @@ internal static class LogRedactor
     public const string RedactedValue = "***REDACTED***";
 
     /// <summary>
-    /// Default deny-list of secret-indicating key tokens (matched case-insensitively as a
-    /// substring of the property key). Compound tokens only — deliberately excludes bare
-    /// "key" or "auth", which would over-mask benign keys such as <c>PublicKeyThumbprint</c>,
-    /// <c>KeyId</c>, <c>KeyName</c>, or <c>AuthorName</c>.
+    /// Default deny-list of secret-indicating key tokens, in compact lowercase form (no
+    /// separators). Compound tokens only — deliberately excludes bare "key" or "auth", which
+    /// would over-mask benign keys such as <c>PublicKeyThumbprint</c>, <c>KeyId</c>,
+    /// <c>KeyName</c>, or <c>AuthorName</c>.
+    /// <para>
+    /// Matching normalizes the property key (strip <c>-</c>, <c>_</c>, whitespace; lowercase)
+    /// before testing for a substring match, so hyphenated/underscored/mixed-case variants such
+    /// as <c>api-key</c>, <c>connection_string</c>, or <c>Private-Key</c> are still caught by
+    /// the compact <c>apikey</c> / <c>connectionstring</c> / <c>privatekey</c> tokens below —
+    /// there is no need for separate separator-variant entries.
+    /// </para>
     /// </summary>
     public static readonly IReadOnlyList<string> DefaultSecretKeyTokens =
     [
@@ -48,9 +55,7 @@ internal static class LogRedactor
         "token",
         "credential",
         "apikey",
-        "api_key",
         "privatekey",
-        "private_key",
         "passphrase",
         "authorization",
         "bearer",
@@ -61,10 +66,16 @@ internal static class LogRedactor
     ];
 
     /// <summary>
-    /// Returns <paramref name="properties"/> unchanged (same instance, no allocation) when there
-    /// is nothing to redact. Otherwise returns a new dictionary with any value whose key contains
-    /// (case-insensitive) a token from <paramref name="secretKeyTokens"/> replaced by
-    /// <see cref="RedactedValue"/>; all other entries are copied as-is.
+    /// Returns <paramref name="properties"/> unchanged when there is nothing to redact
+    /// (<see langword="null"/>, empty, or an empty <paramref name="secretKeyTokens"/> deny-list —
+    /// the latter is the documented opt-out). Otherwise <strong>always</strong> returns a new
+    /// dictionary — a point-in-time snapshot of <paramref name="properties"/> with any value
+    /// whose normalized key contains a token from <paramref name="secretKeyTokens"/> replaced by
+    /// <see cref="RedactedValue"/>, and all other entries copied as-is. Snapshotting on both the
+    /// match and no-match path (not just the match path) matters because the caller's
+    /// dictionary reference could otherwise be mutated after this call returns but before the
+    /// entry reaches the log sink (the write is queued and flushed asynchronously) — see
+    /// <see cref="EngineLogger.Log(LogLevel, string, string, IReadOnlyDictionary{string, string}?)"/>.
     /// </summary>
     public static IReadOnlyDictionary<string, string>? Redact(
         IReadOnlyDictionary<string, string>? properties,
@@ -85,17 +96,43 @@ internal static class LogRedactor
             redacted[kvp.Key] = RedactedValue;
         }
 
-        return redacted ?? properties;
+        // Always hand back a fresh copy — even when no key matched — so the caller's live
+        // dictionary reference is never stored in the (async-flushed) log entry.
+        return redacted ?? new Dictionary<string, string>(properties);
     }
 
     private static bool ContainsSecretToken(string key, IReadOnlyList<string> secretKeyTokens)
     {
+        var normalizedKey = NormalizeKey(key);
+
         foreach (var token in secretKeyTokens)
         {
-            if (key.Contains(token, StringComparison.OrdinalIgnoreCase))
+            if (normalizedKey.Contains(NormalizeKey(token), StringComparison.Ordinal))
                 return true;
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Lowercases <paramref name="value"/> and strips <c>-</c>, <c>_</c>, and whitespace, so
+    /// that separator/case variants of the same logical key (e.g. <c>api-key</c>,
+    /// <c>API_KEY</c>, <c>ApiKey</c>) all normalize to the same compact form (<c>apikey</c>)
+    /// before substring matching.
+    /// </summary>
+    private static string NormalizeKey(string value)
+    {
+        Span<char> buffer = value.Length <= 128 ? stackalloc char[value.Length] : new char[value.Length];
+        var count = 0;
+
+        foreach (var c in value)
+        {
+            if (c is '-' or '_' || char.IsWhiteSpace(c))
+                continue;
+
+            buffer[count++] = char.ToLowerInvariant(c);
+        }
+
+        return new string(buffer[..count]);
     }
 }
