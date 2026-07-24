@@ -57,7 +57,6 @@ public sealed class DotNetExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(new DotNetLaunchConditionContributor(plans));
     }
 
-#pragma warning disable CA1822 // Factory method intentionally instance-based
     public DotNetCoreSearchBuilder SearchForRuntime()
     {
         return new DotNetCoreSearchBuilder();

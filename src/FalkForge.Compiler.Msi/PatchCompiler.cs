@@ -13,7 +13,6 @@ namespace FalkForge.Compiler.Msi;
 ///     For production MSP files, the transform should be fed into a patch creation package (PCP).
 /// </summary>
 [SupportedOSPlatform("windows")]
-#pragma warning disable CA1822 // Stateless compiler; instance method for future extensibility
 public sealed class PatchCompiler
 {
     public Result<string> Compile(PatchModel patch, string outputPath)

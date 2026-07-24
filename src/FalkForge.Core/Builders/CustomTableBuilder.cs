@@ -1,8 +1,6 @@
 using System.Text.RegularExpressions;
 using FalkForge.Models;
 
-#pragma warning disable SYSLIB1045 // Regex is compiled; GeneratedRegex requires partial class restructuring
-
 namespace FalkForge.Builders;
 
 public sealed class CustomTableBuilder

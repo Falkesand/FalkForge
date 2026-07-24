@@ -8,7 +8,6 @@ using FalkForge.Engine.Protocol.Manifest;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
-#pragma warning disable CA1822 // Stateless service class; instance method for future extensibility
 public sealed class PayloadEmbedder
 {
     private const int CopyBufferSize = 64 * 1024;

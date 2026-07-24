@@ -93,10 +93,8 @@ internal static class NativeTaskDialogMethods
     /// <see cref="TaskDialogProgress"/>. All fields must be in declaration order
     /// to match the native layout (Sequential, Pack=4 on all Windows targets).
     /// </summary>
-#pragma warning disable S101 // TASKDIALOGCONFIG matches the Windows SDK name verbatim; renaming would break readability
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 4)]
     internal struct TASKDIALOGCONFIG
-#pragma warning restore S101
     {
         public uint cbSize;
         public nint hwndParent;
