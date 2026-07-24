@@ -81,10 +81,32 @@ Write-Host ""
 
 # Sanity check: -CoverageAnalysis cannot be forwarded to the CLI (see header comment),
 # so warn loudly if the config file this run will actually use disagrees with it.
+# Both lookups go through .PSObject.Properties[...] rather than dot-access because
+# Set-StrictMode -Version Latest throws "The property '...' cannot be found on this
+# object" on a missing key under dot-access (reproduced against
+# tests/FalkForge.Integration.Tests/stryker-config.json, which has no
+# "coverage-analysis" key) — a config lacking the key should warn or skip, not crash.
 $config = Get-Content $configFile -Raw | ConvertFrom-Json
-$configuredCoverageAnalysis = $config.'stryker-config'.'coverage-analysis'
+$strykerConfigSection = $config.'stryker-config'
+
+$configuredCoverageAnalysis = $null
+if ($strykerConfigSection.PSObject.Properties['coverage-analysis']) {
+    $configuredCoverageAnalysis = $strykerConfigSection.'coverage-analysis'
+}
 if ($configuredCoverageAnalysis -and $configuredCoverageAnalysis -ne $CoverageAnalysis) {
     Write-Host "  WARNING: $configFile sets coverage-analysis='$configuredCoverageAnalysis', which differs from -CoverageAnalysis '$CoverageAnalysis'. The config file wins — dotnet-stryker has no CLI flag for this setting." -ForegroundColor Yellow
+} elseif (-not $configuredCoverageAnalysis) {
+    Write-Host "  NOTE: $configFile has no 'coverage-analysis' key — Stryker will use its own default, not -CoverageAnalysis '$CoverageAnalysis'." -ForegroundColor Yellow
+}
+
+# Sanity check: make sure -SourceProject actually matches the project this config
+# mutates, so results never get filed under the wrong project name.
+$configuredProject = $null
+if ($strykerConfigSection.PSObject.Properties['project']) {
+    $configuredProject = $strykerConfigSection.'project'
+}
+if ($configuredProject -and $configuredProject -ne "$SourceProject.csproj") {
+    Write-Host "  WARNING: $configFile sets project='$configuredProject', which does not match -SourceProject '$SourceProject' (expected '$SourceProject.csproj'). Results may land under the wrong project name — verify -SourceProject before trusting the output path." -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------------------------
@@ -151,8 +173,10 @@ try {
 
 Write-Host ""
 
-# Stryker nests its reports under a timestamped subfolder of -O/--output, so search
-# recursively rather than assuming a fixed depth.
+# With an explicit --output, Stryker writes reports directly under
+# <Output>/reports/ (no timestamped subfolder) — but search recursively anyway rather
+# than assuming a fixed depth, since that has not been verified across every Stryker
+# version/config combination.
 $jsonReport = Get-ChildItem -Path $Output -Filter "mutation-report.json" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 $htmlReport = Get-ChildItem -Path $Output -Filter "mutation-report.html" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 
@@ -162,8 +186,10 @@ if ($htmlReport) {
 if ($jsonReport) {
     Write-Host "  JSON report : $($jsonReport.FullName)"
 }
-if (-not $htmlReport -and -not $jsonReport) {
-    Write-Host "  No mutation-report.{json,html} found under $Output — check the console output above for the mutation score." -ForegroundColor Yellow
+
+$noReportFound = -not $htmlReport -and -not $jsonReport
+if ($noReportFound) {
+    Write-Host "  No mutation-report.{json,html} found under $Output." -ForegroundColor Red
 }
 
 Write-Host ""
@@ -172,6 +198,14 @@ Write-Host "The mutation score itself is printed by dotnet-stryker's own reporte
 if ($strykerExit -ne 0) {
     Write-Host "Mutation run complete — dotnet-stryker exited $strykerExit." -ForegroundColor Red
     exit $strykerExit
+}
+
+# Fail loud rather than silently "succeeding": dotnet-stryker exiting 0 with zero
+# mutants/no report is exactly the "No project found" silent-failure shape documented
+# above (the global.json / Buildalyzer trap) — never let that read as a clean run.
+if ($noReportFound) {
+    Write-Host "Mutation run FAILED — dotnet-stryker exited 0 but produced no report. This is the silent-success shape of the 'No project found' / Buildalyzer trap documented above; check the console output for 'No project found' or zero mutants created." -ForegroundColor Red
+    exit 1
 }
 
 Write-Host "Mutation run complete." -ForegroundColor Green

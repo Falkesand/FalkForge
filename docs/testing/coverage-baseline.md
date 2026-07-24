@@ -50,8 +50,27 @@ this local default-gated run is recorded below.
 |---|---|---|---|---|---|---|
 | 2026-07-24 | 77.3% (58,864 / 76,114) | 70.9% (19,625 / 27,656) | 78.3% (5,413 / 6,909) | 60.1% (4,156 / 6,909) | 28 | 1,168 |
 
-Delta vs the 2026-07-09 baseline (same script, same default gating): **line 76.07% →
-77.3% (+1.2pp)**, **branch 68.79% → 70.9% (+2.1pp)**.
+Delta vs the **2026-07-20 refresh** (same script, same default gating, same
+`-assemblyfilters`, 28 src assemblies both times — the true like-for-like baseline):
+**line 78.3% → 77.3% (−1.0pp)**, **branch 71.9% → 70.9% (−1.0pp)**. This is a decline,
+not an improvement — say so plainly rather than calling it "essentially flat."
+
+Context that makes the decline interpretable: coverable lines grew 69,893 → 76,114
+(+6,221) between the two runs, while covered lines grew only 54,727 → 58,864 (+4,137).
+That means the ~6,221 lines added since 2026-07-20 landed at roughly **66.5%** line
+coverage (4,137 / 6,221) — below the 78.3% average of the code that existed before, so
+the aggregate percentage drops even though the absolute number of covered lines went
+up. The same pattern holds for branches: coverable branches grew 25,102 → 27,656
+(+2,554), covered branches grew only 18,073 → 19,625 (+1,552), i.e. new branches landed
+at roughly **60.8%** (1,552 / 2,554) versus the prior 71.9% average. Some of that new,
+under-tested code is visible directly in the hot-spot list below — e.g.
+`BootstrapperRunner` at 0%, extracted during the Program.cs decomposition and exercised
+only by the opt-in E2E suites, not unit tests.
+
+The 2026-07-09 baseline (line 76.07% / branch 68.79%, 27 assemblies) is kept below only
+as a historical data point — it was a **full-suite run with `FALKFORGE_E2E=1`**, so it
+is not gating-comparable to either the 2026-07-20 or 2026-07-24 runs above and must not
+be used for delta math.
 
 ## Per-assembly line/branch coverage
 
