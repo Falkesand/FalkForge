@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace FalkForge.Compiler.Msi.Interop;
 
@@ -9,6 +10,7 @@ namespace FalkForge.Compiler.Msi.Interop;
 ///     between the two sides (extra FCI <c>out int err, nint pv</c> parameters, distinct error
 ///     channels, FileShare modes, and handle counters) and must NOT be merged.
 /// </summary>
+[SupportedOSPlatform("windows")]
 internal static class CabinetCallbackShim
 {
     internal static nint Alloc(uint cb)
