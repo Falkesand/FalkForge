@@ -155,7 +155,7 @@ internal static partial class Program
         }
 
         // Bootstrapper mode: if we ARE the bundle, extract and orchestrate
-        if (manifestPath is null && HasEmbeddedBundle())
+        if (manifestPath is null && EngineProgramHelpers.HasEmbeddedBundle())
         {
             var bootstrapperArgs = BootstrapperArgs.Parse(args);
             return await RunAsBootstrapper(programArgs, bootstrapperArgs, baseBundlePath, requireSigned);
@@ -176,7 +176,7 @@ internal static partial class Program
                 var json = await File.ReadAllBytesAsync(manifestPath);
                 var manifest = JsonSerializer.Deserialize(json, LayoutJsonContext.Default.InstallerManifest)
                                ?? throw new InvalidOperationException("Manifest deserialized to null.");
-                return ExtractSbom(manifest, sbomOutputPath);
+                return EngineProgramHelpers.ExtractSbom(manifest, sbomOutputPath);
             }
             catch (Exception ex)
             {
@@ -250,46 +250,7 @@ internal static partial class Program
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(cts.Token);
-        return ToExitCode(outcome.State);
-    }
-
-    /// <summary>
-    /// Maps a terminal engine state to the process exit code the bootstrapper and the
-    /// direct-manifest path both return. Single-sourced so the two run paths can never drift.
-    /// </summary>
-    private static int ToExitCode(EngineTerminalState state) => state switch
-    {
-        EngineTerminalState.Completed  => 0,
-        EngineTerminalState.Cancelled  => 2,
-        EngineTerminalState.RolledBack => 3,
-        EngineTerminalState.Failed     => 1,
-        _                              => 1
-    };
-
-    /// <summary>
-    /// Extracts the SBOM attestation from an installer manifest to a file.
-    /// Returns 0 on success, 1 if no SBOM is available.
-    /// </summary>
-    private static int ExtractSbom(InstallerManifest manifest, string outputPath)
-    {
-        if (manifest.SbomAttestation is null)
-        {
-            Console.Error.WriteLine("No SBOM available in this installer.");
-            return 1;
-        }
-
-        File.WriteAllText(outputPath, manifest.SbomAttestation);
-        Console.WriteLine($"SBOM written to {outputPath}");
-        return 0;
-    }
-
-    /// <summary>
-    /// Checks whether the current process executable has an embedded FALKBUNDLE footer.
-    /// </summary>
-    private static bool HasEmbeddedBundle()
-    {
-        var exePath = Environment.ProcessPath;
-        return exePath is not null && BundleReader.HasBundleFooter(exePath);
+        return EngineProgramHelpers.ToExitCode(outcome.State);
     }
 
     /// <summary>
@@ -603,7 +564,7 @@ internal static partial class Program
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
 
-        return ToExitCode(outcome.State);
+        return EngineProgramHelpers.ToExitCode(outcome.State);
     }
 
     /// <summary>
