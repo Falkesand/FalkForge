@@ -215,4 +215,112 @@ public sealed class SignedPayloadTocVerifierQuorumTests
         Assert.True(result.IsFailure);
         Assert.Contains("INT010", result.Error.Message, StringComparison.Ordinal);
     }
+
+    // ── DropRevoked filter direction (highest-priority mutation-testing finding) ──────────────
+    //
+    // DropRevoked (SignedPayloadTocVerifier private helper) strips locally-revoked fingerprints from
+    // the collected signature set BEFORE the quorum evaluator ever sees it. A negated filter ("keep
+    // ONLY revoked signatures") passes the existing suite because every prior revocation test uses
+    // same-role signers, where dropping-the-revoked-one and keeping-only-the-revoked-one both end up
+    // short of the same threshold. These tests use signers with DISJOINT roles so the quorum OUTCOME
+    // itself flips depending on which signer survives the filter — that is what makes the filter's
+    // direction observable.
+
+    // An Update rule that needs exactly one Recovery-rostered signer (Release alone does not satisfy
+    // it), so the outcome depends on which of two disjoint-role signers survives DropRevoked.
+    private static IReadOnlyDictionary<OperationKind, PolicyRule> RecoveryOnlyUpdateTable()
+        => new Dictionary<OperationKind, PolicyRule>
+        {
+            [OperationKind.Install] = new([new RoleRequirement(TrustRole.Release, 1)], 1),
+            [OperationKind.Update] = new([new RoleRequirement(TrustRole.Recovery, 1)], 1),
+            [OperationKind.KeyChange] = BakedTrustPolicy.Default[OperationKind.KeyChange],
+            [OperationKind.Downgrade] = BakedTrustPolicy.Default[OperationKind.Downgrade],
+            [OperationKind.Revoke] = BakedTrustPolicy.Default[OperationKind.Revoke],
+        };
+
+    [Fact]
+    public void QuorumPath_RevokedSignerDropped_SurvivingCoSignerSatisfiesQuorum()
+    {
+        // k1 (revoked) holds ONLY Release; k2 (still trusted) holds ONLY Recovery. The Update rule
+        // needs a Recovery signer. Dropping the revoked k1 correctly leaves k2 (Recovery) — quorum is
+        // satisfied. A negated filter would keep ONLY k1 (Release) and drop k2, so the Recovery
+        // requirement would go unmet and this would fail instead.
+        using var k1Revoked = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var k2Good = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(epoch: 0, k1Revoked, k2Good);
+        var revoked = new HashSet<string>(new[] { Fingerprint(k1Revoked) }, StringComparer.OrdinalIgnoreCase);
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, [Toc()], TrustSet(k1Revoked, k2Good), requireSigned: true, storedEpoch: 0,
+            revokedFingerprints: revoked,
+            policyTable: RecoveryOnlyUpdateTable(),
+            roles: Roles((k1Revoked, TrustRole.Release), (k2Good, TrustRole.Recovery)));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void QuorumPath_EmptyRevokedSet_KeepsEverySignature_TwoReleaseThresholdMet()
+    {
+        // An empty (non-null) revoked set must be a no-op: DropRevoked's short-circuit returns the
+        // input list unchanged, so a genuine two-distinct-release quorum still satisfies exactly as it
+        // would with revokedFingerprints: null.
+        using var k1 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var k2 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(epoch: 0, k1, k2);
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, [Toc()], TrustSet(k1, k2), requireSigned: true, storedEpoch: 0,
+            revokedFingerprints: new HashSet<string>(StringComparer.OrdinalIgnoreCase), // empty, not null
+            policyTable: TwoReleaseTable(),
+            roles: Roles((k1, TrustRole.Release), (k2, TrustRole.Release)));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void QuorumPath_AllTrustedSignaturesRevoked_FailsThreshold_Int010()
+    {
+        // Every trusted signer is locally revoked: DropRevoked must strip all of them, leaving zero
+        // usable signatures. The min-distinct floor can never be met on an empty set, so the documented
+        // outcome is a threshold failure (INT010) — revocation must never be diluted into "some signers
+        // still count."
+        using var k1 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var k2 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(epoch: 0, k1, k2);
+        var revoked = new HashSet<string>(
+            new[] { Fingerprint(k1), Fingerprint(k2) }, StringComparer.OrdinalIgnoreCase);
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, [Toc()], TrustSet(k1, k2), requireSigned: true, storedEpoch: 0,
+            revokedFingerprints: revoked,
+            policyTable: TwoReleaseTable(),
+            roles: Roles((k1, TrustRole.Release), (k2, TrustRole.Release)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT010", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuorumPath_RevokedFingerprintMatchedCaseInsensitively_ProductionComparerHonored()
+    {
+        // TrustStateStore persists revocations in a StringComparer.OrdinalIgnoreCase set (§6.2).
+        // DropRevoked itself does no casing normalization — it relies entirely on the caller's set
+        // comparer. Pin that a differently-cased revoked fingerprint still drops the (always
+        // uppercase-hex) fingerprint the codec computes, matching the exact comparer production wires.
+        using var k1Revoked = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var k2Good = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifest(epoch: 0, k1Revoked, k2Good);
+        var revoked = new HashSet<string>(
+            new[] { Fingerprint(k1Revoked).ToLowerInvariant() }, StringComparer.OrdinalIgnoreCase);
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, [Toc()], TrustSet(k1Revoked, k2Good), requireSigned: true, storedEpoch: 0,
+            revokedFingerprints: revoked,
+            policyTable: RecoveryOnlyUpdateTable(),
+            roles: Roles((k1Revoked, TrustRole.Release), (k2Good, TrustRole.Recovery)));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
 }
