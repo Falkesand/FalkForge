@@ -160,6 +160,12 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 Write-Host "[2/2] Run dotnet-stryker..." -ForegroundColor Yellow
 
+# Captured immediately before invoking Stryker so the report-freshness check below can
+# tell "this run just wrote these reports" apart from "these reports are leftovers from
+# a previous run into the same reused $Output directory" — see the freshness check after
+# the run for why file *existence* alone is not sufficient proof of success.
+$runStartTime = Get-Date
+
 Push-Location $testProjectDir
 try {
     dotnet-stryker `
@@ -192,13 +198,22 @@ if ($jsonReport) {
 # "progress", "dots", etc. only print to the console and never produce an artifact.
 # Require exactly the file(s) the config's own "reporters" array asks for: a config
 # that only lists "json" must not fail for a missing HTML file, and vice versa.
+#
+# Existence alone is not proof this run produced the report: $Output defaults to
+# artifacts/mutation/<SourceProject> and is reused across runs, so a prior run's
+# mutation-report.json/.html sitting there would satisfy an existence-only check even
+# when dotnet-stryker just silently produced nothing (the "No project found" /
+# Buildalyzer trap documented above). Require LastWriteTime at or after $runStartTime,
+# captured immediately before invoking dotnet-stryker, so a stale leftover reads as a
+# failure instead of a false success. A failed run's own reports are never deleted —
+# they are left in place as evidence for whoever investigates.
 $fileReporterToFileName = @{
     'json' = 'mutation-report.json'
     'html' = 'mutation-report.html'
 }
-$foundReportFile = @{
-    'mutation-report.json' = [bool]$jsonReport
-    'mutation-report.html' = [bool]$htmlReport
+$reportFileByName = @{
+    'mutation-report.json' = $jsonReport
+    'mutation-report.html' = $htmlReport
 }
 
 $configuredReporters = @()
@@ -207,10 +222,14 @@ if ($strykerConfigSection.PSObject.Properties['reporters']) {
 }
 
 $requiredReportFiles = @($configuredReporters | Where-Object { $fileReporterToFileName.ContainsKey($_) } | ForEach-Object { $fileReporterToFileName[$_] })
-$missingRequiredReportFiles = @($requiredReportFiles | Where-Object { -not $foundReportFile[$_] })
+$missingRequiredReportFiles = @($requiredReportFiles | Where-Object { -not $reportFileByName[$_] })
+$staleRequiredReportFiles = @($requiredReportFiles | Where-Object { $reportFileByName[$_] -and $reportFileByName[$_].LastWriteTime -lt $runStartTime })
 
 if ($missingRequiredReportFiles.Count -gt 0) {
     Write-Host "  Missing report file(s) requested by $configFile's 'reporters' list: $($missingRequiredReportFiles -join ', ')" -ForegroundColor Red
+}
+if ($staleRequiredReportFiles.Count -gt 0) {
+    Write-Host "  Stale report file(s) requested by $configFile's 'reporters' list — present but last written before this run started ($runStartTime), so they are leftovers from a previous run into the same reused output folder, not proof of this run: $($staleRequiredReportFiles -join ', ')" -ForegroundColor Red
 }
 
 Write-Host ""
@@ -222,11 +241,17 @@ if ($strykerExit -ne 0) {
 }
 
 # Fail loud rather than silently "succeeding": dotnet-stryker exiting 0 while missing a
-# report file its own config asked for is exactly the "No project found" silent-failure
+# report file its own config asked for, or leaving only a stale one from a previous run
+# into this same reused output folder, is exactly the "No project found" silent-failure
 # shape documented above (the global.json / Buildalyzer trap) — never let that read as
 # a clean run.
-if ($missingRequiredReportFiles.Count -gt 0) {
-    Write-Host "Mutation run FAILED — dotnet-stryker exited 0 but is missing report file(s) its own 'reporters' config requested: $($missingRequiredReportFiles -join ', '). This is the silent-success shape of the 'No project found' / Buildalyzer trap documented above; check the console output for 'No project found' or zero mutants created." -ForegroundColor Red
+if ($missingRequiredReportFiles.Count -gt 0 -or $staleRequiredReportFiles.Count -gt 0) {
+    if ($missingRequiredReportFiles.Count -gt 0) {
+        Write-Host "Mutation run FAILED — dotnet-stryker exited 0 but is missing report file(s) its own 'reporters' config requested: $($missingRequiredReportFiles -join ', '). This is the silent-success shape of the 'No project found' / Buildalyzer trap documented above; check the console output for 'No project found' or zero mutants created." -ForegroundColor Red
+    }
+    if ($staleRequiredReportFiles.Count -gt 0) {
+        Write-Host "Mutation run FAILED — dotnet-stryker exited 0 but report file(s) its own 'reporters' config requested were not refreshed by this run: $($staleRequiredReportFiles -join ', '). They predate this run (started $runStartTime) and are leftovers from a previous run into this same reused output folder ($Output) — not evidence this run produced anything. Left in place for inspection; check the console output for 'No project found' or zero mutants created." -ForegroundColor Red
+    }
     exit 1
 }
 
