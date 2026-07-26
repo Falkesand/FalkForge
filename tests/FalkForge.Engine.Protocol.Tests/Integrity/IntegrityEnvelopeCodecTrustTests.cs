@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using FalkForge;
 using FalkForge.Engine.Protocol.Integrity;
@@ -430,5 +431,94 @@ public sealed class IntegrityEnvelopeCodecTrustTests
 
         Assert.True(match.IsSuccess, match.IsFailure ? match.Error.Message : null);
         Assert.Equal(Fingerprint(key), match.Value);
+    }
+
+    // ── hasEpochOrRevoked extension-segment gate (§6.3 compat trap) ───────────────────────────
+    //
+    // ComputeSignedBytes appends the epoch/revocation segment to the signed message ONLY when
+    // `epoch != 0 || revoked is { Count: > 0 }` is true. Two mutations of that expression pass the
+    // rest of the suite: (1) flipping `||` to `&&` — every existing test that signs with a non-zero
+    // epoch ALSO carries a non-empty revoked list (or vice versa), so both operands are always
+    // simultaneously true/false and an AND-vs-OR difference never surfaces; (2) widening the count
+    // check to `>= 0` — every existing byte-comparison test compares two calls that both flow through
+    // the SAME mutated code path with identical inputs, so they drift together and still compare
+    // equal. Both gaps require comparing against a reference value that never itself calls
+    // ComputeSignedBytes. The class's own documented contract is that the neutral form (epoch 0,
+    // revoked empty) is byte-identical to `UTF-8(JSON(files))` — so that plain JSON, computed here
+    // independently via the same public source-generated context, is the reference.
+    private static byte[] IndependentPlainFilesJsonBytes(IReadOnlyList<ManifestFileEntry> files) =>
+        Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(files, IntegrityEnvelopeJsonContext.Default.IReadOnlyListManifestFileEntry));
+
+    [Fact]
+    public void ComputeSignedBytes_EpochZeroRevokedEmpty_EqualsIndependentPlainJson()
+    {
+        // (epoch 0, revoked empty): the neutral case. Catches the `>= 0` widening — under that
+        // mutation `revoked is { Count: >= 0 }` is true for ANY non-null list (even empty), so the
+        // extension segment would be appended even here, and the result would no longer equal the
+        // independently-computed plain JSON.
+        var files = Files(("App", "AAAA"), ("Other", "BBBB"));
+
+        var actual = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 0, revoked: []);
+
+        Assert.Equal(IndependentPlainFilesJsonBytes(files), actual);
+    }
+
+    [Fact]
+    public void ComputeSignedBytes_EpochZeroRevokedNonEmpty_DiffersFromNeutral()
+    {
+        // (epoch 0, revoked non-empty): isolates the revoked-only side of the OR. Catches the
+        // `||` → `&&` flip — with epoch == 0 the first operand is false, so AND would force
+        // hasEpochOrRevoked to false regardless of the revoked list, silently dropping the
+        // revocation from the signed bytes (a revoked-key downgrade to the legacy v1 shape).
+        var files = Files(("App", "AAAA"));
+
+        var actual = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 0, revoked: ["DEADBEEF"]);
+
+        Assert.NotEqual(IndependentPlainFilesJsonBytes(files), actual);
+    }
+
+    [Fact]
+    public void ComputeSignedBytes_EpochNonZeroRevokedEmpty_DiffersFromNeutral()
+    {
+        // (epoch non-zero, revoked empty): isolates the epoch-only side of the OR. Catches the
+        // `||` → `&&` flip — with revoked empty the second operand is false, so AND would force
+        // hasEpochOrRevoked to false regardless of the epoch, silently dropping the epoch from the
+        // signed bytes (the exact anti-downgrade bypass §6.3 exists to close).
+        var files = Files(("App", "AAAA"));
+
+        var actual = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 5, revoked: []);
+
+        Assert.NotEqual(IndependentPlainFilesJsonBytes(files), actual);
+    }
+
+    [Fact]
+    public void ComputeSignedBytes_EpochNonZeroRevokedNonEmpty_DiffersFromNeutral_AndFromEitherAlone()
+    {
+        // (epoch non-zero, revoked non-empty): both operands true. Also pins that the combined form
+        // is distinct from either single-condition form, so the epoch and revoked segments are both
+        // genuinely present, not one masking the other.
+        var files = Files(("App", "AAAA"));
+
+        var both = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 5, revoked: ["DEADBEEF"]);
+        var epochOnly = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 5, revoked: []);
+        var revokedOnly = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 0, revoked: ["DEADBEEF"]);
+
+        Assert.NotEqual(IndependentPlainFilesJsonBytes(files), both);
+        Assert.NotEqual(epochOnly, both);
+        Assert.NotEqual(revokedOnly, both);
+    }
+
+    [Fact]
+    public void RevocationOnlyEnvelope_EpochZero_SignedAndVerified_RoundTrips()
+    {
+        // Round-trip through the public codec (Sign + VerifyTrusted) for the revoked-only,
+        // epoch-zero combination that the byte-level tests above isolate: a real signer/verifier
+        // pair still agrees on this shape.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var envelope = IntegrityEnvelopeCodec.Sign(
+            Files(("App", "AAAA")), new[] { key }, epoch: 0, revoked: new[] { "DEADBEEF" });
+
+        Assert.True(IntegrityEnvelopeCodec.VerifyTrusted(envelope, TrustSet(Fingerprint(key))).IsSuccess);
     }
 }

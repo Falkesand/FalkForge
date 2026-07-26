@@ -187,4 +187,25 @@ public sealed class QuorumEvaluatorTests
 
         Assert.False(result.Satisfied);
     }
+
+    // NOTE (negative-Count clamp, line ~44, and the slotToSig sentinel fill, line ~55): deliberately
+    // NOT covered here. Both mutations were verified empirically (mutate production, run suite,
+    // observe) to be equivalent given the current implementation, not merely untested:
+    //   - `req.Count < 0 ? 0 : req.Count` clamps a negative Count to 0 before the loop
+    //     `for (var i = 0; i < count; i++) slots.Add(...)`. That loop's own bound check already
+    //     treats any negative count identically to 0 (the condition `i < count` is false at i=0 for
+    //     ANY negative count), so removing the clamp produces byte-for-byte the same `slots` list.
+    //     No PolicyRule / collected-signature input can make the clamped and unclamped code paths
+    //     diverge — confirmed by running the full suite with the clamp deleted (`593/593` still pass).
+    //   - `Array.Fill(slotToSig, -1)` seeds an array that TryAssign only ever WRITES to
+    //     (`slotToSig[slot] = j` at the point a slot is matched); nothing in Evaluate or TryAssign
+    //     ever reads slotToSig back — only sigToSlot's sentinel is read (line 86, `currentSlot == -1`)
+    //     to detect a free signature. Confirmed by mutating the fill to `+1` and running the full
+    //     suite plus three additional probes (an unmatched-slot-with-signature-index-1 case and two
+    //     multi-slot reassignment-chain cases): all pass unchanged. slotToSig's initial value cannot
+    //     be observed by any test against the current source.
+    // A test asserting either mutation "fails" would be dishonest — it would pass whether or not the
+    // production line is even present. If future work makes slotToSig's assignments part of the
+    // returned QuorumDecision (e.g. to report which key filled which slot), that read would make the
+    // sentinel's value observable again and this note should be revisited.
 }
