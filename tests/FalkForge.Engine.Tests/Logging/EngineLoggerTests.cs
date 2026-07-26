@@ -675,7 +675,17 @@ public sealed class EngineLoggerTests : IDisposable
         // WHY: Gate 6 (zero-waste) — when an entry is below the minimum level,
         // Log must early-return BEFORE constructing a LogEntry, calling
         // DateTimeOffset.UtcNow, or boxing the properties dictionary. We measure
-        // managed allocation deltas via GC.GetTotalAllocatedBytes(precise: true).
+        // managed allocation deltas via GC.GetAllocatedBytesForCurrentThread(), NOT
+        // GC.GetTotalAllocatedBytes(precise: true) — the latter is a process-wide
+        // counter, and this test class has no [Collection] forcing serial execution,
+        // so xUnit's MTP runner can execute other test classes concurrently on other
+        // threads during the measurement window; CI additionally runs under
+        // dotnet-coverage's CLR profiler, which adds its own ambient allocations.
+        // Both sources land on other threads and would be misattributed to these 100
+        // below-level calls by a process-wide counter (CI run 30212032061 caught this:
+        // 168 bytes attributed from elsewhere). The thread-local counter only sees
+        // allocations made by the calling thread, so it isolates exactly what this
+        // test intends to assert: the early-return path itself allocates nothing.
         var path = GetLogPath();
         using var logger = new EngineLogger(path);
         logger.SetMinimumLevel(LogLevel.Warning);
@@ -684,10 +694,10 @@ public sealed class EngineLoggerTests : IDisposable
         for (var i = 0; i < 10; i++)
             logger.Log(LogLevel.Verbose, "Cat", "warmup");
 
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 100; i++)
             logger.Log(LogLevel.Verbose, "Cat", "below-level message");
-        var after = GC.GetTotalAllocatedBytes(precise: true);
+        var after = GC.GetAllocatedBytesForCurrentThread();
 
         var delta = after - before;
         // Tight bound: 100 below-level calls should allocate ~0 bytes. Allow a
