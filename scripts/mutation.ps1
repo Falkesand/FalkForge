@@ -106,7 +106,8 @@ if ($strykerConfigSection.PSObject.Properties['project']) {
     $configuredProject = $strykerConfigSection.'project'
 }
 if ($configuredProject -and $configuredProject -ne "$SourceProject.csproj") {
-    Write-Host "  WARNING: $configFile sets project='$configuredProject', which does not match -SourceProject '$SourceProject' (expected '$SourceProject.csproj'). Results may land under the wrong project name — verify -SourceProject before trusting the output path." -ForegroundColor Yellow
+    Write-Host "  FATAL: $configFile sets project='$configuredProject', which does not match -SourceProject '$SourceProject' (expected '$SourceProject.csproj'). Stryker would mutate '$configuredProject' while reports get filed under -SourceProject's output path — refusing to run rather than misfile results under the wrong project name. Fix -SourceProject (or the config's 'project' key) and re-run." -ForegroundColor Red
+    exit 1
 }
 
 # ---------------------------------------------------------------------------
@@ -187,9 +188,29 @@ if ($jsonReport) {
     Write-Host "  JSON report : $($jsonReport.FullName)"
 }
 
-$noReportFound = -not $htmlReport -and -not $jsonReport
-if ($noReportFound) {
-    Write-Host "  No mutation-report.{json,html} found under $Output." -ForegroundColor Red
+# Only "json" and "html" reporters write a report file to disk — "cleartext",
+# "progress", "dots", etc. only print to the console and never produce an artifact.
+# Require exactly the file(s) the config's own "reporters" array asks for: a config
+# that only lists "json" must not fail for a missing HTML file, and vice versa.
+$fileReporterToFileName = @{
+    'json' = 'mutation-report.json'
+    'html' = 'mutation-report.html'
+}
+$foundReportFile = @{
+    'mutation-report.json' = [bool]$jsonReport
+    'mutation-report.html' = [bool]$htmlReport
+}
+
+$configuredReporters = @()
+if ($strykerConfigSection.PSObject.Properties['reporters']) {
+    $configuredReporters = @($strykerConfigSection.'reporters')
+}
+
+$requiredReportFiles = @($configuredReporters | Where-Object { $fileReporterToFileName.ContainsKey($_) } | ForEach-Object { $fileReporterToFileName[$_] })
+$missingRequiredReportFiles = @($requiredReportFiles | Where-Object { -not $foundReportFile[$_] })
+
+if ($missingRequiredReportFiles.Count -gt 0) {
+    Write-Host "  Missing report file(s) requested by $configFile's 'reporters' list: $($missingRequiredReportFiles -join ', ')" -ForegroundColor Red
 }
 
 Write-Host ""
@@ -200,11 +221,12 @@ if ($strykerExit -ne 0) {
     exit $strykerExit
 }
 
-# Fail loud rather than silently "succeeding": dotnet-stryker exiting 0 with zero
-# mutants/no report is exactly the "No project found" silent-failure shape documented
-# above (the global.json / Buildalyzer trap) — never let that read as a clean run.
-if ($noReportFound) {
-    Write-Host "Mutation run FAILED — dotnet-stryker exited 0 but produced no report. This is the silent-success shape of the 'No project found' / Buildalyzer trap documented above; check the console output for 'No project found' or zero mutants created." -ForegroundColor Red
+# Fail loud rather than silently "succeeding": dotnet-stryker exiting 0 while missing a
+# report file its own config asked for is exactly the "No project found" silent-failure
+# shape documented above (the global.json / Buildalyzer trap) — never let that read as
+# a clean run.
+if ($missingRequiredReportFiles.Count -gt 0) {
+    Write-Host "Mutation run FAILED — dotnet-stryker exited 0 but is missing report file(s) its own 'reporters' config requested: $($missingRequiredReportFiles -join ', '). This is the silent-success shape of the 'No project found' / Buildalyzer trap documented above; check the console output for 'No project found' or zero mutants created." -ForegroundColor Red
     exit 1
 }
 

@@ -17,7 +17,8 @@ pwsh scripts/coverage.ps1                 # -Configuration defaults to Release
 The script:
 
 1. `dotnet build FalkForge.slnx -c Release`
-2. Runs the full test suite wrapped in `dotnet-coverage collect`, writing
+2. Runs the default test suite (opt-in heavyweight E2E suites excluded — see
+   "Gating caveat" below) wrapped in `dotnet-coverage collect`, writing
    `TestResults/coverage.cobertura.xml`
 3. Runs `reportgenerator` against that cobertura file with
    `-assemblyfilters:+FalkForge.*;-FalkForge.*.Tests;-FalkForge.*.Tests.*;-*Demo*`

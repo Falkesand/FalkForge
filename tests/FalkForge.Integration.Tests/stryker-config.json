@@ -1,6 +1,8 @@
 {
   "stryker-config": {
     "mutate": [],
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
     "thresholds": {
       "high": 0,
       "low": 0,
