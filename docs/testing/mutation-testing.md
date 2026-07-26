@@ -10,8 +10,12 @@ test still passes, the mutant *survived*: something in that code path has no tes
 actually pinning its behavior, even if coverage tooling shows the line as "covered".
 
 A **mutation score** is the percentage of mutants killed (caused a test failure) out of
-all mutants that were actually exercised by some test. It is a much stronger signal than
-line coverage that the test suite encodes real behavioral guarantees.
+all *valid* mutants — killed plus survived plus mutants no test ever reached
+(`NoCoverage`). An uncovered mutant still counts against the score: it is treated as
+not-killed, not excluded. (Compile errors and ignored mutants are excluded from the
+denominator; Stryker also reports a secondary "mutation score based on covered code"
+that does exclude `NoCoverage` — see below.) It is a much stronger signal than line
+coverage that the test suite encodes real behavioral guarantees.
 
 ## How to run it
 
@@ -308,16 +312,20 @@ config wired for real use follows the same shape: `project`, `test-runner: "mtp"
 `reporters: ["cleartext", "progress", "json", "html"]`, and a `thresholds` block
 (`high: 80`, `low: 60`, `break: 0` — informational only, see above, nothing enforces
 these). `FalkForge.Integration.Tests` deliberately sets `"mutate": []` and zeroed
-thresholds: it tests across multiple assemblies rather than one 1:1 source project, so
-it is intentionally excluded from mutation (there is no single project to point
-Stryker at) rather than misconfigured.
+thresholds, and carries no `project` key: it tests across multiple assemblies rather
+than one 1:1 source project, so it is intentionally excluded from mutation (there is
+no single project to point Stryker at) rather than misconfigured. It still sets
+`"test-runner": "mtp"` and `"coverage-analysis": "perTest"` to match the documented
+MTP contract, so that anyone who runs it directly (e.g. by hand, outside
+`scripts/mutation.ps1`) does not fall back to Stryker's unreliable default `vstest`
+runner.
 
-**Proven vs. unproven configs.** 19 `stryker-config.json` files exist under `tests/`.
+**Proven vs. unproven configs.** 20 `stryker-config.json` files exist under `tests/`.
 Only **5 have ever actually been run end-to-end**: `FalkForge.Core`,
 `FalkForge.Compiler.Bundle`, `FalkForge.Signing.SignServer`,
 `FalkForge.Engine.Protocol`, `FalkForge.Engine.Elevation` — those are the ones with
 real results in the table above. `FalkForge.Integration.Tests` is intentionally
-excluded (see above, not a mutation target). The remaining 13 configs share the same
+excluded (see above, not a mutation target). The remaining 14 configs share the same
 config shape but have **never been executed** — they are untested config shape, not
 verified results, and may fail the first time they are run (e.g. the same class of
 issue this document already documents for the `global.json` / Buildalyzer trap).
