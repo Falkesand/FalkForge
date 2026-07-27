@@ -36,7 +36,7 @@ the "no reflection/dynamic" rule rules out.
 
 ## Decision
 
-Extensions are attached by explicit, compile-time registration only:
+Extensions are attached by explicit, in-code registration only:
 `compiler.Use(extension)`/`compiler.Use(extension1, extension2, ...)`, with
 `ExtensionRegistration.Register` enforcing name-uniqueness and `MinHostVersion` compatibility at
 the point of registration. We will not add a directory-drop or assembly-scanning discovery

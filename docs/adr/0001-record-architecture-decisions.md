@@ -1,8 +1,8 @@
 # 1. Record architecture decisions
 
 - Status: Accepted
-- Date: <YYYY-MM-DD>
-- Deciders: <names / roles>
+- Date: 2026-07-27
+- Deciders: Peter Falkesand
 
 ## Context
 
