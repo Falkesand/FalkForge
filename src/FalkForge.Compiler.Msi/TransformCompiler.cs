@@ -51,7 +51,21 @@ public sealed class TransformCompiler
             {
                 propertyWorkingCopyPath = Path.Combine(
                     outputDir ?? outputPath, $"~propwork-{Guid.NewGuid():N}.msi");
-                File.Copy(transform.TargetMsiPath, propertyWorkingCopyPath, overwrite: true);
+
+                try
+                {
+                    File.Copy(transform.TargetMsiPath, propertyWorkingCopyPath, overwrite: true);
+                }
+                catch (IOException ex)
+                {
+                    return Result<string>.Failure(ErrorKind.IoError,
+                        $"Failed to create working copy of target MSI '{transform.TargetMsiPath}': {ex.Message}");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    return Result<string>.Failure(ErrorKind.IoError,
+                        $"Failed to create working copy of target MSI '{transform.TargetMsiPath}': {ex.Message}");
+                }
 
                 var applyResult = ApplyPropertyChanges(propertyWorkingCopyPath, transform.PropertyChanges);
                 if (applyResult.IsFailure)
@@ -100,7 +114,21 @@ public sealed class TransformCompiler
         finally
         {
             if (propertyWorkingCopyPath is not null && File.Exists(propertyWorkingCopyPath))
-                File.Delete(propertyWorkingCopyPath);
+            {
+                try
+                {
+                    File.Delete(propertyWorkingCopyPath);
+                }
+                catch (IOException)
+                {
+                    // Best-effort cleanup: a failure to delete the temp working copy must never
+                    // mask the real success/failure result this method is already returning.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Best-effort cleanup: same rationale as above.
+                }
+            }
         }
     }
 
