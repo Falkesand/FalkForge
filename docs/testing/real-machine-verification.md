@@ -114,7 +114,7 @@ about.
    ```powershell
    git clone https://github.com/Falkesand/FalkForge.git
    cd FalkForge
-   git checkout release/0.5.0-beta.4   # or whatever branch/tag you're verifying
+   git checkout release/0.5.0-beta.5   # or whatever branch/tag you're verifying
    dotnet build FalkForge.slnx
    dotnet build src/FalkForge.Cli/FalkForge.Cli.csproj -c Release
    ```
