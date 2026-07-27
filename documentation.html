@@ -4198,6 +4198,18 @@ p.CreateFolder(cf =&gt; cf
     msm.Dependency("ContosoBase.msm");
 }, (model, output) =&gt; new MsmCompiler().Compile(model, output));</code></pre>
 
+  <p>
+    <code>MsmCompiler</code> emits one row per <code>Dependency(...)</code> call into the standard
+    Windows Installer <code>ModuleDependency</code> table (<code>ModuleID</code>,
+    <code>ModuleLanguage</code>, <code>RequiredID</code>, <code>RequiredLanguage</code>,
+    <code>RequiredVersion</code>). Because <code>Dependency(string dependencyId)</code> only accepts a
+    single opaque identifier, the compiler fills in <code>RequiredID</code> with that string verbatim,
+    defaults <code>RequiredLanguage</code> to the declaring module's own <code>Language</code>
+    (same-language dependency assumed), and leaves <code>RequiredVersion</code> unset (no minimum-version
+    constraint). Depending on a module published in a different language, or pinning a minimum required
+    version, needs a richer overload on <code>MergeModuleBuilder</code> -- not available today.
+  </p>
+
   <h4 id="msi-patch-builder">PatchBuilder</h4>
   <p>
     Defines a patch package that upgrades an existing MSI installation. Entry point:
