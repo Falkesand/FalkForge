@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>FalkForge.Ui.Abstractions</RootNamespace>
     <Description>UI abstractions and base ViewModels for FalkForge</Description>
   </PropertyGroup>

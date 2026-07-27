@@ -6,6 +6,7 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <RootNamespace>FalkForge.Plugins.Sql</RootNamespace>
         <IsPackable>true</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Description>SQL Server discovery, database listing, and connection-testing plugin for FalkForge installer UI</Description>
     </PropertyGroup>
     <ItemGroup>

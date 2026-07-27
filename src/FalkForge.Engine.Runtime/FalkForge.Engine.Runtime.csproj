@@ -8,6 +8,7 @@
          the publish first; see FalkForgeEngineArtifactsDir below). -->
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable Condition="'$(FalkForgePackEngine)' != 'false'">true</IsPackable>
+    <GenerateDocumentationFile Condition="'$(FalkForgePackEngine)' != 'false'">true</GenerateDocumentationFile>
     <PackageId>FalkForge.Engine.Runtime.win-x64</PackageId>
     <Description>FalkForge NativeAOT bundle engine runtime (win-x64): the published FalkForge.Engine.exe and FalkForge.Engine.Elevation.exe that the bundle compiler embeds as the self-extracting front of EXE bundles. Referenced (implicitly by the FalkForge SDK) so building an installer project yields a runnable bundle with no manual engine setup.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>

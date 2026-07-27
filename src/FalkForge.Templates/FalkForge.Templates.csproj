@@ -7,6 +7,7 @@
          compiles after `dotnet new` instantiation + restore. -->
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>FalkForge.Templates</PackageId>
     <PackageType>Template</PackageType>
     <Description>Project templates for FalkForge: `dotnet new falkforge-msi` scaffolds a minimal single-file MSI installer project, `dotnet new falkforge-bundle` a self-extracting EXE bundle — each referencing the single FalkForge meta-package, ready to `dotnet run` into a real installer.</Description>
