@@ -452,4 +452,36 @@ public sealed class TransformCompilerTests : IDisposable
 
         Assert.Empty(Directory.GetFiles(outputDir));
     }
+
+    [Fact]
+    public void Compile_WithPropertyChanges_TargetMsiLockedByAnotherProcess_ReturnsIoErrorInsteadOfThrowing()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // Regression test for a CodeRabbit finding: the property-changes path's File.Copy of the
+        // target MSI into a private working copy was the only I/O on that path NOT translated
+        // into a Result<string>.Failure -- a locked file, full disk, or permissions error would
+        // throw straight through Compile and break the Result<T> contract the rest of the method
+        // (and the codebase convention) relies on. An exclusive FileShare.None handle on the
+        // target MSI makes File.Copy's read-open genuinely fail with an IOException; this proves
+        // that failure now comes back as a typed Result rather than an unhandled exception.
+        var baseMsi = CompileVersioned("PropLockedApp", new Version(1, 0, 0));
+        var targetMsi = CompileVersioned("PropLockedApp", new Version(2, 0, 0));
+
+        var modelResult = new TransformBuilder()
+            .BaseMsi(baseMsi)
+            .TargetMsi(targetMsi)
+            .SetProperty("LOCKEDCOPYPROP", "value")
+            .Build();
+        Assert.True(modelResult.IsSuccess, modelResult.IsFailure ? modelResult.Error.Message : null);
+
+        using (new FileStream(targetMsi, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var compileResult = new TransformCompiler().Compile(modelResult.Value, OutputDir());
+
+            Assert.True(compileResult.IsFailure);
+            Assert.Equal(ErrorKind.IoError, compileResult.Error.Kind);
+        }
+    }
 }
