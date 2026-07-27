@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- net10.0-windows because FalkForge.Compiler.Msix targets it; the guard needs every
+             compiler assembly loadable in one process to scan them. -->
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <!-- FF_MSIX001: the guard names MSIX model types, which live behind the experimental attribute -->
+        <NoWarn>$(NoWarn);FF_MSIX001</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
+        <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+        <ProjectReference Include="..\..\src\FalkForge.Compiler.Msix\FalkForge.Compiler.Msix.csproj" />
+        <ProjectReference Include="..\..\src\FalkForge.Compiler.Bundle\FalkForge.Compiler.Bundle.csproj" />
+    </ItemGroup>
+</Project>
