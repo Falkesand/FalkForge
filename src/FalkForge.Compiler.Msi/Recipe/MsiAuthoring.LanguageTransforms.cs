@@ -1,6 +1,7 @@
 using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 using FalkForge.Models;
+using FalkForge.Platform;
 
 namespace FalkForge.Compiler.Msi.Recipe;
 
@@ -15,12 +16,18 @@ public static partial class MsiAuthoring
     /// A culture that yields no localizable difference (e.g. no <c>!(loc.*)</c> UI text) produces no
     /// file and a <c>DLG005</c> warning instead of a silent single-language installer.
     /// </summary>
+    /// <param name="fileSystem">
+    /// The same <see cref="IFileSystem"/> the base build resolved components with — the variant
+    /// rebuild must see an identical view of the source files, otherwise a caller-injected virtual
+    /// filesystem would silently stop applying for this one internal recompile.
+    /// </param>
     private static Result<string> GenerateLanguageTransforms(
         PackageModel package,
         string baseMsiPath,
         string outputPath,
         IReadOnlyList<IFalkForgeExtension> extensions,
-        IFalkLogger? logger)
+        IFalkLogger? logger,
+        IFileSystem fileSystem)
     {
         string baseCulture = package.LocalizationData[0].Culture;
         string baseName = Path.GetFileNameWithoutExtension(baseMsiPath);
@@ -46,7 +53,8 @@ public static partial class MsiAuthoring
                         DefaultCultureOverride = culture,
                         EmitLanguageTransforms = false,
                         PostProcess = false,
-                    });
+                    },
+                    fileSystem);
                 if (variantResult.IsFailure)
                 {
                     logger?.Log(LogLevel.Error, "MsiAuthoring",

@@ -18,15 +18,7 @@ namespace FalkForge.Compiler.Msi;
 [SupportedOSPlatform("windows")]
 public sealed class MsiCompiler : ICompiler
 {
-    // Retained for public API compatibility — callers that supply a custom IFileSystem
-    // will continue to compile successfully. The field is not consumed by the forwarder
-    // body (MsiAuthoring.Compile uses its own WindowsFileSystem internally) and will be
-    // wired up properly when the IFileSystem injection point is added to MsiAuthoring
-    // in Phase 12 cleanup.
-#pragma warning disable S4487, IDE0052 // Unread private members
     private readonly IFileSystem _fileSystem;
-#pragma warning restore S4487, IDE0052
-
     private readonly List<IFalkForgeExtension> _extensions;
     private readonly IFalkLogger? _logger;
 
@@ -91,7 +83,10 @@ public sealed class MsiCompiler : ICompiler
     /// Forwards to <see cref="MsiAuthoring.Compile"/> — the recipe-driven pipeline
     /// (<see cref="MsiRecipeBuilder"/>, <see cref="MsiDatabaseRecipe"/>, <c>IMultiTableProducer</c>
     /// implementations under <c>Recipe/Producers/</c>) that replaced the legacy emitter path in Phase 9.
+    /// The constructor-supplied <see cref="IFileSystem"/> is forwarded through to component
+    /// resolution (Step 2), so a custom filesystem passed to <see cref="MsiCompiler(IFileSystem)"/>
+    /// is genuinely consulted rather than silently ignored in favor of a real one.
     /// </summary>
     public Result<string> Compile(PackageModel model, string outputPath)
-        => MsiAuthoring.Compile(model, outputPath, _extensions, _logger);
+        => MsiAuthoring.Compile(model, outputPath, _extensions, _logger, _fileSystem);
 }
