@@ -188,15 +188,21 @@ public sealed class QuorumEvaluatorTests
         Assert.False(result.Satisfied);
     }
 
-    // NOTE (negative-Count clamp, line ~44): deliberately NOT covered here. The mutation was
-    // verified empirically (mutate production, run suite, observe) to be equivalent given the
-    // current implementation, not merely untested: `req.Count < 0 ? 0 : req.Count` clamps a
-    // negative Count to 0 before the loop `for (var i = 0; i < count; i++) slots.Add(...)`. That
-    // loop's own bound check already treats any negative count identically to 0 (the condition
+    // NOTE (negative-Count clamp, line ~44): deliberately NOT covered here. The
+    // clamp-removal mutation is consistent with being equivalent given the current
+    // implementation — no existing test observes a difference, not merely one that
+    // hasn't been written: `req.Count < 0 ? 0 : req.Count` clamps a negative Count to 0
+    // before the loop `for (var i = 0; i < count; i++) slots.Add(...)`. That loop's own
+    // bound check already treats any negative count identically to 0 (the condition
     // `i < count` is false at i=0 for ANY negative count), so removing the clamp produces
-    // byte-for-byte the same `slots` list. No PolicyRule / collected-signature input can make the
-    // clamped and unclamped code paths diverge — confirmed by running the full suite with the
-    // clamp deleted (`593/593` still pass).
+    // byte-for-byte the same `slots` list. No PolicyRule / collected-signature input can
+    // make the clamped and unclamped code paths diverge; running the full suite with the
+    // clamp deleted (`593/593` still pass) is consistent with that reasoning but is not
+    // itself the proof — the proof is the bound check above, since a green suite only
+    // shows no existing test observes a difference, not that none could exist. This
+    // equivalence is specific to the clamp-removal mutant: a different mutation of the
+    // same ternary (e.g. inverting it to `req.Count > 0 ? 0 : req.Count`) would be
+    // killable, since it would empty `slots` and let a bare M-of-N policy pass.
     // A test asserting this mutation "fails" would be dishonest — it would pass whether or not the
     // production line is even present.
     //
