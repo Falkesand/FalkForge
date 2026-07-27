@@ -25,9 +25,15 @@ internal static class BootstrapperRunner
     /// Self-extraction bootstrapper mode. Extracts payloads and manifest from the embedded bundle,
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
+    /// <param name="exePathOverride">
+    /// Test seam: overrides the bundle path this method self-extracts, instead of resolving it from
+    /// <see cref="Environment.ProcessPath"/>. A unit-test host process is never itself a
+    /// self-extracting bundle, so tests point this at a real bundle they built. When null (every
+    /// production call site), behavior is byte-identical to the original inline code.
+    /// </param>
     internal static async Task<int> RunAsync(
         ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null,
-        bool requireSigned = false)
+        bool requireSigned = false, string? exePathOverride = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -35,7 +41,7 @@ internal static class BootstrapperRunner
             return 1;
         }
 
-        var exePath = Environment.ProcessPath!;
+        var exePath = exePathOverride ?? Environment.ProcessPath!;
 
         // Extract bundle content (reads TOC + manifest; validates their bounds, but does NOT
         // decode or verify any payload bytes — each payload's SHA-256 is checked below at the
