@@ -42,7 +42,11 @@ public static partial class StudioBuildService
             return Result<MsixModel>.Failure(ErrorKind.Validation,
                 $"Invalid architecture: '{project.Product.Architecture}'.");
 
-        if (!TryParseScope(project.Product.Scope, out var scope))
+        // The project's scope is still validated — a malformed value is a project error whatever
+        // the target format — but it is not forwarded: an MSIX package is always staged and
+        // registered per-user, and provisioning it for every user is a deployment-time act with
+        // no AppxManifest representation. See MsixModel for the full rationale.
+        if (!TryParseScope(project.Product.Scope, out _))
             return Result<MsixModel>.Failure(ErrorKind.Validation,
                 $"Invalid scope: '{project.Product.Scope}'.");
 
@@ -52,8 +56,7 @@ public static partial class StudioBuildService
             .Version(version)
             .DisplayName(project.Product.Name)
             .PublisherDisplayName(displayName)
-            .Architecture(architecture)
-            .Scope(scope);
+            .Architecture(architecture);
 
         if (!string.IsNullOrWhiteSpace(project.Product.Description))
             builder.Description(project.Product.Description);
