@@ -178,7 +178,7 @@ public sealed class MsiAuthoringLicenseTests : IDisposable
         var warnings = logger.EntriesAt(LogLevel.Warning);
         var licenseWarning = Assert.Single(warnings, e => e.Message.Contains("LicenseFile"));
         Assert.NotNull(licenseWarning.Properties);
-        Assert.Equal("DLG004", licenseWarning.Properties!["code"]);
+        Assert.Equal("DLG004", licenseWarning.Properties["code"]);
     }
 
     [Fact]

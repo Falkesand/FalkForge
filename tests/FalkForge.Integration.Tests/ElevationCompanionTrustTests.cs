@@ -89,7 +89,7 @@ public sealed class ElevationCompanionTrustTests : IDisposable
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.Value.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        return (manifest!, content.Value.TocEntries);
+        return (manifest, content.Value.TocEntries);
     }
 
     private static string HashOf(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));

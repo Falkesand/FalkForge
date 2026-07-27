@@ -72,7 +72,7 @@ public sealed class HybridBundleFluentEndToEndTests : IDisposable
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.Value.ManifestJsonBytes!)!;
         Assert.NotNull(manifest.ManifestSignature);
 
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!)!;
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature)!;
         Assert.Equal(2, envelope.Signatures.Count);
         Assert.Null(envelope.Signatures[0].Algorithm); // classical first (absent field = ECDSA-P256)
         Assert.Equal(

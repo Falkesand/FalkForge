@@ -56,7 +56,7 @@ public sealed class BundleSigningEndToEndTests
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.Value.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     private static (string msiPath, string dir) FakePayload(string name)

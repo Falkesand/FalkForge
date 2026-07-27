@@ -89,9 +89,9 @@ public sealed class ExternalContainerCompileTests : IDisposable
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         Assert.NotNull(content.Value.ManifestJsonBytes);
         var manifest = JsonSerializer.Deserialize(
-            content.Value.ManifestJsonBytes!, ManifestJsonContext.Default.InstallerManifest);
+            content.Value.ManifestJsonBytes, ManifestJsonContext.Default.InstallerManifest);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     private static string Sha256Of(string path)
@@ -187,11 +187,11 @@ public sealed class ExternalContainerCompileTests : IDisposable
 
         var manifest = ExtractManifest(result.Value);
         Assert.NotNull(manifest.ManifestSignature);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         Assert.NotNull(envelope);
-        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!));
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
 
-        var signedNames = envelope!.Files.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
+        var signedNames = envelope.Files.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
         Assert.Contains("EmbeddedApp", signedNames);
         Assert.Contains("ExternalApp", signedNames);
     }

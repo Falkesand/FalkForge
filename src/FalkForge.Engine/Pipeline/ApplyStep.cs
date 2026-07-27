@@ -96,7 +96,7 @@ internal sealed class ApplyStep : IApplyStep
         // offline-layout path where SourcePath is authoritative — untouched.
         if (ctx.PayloadRoot is not null)
         {
-            var resolveResult = ResolvePayloadPaths(ctx.Plan!, ctx.PayloadRoot);
+            var resolveResult = ResolvePayloadPaths(ctx.Plan, ctx.PayloadRoot);
             if (resolveResult.IsFailure)
             {
                 await _uiChannel.SendAsync(

@@ -196,7 +196,7 @@ public sealed class NamedPipeUiChannelTests
 
         var plan = Assert.IsType<UiRequest.Plan>(request);
         Assert.NotNull(plan.PackageFeatureSelections);
-        Assert.Equal(["F1", "F2"], plan.PackageFeatureSelections!["Pkg1"]);
+        Assert.Equal(["F1", "F2"], plan.PackageFeatureSelections["Pkg1"]);
     }
 
     [Fact]

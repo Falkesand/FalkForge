@@ -97,7 +97,7 @@ public sealed class CustomShellRealEnginePathTests
 
             // The completion payloads reached the hooks with the expected values.
             Assert.NotNull(hookPage.LastApplyResult);
-            Assert.Equal(0, hookPage.LastApplyResult!.Value.ExitCode);
+            Assert.Equal(0, hookPage.LastApplyResult.Value.ExitCode);
 
             var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(0, exitCode);

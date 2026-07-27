@@ -217,7 +217,7 @@ public sealed class SqlExecutionEmissionTests
         using var scratch = new Scratch();
 
         var sql = new SqlExtension();
-        var dbRef = sql.DefineDatabase(db => db.Id("E2eDb").Server(dataSource!).Database(dbName)
+        var dbRef = sql.DefineDatabase(db => db.Id("E2eDb").Server(dataSource).Database(dbName)
             .CreateOnInstall().DropOnUninstall());
         Assert.True(dbRef.IsSuccess, dbRef.IsFailure ? dbRef.Error.Message : "");
         var script = new SqlScriptBuilder()
@@ -235,16 +235,16 @@ public sealed class SqlExecutionEmissionTests
         {
             int install = RunMsiExec($"/i \"{msi}\" /qn /norestart");
             Assert.True(install is 0 or 3010, $"msiexec install exit code {install}");
-            Assert.True(DatabaseExists(dataSource!, dbName), "database was not created by the deferred action");
-            Assert.True(TableExists(dataSource!, dbName, "Marker"), "install script did not run (Marker table missing)");
+            Assert.True(DatabaseExists(dataSource, dbName), "database was not created by the deferred action");
+            Assert.True(TableExists(dataSource, dbName, "Marker"), "install script did not run (Marker table missing)");
 
             int uninstall = RunMsiExec($"/x \"{msi}\" /qn /norestart");
             Assert.True(uninstall is 0 or 3010, $"msiexec uninstall exit code {uninstall}");
-            Assert.False(DatabaseExists(dataSource!, dbName), "database was not dropped on uninstall");
+            Assert.False(DatabaseExists(dataSource, dbName), "database was not dropped on uninstall");
         }
         finally
         {
-            DropDatabaseIfPresent(dataSource!, dbName);
+            DropDatabaseIfPresent(dataSource, dbName);
         }
     }
 

@@ -182,7 +182,7 @@ public sealed class LoggingInstrumentationTests : IDisposable
         var warnings = logger.EntriesAt(LogLevel.Warning);
         var sbomWarning = Assert.Single(warnings, e => e.Category == "MsiAuthoring" && e.Message.Contains("SBOM"));
         Assert.NotNull(sbomWarning.Properties);
-        Assert.Equal("IoError", sbomWarning.Properties!["code"]);
+        Assert.Equal("IoError", sbomWarning.Properties["code"]);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public sealed class LoggingInstrumentationTests : IDisposable
         var warnings = logger.EntriesAt(LogLevel.Warning);
         var iceWarning = Assert.Single(warnings, e => e.Category == "MsiAuthoring" && e.Message.Contains("ICE"));
         Assert.NotNull(iceWarning.Properties);
-        Assert.Equal("FileNotFound", iceWarning.Properties!["code"]);
+        Assert.Equal("FileNotFound", iceWarning.Properties["code"]);
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public sealed class LoggingInstrumentationTests : IDisposable
         var errors = logger.EntriesAt(LogLevel.Error);
         var dlgError = Assert.Single(errors, e => e.Category == "MsiAuthoring" && e.Message.Contains("Dialog customization"));
         Assert.NotNull(dlgError.Properties);
-        Assert.Contains("DLG001", dlgError.Properties!["code"]);
+        Assert.Contains("DLG001", dlgError.Properties["code"]);
     }
 
     [Fact]

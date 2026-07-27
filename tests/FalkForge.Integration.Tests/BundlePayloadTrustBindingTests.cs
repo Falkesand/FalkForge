@@ -43,7 +43,7 @@ public sealed class BundlePayloadTrustBindingTests
     {
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     private static string HashFile(string path)

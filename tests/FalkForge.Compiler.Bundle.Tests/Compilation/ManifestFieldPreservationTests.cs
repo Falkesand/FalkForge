@@ -128,9 +128,9 @@ public sealed class ManifestFieldPreservationTests : IDisposable
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : "");
         Assert.NotNull(content.Value.ManifestJsonBytes);
         var manifest = JsonSerializer.Deserialize(
-            content.Value.ManifestJsonBytes!, ManifestJsonContext.Default.InstallerManifest);
+            content.Value.ManifestJsonBytes, ManifestJsonContext.Default.InstallerManifest);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     private static BundleModel CreateModel(

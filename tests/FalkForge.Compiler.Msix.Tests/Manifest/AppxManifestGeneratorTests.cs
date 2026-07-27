@@ -34,7 +34,7 @@ public sealed class AppxManifestGeneratorTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
         Assert.NotNull(result.Value.Root);
-        Assert.Equal(Ns + "Package", result.Value.Root!.Name);
+        Assert.Equal(Ns + "Package", result.Value.Root.Name);
     }
 
     [Fact]

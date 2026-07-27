@@ -19,7 +19,7 @@ public sealed class RebuildRunnerContractTests
             .FirstOrDefault(t => t.Name == "IRebuildRunner");
 
         Assert.NotNull(type);
-        Assert.True(type!.IsInterface, "IRebuildRunner must be an interface");
+        Assert.True(type.IsInterface, "IRebuildRunner must be an interface");
     }
 
     [Fact]

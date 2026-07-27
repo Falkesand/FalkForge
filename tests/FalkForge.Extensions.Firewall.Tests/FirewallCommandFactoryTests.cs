@@ -59,8 +59,8 @@ public sealed class FirewallCommandFactoryTests
         // Rollback and uninstall both remove exactly the rule install created (by -Name).
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
-        Assert.Contains("Remove-NetFirewallRule -Name 'Fw_Web'", DecodeScript(step.RollbackCommand!), StringComparison.Ordinal);
-        Assert.Contains("Remove-NetFirewallRule -Name 'Fw_Web'", DecodeScript(step.UninstallCommand!), StringComparison.Ordinal);
+        Assert.Contains("Remove-NetFirewallRule -Name 'Fw_Web'", DecodeScript(step.RollbackCommand), StringComparison.Ordinal);
+        Assert.Contains("Remove-NetFirewallRule -Name 'Fw_Web'", DecodeScript(step.UninstallCommand), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -146,8 +146,8 @@ public sealed class FirewallCommandFactoryTests
 
         var step = FirewallCommandFactory.BuildSteps([rule])[0];
         Assert.NotNull(step.InstallCondition);
-        Assert.Contains("MYPROP=\"1\"", step.InstallCondition!, StringComparison.Ordinal);
-        Assert.Contains("NOT Installed", step.InstallCondition!, StringComparison.Ordinal);
+        Assert.Contains("MYPROP=\"1\"", step.InstallCondition, StringComparison.Ordinal);
+        Assert.Contains("NOT Installed", step.InstallCondition, StringComparison.Ordinal);
     }
 
     [Fact]

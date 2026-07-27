@@ -85,9 +85,9 @@ public sealed class UpdateDownloaderTrustTests
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.Value.ManifestJsonBytes!);
         Assert.NotNull(manifest!.ManifestSignature);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         Assert.NotNull(envelope);
-        return envelope!.Signatures[0].Fingerprint;
+        return envelope.Signatures[0].Fingerprint;
     }
 
     [Fact]

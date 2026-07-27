@@ -61,8 +61,8 @@ public sealed class HttpCommandFactoryTests
 
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
-        string rollback = DecodeScript(step.RollbackCommand!);
-        string uninstall = DecodeScript(step.UninstallCommand!);
+        string rollback = DecodeScript(step.RollbackCommand);
+        string uninstall = DecodeScript(step.UninstallCommand);
         Assert.Contains("'http' 'delete' 'urlacl'", rollback, StringComparison.Ordinal);
         Assert.Contains("'url=http://+:8080/svc/'", rollback, StringComparison.Ordinal);
         Assert.Equal(rollback, uninstall);

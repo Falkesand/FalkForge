@@ -66,7 +66,12 @@ public sealed class SignServerMixedHybridSigningTests : IDisposable
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            // S8969 false positive: HttpRequestMessage.Content is nullable and unchecked here — removing
+            // the operator reintroduces a genuine CS8602 (verified). The fake handler always receives a
+            // request with a body, so the assumption is safe in this test-only stub.
+#pragma warning disable S8969
             var body = await request.Content!.ReadAsStringAsync(cancellationToken);
+#pragma warning restore S8969
             using var doc = JsonDocument.Parse(body);
             var message = Convert.FromBase64String(doc.RootElement.GetProperty("data").GetString()!);
 

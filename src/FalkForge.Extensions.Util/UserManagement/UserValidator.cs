@@ -46,7 +46,7 @@ public static class UserValidator
         // The password rides a double-quoted command-line argument to the deferred action; a literal that
         // contains a double quote (or a control character) would be truncated/mangled at run time, silently
         // giving a privileged account the wrong credential. Reject it at author time.
-        if (!string.IsNullOrEmpty(password) && ContainsUnsupportedPasswordChar(password!))
+        if (!string.IsNullOrEmpty(password) && ContainsUnsupportedPasswordChar(password))
             return Result<bool>.Failure(
                 ErrorKind.Validation,
                 "USR012: A literal password must not contain a double-quote or control character. " +

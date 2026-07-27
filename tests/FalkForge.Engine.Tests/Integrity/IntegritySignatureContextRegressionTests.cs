@@ -86,7 +86,7 @@ public sealed class IntegritySignatureContextRegressionTests
         var parsed = JsonSerializer.Deserialize(json, IntegrityEnvelopeJsonContext.Default.ManifestSignatureEnvelope);
 
         Assert.NotNull(parsed);
-        Assert.Equal(2, parsed!.Version);
+        Assert.Equal(2, parsed.Version);
         Assert.Null(parsed.PublicKey);   // v1 top-level fields omitted on v2
         Assert.Null(parsed.Signature);
         Assert.Equal(2, parsed.Signatures.Count);

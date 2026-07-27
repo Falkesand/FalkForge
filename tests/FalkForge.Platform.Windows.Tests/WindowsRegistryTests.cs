@@ -52,7 +52,7 @@ public sealed class WindowsRegistryTests : IDisposable
 
         using var key = Registry.CurrentUser.OpenSubKey(_subKey);
         Assert.NotNull(key);
-        Assert.Equal("written", key!.GetValue("Direct") as string);
+        Assert.Equal("written", key.GetValue("Direct") as string);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void DeleteKey_DeletesEntireSubtree()
     {
-        Registry.CurrentUser.CreateSubKey($@"{_subKey}\Deep\Deeper")!.Dispose();
+        Registry.CurrentUser.CreateSubKey($@"{_subKey}\Deep\Deeper").Dispose();
         Assert.True(_registry.KeyExists(RegistryRoot.CurrentUser, $@"{_subKey}\Deep\Deeper"));
 
         _registry.DeleteKey(RegistryRoot.CurrentUser, _subKey);
@@ -151,8 +151,8 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void GetSubKeyNames_ExistingKey_ReturnsChildNames()
     {
-        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildA")!.Dispose();
-        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildB")!.Dispose();
+        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildA").Dispose();
+        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildB").Dispose();
 
         var names = _registry.GetSubKeyNames(RegistryRoot.CurrentUser, _subKey);
 

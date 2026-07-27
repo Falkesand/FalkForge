@@ -30,7 +30,7 @@ public sealed class SqlCommandFactoryTests
         Assert.DoesNotContain("CREATE DATABASE [App", install, StringComparison.Ordinal);
 
         Assert.NotNull(step.RollbackCommand);
-        Assert.Contains("DROP DATABASE", Decode(step.RollbackCommand!), StringComparison.Ordinal);
+        Assert.Contains("DROP DATABASE", Decode(step.RollbackCommand), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class SqlCommandFactoryTests
         ExecutionStep drop = Single(steps, "SqlDbDrop_Db");
         Assert.Equal("0", drop.InstallCondition); // install action gated off
         Assert.NotNull(drop.UninstallCommand);
-        Assert.Contains("DROP DATABASE", Decode(drop.UninstallCommand!), StringComparison.Ordinal);
+        Assert.Contains("DROP DATABASE", Decode(drop.UninstallCommand), StringComparison.Ordinal);
         // Drop step is emitted AFTER the create step so uninstall drops last.
         Assert.True(IndexOf(steps, "SqlDbDrop_Db") > IndexOf(steps, "SqlDb_Db"));
     }
@@ -142,7 +142,7 @@ public sealed class SqlCommandFactoryTests
         ExecutionStep step = Single(SqlCommandFactory.BuildSteps([db], [], [str]), "SqlStr_Seed");
 
         Assert.NotNull(step.CustomActionData);
-        string b64 = step.CustomActionData!.Split('|')[0];
+        string b64 = step.CustomActionData.Split('|')[0];
         Assert.Equal("INSERT INTO T VALUES (1)", Encoding.UTF8.GetString(Convert.FromBase64String(b64)));
         Assert.EndsWith("|", step.CustomActionData, StringComparison.Ordinal); // integrated → empty password segment
         Assert.Contains("Regex]::Split", Decode(step.InstallCommand), StringComparison.Ordinal); // GO batching

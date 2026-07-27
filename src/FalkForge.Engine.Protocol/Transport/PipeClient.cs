@@ -123,7 +123,12 @@ public sealed class PipeClient : PipeTransportBase
         var response = new byte[ClientResponseSize];
         clientNonce.CopyTo(response, 0);
         clientProof.CopyTo(response, PipeSecurityValidator.NonceSize);
+        // S8969 false positive: Sonar's null-forgiving-redundancy check does not model that the null-forgiving
+        // operator itself is what narrows _pipe's flow state for the FlushAsync call below — removing it here
+        // reintroduces a genuine CS8602 (verified). Keep the operator.
+#pragma warning disable S8969
         await _pipe!.WriteAsync(response, ct);
+#pragma warning restore S8969
         await _pipe.FlushAsync(ct);
 
         // Read and verify the server's proof (tag_s) — the mutual-auth step. This is the fix:

@@ -56,7 +56,7 @@ public sealed class InstallerWindowBuilderTests
             .Build();
 
         Assert.NotNull(config.BackgroundColor);
-        var color = config.BackgroundColor!.Value;
+        var color = config.BackgroundColor.Value;
         Assert.Equal(0xFF, color.A);
         Assert.Equal(0x1E, color.R);
         Assert.Equal(0x1E, color.G);
@@ -71,7 +71,7 @@ public sealed class InstallerWindowBuilderTests
             .Build();
 
         Assert.NotNull(config.AccentColor);
-        var color = config.AccentColor!.Value;
+        var color = config.AccentColor.Value;
         Assert.Equal(0xFF, color.A);
         Assert.Equal(0xFF, color.R);
         Assert.Equal(0x57, color.G);

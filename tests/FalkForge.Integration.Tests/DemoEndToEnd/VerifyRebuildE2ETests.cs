@@ -141,7 +141,7 @@ public sealed class VerifyRebuildE2ETests : IDisposable
         var msi = Directory.EnumerateFiles(outDir, "*.msi", SearchOption.AllDirectories).FirstOrDefault();
         Assert.True(msi is not null,
             $"Demo 01 shipped build produced no MSI (exit {process.ExitCode}).\nStdout:\n{stdout.Result}\nStderr:\n{stderr.Result}");
-        return msi!;
+        return msi;
     }
 }
 

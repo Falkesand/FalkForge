@@ -61,11 +61,11 @@ public sealed class InternetShortcutCommandFactoryTests
 
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
-        Assert.Contains("Remove-Item -LiteralPath $path -Force", Decode(step.RollbackCommand!).Script, StringComparison.Ordinal);
-        Assert.Contains("Remove-Item -LiteralPath $path -Force", Decode(step.UninstallCommand!).Script, StringComparison.Ordinal);
+        Assert.Contains("Remove-Item -LiteralPath $path -Force", Decode(step.RollbackCommand).Script, StringComparison.Ordinal);
+        Assert.Contains("Remove-Item -LiteralPath $path -Force", Decode(step.UninstallCommand).Script, StringComparison.Ordinal);
         // Rollback and uninstall carry the same directory trailing argument so they target the same file.
-        Assert.Equal(@"C:\ProgramData\App", Decode(step.RollbackCommand!).TrailingArg);
-        Assert.Equal(@"C:\ProgramData\App", Decode(step.UninstallCommand!).TrailingArg);
+        Assert.Equal(@"C:\ProgramData\App", Decode(step.RollbackCommand).TrailingArg);
+        Assert.Equal(@"C:\ProgramData\App", Decode(step.UninstallCommand).TrailingArg);
     }
 
     [Fact]

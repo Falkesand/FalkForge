@@ -31,7 +31,7 @@ public sealed class ServiceBuilderFailureActionsTests
 
         var failureActions = package.Services[0].FailureActions;
         Assert.NotNull(failureActions);
-        Assert.Equal(FailureAction.Restart, failureActions!.OnFirstFailure);
+        Assert.Equal(FailureAction.Restart, failureActions.OnFirstFailure);
         Assert.Equal(FailureAction.Restart, failureActions.OnSecondFailure);
         Assert.Equal(FailureAction.RunCommand, failureActions.OnSubsequentFailures);
         Assert.Equal(TimeSpan.FromDays(2), failureActions.ResetPeriod);
@@ -72,7 +72,7 @@ public sealed class ServiceBuilderFailureActionsTests
 
         var failureActions = package.Services[0].FailureActions;
         Assert.NotNull(failureActions);
-        Assert.Equal(FailureAction.None, failureActions!.OnFirstFailure);
+        Assert.Equal(FailureAction.None, failureActions.OnFirstFailure);
         Assert.Equal(FailureAction.None, failureActions.OnSecondFailure);
         Assert.Equal(FailureAction.None, failureActions.OnSubsequentFailures);
         Assert.Equal(TimeSpan.FromDays(1), failureActions.ResetPeriod);

@@ -32,7 +32,7 @@ public sealed class RuleRegistryTests
         var found = registry.Find(new RuleId("PKG001"));
 
         Assert.NotNull(found);
-        Assert.Equal("PKG001", found!.Id.Value);
+        Assert.Equal("PKG001", found.Id.Value);
     }
 
     [Fact]

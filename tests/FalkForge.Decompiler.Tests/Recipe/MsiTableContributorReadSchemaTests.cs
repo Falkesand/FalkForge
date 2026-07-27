@@ -49,7 +49,7 @@ public sealed class MsiTableContributorReadSchemaTests
     {
         IMsiTableContributor contrib = new StubContributor();
         Assert.NotNull(contrib.ReadSchema);
-        Assert.Equal("MyExtTable", contrib.ReadSchema!.TableName);
+        Assert.Equal("MyExtTable", contrib.ReadSchema.TableName);
     }
 
     [Fact]

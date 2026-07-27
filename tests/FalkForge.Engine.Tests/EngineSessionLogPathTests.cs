@@ -43,7 +43,7 @@ public sealed class EngineSessionLogPathTests : IDisposable
 
         // Assert — logger was created; force a write so the file is materialised.
         Assert.NotNull(session.Logger);
-        session.Logger!.Info("Test", "clock injection check");
+        session.Logger.Info("Test", "clock injection check");
 
         // The file lives under _tempDir; its name must contain the injected timestamp.
         var files = Directory.GetFiles(_tempDir, "*.log");

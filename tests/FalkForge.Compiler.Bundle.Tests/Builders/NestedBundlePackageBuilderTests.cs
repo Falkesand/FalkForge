@@ -117,7 +117,7 @@ public sealed class NestedBundlePackageBuilderTests
         var pkg = model.Packages[0];
         Assert.Equal("NestedContainer", pkg.ContainerId);
         Assert.NotNull(pkg.RemotePayload);
-        Assert.Equal("https://example.com/nested.exe", pkg.RemotePayload!.DownloadUrl);
+        Assert.Equal("https://example.com/nested.exe", pkg.RemotePayload.DownloadUrl);
         Assert.Equal("112233", pkg.RemotePayload.Sha256Hash);
         Assert.Equal(8192, pkg.RemotePayload.Size);
         Assert.Equal(ExitCodeBehavior.ScheduleReboot, pkg.ExitCodes[3010]);

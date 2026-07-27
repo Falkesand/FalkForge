@@ -45,7 +45,11 @@ public sealed class PipeServer : PipeTransportBase
         }
         catch (OperationCanceledException)
         {
+            // S8969 false positive: removing the null-forgiving operator here reintroduces a genuine CS8602
+            // (verified) — the compiler's own nullable flow does not prove _pipe non-null at this point.
+#pragma warning disable S8969
             await _pipe!.DisposeAsync();
+#pragma warning restore S8969
             _pipe = null;
             return Result<Unit>.Failure(ErrorKind.TransportError, "Connection timed out");
         }
@@ -75,7 +79,11 @@ public sealed class PipeServer : PipeTransportBase
     private async Task<Result<Unit>> PerformServerHandshakeAsync(CancellationToken ct)
     {
         var serverNonce = PipeSecurityValidator.GenerateNonce();
+        // S8969 false positive: removing the null-forgiving operator here reintroduces a genuine CS8602
+        // (verified) — the operator itself is what narrows _pipe's flow state for the FlushAsync call below.
+#pragma warning disable S8969
         await _pipe!.WriteAsync(serverNonce, ct);
+#pragma warning restore S8969
         await _pipe.FlushAsync(ct);
 
         // Read clientNonce || tag_c in one fixed-size buffer.

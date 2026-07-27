@@ -161,7 +161,7 @@ public sealed class SqlServerDiscoveryTests
 
         var warning = Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
         Assert.NotNull(warning.Properties);
-        Assert.Contains("InvalidOperationException", warning.Properties!["exception.type"]);
+        Assert.Contains("InvalidOperationException", warning.Properties["exception.type"]);
         Assert.Contains("network down", warning.Properties["exception.message"]);
     }
 }

@@ -18,7 +18,7 @@ public sealed class AppxInteropTests
 
         try
         {
-            var instance = Activator.CreateInstance(type!);
+            var instance = Activator.CreateInstance(type);
             Assert.NotNull(instance);
         }
         catch (COMException)

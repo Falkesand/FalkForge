@@ -229,7 +229,7 @@ public static class IisRules
                     return s.VirtualDirectories
                         .Where(v => !string.IsNullOrWhiteSpace(v.WebApplication)
                                     && v.WebApplication != "/"
-                                    && !appAliases.Contains(v.WebApplication!))
+                                    && !appAliases.Contains(v.WebApplication))
                         .Select(v => new Violation(
                             new RuleId("IIS015"), Severity.Warning,
                             ModelPath.Root.Field("WebSite").Field(s.Description ?? string.Empty).Field("VirtualDirectory").Field(v.Alias ?? string.Empty),

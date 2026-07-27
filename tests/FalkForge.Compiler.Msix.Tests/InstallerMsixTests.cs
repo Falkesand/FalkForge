@@ -91,9 +91,9 @@ public sealed class InstallerMsixTests
             BindingFlags.Public | BindingFlags.Static);
 
         Assert.NotNull(method);
-        var attr = method!.GetCustomAttribute<ExperimentalAttribute>();
+        var attr = method.GetCustomAttribute<ExperimentalAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal("FF_MSIX001", attr!.DiagnosticId);
+        Assert.Equal("FF_MSIX001", attr.DiagnosticId);
     }
 
     [Fact]
@@ -104,8 +104,8 @@ public sealed class InstallerMsixTests
             BindingFlags.Public | BindingFlags.Static);
 
         Assert.NotNull(method);
-        var attr = method!.GetCustomAttribute<ExperimentalAttribute>();
+        var attr = method.GetCustomAttribute<ExperimentalAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal("FF_MSIX001", attr!.DiagnosticId);
+        Assert.Equal("FF_MSIX001", attr.DiagnosticId);
     }
 }

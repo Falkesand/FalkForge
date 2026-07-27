@@ -51,7 +51,7 @@ public sealed class BundleReaderLargeManifestTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
         Assert.NotNull(result.Value.ManifestJsonBytes);
-        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes!));
+        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class BundleReaderLargeManifestTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
         Assert.NotNull(result.Value.ManifestJsonBytes);
-        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes!));
+        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes));
     }
 
     [Theory]
@@ -101,7 +101,7 @@ public sealed class BundleReaderLargeManifestTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
         Assert.NotNull(result.Value.ManifestJsonBytes);
-        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes!));
+        Assert.Equal(manifest, Encoding.UTF8.GetString(result.Value.ManifestJsonBytes));
     }
 
     [Fact]

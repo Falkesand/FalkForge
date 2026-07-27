@@ -113,6 +113,6 @@ public sealed class InstallerBundleTests : IDisposable
         Assert.NotNull(extract.Value.ManifestJsonBytes);
         var manifest = JsonSerializer.Deserialize(extract.Value.ManifestJsonBytes, ManifestJsonContext.Default.InstallerManifest);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 }

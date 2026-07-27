@@ -93,9 +93,9 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         Assert.NotNull(content.Value.ManifestJsonBytes);
         var manifest = JsonSerializer.Deserialize(
-            content.Value.ManifestJsonBytes!, ManifestJsonContext.Default.InstallerManifest);
+            content.Value.ManifestJsonBytes, ManifestJsonContext.Default.InstallerManifest);
         Assert.NotNull(manifest);
-        return (manifest!, content.Value.TocEntries);
+        return (manifest, content.Value.TocEntries);
     }
 
     private static string Sha256Of(string path)
@@ -172,10 +172,10 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
         var (manifest, entries) = ReadBundle(result.Value);
         Assert.NotNull(manifest.ManifestSignature);
 
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         Assert.NotNull(envelope);
         var signedEntry = Assert.Single(
-            envelope!.Files, f => f.Name == EngineCompanionPayload.PackageId);
+            envelope.Files, f => f.Name == EngineCompanionPayload.PackageId);
         Assert.Equal(Sha256Of(companion), signedEntry.Sha256, ignoreCase: true);
 
         // The full byte→TOC→signed binding the engine enforces at bootstrap must hold:

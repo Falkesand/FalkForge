@@ -160,7 +160,7 @@ public sealed class NuGetConsumerEndToEndTests : IDisposable
         {
             var entry = archive.GetEntry($"tools/engine/{name}");
             Assert.True(entry is not null, $"package must contain tools/engine/{name}");
-            Assert.True(entry!.Length > 1024 * 1024,
+            Assert.True(entry.Length > 1024 * 1024,
                 $"tools/engine/{name} is {entry.Length:N0} bytes — far too small to be the " +
                 "published NativeAOT binary. A placeholder must never ship.");
 

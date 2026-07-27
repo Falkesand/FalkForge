@@ -206,7 +206,7 @@ public sealed class IntegrityEnvelopeCodecTrustTests
         var parsed = IntegrityEnvelopeCodec.Parse(v1Json);
 
         Assert.NotNull(parsed);
-        Assert.Equal(1, parsed!.Version);
+        Assert.Equal(1, parsed.Version);
         var entry = Assert.Single(parsed.Signatures);          // v1 adapted to the list shape
         Assert.Equal(IntegrityEnvelopeCodec.LegacyKeyId, entry.KeyId);
         Assert.Equal(Fingerprint(key), entry.Fingerprint);

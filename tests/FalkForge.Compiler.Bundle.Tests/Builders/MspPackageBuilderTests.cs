@@ -133,7 +133,7 @@ public sealed class MspPackageBuilderTests
         var pkg = model.Packages[0];
         Assert.Equal("MspContainer", pkg.ContainerId);
         Assert.NotNull(pkg.RemotePayload);
-        Assert.Equal("https://example.com/hotfix.msp", pkg.RemotePayload!.DownloadUrl);
+        Assert.Equal("https://example.com/hotfix.msp", pkg.RemotePayload.DownloadUrl);
         Assert.Equal("FEDCBA", pkg.RemotePayload.Sha256Hash);
         Assert.Equal(2048, pkg.RemotePayload.Size);
         Assert.Equal(ExitCodeBehavior.ScheduleReboot, pkg.ExitCodes[3010]);

@@ -179,9 +179,9 @@ public sealed class SigningProviderFactoryTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.True(result.Value.IsEnabled);
-        await AssertSignsVerifiablyWith(result.Value.Provider!, classical);
+        await AssertSignsVerifiablyWith(result.Value.Provider, classical);
         Assert.NotNull(result.Value.PqProvider);
-        await AssertPqSignsVerifiablyWith(result.Value.PqProvider!, pq);
+        await AssertPqSignsVerifiablyWith(result.Value.PqProvider, pq);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class SigningProviderFactoryTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.NotNull(result.Value.PqProvider);
-        await AssertPqSignsVerifiablyWith(result.Value.PqProvider!, pq);
+        await AssertPqSignsVerifiablyWith(result.Value.PqProvider, pq);
     }
 
     [Fact]
@@ -365,7 +365,7 @@ public sealed class SigningProviderFactoryTests : IDisposable
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.Equal(SignServerAuthMode.ClientCert, result.Value.AuthMode);
         Assert.NotNull(result.Value.ClientCertificate);
-        Assert.Equal(cert.Thumbprint, result.Value.ClientCertificate!.Thumbprint);
+        Assert.Equal(cert.Thumbprint, result.Value.ClientCertificate.Thumbprint);
         result.Value.ClientCertificate.Dispose();
     }
 

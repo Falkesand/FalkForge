@@ -49,7 +49,7 @@ public sealed class UiProcessLauncherTests
         var comSpec = Environment.GetEnvironmentVariable("ComSpec");
         Assert.False(string.IsNullOrEmpty(comSpec), "ComSpec must be set on Windows");
 
-        var result = UiProcessLauncher.TryStartUiProcess(comSpec!, "/c exit 0");
+        var result = UiProcessLauncher.TryStartUiProcess(comSpec, "/c exit 0");
 
         Assert.True(result.IsSuccess, $"expected success, got failure: {(result.IsFailure ? result.Error.Message : string.Empty)}");
         using var process = result.Value;

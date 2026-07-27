@@ -520,6 +520,6 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
         Assert.Empty(Directory.GetFiles(outputDir, "*.mst"));
         var warning = Assert.Single(logger.EntriesAt(LogLevel.Warning), e => e.Message.Contains("de-DE"));
         Assert.NotNull(warning.Properties);
-        Assert.Equal("DLG005", warning.Properties!["code"]);
+        Assert.Equal("DLG005", warning.Properties["code"]);
     }
 }

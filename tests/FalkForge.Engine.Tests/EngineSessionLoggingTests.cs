@@ -42,7 +42,7 @@ public sealed class EngineSessionLoggingTests : IDisposable
         await using var session = EngineSession.BindToChannel(channel, opts);
 
         Assert.NotNull(session.Logger);
-        Assert.Equal(LogLevel.Warning, session.Logger!.MinimumLevel);
+        Assert.Equal(LogLevel.Warning, session.Logger.MinimumLevel);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class EngineSessionLoggingTests : IDisposable
         {
             Assert.NotNull(session.Logger);
             // Force a write so the file is materialised on disk.
-            session.Logger!.Info("Test", "explicit log path");
+            session.Logger.Info("Test", "explicit log path");
         }
 
         Assert.True(File.Exists(logPath), $"Expected log at {logPath}");
