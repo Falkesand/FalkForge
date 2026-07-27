@@ -19,6 +19,10 @@
 # is the supported path here — it is still flagged PREVIEW by upstream Stryker itself,
 # expect that banner in the console output.
 #
+# Do not trust an absolute score from a single run in isolation: docs/testing/
+# mutation-testing.md's "Mode discrepancy" section records a same-code case where
+# coverage-analysis perTest vs. off disagreed by ~25 percentage points.
+#
 # Why -CoverageAnalysis is a script param but never passed to the CLI: `--coverage-
 # analysis` is NOT a recognized dotnet-stryker CLI option (verified: passing it errors
 # "Unrecognized option '--coverage-analysis'" — it does not appear in `dotnet-stryker

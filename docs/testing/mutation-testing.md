@@ -120,6 +120,22 @@ exact `dotnet-stryker` 4.16.0. A future contributor running against a newer Stry
 version should re-verify each of those before trusting them — none are guaranteed
 to still hold upstream:
 
+> **Reliability caveat — read this before trusting any single score below.** The
+> absolute mutation-score percentages this toolchain produces are **directional,
+> not authoritative**. A follow-up re-run on `feature/kill-trust-critical-survivors`
+> (2026-07-27; see "Mode discrepancy" below) found that the two `coverage-analysis`
+> modes this repo's configs can use — `perTest` (what every wired config sets) and
+> `off` — disagree by as much as **~25 percentage points on identical code**:
+> FalkForge.Core scored 80.17% under `perTest` and 55.36% under `off` against the
+> same commit. The MTP test-runner is still upstream PREVIEW (see above) and is
+> documented as unable to filter individual test cases per mutant, which is the
+> leading suspect for the gap, but neither mode has been proven correct against the
+> other. **Treat every percentage in this document as a lead, not a verdict** —
+> before acting on a specific mutant (fixing it, citing it in a review, blocking a
+> merge on it), reproduce it by hand: apply the mutation to the source, run the
+> affected tests, and confirm one actually fails. That manual reproduction is the
+> only ground truth this document can currently offer.
+
 | Project | Score | Mutants created | Tested | Killed | Survived | Timeout | NoCoverage | Ignored | CompileError | Wall |
 |---|---|---|---|---|---|---|---|---|---|---|
 | FalkForge.Core | 80.17% | 4163 | 2831 | 2491 | 339 | 0 | 277 | 441 | 614 | 2m03s |
@@ -184,13 +200,75 @@ Known caveats — read before trusting any single number in isolation:
   it can mean a mutant introduced an infinite loop / deadlock the suite happened to
   time out of rather than a test that actually pins the behavior.
 
+### Mode discrepancy found on `feature/kill-trust-critical-survivors` (2026-07-27)
+
+Twelve regression tests were added on that branch to kill several of the surviving
+mutants recorded below (commits `1a680f8f`, `ba22105e`). Re-running the sweep to
+confirm the kills surfaced a reliability problem with the tooling itself, not with
+the tests — recorded here in full because it changes how every number above (and
+below) should be read.
+
+**Comparison rule: only compare scores within the same `coverage-analysis` mode, on
+the same project.** Re-running `FalkForge.Engine.Protocol` under `perTest` — the
+mode the original sweep used — after the new tests landed reported **53.26%** (840
+killed / 439 survived / 35 timeout), which reads as a *regression* from the
+original 57.75%. That is impossible: the branch only adds tests, it removes none.
+Re-running the same two commits (main vs. this branch) under `coverage-analysis:
+off` instead gives **49.60% → 52.40%** (783→829 killed, +46 kills) — the expected
+direction. A mutant-level diff of the two targeted files confirms it: the
+`LogicalNotExpression` mutant at `SignedPayloadTocVerifier.cs:63` (the revocation
+filter — the original sweep's headline finding) and `IntegrityEnvelopeCodec.cs:87`
+(the epoch/revoked gate) both flip from Survived to Killed between the two commits
+under `off`. **Same code change, opposite headline, depending only on which mode
+did the counting.** Do not read a `perTest` score against an `off` score for the
+same project, and do not read a `perTest` "before" against an `off` "after" —
+every comparison from here on states its mode.
+
+**Determinism: the instability is between modes, not within one.** Two runs of
+`off` against the same commit and file (`SignedPayloadTocVerifier.cs` only)
+produced identical counts (53 killed / 30 survived / 16 CompileError / 66 Ignored,
+both runs); two runs of `perTest` against that same commit/file likewise matched
+exactly (53 killed / 26 survived / 4 NoCoverage / 16 CompileError / 66 Ignored,
+both runs). So re-running under the *same* mode will not resolve a suspicious
+number — switching modes is the only way to see whether it holds up, and neither
+mode is confirmed correct.
+
+**What the direction suggests, without proving it:** `off` never produced *more*
+kills than `perTest` on any project measured this session. That is consistent with
+`off` failing to execute some tests it should run (undercounting), rather than
+`perTest` over-counting kills it shouldn't credit — but this is reasoning from a
+pattern, not a proven mechanism. The upstream MTP runner is still preview and
+documented as unable to filter individual test cases per mutant, which is exactly
+the kind of gap that would produce this shape of disagreement.
+
+**Numbers by mode, this session** (cells are `killed`/`survived`/`timeout`;
+`FalkForge.Engine.Elevation` was only re-run under `perTest` — no `off` figure
+exists for it, noted rather than left blank):
+
+| Project | `perTest` (original sweep, main) | `perTest` (this branch) | `off` (this branch) | `off` (main, isolated worktree) |
+|---|---|---|---|---|
+| FalkForge.Core | 80.17% (2491/339/0) | not re-run | 55.36% (1725/1392/1) | not re-run |
+| FalkForge.Compiler.Bundle | 68.27% (802/240/5) | not re-run | 68.27% (802/375/5) — identical kill count to `perTest` | not re-run |
+| FalkForge.Signing.SignServer | 64.96% (88/25/1) | not re-run | 64.96% (88/48/1) — identical kill count to `perTest` | not re-run |
+| FalkForge.Engine.Protocol | 57.75% (919/366/31) | 53.26% (840/439/35) — apparent regression, see above | 52.40% (829/782/32) | 49.60% (783/829/33) |
+| FalkForge.Engine.Elevation | 48.37% (237/56/1) | 50.41% (246/46/2) — real improvement, new tests kill more | not run under `off` | not run |
+
+Compiler.Bundle and Signing.SignServer — the two smaller/simpler projects in the
+sweep — show identical kill counts between `perTest` and `off`; Core and Protocol,
+the two largest, diverge sharply. That is consistent with the divergence being an
+MTP/`perTest` artifact that scales with project size or complexity rather than a
+universal offset, but it is not proof of the mechanism.
+
 ### Notable surviving mutants
 
-This is a findings record, not a fix list — none of these have been touched.
-Selected from the files with the most `Survived` mutants (not merely `NoCoverage`)
-across all 5 projects, favoring bundle/integrity/signing/elevation code over pure
-MSI-table validation rules. Full per-mutant detail (mutator, exact location,
-replacement text) lives in each run's `mutation-report.json`.
+This is a findings record. Most of these have not been touched; a few were
+targeted by the 2026-07-27 branch above and are marked **RESOLVED** in place
+(with the commit that killed them) rather than deleted, so the record shows both
+what was found and what was done about it. Selected from the files with the most
+`Survived` mutants (not merely `NoCoverage`) across all 5 projects, favoring
+bundle/integrity/signing/elevation code over pure MSI-table validation rules. Full
+per-mutant detail (mutator, exact location, replacement text) lives in each run's
+`mutation-report.json`.
 
 **FalkForge.Compiler.Bundle**
 
@@ -232,6 +310,11 @@ replacement text) lives in each run's `mutation-report.json`.
   runs it against a collected-signatures list containing a match, and asserts the
   match is dropped — the revocation control's core behavior is unproven by the
   suite. This is the most concrete finding in the sweep.
+  **RESOLVED** (commit `1a680f8f`): added disjoint-role quorum scenarios where the
+  matching OUTCOME depends on which signer survives the filter, so a negated
+  filter observably flips accept/reject. Confirmed by mutant-level diff under
+  `coverage-analysis: off` — this mutant flips Survived→Killed between main and
+  this branch (see "Mode discrepancy" above).
 - `Integrity/IntegrityEnvelopeCodec.cs` (21 survived; also 130 CompileError in this
   one file — the highest CompileError count of any file below Core's
   CustomTableRules.cs, worth a look separately) — `hasEpochOrRevoked = epoch != 0 ||
@@ -240,9 +323,16 @@ replacement text) lives in each run's `mutation-report.json`.
   include the epoch/revocation extension at all; no test pins the
   epoch-zero-with-empty-revoked vs. epoch-zero-with-nonempty-revoked matrix, so a
   regression here could silently downgrade a revocation-carrying envelope to the
-  legacy (v1) signed shape. The v1→v2 adapter guard (lines 297-299, three ANDed
-  conditions) also survives with one conjunct dropped — no test constructs an
-  envelope where exactly one of the three legacy-shape conditions is false.
+  legacy (v1) signed shape.
+  **RESOLVED** for the `hasEpochOrRevoked` gate itself (commit `1a680f8f`): added a
+  4-case epoch/revoked matrix asserted against an independently-computed plain JSON
+  reference, catching both the `||`→`&&` flip and the `>= 0` boundary widening.
+  Confirmed by mutant-level diff under `coverage-analysis: off` — this mutant
+  flips Survived→Killed between main and this branch (see "Mode discrepancy"
+  above). The v1→v2 adapter guard (lines 297-299, three ANDed conditions) is
+  **still open** — it still survives with one conjunct dropped; no test
+  constructs an envelope where exactly one of the three legacy-shape conditions is
+  false.
 - `Transport/PipeTransportBase.cs` (20 survived, plus 14 timeout — the highest
   timeout count of any file) — the send-side (`data.Length > MaxMessageSize`, line
   49) and receive-side (`messageLength <= 0 || messageLength > MaxMessageSize`, line
@@ -254,11 +344,22 @@ replacement text) lives in each run's `mutation-report.json`.
   `+1` is a real, reachable signature index (not an obviously-invalid sentinel like
   `-1`), so this is not cosmetic: no test exercises a case where a slot is genuinely
   unmatched *and* signature index `1` exists, which would be needed to observe the
-  sentinel collision. This is the highest-priority finding in Engine.Protocol next
+  sentinel collision. This was the highest-priority finding in Engine.Protocol next
   to the revocation-filter negate above, because a wrong sentinel could make the
-  quorum matcher misreport a slot as matched when it isn't. The negative-count
-  clamp `req.Count < 0 ? 0 : req.Count` (line 44) also survives with the clamp
-  removed — no test builds a `PolicyRule` with a negative `Count` requirement.
+  quorum matcher misreport a slot as matched when it isn't.
+  **EQUIVALENT MUTANT, then made moot** (commit `8a27063c`): investigation found
+  `slotToSig` was write-only — never read back anywhere in the evaluator, only
+  `sigToSlot`'s sentinel drives the matching logic — so no test could ever
+  distinguish the mutated fill value from the original; it was a genuine
+  equivalent mutant, not a test gap. The array (allocation, fill, and dead
+  parameter) was removed outright rather than pinned, so the mutant no longer
+  exists to survive. The negative-count clamp `req.Count < 0 ? 0 : req.Count`
+  (line 44) also survives with the clamp removed and remains **EQUIVALENT**
+  (verified 2026-07-27, no test added): the enclosing loop's own bound check
+  already treats a negative count the same as zero, so removing the clamp
+  produces no observable behavioral difference — no test builds a `PolicyRule`
+  with a negative `Count` requirement because none could tell the mutant apart
+  from the original.
 
 **FalkForge.Signing.SignServer**
 
@@ -285,11 +386,19 @@ replacement text) lives in each run's `mutation-report.json`.
   finding in this project. `value.IndexOfAny(prohibited) >= 0` (line 150) survives
   narrowed to `> 0`: a prohibited character at index 0 (the very first character of
   the value) would no longer be rejected under the mutant, and no test supplies a
-  malicious value starting with a prohibited character to catch that. The embedded-
-  quote-smuggle guard (line 136, `i + 1 >= span.Length || span[i] != '=' ||
-  span[i + 1] != '"'`) has its own off-by-one arithmetic (`i - 1`) and boundary
-  (`i + 1 > span.Length`) survive similarly — the value-ends-exactly-at-buffer-end
-  edge case is unpinned.
+  malicious value starting with a prohibited character to catch that.
+  **RESOLVED** (commit `ba22105e`): added cases with a leading prohibited character
+  for both the general and PATCH-only character sets, pinning the `>= 0` boundary
+  at index 0. The embedded-quote-smuggle guard (line 136, `i + 1 >= span.Length ||
+  span[i] != '=' || span[i + 1] != '"'`) has its own off-by-one arithmetic
+  (`i - 1`) and boundary (`i + 1 > span.Length`) survive similarly and remain
+  **open** — the value-ends-exactly-at-buffer-end edge case is still unpinned.
+- `Commands/RegistryWriteCommand.cs` — `nextSlash >= 0` survives with the
+  comparison narrowed. **EQUIVALENT MUTANT** (confirmed 2026-07-27, no test
+  added): `AllowedSubKeyPattern`'s regex requires the AppName segment to be at
+  least 1 character, so `nextSlash` can never be `0` once the regex has matched;
+  the mutation was applied by hand and all 124 tests in the project stayed green,
+  confirming no observable behavioral difference exists for a test to pin.
 
 ### How to re-run
 
