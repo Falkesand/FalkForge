@@ -6,7 +6,6 @@ namespace FalkForge.Compiler.Msix.Builders;
 public sealed class MsixBundleBuilder
 {
     private string _name = string.Empty;
-    private string _publisher = string.Empty;
     private Version _version = new(1, 0, 0, 0);
     private readonly List<MsixBundlePackage> _packages = [];
     private SigningOptions? _signing;
@@ -14,12 +13,6 @@ public sealed class MsixBundleBuilder
     public MsixBundleBuilder Name(string name)
     {
         _name = name;
-        return this;
-    }
-
-    public MsixBundleBuilder Publisher(string publisher)
-    {
-        _publisher = publisher;
         return this;
     }
 
@@ -46,7 +39,6 @@ public sealed class MsixBundleBuilder
     public MsixBundleModel Build() => new()
     {
         Name = _name,
-        Publisher = _publisher,
         Version = _version,
         Packages = [.. _packages],
         Signing = _signing

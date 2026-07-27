@@ -14,13 +14,23 @@ public sealed class MsixBundleBuilderTests
 
         var model = new MsixBundleBuilder()
             .Name("MyBundle")
-            .Publisher("CN=Test Publisher")
             .Version(version)
             .Build();
 
         Assert.Equal("MyBundle", model.Name);
-        Assert.Equal("CN=Test Publisher", model.Publisher);
         Assert.Equal(version, model.Version);
+    }
+
+    /// <summary>
+    /// The bundle's identity publisher is not ours to set: <c>IAppxBundleWriter</c> takes only a
+    /// version and derives Name and Publisher from the payload packages it is given. A publisher
+    /// accepted here would never reach the bundle manifest, so the knob is gone rather than
+    /// pretending to work.
+    /// </summary>
+    [Fact]
+    public void MsixBundleModel_DoesNotExposePublisher()
+    {
+        Assert.Null(typeof(MsixBundleModel).GetProperty("Publisher"));
     }
 
     [Fact]
@@ -28,7 +38,6 @@ public sealed class MsixBundleBuilderTests
     {
         var model = new MsixBundleBuilder()
             .Name("MyBundle")
-            .Publisher("CN=Test")
             .Package("x64.msix", ProcessorArchitecture.X64)
             .Package("arm64.msix", ProcessorArchitecture.Arm64)
             .Build();
@@ -45,7 +54,6 @@ public sealed class MsixBundleBuilderTests
     {
         var model = new MsixBundleBuilder()
             .Name("MyBundle")
-            .Publisher("CN=Test")
             .Signing(s => s.Certificate("bundle.pfx").Timestamp("http://timestamp.example.com"))
             .Build();
 
@@ -60,7 +68,6 @@ public sealed class MsixBundleBuilderTests
         var compiler = new MsixBundleCompiler();
         var model = new MsixBundleBuilder()
             .Name("MyBundle")
-            .Publisher("CN=Test")
             .Build();
 
         var result = compiler.Compile(model, Path.GetTempPath());
@@ -76,7 +83,6 @@ public sealed class MsixBundleBuilderTests
         var compiler = new MsixBundleCompiler();
         var model = new MsixBundleBuilder()
             .Name("MyBundle")
-            .Publisher("CN=Test")
             .Package("nonexistent-file.msix", ProcessorArchitecture.X64)
             .Build();
 
