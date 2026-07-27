@@ -545,7 +545,10 @@ public static class EngineTrustAnchor
 
     /// <summary>
     /// Test-only: clears all code-registered keys and unfreezes the effective set so each test starts from a
-    /// pristine anchor. The engine test assembly runs serially, so this is safe. Never called in production.
+    /// pristine anchor. Both test assemblies that touch this process-global singleton
+    /// (<c>FalkForge.Engine.Tests</c> and, since commit <c>8072059d</c>, <c>FalkForge.Integration.Tests</c>)
+    /// disable assembly-level xUnit parallelization, so within each assembly this reset is race-free. Never
+    /// called in production.
     /// </summary>
     internal static void ResetForTests()
     {
