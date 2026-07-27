@@ -106,7 +106,14 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
         var result = NoFollowFileWriter.Write(_tempDir, linkPath, new byte[] { 0xFF });
 
         Assert.True(result.IsFailure);
-        Assert.True(File.Exists(linkPath), "a pre-existing symlink this call did not create must not be deleted on rejection");
+        // File.Exists alone would also pass if the link were deleted and something else
+        // (e.g. a regular file) got created at the same path — it proves "something is
+        // there", not "the original symlink survived". Assert the reparse point AND its
+        // target so the test proves identity, not just presence.
+        Assert.True(
+            (File.GetAttributes(linkPath) & FileAttributes.ReparsePoint) != FileAttributes.None,
+            "a pre-existing symlink this call did not create must not be deleted on rejection");
+        Assert.Equal(victimPath, new FileInfo(linkPath).LinkTarget);
     }
 
     [Fact]
