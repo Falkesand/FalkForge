@@ -210,7 +210,7 @@ public sealed class ExternalContainerSignatureBindingTests
         // The envelope carries the signed container copy…
         var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!)!;
         Assert.NotNull(envelope.ExternalContainers);
-        Assert.Single(envelope.ExternalContainers!);
+        Assert.Single(envelope.ExternalContainers);
 
         // …and the declared set matches it, so verification passes.
         var result = SignedPayloadTocVerifier.Verify(manifest, AppToc(), TrustSet(Fingerprint(key)));

@@ -126,7 +126,7 @@ public sealed class RunnableBundleEndToEndTests : IDisposable
             stream.ReadExactly(prefix);
             Assert.Equal((byte)'M', prefix[0]);
             Assert.Equal((byte)'Z', prefix[1]);
-            Assert.True(stream.Length > new FileInfo(enginePath!).Length,
+            Assert.True(stream.Length > new FileInfo(enginePath).Length,
                 "bundle must be strictly larger than the engine it embeds");
         }
 
@@ -165,7 +165,7 @@ public sealed class RunnableBundleEndToEndTests : IDisposable
             "This gate exists because the runnable-bundle e2e requires the multi-minute NativeAOT publish.");
 
         var companionPath = Path.Combine(
-            Path.GetDirectoryName(enginePath!)!, "FalkForge.Engine.Elevation.exe");
+            Path.GetDirectoryName(enginePath)!, "FalkForge.Engine.Elevation.exe");
         Assert.SkipUnless(File.Exists(companionPath),
             "Published NativeAOT elevation companion not found beside the published engine — run " +
             "scripts/publish.ps1 first (it publishes FalkForge.Engine.exe and FalkForge.Engine.Elevation.exe together).");

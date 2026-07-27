@@ -95,15 +95,15 @@ public sealed class AcmeSuiteEnterpriseCompositionTests
         Assert.True(extract.IsSuccess, extract.IsFailure ? extract.Error.Message : "");
         Assert.NotNull(extract.Value.ManifestJsonBytes);
 
-        var manifest = JsonSerializer.Deserialize<InstallerManifest>(extract.Value.ManifestJsonBytes!);
+        var manifest = JsonSerializer.Deserialize<InstallerManifest>(extract.Value.ManifestJsonBytes);
         Assert.NotNull(manifest);
-        Assert.NotNull(manifest!.ManifestSignature);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+        Assert.NotNull(manifest.ManifestSignature);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         Assert.NotNull(envelope);
-        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!), "Bundle integrity signature must verify.");
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope), "Bundle integrity signature must verify.");
 
         Assert.NotNull(manifest.UpdateFeed);
-        Assert.Equal("https://updates.acme.example/acmesuite/feed.json", manifest.UpdateFeed!.FeedUrl);
+        Assert.Equal("https://updates.acme.example/acmesuite/feed.json", manifest.UpdateFeed.FeedUrl);
     }
 
     [Fact]

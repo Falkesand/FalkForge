@@ -72,7 +72,7 @@ public sealed class EngineSessionDownloadThrottleTests : IDisposable
             pipeName: null, WriteManifest(maxBytesPerSecond: 500_000), Options());
 
         Assert.NotNull(session.UpdatePayloadDownloader);
-        Assert.NotNull(session.UpdatePayloadDownloader!.ThrottleBucket);
+        Assert.NotNull(session.UpdatePayloadDownloader.ThrottleBucket);
     }
 
     [Fact]
@@ -82,6 +82,6 @@ public sealed class EngineSessionDownloadThrottleTests : IDisposable
             pipeName: null, WriteManifest(maxBytesPerSecond: 0), Options());
 
         Assert.NotNull(session.UpdatePayloadDownloader);
-        Assert.Null(session.UpdatePayloadDownloader!.ThrottleBucket);
+        Assert.Null(session.UpdatePayloadDownloader.ThrottleBucket);
     }
 }

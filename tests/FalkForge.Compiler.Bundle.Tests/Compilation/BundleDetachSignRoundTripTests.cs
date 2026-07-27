@@ -150,7 +150,7 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
 
         // Apply a REAL Authenticode signature to the bare stub with an in-code self-signed
         // code-signing certificate, exactly as a publisher would with their own cert.
-        SignWithSelfSignedCert(signtool!, detachedStub);
+        SignWithSelfSignedCert(signtool, detachedStub);
 
         var validator = new AuthenticodeValidator();
 
@@ -224,7 +224,7 @@ public sealed class BundleDetachSignRoundTripTests : IDisposable
         // Build the FULLY ASSEMBLED bundle — stub + FALKBUNDLE container + footer — with no
         // detach step at all, then sign that single file directly.
         var bundlePath = BuildBundle(stubSource, ("Whole1", payload1), ("Whole2", payload2));
-        SignWithSelfSignedCert(signtool!, bundlePath);
+        SignWithSelfSignedCert(signtool, bundlePath);
 
         var validator = new AuthenticodeValidator();
 

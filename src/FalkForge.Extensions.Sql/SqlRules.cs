@@ -140,7 +140,7 @@ public static class SqlRules
                 ctx => getScripts()
                     .Where(s => !string.IsNullOrWhiteSpace(s.Id)
                                 && !string.IsNullOrWhiteSpace(s.SqlContent)
-                                && s.SqlContent!.Length > MaxCustomActionDataLength)
+                                && s.SqlContent.Length > MaxCustomActionDataLength)
                     .Select(s => new Violation(
                         new RuleId("SQL009"), Severity.Error,
                         ModelPath.Root.Field("SqlScript").Field(s.Id),

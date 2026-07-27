@@ -116,15 +116,15 @@ public sealed class SignServerPodSigningE2ETests
                 var manifest = ExtractManifest(compileResult.Value);
                 Assert.NotNull(manifest.ManifestSignature);
 
-                var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+                var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
                 Assert.NotNull(envelope);
 
                 // The real engine verifier accepts the envelope: the DER signature the pod produced was
                 // converted to P1363 and the signer certificate's public key was extracted correctly.
-                Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!),
+                Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope),
                     "The live-SignServer-signed envelope did not verify through the engine codec.");
 
-                var signature = Assert.Single(envelope!.Signatures);
+                var signature = Assert.Single(envelope.Signatures);
                 Assert.Equal("signserver-plainecdsa", signature.KeyId);
                 Assert.NotEmpty(Convert.FromBase64String(signature.PublicKey));
 
@@ -224,7 +224,7 @@ public sealed class SignServerPodSigningE2ETests
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.Value.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     /// <summary>

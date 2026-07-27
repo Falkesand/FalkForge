@@ -148,7 +148,7 @@ internal static class UtilUserGroupCommandFactory
             return [];
         return string.IsNullOrEmpty(u.PasswordProperty)
             ? [stepId]
-            : [stepId, u.PasswordProperty!];
+            : [stepId, u.PasswordProperty];
     }
 
     // ── group create / remove ───────────────────────────────────────────────
@@ -246,7 +246,7 @@ internal static class UtilUserGroupCommandFactory
     {
         string descArg = string.IsNullOrEmpty(g.Description)
             ? string.Empty
-            : " -Description " + CommandLine.PowerShellSingleQuote(g.Description!);
+            : " -Description " + CommandLine.PowerShellSingleQuote(g.Description);
 
         var sb = new StringBuilder(384);
         sb.Append("$ErrorActionPreference = 'Stop'\n");
@@ -302,7 +302,7 @@ internal static class UtilUserGroupCommandFactory
     {
         string descArg = string.IsNullOrEmpty(u.Description)
             ? string.Empty
-            : " -Description " + CommandLine.PowerShellSingleQuote(u.Description!);
+            : " -Description " + CommandLine.PowerShellSingleQuote(u.Description);
 
         var sb = new StringBuilder(1200);
         sb.Append("$ErrorActionPreference = 'Stop'\n");
@@ -453,7 +453,7 @@ internal static class UtilUserGroupCommandFactory
         if (!string.IsNullOrEmpty(u.PasswordProperty))
             return string.Concat("[", u.PasswordProperty, "]");
         if (!string.IsNullOrEmpty(u.Password))
-            return CommandLine.MsiFormatEscape(u.Password!);
+            return CommandLine.MsiFormatEscape(u.Password);
         return null;
     }
 

@@ -118,11 +118,11 @@ public sealed class SignServerRotationRevocationE2ETests
             var manifest = ExtractManifest(compileResult.Value);
             Assert.NotNull(manifest.ManifestSignature);
 
-            var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+            var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
             Assert.NotNull(envelope);
 
             // Both real SignServer keys contributed a signature entry, in provider declaration order.
-            Assert.Equal(2, envelope!.Signatures.Count);
+            Assert.Equal(2, envelope.Signatures.Count);
             var oldFingerprint = envelope.Signatures[0].Fingerprint;
             var newFingerprint = envelope.Signatures[1].Fingerprint;
             Assert.NotEqual(oldFingerprint, newFingerprint);
@@ -248,9 +248,9 @@ public sealed class SignServerRotationRevocationE2ETests
     {
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest!.ManifestSignature!);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
         Assert.NotNull(envelope);
-        return Assert.Single(envelope!.Signatures).Fingerprint;
+        return Assert.Single(envelope.Signatures).Fingerprint;
     }
 
     private static IContainer BuildContainer() =>
@@ -340,7 +340,7 @@ public sealed class SignServerRotationRevocationE2ETests
     {
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(ExtractContent(bundlePath).ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     private static FalkForge.Engine.Protocol.Bundle.BundleContent ExtractContent(string bundlePath)

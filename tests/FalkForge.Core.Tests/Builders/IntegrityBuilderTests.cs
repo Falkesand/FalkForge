@@ -23,7 +23,7 @@ public sealed class IntegrityBuilderTests
         });
 
         Assert.NotNull(package.Integrity!.SignatureProviders);
-        Assert.Equal(2, package.Integrity.SignatureProviders!.Count);
+        Assert.Equal(2, package.Integrity.SignatureProviders.Count);
         Assert.Same(p1, package.Integrity.SignatureProviders[0]);
         Assert.Same(p2, package.Integrity.SignatureProviders[1]);
     }
@@ -151,8 +151,8 @@ public sealed class IntegrityBuilderTests
         });
 
         Assert.NotNull(package.Integrity!.RevokedFingerprints);
-        Assert.Contains("AABB", package.Integrity.RevokedFingerprints!);
-        Assert.Contains("CCDD", package.Integrity.RevokedFingerprints!);
+        Assert.Contains("AABB", package.Integrity.RevokedFingerprints);
+        Assert.Contains("CCDD", package.Integrity.RevokedFingerprints);
     }
 
     [Fact]
@@ -169,9 +169,9 @@ public sealed class IntegrityBuilderTests
         });
 
         Assert.NotNull(package.Integrity!.SigningKeyPaths);
-        Assert.Contains("/keys/classical.pem", package.Integrity.SigningKeyPaths!);
+        Assert.Contains("/keys/classical.pem", package.Integrity.SigningKeyPaths);
         Assert.NotNull(package.Integrity.PqSigningKeyPaths);
-        Assert.Contains("/keys/mldsa.pem", package.Integrity.PqSigningKeyPaths!);
+        Assert.Contains("/keys/mldsa.pem", package.Integrity.PqSigningKeyPaths);
     }
 
     [Fact]

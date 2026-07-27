@@ -100,7 +100,7 @@ public sealed class PlanCommandEngineLauncherTests
             .FirstOrDefault(t => t.Name == "IEngineLauncher");
 
         Assert.NotNull(type);
-        Assert.True(type!.IsInterface, "IEngineLauncher must be an interface");
+        Assert.True(type.IsInterface, "IEngineLauncher must be an interface");
     }
 }
 

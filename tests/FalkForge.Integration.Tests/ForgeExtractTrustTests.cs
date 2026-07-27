@@ -131,6 +131,6 @@ public sealed class ForgeExtractTrustTests
     {
         var manifest = System.Text.Json.JsonSerializer.Deserialize<InstallerManifest>(content.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 }

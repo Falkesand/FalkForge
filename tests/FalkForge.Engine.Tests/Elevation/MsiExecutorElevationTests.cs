@@ -54,7 +54,7 @@ public sealed class MsiExecutorElevationTests
         Assert.NotNull(mockClient.LastPayload);
 
         // Verify payload contains the source path
-        using var stream = new MemoryStream(mockClient.LastPayload!);
+        using var stream = new MemoryStream(mockClient.LastPayload);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
         var msiPath = reader.ReadString();
         var additionalArgs = reader.ReadString();
@@ -85,7 +85,7 @@ public sealed class MsiExecutorElevationTests
         Assert.NotNull(mockClient.LastPayload);
 
         // Verify payload contains the product code
-        using var stream = new MemoryStream(mockClient.LastPayload!);
+        using var stream = new MemoryStream(mockClient.LastPayload);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
         var productCode = reader.ReadString();
 

@@ -47,12 +47,12 @@ public sealed class EngineSessionPipeCallbackTests : IDisposable
         await using var session = EngineSession.BindToChannel(channel, opts);
 
         Assert.NotNull(session.Logger);
-        session.Logger!.Info("Detect", "hello-from-engine");
+        session.Logger.Info("Detect", "hello-from-engine");
 
         // Callback dispatches to the ThreadPool — wait for the event with a deadline.
         var logEvent = await WaitForLogEventAsync(channel, TimeSpan.FromSeconds(5));
         Assert.NotNull(logEvent);
-        Assert.Equal(LogLevel.Info, logEvent!.Level);
+        Assert.Equal(LogLevel.Info, logEvent.Level);
         Assert.Contains("hello-from-engine", logEvent.Message);
     }
 

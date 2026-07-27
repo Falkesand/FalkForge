@@ -207,8 +207,13 @@ internal sealed class DetectStep : IDetectStep
         var feed = _manifest.UpdateFeed!;
         var currentVersion = _manifest.Version;
 
+        // S8969 false positive: _updateChecker is only null-checked at the CALL SITE (line 115), not in
+        // this method's own flow — nullable narrowing does not cross method boundaries for an instance
+        // field. Removing the operator reintroduces a genuine CS8602 (verified).
+#pragma warning disable S8969
         var checkResult = await _updateChecker!.CheckForUpdateAsync(
             feed, _manifest.BundleId, currentVersion, ct);
+#pragma warning restore S8969
 
         if (checkResult.IsFailure)
         {

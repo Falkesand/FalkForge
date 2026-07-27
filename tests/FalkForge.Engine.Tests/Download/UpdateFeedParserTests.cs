@@ -76,7 +76,7 @@ public sealed class UpdateFeedParserTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("3.0.0", result.Value.Update!.Version);
+        Assert.Equal("3.0.0", result.Value.Update.Version);
         Assert.Equal("https://example.com/v3.exe", result.Value.Update.DownloadUrl);
         Assert.Equal("ccc", result.Value.Update.Sha256);
     }
@@ -142,7 +142,7 @@ public sealed class UpdateFeedParserTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("3.0.0", result.Value.Update!.Version);
+        Assert.Equal("3.0.0", result.Value.Update.Version);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public sealed class UpdateFeedParserTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("2.0.0", result.Value.Update!.Version);
+        Assert.Equal("2.0.0", result.Value.Update.Version);
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class UpdateFeedParserTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("2.0.0", result.Value.Update!.Version);
+        Assert.Equal("2.0.0", result.Value.Update.Version);
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public sealed class UpdateFeedParserTests
         Assert.True(result.IsSuccess);
         var update = result.Value.Update;
         Assert.NotNull(update);
-        Assert.Equal("2.0.0", update!.Version);
+        Assert.Equal("2.0.0", update.Version);
         Assert.Equal("https://cdn.example.com/v2/bundle.exe", update.DownloadUrl);
         Assert.Equal("abc123def456", update.Sha256);
         Assert.Equal(15_000_000L, update.Size);
@@ -270,7 +270,7 @@ public sealed class UpdateFeedParserTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("4.0.0", result.Value.Update!.Version);
+        Assert.Equal("4.0.0", result.Value.Update.Version);
         Assert.Equal("ddd", result.Value.Update.Sha256);
     }
 
@@ -311,6 +311,6 @@ public sealed class UpdateFeedParserTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("3.0.0", result.Value.Update!.Version);
+        Assert.Equal("3.0.0", result.Value.Update.Version);
     }
 }

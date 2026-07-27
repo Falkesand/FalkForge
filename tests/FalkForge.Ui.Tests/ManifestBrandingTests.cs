@@ -34,7 +34,7 @@ public sealed class ManifestBrandingTests
 
         Assert.Equal("logo.png", merged.IconPath);
         Assert.NotNull(merged.AccentColor);
-        var accent = merged.AccentColor!.Value;
+        var accent = merged.AccentColor.Value;
         Assert.Equal(0x00, accent.R);
         Assert.Equal(0x78, accent.G);
         Assert.Equal(0xD4, accent.B);
@@ -59,7 +59,7 @@ public sealed class ManifestBrandingTests
         Assert.Equal("explicit.ico", merged.IconPath);
         Assert.Equal("explicit-watermark.png", merged.WatermarkImagePath);
         Assert.NotNull(merged.AccentColor);
-        Assert.Equal(0xFF, merged.AccentColor!.Value.R);
+        Assert.Equal(0xFF, merged.AccentColor.Value.R);
         // Fields the caller left unset still come from the manifest.
         Assert.Equal("banner.png", merged.BannerImagePath);
     }

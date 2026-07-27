@@ -94,7 +94,7 @@ public sealed class BundleCompilerAsyncSigningTests : IDisposable
         var manifest = JsonSerializer.Deserialize(
             content.Value.ManifestJsonBytes!, ManifestJsonContext.Default.InstallerManifest);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class BundleCompilerAsyncSigningTests : IDisposable
         var manifest = ExtractManifest(result.Value);
 
         Assert.NotNull(manifest.ManifestSignature);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!)!;
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature)!;
         Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
 
         var entry = Assert.Single(envelope.Signatures);

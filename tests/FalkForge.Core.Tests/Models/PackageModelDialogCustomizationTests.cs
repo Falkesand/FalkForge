@@ -31,6 +31,6 @@ public sealed class PackageModelDialogCustomizationTests
         };
 
         Assert.Same(customization, model.DialogCustomization);
-        Assert.Equal("banner.bmp", model.DialogCustomization!.BannerBitmap);
+        Assert.Equal("banner.bmp", model.DialogCustomization.BannerBitmap);
     }
 }

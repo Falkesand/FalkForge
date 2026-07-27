@@ -164,7 +164,7 @@ public sealed class ExternalContainerAcquirerTests : IDisposable
         // The gate is fed the CONTAINER's own TOC (the payloads about to be extracted), so tamper of the
         // container's payloads is what gets bound to the signed set — not the exe's embedded TOC.
         Assert.NotNull(seenToc);
-        Assert.Equal(ExternalPackageId, Assert.Single(seenToc!).PackageId);
+        Assert.Equal(ExternalPackageId, Assert.Single(seenToc).PackageId);
     }
 
     [Fact]

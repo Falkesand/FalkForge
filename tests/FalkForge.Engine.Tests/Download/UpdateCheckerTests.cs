@@ -63,7 +63,7 @@ public sealed class UpdateCheckerTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value.Update);
-        Assert.Equal("2.0.0", result.Value.Update!.Version);
+        Assert.Equal("2.0.0", result.Value.Update.Version);
         Assert.Equal("https://cdn.example.com/v2.exe", result.Value.Update.DownloadUrl);
         Assert.Equal("abc123", result.Value.Update.Sha256);
     }
@@ -249,7 +249,7 @@ public sealed class UpdateCheckerTests
         await checker.CheckForUpdateAsync(MakeConfig(customUrl), TestBundleId, CurrentVersion, CancellationToken.None);
 
         Assert.NotNull(capturedUri);
-        Assert.Equal(customUrl, capturedUri!.ToString());
+        Assert.Equal(customUrl, capturedUri.ToString());
     }
 
     /// <summary>

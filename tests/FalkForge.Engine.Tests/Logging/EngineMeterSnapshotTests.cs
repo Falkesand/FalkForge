@@ -98,7 +98,7 @@ public sealed class EngineMeterSnapshotTests
         Assert.NotNull(entry.Properties);
 
         // Phase transitions = 1.
-        Assert.True(entry.Properties!.ContainsKey(EngineMeter.SnapshotKey.PhaseTransitions));
+        Assert.True(entry.Properties.ContainsKey(EngineMeter.SnapshotKey.PhaseTransitions));
         Assert.Equal("1", entry.Properties[EngineMeter.SnapshotKey.PhaseTransitions]);
 
         // Retries = 1.

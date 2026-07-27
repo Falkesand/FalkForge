@@ -53,7 +53,7 @@ public sealed class SignatureEntryAlgorithmTests
         var parsed = IntegrityEnvelopeCodec.Parse(json);
 
         Assert.NotNull(parsed);
-        var entry = Assert.Single(parsed!.Signatures);
+        var entry = Assert.Single(parsed.Signatures);
         Assert.Null(entry.Algorithm);
         Assert.True(IntegrityEnvelopeCodec.VerifySignature(parsed));
     }
@@ -82,7 +82,7 @@ public sealed class SignatureEntryAlgorithmTests
         var parsed = IntegrityEnvelopeCodec.Parse(IntegrityEnvelopeCodec.Serialize(envelope));
 
         Assert.NotNull(parsed);
-        Assert.Equal("ML-DSA-65", Assert.Single(parsed!.Signatures).Algorithm);
+        Assert.Equal("ML-DSA-65", Assert.Single(parsed.Signatures).Algorithm);
     }
 
     [Fact]

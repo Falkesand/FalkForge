@@ -139,7 +139,7 @@ public sealed class DecompilerLoggingTests
         var errors = logger.EntriesAt(LogLevel.Error);
         var error = Assert.Single(errors, e => e.Category == "MsiDecompiler" && e.Message.Contains("Property"));
         Assert.NotNull(error.Properties);
-        Assert.Equal("DEC003", error.Properties!["code"]);
+        Assert.Equal("DEC003", error.Properties["code"]);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class DecompilerLoggingTests
         var errors = logger.EntriesAt(LogLevel.Error);
         var error = Assert.Single(errors);
         Assert.NotNull(error.Properties);
-        Assert.Equal("DEC001", error.Properties!["code"]);
+        Assert.Equal("DEC001", error.Properties["code"]);
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public sealed class DecompilerLoggingTests
         var errors = logger.EntriesAt(LogLevel.Error);
         var error = Assert.Single(errors, e => e.Category == "BundleDecompiler");
         Assert.NotNull(error.Properties);
-        Assert.Equal("BDC003", error.Properties!["code"]);
+        Assert.Equal("BDC003", error.Properties["code"]);
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public sealed class DecompilerLoggingTests
         var errors = logger.EntriesAt(LogLevel.Error);
         var error = Assert.Single(errors, e => e.Category == "WixBundleDecompiler");
         Assert.NotNull(error.Properties);
-        Assert.Equal("WBD003", error.Properties!["code"]);
+        Assert.Equal("WBD003", error.Properties["code"]);
     }
 
     [Fact]

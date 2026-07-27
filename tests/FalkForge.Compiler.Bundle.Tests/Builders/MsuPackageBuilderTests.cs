@@ -131,7 +131,7 @@ public sealed class MsuPackageBuilderTests
         var pkg = model.Packages[0];
         Assert.Equal("MsuContainer", pkg.ContainerId);
         Assert.NotNull(pkg.RemotePayload);
-        Assert.Equal("https://example.com/update.msu", pkg.RemotePayload!.DownloadUrl);
+        Assert.Equal("https://example.com/update.msu", pkg.RemotePayload.DownloadUrl);
         Assert.Equal("ABCDEF", pkg.RemotePayload.Sha256Hash);
         Assert.Equal(4096, pkg.RemotePayload.Size);
         Assert.Equal(ExitCodeBehavior.ScheduleReboot, pkg.ExitCodes[3010]);

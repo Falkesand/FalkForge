@@ -118,11 +118,11 @@ public sealed class PipelinePhaseStepTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(ctx.AvailableUpdate?.Update);
-        Assert.Equal("2.0.0", ctx.AvailableUpdate!.Update!.Version);
+        Assert.Equal("2.0.0", ctx.AvailableUpdate.Update.Version);
 
         var updateEvent = channel.SentEvents.OfType<PipelineEvent.UpdateAvailable>().FirstOrDefault();
         Assert.NotNull(updateEvent);
-        Assert.Equal("2.0.0", updateEvent!.NewVersion);
+        Assert.Equal("2.0.0", updateEvent.NewVersion);
     }
 
     [Fact]
@@ -496,7 +496,7 @@ public sealed class PipelinePhaseStepTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(ctx.Plan);
-        Assert.Single(ctx.Plan!.Actions);
+        Assert.Single(ctx.Plan.Actions);
     }
 
     [Fact]

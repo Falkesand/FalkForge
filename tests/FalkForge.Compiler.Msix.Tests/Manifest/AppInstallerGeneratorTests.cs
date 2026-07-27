@@ -32,7 +32,7 @@ public sealed class AppInstallerGeneratorTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
         Assert.NotNull(result.Value.Root);
-        Assert.Equal(Ns + "AppInstaller", result.Value.Root!.Name);
+        Assert.Equal(Ns + "AppInstaller", result.Value.Root.Name);
     }
 
     [Fact]
@@ -103,6 +103,6 @@ public sealed class AppInstallerGeneratorTests
         var forceUpdate = updateSettings.Element(Ns + "ForceUpdateFromAnyVersion");
 
         Assert.NotNull(forceUpdate);
-        Assert.Equal("true", forceUpdate!.Value);
+        Assert.Equal("true", forceUpdate.Value);
     }
 }

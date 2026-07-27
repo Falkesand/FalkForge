@@ -104,7 +104,7 @@ internal static class SqlCommandFactory
             return [];
         return string.IsNullOrEmpty(db.PasswordProperty)
             ? [stepId]
-            : [stepId, db.PasswordProperty!];
+            : [stepId, db.PasswordProperty];
     }
 
     // ── database create / drop ──────────────────────────────────────────────
@@ -294,7 +294,7 @@ internal static class SqlCommandFactory
             sb.Append("  if ([string]::IsNullOrEmpty(").Append(pwExpr).Append(")) {\n");
             sb.Append("    $csb['Integrated Security'] = $true\n");
             sb.Append("  } else {\n");
-            sb.Append("    $csb['User ID'] = ").Append(CommandLine.PowerShellSingleQuote(db.User!)).Append('\n');
+            sb.Append("    $csb['User ID'] = ").Append(CommandLine.PowerShellSingleQuote(db.User)).Append('\n');
             sb.Append("    $csb['Password'] = ").Append(pwExpr).Append('\n');
             sb.Append("  }\n");
         }
@@ -314,7 +314,7 @@ internal static class SqlCommandFactory
         if (!string.IsNullOrEmpty(db.PasswordProperty))
             return string.Concat("[", db.PasswordProperty, "]");
         if (!string.IsNullOrEmpty(db.Password))
-            return CommandLine.MsiFormatEscape(db.Password!);
+            return CommandLine.MsiFormatEscape(db.Password);
         return null;
     }
 
@@ -324,7 +324,7 @@ internal static class SqlCommandFactory
         if (!string.IsNullOrEmpty(db.PasswordProperty))
             return string.Concat("[", db.PasswordProperty, "]");
         if (!string.IsNullOrEmpty(db.Password))
-            return CommandLine.MsiFormatEscape(db.Password!);
+            return CommandLine.MsiFormatEscape(db.Password);
         return string.Empty;
     }
 
@@ -376,7 +376,7 @@ internal static class SqlCommandFactory
                 continue;
 
             work.Add(new SqlWorkItem(
-                "SqlScr_", s.Id, db, s.SqlContent!, s.Sequence, s.ContinueOnError,
+                "SqlScr_", s.Id, db, s.SqlContent, s.Sequence, s.ContinueOnError,
                 s.ExecuteOnInstall, s.ExecuteOnUninstall,
                 ComposeScriptInstallCondition(s.ExecuteOnInstall, s.ExecuteOnReinstall)));
         }

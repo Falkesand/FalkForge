@@ -74,9 +74,9 @@ public sealed class BundleCompilerSigningTests : IDisposable
         Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
         Assert.NotNull(content.Value.ManifestJsonBytes);
         var manifest = JsonSerializer.Deserialize(
-            content.Value.ManifestJsonBytes!, ManifestJsonContext.Default.InstallerManifest);
+            content.Value.ManifestJsonBytes, ManifestJsonContext.Default.InstallerManifest);
         Assert.NotNull(manifest);
-        return manifest!;
+        return manifest;
     }
 
     [Fact]
@@ -103,12 +103,12 @@ public sealed class BundleCompilerSigningTests : IDisposable
         var manifest = ExtractManifest(result.Value);
 
         Assert.NotNull(manifest.ManifestSignature);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         Assert.NotNull(envelope);
-        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!));
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
 
         // The signed entry binds to the package and carries its real payload hash.
-        var entry = Assert.Single(envelope!.Files);
+        var entry = Assert.Single(envelope.Files);
         Assert.Equal("PkgA", entry.Name);
         Assert.Equal(manifest.Packages[0].Sha256Hash, entry.Sha256);
     }

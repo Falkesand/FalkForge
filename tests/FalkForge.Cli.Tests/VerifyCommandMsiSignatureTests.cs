@@ -76,7 +76,7 @@ public sealed class VerifyCommandMsiSignatureTests : IDisposable
         var manifestRow = Assert.Single(rows.Value, r => r[0] == "ManifestSignature");
         var envelope = IntegrityEnvelopeCodec.Parse(manifestRow[1]!);
         Assert.NotNull(envelope);
-        var classical = envelope!.Signatures.First(s => string.IsNullOrEmpty(s.Algorithm));
+        var classical = envelope.Signatures.First(s => string.IsNullOrEmpty(s.Algorithm));
         return classical.Fingerprint;
     }
 

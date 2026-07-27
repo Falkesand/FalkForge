@@ -64,7 +64,7 @@ internal static class SigningProviderFactory
         {
             // The loader guarantees exactly one key source, so KeyPath is set here.
             var keyPath = Path.IsPathRooted(config.KeyPath!)
-                ? config.KeyPath!
+                ? config.KeyPath
                 : Path.GetFullPath(Path.Combine(baseDirectory, config.KeyPath!));
 
             // Never echo the configured value: a secret mispasted into keyPath would otherwise

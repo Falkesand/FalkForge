@@ -144,12 +144,12 @@ public sealed class BuildCommandSigningTests : IDisposable
         var signatureJson = manifest.RootElement.GetProperty("ManifestSignature").GetString();
         Assert.False(string.IsNullOrEmpty(signatureJson), "bundle manifest is not signed");
 
-        var envelope = IntegrityEnvelopeCodec.Parse(signatureJson!);
+        var envelope = IntegrityEnvelopeCodec.Parse(signatureJson);
         Assert.NotNull(envelope);
-        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!), "manifest signature does not verify");
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope), "manifest signature does not verify");
 
         // The signature must come from the configured key — not an ephemeral fallback.
-        var entry = Assert.Single(envelope!.Signatures);
+        var entry = Assert.Single(envelope.Signatures);
         Assert.Equal(
             Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo())),
             entry.Fingerprint);

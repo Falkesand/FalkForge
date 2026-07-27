@@ -27,7 +27,12 @@ internal sealed class DictionaryStreamRegistry : IStreamRegistry
     public bool TryGet(string streamName, out StreamSource source)
     {
         ArgumentNullException.ThrowIfNull(streamName);
+        // S8969 false positive: the interface's out parameter is non-nullable, but Dictionary.TryGetValue
+        // is annotated [MaybeNullWhen(false)] — removing the null-forgiving operator reintroduces a
+        // genuine CS8601 (verified). Callers only read `source` when the return value is true.
+#pragma warning disable S8969
         return _streams.TryGetValue(streamName, out source!);
+#pragma warning restore S8969
     }
 
     public IReadOnlyDictionary<string, StreamSource> Snapshot()

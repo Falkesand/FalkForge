@@ -125,7 +125,7 @@ public sealed class BundleRegionHintTests
             Assert.True(content.IsSuccess, content.IsFailure ? content.Error.Message : null);
             Assert.NotNull(content.Value.ManifestJsonBytes);
 
-            return content.Value.ManifestJsonBytes!;
+            return content.Value.ManifestJsonBytes;
         }
         finally
         {

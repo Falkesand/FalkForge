@@ -53,7 +53,7 @@ internal static partial class IisCommandFactory
 
         if (!string.IsNullOrWhiteSpace(site.AppPool))
         {
-            string appPoolName = poolNamesById.TryGetValue(site.AppPool!, out string? resolved) ? resolved : site.AppPool!;
+            string appPoolName = poolNamesById.TryGetValue(site.AppPool, out string? resolved) ? resolved : site.AppPool;
             body.Append("  $__site.Applications['/'].ApplicationPoolName = ")
                 .Append(CommandLine.PowerShellSingleQuote(appPoolName)).Append('\n');
         }

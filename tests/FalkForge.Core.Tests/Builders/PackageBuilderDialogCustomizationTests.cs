@@ -47,7 +47,7 @@ public sealed class PackageBuilderDialogCustomizationTests
         PackageModel model = builder.Build();
 
         Assert.NotNull(model.DialogCustomization);
-        Assert.Equal("banner.bmp", model.DialogCustomization!.BannerBitmap);
+        Assert.Equal("banner.bmp", model.DialogCustomization.BannerBitmap);
         Assert.Equal("Setup", model.DialogCustomization.WindowTitle);
         Assert.Equal("Continue", model.DialogCustomization.ButtonLabelOverrides[DialogButton.Next]);
         Assert.Contains(StockDialog.Welcome, model.DialogCustomization.SuppressedDialogs);

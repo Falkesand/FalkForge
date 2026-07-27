@@ -54,6 +54,6 @@ public class ProjectTemplatesTests
 
         Assert.Equal("bundle", project.ProjectType);
         Assert.NotNull(project.BundleSettings);
-        Assert.Equal("My Product Suite", project.BundleSettings!.Name);
+        Assert.Equal("My Product Suite", project.BundleSettings.Name);
     }
 }

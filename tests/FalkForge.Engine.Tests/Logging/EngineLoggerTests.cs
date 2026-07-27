@@ -723,7 +723,7 @@ public sealed class EngineLoggerTests : IDisposable
         }
 
         Assert.NotNull(captured);
-        Assert.Equal(correlationId, captured!.Value.SessionCorrelationId);
+        Assert.Equal(correlationId, captured.Value.SessionCorrelationId);
     }
 
     [Fact]
@@ -972,7 +972,7 @@ public sealed class EngineLoggerTests : IDisposable
         }
 
         Assert.NotNull(captured);
-        Assert.Equal(LogRedactor.RedactedValue, captured!.Value.Properties!["Password"]);
+        Assert.Equal(LogRedactor.RedactedValue, captured.Value.Properties!["Password"]);
     }
 
     [Fact]

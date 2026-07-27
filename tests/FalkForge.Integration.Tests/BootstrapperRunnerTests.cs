@@ -159,7 +159,7 @@ public sealed class BootstrapperRunnerTests : IDisposable
             Sha256Hash = tamperedHash
         };
 
-        var embed = new PayloadEmbedder().Embed(stubPath, attackerBundle, signedManifest!, new[] { tamperedPayload });
+        var embed = new PayloadEmbedder().Embed(stubPath, attackerBundle, signedManifest, new[] { tamperedPayload });
         Assert.True(embed.IsSuccess, embed.IsFailure ? embed.Error.Message : null);
 
         var (exitCode, stdErr) = RunCapturingStdErr(

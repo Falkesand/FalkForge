@@ -61,9 +61,9 @@ public sealed class FileShareCommandFactoryTests
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
         // Remove keys only on the share name, so those actions carry no trailing directory argument.
-        Assert.DoesNotContain(" \"", step.RollbackCommand!, StringComparison.Ordinal);
-        Assert.Contains("Remove-SmbShare -Name 'AppData'", DecodeScript(step.RollbackCommand!), StringComparison.Ordinal);
-        Assert.Contains("Remove-SmbShare -Name 'AppData'", DecodeScript(step.UninstallCommand!), StringComparison.Ordinal);
+        Assert.DoesNotContain(" \"", step.RollbackCommand, StringComparison.Ordinal);
+        Assert.Contains("Remove-SmbShare -Name 'AppData'", DecodeScript(step.RollbackCommand), StringComparison.Ordinal);
+        Assert.Contains("Remove-SmbShare -Name 'AppData'", DecodeScript(step.UninstallCommand), StringComparison.Ordinal);
     }
 
     [Fact]

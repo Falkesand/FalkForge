@@ -88,7 +88,7 @@ public sealed class SignServerSignatureProviderTests
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.NotNull(captured.LastRequest);
-        Assert.Equal(HttpMethod.Post, captured.LastRequest!.Method);
+        Assert.Equal(HttpMethod.Post, captured.LastRequest.Method);
         Assert.Equal(
             "https://sign.example.test:8443/signserver/rest/v1/workers/PlainECDSA/process",
             captured.LastRequest.RequestUri!.ToString());

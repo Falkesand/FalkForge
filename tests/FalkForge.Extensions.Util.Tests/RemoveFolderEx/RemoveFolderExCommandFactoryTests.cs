@@ -47,7 +47,7 @@ public sealed class RemoveFolderExCommandFactoryTests
         Assert.Equal("0", step.InstallCondition); // install action is a gated no-op
         Assert.NotNull(step.UninstallCommand);
 
-        string uninstall = DecodeScript(step.UninstallCommand!);
+        string uninstall = DecodeScript(step.UninstallCommand);
         Assert.Contains(@"$p = 'C:\ProgramData\App\Cache'", uninstall, StringComparison.Ordinal);
         Assert.Contains("Remove-Item -LiteralPath $full -Recurse -Force", uninstall, StringComparison.Ordinal);
     }

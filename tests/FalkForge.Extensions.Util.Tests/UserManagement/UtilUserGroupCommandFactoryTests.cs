@@ -135,7 +135,7 @@ public sealed class UtilUserGroupCommandFactoryTests
             var group = new GroupModel { Name = "Ops", UpdateIfExists = update };
             var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrp_Ops");
             Assert.NotNull(step.RollbackCommand);
-            string rb = Decode(step.RollbackCommand!);
+            string rb = Decode(step.RollbackCommand);
             Assert.Contains("Get-ItemProperty -Path $__mkey", rb, StringComparison.Ordinal);
             Assert.Contains("HKLM:\\SOFTWARE\\FalkForge\\UserGroupMarkers", rb, StringComparison.Ordinal);
             Assert.Contains("Remove-LocalGroup", rb, StringComparison.Ordinal);
@@ -169,7 +169,7 @@ public sealed class UtilUserGroupCommandFactoryTests
 
         var step = Single(UtilUserGroupCommandFactory.BuildSteps([group], []), "UGrpD_Ops");
         Assert.NotNull(step.UninstallCommand);
-        Assert.Contains("Error.WriteLine", Decode(step.UninstallCommand!), StringComparison.Ordinal);
+        Assert.Contains("Error.WriteLine", Decode(step.UninstallCommand), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class UtilUserGroupCommandFactoryTests
     {
         var step = steps.SingleOrDefault(s => s.Id == id);
         Assert.NotNull(step);
-        return step!;
+        return step;
     }
 
     private static string Decode(string installCommand)

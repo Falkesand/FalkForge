@@ -21,7 +21,7 @@ internal static partial class IisCommandFactory
             return [];
         return string.IsNullOrEmpty(pool.PasswordProperty)
             ? [stepId]
-            : [stepId, pool.PasswordProperty!];
+            : [stepId, pool.PasswordProperty];
     }
 
     // ── application pool create / remove ─────────────────────────────────────
@@ -118,7 +118,7 @@ internal static partial class IisCommandFactory
         if (!string.IsNullOrEmpty(pool.PasswordProperty))
             return string.Concat("[", pool.PasswordProperty, "]");
         if (!string.IsNullOrEmpty(pool.Password))
-            return CommandLine.MsiFormatEscape(pool.Password!);
+            return CommandLine.MsiFormatEscape(pool.Password);
         return null;
     }
 }

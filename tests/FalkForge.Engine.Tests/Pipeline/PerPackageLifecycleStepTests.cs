@@ -177,7 +177,7 @@ public sealed class PerPackageLifecycleStepTests
         Assert.True((await plan.ExecuteAsync(ctx, InstallRequest(), CancellationToken.None)).IsSuccess);
 
         Assert.NotNull(ctx.Plan);
-        var action = Assert.Single(ctx.Plan!.Actions);
+        var action = Assert.Single(ctx.Plan.Actions);
         Assert.Equal("Pkg1", action.PackageId);
         Assert.Equal(PlanActionType.Install, action.ActionType);
     }

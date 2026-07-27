@@ -52,7 +52,7 @@ public sealed class EcdsaManifestSignerTests : IDisposable
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         var envelope = IntegrityEnvelopeCodec.Parse(result.Value);
         Assert.NotNull(envelope);
-        Assert.Equal(2, envelope!.Version);
+        Assert.Equal(2, envelope.Version);
         // PQ Stage 1: the ephemeral signer is hybrid — the classical entry first, plus an ML-DSA
         // companion when the build OS supports ML-DSA (human decision, design §8.7).
         var expectedEntries = MLDsa.IsSupported ? 2 : 1;

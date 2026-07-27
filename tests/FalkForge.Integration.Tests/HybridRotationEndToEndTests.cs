@@ -100,10 +100,10 @@ public sealed class HybridRotationEndToEndTests : IDisposable
     {
         var manifest = JsonSerializer.Deserialize<InstallerManifest>(content.ManifestJsonBytes!);
         Assert.NotNull(manifest);
-        Assert.NotNull(manifest!.ManifestSignature);
-        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!);
+        Assert.NotNull(manifest.ManifestSignature);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature);
         Assert.NotNull(envelope);
-        return envelope!;
+        return envelope;
     }
 
     /// <summary>

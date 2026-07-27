@@ -222,7 +222,7 @@ public sealed class IisCommandFactoryTests
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
 
-        string removeScript = DecodeEncodedScript(step.RollbackCommand!);
+        string removeScript = DecodeEncodedScript(step.RollbackCommand);
         Assert.Contains("VirtualDirectories.Remove", removeScript, StringComparison.Ordinal);
         // Tolerant: a missing site/application must not fail the rollback/uninstall action.
         Assert.Contains("catch { [Console]::Error.WriteLine($_.Exception.Message); exit 0 }", removeScript, StringComparison.Ordinal);
@@ -302,7 +302,7 @@ public sealed class IisCommandFactoryTests
         Assert.NotNull(step.RollbackCommand);
         Assert.NotNull(step.UninstallCommand);
 
-        string removeScript = DecodeEncodedScript(step.RollbackCommand!);
+        string removeScript = DecodeEncodedScript(step.RollbackCommand);
         Assert.Contains("Applications.Remove", removeScript, StringComparison.Ordinal);
         Assert.Contains("catch { [Console]::Error.WriteLine($_.Exception.Message); exit 0 }", removeScript, StringComparison.Ordinal);
     }

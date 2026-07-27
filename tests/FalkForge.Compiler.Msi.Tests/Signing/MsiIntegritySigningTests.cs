@@ -117,9 +117,9 @@ public sealed class MsiIntegritySigningTests : IDisposable
 
         var envelope = IntegrityEnvelopeCodec.Parse(manifestRow[2]!);
         Assert.NotNull(envelope);
-        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!),
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope),
             "The embedded ECDSA envelope must cryptographically verify against its own embedded key.");
-        Assert.Contains(envelope!.Files, f => f.Name == "app.exe");
+        Assert.Contains(envelope.Files, f => f.Name == "app.exe");
 
         // Without sigil, no SBOM attestation can be produced — but that must never have blocked the
         // signature above.
@@ -200,7 +200,7 @@ public sealed class MsiIntegritySigningTests : IDisposable
         Assert.Equal(IntegrityTableEmitter.ManifestSignatureFormat, manifestRow[1]);
         var envelope = IntegrityEnvelopeCodec.Parse(manifestRow[2]!);
         Assert.NotNull(envelope);
-        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope!));
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
 
         // The fake sigil's sign-manifest/attest subcommands always fail (exit 1) — proving the SBOM
         // row/sidecar are genuinely optional and their absence never blocks the mandatory signature

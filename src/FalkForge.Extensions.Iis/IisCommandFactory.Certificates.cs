@@ -18,7 +18,7 @@ internal static partial class IisCommandFactory
         WebBindingModel binding,
         IReadOnlyDictionary<string, CertificateModel> certsById)
         => !string.IsNullOrWhiteSpace(binding.CertificateRef)
-           && certsById.ContainsKey(binding.CertificateRef!);
+           && certsById.ContainsKey(binding.CertificateRef);
 
     /// <summary>
     /// A dedicated deferred, elevated step that binds one HTTPS binding's SSL certificate at install. Kept

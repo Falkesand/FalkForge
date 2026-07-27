@@ -73,7 +73,7 @@ public class FilesEditorViewModelTests
         var vm = new FilesEditorViewModel(project);
         vm.AddFile("selected.dll", "Main");
         Assert.NotNull(vm.SelectedFile);
-        Assert.Equal("selected.dll", vm.SelectedFile!.Source);
+        Assert.Equal("selected.dll", vm.SelectedFile.Source);
     }
 
     [Fact]

@@ -30,7 +30,7 @@ public class DialogEditorViewModelTests
         vm.AddDialogCommand.Execute(null);
 
         Assert.NotNull(vm.SelectedDialog);
-        Assert.Equal("Dialog1", vm.SelectedDialog!.Name);
+        Assert.Equal("Dialog1", vm.SelectedDialog.Name);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class DialogEditorViewModelTests
         vm.LoadTemplateCommand.Execute(null);
 
         Assert.NotNull(vm.SelectedDialog);
-        Assert.Equal("WelcomeDlg", vm.SelectedDialog!.Name);
+        Assert.Equal("WelcomeDlg", vm.SelectedDialog.Name);
     }
 
     [Fact]

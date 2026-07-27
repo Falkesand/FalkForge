@@ -53,7 +53,7 @@ public sealed class EngineSessionCorrelationIdTests : IDisposable
         await using var session = EngineSession.BindToChannel(channel, opts);
 
         Assert.NotNull(session.Logger);
-        Assert.Equal(session.CorrelationId, session.Logger!.SessionCorrelationId);
+        Assert.Equal(session.CorrelationId, session.Logger.SessionCorrelationId);
     }
 
     [Fact]

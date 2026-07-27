@@ -156,13 +156,13 @@ public sealed class PreUIBootstrapEndToEndTests
 
             var bundleContent = extractResult.Value;
             Assert.NotNull(bundleContent.ManifestJsonBytes);
-            Assert.True(bundleContent.ManifestJsonBytes!.Length > 0, "Manifest JSON bytes are empty");
+            Assert.True(bundleContent.ManifestJsonBytes.Length > 0, "Manifest JSON bytes are empty");
 
             // Deserialise using plain JsonSerializer — test projects are not AOT-compiled,
             // so reflection-based deserialisation is fine here.
             var manifest = JsonSerializer.Deserialize<InstallerManifest>(bundleContent.ManifestJsonBytes);
             Assert.NotNull(manifest);
-            Assert.Single(manifest!.PreUIPackages);
+            Assert.Single(manifest.PreUIPackages);
 
             var prereqInfo = manifest.PreUIPackages[0];
             Assert.Equal("DotNet10Desktop", prereqInfo.Id);
@@ -244,9 +244,9 @@ public sealed class PreUIBootstrapEndToEndTests
 
             var bundleContent2 = extractResult.Value;
             Assert.NotNull(bundleContent2.ManifestJsonBytes);
-            var manifest2 = JsonSerializer.Deserialize<InstallerManifest>(bundleContent2.ManifestJsonBytes!);
+            var manifest2 = JsonSerializer.Deserialize<InstallerManifest>(bundleContent2.ManifestJsonBytes);
             Assert.NotNull(manifest2);
-            Assert.Empty(manifest2!.PreUIPackages);   // no pre-UI prereqs
+            Assert.Empty(manifest2.PreUIPackages);   // no pre-UI prereqs
 
             // Orchestrator must short-circuit without calling detector/installer.
             var detector   = new RecordingDetector(reportMissing: false);
