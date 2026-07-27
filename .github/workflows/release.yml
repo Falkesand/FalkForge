@@ -228,10 +228,16 @@ jobs:
           # Collect file paths for upload
           $files = Get-ChildItem -Path $distDir -File | ForEach-Object { $_.FullName }
 
+          # A tag with a semver pre-release suffix (e.g. v0.5.0-beta.5) must publish as a
+          # GitHub pre-release, or GitHub labels it the repo's "Latest release" and
+          # recommends a beta to every visitor over the actual latest stable build.
+          $prereleaseArgs = if ($tag -match '^v\d+\.\d+\.\d+-') { @('--prerelease') } else { @() }
+
           gh release create $tag `
             --repo "${{ github.repository }}" `
             --title "FalkForge $tag" `
             --generate-notes `
+            @prereleaseArgs `
             $files
 
           Write-Host "Release $tag created with $($files.Count) artifact(s)."
