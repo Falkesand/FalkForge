@@ -219,22 +219,17 @@ public sealed class TransformCompilerTests : IDisposable
     }
 
     [Fact]
-    public void Compile_WithPropertyChangesSet_KnownBug_ChangesAreSilentlyIgnored()
+    public void Compile_WithPropertyChangesSet_NewPropertyLandsInAppliedTransform()
     {
         if (!OperatingSystem.IsWindows())
             Assert.Skip("Windows only");
 
-        // KNOWN BUG found during this coverage sweep (not fixed here -- out of scope for a
-        // test-coverage task; flagged for the maintainer): TransformBuilder.SetProperty(...)
-        // fully populates TransformModel.PropertyChanges (proven by TransformBuilderTests),
-        // but TransformCompiler.Compile(...) never reads that dictionary at all -- it only
-        // calls MsiDatabaseGenerateTransform(target, base, ...), which diffs whatever already
-        // differs between the two ALREADY-COMPILED database files. A caller doing
-        // `new TransformBuilder().SetProperty("REINSTALLMODE", "amus")` expecting a small,
-        // targeted property-only transform gets nothing for that property unless it also
-        // happens to already differ between BaseMsiPath and TargetMsiPath's own Property
-        // tables. This test pins the CURRENT (buggy) behavior so a future intentional fix
-        // shows up as a deliberate, reviewed test change instead of a silent regression.
+        // Regression test for a bug found during a coverage sweep: TransformBuilder.SetProperty(...)
+        // fully populates TransformModel.PropertyChanges, but TransformCompiler.Compile(...) used
+        // to never read that dictionary at all -- it only diffed whatever already differed between
+        // the two already-compiled database files. A caller doing
+        // `new TransformBuilder().SetProperty("MYCUSTOMPROP", "hello")` must now get a transform
+        // that actually carries MYCUSTOMPROP, not merely whatever incidentally differed already.
         var baseMsi = CompileVersioned("PropBugApp", new Version(1, 0, 0));
         var targetMsi = CompileVersioned("PropBugApp", new Version(2, 0, 0));
 
@@ -255,14 +250,206 @@ public sealed class TransformCompilerTests : IDisposable
         var applyResult = db.ApplyTransform(compileResult.Value);
         Assert.True(applyResult.IsSuccess, applyResult.IsFailure ? applyResult.Error.Message : null);
 
-        // The real diff (ProductVersion) DID transfer -- the transform mechanism itself works.
+        // The real diff (ProductVersion) still transfers -- the transform mechanism itself works.
         var versionRows = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property` = 'ProductVersion'", 1);
         Assert.True(versionRows.IsSuccess, versionRows.IsFailure ? versionRows.Error.Message : null);
         Assert.Equal("2.0.0", Assert.Single(versionRows.Value)[0]);
 
-        // But the explicitly requested MYCUSTOMPROP change never made it into the transform.
+        // And the explicitly requested MYCUSTOMPROP change now makes it into the transform too.
         var customRows = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property` = 'MYCUSTOMPROP'", 1);
         Assert.True(customRows.IsSuccess, customRows.IsFailure ? customRows.Error.Message : null);
-        Assert.Empty(customRows.Value);
+        Assert.Equal("hello", Assert.Single(customRows.Value)[0]);
+    }
+
+    [Fact]
+    public void Compile_WithPropertyChangeOverridingExistingProperty_UpdatesRatherThanDuplicates()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // ALLUSERS already exists as a row in a PerMachine target's Property table (PropertyTableProducer
+        // always seeds it as "1" for InstallScope.PerMachine, the package default). Overriding it via
+        // SetProperty must UPDATE that row, not attempt a duplicate INSERT (which the Property table's
+        // primary key on `Property` would reject). ALLUSERS is also a legal ALL-UPPERCASE public MSI
+        // property identifier, unlike the standard mixed-case reserved properties (e.g. ProductVersion).
+        var baseMsi = CompileVersioned("PropUpdateApp", new Version(1, 0, 0));
+        var targetMsi = CompileVersioned("PropUpdateApp", new Version(2, 0, 0));
+
+        var modelResult = new TransformBuilder()
+            .BaseMsi(baseMsi)
+            .TargetMsi(targetMsi)
+            .SetProperty("ALLUSERS", "2")
+            .Build();
+        Assert.True(modelResult.IsSuccess, modelResult.IsFailure ? modelResult.Error.Message : null);
+
+        var compileResult = new TransformCompiler().Compile(modelResult.Value, OutputDir());
+        Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
+
+        var appliedCopy = Path.Combine(_tempDir, "applied-propupdate.msi");
+        File.Copy(baseMsi, appliedCopy);
+        using var db = MsiDatabase.Open(appliedCopy, readOnly: false).Value;
+        var applyResult = db.ApplyTransform(compileResult.Value);
+        Assert.True(applyResult.IsSuccess, applyResult.IsFailure ? applyResult.Error.Message : null);
+
+        var allUsersRows = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property` = 'ALLUSERS'", 1);
+        Assert.True(allUsersRows.IsSuccess, allUsersRows.IsFailure ? allUsersRows.Error.Message : null);
+        Assert.Equal("2", Assert.Single(allUsersRows.Value)[0]);
+    }
+
+    [Fact]
+    public void Compile_WithMultiplePropertyChanges_AllLandInAppliedTransform()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var baseMsi = CompileVersioned("PropMultiApp", new Version(1, 0, 0));
+        var targetMsi = CompileVersioned("PropMultiApp", new Version(2, 0, 0));
+
+        var modelResult = new TransformBuilder()
+            .BaseMsi(baseMsi)
+            .TargetMsi(targetMsi)
+            .SetProperty("FIRSTPROP", "one")
+            .SetProperty("SECONDPROP", "two")
+            .SetProperty("ALLUSERS", "2")
+            .Build();
+        Assert.True(modelResult.IsSuccess, modelResult.IsFailure ? modelResult.Error.Message : null);
+
+        var compileResult = new TransformCompiler().Compile(modelResult.Value, OutputDir());
+        Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
+
+        var appliedCopy = Path.Combine(_tempDir, "applied-propmulti.msi");
+        File.Copy(baseMsi, appliedCopy);
+        using var db = MsiDatabase.Open(appliedCopy, readOnly: false).Value;
+        var applyResult = db.ApplyTransform(compileResult.Value);
+        Assert.True(applyResult.IsSuccess, applyResult.IsFailure ? applyResult.Error.Message : null);
+
+        var first = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property` = 'FIRSTPROP'", 1);
+        Assert.True(first.IsSuccess, first.IsFailure ? first.Error.Message : null);
+        Assert.Equal("one", Assert.Single(first.Value)[0]);
+
+        var second = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property` = 'SECONDPROP'", 1);
+        Assert.True(second.IsSuccess, second.IsFailure ? second.Error.Message : null);
+        Assert.Equal("two", Assert.Single(second.Value)[0]);
+
+        var allUsers = db.QueryRows("SELECT `Value` FROM `Property` WHERE `Property` = 'ALLUSERS'", 1);
+        Assert.True(allUsers.IsSuccess, allUsers.IsFailure ? allUsers.Error.Message : null);
+        Assert.Equal("2", Assert.Single(allUsers.Value)[0]);
+    }
+
+    [Fact]
+    public void Compile_WithIllegalPropertyName_ReturnsTypedValidationFailureNotNativeError()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var baseMsi = CompileVersioned("PropIllegalApp", new Version(1, 0, 0));
+        var targetMsi = CompileVersioned("PropIllegalApp", new Version(2, 0, 0));
+
+        // Lowercase + space is not a legal PUBLIC MSI property identifier.
+        var modelResult = new TransformBuilder()
+            .BaseMsi(baseMsi)
+            .TargetMsi(targetMsi)
+            .SetProperty("not a valid prop", "x")
+            .Build();
+
+        // TransformBuilder.Build() already re-validates, so the illegal name is rejected here --
+        // covered by TransformValidatorTests for the rule itself. Compile must also reject it if
+        // ever handed an already-constructed model that bypassed the builder.
+        var model = modelResult.IsSuccess
+            ? modelResult.Value
+            : new TransformModel
+            {
+                BaseMsiPath = baseMsi,
+                TargetMsiPath = targetMsi,
+                PropertyChanges = new Dictionary<string, string> { ["not a valid prop"] = "x" }
+            };
+
+        var compileResult = new TransformCompiler().Compile(model, OutputDir());
+
+        Assert.True(compileResult.IsFailure);
+        Assert.Equal(ErrorKind.Validation, compileResult.Error.Kind);
+    }
+
+    [Fact]
+    public void Compile_WithPropertyChanges_NeverMutatesCallersTargetMsiFile()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var baseMsi = CompileVersioned("PropNoMutateApp", new Version(1, 0, 0));
+        var targetMsi = CompileVersioned("PropNoMutateApp", new Version(2, 0, 0));
+
+        var beforeBytes = File.ReadAllBytes(targetMsi);
+        var beforeWriteTimeUtc = File.GetLastWriteTimeUtc(targetMsi);
+
+        var modelResult = new TransformBuilder()
+            .BaseMsi(baseMsi)
+            .TargetMsi(targetMsi)
+            .SetProperty("MUTATIONCHECKPROP", "value")
+            .Build();
+        Assert.True(modelResult.IsSuccess, modelResult.IsFailure ? modelResult.Error.Message : null);
+
+        var compileResult = new TransformCompiler().Compile(modelResult.Value, OutputDir());
+        Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
+
+        var afterBytes = File.ReadAllBytes(targetMsi);
+        var afterWriteTimeUtc = File.GetLastWriteTimeUtc(targetMsi);
+
+        Assert.Equal(beforeWriteTimeUtc, afterWriteTimeUtc);
+        Assert.Equal(beforeBytes, afterBytes);
+    }
+
+    [Fact]
+    public void Compile_WithPropertyChanges_LeavesNoTempWorkingCopyBehindOnSuccess()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var baseMsi = CompileVersioned("PropNoLeakApp", new Version(1, 0, 0));
+        var targetMsi = CompileVersioned("PropNoLeakApp", new Version(2, 0, 0));
+
+        var modelResult = new TransformBuilder()
+            .BaseMsi(baseMsi)
+            .TargetMsi(targetMsi)
+            .SetProperty("LEAKCHECKPROP", "value")
+            .Build();
+        Assert.True(modelResult.IsSuccess, modelResult.IsFailure ? modelResult.Error.Message : null);
+
+        var outputDir = OutputDir();
+        var compileResult = new TransformCompiler().Compile(modelResult.Value, outputDir);
+        Assert.True(compileResult.IsSuccess, compileResult.IsFailure ? compileResult.Error.Message : null);
+
+        // Only the .mst artifact should remain in the output directory -- no leftover working copy.
+        var remaining = Directory.GetFiles(outputDir);
+        Assert.Single(remaining);
+        Assert.Equal(".mst", Path.GetExtension(remaining[0]), StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Compile_WithPropertyChanges_LeavesNoTempWorkingCopyBehindOnFailure()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        var targetMsi = CompileVersioned("PropNoLeakFailApp", new Version(1, 0, 0));
+
+        // A corrupt/non-MSI "base" file exists on disk (passes the File.Exists check) but fails
+        // native MsiDatabase.Open -- this fires AFTER the property-change working copy has
+        // already been created, exercising the finally-block cleanup on a genuine failure path.
+        var corruptBase = Path.Combine(_tempDir, "corrupt-base.msi");
+        File.WriteAllText(corruptBase, "this is not a real MSI database");
+
+        var modelResult = new TransformBuilder()
+            .BaseMsi(corruptBase)
+            .TargetMsi(targetMsi)
+            .SetProperty("LEAKCHECKPROP", "value")
+            .Build();
+        Assert.True(modelResult.IsSuccess, modelResult.IsFailure ? modelResult.Error.Message : null);
+
+        var outputDir = OutputDir();
+        var compileResult = new TransformCompiler().Compile(modelResult.Value, outputDir);
+        Assert.True(compileResult.IsFailure);
+
+        Assert.Empty(Directory.GetFiles(outputDir));
     }
 }

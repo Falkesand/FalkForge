@@ -49,4 +49,39 @@ public sealed class TransformValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.RuleId.Value == "MST002");
     }
+
+    [Fact]
+    public void Validate_ValidPropertyChangeName_ReturnsNoErrors()
+    {
+        var model = new TransformModel
+        {
+            BaseMsiPath = @"C:\base\product.msi",
+            TargetMsiPath = @"C:\target\product.msi",
+            PropertyChanges = new Dictionary<string, string> { ["MYCUSTOMPROP"] = "hello" }
+        };
+
+        var result = TransformValidator.Inspect(model);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("lowercase")]
+    [InlineData("has space")]
+    [InlineData("1STARTSWITHDIGIT")]
+    [InlineData("HAS-DASH")]
+    public void Validate_IllegalPropertyChangeName_ReturnsError_MST003(string illegalName)
+    {
+        var model = new TransformModel
+        {
+            BaseMsiPath = @"C:\base\product.msi",
+            TargetMsiPath = @"C:\target\product.msi",
+            PropertyChanges = new Dictionary<string, string> { [illegalName] = "x" }
+        };
+
+        var result = TransformValidator.Inspect(model);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.RuleId.Value == "MST003");
+    }
 }
