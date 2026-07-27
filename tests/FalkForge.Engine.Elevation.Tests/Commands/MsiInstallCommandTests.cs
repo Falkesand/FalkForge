@@ -150,6 +150,12 @@ public sealed class MsiInstallCommandTests : IDisposable
     [InlineData(" PROP=\"VALUE > output.txt\"")]
     [InlineData(" PROP=\"VALUE < input.txt\"")]
     [InlineData(" NOTPATCH=\"a.msp;b.msp\"")]
+    // Prohibited character at index 0 of the value — the very first character, before any
+    // other content. IndexOfAny returns 0 here, which must still count as "found" (>= 0), not
+    // be missed by a narrowed ">0" check. Covers both the general ban set and the PATCH-only
+    // ban set (';' stays legal for PATCH, so a leading '&' is used there instead).
+    [InlineData(" PROP=\"&whoami\"")]
+    [InlineData(" PATCH=\"&a.msp;b.msp\"")]
     public void Execute_RejectsProhibitedChars(string additionalArgs)
     {
         // The dangerous characters are checked per-VALUE (inside the quotes), mirroring the
