@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TargetFramework>net10.0</TargetFramework>
     <Description>MSI, bundle, and WiX Burn decompiler for FalkForge — recover models and C# from existing installers</Description>
   </PropertyGroup>

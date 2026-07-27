@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <IsPackable>true</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <RootNamespace>FalkForge.Extensibility</RootNamespace>
         <Description>Extension point interfaces for FalkForge</Description>
     </PropertyGroup>

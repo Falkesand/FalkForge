@@ -11,6 +11,7 @@
          plugins, SignServer remote signing, and the Testing utilities. -->
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>FalkForge</PackageId>
     <Description>FalkForge — batteries-included meta-package for authoring Windows installers in C#. One package reference brings the fluent API, the MSI and EXE-bundle compilers, localization, every FalkForge extension (Firewall, IIS, SQL, .NET, Util, Dependency, Driver, Http), and the NativeAOT bundle engine runtime — build a runnable installer with nothing else installed.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>

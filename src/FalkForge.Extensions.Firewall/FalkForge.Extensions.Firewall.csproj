@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <IsPackable>true</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <RootNamespace>FalkForge.Extensions.Firewall</RootNamespace>
         <Description>Firewall extension for FalkForge — manages Windows Firewall rules during installation</Description>
     </PropertyGroup>

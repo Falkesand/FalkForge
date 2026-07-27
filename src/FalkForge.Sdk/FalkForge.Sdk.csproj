@@ -7,6 +7,7 @@
     <!-- SDK package configuration: packs as an MSBuild project SDK
          (<Project Sdk="FalkForge.Sdk/x.y.z">) with Sdk/Sdk.props + Sdk/Sdk.targets. -->
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageType>MSBuildSdk</PackageType>
     <DevelopmentDependency>true</DevelopmentDependency>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>

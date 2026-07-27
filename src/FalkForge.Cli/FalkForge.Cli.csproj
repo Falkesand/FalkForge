@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <!-- Packs as a .NET global tool: dotnet tool install -g FalkForge.Tool -> 'forge' command -->
     <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>forge</ToolCommandName>
     <PackageId>FalkForge.Tool</PackageId>
