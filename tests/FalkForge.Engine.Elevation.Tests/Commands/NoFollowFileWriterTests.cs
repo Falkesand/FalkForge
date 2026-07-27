@@ -86,6 +86,30 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
     }
 
     [Fact]
+    public void Write_RejectsExistingFileSymlinkLeaf_DoesNotDeletePreExistingLinkItself()
+    {
+        // WHY: DELETE is requested on the target handle ONLY so a file this call itself
+        // created can be cleaned up when post-open verification rejects it (see the "created
+        // by this call" comment in NoFollowFileWriter.Write). A pre-existing symlink was NOT
+        // created by this call, so rejection must leave it in place. If "created by this call"
+        // is computed backwards, an elevated (SYSTEM) write against ANY path a caller names
+        // could delete a filesystem object it does not own the moment that path happens to be
+        // a symlink — a privileged, caller-triggered deletion of something outside this call's
+        // own writes.
+        var victimPath = Path.Combine(_tempDir, "victim2.txt");
+        File.WriteAllBytes(victimPath, "victim original bytes"u8.ToArray());
+
+        var linkPath = Path.Combine(_tempDir, "preexisting-link.txt");
+        if (!TryCreateFileSymlink(linkPath, victimPath))
+            Assert.Skip("File symlink creation unavailable on this host (requires privilege or Developer Mode)");
+
+        var result = NoFollowFileWriter.Write(_tempDir, linkPath, new byte[] { 0xFF });
+
+        Assert.True(result.IsFailure);
+        Assert.True(File.Exists(linkPath), "a pre-existing symlink this call did not create must not be deleted on rejection");
+    }
+
+    [Fact]
     public void Write_RejectsParentThatIsAJunction()
     {
         // Models the parent directory itself having been swapped for a junction after the

@@ -26,6 +26,14 @@ public sealed class TrustStateAdvanceCommandTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        // WHY: the message must specifically name the deserialize-rejection path, not merely
+        // "some SecurityError". A negated TryDeserialize check would let a malformed payload
+        // fall through into the store-hardening/Advance path instead of being rejected up
+        // front — on a non-elevated host that path ALSO fails with ErrorKind.SecurityError
+        // (directory hardening requires elevation), so a Kind-only assertion cannot tell the
+        // two apart and would pass even with the guard inverted. Pinning the exact message
+        // proves the malformed-payload check itself is what rejected this input.
+        Assert.Contains("malformed advance payload", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
