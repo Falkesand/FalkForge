@@ -59,7 +59,6 @@ public sealed class InstallerMsixTests
         var exitCode = InstallerMsix.BuildMsixBundle([], b =>
         {
             b.Name("TestBundle")
-                .Publisher("CN=Test")
                 .Version(new Version(1, 0, 0, 0))
                 .Package("test-x64.msix", ProcessorArchitecture.X64);
         }, (_, _) => Result<string>.Success("test.msixbundle"));
@@ -73,7 +72,6 @@ public sealed class InstallerMsixTests
         var exitCode = InstallerMsix.BuildMsixBundle([], b =>
         {
             b.Name("TestBundle")
-                .Publisher("CN=Test")
                 .Version(new Version(1, 0, 0, 0))
                 .Package("test-x64.msix", ProcessorArchitecture.X64);
         }, (_, _) => Result<string>.Failure(ErrorKind.CompilationError, "bundle compile failed"));
