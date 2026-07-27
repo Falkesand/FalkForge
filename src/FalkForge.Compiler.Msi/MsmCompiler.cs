@@ -52,12 +52,17 @@ public sealed class MsmCompiler
         if (compResult.IsFailure)
             return Result<string>.Failure(compResult.Error);
 
-        // Step 7: Emit Directory table (minimal: TARGETDIR)
+        // Step 7: Emit ModuleDependency table
+        var depResult = EmitModuleDependencies(database, module, moduleGuid);
+        if (depResult.IsFailure)
+            return Result<string>.Failure(depResult.Error);
+
+        // Step 8: Emit Directory table (minimal: TARGETDIR)
         var dirResult = EmitDirectories(database);
         if (dirResult.IsFailure)
             return Result<string>.Failure(dirResult.Error);
 
-        // Step 8: Set summary information
+        // Step 9: Set summary information
         var summaryResult = database.SetSummaryInfo(summary =>
         {
             summary
@@ -77,7 +82,7 @@ public sealed class MsmCompiler
         if (summaryResult.IsFailure)
             return Result<string>.Failure(summaryResult.Error);
 
-        // Step 9: Commit
+        // Step 10: Commit
         var commitResult = database.Commit();
         if (commitResult.IsFailure)
             return Result<string>.Failure(commitResult.Error);
@@ -92,7 +97,11 @@ public sealed class MsmCompiler
             "CREATE TABLE `Directory` (`Directory` CHAR(72) NOT NULL, `Directory_Parent` CHAR(72), `DefaultDir` CHAR(255) NOT NULL LOCALIZABLE PRIMARY KEY `Directory`)",
             "CREATE TABLE `Component` (`Component` CHAR(72) NOT NULL, `ComponentId` CHAR(38), `Directory_` CHAR(72) NOT NULL, `Attributes` SHORT NOT NULL, `Condition` CHAR(255), `KeyPath` CHAR(72) PRIMARY KEY `Component`)",
             "CREATE TABLE `ModuleSignature` (`ModuleID` CHAR(72) NOT NULL, `Language` SHORT NOT NULL, `Version` CHAR(32) NOT NULL PRIMARY KEY `ModuleID`, `Language`)",
-            "CREATE TABLE `ModuleComponents` (`Component` CHAR(72) NOT NULL, `ModuleID` CHAR(72) NOT NULL, `Language` SHORT NOT NULL PRIMARY KEY `Component`, `ModuleID`, `Language`)"
+            "CREATE TABLE `ModuleComponents` (`Component` CHAR(72) NOT NULL, `ModuleID` CHAR(72) NOT NULL, `Language` SHORT NOT NULL PRIMARY KEY `Component`, `ModuleID`, `Language`)",
+            // Windows Installer SDK "ModuleDependency Table" schema: ModuleID/ModuleLanguage identify
+            // the declaring module, RequiredID/RequiredLanguage identify the depended-on module,
+            // RequiredVersion is the only non-key column and is nullable (no version constraint).
+            "CREATE TABLE `ModuleDependency` (`ModuleID` CHAR(72) NOT NULL, `ModuleLanguage` SHORT NOT NULL, `RequiredID` CHAR(72) NOT NULL, `RequiredLanguage` SHORT NOT NULL, `RequiredVersion` CHAR(50) PRIMARY KEY `ModuleID`, `ModuleLanguage`, `RequiredID`, `RequiredLanguage`)"
         };
 
         foreach (var sql in tables)
@@ -142,6 +151,42 @@ public sealed class MsmCompiler
                     .SetString(1, prefixedId)
                     .SetString(2, moduleGuid)
                     .SetInteger(3, module.Language));
+            if (result.IsFailure)
+                return result;
+        }
+
+        return Unit.Value;
+    }
+
+    /// <summary>
+    ///     Emits one <c>ModuleDependency</c> row per <see cref="MergeModuleModel.Dependencies"/> entry.
+    ///     <c>MergeModuleBuilder.Dependency(string dependencyId)</c> only accepts a single opaque
+    ///     identifier, so it cannot express the full four-column dependency key the Windows Installer
+    ///     schema defines. Defaults applied here:
+    ///     <list type="bullet">
+    ///         <item><description><c>RequiredID</c> is the string passed to <c>Dependency(...)</c>, taken as-is.</description></item>
+    ///         <item><description><c>RequiredLanguage</c> defaults to the declaring module's own <see cref="MergeModuleModel.Language"/>
+    ///         (i.e. the dependency is assumed to ship in the same language as this module).</description></item>
+    ///         <item><description><c>RequiredVersion</c> is left <see langword="null"/> (no minimum-version constraint), since the
+    ///         builder API has no way to supply one today.</description></item>
+    ///     </list>
+    ///     If callers need to depend on a module in a different language, or pin a minimum required
+    ///     version, <c>MergeModuleBuilder</c> needs a richer overload (e.g.
+    ///     <c>Dependency(string requiredId, int? requiredLanguage, string? requiredVersion)</c>) to carry
+    ///     that data through to this method.
+    /// </summary>
+    private static Result<Unit> EmitModuleDependencies(MsiDatabase database, MergeModuleModel module, string moduleGuid)
+    {
+        foreach (var dependencyId in module.Dependencies)
+        {
+            var result = database.InsertRow(
+                "SELECT `ModuleID`, `ModuleLanguage`, `RequiredID`, `RequiredLanguage`, `RequiredVersion` FROM `ModuleDependency`",
+                record => record
+                    .SetString(1, moduleGuid)
+                    .SetInteger(2, module.Language)
+                    .SetString(3, dependencyId)
+                    .SetInteger(4, module.Language)
+                    .SetString(5, null));
             if (result.IsFailure)
                 return result;
         }
