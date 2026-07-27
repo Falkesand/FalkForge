@@ -304,13 +304,14 @@ The pipeline orchestrator and `PipelineRunner` do not own port lifetimes. The co
 | `WithElevationGateway(IElevatedCommandGateway)` | `ElevateStep` (skipped when omitted) |
 | `WithUiChannel(IUiChannel)` | All steps (defaults to `NullUiChannel.Instance`) |
 | `WithLogger(IFalkLogger)` | `RollbackStep` diagnostics |
-| `WithClock(ISystemClock)` | Reserved — wired into download/cache/elevation steps in a follow-up |
-| `WithRandom(IRandomSource)` | Reserved — wired into download/cache/elevation steps in a follow-up |
-| `WithPayloadCache(IPayloadCache)` | Reserved |
-| `WithPayloadSource(IPayloadSource)` | Reserved |
-| `WithLayoutStore(ILayoutStore)` | Reserved |
 
-Reserved ports are accepted by the builder today but not yet consumed inside the pipeline — they are queued for the wiring pass that retires the legacy `EngineHost`. This matches the in-tree `S4487` suppressions in `InstallerPipelineBuilder`.
+`ISystemClock`, `IRandomSource`, `IPayloadCache`, `IPayloadSource`, and `ILayoutStore` each have a
+production adapter (below) but no `InstallerPipelineBuilder.With…` method — the builder does not
+accept them today. The `EngineHost` retirement that was meant to gate their wiring is long complete
+(see above); no phase step currently consumes these ports, so re-adding builder support for one of
+them is a real design task (a step needs to be written that calls it), not a follow-up rename. Do
+that design work — including the new step — before wiring one back in, rather than re-adding a
+`With…` method that has nowhere to flow.
 
 ## See Also
 

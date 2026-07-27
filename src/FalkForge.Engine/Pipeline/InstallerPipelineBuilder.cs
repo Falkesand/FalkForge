@@ -17,20 +17,10 @@ public sealed class InstallerPipelineBuilder
 {
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure ports
-    // Suppressed: _clock, _random, _payloadCache, _payloadSource, _layoutStore,
-    // _elevationGateway will be wired into download/cache/elevation steps in
-    // the next session once the old EngineHost is retired.
     // ──────────────────────────────────────────────────────────────────────────
-#pragma warning disable S4487, IDE0052
-    private ISystemClock? _clock;
-    private IRandomSource? _random;
     private IRollbackJournalStore? _journalStore;
-    private IPayloadCache? _payloadCache;
-    private IPayloadSource? _payloadSource;
-    private ILayoutStore? _layoutStore;
     private IUiChannel? _uiChannel;
     private IElevatedCommandGateway? _elevationGateway;
-#pragma warning restore S4487, IDE0052
 
     // ──────────────────────────────────────────────────────────────────────────
     // Phase-step components
@@ -51,45 +41,10 @@ public sealed class InstallerPipelineBuilder
     // Infrastructure port registration
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Registers the <see cref="ISystemClock"/> implementation.</summary>
-    public InstallerPipelineBuilder WithClock(ISystemClock clock)
-    {
-        _clock = clock;
-        return this;
-    }
-
-    /// <summary>Registers the <see cref="IRandomSource"/> implementation.</summary>
-    public InstallerPipelineBuilder WithRandom(IRandomSource random)
-    {
-        _random = random;
-        return this;
-    }
-
     /// <summary>Registers the <see cref="IRollbackJournalStore"/> implementation.</summary>
     public InstallerPipelineBuilder WithJournalStore(IRollbackJournalStore store)
     {
         _journalStore = store;
-        return this;
-    }
-
-    /// <summary>Registers the <see cref="IPayloadCache"/> implementation.</summary>
-    public InstallerPipelineBuilder WithPayloadCache(IPayloadCache cache)
-    {
-        _payloadCache = cache;
-        return this;
-    }
-
-    /// <summary>Registers the <see cref="IPayloadSource"/> implementation.</summary>
-    public InstallerPipelineBuilder WithPayloadSource(IPayloadSource source)
-    {
-        _payloadSource = source;
-        return this;
-    }
-
-    /// <summary>Registers the <see cref="ILayoutStore"/> implementation.</summary>
-    public InstallerPipelineBuilder WithLayoutStore(ILayoutStore store)
-    {
-        _layoutStore = store;
         return this;
     }
 
