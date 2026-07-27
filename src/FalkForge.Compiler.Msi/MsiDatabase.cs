@@ -62,6 +62,33 @@ public sealed class MsiDatabase : IDisposable
         return Unit.Value;
     }
 
+    /// <summary>
+    /// Executes a parameterized SQL statement (e.g. an <c>UPDATE ... WHERE ... = ?</c>) whose
+    /// <c>?</c> placeholders are bound, in order, from the record built by <paramref name="bindParams"/>.
+    /// Unlike <see cref="Execute(string)"/>, no caller-supplied value is ever interpolated into the
+    /// SQL text itself -- values only ever travel through the bound record.
+    /// </summary>
+    public Result<Unit> Execute(string sql, Action<MsiRecord> bindParams)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var viewResult = NativeMethods.MsiDatabaseOpenView(_handle.DangerousGetHandle(), sql, out var viewHandle);
+        if (viewResult != NativeMethods.ERROR_SUCCESS)
+            return Result<Unit>.Failure(ErrorKind.CompilationError,
+                $"Failed to open view for SQL: '{sql}'. Error code: {viewResult}");
+
+        using var view = new MsiViewHandle(viewHandle);
+        using var record = new MsiRecord();
+        bindParams(record);
+
+        var execResult = NativeMethods.MsiViewExecute(view.DangerousGetHandle(), record.Handle.DangerousGetHandle());
+        if (execResult != NativeMethods.ERROR_SUCCESS)
+            return Result<Unit>.Failure(ErrorKind.CompilationError,
+                $"Failed to execute SQL: '{sql}'. Error code: {execResult}");
+
+        return Unit.Value;
+    }
+
     public Result<Unit> InsertRow(string sql, Action<MsiRecord> setFields)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
