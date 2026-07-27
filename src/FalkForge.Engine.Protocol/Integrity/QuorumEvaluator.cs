@@ -51,15 +51,13 @@ public static class QuorumEvaluator
             return new QuorumDecision(true, Describe(collected, rule));
 
         // Kuhn bipartite matching: try to saturate every slot with a distinct key.
-        var slotToSig = new int[slots.Count];
-        Array.Fill(slotToSig, -1);
         var sigToSlot = new int[collected.Count];
         Array.Fill(sigToSlot, -1);
 
         for (var s = 0; s < slots.Count; s++)
         {
             var visited = new bool[collected.Count];
-            if (!TryAssign(s, slots, collected, slotToSig, sigToSlot, visited))
+            if (!TryAssign(s, slots, collected, sigToSlot, visited))
                 return new QuorumDecision(false, Describe(collected, rule));
         }
 
@@ -72,7 +70,6 @@ public static class QuorumEvaluator
         int slot,
         List<TrustRole> slots,
         IReadOnlyList<TrustedSignature> sigs,
-        int[] slotToSig,
         int[] sigToSlot,
         bool[] visited)
     {
@@ -84,9 +81,8 @@ public static class QuorumEvaluator
 
             visited[j] = true;
             var currentSlot = sigToSlot[j];
-            if (currentSlot == -1 || TryAssign(currentSlot, slots, sigs, slotToSig, sigToSlot, visited))
+            if (currentSlot == -1 || TryAssign(currentSlot, slots, sigs, sigToSlot, visited))
             {
-                slotToSig[slot] = j;
                 sigToSlot[j] = slot;
                 return true;
             }
