@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msix.Manifest;
 using FalkForge.Compiler.Msix.Packaging;
@@ -83,31 +82,8 @@ public sealed class MsixCompiler
 
             args.Add(msixPath);
 
-#pragma warning disable S4036 // PATH lookup is the documented contract: signtool.exe ships with the Windows SDK at a version-dependent location
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "signtool.exe",
-                Arguments = string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a)),
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-#pragma warning restore S4036
-
-            using var process = Process.Start(startInfo);
-            if (process is null)
-                return Result<Unit>.Failure(ErrorKind.CompilationError, "Failed to start signtool.exe");
-
-            process.WaitForExit(TimeSpan.FromMinutes(2));
-
-            if (process.ExitCode != 0)
-            {
-                var stderr = process.StandardError.ReadToEnd();
-                return Result<Unit>.Failure(ErrorKind.CompilationError, $"Signing failed (exit code {process.ExitCode}): {stderr}");
-            }
-
-            return Result<Unit>.Success(Unit.Value);
+            var arguments = string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+            return SigntoolRunner.Run("signtool.exe", arguments, SigntoolRunner.DefaultTimeout);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
