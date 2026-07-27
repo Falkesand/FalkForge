@@ -35,6 +35,7 @@
     <Project Path="src/FalkForge.Ui.Abstractions/FalkForge.Ui.Abstractions.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/FalkForge.Architecture.Tests/FalkForge.Architecture.Tests.csproj" />
     <Project Path="tests/FalkForge.Cli.Tests/FalkForge.Cli.Tests.csproj" />
     <Project Path="tests/FalkForge.Compiler.Bundle.Tests/FalkForge.Compiler.Bundle.Tests.csproj" />
     <Project Path="tests/FalkForge.Compiler.Msi.Tests/FalkForge.Compiler.Msi.Tests.csproj" />
