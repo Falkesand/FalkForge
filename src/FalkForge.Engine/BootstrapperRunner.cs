@@ -26,10 +26,14 @@ internal static class BootstrapperRunner
     /// launches the UI executable, delivers the shared secret via named pipe, and runs the pipeline.
     /// </summary>
     /// <param name="exePathOverride">
-    /// Test seam: overrides the bundle path this method self-extracts, instead of resolving it from
-    /// <see cref="Environment.ProcessPath"/>. A unit-test host process is never itself a
-    /// self-extracting bundle, so tests point this at a real bundle they built. When null (every
-    /// production call site), behavior is byte-identical to the original inline code.
+    /// TEST SEAM ONLY — never wire this from user, CLI, or manifest input. It overrides the bundle
+    /// path this method self-extracts, instead of resolving it from <see cref="Environment.ProcessPath"/>;
+    /// a unit-test host process is never itself a self-extracting bundle, so tests point this at a real
+    /// bundle they built. The resolved value is also passed as <c>ownExecutablePath</c> to
+    /// <see cref="Bootstrap.PreUIBootstrapOrchestrator"/>, which is the target of the elevated
+    /// self-relaunch — accepting attacker-controlled input here would hand an attacker an elevated-relaunch
+    /// target (local privilege escalation). When null (every production call site), behavior is
+    /// byte-identical to the original inline code.
     /// </param>
     internal static async Task<int> RunAsync(
         ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null,

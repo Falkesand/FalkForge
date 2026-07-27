@@ -127,7 +127,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| Verification.DefaultRebuildRunner | 2.8 | (b) drives `forge verify --rebuild`, the heavyweight opt-in rebuild-and-diff path |
+| Verification.DefaultRebuildRunner | 2.8 | (b) drives `forge verify --rebuild`, the heavyweight opt-in rebuild-and-diff path; known gap — the timeout/cancel branch (`OperationCanceledException` → kill process tree → `ExitCode: -1`, plus the `ct.IsCancellationRequested` rethrow) is covered by NEITHER the `IRebuildRunner` seam (which replaces the whole class) NOR the opt-in E2E suite (whose rebuilds succeed rather than time out) |
 | Settings.MigrateSettings | 7.6 | (c) thin Spectre CLI settings record, declarative properties |
 | MsiExtractor | 9.4 | (a) genuinely untested — historically the site of a real zip-slip fix; only the happy path is exercised |
 | Settings.RulesListSettings | 11.1 | (c) thin Spectre CLI settings record |

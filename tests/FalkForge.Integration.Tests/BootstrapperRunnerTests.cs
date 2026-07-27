@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Engine;
+using FalkForge.Engine.Integrity;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
@@ -35,6 +36,13 @@ public sealed class BootstrapperRunnerTests : IDisposable
 
     public void Dispose()
     {
+        // The trust-gate test above registers/freezes the process-global EngineTrustAnchor via a real
+        // signed bundle. Reset it here (same pattern as HybridBundleFluentEndToEndTests) so a future
+        // test in this assembly that registers its own trusted keys is not broken by ours having run
+        // first — this class currently gets away without it only because no other test in this
+        // assembly both runs after this one and depends on a pristine anchor.
+        EngineTrustAnchor.ResetForTests();
+
         if (Directory.Exists(_tempDir))
         {
             try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { }
@@ -98,13 +106,17 @@ public sealed class BootstrapperRunnerTests : IDisposable
     }
 
     [Fact]
-    public void RunAsync_TrustGateFailure_TamperedSignedBundle_AbortsBeforeExtraction()
+    public void RunAsync_TrustGateFailure_TamperedSignedBundle_ReturnsInt006()
     {
         // WHY: this is the real security property the surrounding comments in BootstrapperRunner call
-        // out — trust binding runs BEFORE any payload is extracted or the UI is launched. A validly
-        // signed bundle whose payload bytes were rewritten after signing (so the overlay TOC hash no
-        // longer matches the ECDSA-signed hash) must abort here rather than extract/execute the
-        // tampered bytes. Same tamper technique as ForgeExtractTrustTests (the CLI's equivalent gate).
+        // out — trust binding runs BEFORE any payload is extracted or the UI is launched (guaranteed by
+        // code ordering: BundleTrustGate.Verify at line ~108 runs and returns before the payload-extraction
+        // loop at line ~118 ever starts, so a failure here structurally cannot have extracted anything —
+        // this test does not re-assert that ordering, only the trust-gate outcome). A validly signed
+        // bundle whose payload bytes were rewritten after signing (so the overlay TOC hash no longer
+        // matches the ECDSA-signed hash) must abort with the specific TOC-binding code INT006 — not just
+        // any "integrity" failure, which would also match unrelated codes (INT004/INT012/INT001/INT008).
+        // Same tamper technique as ForgeExtractTrustTests (the CLI's equivalent gate).
         var originalBytes = RandomNumberGenerator.GetBytes(256);
         var msiPath = Path.Combine(_tempDir, "TrustMsi.msi");
         File.WriteAllBytes(msiPath, originalBytes);
@@ -154,7 +166,7 @@ public sealed class BootstrapperRunnerTests : IDisposable
             () => BootstrapperRunner.RunAsync(exePathOverride: attackerBundle));
 
         Assert.NotEqual(0, exitCode);
-        Assert.Contains("integrity", stdErr, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("INT006", stdErr, StringComparison.Ordinal);
     }
 
     [Fact]

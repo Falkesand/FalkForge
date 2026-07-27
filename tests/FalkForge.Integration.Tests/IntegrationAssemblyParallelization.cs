@@ -17,7 +17,15 @@
 //
 // Disabling assembly-level parallelization makes every test run one at a time, so registration/reset
 // sequences against process-global singletons always complete before any other test can observe or
-// mutate that state, and Console.SetOut/SetError redirect windows never overlap. This assembly's default
-// test count (~100; heavyweight end-to-end and real-system suites are opt-in via FALKFORGE_E2E /
-// FALKFORGE_REAL_SYSTEM_E2E) keeps the wall-clock cost of serial execution small.
+// mutate that state, and Console.SetOut/SetError redirect windows never overlap.
+//
+// Measured A/B on this exact test population (dev hardware, `dotnet test` against the built csproj,
+// 98 passed / 0 failed / 492 skipped both ways): serialized (this line active) ran in 5.317s reported
+// test duration / 10.548s total wall-clock; with the line temporarily commented out (parallel), the
+// SAME population ran in 1.892s reported test duration / 7.199s total wall-clock, and happened to pass
+// on that run — the singleton-freeze race described above is intermittent (it depends on unrelated
+// scheduling), so one green parallel run does not disprove the hazard, and a red run would have been
+// equally valid evidence for it. Parallel is meaningfully faster here; this line is justified by
+// correctness (removing a nondeterministic failure mode), not by speed — say so plainly rather than
+// pretending serialization is free.
 [assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
