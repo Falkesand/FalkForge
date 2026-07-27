@@ -181,22 +181,20 @@ public sealed class WixBurnAccessRealBytesTests
         }
     }
 
-    // FINDING: the explicit "e_lfanew out of range" guard is `eLfanew < 0 || eLfanew + 4 >
-    // stream.Length`, computed with unchecked Int32 arithmetic (the project does not set
-    // <CheckForOverflowUnderflow>). When e_lfanew is close to Int32.MaxValue, `eLfanew + 4`
-    // silently wraps to a negative number, so the second half of the check is defeated
-    // (a negative number is never ">" a positive stream length). The explicit guard is
-    // bypassed - but the subsequent Seek/Read at that bogus offset still fails safely,
-    // because BinaryReader throws EndOfStreamException once it runs past the real file,
-    // and Open's outer try/catch converts that into a WBD002 failure. Net effect: no
-    // memory-unsafety or hang, just a dead/bypassable bounds check papered over by the
-    // catch-all. Documented here rather than silently "fixed", per the task's instruction
-    // to report a genuine parser defect before touching it.
+    // The explicit "e_lfanew out of range" guard must reject an e_lfanew near
+    // Int32.MaxValue on its own — without relying on the downstream Seek/Read throwing
+    // EndOfStreamException. Before the fix, the guard was `eLfanew < 0 || eLfanew + 4 >
+    // stream.Length` computed in unchecked Int32 arithmetic (the project does not set
+    // <CheckForOverflowUnderflow>): with e_lfanew = Int32.MaxValue - 3, `eLfanew + 4`
+    // silently wrapped to Int32.MinValue, so the second half of the check was always
+    // false and the out-of-range guard never fired. The failure only happened to be
+    // caught by the generic open-failure catch instead. Now the comparison widens to
+    // long before adding, so it cannot overflow and the guard rejects directly.
     [Fact]
-    public void Open_ELfanewIntegerOverflow_BypassesExplicitRangeCheck_ButStillFailsSafely()
+    public void Open_ELfanewIntegerOverflow_IsRejectedByExplicitRangeCheck()
     {
         var bytes = new byte[64];
-        BitConverter.GetBytes(int.MaxValue - 3).CopyTo(bytes, 0x3C); // eLfanew + 4 overflows to Int32.MinValue
+        BitConverter.GetBytes(int.MaxValue - 3).CopyTo(bytes, 0x3C); // eLfanew + 4 would overflow Int32 if computed unchecked
         var path = WriteTempFile(bytes);
         try
         {
@@ -205,10 +203,9 @@ public sealed class WixBurnAccessRealBytesTests
             Assert.True(result.IsFailure);
             Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
             Assert.Contains("WBD002", result.Error.Message);
-            // The explicit "out of range" guard did NOT catch this - it is the generic
-            // open-failure catch (EndOfStreamException from reading past the real file)
-            // that rejects it instead.
-            Assert.DoesNotContain("out of range", result.Error.Message);
+            // The explicit "out of range" guard must be the one that rejects this,
+            // not the generic open-failure catch.
+            Assert.Contains("out of range", result.Error.Message);
         }
         finally
         {

@@ -57,7 +57,12 @@ internal sealed class WixBurnAccess : IWixBurnAccess
             stream.Seek(0x3C, SeekOrigin.Begin);
             var eLfanew = reader.ReadInt32();
 
-            if (eLfanew < 0 || eLfanew + 4 > stream.Length)
+            // Widen to long before adding: eLfanew is an attacker-controlled Int32 read
+            // straight from the file, and `eLfanew + 4` computed in unchecked Int32
+            // arithmetic can wrap to a negative value when eLfanew is near
+            // Int32.MaxValue, silently defeating this guard. stream.Length is already
+            // a long, so comparing in long arithmetic cannot overflow.
+            if (eLfanew < 0 || (long)eLfanew + 4 > stream.Length)
             {
                 reader.Dispose();
                 stream.Dispose();
