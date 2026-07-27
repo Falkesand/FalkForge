@@ -515,6 +515,9 @@ public sealed class IntegrityEnvelopeCodecTrustTests
         // Round-trip through the public codec (Sign + VerifyTrusted) for the revoked-only,
         // epoch-zero combination that the byte-level tests above isolate: a real signer/verifier
         // pair still agrees on this shape.
+        // NOTE: this test documents intent (public API round-trips for this shape), not a mutant
+        // kill. Sign and VerifyTrusted both route through the same ComputeSignedBytes, so it
+        // passes under all the epoch/revoked-flag mutations discussed above.
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var envelope = IntegrityEnvelopeCodec.Sign(
             Files(("App", "AAAA")), new[] { key }, epoch: 0, revoked: new[] { "DEADBEEF" });

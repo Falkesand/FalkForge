@@ -224,14 +224,28 @@ did the counting.** Do not read a `perTest` score against an `off` score for the
 same project, and do not read a `perTest` "before" against an `off` "after" —
 every comparison from here on states its mode.
 
-**Determinism: the instability is between modes, not within one.** Two runs of
-`off` against the same commit and file (`SignedPayloadTocVerifier.cs` only)
-produced identical counts (53 killed / 30 survived / 16 CompileError / 66 Ignored,
-both runs); two runs of `perTest` against that same commit/file likewise matched
-exactly (53 killed / 26 survived / 4 NoCoverage / 16 CompileError / 66 Ignored,
-both runs). So re-running under the *same* mode will not resolve a suspicious
-number — switching modes is the only way to see whether it holds up, and neither
-mode is confirmed correct.
+**Determinism, checked at file scope only (`SignedPayloadTocVerifier.cs`, one
+commit, two runs per mode) — not at the whole-project scope where the anomaly
+above was found.** Two runs of `off` against the same commit and file
+(`SignedPayloadTocVerifier.cs` only) produced identical counts (53 killed / 30
+survived / 16 CompileError / 66 Ignored, both runs); two runs of `perTest`
+against that same commit/file likewise matched exactly (53 killed / 26
+survived / 4 NoCoverage / 16 CompileError / 66 Ignored, both runs). So, at
+this narrow scope, re-running under the *same* mode did not resolve a
+suspicious number — switching modes was the only way to see whether it held
+up, and neither mode is confirmed correct at this scope.
+
+**The honest gap: this determinism check was never done at the scope where
+the anomaly actually appeared.** The `perTest` apparent regression on
+`FalkForge.Engine.Protocol` above — 919 killed (original sweep) vs. 840 killed
+(this branch), a drop of 79 kills that reads as impossible given the branch
+only adds tests — was measured once per side, whole-project, under `perTest`.
+It was never re-run a second time at that same whole-project `perTest` scope
+to check whether the 840 figure itself reproduces. The two-runs-match result
+above only establishes determinism for one file, two runs, per mode; it says
+nothing about whether the whole-project `perTest` number that motivated this
+investigation would reproduce on a second run. That reproducibility check
+remains open.
 
 **What the direction suggests, without proving it:** `off` never produced *more*
 kills than `perTest` on any project measured this session. That is consistent with
@@ -269,6 +283,14 @@ what was found and what was done about it. Selected from the files with the most
 bundle/integrity/signing/elevation code over pure MSI-table validation rules. Full
 per-mutant detail (mutator, exact location, replacement text) lives in each run's
 `mutation-report.json`.
+
+Line numbers cited below are pinned to the source as it stood at the
+2026-07-24 sweep commit (and, for the 2026-07-27 branch entries, the commits
+noted there). Later refactors — including this branch's own cleanup, e.g. the
+removed `slotToSig` array below — can and do shift or delete the exact line a
+number pointed at. Treat a cited line number as a historical locator for where
+the mutant was found, not a current coordinate; use the quoted expression and
+file to relocate it rather than chasing the number.
 
 **FalkForge.Compiler.Bundle**
 
@@ -354,12 +376,17 @@ per-mutant detail (mutator, exact location, replacement text) lives in each run'
   equivalent mutant, not a test gap. The array (allocation, fill, and dead
   parameter) was removed outright rather than pinned, so the mutant no longer
   exists to survive. The negative-count clamp `req.Count < 0 ? 0 : req.Count`
-  (line 44) also survives with the clamp removed and remains **EQUIVALENT**
-  (verified 2026-07-27, no test added): the enclosing loop's own bound check
-  already treats a negative count the same as zero, so removing the clamp
-  produces no observable behavioral difference — no test builds a `PolicyRule`
-  with a negative `Count` requirement because none could tell the mutant apart
-  from the original.
+  (line 44) also survives with the clamp removed. That specific clamp-removal
+  mutant is **consistent with being equivalent — no existing test observes a
+  difference** (verified 2026-07-27, no test added): the enclosing loop's own
+  bound check already treats a negative count the same as zero, so removing
+  the clamp produces no observable behavioral difference in the current
+  implementation — no test builds a `PolicyRule` with a negative `Count`
+  requirement because none could tell the mutant apart from the original.
+  This equivalence is specific to the clamp-removal mutation, not the ternary
+  in general: a different mutation of the same line (e.g. inverting it to
+  `req.Count > 0 ? 0 : req.Count`) would be killable, since it would empty the
+  `slots` list and let a bare M-of-N policy pass that should fail.
 
 **FalkForge.Signing.SignServer**
 
@@ -394,11 +421,16 @@ per-mutant detail (mutator, exact location, replacement text) lives in each run'
   (`i - 1`) and boundary (`i + 1 > span.Length`) survive similarly and remain
   **open** — the value-ends-exactly-at-buffer-end edge case is still unpinned.
 - `Commands/RegistryWriteCommand.cs` — `nextSlash >= 0` survives with the
-  comparison narrowed. **EQUIVALENT MUTANT** (confirmed 2026-07-27, no test
-  added): `AllowedSubKeyPattern`'s regex requires the AppName segment to be at
-  least 1 character, so `nextSlash` can never be `0` once the regex has matched;
-  the mutation was applied by hand and all 124 tests in the project stayed green,
-  confirming no observable behavioral difference exists for a test to pin.
+  comparison narrowed. **Consistent with the mutant being equivalent — no
+  existing test observes a difference** (confirmed 2026-07-27, no test
+  added): `AllowedSubKeyPattern`'s pattern,
+  `^SOFTWARE\\[A-Za-z0-9][A-Za-z0-9 ._-]*\\`, forces at least one character
+  between the first and second backslash, so once the regex has matched,
+  `nextSlash` is always `>= 1` and `>= 0` vs `> 0` cannot differ for any input
+  that reaches this line. The mutation was applied by hand and all 124 tests
+  in the project stayed green, which is consistent with that reasoning — the
+  green run alone doesn't prove no observable difference exists; the regex
+  bound does.
 
 ### How to re-run
 

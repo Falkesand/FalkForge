@@ -265,6 +265,10 @@ public sealed class SignedPayloadTocVerifierQuorumTests
         // An empty (non-null) revoked set must be a no-op: DropRevoked's short-circuit returns the
         // input list unchanged, so a genuine two-distinct-release quorum still satisfies exactly as it
         // would with revokedFingerprints: null.
+        // NOTE: this test documents intent (empty revoked set behaves like null), not a mutant kill.
+        // With an empty revoked set, DropRevoked's early return short-circuits before the filter
+        // runs, so negating the filter predicate alone still passes here; only mutating both the
+        // early return and the filter together would fail this test.
         using var k1 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var k2 = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var manifest = SignedManifest(epoch: 0, k1, k2);
