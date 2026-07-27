@@ -24,7 +24,13 @@ public sealed partial class StudioViewModel
             OutputText += $"[{LocalNowHms()}] Validating...\n";
             BuildProgress = 10;
 
+            // S8949 suggests this._validationDebounce.Token, but that CTS belongs to the unrelated
+            // XAML-validation debounce feature — wiring it here would abort an in-progress build the
+            // moment the user edits a field, which is not this method's contract. BuildAsync has no
+            // cancellation token of its own today; a real build-cancel token is separate future work.
+#pragma warning disable S8949
             var result = await Task.Run(() => StudioBuildService.Compile(_project, baseDirectory));
+#pragma warning restore S8949
 
             BuildProgress = 100;
             sw.Stop();

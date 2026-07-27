@@ -105,13 +105,13 @@ public sealed class ElevatedHost : IAsyncDisposable
                     {
                         SequenceId = executeMsg.SequenceId,
                         Percent = percent
-                    });
+                    }, _cts?.Token ?? CancellationToken.None);
                 }
             };
 
             var result = _executor.Execute(executeMsg, onProgress);
             if (_pipe is not null)
-                await _pipe.SendAsync(result);
+                await _pipe.SendAsync(result, _cts?.Token ?? CancellationToken.None);
         }
     }
 
