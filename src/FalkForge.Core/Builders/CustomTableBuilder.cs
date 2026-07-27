@@ -6,7 +6,7 @@ namespace FalkForge.Builders;
 public sealed class CustomTableBuilder
 {
     private static readonly Regex ColumnNameRegex =
-        new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+        new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private readonly List<CustomTableColumnModel> _columns = [];
     private readonly List<Dictionary<string, object?>> _rows = [];
