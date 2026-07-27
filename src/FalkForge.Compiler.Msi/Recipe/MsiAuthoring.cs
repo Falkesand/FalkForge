@@ -64,6 +64,21 @@ public static partial class MsiAuthoring
         => Compile(package, outputPath, extensions, logger, new CompileOptions());
 
     /// <summary>
+    /// Assembly-internal entry point used by <see cref="MsiCompiler"/> to forward its
+    /// constructor-supplied <see cref="IFileSystem"/> into component resolution (Step 2)
+    /// instead of the pipeline silently building its own <see cref="WindowsFileSystem"/>.
+    /// Not part of the public surface: the public overloads above keep defaulting to a
+    /// real <see cref="WindowsFileSystem"/> so every existing caller is unaffected.
+    /// </summary>
+    internal static Result<string> Compile(
+        PackageModel package,
+        string outputPath,
+        IReadOnlyList<IFalkForgeExtension> extensions,
+        IFalkLogger? logger,
+        IFileSystem fileSystem)
+        => Compile(package, outputPath, extensions, logger, new CompileOptions(), fileSystem);
+
+    /// <summary>
     /// Knobs used internally to rebuild a package as a localized variant when generating
     /// per-culture MST language transforms. The public entry points always use the defaults.
     /// </summary>
@@ -88,7 +103,8 @@ public static partial class MsiAuthoring
         string outputPath,
         IReadOnlyList<IFalkForgeExtension> extensions,
         IFalkLogger? logger,
-        CompileOptions options)
+        CompileOptions options,
+        IFileSystem? fileSystem = null)
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(outputPath);
@@ -192,8 +208,10 @@ public static partial class MsiAuthoring
         // Step 2: Resolve components. ComponentResolver materializes
         // PackageModel.Files (plus any extension-contributed additionalFiles) into
         // ResolvedComponent / ResolvedFile records with deterministic IDs and component GUIDs.
-        IFileSystem fileSystem = new WindowsFileSystem();
-        ComponentResolver resolver = new(fileSystem);
+        // fileSystem is the caller's injected instance (MsiCompiler(IFileSystem)) when supplied,
+        // falling back to a real WindowsFileSystem for every default-constructed caller.
+        IFileSystem resolvedFileSystem = fileSystem ?? new WindowsFileSystem();
+        ComponentResolver resolver = new(resolvedFileSystem);
         Result<ResolvedPackage> resolveResult = resolver.Resolve(package, additionalFiles);
         if (resolveResult.IsFailure)
         {
@@ -333,7 +351,7 @@ public static partial class MsiAuthoring
         if (options.EmitLanguageTransforms && package.LocalizationData.Count > 1)
         {
             Result<string> transformResult = GenerateLanguageTransforms(
-                package, msiPath, outputPath, extensions, logger);
+                package, msiPath, outputPath, extensions, logger, resolvedFileSystem);
             if (transformResult.IsFailure)
                 return Result<string>.Failure(transformResult.Error);
         }
