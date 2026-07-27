@@ -97,9 +97,66 @@ public static class AppxManifestGenerator
                 new XAttribute("Square44x44Logo", app.VisualElements.Square44x44Logo ?? "Assets\\Square44x44Logo.png"),
                 new XAttribute("BackgroundColor", app.VisualElements.BackgroundColor)));
 
+            // CT_Application sequences uap:VisualElements before Extensions, so this must stay last.
+            var extensions = GenerateExtensions(app);
+            if (extensions is not null)
+                appEl.Add(extensions);
+
             apps.Add(appEl);
         }
         return apps;
+    }
+
+    /// <summary>
+    /// Builds the application's <c>Extensions</c> element, or <see langword="null"/> when the
+    /// application declares none — the schema requires at least one <c>Extension</c> child, so
+    /// an empty container would make the package fail validation.
+    /// </summary>
+    private static XElement? GenerateExtensions(MsixApplication app)
+    {
+        if (app.FileTypeAssociations.Count == 0 && app.Protocols.Count == 0)
+            return null;
+
+        var extensions = new XElement(Ns + "Extensions");
+
+        foreach (var fta in app.FileTypeAssociations)
+        {
+            var association = new XElement(Uap + "FileTypeAssociation",
+                new XAttribute("Name", fta.Name));
+
+            // CT_FileTypeAssociation sequence: DisplayName, Logo, SupportedFileTypes.
+            if (fta.DisplayName is not null)
+                association.Add(new XElement(Uap + "DisplayName", fta.DisplayName));
+            if (fta.Logo is not null)
+                association.Add(new XElement(Uap + "Logo", fta.Logo));
+
+            var supported = new XElement(Uap + "SupportedFileTypes");
+            foreach (var fileType in fta.FileTypes)
+                supported.Add(new XElement(Uap + "FileType", fileType));
+            association.Add(supported);
+
+            extensions.Add(new XElement(Uap + "Extension",
+                new XAttribute("Category", "windows.fileTypeAssociation"),
+                association));
+        }
+
+        foreach (var protocol in app.Protocols)
+        {
+            var protocolEl = new XElement(Uap + "Protocol",
+                new XAttribute("Name", protocol.Name));
+
+            // CT_Protocol sequence: Logo, DisplayName.
+            if (protocol.Logo is not null)
+                protocolEl.Add(new XElement(Uap + "Logo", protocol.Logo));
+            if (protocol.DisplayName is not null)
+                protocolEl.Add(new XElement(Uap + "DisplayName", protocol.DisplayName));
+
+            extensions.Add(new XElement(Uap + "Extension",
+                new XAttribute("Category", "windows.protocol"),
+                protocolEl));
+        }
+
+        return extensions;
     }
 
     private static string MapArchitecture(ProcessorArchitecture arch) => arch switch

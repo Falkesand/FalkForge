@@ -231,4 +231,136 @@ public sealed class AppxManifestGeneratorTests
         Assert.Equal("CN=Microsoft", pkgDeps[0].Attribute("Publisher")!.Value);
         Assert.Equal("14.0.30704.0", pkgDeps[0].Attribute("MinVersion")!.Value);
     }
+
+    // ---------------------------------------------------------------------
+    // Application extensions (file type associations / protocol handlers).
+    //
+    // These exist so a declared association actually REGISTERS on the target
+    // machine. An association the fluent API accepts but the manifest omits is
+    // silently dead: Windows only learns about it from AppxManifest.xml.
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public void Generate_FileTypeAssociation_EmitsUapExtensionUnderApplication()
+    {
+        var model = new MsixBuilder()
+            .Name("TestApp")
+            .Publisher("CN=Test")
+            .DisplayName("Test")
+            .PublisherDisplayName("Test")
+            .Version(new Version(1, 0, 0, 0))
+            .Application("App1", "app.exe", app => app
+                .DisplayName("Test")
+                .FileTypeAssociation("contoso.doc", ".cdoc", ".cdocx"))
+            .Signing(s => s.Certificate("test.pfx"))
+            .Build();
+
+        var result = AppxManifestGenerator.Generate(model);
+        var appEl = result.Value.Root!.Element(Ns + "Applications")!.Element(Ns + "Application")!;
+        var extensions = appEl.Element(Ns + "Extensions")!;
+        var extension = extensions.Elements(Uap + "Extension").Single();
+
+        Assert.Equal("windows.fileTypeAssociation", extension.Attribute("Category")!.Value);
+
+        var fta = extension.Element(Uap + "FileTypeAssociation")!;
+        Assert.Equal("contoso.doc", fta.Attribute("Name")!.Value);
+
+        var fileTypes = fta.Element(Uap + "SupportedFileTypes")!
+            .Elements(Uap + "FileType").Select(e => e.Value).ToList();
+        Assert.Equal([".cdoc", ".cdocx"], fileTypes);
+    }
+
+    [Fact]
+    public void Generate_FileTypeAssociationWithDisplayNameAndLogo_EmitsThemInSchemaOrder()
+    {
+        var model = new MsixBuilder()
+            .Name("TestApp")
+            .Publisher("CN=Test")
+            .DisplayName("Test")
+            .PublisherDisplayName("Test")
+            .Version(new Version(1, 0, 0, 0))
+            .Application("App1", "app.exe", app => app
+                .DisplayName("Test")
+                .FileTypeAssociation("contoso.doc", "Contoso Document", "Assets\\Doc.png", [".cdoc"]))
+            .Signing(s => s.Certificate("test.pfx"))
+            .Build();
+
+        var result = AppxManifestGenerator.Generate(model);
+        var fta = result.Value.Root!
+            .Element(Ns + "Applications")!.Element(Ns + "Application")!
+            .Element(Ns + "Extensions")!
+            .Elements(Uap + "Extension").Single()
+            .Element(Uap + "FileTypeAssociation")!;
+
+        Assert.Equal("Contoso Document", fta.Element(Uap + "DisplayName")!.Value);
+        Assert.Equal("Assets\\Doc.png", fta.Element(Uap + "Logo")!.Value);
+
+        // The uap CT_FileTypeAssociation sequence is DisplayName, Logo, SupportedFileTypes.
+        // Emitting them out of order makes MakeAppx reject the manifest, so order is asserted.
+        var childNames = fta.Elements().Select(e => e.Name.LocalName).ToList();
+        Assert.Equal(["DisplayName", "Logo", "SupportedFileTypes"], childNames);
+    }
+
+    [Fact]
+    public void Generate_ProtocolHandler_EmitsUapProtocolExtension()
+    {
+        var model = new MsixBuilder()
+            .Name("TestApp")
+            .Publisher("CN=Test")
+            .DisplayName("Test")
+            .PublisherDisplayName("Test")
+            .Version(new Version(1, 0, 0, 0))
+            .Application("App1", "app.exe", app => app
+                .DisplayName("Test")
+                .Protocol("contoso", "Contoso Handler"))
+            .Signing(s => s.Certificate("test.pfx"))
+            .Build();
+
+        var result = AppxManifestGenerator.Generate(model);
+        var extension = result.Value.Root!
+            .Element(Ns + "Applications")!.Element(Ns + "Application")!
+            .Element(Ns + "Extensions")!
+            .Elements(Uap + "Extension").Single();
+
+        Assert.Equal("windows.protocol", extension.Attribute("Category")!.Value);
+
+        var protocol = extension.Element(Uap + "Protocol")!;
+        Assert.Equal("contoso", protocol.Attribute("Name")!.Value);
+        Assert.Equal("Contoso Handler", protocol.Element(Uap + "DisplayName")!.Value);
+    }
+
+    [Fact]
+    public void Generate_ApplicationWithoutExtensions_OmitsExtensionsElement()
+    {
+        var model = CreateValidModel();
+
+        var result = AppxManifestGenerator.Generate(model);
+        var appEl = result.Value.Root!.Element(Ns + "Applications")!.Element(Ns + "Application")!;
+
+        // An empty <Extensions/> is invalid per the schema (minOccurs=1 on Extension).
+        Assert.Null(appEl.Element(Ns + "Extensions"));
+    }
+
+    [Fact]
+    public void Generate_ExtensionsElement_FollowsVisualElements()
+    {
+        var model = new MsixBuilder()
+            .Name("TestApp")
+            .Publisher("CN=Test")
+            .DisplayName("Test")
+            .PublisherDisplayName("Test")
+            .Version(new Version(1, 0, 0, 0))
+            .Application("App1", "app.exe", app => app
+                .DisplayName("Test")
+                .Protocol("contoso"))
+            .Signing(s => s.Certificate("test.pfx"))
+            .Build();
+
+        var result = AppxManifestGenerator.Generate(model);
+        var appEl = result.Value.Root!.Element(Ns + "Applications")!.Element(Ns + "Application")!;
+
+        // CT_Application sequences uap:VisualElements before Extensions.
+        var childNames = appEl.Elements().Select(e => e.Name.LocalName).ToList();
+        Assert.Equal(["VisualElements", "Extensions"], childNames);
+    }
 }

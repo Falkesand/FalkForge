@@ -21,9 +21,10 @@ public sealed class MsixModel
     public required IReadOnlyList<MsixApplication> Applications { get; init; }
 
     // Content
+    // No Shortcuts: AppxManifest has no shortcut element. Start menu entries come from
+    // Applications/Application + its VisualElements, which the generator already emits.
     public IReadOnlyList<FileEntryModel> Files { get; init; } = [];
     public IReadOnlyList<MsixRegistryEntry> RegistryEntries { get; init; } = [];
-    public IReadOnlyList<ShortcutModel> Shortcuts { get; init; } = [];
 
     // Capabilities
     public IReadOnlyList<string> Capabilities { get; init; } = [];
@@ -34,15 +35,18 @@ public sealed class MsixModel
     public string? MaxVersionTested { get; init; }
     public IReadOnlyList<MsixPackageDependency> Dependencies { get; init; } = [];
 
-    // Extensions
-    public IReadOnlyList<MsixExtension> Extensions { get; init; } = [];
+    // Extensions live on MsixApplication (FileTypeAssociations / Protocols): file type
+    // associations and protocol handlers are Application-level extensions in AppxManifest,
+    // and each category dictates its own XML namespace and required child elements.
 
     // VFS
     public VfsMappingMode VfsMapping { get; init; } = VfsMappingMode.Auto;
     public IReadOnlyList<VfsOverride> VfsOverrides { get; init; } = [];
 
     // Cross-cutting
-    public InstallScope Scope { get; init; } = InstallScope.PerMachine;
+    // No Scope: an MSIX package is always staged and registered per-user. Making it available
+    // to every user on a machine is a deployment-time act (Add-AppxProvisionedPackage), not
+    // something the package itself can declare.
     public SigningOptions? Signing { get; init; }
     public SbomOptions? SbomOptions { get; init; }
 

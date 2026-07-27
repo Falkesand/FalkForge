@@ -49,7 +49,15 @@ public sealed class MsixCompiler
         if (signResult.IsFailure)
             return Result<string>.Failure(signResult.Error);
 
-        // Step 7: Generate .appinstaller (optional)
+        // Step 7: SBOM sidecar (opt-in via SbomOptions or FALKFORGE_GENERATE_SBOM).
+        // Unlike MsiCompiler — which warns through its logger and continues — MsixCompiler has
+        // no logger to warn through, so a requested-but-unwritten SBOM fails the compile rather
+        // than disappearing silently.
+        var sbomResult = MsixSbomHelper.WriteSbomSidecar(model, layout, msixPath);
+        if (sbomResult.IsFailure)
+            return Result<string>.Failure(sbomResult.Error);
+
+        // Step 8: Generate .appinstaller (optional)
         if (model.UpdateSettings is not null)
         {
             var appInstallerResult = AppInstallerGenerator.Generate(model, msixFileName);

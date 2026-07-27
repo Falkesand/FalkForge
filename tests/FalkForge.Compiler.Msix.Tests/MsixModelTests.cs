@@ -46,7 +46,6 @@ public sealed class MsixModelTests
         };
 
         Assert.Equal(ProcessorArchitecture.X64, model.Architecture);
-        Assert.Equal(InstallScope.PerMachine, model.Scope);
         Assert.Equal("10.0.17763.0", model.MinWindowsVersion);
         Assert.Equal(VfsMappingMode.Auto, model.VfsMapping);
     }
@@ -66,12 +65,34 @@ public sealed class MsixModelTests
 
         Assert.Empty(model.Files);
         Assert.Empty(model.RegistryEntries);
-        Assert.Empty(model.Shortcuts);
         Assert.Empty(model.Capabilities);
         Assert.Empty(model.RestrictedCapabilities);
         Assert.Empty(model.Dependencies);
-        Assert.Empty(model.Extensions);
         Assert.Empty(model.VfsOverrides);
+    }
+
+    /// <summary>
+    /// MSIX cannot express these concepts, so the model must not offer them: a property the
+    /// fluent API accepts and the compiler cannot honour is worse than no property at all —
+    /// the caller believes the setting took effect.
+    /// <list type="bullet">
+    /// <item><c>Scope</c> — an MSIX package is always staged and registered per-user;
+    /// making it available to every user is a deployment-time provisioning act
+    /// (<c>Add-AppxProvisionedPackage</c>), with no AppxManifest representation.</item>
+    /// <item><c>Shortcuts</c> — Start menu entries come from <c>Applications/Application</c>
+    /// plus its VisualElements; AppxManifest has no shortcut element.</item>
+    /// <item><c>Extensions</c> — replaced by per-application, schema-correct
+    /// <c>FileTypeAssociations</c> / <c>Protocols</c>; a bare category + entry point cannot
+    /// select the right XML namespace or emit the children each category requires.</item>
+    /// </list>
+    /// </summary>
+    [Theory]
+    [InlineData("Scope")]
+    [InlineData("Shortcuts")]
+    [InlineData("Extensions")]
+    public void MsixModel_DoesNotExposeConceptsMsixCannotRepresent(string propertyName)
+    {
+        Assert.Null(typeof(MsixModel).GetProperty(propertyName));
     }
 
     [Fact]

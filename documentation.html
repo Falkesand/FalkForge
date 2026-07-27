@@ -11921,7 +11921,6 @@ package.ExecuteSequence(seq => seq
       <tr><td><code>PublisherDisplayName(string name)</code></td><td><code>MsixBuilder</code></td><td>Human-readable publisher name.</td></tr>
       <tr><td><code>Version(Version version)</code></td><td><code>MsixBuilder</code></td><td>Package version. Must have 4 parts (Major.Minor.Build.Revision). Default: <code>1.0.0.0</code>.</td></tr>
       <tr><td><code>Architecture(ProcessorArchitecture arch)</code></td><td><code>MsixBuilder</code></td><td>Target processor architecture. Default: <code>X64</code>.</td></tr>
-      <tr><td><code>Scope(InstallScope scope)</code></td><td><code>MsixBuilder</code></td><td>Install scope. Default: <code>PerMachine</code>.</td></tr>
       <tr><td><code>Description(string description)</code></td><td><code>MsixBuilder</code></td><td>Package description for the manifest Properties element.</td></tr>
       <tr><td><code>LogoPath(string path)</code></td><td><code>MsixBuilder</code></td><td>Path to the package logo image (StoreLogo).</td></tr>
       <tr><td><code>MinWindowsVersion(string version)</code></td><td><code>MsixBuilder</code></td><td>Minimum Windows version. Default: <code>"10.0.17763.0"</code> (Windows 10 1809).</td></tr>
@@ -11933,7 +11932,7 @@ package.ExecuteSequence(seq => seq
       <tr><td><code>Capability(string capability)</code></td><td><code>MsixBuilder</code></td><td>Declares a general capability (e.g., <code>"internetClient"</code>).</td></tr>
       <tr><td><code>RestrictedCapability(string capability)</code></td><td><code>MsixBuilder</code></td><td>Declares a restricted capability (requires Store approval).</td></tr>
       <tr><td><code>Dependency(string name, string publisher, Version? minVersion)</code></td><td><code>MsixBuilder</code></td><td>Declares a package dependency on another MSIX package.</td></tr>
-      <tr><td><code>Extension(string category, string? entryPoint)</code></td><td><code>MsixBuilder</code></td><td>Adds a package extension declaration (file type association, protocol handler, etc.).</td></tr>
+      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure)</code></td><td><code>MsixBuilder</code></td><td>Opts in to a CycloneDX 1.6 SBOM sidecar (<code>&lt;package&gt;.msix.cdx.json</code>) listing every packaged file with its SHA-256.</td></tr>
       <tr><td><code>VfsMapping(VfsMappingMode mode)</code></td><td><code>MsixBuilder</code></td><td>Sets the VFS mapping mode. Default: <code>Auto</code>.</td></tr>
       <tr><td><code>VfsOverride(string sourceDir, string packageRelPath)</code></td><td><code>MsixBuilder</code></td><td>Adds a custom VFS path override for files from a specific source directory.</td></tr>
       <tr><td><code>UpdateSettings(string appInstallerUri, Action&lt;MsixUpdateSettingsBuilder&gt;? configure)</code></td><td><code>MsixBuilder</code></td><td>Configures auto-update via <code>.appinstaller</code> file generation.</td></tr>
@@ -11982,6 +11981,9 @@ InstallerMsix.BuildMsix(args, msix =&gt;
       <tr><td><code>Square150x150Logo(string path)</code></td><td><code>MsixApplicationBuilder</code></td><td>Path to the 150x150 medium tile logo.</td></tr>
       <tr><td><code>Square44x44Logo(string path)</code></td><td><code>MsixApplicationBuilder</code></td><td>Path to the 44x44 app list logo (taskbar, Start menu).</td></tr>
       <tr><td><code>Wide310x150Logo(string path)</code></td><td><code>MsixApplicationBuilder</code></td><td>Path to the 310x150 wide tile logo.</td></tr>
+      <tr><td><code>FileTypeAssociation(string name, params string[] fileTypes)</code></td><td><code>MsixApplicationBuilder</code></td><td>Registers a file type association. <code>name</code> is the lowercase logical association name; each file type includes its leading dot (<code>".cdoc"</code>).</td></tr>
+      <tr><td><code>FileTypeAssociation(string name, string? displayName, string? logo, IReadOnlyList&lt;string&gt; fileTypes)</code></td><td><code>MsixApplicationBuilder</code></td><td>As above, with a user-visible name and/or icon for the association.</td></tr>
+      <tr><td><code>Protocol(string name, string? displayName, string? logo)</code></td><td><code>MsixApplicationBuilder</code></td><td>Registers a URI scheme handled by this application. <code>name</code> is the scheme alone — <code>"contoso"</code>, not <code>"contoso://"</code>.</td></tr>
     </tbody>
   </table>
 
@@ -12023,30 +12025,46 @@ InstallerMsix.BuildMsix(args, msix =&gt;
 
   <h4>Extensions</h4>
   <p>
-    Extensions register the application for system integration points. The <code>Extension()</code>
-    method accepts a category string and an optional entry point. The <code>MsixExtension</code>
-    model maps to <code>&lt;uap:Extension&gt;</code> or <code>&lt;desktop:Extension&gt;</code>
-    elements in the manifest.
+    Extensions register the application for system integration points. They are declared
+    <em>per application</em> — that is where AppxManifest puts them — and FalkForge exposes
+    the two categories it can emit correctly today.
   </p>
 
   <table class="api-table">
     <thead>
-      <tr><th>Category</th><th>Description</th></tr>
+      <tr><th>Category</th><th>Fluent API</th><th>Emitted markup</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>windows.fileTypeAssociation</code></td><td>Register file type associations (open files with your app).</td></tr>
-      <tr><td><code>windows.protocol</code></td><td>Register a custom URI protocol handler.</td></tr>
-      <tr><td><code>windows.comServer</code></td><td>Register COM server classes.</td></tr>
-      <tr><td><code>windows.service</code></td><td>Register a Windows service within the package.</td></tr>
-      <tr><td><code>windows.startupTask</code></td><td>Run the app automatically at user login.</td></tr>
-      <tr><td><code>windows.firewallRules</code></td><td>Declare firewall rules for the package.</td></tr>
+      <tr>
+        <td><code>windows.fileTypeAssociation</code></td>
+        <td><code>app.FileTypeAssociation(...)</code></td>
+        <td><code>&lt;uap:Extension Category="windows.fileTypeAssociation"&gt;</code> containing a <code>&lt;uap:FileTypeAssociation&gt;</code> with <code>&lt;uap:SupportedFileTypes&gt;</code>.</td>
+      </tr>
+      <tr>
+        <td><code>windows.protocol</code></td>
+        <td><code>app.Protocol(...)</code></td>
+        <td><code>&lt;uap:Extension Category="windows.protocol"&gt;</code> containing a <code>&lt;uap:Protocol&gt;</code>.</td>
+      </tr>
     </tbody>
   </table>
 
-  <pre><code class="language-csharp">msix
-    .Extension("windows.fileTypeAssociation")
-    .Extension("windows.protocol")
-    .Extension("windows.startupTask", "MyApp.StartupTask");</code></pre>
+  <pre><code class="language-csharp">msix.Application("App", "MyApp.exe", app =&gt; app
+    .DisplayName("My Application")
+    .FileTypeAssociation("contoso.doc", ".cdoc", ".cdocx")
+    .Protocol("contoso", displayName: "Contoso Handler"));</code></pre>
+
+  <div class="note">
+    <p>
+      <strong>Why no generic <code>Extension(category, entryPoint)</code>?</strong> There was one,
+      and it emitted nothing at all. Each extension category dictates both its XML namespace
+      (<code>uap</code>, <code>uap5</code>, <code>desktop</code>, …) and the child elements it
+      requires — <code>windows.protocol</code> needs a <code>&lt;uap:Protocol Name="…"&gt;</code>,
+      <code>windows.startupTask</code> needs a <code>&lt;desktop:StartupTask&gt;</code>. A bare
+      category string cannot supply either, so the API was removed rather than left accepting
+      input the compiler could not honour. Categories beyond the two above are not yet
+      supported; declaring one is a compile error instead of a silent no-op.
+    </p>
+  </div>
 
   <h4>Package Dependencies</h4>
   <p>
@@ -12445,6 +12463,9 @@ dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output</code></pre>
       <tr><td><code>MSIX010</code></td><td>Application Id is required (for each application entry).</td></tr>
       <tr><td><code>MSIX011</code></td><td>Application Executable is required (for each application entry).</td></tr>
       <tr><td><code>MSIX012</code></td><td>MinWindowsVersion must be a valid version string.</td></tr>
+      <tr><td><code>MSIX013</code></td><td>File type association name must use lowercase letters, digits, <code>.</code>, <code>-</code> or <code>_</code>.</td></tr>
+      <tr><td><code>MSIX014</code></td><td>A file type association must declare at least one file type, each lowercase and including the leading dot.</td></tr>
+      <tr><td><code>MSIX015</code></td><td>Protocol name must be the lowercase URI scheme alone (<code>contoso</code>, not <code>contoso://</code>).</td></tr>
     </tbody>
   </table>
 

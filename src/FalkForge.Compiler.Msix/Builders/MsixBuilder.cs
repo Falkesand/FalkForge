@@ -1,5 +1,6 @@
 using FalkForge.Builders;
 using FalkForge.Models;
+using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Msix.Builders;
 
@@ -11,7 +12,6 @@ public sealed class MsixBuilder
     private readonly List<string> _capabilities = [];
     private readonly List<string> _restrictedCapabilities = [];
     private readonly List<MsixPackageDependency> _dependencies = [];
-    private readonly List<MsixExtension> _extensions = [];
     private readonly List<VfsOverride> _vfsOverrides = [];
     private string _name = string.Empty;
     private string _publisher = string.Empty;
@@ -19,13 +19,13 @@ public sealed class MsixBuilder
     private string _publisherDisplayName = string.Empty;
     private Version _version = new(1, 0, 0, 0);
     private ProcessorArchitecture _architecture = ProcessorArchitecture.X64;
-    private InstallScope _scope = InstallScope.PerMachine;
     private string? _description;
     private string? _logoPath;
     private string _minWindowsVersion = "10.0.17763.0";
     private string? _maxVersionTested;
     private VfsMappingMode _vfsMapping = VfsMappingMode.Auto;
     private SigningOptions? _signing;
+    private SbomOptions? _sbomOptions;
     private MsixUpdateSettings? _updateSettings;
 
     public MsixBuilder Name(string name)
@@ -61,12 +61,6 @@ public sealed class MsixBuilder
     public MsixBuilder Architecture(ProcessorArchitecture architecture)
     {
         _architecture = architecture;
-        return this;
-    }
-
-    public MsixBuilder Scope(InstallScope scope)
-    {
-        _scope = scope;
         return this;
     }
 
@@ -132,6 +126,17 @@ public sealed class MsixBuilder
         return this;
     }
 
+    /// <summary>
+    /// Opts in to a CycloneDX SBOM sidecar (<c>&lt;package&gt;.msix.cdx.json</c>) listing every
+    /// packaged file with its SHA-256, plus any components added here.
+    /// </summary>
+    public MsixBuilder Sbom(Action<SbomOptions>? configure = null)
+    {
+        _sbomOptions ??= new SbomOptions();
+        configure?.Invoke(_sbomOptions);
+        return this;
+    }
+
     public MsixBuilder Capability(string capability)
     {
         _capabilities.Add(capability);
@@ -151,16 +156,6 @@ public sealed class MsixBuilder
             Name = name,
             Publisher = publisher,
             MinVersion = minVersion
-        });
-        return this;
-    }
-
-    public MsixBuilder Extension(string category, string? entryPoint = null)
-    {
-        _extensions.Add(new MsixExtension
-        {
-            Category = category,
-            EntryPoint = entryPoint
         });
         return this;
     }
@@ -207,11 +202,10 @@ public sealed class MsixBuilder
         MinWindowsVersion = _minWindowsVersion,
         MaxVersionTested = _maxVersionTested,
         Dependencies = [.. _dependencies],
-        Extensions = [.. _extensions],
         VfsMapping = _vfsMapping,
         VfsOverrides = [.. _vfsOverrides],
-        Scope = _scope,
         Signing = _signing,
+        SbomOptions = _sbomOptions,
         UpdateSettings = _updateSettings
     };
 }
