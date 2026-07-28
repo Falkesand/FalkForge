@@ -250,6 +250,10 @@ public sealed partial class MsiExecutor
         }
     }
 
-    [GeneratedRegex(@"^[A-Z_][A-Z0-9_.]*$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal key with a
+    // trailing newline would slip through an otherwise-correct ^...$ anchor -- and prop.Key is
+    // appended UNQUOTED directly into the msiexec.exe argument string below.
+    [GeneratedRegex(@"\A[A-Z_][A-Z0-9_.]*\z")]
     private static partial Regex MsiPropertyKeyPattern();
 }

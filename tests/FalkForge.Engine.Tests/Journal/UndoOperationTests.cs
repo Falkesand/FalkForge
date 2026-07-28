@@ -103,6 +103,28 @@ public sealed class UndoOperationTests
     }
 
     [Fact]
+    public async Task MsiUninstall_TrailingNewlineProductCode_ReturnsValidationFailure()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-well-formed GUID with a trailing
+        // newline would slip through an otherwise-correct ^...$ anchor -- and productCode is
+        // interpolated UNQUOTED directly into the msiexec.exe command line built above
+        // ("/x {productCode} /qn /norestart"), so this guard is the only thing standing between
+        // a corrupted journal entry and a raw control character reaching an elevated process's
+        // argument string.
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var op = new MsiUninstallOperation(runner);
+        var entry = CreateEntry(JournalEntryType.MsiInstalled,
+            productCode: "{12345678-1234-1234-1234-123456789ABC}" + "\n");
+
+        var result = await op.ExecuteAsync(entry, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Invalid ProductCode format", result.Error.Message);
+    }
+
+    [Fact]
     public async Task MsiUninstall_WrongEntryType_ReturnsFailure()
     {
         var runner = new MockProcessRunner().WithExitCode(0);

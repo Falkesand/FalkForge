@@ -498,6 +498,13 @@ public sealed class MsiExecutorDirectTests
     [InlineData("123PROP")]
     [InlineData("MY-PROP")]
     [InlineData("MY PROP")]
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-legal key with a trailing newline would
+    // slip through an otherwise-correct ^...$ anchor -- and prop.Key is appended UNQUOTED
+    // directly into the msiexec.exe argument string built by ValidateAndBuildPropertyArgs
+    // (only the value is quoted), so this guard is the only thing standing between a bypassed
+    // property key and a raw control character reaching an elevated process's command line.
+    [InlineData("MYPROP\n")]
     public async Task DirectExecution_InvalidPropertyKey_ReturnsSecurityError(string invalidKey)
     {
         // Arrange: property keys must match ^[A-Z_][A-Z0-9_.]*$

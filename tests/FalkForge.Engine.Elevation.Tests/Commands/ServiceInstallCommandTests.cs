@@ -45,6 +45,23 @@ public sealed class ServiceInstallCommandTests
     }
 
     [Fact]
+    public void Execute_RejectsServiceNameWithTrailingNewline()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-clean name like "MySvc\n" would
+        // slip through an otherwise-correct ^[a-zA-Z0-9_-]+$ anchor. Unlike the injection cases
+        // above (which embed a literal quote), this name contains no other disallowed
+        // character -- only the anchor's trailing-newline exception lets it through.
+        var command = new ServiceInstallCommand();
+        var payload = BuildPayload("MySvc" + "\n", "Display", @"C:\Program Files\MyApp\svc.exe");
+
+        var result = command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
     public void Execute_RejectsBinaryPathUnderUserProfile()
     {
         // FIX 2: a SYSTEM service image must never live under the user profile. Even though

@@ -20,7 +20,10 @@ internal static partial class PropertyNameValidator
     /// Valid MSI public property name: starts with uppercase letter or underscore,
     /// followed by uppercase letters, digits, underscores, or periods.
     /// </summary>
-    [GeneratedRegex(@"^[A-Z_][A-Z0-9_.]*$", RegexOptions.CultureInvariant)]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal name with a
+    // trailing newline would slip through an otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A[A-Z_][A-Z0-9_.]*\z", RegexOptions.CultureInvariant)]
     private static partial Regex PropertyNameRegex();
 
     /// <summary>

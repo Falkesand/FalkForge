@@ -90,6 +90,19 @@ public sealed class CustomTableRulesTests
         Assert.Empty(CustomTableRules.Ctb003_NameFormat.Evaluate(Ctx(Pkg(ValidTable()))));
     }
 
+    [Fact]
+    public void Ctb003_name_with_trailing_newline_yields_error()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-legal name with a trailing
+        // newline would slip through an otherwise-correct ^...$ anchor.
+        var pkg = Pkg(new CustomTableModel { Name = "GoodName" + "\n", Columns = [PkCol()] });
+        var violations = CustomTableRules.Ctb003_NameFormat.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("CTB003", violations[0].RuleId.Value);
+    }
+
     // ── CTB004 — At least one column required ────────────────────────────────
 
     [Fact]
@@ -268,6 +281,23 @@ public sealed class CustomTableRulesTests
             Columns = [new CustomTableColumnModel { Name = "_MyColumn123", PrimaryKey = true }]
         });
         Assert.Empty(CustomTableRules.Ctb010_ColumnNameFormat.Evaluate(Ctx(pkg)));
+    }
+
+    [Fact]
+    public void Ctb010_column_name_with_trailing_newline_yields_error()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-legal name with a trailing
+        // newline would slip through an otherwise-correct ^...$ anchor.
+        var pkg = Pkg(new CustomTableModel
+        {
+            Name = "T1",
+            Columns = [new CustomTableColumnModel { Name = "_MyColumn123" + "\n", PrimaryKey = true }]
+        });
+        var violations = CustomTableRules.Ctb010_ColumnNameFormat.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("CTB010", violations[0].RuleId.Value);
     }
 
     // ── CTB011 — Sensitive property in custom table value (warning) ───────────

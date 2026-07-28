@@ -31,6 +31,10 @@ public sealed class OdbcManagerTests
     [InlineData("test\\path")]
     [InlineData("test\0name")]
     [InlineData("test%00name")]
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-legal name with a trailing newline would
+    // slip through an otherwise-correct ^...$ anchor.
+    [InlineData("MyDSN\n")]
     public void DsnExists_invalid_characters_returns_validation_failure(string dsnName)
     {
         var manager = new OdbcManager();

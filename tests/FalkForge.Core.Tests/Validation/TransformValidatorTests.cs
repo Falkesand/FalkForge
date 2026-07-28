@@ -70,6 +70,10 @@ public sealed class TransformValidatorTests
     [InlineData("has space")]
     [InlineData("1STARTSWITHDIGIT")]
     [InlineData("HAS-DASH")]
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-legal name with a trailing newline would
+    // slip through an otherwise-correct ^...$ anchor.
+    [InlineData("MYCUSTOMPROP\n")]
     public void Validate_IllegalPropertyChangeName_ReturnsError_MST003(string illegalName)
     {
         var model = new TransformModel
