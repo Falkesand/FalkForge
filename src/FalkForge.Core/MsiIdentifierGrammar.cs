@@ -38,13 +38,20 @@ namespace FalkForge;
 /// trailing '\n' even without <see cref="RegexOptions.Multiline"/>, so <c>"Property\n"</c> would
 /// slip through an otherwise-correct <c>^...$</c> anchor. \A and \z are absolute string
 /// boundaries with no such exception.
+///
+/// A 100ms match timeout is set on both patterns even though neither can pathologically
+/// backtrack (a flat character class with no nested quantifiers) -- this is now the ONE place
+/// that validates every MSI table/column identifier in the codebase, so it keeps the same
+/// defense-in-depth timeout every call site it replaced (<c>TableId</c>, <c>RecipeColumn</c>,
+/// <c>CustomTableBuilder</c>, <c>ExtensionTableEmitter</c>, <c>CustomTablesProducer</c>,
+/// <c>ExecutionStepEmitter</c>) used to set individually on its own local <c>Regex</c> instance.
 /// </summary>
 public static partial class MsiIdentifierGrammar
 {
-    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_]*\z")]
+    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.None, matchTimeoutMilliseconds: 100)]
     private static partial Regex WritePattern();
 
-    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_.]*\z")]
+    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_.]*\z", RegexOptions.None, matchTimeoutMilliseconds: 100)]
     private static partial Regex ReadPattern();
 
     /// <summary>

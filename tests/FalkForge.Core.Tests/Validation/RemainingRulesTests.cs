@@ -408,6 +408,24 @@ public sealed class RemainingRulesTests
     }
 
     [Fact]
+    public void Asm003_arabic_indic_digit_version_yields_error()
+    {
+        // \d in .NET is Unicode-aware and matches non-ASCII decimal digits (e.g. Arabic-Indic
+        // U+0660-U+0669). Before the [0-9] fix, AssemblyVersionRegex().IsMatch("١.٢.٣.٤")
+        // incorrectly succeeded, silently accepting a version format that is not the x.x.x.x
+        // ASCII format Windows Installer actually expects.
+        var pkg = WithAssemblies(new AssemblyModel
+        {
+            FileRef = "Lib.dll",
+            AssemblyVersion = "١.٢.٣.٤"
+        });
+        var violations = RemainingRules.Asm003_VersionFormat.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("ASM003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
     public void Asm003_null_version_yields_no_violations()
     {
         var pkg = WithAssemblies(new AssemblyModel { FileRef = "Lib.dll" });

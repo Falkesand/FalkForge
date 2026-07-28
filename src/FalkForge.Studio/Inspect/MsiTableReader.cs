@@ -28,6 +28,12 @@ public static class MsiTableReader
         if (tablesResult.IsFailure)
             return Result<List<string>>.Failure(ErrorKind.IoError, $"Cannot read table list: {tablesResult.Error.Message}");
 
+        // Deliberately NOT validated against MsiIdentifierGrammar here (asymmetric with
+        // GetColumnNames below): a hostile name that slips through is simply passed back to the
+        // caller as a string to display/choose from. It only becomes a SQL-injection risk once it
+        // is interpolated into MSI-SQL, which happens in ReadTable -- and ReadTable already
+        // validates any tableName (whether hand-typed or echoed back from this list) before
+        // building that query. Failing loud there, not here, keeps this method a pure listing.
         var names = new List<string>();
         foreach (var row in tablesResult.Value)
         {
@@ -108,27 +114,31 @@ public static class MsiTableReader
         var result = db.QueryRows(
             $"SELECT `Name` FROM `_Columns` WHERE `Table` = '{tableName}'", 1);
 
-        if (result.IsSuccess)
+        // A genuine QueryRows failure (e.g. msi.dll couldn't open/execute the view) must not be
+        // discarded: silently treating it as "zero columns" makes ReadTable report the generic,
+        // misleading "has no columns or does not exist" for what is actually a real I/O/engine
+        // error -- masking the true cause from the caller.
+        if (result.IsFailure)
+            return Result<List<string>>.Failure(result.Error);
+
+        foreach (var row in result.Value)
         {
-            foreach (var row in result.Value)
+            if (row[0] is not { } name)
+                continue;
+
+            // Column names come straight out of the MSI's own `_Columns` catalog and get
+            // interpolated into the caller's SELECT list as backtick-quoted identifiers.
+            // A hand-crafted/hostile MSI (built by tooling that bypasses msi.dll's own
+            // CREATE TABLE identifier validation) could plant an arbitrary string here --
+            // fail loudly rather than silently dropping or passing through a bad name.
+            if (!MsiIdentifierGrammar.IsValidForRead(name))
             {
-                if (row[0] is not { } name)
-                    continue;
-
-                // Column names come straight out of the MSI's own `_Columns` catalog and get
-                // interpolated into the caller's SELECT list as backtick-quoted identifiers.
-                // A hand-crafted/hostile MSI (built by tooling that bypasses msi.dll's own
-                // CREATE TABLE identifier validation) could plant an arbitrary string here --
-                // fail loudly rather than silently dropping or passing through a bad name.
-                if (!MsiIdentifierGrammar.IsValidForRead(name))
-                {
-                    return Result<List<string>>.Failure(
-                        ErrorKind.Validation,
-                        $"MSI file contains an invalid column identifier '{name}' in table '{tableName}'.");
-                }
-
-                columns.Add(name);
+                return Result<List<string>>.Failure(
+                    ErrorKind.Validation,
+                    $"MSI file contains an invalid column identifier '{name}' in table '{tableName}'.");
             }
+
+            columns.Add(name);
         }
 
         return Result<List<string>>.Success(columns);
