@@ -1,7 +1,6 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Buffers;
-using System.Runtime.InteropServices;
 using FalkForge.Platform.Windows;
 
 public sealed class MsiInstallCommand : IElevatedCommand
@@ -57,7 +56,6 @@ public sealed class MsiInstallCommand : IElevatedCommand
             return Result<byte[]>.Failure(argsValidation.Error);
 
         MsiExternalUIHandler? handler = null;
-        GCHandle gcHandle = default;
 
         if (onProgress is not null)
         {
@@ -69,9 +67,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
                     onProgress(percent);
                 return 0;
             };
-            gcHandle = GCHandle.Alloc(handler);
         }
 
+        // No GCHandle needed to root `handler`: it is read again in the finally block below, so
+        // the JIT keeps it live as a local for this call's entire synchronous extent -- and while
+        // registered, WindowsMsiApi.SetExternalUI's own wrapper closes over `handler`, so its
+        // static root (see WindowsMsiApi._rootedHandler) transitively keeps it alive too. A prior
+        // version of this method pinned `handler` itself via GCHandle, which rooted the wrong
+        // object relative to the actual bug: the delegate WindowsMsiApi hands to msi.dll is the
+        // wrapper lambda it builds internally around `handler`, not `handler` itself.
         try
         {
             _msiApi.SetInternalUI(InstallUILevelNone, IntPtr.Zero);
@@ -93,10 +97,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
         finally
         {
             if (handler is not null)
-            {
                 _msiApi.SetExternalUI(null, 0, IntPtr.Zero);
-                gcHandle.Free();
-            }
         }
     }
 
