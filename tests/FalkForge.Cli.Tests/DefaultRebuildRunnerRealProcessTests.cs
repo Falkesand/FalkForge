@@ -10,10 +10,22 @@ namespace FalkForge.Cli.Tests;
 /// <see cref="DefaultRebuildRunner.BuildArguments"/> helper had ever run for real; the process
 /// spawn, the timeout-vs-cancellation race between the linked <see cref="CancellationTokenSource"/>
 /// tokens, and the <c>process.Kill(entireProcessTree: true)</c> cleanup had never executed. Both
-/// tests below assert that the kill actually took effect (see
-/// <see cref="AssertKilledProcessTreeReleasedDirectory"/>), not merely that <c>RebuildAsync</c>
-/// returned the expected result — deleting the <c>Kill</c> call from production would still leave
-/// both tests' top-level assertions passing while leaking a 120s-sleeping <c>dotnet</c> tree.
+/// tests below assert that the process tree is actually gone afterward (see
+/// <see cref="AssertKilledProcessTreeReleasedDirectory"/>: the working directory becomes
+/// deletable), not merely that <c>RebuildAsync</c> returned the expected result.
+///
+/// What that assertion does NOT prove: that <c>entireProcessTree: true</c> specifically is doing
+/// the work. Repro outside any test harness (launch <c>dotnet run</c>, kill only the launcher PID
+/// via PowerShell <c>Stop-Process</c>, no .NET <c>Kill</c> involved) showed the sleeping child
+/// process dies anyway, because <c>dotnet run</c> ties its child's lifetime to itself via a
+/// Windows Job Object at the CLI level, independent of anything FalkForge does. Weakening
+/// production's <c>Kill(entireProcessTree: true)</c> to a plain <c>Kill()</c> was verified NOT to
+/// fail either test here. The <c>entireProcessTree: true</c> flag only matters for descendants
+/// outside that job object — e.g. an MSBuild node spawned during the build phase, before the
+/// Sleeper app itself starts — and asserting on that phase would reintroduce the timing
+/// nondeterminism earlier review rounds already rejected, so it is deliberately not covered here.
+/// This directory-deletable inference is also Windows-specific: on POSIX, <c>Directory.Delete</c>
+/// can succeed with files still open.
 ///
 /// Both tests point <c>dotnet run</c> at a throwaway console project (created fresh in a temp
 /// directory, outside the repo tree so it never picks up this repo's Directory.Build.props) whose
@@ -43,10 +55,12 @@ public sealed class DefaultRebuildRunnerRealProcessTests
     }
 
     /// <summary>
-    /// Confirms <c>process.Kill(entireProcessTree: true)</c> actually released
-    /// <paramref name="tempDir"/>: a still-alive descendant (e.g. the sleeping app's own built
-    /// assembly) keeps a file handle open under it, so a recursive delete keeps throwing
-    /// <see cref="IOException"/>/<see cref="UnauthorizedAccessException"/>. Retries briefly because
+    /// Confirms the subprocess tree spawned for <paramref name="tempDir"/> is actually gone: a
+    /// still-alive descendant (e.g. the sleeping app's own built assembly) keeps a file handle open
+    /// under it, so a recursive delete keeps throwing <see cref="IOException"/>/
+    /// <see cref="UnauthorizedAccessException"/> until every descendant has exited. This does NOT
+    /// prove <c>entireProcessTree: true</c> specifically is responsible for that teardown — see the
+    /// class doc for why (<c>dotnet run</c>'s own Windows Job Object). Retries briefly because
     /// <c>Kill</c> requests termination but does not itself wait for the process to exit and
     /// release its handles. On success this also performs the test's own cleanup, so callers should
     /// treat a successful call as "deleted", not merely "verified".
@@ -138,8 +152,8 @@ public sealed class DefaultRebuildRunnerRealProcessTests
             Assert.Equal(-1, result.ExitCode);
             Assert.Contains("timed out", result.Stderr, StringComparison.OrdinalIgnoreCase);
 
-            // Pin the actual Kill(entireProcessTree: true) behaviour (see class doc) -- also
-            // performs this test's cleanup on success.
+            // Pin that the process tree is actually gone afterward -- see class doc for what this
+            // does and doesn't prove -- also performs this test's cleanup on success.
             AssertKilledProcessTreeReleasedDirectory(tempDir);
         }
         finally
@@ -186,8 +200,9 @@ public sealed class DefaultRebuildRunnerRealProcessTests
                     cts.Token));
 
             // This branch also calls Kill(entireProcessTree: true) before rethrowing (see
-            // DefaultRebuildRunner.RebuildAsync) -- pin that it actually took effect, same as the
-            // timeout test above.
+            // DefaultRebuildRunner.RebuildAsync) -- pin that the process tree is actually gone
+            // afterward, same as the timeout test above (see class doc for what this does and
+            // doesn't prove).
             AssertKilledProcessTreeReleasedDirectory(tempDir);
         }
         finally
