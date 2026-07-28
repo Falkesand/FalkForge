@@ -1,26 +1,36 @@
-using System.Text.RegularExpressions;
-
 namespace FalkForge.Compiler.Msi.Recipe;
 
 /// <summary>
-/// Identifier of an MSI table. Values are validated at construction
-/// against MSI table-name rules: must match <c>^[A-Za-z_][A-Za-z0-9_]{0,30}$</c>.
-/// This is the single defense point against SQL identifier injection in the
-/// recipe pipeline. Once a <see cref="TableId"/> exists, downstream code can
-/// safely interpolate <see cref="Value"/> into <c>CREATE TABLE</c> /
-/// <c>SELECT</c> SQL strings without further escaping.
+/// Identifier of an MSI table. Values are validated at construction against MSI table-name
+/// rules: a letter or underscore, followed by up to 30 more letters, digits, or underscores
+/// (31 characters total, the MSI maximum table-name length -- no dots). This is the single
+/// defense point against SQL identifier injection in the recipe pipeline. Once a
+/// <see cref="TableId"/> exists, downstream code can safely interpolate <see cref="Value"/>
+/// into <c>CREATE TABLE</c> / <c>SELECT</c> SQL strings without further escaping.
+///
+/// The character-class check delegates to <see cref="FalkForge.MsiIdentifierGrammar.IsValidForWrite"/>
+/// -- the same canonical grammar <c>FalkForge.Decompiler.MsiTableAccess</c> and
+/// <c>FalkForge.Studio.Inspect.MsiTableReader</c> use on the READ side, via
+/// <c>IsValidForRead</c> -- rather than restating a separate character class here. The two
+/// sides deliberately diverge in two ways, both intentional:
+/// <list type="bullet">
+/// <item><description>
+/// No dots here. The broader MSI-SQL identifier grammar (and the READ side) permits dots, but
+/// FalkForge never authors dotted table names, so the WRITE side keeps rejecting them. This is
+/// a genuine per-caller restriction, not a duplicated grammar -- reconciling with the shared
+/// base must not loosen it.
+/// </description></item>
+/// <item><description>
+/// The 31-character cap layered on top of the shared base below. This is a real MSI
+/// table-name format constraint on names FalkForge itself creates, not a property of the
+/// grammar in general (the READ side has no equivalent cap).
+/// </description></item>
+/// </list>
+/// The READ side being the more permissive of the two is intentional: never tighten it to
+/// match this type, and never loosen this type to match it.
 /// </summary>
 public readonly record struct TableId
 {
-    // Anchored regex enforcing MSI Identifier rules:
-    //   - first char letter or underscore
-    //   - subsequent chars letter, digit, or underscore
-    //   - total length 1..31 (MSI maximum table-name length)
-    private static readonly Regex IdentifierPattern = new(
-        "^[A-Za-z_][A-Za-z0-9_]{0,30}$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
-
     /// <summary>The validated table name. Never null, never empty for a valid instance.</summary>
     public string Value { get; }
 
@@ -54,7 +64,7 @@ public readonly record struct TableId
                 $"Table name '{name}' exceeds 31 characters (MSI maximum).");
         }
 
-        if (!IdentifierPattern.IsMatch(name))
+        if (!MsiIdentifierGrammar.IsValidForWrite(name))
         {
             return Result<TableId>.Failure(
                 ErrorKind.Validation,

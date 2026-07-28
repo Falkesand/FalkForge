@@ -117,6 +117,36 @@ public sealed class TableIdTests
     }
 
     [Fact]
+    public void Create_with_trailing_newline_fails()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-legal name like "Property\n"
+        // would slip through an otherwise-correct ^...$ anchor -- and TableId's own identifier
+        // pattern used exactly that anchor (a latent bug independent of the read-side
+        // MsiTableAccess/MsiTableReader fix). Once a TableId exists, downstream code
+        // interpolates Value into CREATE TABLE / SELECT SQL unescaped, so a smuggled trailing
+        // newline would reach real MSI-SQL.
+        Result<TableId> result = TableId.Create("Property" + "\n");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void Create_with_dot_fails()
+    {
+        // The WRITE side (TableId) is intentionally stricter than the READ side
+        // (FalkForge.MsiIdentifierGrammar.IsValidForRead, used by MsiTableAccess/
+        // MsiTableReader): FalkForge never authors dotted table names, even though dots are
+        // legal in the broader MSI-SQL identifier grammar. TableId.Create must keep rejecting
+        // them -- reconciling with the shared grammar must not loosen the write side.
+        Result<TableId> result = TableId.Create("Feature.Main");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
     public void Equal_values_have_equal_records()
     {
         TableId a = TableId.Create("Property").Value;
