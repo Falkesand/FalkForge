@@ -54,8 +54,12 @@ internal static class PropertyGetterScanner
             if (method.RelativeVirtualAddress == 0)
                 continue;
 
-            // Self-reads do not count — see the type remarks.
-            var owner = GetTypeFullName(reader, method.GetDeclaringType());
+            // Self-reads do not count — see the type remarks. Walk to the outermost declaring
+            // type first: a lambda, local function, or iterator/async state machine compiles to
+            // a nested compiler-generated type whose own (namespace-less) name never matches
+            // typesOfInterest, which would otherwise make a model's read of its own property
+            // through a closure look like an external consumer's read.
+            var owner = GetOutermostTypeFullName(reader, method.GetDeclaringType());
             if (typesOfInterest.Contains(owner))
                 continue;
 
@@ -160,6 +164,18 @@ internal static class PropertyGetterScanner
         var ns = reader.GetString(type.Namespace);
         var name = reader.GetString(type.Name);
         return ns.Length == 0 ? name : ns + "." + name;
+    }
+
+    /// <summary>
+    /// Same as <see cref="GetTypeFullName"/> but walks up through <c>GetDeclaringType()</c> to
+    /// the outermost enclosing type first — the identity that matters for the self-read
+    /// exclusion is the top-level type, not a nested compiler-generated closure or state
+    /// machine underneath it.
+    /// </summary>
+    private static string GetOutermostTypeFullName(MetadataReader reader, TypeDefinitionHandle handle)
+    {
+        var declaring = reader.GetTypeDefinition(handle).GetDeclaringType();
+        return declaring.IsNil ? GetTypeFullName(reader, handle) : GetOutermostTypeFullName(reader, declaring);
     }
 
     private static byte TwoByteOperandSize(byte second) => second switch

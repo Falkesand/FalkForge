@@ -40,10 +40,23 @@ public sealed class PropertyGetterScannerTests
         Assert.DoesNotContain((typeof(ScannerProbeModel).FullName!, nameof(ScannerProbeModel.ReadOnlyByItself)), reads);
     }
 
+    [Fact]
+    public void FindGetterCalls_IgnoresReadsFromNestedStateMachineOfTheDeclaringType()
+    {
+        var reads = Scan();
+
+        // The read happens inside the iterator's compiler-generated nested state-machine type
+        // (declaring type is nested, not ScannerProbeModel itself) — still a self-read.
+        Assert.DoesNotContain(
+            (typeof(ScannerProbeModel).FullName!, nameof(ScannerProbeModel.ReadOnlyByItselfViaStateMachine)), reads);
+    }
+
     private static HashSet<(string Type, string Property)> Scan()
     {
         // Touch the consumer so the compiler cannot conclude the call site is dead code.
-        Assert.Equal(0, ScannerProbeConsumer.Consume(new ScannerProbeModel()));
+        var model = new ScannerProbeModel();
+        Assert.Equal(0, ScannerProbeConsumer.Consume(model));
+        Assert.Equal([0], model.EnumerateSelfReferencingLengthViaStateMachine().ToList());
 
         return PropertyGetterScanner.FindGetterCalls(typeof(ScannerProbeModel).Assembly.Location, ProbeType);
     }
