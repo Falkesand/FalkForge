@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using FalkForge.Compiler.Msix.Packaging;
 using FalkForge.Configuration;
 using FalkForge.Sbom;
@@ -16,6 +15,7 @@ internal static class MsixSbomHelper
     internal static Result<Unit> WriteSbomSidecar(
         MsixModel model,
         IReadOnlyList<VfsFileEntry> layout,
+        IReadOnlyDictionary<string, string> payloadHashes,
         string msixOutputPath)
     {
         var envSet = EnvVarCatalog.IsSbomGenerationRequested();
@@ -31,12 +31,11 @@ internal static class MsixSbomHelper
 
             foreach (var entry in layout)
             {
-                if (!File.Exists(entry.SourcePath))
+                // payloadHashes is captured by AppxPackageWriter while it copies each file into
+                // the package (see MsixPackageResult) — not reopened here from the source path,
+                // which could have changed since packaging (and signing) completed.
+                if (!payloadHashes.TryGetValue(entry.PackageRelativePath, out var hash))
                     continue;
-
-                string hash;
-                using (var fs = File.OpenRead(entry.SourcePath))
-                    hash = Convert.ToHexString(SHA256.HashData(fs));
 
                 components.Add(new SbomComponent
                 {

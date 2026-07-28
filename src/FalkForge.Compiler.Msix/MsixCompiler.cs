@@ -53,7 +53,7 @@ public sealed class MsixCompiler
         // Unlike MsiCompiler — which warns through its logger and continues — MsixCompiler has
         // no logger to warn through, so a requested-but-unwritten SBOM fails the compile rather
         // than disappearing silently.
-        var sbomResult = MsixSbomHelper.WriteSbomSidecar(model, layout, msixPath);
+        var sbomResult = MsixSbomHelper.WriteSbomSidecar(model, layout, packageResult.Value.PayloadHashes, msixPath);
         if (sbomResult.IsFailure)
             return Result<string>.Failure(sbomResult.Error);
 
