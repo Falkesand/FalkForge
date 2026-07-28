@@ -226,8 +226,8 @@ internal static class ExtensionTableEmitter
             {
                 return FalkForge.Result<(ImmutableArray<RecipeColumn>, ImmutableArray<ColumnIndex>)>.Failure(
                     ErrorKind.CompilationError,
-                    $"Column name '{col.Name}' in contributed table '{tableName}' is not a valid MSI identifier " +
-                    "(must match ^[A-Za-z_][A-Za-z0-9_]{0,30}$).");
+                    $"Column name '{col.Name}' in contributed table '{tableName}' is not a valid MSI identifier: " +
+                    "it must start with a letter or underscore and contain only alphanumeric characters and underscores.");
             }
 
             (ColumnType type, int width) = MapColumnType(col);

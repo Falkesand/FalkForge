@@ -20,6 +20,16 @@ public sealed class CustomTableBuilder
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Column name must not be empty.", nameof(name));
 
+        // MsiIdentifierGrammar.IsValidForWrite deliberately validates characters only; the 31-character
+        // MSI column-name limit is layered by every other authoring call site (TableId, RecipeColumn,
+        // ExtensionTableEmitter, CustomTablesProducer, ExecutionStepEmitter). Layer it here too, so an
+        // overlong name fails loud at the authoring call site instead of surfacing much later, with a
+        // worse error, from the MSI producer.
+        if (name.Length > 31)
+            throw new ArgumentException(
+                $"Column name '{name}' exceeds 31 characters (MSI maximum).",
+                nameof(name));
+
         if (!MsiIdentifierGrammar.IsValidForWrite(name))
             throw new ArgumentException(
                 $"Column name '{name}' is invalid. Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.",

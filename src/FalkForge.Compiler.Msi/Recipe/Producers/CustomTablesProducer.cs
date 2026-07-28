@@ -98,8 +98,8 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
             {
                 return Result<Unit>.Failure(
                     ErrorKind.CompilationError,
-                    $"Custom table name '{table.Name}' is not a valid MSI identifier. " +
-                    "Table names must match ^[A-Za-z_][A-Za-z0-9_]{0,30}$.");
+                    $"Custom table name '{table.Name}' is not a valid MSI identifier. Table names must " +
+                    "start with a letter or underscore and contain only alphanumeric characters and underscores.");
             }
 
             // Index-based loop avoids IReadOnlyList<T> enumerator heap allocation (HAA0401).
@@ -111,7 +111,7 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
                     return Result<Unit>.Failure(
                         ErrorKind.CompilationError,
                         $"Column name '{col.Name}' in custom table '{table.Name}' is not a valid MSI identifier. " +
-                        "Column names must match ^[A-Za-z_][A-Za-z0-9_]{0,30}$.");
+                        "Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.");
                 }
             }
         }

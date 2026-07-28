@@ -114,8 +114,9 @@ internal static class ExecutionStepEmitter
             if (string.IsNullOrEmpty(step.Id) || step.Id.Length > MaxActionIdLength ||
                 !MsiIdentifierGrammar.IsValidForWrite(step.Id))
             {
-                return Fail($"Execution step id '{step.Id}' is not a valid MSI identifier " +
-                            $"(must match ^[A-Za-z_][A-Za-z0-9_]*$ and be at most {MaxActionIdLength} characters).");
+                return Fail($"Execution step id '{step.Id}' is not a valid MSI identifier: it must start " +
+                            "with a letter or underscore, contain only alphanumeric characters and " +
+                            $"underscores, and be at most {MaxActionIdLength} characters long.");
             }
 
             if (string.IsNullOrEmpty(step.InstallCommand))
