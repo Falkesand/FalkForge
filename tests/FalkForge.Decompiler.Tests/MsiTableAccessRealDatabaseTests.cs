@@ -314,4 +314,60 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         var ex = Assert.Throws<ArgumentException>(() => access.QueryTable("   ", ["Property"]));
         Assert.Equal("identifier", ex.ParamName);
     }
+
+    // ── ValidateIdentifier: allow-list, not just the deny-list's blocked chars ──────
+    //
+    // The deny-list above (backtick/semicolon/quote/control-char) happens to be sufficient today
+    // only because table/column names are always backtick-quoted and MSI-SQL has no comment syntax
+    // or alternate quoting -- that safety is incidental, not by design. A char class the deny-list
+    // never blocked is not proof the guard is complete; it is proof the test set mirrors the
+    // deny-list instead of the real MSI-SQL identifier grammar. These identifiers are NOT hostile
+    // via injection, but they are not valid MSI identifiers either (MSI identifier grammar:
+    // [A-Za-z_][A-Za-z0-9_.]*), so the allow-list must reject them regardless.
+    public static TheoryData<string> DenyListPermittedButUngrammaticalIdentifiers => new()
+    {
+        "Bad Table",
+        "Bad%Table",
+        "Bad=Table",
+        "Bad(Table",
+        "Bad)Table",
+        "Bad-Table",
+        "Bad?Table",
+        "Bad*Table",
+    };
+
+    [Theory]
+    [MemberData(nameof(DenyListPermittedButUngrammaticalIdentifiers))]
+    public void QueryTable_IdentifierOutsideMsiGrammar_ThrowsArgumentException(string ungrammaticalName)
+    {
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
+
+        var ex = Assert.Throws<ArgumentException>(() => access.QueryTable(ungrammaticalName, ["Property"]));
+        Assert.Equal("identifier", ex.ParamName);
+    }
+
+    // ── ValidateIdentifier: legitimate identifiers must still pass ──────────────────
+    //
+    // The allow-list must accept every real MSI system-table name (the underscore-prefixed
+    // catalog tables) and ordinary user-defined names, or it would break real MSIs -- not just
+    // whatever happens to differ from the old deny-list's blocked characters.
+    [Theory]
+    [InlineData("_Validation")]
+    [InlineData("_Columns")]
+    [InlineData("_Tables")]
+    [InlineData("_Streams")]
+    [InlineData("_Storages")]
+    [InlineData("MsiFileHash")]
+    [InlineData("Property")]
+    [InlineData("InstallExecuteSequence")]
+    public void TableExists_LegitimateMsiIdentifier_DoesNotThrow(string legitimateIdentifier)
+    {
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
+
+        var result = access.TableExists(legitimateIdentifier);
+
+        // Whether the table actually exists in this particular probe MSI is irrelevant -- the
+        // point is that ValidateIdentifier lets the call through without throwing.
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+    }
 }
