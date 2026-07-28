@@ -64,11 +64,13 @@ public sealed class MsixSbomHelperTests : IDisposable
             Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(_payloadPath)))
     };
 
+    private const string ValidSha256Hex = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
     [Fact]
     public void WriteSbomSidecar_WithSbomOptions_ListsPackagedFilesAndExtraComponents()
     {
         var options = new SbomOptions();
-        options.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, "ABC123");
+        options.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, ValidSha256Hex);
         var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
 
         var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(options), Layout(), PackagedHashes(), msixPath);
@@ -156,5 +158,45 @@ public sealed class MsixSbomHelperTests : IDisposable
         Assert.True(result.IsSuccess);
         using var doc = JsonDocument.Parse(File.ReadAllText(msixPath + ".cdx.json"));
         Assert.Empty(doc.RootElement.GetProperty("components").EnumerateArray());
+    }
+
+    [Theory]
+    [InlineData("ABC123")] // too short
+    [InlineData("zz3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85")] // non-hex chars ('z')
+    [InlineData("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855ff")] // too long (66 chars)
+    public void WriteSbomSidecar_AdditionalComponentWithMalformedDigest_ReturnsValidationFailure(string malformedDigest)
+    {
+        // A caller-supplied AdditionalComponents digest is serialized straight into the CycloneDX
+        // sidecar as a SHA-256 attestation. Accepting arbitrary text there lets the sidecar make
+        // an integrity claim that is not even shaped like a hash (CodeRabbit #3658582431) — reject
+        // it before it reaches the document, matching BundleValidator's IsValidSha256Hex convention
+        // (BDL033: exactly 64 hexadecimal characters).
+        var options = new SbomOptions();
+        options.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, malformedDigest);
+        var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
+
+        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(options), Layout(), PackagedHashes(), msixPath);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.False(File.Exists(msixPath + ".cdx.json"));
+    }
+
+    [Fact]
+    public void WriteSbomSidecar_AdditionalComponentWithUppercaseDigest_Accepted()
+    {
+        // BundleValidator.IsValidSha256Hex accepts both cases without normalizing — match that
+        // convention rather than inventing a lowercase-only rule.
+        var options = new SbomOptions();
+        options.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, ValidSha256Hex.ToUpperInvariant());
+        var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
+
+        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(options), Layout(), PackagedHashes(), msixPath);
+
+        Assert.True(result.IsSuccess);
+        using var doc = JsonDocument.Parse(File.ReadAllText(msixPath + ".cdx.json"));
+        var names = doc.RootElement.GetProperty("components").EnumerateArray()
+            .Select(c => c.GetProperty("name").GetString()).ToList();
+        Assert.Contains("OpenSSL", names);
     }
 }

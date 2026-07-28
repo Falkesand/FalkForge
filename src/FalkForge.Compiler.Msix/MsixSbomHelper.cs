@@ -46,9 +46,23 @@ internal static class MsixSbomHelper
                 });
             }
 
-            // Add user-supplied components from SbomOptions.
+            // Add user-supplied components from SbomOptions. Each digest is validated first —
+            // serializing an arbitrary caller-supplied string as a SHA-256 claim would let the
+            // sidecar make an integrity attestation that is not even shaped like a hash
+            // (CodeRabbit #3658582431).
             if (model.SbomOptions is not null)
+            {
+                foreach (var component in model.SbomOptions.AdditionalComponents)
+                {
+                    if (!IsValidSha256Hex(component.Sha256Hash))
+                        return Result<Unit>.Failure(ErrorKind.Validation,
+                            $"MSIX SBOM: additional component '{component.Name}' has a digest " +
+                            $"'{component.Sha256Hash}' that is not a valid SHA-256 hash (expected 64 " +
+                            "hexadecimal characters).");
+                }
+
                 components.AddRange(model.SbomOptions.AdditionalComponents);
+            }
 
             // Deterministic serial + timestamp under SOURCE_DATE_EPOCH, so a reproducible build
             // emits a byte-identical sidecar. MSIX has no per-model epoch override yet.
@@ -82,5 +96,24 @@ internal static class MsixSbomHelper
     {
         var index = packageRelativePath.LastIndexOf('/');
         return index < 0 ? packageRelativePath : packageRelativePath[(index + 1)..];
+    }
+
+    // Matches BundleValidator.IsValidSha256Hex exactly (BDL033): 64 characters, each an ASCII
+    // hex digit. Both cases are accepted and neither is normalized — the sidecar stores whatever
+    // case the caller supplied, same as the sibling MSI/Bundle SBOM writers' downstream fields do.
+    private static bool IsValidSha256Hex(string value)
+    {
+        const int Sha256HexLength = 64;
+        if (value.Length != Sha256HexLength)
+            return false;
+
+        foreach (var c in value)
+        {
+            var isHex = c is (>= '0' and <= '9') or (>= 'a' and <= 'f') or (>= 'A' and <= 'F');
+            if (!isHex)
+                return false;
+        }
+
+        return true;
     }
 }
