@@ -15,10 +15,25 @@ internal sealed class ScannerProbeModel
 
     public string ReadOnlyByItself { get; init; } = string.Empty;
 
+    public string ReadOnlyByItselfViaStateMachine { get; init; } = string.Empty;
+
     public string NeverRead { get; init; } = string.Empty;
 
     /// <summary>Makes <see cref="ReadOnlyByItself"/> a self-read, which must not count.</summary>
     public int SelfReferencingLength => ReadOnlyByItself.Length;
+
+    /// <summary>
+    /// Reads <see cref="ReadOnlyByItselfViaStateMachine"/> from inside an iterator's
+    /// compiler-generated state-machine type, not from <see cref="ScannerProbeModel"/> itself.
+    /// The read must still count as a self-read: a scanner that only compares the immediate
+    /// declaring type against the outer type name would see the nested state-machine's bare
+    /// name, miss the match, and treat this as an external consumer — masking a property no
+    /// real caller reads.
+    /// </summary>
+    public IEnumerable<int> EnumerateSelfReferencingLengthViaStateMachine()
+    {
+        yield return ReadOnlyByItselfViaStateMachine.Length;
+    }
 }
 
 /// <summary>The only external reader of <see cref="ScannerProbeModel"/>.</summary>
