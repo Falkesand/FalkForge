@@ -45,11 +45,11 @@ internal sealed class AppxPackageWriter : IDisposable
 
             var outputStream = CreateFileStream(outputPath);
 
-            var factory = (IAppxFactory)new AppxFactory();
-
             IAppxPackageWriter writer;
             try
             {
+                var factory = (IAppxFactory)new AppxFactory();
+
                 var hashMethodUri = CreateSha256Uri();
                 try
                 {
@@ -70,13 +70,19 @@ internal sealed class AppxPackageWriter : IDisposable
                     Marshal.Release(hashMethodUri);
                 }
             }
-            finally
+            catch
             {
-                // The factory's job ends once it has produced the writer; the writer holds its
-                // own independent COM references, so releasing our factory RCW here does not
-                // affect it. This is an RCW (unlike hashMethodUri), so the CLR finalizer would
-                // eventually release it anyway — releasing explicitly just tightens the window.
-                Marshal.ReleaseComObject(factory);
+                // outputStream ownership only transfers to the AppxPackageWriter wrapper below
+                // (whose Dispose releases it) once that wrapper is actually constructed. If setup
+                // above throws first — e.g. AppxFactory activation failing (REGDB_E_CLASSNOTREG /
+                // TypeLoadException on a machine without the Appx COM classes registered) or
+                // CreatePackageWriter itself failing — the wrapper is never built and Dispose never
+                // runs, so the exclusive file handle backing outputStream would otherwise stay open
+                // until nondeterministic GC finalization. Must be `catch`, not `finally`: on the
+                // success path ownership passes to the wrapper constructed below, which owns the
+                // release from that point on.
+                Marshal.ReleaseComObject(outputStream);
+                throw;
             }
 
             using var packageWriter = new AppxPackageWriter(writer, outputStream);
