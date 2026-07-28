@@ -1,6 +1,5 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using FalkForge.Platform.Windows;
 
@@ -31,7 +30,6 @@ public sealed partial class MsiUninstallCommand : IElevatedCommand
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "Product code must be a valid GUID in the format {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}");
 
         MsiExternalUIHandler? handler = null;
-        GCHandle gcHandle = default;
 
         if (onProgress is not null)
         {
@@ -43,9 +41,15 @@ public sealed partial class MsiUninstallCommand : IElevatedCommand
                     onProgress(percent);
                 return 0;
             };
-            gcHandle = GCHandle.Alloc(handler);
         }
 
+        // No GCHandle needed to root `handler`: it is read again in the finally block below, so
+        // the JIT keeps it live as a local for this call's entire synchronous extent -- and while
+        // registered, WindowsMsiApi.SetExternalUI's own wrapper closes over `handler`, so its
+        // static root (see WindowsMsiApi._rootedHandler) transitively keeps it alive too. A prior
+        // version of this method pinned `handler` itself via GCHandle, which rooted the wrong
+        // object relative to the actual bug: the delegate WindowsMsiApi hands to msi.dll is the
+        // wrapper lambda it builds internally around `handler`, not `handler` itself.
         try
         {
             _msiApi.SetInternalUI(InstallUILevelNone, IntPtr.Zero);
@@ -66,10 +70,7 @@ public sealed partial class MsiUninstallCommand : IElevatedCommand
         finally
         {
             if (handler is not null)
-            {
                 _msiApi.SetExternalUI(null, 0, IntPtr.Zero);
-                gcHandle.Free();
-            }
         }
     }
 
