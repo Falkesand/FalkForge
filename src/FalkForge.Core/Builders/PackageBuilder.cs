@@ -70,7 +70,6 @@ public sealed partial class PackageBuilder
     public string? LicenseFile { get; set; }
     public string? ProductIconFile { get; set; }
     public bool EnableRestartManager { get; set; }
-    public int CabinetThreadCount { get; set; }
 
     private SbomOptions? _sbomOptions;
     private IceConfiguration? _iceConfiguration;
@@ -154,7 +153,6 @@ public sealed partial class PackageBuilder
             DialogSet = _dialogSet,
             DialogCustomization = _dialogCustomization?.ToModel(),
             CustomDialogs = _customDialogs,
-            CabinetThreadCount = CabinetThreadCount,
             LocalizationData = _localizationData,
             ReproducibleOptions = _reproducibleOptions,
             SbomOptions = _sbomOptions,

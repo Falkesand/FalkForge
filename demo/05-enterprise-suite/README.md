@@ -4,7 +4,7 @@ The largest MSI demo. A full enterprise IDE installer with 8 top-level features 
 
 ## What This Demonstrates
 
-- `MsiDialogSet.Advanced` dialog set with `CabinetThreads(4)` for parallel cabinet building
+- `MsiDialogSet.Advanced` dialog set
 - 8 top-level features with deeply nested sub-features (e.g., WebTools > WebServer, WebFrameworks, BrowserTools)
 - `InstallScope.PerMachine` and `ProcessorArchitecture.X64`
 - Multiple shortcuts on Desktop and Start Menu via `OnDesktop()` and `OnStartMenu()`
@@ -21,9 +21,8 @@ The largest MSI demo. A full enterprise IDE installer with 8 top-level features 
 ## Key API Calls
 
 ```csharp
-// Advanced dialog + parallel cabinet build
+// Advanced dialog
 pkg.UseDialogSet(MsiDialogSet.Advanced);
-pkg.CabinetThreads(4);
 
 // Nested features
 pkg.Feature("WebTools", web =>
@@ -82,6 +81,5 @@ dotnet run --project demo/05-enterprise-suite/ -- -o ./output
 
 ## Notes
 
-- `CabinetThreads(4)` uses `ParallelCabinetBuilder` internally to compress payload files in parallel, significantly reducing build time for large demos.
 - `Downgrade(d => d.Block(...))` generates an `Upgrade` table entry that blocks installation when a newer version is already present, with a custom error message.
 - The font file `ApexMono.ttf` is registered in the system font directory via the `Font` table; `Title` overrides the display name shown in the Fonts control panel.

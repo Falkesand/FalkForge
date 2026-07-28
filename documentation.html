@@ -2887,7 +2887,6 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>UpdateUrl</code></td><td><code>string?</code></td><td><code>null</code></td><td>Update information URL.</td></tr>
       <tr><td><code>LicenseFile</code></td><td><code>string?</code></td><td><code>null</code></td><td>Path to RTF license file for the license dialog.</td></tr>
       <tr><td><code>EnableRestartManager</code></td><td><code>bool</code></td><td><code>false</code></td><td>Whether to enable Windows Restart Manager integration.</td></tr>
-      <tr><td><code>CabinetThreadCount</code></td><td><code>int</code></td><td><code>0</code></td><td>Number of threads for parallel cabinet building. 0 uses default.</td></tr>
     </tbody>
   </table>
 
@@ -2928,7 +2927,6 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>MediaTemplate(Action&lt;MediaTemplateBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures cabinet and media settings.</td></tr>
       <tr><td><code>Binary(string name, string sourcePath)</code></td><td><code>PackageBuilder</code></td><td>Adds a binary resource (DLL, EXE, bitmap) to the Binary table.</td></tr>
       <tr><td><code>EnableRestartManagerSupport()</code></td><td><code>PackageBuilder</code></td><td>Enables Windows Restart Manager integration.</td></tr>
-      <tr><td><code>CabinetThreads(int count)</code></td><td><code>PackageBuilder</code></td><td>Sets the number of threads for parallel cabinet compression.</td></tr>
       <tr><td><code>Signing(Action&lt;SigningOptionsBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures Authenticode code signing for the output MSI.</td></tr>
       <tr><td><code>UseDialogSet(MsiDialogSet dialogSet)</code></td><td><code>PackageBuilder</code></td><td>Selects the built-in MSI dialog template set.</td></tr>
       <tr><td><code>SetLocalizationData(IReadOnlyList&lt;LocalizationData&gt;)</code></td><td><code>PackageBuilder</code></td><td>Applies localization string tables for multi-language support.</td></tr>
@@ -4434,8 +4432,6 @@ p.CreateFolder(cf =&gt; cf
         .Timestamp("http://timestamp.digicert.com")
         .WithDescription("Contoso Server", "https://contoso.com"));
 
-    // Parallel cabinet compression
-    p.CabinetThreads(Environment.ProcessorCount);
     p.EnableRestartManagerSupport();
 }, new MsiCompiler());</code></pre>
 
@@ -13528,11 +13524,8 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
     <code>Reproducible()</code> is also configured.
 </p>
 <p>
-    Two details matter if you're debugging a build. First, cabinet compression here is single-threaded
-    &mdash; one <code>CabinetBuilder</code> call per planned cabinet, in a loop. <code>ParallelCabinetBuilder</code>
-    (<code>Parallel.ForEachAsync</code> over <code>CabinetWorkItem</code>s) exists as a separate, tested,
-    opt-in API for parallelizing cabinet builds on large payload sets; it is not wired into the default
-    pipeline above. Second, steps 10 and 11 are intentionally non-fatal on infrastructure failure (missing
+    One detail matters if you're debugging a build: cabinet compression here is single-threaded
+    &mdash; one <code>CabinetBuilder</code> call per planned cabinet, in a loop. Steps 10 and 11 are intentionally non-fatal on infrastructure failure (missing
     <code>darice.cub</code>, no SBOM writer available) &mdash; a build still succeeds without ICE or an SBOM,
     but a <code>Warning</code>-level log entry says so, so a green build never silently means "ICE didn't
     run" without a trace.

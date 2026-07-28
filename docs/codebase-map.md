@@ -108,7 +108,7 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 ## Compiler.Msi (`src/FalkForge.Compiler.Msi/`)
 Compilers: MsiCompiler (ICompiler), MsmCompiler, PatchCompiler, TransformCompiler
 DB: MsiDatabase, MsiRecord, FileNameSanitizer, ResolvedPackage/Component/File, ComponentResolver, SummaryInfoWriter
-Cabinets: CabinetBuilder (single-threaded), ParallelCabinetBuilder (Parallel.ForEachAsync), CabinetWorkItem, CabinetBuildResult, CabinetExtractor (FDI)
+Cabinets: CabinetBuilder (single-threaded), CabinetExtractor (FDI)
 Tables/: MsiTableDefinitions, EnvironmentEncoding
 Recipe/: MsiAuthoring, MsiRecipeBuilder, MsiDatabaseRecipe, ITableProducer, IMultiTableProducer, RecipeBuildContext, RecipeTable, RecipeRow, RecipeColumn, CellValue, TableId, TableSchema, ForeignKeySpec, DirectoryTreeSynthesizer, LanguageTransformGenerator (per-culture MST diff via MsiDatabaseGenerateTransform, DLG005 no-diff warning)
 Recipe/Producers/: ComponentTableProducer, DirectoryTableProducer, DialogSetProducer, FeatureTableProducer, FeatureComponentsTableProducer, PropertyTableProducer, RegistryTableProducer, ShortcutTableProducer, ServiceInstallTableProducer, UpgradeTableProducer, and others. ValidateCustomTableIdentifiers() defense-in-depth SQL identifier validation enforced by CustomTablesProducer.
