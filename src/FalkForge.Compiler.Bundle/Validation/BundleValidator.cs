@@ -1,6 +1,7 @@
 namespace FalkForge.Compiler.Bundle.Validation;
 
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Sbom;
 
 public sealed class BundleValidator
 {
@@ -215,7 +216,7 @@ public sealed class BundleValidator
             // silently turning the security pin into an always-fail gate that blocks the payload —
             // fail loud at author time instead.
             var pin = pkg.RemotePayload?.CertificatePublicKey;
-            if (pin is not null && !IsValidSha256Hex(pin))
+            if (pin is not null && !SbomDigestValidator.IsValidSha256Hex(pin))
                 return Result<Unit>.Failure(ErrorKind.BundleError,
                     $"BDL033: Remote payload certificate public-key pin for package '{pkg.Id}' is not a valid " +
                     "SHA-256 public-key hash (expected 64 hexadecimal characters).");
@@ -277,23 +278,4 @@ public sealed class BundleValidator
         return true;
     }
 
-    /// <summary>
-    /// Validates that a string is a well-formed SHA-256 public-key pin: exactly 64 hexadecimal
-    /// characters. Avoids regex/LINQ to keep the validation path allocation-free (Gate 6).
-    /// </summary>
-    private static bool IsValidSha256Hex(string value)
-    {
-        const int Sha256HexLength = 64;
-        if (value.Length != Sha256HexLength)
-            return false;
-
-        foreach (var c in value)
-        {
-            var isHex = c is (>= '0' and <= '9') or (>= 'a' and <= 'f') or (>= 'A' and <= 'F');
-            if (!isHex)
-                return false;
-        }
-
-        return true;
-    }
 }

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using FalkForge.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
@@ -193,7 +194,7 @@ public sealed class BundleCompilerSbomTests : IDisposable
     public void Compile_WithSbomOptions_SidecarContainsBundleMetadata()
     {
         var options = new SbomOptions();
-        options.AddComponent("OpenSSL", "3.2.1", SbomComponentType.Library, "AABBCCDD");
+        options.AddComponent("OpenSSL", "3.2.1", SbomComponentType.Library, ValidSha256Hex);
 
         var model = new BundleModel
         {
@@ -235,6 +236,55 @@ public sealed class BundleCompilerSbomTests : IDisposable
         var names = components.EnumerateArray()
             .Select(c => c.GetProperty("name").GetString())
             .ToList();
+        Assert.Contains("OpenSSL", names);
+    }
+
+    private const string ValidSha256Hex = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    [Theory]
+    [InlineData("ABC123")] // too short
+    [InlineData("zz3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85")] // non-hex chars ('z')
+    [InlineData("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855ff")] // too long (66 chars)
+    public void Compile_WithMalformedAdditionalComponentDigest_ReturnsValidationFailure(string malformedDigest)
+    {
+        // A caller-supplied AdditionalComponents digest is serialized straight into the CycloneDX
+        // sidecar as a SHA-256 attestation. Accepting arbitrary text there lets the sidecar make an
+        // integrity claim that is not even shaped like a hash — reject it before it reaches the
+        // document, matching BundleValidator's IsValidSha256Hex convention (BDL033: exactly 64
+        // hexadecimal characters), same rule already enforced by the MSIX and MSI SBOM writers.
+        var options = new SbomOptions();
+        options.AddComponent("OpenSSL", "3.2.1", SbomComponentType.Library, malformedDigest);
+        var model = BuildModel(options);
+        var outDir = Path.Combine(_tempDir, $"out-malformed-{Guid.NewGuid():N}");
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
+
+        var result = compiler.Compile(model, outDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.False(
+            Directory.Exists(outDir) && Directory.EnumerateFiles(outDir, "*.cdx.json").Any(),
+            "No SBOM sidecar should be written when an AdditionalComponents digest fails validation.");
+    }
+
+    [Fact]
+    public void Compile_WithUppercaseAdditionalComponentDigest_Accepted()
+    {
+        // BundleValidator.IsValidSha256Hex accepts both cases without normalizing — match that
+        // convention rather than inventing a lowercase-only rule.
+        var options = new SbomOptions();
+        options.AddComponent("OpenSSL", "3.2.1", SbomComponentType.Library, ValidSha256Hex.ToUpperInvariant());
+        var model = BuildModel(options);
+        var outDir = Path.Combine(_tempDir, "out-uppercase");
+        var compiler = new BundleCompiler { AllowPlaceholderStub = true };
+
+        var result = compiler.Compile(model, outDir);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var sbomPath = result.Value + ".cdx.json";
+        using var doc = JsonDocument.Parse(File.ReadAllText(sbomPath));
+        var names = doc.RootElement.GetProperty("components").EnumerateArray()
+            .Select(c => c.GetProperty("name").GetString()).ToList();
         Assert.Contains("OpenSSL", names);
     }
 }
