@@ -53,8 +53,12 @@ public sealed class DefaultRebuildRunnerRealProcessTests
     /// </summary>
     private static void AssertKilledProcessTreeReleasedDirectory(string tempDir)
     {
+        // 30 x 500ms = 15s. Kill() requests termination but does not wait for exit, and antivirus
+        // scanning freshly built output can hold file handles open for several seconds -- a tight
+        // budget here risks flaking on exactly the kind of machine this assertion exists to guard
+        // against, not on a real regression.
         Exception? last = null;
-        for (var attempt = 0; attempt < 15; attempt++)
+        for (var attempt = 0; attempt < 30; attempt++)
         {
             try
             {
@@ -65,17 +69,17 @@ public sealed class DefaultRebuildRunnerRealProcessTests
             catch (IOException ex)
             {
                 last = ex;
-                Thread.Sleep(200);
+                Thread.Sleep(500);
             }
             catch (UnauthorizedAccessException ex)
             {
                 last = ex;
-                Thread.Sleep(200);
+                Thread.Sleep(500);
             }
         }
 
         Assert.Fail(
-            $"Directory '{tempDir}' was still locked 3s after RebuildAsync's " +
+            $"Directory '{tempDir}' was still locked 15s after RebuildAsync's " +
             $"process.Kill(entireProcessTree: true) returned -- a descendant process likely survived " +
             $"the kill. Last error: {last}");
     }
@@ -159,8 +163,11 @@ public sealed class DefaultRebuildRunnerRealProcessTests
             // a pre-cancelled token makes WaitForExitAsync throw within milliseconds of Start(),
             // when the subprocess (and any children `dotnet run` itself spawns) may barely exist
             // yet, so Kill(entireProcessTree: true) can fail against a not-really-started tree and
-            // orphan it. CancelAfter guarantees the cancellation hits a genuinely running process,
-            // which is also the realistic scenario this branch exists to handle.
+            // orphan it. CancelAfter guarantees the cancellation hits a genuinely running `dotnet`
+            // process tree — at 2s the root `dotnet run` process is most likely still restoring or
+            // building rather than having reached the Sleeper's own `Thread.Sleep(120_000)`, but
+            // that root process being alive and killable is what this branch actually needs, and is
+            // also the realistic scenario it exists to handle.
             cts.CancelAfter(TimeSpan.FromSeconds(2));
 
             IRebuildRunner runner = new DefaultRebuildRunner();
