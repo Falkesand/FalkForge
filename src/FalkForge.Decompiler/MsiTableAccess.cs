@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 using FalkForge.Compiler.Msi;
 
 namespace FalkForge.Decompiler;
@@ -7,7 +8,7 @@ namespace FalkForge.Decompiler;
 /// Production implementation of <see cref="IMsiTableAccess"/> that wraps <see cref="MsiDatabase"/>.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class MsiTableAccess : IMsiTableAccess
+public sealed partial class MsiTableAccess : IMsiTableAccess
 {
     private readonly MsiDatabase _database;
     private bool _disposed;
@@ -70,18 +71,28 @@ public sealed class MsiTableAccess : IMsiTableAccess
                 string.Equals(row[0], tableName, StringComparison.OrdinalIgnoreCase)));
     }
 
+    // MSI-SQL identifier grammar (table and column names): a letter or underscore, followed by any
+    // number of letters, digits, underscores, or dots. An allow-list rather than a deny-list: the
+    // previous deny-list (backtick/semicolon/quote/control-char) only happened to be sufficient
+    // because table/column names are always backtick-quoted and MSI-SQL has no comment syntax or
+    // alternate quoting -- that safety was incidental. Space, `%`, `=`, `(`, `)`, `-`, `?`, `*` all
+    // passed the deny-list despite not being valid MSI identifiers at all. This matches every real
+    // MSI system-table name (the underscore-prefixed catalog tables: `_Validation`, `_Columns`,
+    // `_Tables`, `_Streams`, `_Storages`, ...) and ordinary user-defined names.
+    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_.]*$")]
+    private static partial Regex ValidIdentifierGrammar();
+
     private static void ValidateIdentifier(string identifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        foreach (var c in identifier)
+        if (!ValidIdentifierGrammar().IsMatch(identifier))
         {
-            if (c == '`' || c == ';' || c == '\'' || c == '"' || char.IsControl(c))
-            {
-                throw new ArgumentException(
-                    $"Identifier '{identifier}' contains invalid character '{c}'.",
-                    nameof(identifier));
-            }
+            throw new ArgumentException(
+                $"Identifier '{identifier}' is not a valid MSI identifier: it must match the " +
+                "MSI-SQL identifier grammar (a letter or underscore, followed by letters, digits, " +
+                "underscores, or dots).",
+                nameof(identifier));
         }
     }
 
