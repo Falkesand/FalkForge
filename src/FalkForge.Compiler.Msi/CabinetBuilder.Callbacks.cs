@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using System.Text;
 using FalkForge.Compiler.Msi.Interop;
 using FalkForge.Diagnostics;
@@ -50,6 +51,13 @@ public sealed partial class CabinetBuilder
             {
                 var bytesRead = stream.Read(buffer, 0, (int)cb);
                 Marshal.Copy(buffer, 0, memory, bytesRead);
+
+                // hf is the same pseudo-handle CbGetOpenInfo opened for this source file, so
+                // every byte actually handed to FCI here is also fed into its running digest —
+                // that digest becomes the SBOM's SHA-256 claim (see PackagedFileHashes).
+                if (bytesRead > 0 && _pendingSourceHashes.TryGetValue(hf, out var tracked))
+                    tracked.Hash.AppendData(buffer, 0, bytesRead);
+
                 return (uint)bytesRead;
             }
             finally
@@ -100,6 +108,16 @@ public sealed partial class CabinetBuilder
         try
         {
             if (_openStreams.Remove(hf, out var stream)) stream.Dispose();
+
+            // FCI is fully done reading this source file now — finalize its digest into
+            // PackagedFileHashes so SbomHelper can consume it instead of reopening the source path.
+            if (_pendingSourceHashes.Remove(hf, out var tracked))
+            {
+                var digest = tracked.Hash.GetHashAndReset();
+                tracked.Hash.Dispose();
+                _packagedFileHashes[tracked.SourcePath] = Convert.ToHexString(digest);
+            }
+
             return 0;
         }
         catch
@@ -223,6 +241,13 @@ public sealed partial class CabinetBuilder
             var stream = new FileStream(pszName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             var handle = (nint)_nextHandle++;
             _openStreams[handle] = stream;
+
+            // pszName is exactly the pszSourceFile FCIAddFile was called with (ResolvedFile.
+            // SourcePath) — this is the one callback FCI uses to open a file being ADDED to the
+            // cabinet (as opposed to CbOpen, used for temp/cabinet-output files), so it is the
+            // correct point to start capturing the packaged-bytes digest for this source file.
+            _pendingSourceHashes[handle] = (pszName, IncrementalHash.CreateHash(HashAlgorithmName.SHA256));
+
             return handle;
         }
         catch (Exception ex)

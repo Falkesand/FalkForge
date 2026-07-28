@@ -280,12 +280,13 @@ public static partial class MsiAuthoring
         // table rows and the _Streams entries cannot drift. See BuildCabinetsAndEmbed
         // in MsiAuthoring.Cabinets.cs.
         string? cabTempDir = null;
+        IReadOnlyDictionary<string, string> packagedFileHashes = new Dictionary<string, string>();
         try
         {
             if (resolved.Files.Count > 0)
             {
                 Result<MsiDatabaseRecipe> cabResult = BuildCabinetsAndEmbed(
-                    resolved, package, outputPath, recipe, logger, out cabTempDir);
+                    resolved, package, outputPath, recipe, logger, out cabTempDir, out packagedFileHashes);
                 if (cabResult.IsFailure)
                 {
                     return Result<string>.Failure(cabResult.Error);
@@ -359,7 +360,8 @@ public static partial class MsiAuthoring
         // Steps 7-11: reproducible-timestamp patch, code signing, integrity signing,
         // ICE validation, SBOM sidecar, WinGet manifest. See RunPostProcessSteps in
         // MsiAuthoring.PostProcess.cs.
-        Result<Unit> postProcessResult = RunPostProcessSteps(package, msiPath, outputPath, options, resolved, logger);
+        Result<Unit> postProcessResult = RunPostProcessSteps(
+            package, msiPath, outputPath, options, resolved, packagedFileHashes, logger);
         if (postProcessResult.IsFailure)
             return Result<string>.Failure(postProcessResult.Error);
 

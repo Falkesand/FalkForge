@@ -26,6 +26,7 @@ public static partial class MsiAuthoring
         string outputPath,
         CompileOptions options,
         ResolvedPackage resolved,
+        IReadOnlyDictionary<string, string> packagedFileHashes,
         IFalkLogger? logger)
     {
         // Step 7: Reproducible timestamp patching — Windows MsiSummaryInfoPersist
@@ -147,7 +148,7 @@ public static partial class MsiAuthoring
             if (logger is not null && logger.MinimumLevel <= LogLevel.Debug)
                 logger.Debug("MsiAuthoring", "Step 10: SBOM sidecar.");
 
-            Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, msiPath);
+            Result<Unit> sbomResult = SbomHelper.WriteSbomSidecar(package, resolved.Files, packagedFileHashes, msiPath);
             if (sbomResult.IsFailure)
             {
                 // Previously silently dropped (`_ = sbomResult;`) — now surfaced as a Warning so a

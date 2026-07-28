@@ -36,7 +36,7 @@ public sealed class SbomIntegrationTests : IDisposable
         }.Sbom().Build();
 
         // Act: write sidecar directly via SbomHelper
-        var result = SbomHelper.WriteSbomSidecar(package, [], msiOutputPath);
+        var result = SbomHelper.WriteSbomSidecar(package, [], new Dictionary<string, string>(), msiOutputPath);
 
         // Assert
         Assert.True(result.IsSuccess, $"Expected success but got: {(result.IsFailure ? result.Error.Message : "")}");
@@ -60,7 +60,7 @@ public sealed class SbomIntegrationTests : IDisposable
             // No .Sbom() call — SbomOptions is null
         }.Build();
 
-        var result = SbomHelper.WriteSbomSidecar(package, [], msiOutputPath);
+        var result = SbomHelper.WriteSbomSidecar(package, [], new Dictionary<string, string>(), msiOutputPath);
 
         Assert.True(result.IsSuccess);
         Assert.False(File.Exists(sbomPath), "Sidecar should not be written when SbomOptions is null");
@@ -91,8 +91,8 @@ public sealed class SbomIntegrationTests : IDisposable
         var msiOutputPath1 = Path.Combine(_tempDir, "out-repro-1.msi");
         var msiOutputPath2 = Path.Combine(_tempDir, "out-repro-2.msi");
 
-        var result1 = SbomHelper.WriteSbomSidecar(package, [], msiOutputPath1);
-        var result2 = SbomHelper.WriteSbomSidecar(package, [], msiOutputPath2);
+        var result1 = SbomHelper.WriteSbomSidecar(package, [], new Dictionary<string, string>(), msiOutputPath1);
+        var result2 = SbomHelper.WriteSbomSidecar(package, [], new Dictionary<string, string>(), msiOutputPath2);
 
         Assert.True(result1.IsSuccess, result1.IsFailure ? result1.Error.Message : null);
         Assert.True(result2.IsSuccess, result2.IsFailure ? result2.Error.Message : null);

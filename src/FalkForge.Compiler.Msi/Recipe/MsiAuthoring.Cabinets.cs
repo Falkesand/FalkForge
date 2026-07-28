@@ -16,7 +16,10 @@ public static partial class MsiAuthoring
     /// source of truth shared with MediaTableProducer so the Media table rows and the _Streams entries
     /// cannot drift. <paramref name="cabTempDir"/> receives the on-disk staging directory so the caller
     /// can clean it up once the recipe has been applied and committed (Step 6), regardless of whether
-    /// this method succeeds or fails.
+    /// this method succeeds or fails. <paramref name="packagedFileHashes"/> receives the SHA-256
+    /// digest of every source file's bytes as the native FCI compressor actually read them (see
+    /// <see cref="CabinetBuilder.PackagedFileHashes"/>), aggregated across every cabinet plan — the
+    /// SBOM sidecar (Step 10) consumes this instead of reopening source paths after the fact.
     /// </summary>
     private static Result<MsiDatabaseRecipe> BuildCabinetsAndEmbed(
         ResolvedPackage resolved,
@@ -24,7 +27,8 @@ public static partial class MsiAuthoring
         string outputPath,
         MsiDatabaseRecipe recipe,
         IFalkLogger? logger,
-        out string? cabTempDir)
+        out string? cabTempDir,
+        out IReadOnlyDictionary<string, string> packagedFileHashes)
     {
         IReadOnlyList<CabinetPlan> plans = CabinetPlanner.Plan(
             resolved.Files,
@@ -39,6 +43,8 @@ public static partial class MsiAuthoring
         var externalSink = new ExternalFileCabinetSink(outputPath);
         System.Collections.Immutable.ImmutableArray<CabinetEmbedding>.Builder embeddingsBuilder =
             System.Collections.Immutable.ImmutableArray.CreateBuilder<CabinetEmbedding>(plans.Count);
+        var aggregatedHashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        packagedFileHashes = aggregatedHashes;
 
         foreach (CabinetPlan plan in plans)
         {
@@ -66,6 +72,12 @@ public static partial class MsiAuthoring
             }
 
             string cabPath = cabResult.Value;
+
+            // Merge this cabinet's packaged-bytes digests into the aggregate before cabBuilder
+            // is disposed (end of this iteration's using-scope) — every file goes through some
+            // cabinet regardless of Embedded, so this covers both embedded and external media.
+            foreach (var kvp in cabBuilder.PackagedFileHashes)
+                aggregatedHashes[kvp.Key] = kvp.Value;
 
             if (plan.Embedded)
             {
