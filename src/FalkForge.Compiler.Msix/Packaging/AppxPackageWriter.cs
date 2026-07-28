@@ -47,14 +47,37 @@ internal sealed class AppxPackageWriter : IDisposable
 
             var factory = (IAppxFactory)new AppxFactory();
 
-            var hashMethodUri = CreateSha256Uri();
-            var settings = new APPX_PACKAGE_SETTINGS
+            IAppxPackageWriter writer;
+            try
             {
-                ForceZip32 = false,
-                HashMethod = hashMethodUri,
-            };
+                var hashMethodUri = CreateSha256Uri();
+                try
+                {
+                    var settings = new APPX_PACKAGE_SETTINGS
+                    {
+                        ForceZip32 = false,
+                        HashMethod = hashMethodUri,
+                    };
 
-            var writer = factory.CreatePackageWriter(outputStream, ref settings);
+                    writer = factory.CreatePackageWriter(outputStream, ref settings);
+                }
+                finally
+                {
+                    // hashMethodUri is a raw IUri* with no RCW (urlmon CreateUri, not a
+                    // .NET-visible COM class). CreatePackageWriter AddRefs it if it retains a
+                    // reference, so our own ref must be dropped here regardless of success/failure
+                    // or it leaks for process lifetime (never freed by any finalizer).
+                    Marshal.Release(hashMethodUri);
+                }
+            }
+            finally
+            {
+                // The factory's job ends once it has produced the writer; the writer holds its
+                // own independent COM references, so releasing our factory RCW here does not
+                // affect it. This is an RCW (unlike hashMethodUri), so the CLR finalizer would
+                // eventually release it anyway — releasing explicitly just tightens the window.
+                Marshal.ReleaseComObject(factory);
+            }
 
             using var packageWriter = new AppxPackageWriter(writer, outputStream);
 
