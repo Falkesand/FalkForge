@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Compiler.Msix.Packaging;
 using FalkForge.Configuration;
@@ -55,6 +56,14 @@ public sealed class MsixSbomHelperTests : IDisposable
         new VfsFileEntry { SourcePath = _payloadPath, PackageRelativePath = "VFS/ProgramFilesX64/Contoso/app.exe" }
     ];
 
+    // Mirrors what AppxPackageWriter actually returns: the SHA-256 of each payload file's bytes,
+    // captured at packaging time, keyed by package-relative path.
+    private IReadOnlyDictionary<string, string> PackagedHashes() => new Dictionary<string, string>
+    {
+        ["VFS/ProgramFilesX64/Contoso/app.exe"] =
+            Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(_payloadPath)))
+    };
+
     [Fact]
     public void WriteSbomSidecar_WithSbomOptions_ListsPackagedFilesAndExtraComponents()
     {
@@ -62,7 +71,7 @@ public sealed class MsixSbomHelperTests : IDisposable
         options.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, "ABC123");
         var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
 
-        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(options), Layout(), msixPath);
+        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(options), Layout(), PackagedHashes(), msixPath);
 
         Assert.True(result.IsSuccess);
 
@@ -88,15 +97,49 @@ public sealed class MsixSbomHelperTests : IDisposable
 
         var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
 
-        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(sbomOptions: null), Layout(), msixPath);
+        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(sbomOptions: null), Layout(), PackagedHashes(), msixPath);
 
         Assert.True(result.IsSuccess);
         Assert.False(File.Exists(msixPath + ".cdx.json"));
     }
 
     [Fact]
-    public void WriteSbomSidecar_MissingSourceFile_SkipsItRatherThanFailing()
+    public void WriteSbomSidecar_SourceFileMutatedAfterPackaging_SidecarStillReflectsPackagedBytes()
     {
+        // AppxPackageWriter hashes each payload file's bytes at the moment they are read for
+        // embedding (packaging time), and hands that hash map to WriteSbomSidecar. This test
+        // simulates exactly that: capture the hash of what was "packaged", THEN mutate the
+        // source file on disk (the file could be rewritten by another process, an AV rescan,
+        // or a racing build step) BEFORE the SBOM step runs. The sidecar must still report the
+        // hash of what was packaged, not whatever currently sits on disk — otherwise the SBOM
+        // attests a digest that disagrees with the signed MSIX (TOCTOU, CodeRabbit #3658582425).
+        var packagedBytes = File.ReadAllBytes(_payloadPath);
+        var packagedHash = Convert.ToHexString(SHA256.HashData(packagedBytes));
+        var payloadHashes = new Dictionary<string, string>
+        {
+            ["VFS/ProgramFilesX64/Contoso/app.exe"] = packagedHash
+        };
+
+        // Mutate the source file after "packaging" captured its hash above.
+        File.WriteAllBytes(_payloadPath, [0x00, 0x11, 0x22, 0x33, 0x44, 0x55]);
+
+        var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
+        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(new SbomOptions()), Layout(), payloadHashes, msixPath);
+
+        Assert.True(result.IsSuccess);
+        using var doc = JsonDocument.Parse(File.ReadAllText(msixPath + ".cdx.json"));
+        var component = doc.RootElement.GetProperty("components").EnumerateArray().Single();
+        var recordedHash = component.GetProperty("hashes").EnumerateArray().Single().GetProperty("content").GetString();
+
+        Assert.Equal(packagedHash, recordedHash);
+    }
+
+    [Fact]
+    public void WriteSbomSidecar_EntryNotInPayloadHashes_SkipsItRatherThanFailing()
+    {
+        // A layout entry with no corresponding payloadHashes entry means AppxPackageWriter never
+        // packaged it (e.g. the source file did not exist at packaging time) — the SBOM step
+        // must skip it, not fail the whole sidecar.
         var msixPath = Path.Combine(_tempDir, "Contoso App-1.2.3.4.msix");
         IReadOnlyList<VfsFileEntry> layout =
         [
@@ -106,8 +149,9 @@ public sealed class MsixSbomHelperTests : IDisposable
                 PackageRelativePath = "VFS/ProgramFilesX64/Contoso/does-not-exist.dll"
             }
         ];
+        IReadOnlyDictionary<string, string> payloadHashes = new Dictionary<string, string>();
 
-        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(new SbomOptions()), layout, msixPath);
+        var result = MsixSbomHelper.WriteSbomSidecar(BuildModel(new SbomOptions()), layout, payloadHashes, msixPath);
 
         Assert.True(result.IsSuccess);
         using var doc = JsonDocument.Parse(File.ReadAllText(msixPath + ".cdx.json"));

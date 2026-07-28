@@ -1,12 +1,22 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using System.Xml.Linq;
 using FalkForge.Compiler.Msix.Interop;
 
 [assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
 
 namespace FalkForge.Compiler.Msix.Packaging;
+
+/// <summary>
+/// Result of a successful <see cref="AppxPackageWriter.CreatePackage"/> call: the produced
+/// package path plus the SHA-256 hash of every payload file's bytes, captured at the moment
+/// they were read for embedding. Downstream consumers (the SBOM sidecar) use these hashes
+/// instead of reopening the source paths later, so a source-file mutation after packaging
+/// cannot desync the sidecar from what actually shipped in the signed package.
+/// </summary>
+internal readonly record struct MsixPackageResult(string OutputPath, IReadOnlyDictionary<string, string> PayloadHashes);
 
 [SupportedOSPlatform("windows")]
 internal sealed class AppxPackageWriter : IDisposable
@@ -21,7 +31,7 @@ internal sealed class AppxPackageWriter : IDisposable
         _outputStream = outputStream;
     }
 
-    public static Result<string> CreatePackage(
+    public static Result<MsixPackageResult> CreatePackage(
         string outputPath,
         XDocument manifest,
         IReadOnlyList<VfsFileEntry> files,
@@ -48,8 +58,20 @@ internal sealed class AppxPackageWriter : IDisposable
 
             using var packageWriter = new AppxPackageWriter(writer, outputStream);
 
+            var payloadHashes = new Dictionary<string, string>(files.Count);
+
             foreach (var file in files)
             {
+                // Hash the exact bytes about to be embedded, in the same pass that copies them
+                // into the package. Hashing later — after packaging AND signing complete, as the
+                // SBOM step used to — would let a source-file mutation in that window desync the
+                // sidecar from what actually shipped in the signed package (CodeRabbit #3658582425).
+                if (File.Exists(file.SourcePath))
+                {
+                    using var hashStream = File.OpenRead(file.SourcePath);
+                    payloadHashes[file.PackageRelativePath] = Convert.ToHexString(SHA256.HashData(hashStream));
+                }
+
                 var fileStream = CreateStreamFromFile(file.SourcePath);
                 try
                 {
@@ -93,11 +115,11 @@ internal sealed class AppxPackageWriter : IDisposable
                 Marshal.ReleaseComObject(manifestStream);
             }
 
-            return Result<string>.Success(outputPath);
+            return Result<MsixPackageResult>.Success(new MsixPackageResult(outputPath, payloadHashes));
         }
         catch (COMException ex)
         {
-            return Result<string>.Failure(ErrorKind.CompilationError, $"MSIX packaging failed: {ex.Message}");
+            return Result<MsixPackageResult>.Failure(ErrorKind.CompilationError, $"MSIX packaging failed: {ex.Message}");
         }
     }
 
