@@ -10,10 +10,13 @@ namespace FalkForge.Validation;
 /// </summary>
 public static partial class CustomTableRules
 {
-    [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_]*$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal name with a
+    // trailing newline would slip through an otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A[A-Za-z][A-Za-z0-9_]*\z")]
     private static partial Regex TableNameRegex();
 
-    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
+    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_]*\z")]
     private static partial Regex ColumnNameRegex();
 
     [GeneratedRegex(@"\[([A-Za-z_][A-Za-z0-9_.]*)\]")]

@@ -47,6 +47,18 @@ public sealed class CustomDialogValidationTests
     }
 
     [Fact]
+    public void Dialog_id_with_trailing_newline_fails_loud_with_DLG011()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-legal identifier with a
+        // trailing newline would slip through an otherwise-correct ^...$ anchor.
+        var dialog = new CustomDialogModel { Id = "GoodDialog" + "\n", Controls = [Button("Ok")] };
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG011");
+    }
+
+    [Fact]
     public void Dangling_control_next_fails_loud_with_DLG017()
     {
         // "Ok" tab-links to "Missing" which is not a control on the dialog.

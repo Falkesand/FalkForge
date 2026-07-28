@@ -147,6 +147,26 @@ public sealed class MspExecutorTests
     }
 
     [Fact]
+    public async Task Uninstall_WithTrailingNewlineTargetProductCode_ReturnsFailure()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-well-formed GUID with a trailing
+        // newline would slip through an otherwise-correct ^...$ anchor.
+        var runner = new MockProcessRunner().WithExitCode(0);
+        var executor = new MspExecutor(runner);
+        var action = CreateAction(
+            PlanActionType.Uninstall,
+            patchCode: "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
+            targetProductCode: "{12345678-1234-1234-1234-123456789012}" + "\n");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("TargetProductCode", result.Error.Message);
+    }
+
+    [Fact]
     public async Task ExitCode0_ReturnsSuccess()
     {
         var runner = new MockProcessRunner().WithExitCode(0);

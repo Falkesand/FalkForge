@@ -57,6 +57,10 @@ public sealed partial class MsiUninstallOperation : IUndoOperation
         }
     }
 
-    [GeneratedRegex(@"^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-well-formed GUID with
+    // a trailing newline would slip through an otherwise-correct ^...$ anchor -- and
+    // productCode is interpolated UNQUOTED directly into the msiexec.exe command line below.
+    [GeneratedRegex(@"\A\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}\z")]
     private static partial Regex GuidPattern();
 }

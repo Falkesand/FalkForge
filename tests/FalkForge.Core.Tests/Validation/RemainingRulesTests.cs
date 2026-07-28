@@ -391,6 +391,23 @@ public sealed class RemainingRulesTests
     }
 
     [Fact]
+    public void Asm003_trailing_newline_version_yields_error()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-well-formed version with a
+        // trailing newline would slip through an otherwise-correct ^...$ anchor.
+        var pkg = WithAssemblies(new AssemblyModel
+        {
+            FileRef = "Lib.dll",
+            AssemblyVersion = "1.2.3.4" + "\n"
+        });
+        var violations = RemainingRules.Asm003_VersionFormat.Evaluate(Ctx(pkg)).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("ASM003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
     public void Asm003_null_version_yields_no_violations()
     {
         var pkg = WithAssemblies(new AssemblyModel { FileRef = "Lib.dll" });

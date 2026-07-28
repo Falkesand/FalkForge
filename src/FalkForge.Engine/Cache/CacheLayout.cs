@@ -93,6 +93,9 @@ public sealed partial class CacheLayout
         return sanitized;
     }
 
-    [GeneratedRegex(@"^[A-Za-z0-9._\-]+$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal id with a
+    // trailing newline would slip through an otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A[A-Za-z0-9._\-]+\z")]
     private static partial Regex GetValidPackageIdRegex();
 }

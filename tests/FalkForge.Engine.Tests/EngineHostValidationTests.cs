@@ -66,6 +66,10 @@ public sealed class PropertyNameValidatorTests
     [InlineData("-BAD")]        // starts with dash
     [InlineData(" SPACE")]      // starts with space
     [InlineData("lowercase")]   // covers [A-Z] upper-only constraint
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-legal name with a trailing newline would
+    // slip through an otherwise-correct ^...$ anchor.
+    [InlineData("MYPROP\n")]
     public void Validate_InvalidFormat_ReturnsFormatError(string name)
     {
         var result = PropertyNameValidator.Validate(name, null);

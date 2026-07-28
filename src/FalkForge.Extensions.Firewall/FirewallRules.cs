@@ -10,7 +10,10 @@ namespace FalkForge.Extensions.Firewall;
 /// </summary>
 public static partial class FirewallRules
 {
-    [GeneratedRegex(@"^\d{1,5}(-\d{1,5})?$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so "8080\n" would slip through an
+    // otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A\d{1,5}(-\d{1,5})?\z")]
     private static partial Regex PortFormatRegex();
 
     /// <summary>

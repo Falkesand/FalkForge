@@ -79,6 +79,10 @@ public sealed class MsiUninstallCommandTests
     [InlineData("12345678-1234-1234-1234-123456789012")]
     [InlineData("{invalid}")]
     [InlineData("")]
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-well-formed GUID with a trailing newline
+    // would slip through an otherwise-correct ^...$ anchor.
+    [InlineData(ValidProductCode + "\n")]
     public void Execute_Uninstall_InvalidGuid_ReturnsError(string invalidProductCode)
     {
         var payload = BuildPayload(invalidProductCode);

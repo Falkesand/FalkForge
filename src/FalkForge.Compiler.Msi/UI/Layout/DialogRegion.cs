@@ -51,6 +51,9 @@ public sealed partial record DialogRegion
         }
     }
 
-    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.CultureInvariant)]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal name with a
+    // trailing newline would slip through an otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant)]
     private static partial Regex CreateIdentifierRegex();
 }

@@ -84,6 +84,20 @@ public sealed class DialogRegionTests
         });
     }
 
+    [Fact]
+    public void Identifier_with_trailing_newline_throws()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so an otherwise-legal name with a trailing
+        // newline would slip through an otherwise-correct ^...$ anchor.
+        Assert.Throws<ArgumentException>(() => new DialogRegion
+        {
+            Name = "Body" + "\n",
+            Bounds = default,
+            Policy = RegionPolicy.Absolute,
+        });
+    }
+
     [Theory]
     [InlineData("A")]
     [InlineData("_underscore")]

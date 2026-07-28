@@ -42,6 +42,10 @@ public sealed class DotNetSearchValidatorTests
     [InlineData("1 OR 1")] // operators + spaces — would make the LaunchCondition always-true
     [InlineData("NET 8")] // embedded space breaks the MSI property/condition grammar
     [InlineData("dotnet8_found")] // lowercase — legal MSI identifier grammar, but not a PUBLIC property
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-legal name with a trailing newline would
+    // slip through an otherwise-correct ^...$ anchor.
+    [InlineData("DOTNET8_FOUND\n")]
     public void Validate_IllegalVariableName_ReturnsNET005(string variableName)
     {
         // A LaunchCondition built from an illegal property name (e.g. "1 OR 1") is evaluated by

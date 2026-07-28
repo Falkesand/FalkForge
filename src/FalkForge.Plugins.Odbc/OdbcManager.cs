@@ -53,7 +53,10 @@ internal sealed partial class OdbcManager : IOdbcManager
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
 
-    [GeneratedRegex(@"^[A-Za-z0-9_ \-]+$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal name with a
+    // trailing newline would slip through an otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A[A-Za-z0-9_ \-]+\z")]
     private static partial Regex GetValidDsnNameRegex();
 
     private static bool CheckRegistry(string basePath, string dsnName)

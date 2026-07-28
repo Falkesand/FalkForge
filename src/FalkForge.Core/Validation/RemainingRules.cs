@@ -12,7 +12,10 @@ namespace FalkForge.Validation;
 /// </summary>
 public static partial class RemainingRules
 {
-    [GeneratedRegex(@"^\d+\.\d+\.\d+\.\d+$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so an otherwise-well-formed version
+    // with a trailing newline would slip through an otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A\d+\.\d+\.\d+\.\d+\z")]
     private static partial Regex AssemblyVersionRegex();
 
     // ── Custom actions ────────────────────────────────────────────────────────

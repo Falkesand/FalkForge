@@ -161,6 +161,10 @@ public sealed class CacheLayoutTests
     [InlineData("pkg@name")]
     [InlineData("pkg;drop")]
     [InlineData("pkg<script>")]
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline, so an otherwise-legal id with a trailing newline would
+    // slip through an otherwise-correct ^...$ anchor.
+    [InlineData("MyPackage\n")]
     public void GetPackagePath_RejectsSpecialCharacters(string packageId)
     {
         var layout = new CacheLayout(@"C:\cache");

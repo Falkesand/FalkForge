@@ -78,6 +78,9 @@ public sealed partial class ServiceInstallCommand : IElevatedCommand
         }
     }
 
-    [GeneratedRegex(@"^[a-zA-Z0-9_-]+$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so "MySvc\n" would slip through an
+    // otherwise-correct ^...$ anchor.
+    [GeneratedRegex(@"\A[a-zA-Z0-9_-]+\z")]
     private static partial Regex ServiceNamePattern();
 }
