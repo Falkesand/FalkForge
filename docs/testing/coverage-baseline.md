@@ -45,6 +45,28 @@ comparable to this baseline** — CI exercises more code paths and will read hig
 places this document shows as gaps. This document does not restate CI's numbers; only
 this local default-gated run is recorded below.
 
+## Known drift since this baseline (test/real-implementations branch)
+
+This document was captured 2026-07-24 and has not been re-run since — several rows below
+are marked `(STALE)` where a fact independently checked out as false or no-longer-current.
+In addition to the three `(STALE)` fixes for pre-existing drift (`PatchCompiler`,
+`TransformCompiler`, `DryRunSidecarWriter` already had test files; `RestartManagerSession`
+gained one), this branch adds real-implementation coverage for three types that previously
+only ran behind a test double:
+
+- **`MsiTableAccess`** (`FalkForge.Decompiler`) — does not appear in the hot-spot list below
+  because its happy-path lines were already indirectly exercised (round-trip tests build a
+  real MSI and decompile it without injecting a mock). The actual gap was narrower than "never
+  executes": the `ValidateIdentifier` hostile-input guard (backtick/semicolon/quote/control-char
+  rejection) and `MsiTableAccess.Open`'s own file-existence/malformed-file failure paths (both
+  unreachable via `MsiDecompiler`, which pre-checks those itself) had never run.
+  `MsiTableAccessRealDatabaseTests.cs` closes that gap.
+- **`Verification.DefaultRebuildRunner`** — see the updated row below.
+- **`Platform.Windows.WindowsMsiApi`** — see the updated row below.
+
+None of this has been re-measured with `scripts/coverage.ps1`; treat every percentage below
+that touches these classes as directionally stale until the next re-baseline.
+
 ## Current baseline
 
 | Date | Line | Branch | Method | Full-method | Assemblies | Classes |
@@ -127,7 +149,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| Verification.DefaultRebuildRunner | 2.8 | (b) drives `forge verify --rebuild`, the heavyweight opt-in rebuild-and-diff path; known gap — the timeout/cancel branch (`OperationCanceledException` → kill process tree → `ExitCode: -1`, plus the `ct.IsCancellationRequested` rethrow) is covered by NEITHER the `IRebuildRunner` seam (which replaces the whole class) NOR the opt-in E2E suite (whose rebuilds succeed rather than time out) |
+| Verification.DefaultRebuildRunner | 2.8 (STALE) | Drives `forge verify --rebuild`, the heavyweight opt-in rebuild-and-diff path. The gap this row originally described — the timeout/cancel branch (`OperationCanceledException` → kill process tree → `ExitCode: -1`, plus the `ct.IsCancellationRequested` rethrow) covered by NEITHER the `IRebuildRunner` seam NOR the opt-in E2E suite — was closed on the `test/real-implementations` branch: `DefaultRebuildRunnerRealProcessTests.cs` drives the real `RebuildAsync` subprocess path for both branches. The 2.8% figure predates that change and is unverified pending a fresh coverage run |
 | Settings.MigrateSettings | 7.6 | (c) thin Spectre CLI settings record, declarative properties |
 | MsiExtractor | 9.4 | (a) genuinely untested — historically the site of a real zip-slip fix; only the happy path is exercised |
 | Settings.RulesListSettings | 11.1 | (c) thin Spectre CLI settings record |
@@ -141,10 +163,10 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| DryRunSidecarWriter | 0.0 | (a) no dedicated tests found; the `--dry-run` sidecar-writing path looks genuinely untested |
+| DryRunSidecarWriter | 0.0 (STALE) | `DryRunSidecarWriterTests.cs` was added 2026-07-27, three days after this 2026-07-24 baseline was captured. The 0.0% figure is known-stale; current coverage is unverified pending a fresh `scripts/coverage.ps1` run |
 | Interop.FciHandle | 0.0 | (c) thin native-handle wrapper around the Cabinet FCI/FDI interop, no branches |
-| PatchCompiler | 0.0 | (a) genuinely untested — no unit test file exists; the MSP output path is only referenced as a "stub" comment in an integration payload provisioner |
-| TransformCompiler | 0.0 | (a) genuinely untested — same situation as PatchCompiler; the MST output path is unverified |
+| PatchCompiler | 0.0 (STALE) | `PatchCompilerTests.cs` was added 2026-07-27, three days after this baseline. The "no unit test file exists" claim was true when written but is false now; current coverage is unverified pending a fresh coverage run |
+| TransformCompiler | 0.0 (STALE) | `TransformCompilerTests.cs` was added 2026-07-27, same situation as PatchCompiler above — a test file now exists; current coverage is unverified pending a fresh coverage run |
 | MsmCompiler | 8.6 | (a) has a dedicated test file (`MsmCompilerTests.cs`) but the msi.dll P/Invoke build path is barely exercised |
 | UI.MsiControlEvent | 22.2 | unclassified — small UI dialog-event data type, unclear why undertested |
 | Validation.IceValidator | 34.4 | (a) has dedicated tests (`IceValidatorTests.cs`, `IceValidatorConfigTests.cs`) but real validation branches (28.5% branch cov) remain thin |
@@ -155,7 +177,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| Packaging.AppxPackageWriter | 0.0 | (c) COM/AppxPackaging interop shim (`IStream` wrapper), hard to unit test without a real AppxPackaging host |
+| Packaging.AppxPackageWriter | 0.0 | (c) COM/AppxPackaging interop shim (`IStream` wrapper). Stronger than "hard to unit test": `new AppxFactory()` throws `TypeLoadException` at JIT time on any machine without the Appx COM classes registered, so the packaging body cannot execute at all there — this is not a coverage gap to close with a better unit test, it needs a machine with the Appx COM infrastructure present |
 | Packaging.AppxPackageWriter.ComStreamWrapper | 0.0 | (c) nested COM interop shim |
 | MsixBundleCompiler | 10.7 | (a) has direct unit tests (`MsixBundleBuilderTests.cs`), yet coverage is still low — undertested |
 | MsixCompiler | 22.0 | (a) has a dedicated test file (`MsixCompilerTests.cs`), still undertested |
@@ -176,7 +198,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| RestartManager.RestartManagerSession | 0.0 | (c) thin P/Invoke wrapper over the Windows Restart Manager API |
+| RestartManager.RestartManagerSession | 0.0 (STALE) | `RestartManagerSessionTests.cs` was added 2026-07-27, three days after this baseline — it drives the real `RestartManagerSession` guard clauses (disposed / already-active state checks) via reflection, without a real `RmStartSession` P/Invoke (which needs the live Restart Manager service and is intentionally left untested). The 0.0% figure is known-stale for at least those guard lines; current coverage is unverified pending a fresh coverage run |
 | Bootstrap.Native.NativeDialogDriver | 0.0 | (c) native dialog P/Invoke shim |
 | Bootstrap.TaskDialogProgressSink | 0.0 | (c) native TaskDialog P/Invoke shim |
 | Bootstrap.WindowsFileSystemProvider | 0.0 | (c) thin OS filesystem shim |
@@ -222,7 +244,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| WindowsMsiApi | 0.0 | (c) thin P/Invoke facade |
+| WindowsMsiApi | 0.0 (STALE) | Was a thin P/Invoke facade with only a reflection-based contract test (`MsiApiContractTests.cs`, never called a method). `WindowsMsiApiRealCallTests.cs` (added on `test/real-implementations`) now drives the real `SetInternalUI`/`SetExternalUI` calls, including a forced-GC survival check on the wrapped native-callback delegate. `InstallProduct`/`ConfigureProduct` remain untested by design — real, elevated, destructive installs. The 0.0% figure predates the new tests and is unverified pending a fresh coverage run |
 | NativeMethods | 31.5 | (c) raw P/Invoke declarations; coverage is a byproduct of which native calls happen to be exercised |
 
 ### FalkForge.Signing.SignServer
