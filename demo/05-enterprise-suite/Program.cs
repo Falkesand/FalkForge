@@ -23,7 +23,6 @@ return Installer.Build(args, pkg =>
 
     pkg.UseDialogSet(MsiDialogSet.Advanced);
     pkg.EnableRestartManagerSupport();
-    pkg.CabinetThreads(4);
 
     // ──────────────────────────────────────────────────────────────────
     // Install directories

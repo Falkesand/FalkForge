@@ -89,11 +89,6 @@ public sealed class ModelPropertyConsumptionTests
                 "list. It should be deleted from the model; that is a public API change to the " +
                 "busiest model in the codebase and needs its own pass.",
 
-            ["FalkForge.Models.PackageModel.CabinetThreadCount"] =
-                "PackageBuilder.CabinetThreadCount is accepted and stored, and nothing in the " +
-                "cabinet writer reads it — compression is single-threaded regardless of what the " +
-                "caller asks for. Needs either real threading in the FCI path or removal.",
-
             ["FalkForge.Models.PatchModel.TargetProductCode"] =
                 "PatchBuilder.TargetProductCode is accepted and stored; PatchCompiler writes the " +
                 "patch summary information without it, so the patch is not bound to the product " +

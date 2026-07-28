@@ -4,7 +4,7 @@ using FalkForge.Sbom;
 
 namespace FalkForge.Builders;
 
-// Package-level build configuration: media, restart manager, cabinet threading, signing,
+// Package-level build configuration: media, restart manager, signing,
 // integrity, dialog set, localization, reproducibility, SBOM, WinGet, and ICE.
 public sealed partial class PackageBuilder
 {
@@ -31,13 +31,6 @@ public sealed partial class PackageBuilder
     public PackageBuilder EnableRestartManagerSupport()
     {
         EnableRestartManager = true;
-        return this;
-    }
-
-    public PackageBuilder CabinetThreads(int count)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        CabinetThreadCount = count;
         return this;
     }
 
