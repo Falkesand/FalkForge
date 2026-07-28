@@ -1,5 +1,4 @@
 using System.Runtime.Versioning;
-using System.Text.RegularExpressions;
 using FalkForge.Compiler.Msi;
 
 namespace FalkForge.Decompiler;
@@ -8,7 +7,7 @@ namespace FalkForge.Decompiler;
 /// Production implementation of <see cref="IMsiTableAccess"/> that wraps <see cref="MsiDatabase"/>.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed partial class MsiTableAccess : IMsiTableAccess
+public sealed class MsiTableAccess : IMsiTableAccess
 {
     private readonly MsiDatabase _database;
     private bool _disposed;
@@ -71,26 +70,17 @@ public sealed partial class MsiTableAccess : IMsiTableAccess
                 string.Equals(row[0], tableName, StringComparison.OrdinalIgnoreCase)));
     }
 
-    // MSI-SQL identifier grammar (table and column names): a letter or underscore, followed by any
-    // number of letters, digits, underscores, or dots. An allow-list rather than a deny-list: the
-    // previous deny-list (backtick/semicolon/quote/control-char) only happened to be sufficient
-    // because table/column names are always backtick-quoted and MSI-SQL has no comment syntax or
-    // alternate quoting -- that safety was incidental. Space, `%`, `=`, `(`, `)`, `-`, `?`, `*` all
-    // passed the deny-list despite not being valid MSI identifiers at all. This matches every real
-    // MSI system-table name (the underscore-prefixed catalog tables: `_Validation`, `_Columns`,
-    // `_Tables`, `_Streams`, `_Storages`, ...) and ordinary user-defined names.
-    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
-    // trailing '\n' even without RegexOptions.Multiline, so "Property\n" would slip through an
-    // otherwise-correct ^...$ anchor. \A and \z are absolute string boundaries with no such
-    // exception.
-    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_.]*\z")]
-    private static partial Regex ValidIdentifierGrammar();
-
+    // Delegates to the canonical, shared READ-side MSI-SQL identifier grammar in
+    // FalkForge.MsiIdentifierGrammar (Core) -- the same grammar FalkForge.Studio.Inspect.
+    // MsiTableReader uses for the other call site that carries genuinely untrusted identifiers
+    // (out of a real MSI) into interpolated MSI-SQL strings. See that type's doc comment for the
+    // full read-vs-write rationale (allow-list vs. the previous incidental deny-list, and why
+    // \A/\z rather than ^/$).
     private static void ValidateIdentifier(string identifier)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        if (!ValidIdentifierGrammar().IsMatch(identifier))
+        if (!MsiIdentifierGrammar.IsValidForRead(identifier))
         {
             throw new ArgumentException(
                 $"Identifier '{identifier}' is not a valid MSI identifier: it must match the " +
