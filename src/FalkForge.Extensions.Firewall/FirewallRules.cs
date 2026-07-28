@@ -13,7 +13,11 @@ public static partial class FirewallRules
     // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
     // trailing '\n' even without RegexOptions.Multiline, so "8080\n" would slip through an
     // otherwise-correct ^...$ anchor.
-    [GeneratedRegex(@"\A\d{1,5}(-\d{1,5})?\z")]
+    //
+    // [0-9] rather than \d: \d is Unicode-aware and matches non-ASCII decimal digits (e.g.
+    // Arabic-Indic U+0660-U+0669), which would then reach int.Parse below and throw an unhandled
+    // FormatException instead of producing a normal FWL003 violation.
+    [GeneratedRegex(@"\A[0-9]{1,5}(-[0-9]{1,5})?\z")]
     private static partial Regex PortFormatRegex();
 
     /// <summary>

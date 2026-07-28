@@ -44,4 +44,15 @@ public sealed class FirewallRulesTests
         // such exception.
         Assert.True(HasFwl003Violation("8080" + "\n"));
     }
+
+    [Fact]
+    public void Build_ArabicIndicDigitPort_HasFwl003ViolationInsteadOfThrowing()
+    {
+        // \d in .NET is Unicode-aware and matches non-ASCII decimal digits (e.g. Arabic-Indic
+        // U+0660-U+0669). Before the [0-9] fix, PortFormatRegex.IsMatch("٨٠٨٠")
+        // succeeded and the value flowed straight into int.Parse, which throws FormatException for
+        // these code points -- crashing the validation rule instead of reporting a normal FWL003
+        // violation.
+        Assert.True(HasFwl003Violation("٨٠٨٠"));
+    }
 }
