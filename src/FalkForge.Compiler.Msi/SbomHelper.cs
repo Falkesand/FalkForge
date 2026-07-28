@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using FalkForge.Configuration;
 using FalkForge.Models;
 using FalkForge.Sbom;
@@ -10,6 +9,7 @@ internal static class SbomHelper
     internal static Result<Unit> WriteSbomSidecar(
         PackageModel package,
         IReadOnlyList<ResolvedFile> files,
+        IReadOnlyDictionary<string, string> packagedFileHashes,
         string msiOutputPath)
     {
         var envSet = EnvVarCatalog.IsSbomGenerationRequested();
@@ -24,12 +24,14 @@ internal static class SbomHelper
 
             foreach (var file in files)
             {
-                if (!File.Exists(file.SourcePath))
+                // packagedFileHashes is captured by CabinetBuilder while the native FCI
+                // compressor reads each file's bytes into the cabinet (see
+                // CabinetBuilder.Callbacks.cs) — not reopened here from the source path, which
+                // could have changed since packaging completed (TOCTOU). A file absent from the
+                // map (e.g. it was never actually added to a cabinet) is skipped rather than
+                // falling back to a re-read of a possibly-stale source file.
+                if (!packagedFileHashes.TryGetValue(file.SourcePath, out var hash))
                     continue;
-
-                string hash;
-                using (var fs = File.OpenRead(file.SourcePath))
-                    hash = Convert.ToHexString(SHA256.HashData(fs));
 
                 components.Add(new SbomComponent
                 {

@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Cabinets;
 using FalkForge.Compiler.Msi.Interop;
 using FalkForge.Diagnostics;
@@ -21,6 +22,19 @@ public sealed partial class CabinetBuilder : IDisposable
     // File handle tracking: maps pseudo-handles to FileStream instances.
     // FCI callbacks use these to perform file I/O through managed streams.
     private readonly Dictionary<nint, FileStream> _openStreams = new();
+
+    // Tracks an in-flight SHA-256 digest for every handle CbGetOpenInfo opened (i.e. every
+    // source file FCIAddFile is reading to compress into the cabinet), keyed by the pseudo-handle
+    // CbRead sees. CbClose finalizes the digest into _packagedFileHashes below. This is the sole
+    // point where the MSI's packaged bytes are actually consumed, so it is the only place a
+    // digest can be captured without a TOCTOU gap against a later SBOM-writing step reopening
+    // the source path (see SbomHelper.WriteSbomSidecar).
+    private readonly Dictionary<nint, (string SourcePath, IncrementalHash Hash)> _pendingSourceHashes = new();
+
+    // SHA-256 digest (uppercase hex) of every source file's bytes as CbRead actually consumed
+    // them, keyed by ResolvedFile.SourcePath. Populated incrementally as each file's handle is
+    // closed during BuildCabinet; complete once BuildCabinet returns.
+    private readonly Dictionary<string, string> _packagedFileHashes = new(StringComparer.Ordinal);
 
     // Pinned callback delegates - must survive until FCIDestroy completes
     private NativeMethods.FnFciAlloc? _allocCallback;
@@ -55,6 +69,17 @@ public sealed partial class CabinetBuilder : IDisposable
     {
         CleanupOpenStreams();
     }
+
+    /// <summary>
+    /// SHA-256 digest (uppercase hex) of every source file's bytes as the native FCI compressor
+    /// actually read them while building this cabinet, keyed by <see cref="ResolvedFile.SourcePath"/>.
+    /// Captured at the point the packaged bytes are consumed (CbGetOpenInfo opens the handle,
+    /// CbRead feeds every chunk into the digest, CbClose finalizes it) rather than by reopening
+    /// the source path afterwards — a source file edited between "cabinet built" and "SBOM
+    /// written" therefore cannot desync the recorded digest from what actually shipped. Populated
+    /// once <see cref="BuildCabinet"/> returns.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> PackagedFileHashes => _packagedFileHashes;
 
     public Result<string> BuildCabinet(
         IReadOnlyList<ResolvedFile> files,
@@ -229,5 +254,10 @@ public sealed partial class CabinetBuilder : IDisposable
     {
         foreach (var stream in _openStreams.Values) stream.Dispose();
         _openStreams.Clear();
+
+        // Any handle still pending here means CbClose never ran for it (e.g. an FCI failure
+        // path) — its digest is incomplete, so dispose without finalizing into _packagedFileHashes.
+        foreach (var tracked in _pendingSourceHashes.Values) tracked.Hash.Dispose();
+        _pendingSourceHashes.Clear();
     }
 }

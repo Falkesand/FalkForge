@@ -443,6 +443,48 @@ public sealed class CabinetBuilderTests : IDisposable
         Assert.True(File.Exists(result.Value));
     }
 
+    // ── PackagedFileHashes (SBOM TOCTOU capture) ────────────────────────
+
+    [Fact]
+    public void BuildCabinet_PopulatesPackagedFileHashes_WithSha256OfActualBytes()
+    {
+        var content = "hash me please";
+        var sourceFile = CreateTempFile("hashme.txt", content);
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "hashme.txt", "C_hash", "F_hash") };
+        var expectedHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content)));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.True(builder.PackagedFileHashes.TryGetValue(sourceFile, out var actualHash));
+        Assert.Equal(expectedHash, actualHash);
+    }
+
+    [Fact]
+    public void BuildCabinet_PackagedFileHashes_UnaffectedBySourceMutationAfterBuild()
+    {
+        // The digest must reflect the bytes FCI actually read while compressing the cabinet, not
+        // whatever happens to be on disk afterwards — this is the property SbomHelper relies on
+        // to avoid a TOCTOU between "cabinet built" and "SBOM sidecar written".
+        var sourceFile = CreateTempFile("mutateme.txt", "original packaged bytes");
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "mutateme.txt", "C_mut", "F_mut") };
+        var expectedHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("original packaged bytes")));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+        File.WriteAllText(sourceFile, "mutated after the cabinet was already built");
+
+        Assert.True(builder.PackagedFileHashes.TryGetValue(sourceFile, out var actualHash));
+        Assert.Equal(expectedHash, actualHash);
+    }
+
     [Fact]
     public void BuildCabinet_OutputDirectoryCreatedIfMissing()
     {
