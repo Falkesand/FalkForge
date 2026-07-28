@@ -24,7 +24,12 @@ public sealed class WindowsMsiApi : IMsiApi
     // Guarded by Gate so a concurrent SetExternalUI call can't leave the static root out of step with
     // whatever msi.dll actually holds (the swap-then-root pair must be atomic).
     private static readonly object Gate = new();
+#pragma warning disable IDE0052, S4487 // written-but-never-read is exactly the point: this field's
+    // sole job is to be a GC root for the wrapper delegate. Production never needs its VALUE back
+    // (msi.dll is the only consumer, via the native function pointer); only reflection-based tests
+    // read it back to prove the rooting actually happened.
     private static NativeMethods.MsiInstallUIHandler? _rootedHandler;
+#pragma warning restore IDE0052, S4487
 
     public uint InstallProduct(string packagePath, string? commandLine)
         => NativeMethods.MsiInstallProductW(packagePath, commandLine);
@@ -52,15 +57,12 @@ public sealed class WindowsMsiApi : IMsiApi
     {
         lock (Gate)
         {
-            var previouslyRooted = _rootedHandler;
             var previous = NativeMethods.MsiSetExternalUIW(nativeHandler, messageFilter, context);
 
-            // Only re-root after msi.dll has confirmed the swap -- see the field comment above. Keep
-            // the OLD rooted delegate explicitly reachable through this point (belt-and-braces: it was
-            // already reachable via _rootedHandler itself up to the reassignment below, but this makes
-            // the "must outlive the swap call" intent impossible for a future refactor to silently
-            // break).
-            GC.KeepAlive(previouslyRooted);
+            // Only re-root after msi.dll has confirmed the swap -- see the field comment above. The
+            // OLD rooted delegate is already reachable via _rootedHandler itself up to this
+            // reassignment (a static field is an unconditional GC root), so nothing extra is needed
+            // to keep it alive through the native call above.
             _rootedHandler = nativeHandler;
             return previous;
         }
