@@ -82,9 +82,21 @@ public static class MsixValidator
                     return Result<Unit>.Failure(ErrorKind.Validation,
                         $"MSIX014: File type '{fileType}' in association '{fta.Name}' must include the leading dot (e.g. '.cdoc').");
 
+                if (fileType.Length > 64)
+                    return Result<Unit>.Failure(ErrorKind.Validation,
+                        $"MSIX014: File type '{fileType}' in association '{fta.Name}' must be at most 64 characters.");
+
+                if (fileType.IndexOf('.', 1) >= 0)
+                    return Result<Unit>.Failure(ErrorKind.Validation,
+                        $"MSIX014: File type '{fileType}' in association '{fta.Name}' must not contain a dot after the leading one.");
+
                 if (!IsLowerInvariant(fileType))
                     return Result<Unit>.Failure(ErrorKind.Validation,
                         $"MSIX014: File type '{fileType}' in association '{fta.Name}' must be lowercase.");
+
+                if (fileType.AsSpan(1).IndexOfAny(ReservedFileTypeCharacters) >= 0)
+                    return Result<Unit>.Failure(ErrorKind.Validation,
+                        $"MSIX014: File type '{fileType}' in association '{fta.Name}' must not contain any of {ReservedFileTypeCharacters.ToString()}.");
             }
         }
 
@@ -111,7 +123,11 @@ public static class MsixValidator
 
     private static bool IsValidProtocolName(string name)
     {
-        // RFC 3986 scheme grammar, further restricted to lowercase by the AppX schema.
+        // RFC 3986 scheme grammar, further restricted to lowercase by the AppX schema, and
+        // bounded to 2-39 characters by uap:Protocol/@Name.
+        if (name.Length is < 2 or > 39)
+            return false;
+
         if (!char.IsAsciiLetterLower(name[0]))
             return false;
 
@@ -122,6 +138,9 @@ public static class MsixValidator
         }
         return true;
     }
+
+    // Reserved characters the AppX schema forbids in a uap:FileType value beyond the leading dot.
+    private static ReadOnlySpan<char> ReservedFileTypeCharacters => "<>:%\"/\\|?*";
 
     private static bool IsLowerInvariant(string value)
     {
