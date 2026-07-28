@@ -1,13 +1,9 @@
-using System.Text.RegularExpressions;
 using FalkForge.Models;
 
 namespace FalkForge.Builders;
 
 public sealed class CustomTableBuilder
 {
-    private static readonly Regex ColumnNameRegex =
-        new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
-
     private readonly List<CustomTableColumnModel> _columns = [];
     private readonly List<Dictionary<string, object?>> _rows = [];
 
@@ -24,7 +20,7 @@ public sealed class CustomTableBuilder
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Column name must not be empty.", nameof(name));
 
-        if (!ColumnNameRegex.IsMatch(name))
+        if (!MsiIdentifierGrammar.IsValidForWrite(name))
             throw new ArgumentException(
                 $"Column name '{name}' is invalid. Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.",
                 nameof(name));

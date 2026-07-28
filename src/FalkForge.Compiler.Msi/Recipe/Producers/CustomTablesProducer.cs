@@ -2,7 +2,6 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using FalkForge.Models;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
@@ -31,12 +30,6 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// </summary>
 internal sealed class CustomTablesProducer : IMultiTableProducer
 {
-    // Same pattern as TableId and RecipeColumn — MSI identifier rules.
-    private static readonly Regex SafeIdentifierPattern = new(
-        "^[A-Za-z_][A-Za-z0-9_]{0,30}$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
-
     // FrozenDictionary for O(1) column-type lookup. Built once at class init.
     private static readonly FrozenDictionary<CustomTableColumnType, ColumnType> ColumnTypeMap =
         new Dictionary<CustomTableColumnType, ColumnType>
@@ -90,8 +83,9 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
     /// <summary>
     /// Defense-in-depth: validates all table and column names before any
     /// SQL or RecipeTable construction. Matches the guard in legacy
-    /// <c>TableEmitter.ValidateCustomTableIdentifiers</c> but uses the
-    /// MSI-max-length-aware regex (31 chars) consistent with
+    /// <c>TableEmitter.ValidateCustomTableIdentifiers</c> but delegates to the
+    /// canonical <see cref="FalkForge.MsiIdentifierGrammar.IsValidForWrite"/>
+    /// grammar plus the MSI max-length cap (31 chars), consistent with
     /// <see cref="TableId"/> and <see cref="RecipeColumn"/>.
     /// </summary>
     private static Result<Unit> ValidateIdentifiers(IReadOnlyList<CustomTableModel> tables)
@@ -126,7 +120,7 @@ internal sealed class CustomTablesProducer : IMultiTableProducer
     }
 
     private static bool IsValidIdentifier(string? name)
-        => !string.IsNullOrWhiteSpace(name) && SafeIdentifierPattern.IsMatch(name);
+        => name is { Length: > 0 and <= 31 } && MsiIdentifierGrammar.IsValidForWrite(name);
 
     // ── Table construction ────────────────────────────────────────────────────
 

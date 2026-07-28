@@ -196,6 +196,27 @@ public sealed class CustomTablesProducerTests
     }
 
     [Fact]
+    public void Produce_returns_failure_for_trailing_newline_table_name()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so "GoodName\n" would slip through an otherwise-
+        // correct ^...$ anchor -- mirrors TableIdTests.Create_with_trailing_newline_fails, now that
+        // CustomTablesProducer's identifier guard delegates to MsiIdentifierGrammar.IsValidForWrite.
+        CustomTableModel table = new()
+        {
+            Name = "GoodName" + "\n",
+            Columns = [new CustomTableColumnModel { Name = "Id", PrimaryKey = true, Nullable = false, Type = CustomTableColumnType.String, Width = 72 }],
+            Rows = [],
+        };
+        RecipeBuildContext context = MakeContext([table]);
+
+        Result<ImmutableArray<RecipeTable>> result = new CustomTablesProducer().Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+    }
+
+    [Fact]
     public void Produce_returns_failure_for_table_name_exceeding_31_characters()
     {
         string longName = new('A', 32);  // 32 chars — one over MSI maximum

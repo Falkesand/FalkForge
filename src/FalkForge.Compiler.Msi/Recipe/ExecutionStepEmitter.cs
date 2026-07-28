@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Text.RegularExpressions;
 using FalkForge.Extensibility;
 using FalkForge.Models;
 
@@ -81,11 +80,6 @@ internal static class ExecutionStepEmitter
     // CHAR(72) column and be a valid MSI identifier.
     private const int MaxActionIdLength = 69;
 
-    private static readonly Regex ActionIdPattern = new(
-        "^[A-Za-z_][A-Za-z0-9_]*$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
-
     /// <summary>
     /// Builds the <c>CustomAction</c> and <c>InstallExecuteSequence</c> contributors for the given
     /// steps. Returns a loud <see cref="ErrorKind.CompilationError"/> failure for an invalid step id,
@@ -118,7 +112,7 @@ internal static class ExecutionStepEmitter
             ExecutionStep step = steps[i];
 
             if (string.IsNullOrEmpty(step.Id) || step.Id.Length > MaxActionIdLength ||
-                !ActionIdPattern.IsMatch(step.Id))
+                !MsiIdentifierGrammar.IsValidForWrite(step.Id))
             {
                 return Fail($"Execution step id '{step.Id}' is not a valid MSI identifier " +
                             $"(must match ^[A-Za-z_][A-Za-z0-9_]*$ and be at most {MaxActionIdLength} characters).");

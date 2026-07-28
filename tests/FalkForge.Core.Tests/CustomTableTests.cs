@@ -336,6 +336,9 @@ public sealed class CustomTableTests
     [InlineData("col-name")]
     [InlineData("col.name")]
     [InlineData("col'inject")]
+    [InlineData("col\n")] // .NET regex `$` matches before a single trailing '\n' even without
+                           // RegexOptions.Multiline, so "col\n" would slip through an otherwise-
+                           // correct ^...$ anchor -- mirrors TableIdTests.Create_with_trailing_newline_fails.
     public void CustomTableBuilder_InvalidColumnName_ThrowsArgumentException(string columnName)
     {
         Assert.Throws<ArgumentException>(() =>

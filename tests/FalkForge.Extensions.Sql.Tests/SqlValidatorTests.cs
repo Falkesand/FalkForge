@@ -379,6 +379,20 @@ public sealed class SqlValidatorTests
     }
 
     [Fact]
+    public void ValidateCredentials_TrailingNewlinePropertyName_ReturnsSQL018()
+    {
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so "DB_PASS\n" would slip through an otherwise-
+        // correct ^...$ anchor -- mirrors TableIdTests.Create_with_trailing_newline_fails.
+        var model = CreateDatabase(user: "u", passwordProperty: "DB_PASS" + "\n");
+
+        var result = SqlValidator.ValidateCredentials(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("SQL018", result.Error.Message);
+    }
+
+    [Fact]
     public void ValidateCredentials_UserWithoutPassword_ReturnsSQL021()
     {
         // A User with no password would silently connect as SYSTEM (integrated) — an escalation, not the
