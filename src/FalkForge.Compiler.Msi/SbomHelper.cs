@@ -27,10 +27,13 @@ internal static class SbomHelper
                 // packagedFileHashes is captured by CabinetBuilder while the native FCI
                 // compressor reads each file's bytes into the cabinet (see
                 // CabinetBuilder.Callbacks.cs) — not reopened here from the source path, which
-                // could have changed since packaging completed (TOCTOU). A file absent from the
-                // map (e.g. it was never actually added to a cabinet) is skipped rather than
-                // falling back to a re-read of a possibly-stale source file.
-                if (!packagedFileHashes.TryGetValue(file.SourcePath, out var hash))
+                // could have changed since packaging completed (TOCTOU). Keyed by FileId (the
+                // MSI File table's own unique identity), not SourcePath: two File entries can
+                // legitimately share a source path, and SourcePath would collapse them onto one
+                // digest. A file absent from the map (e.g. it was never actually added to a
+                // cabinet) is skipped rather than falling back to a re-read of a possibly-stale
+                // source file.
+                if (!packagedFileHashes.TryGetValue(file.FileId, out var hash))
                     continue;
 
                 components.Add(new SbomComponent

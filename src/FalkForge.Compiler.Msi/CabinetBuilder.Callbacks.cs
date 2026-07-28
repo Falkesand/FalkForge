@@ -115,7 +115,7 @@ public sealed partial class CabinetBuilder
             {
                 var digest = tracked.Hash.GetHashAndReset();
                 tracked.Hash.Dispose();
-                _packagedFileHashes[tracked.SourcePath] = Convert.ToHexString(digest);
+                _packagedFileHashes[tracked.FileId] = Convert.ToHexString(digest);
             }
 
             return 0;
@@ -242,11 +242,13 @@ public sealed partial class CabinetBuilder
             var handle = (nint)_nextHandle++;
             _openStreams[handle] = stream;
 
-            // pszName is exactly the pszSourceFile FCIAddFile was called with (ResolvedFile.
-            // SourcePath) — this is the one callback FCI uses to open a file being ADDED to the
-            // cabinet (as opposed to CbOpen, used for temp/cabinet-output files), so it is the
-            // correct point to start capturing the packaged-bytes digest for this source file.
-            _pendingSourceHashes[handle] = (pszName, IncrementalHash.CreateHash(HashAlgorithmName.SHA256));
+            // pszName is exactly the pszSourceFile FCIAddFile was called with — this is the one
+            // callback FCI uses to open a file being ADDED to the cabinet (as opposed to CbOpen,
+            // used for temp/cabinet-output files), so it is the correct point to start capturing
+            // the packaged-bytes digest for this source file. _currentFileId (set by BuildCabinet
+            // immediately before this FCIAddFile call) — not pszName — is the tracking key,
+            // since SourcePath is not guaranteed unique across File entries.
+            _pendingSourceHashes[handle] = (_currentFileId, IncrementalHash.CreateHash(HashAlgorithmName.SHA256));
 
             return handle;
         }

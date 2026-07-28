@@ -459,7 +459,7 @@ public sealed class CabinetBuilderTests : IDisposable
         var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
-        Assert.True(builder.PackagedFileHashes.TryGetValue(sourceFile, out var actualHash));
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_hash", out var actualHash));
         Assert.Equal(expectedHash, actualHash);
     }
 
@@ -481,8 +481,39 @@ public sealed class CabinetBuilderTests : IDisposable
 
         File.WriteAllText(sourceFile, "mutated after the cabinet was already built");
 
-        Assert.True(builder.PackagedFileHashes.TryGetValue(sourceFile, out var actualHash));
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_mut", out var actualHash));
         Assert.Equal(expectedHash, actualHash);
+    }
+
+    [Fact]
+    public void BuildCabinet_TwoFilesShareSourcePath_BothFileIdsRecordedIndependently()
+    {
+        // Two File-table entries can legitimately point at the same on-disk source (the same
+        // binary shipped into two components/destinations, e.g. a shared license or DLL). If
+        // PackagedFileHashes keyed on SourcePath, the second FCIAddFile call would silently
+        // collapse onto the first entry's dictionary slot, losing a distinct packaged File's
+        // digest (and SbomHelper, which looks entries up the same way, would then be unable to
+        // tell the two apart). Keying by FileId — the MSI File table's own unique identity —
+        // keeps both.
+        var sourceFile = CreateTempFile("shared.dll", "shared payload bytes");
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[]
+        {
+            MakeResolvedFile(sourceFile, "shared1.dll", "C_shared1", "F_shared1"),
+            MakeResolvedFile(sourceFile, "shared2.dll", "C_shared2", "F_shared2"),
+        };
+        var expectedHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("shared payload bytes")));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.Equal(2, builder.PackagedFileHashes.Count);
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_shared1", out var hash1));
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_shared2", out var hash2));
+        Assert.Equal(expectedHash, hash1);
+        Assert.Equal(expectedHash, hash2);
     }
 
     [Fact]
