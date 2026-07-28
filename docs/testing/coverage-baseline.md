@@ -49,7 +49,7 @@ this local default-gated run is recorded below.
 
 This document was captured 2026-07-24 and has not been re-run since — several rows below
 are marked `(STALE)` where a fact independently checked out as false or no-longer-current.
-In addition to the three `(STALE)` fixes for pre-existing drift (`PatchCompiler`,
+In addition to the four `(STALE)` fixes for pre-existing drift (`PatchCompiler`,
 `TransformCompiler`, `DryRunSidecarWriter` already had test files; `RestartManagerSession`
 gained one), this branch adds real-implementation coverage for three types that previously
 only ran behind a test double:
