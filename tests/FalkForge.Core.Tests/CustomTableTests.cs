@@ -356,6 +356,33 @@ public sealed class CustomTableTests
         });
     }
 
+    [Fact]
+    public void CustomTableBuilder_ColumnNameTooLong_ThrowsArgumentException()
+    {
+        // MsiIdentifierGrammar.IsValidForWrite deliberately validates characters only; every other
+        // authoring call site (TableId, RecipeColumn, ExtensionTableEmitter, CustomTablesProducer,
+        // ExecutionStepEmitter) layers the 31-character MSI column/table-name cap on top of it.
+        // CustomTableBuilder.Column did not, so a 32-character name (all valid characters) used to
+        // sail through here and only fail much later, deep in the MSI producer, with a worse error.
+        var overlong = new string('A', 32);
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+        {
+            InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "App";
+                p.Manufacturer = "Corp";
+                p.CustomTable(ct =>
+                {
+                    ct.Name("TestTable")
+                      .Column(overlong, CustomTableColumnType.String, c => c.PrimaryKey());
+                });
+            });
+        });
+
+        Assert.Contains("31 characters", ex.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("MyColumn")]
     [InlineData("_col")]

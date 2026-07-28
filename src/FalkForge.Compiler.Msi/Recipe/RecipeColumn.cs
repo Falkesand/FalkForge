@@ -97,7 +97,8 @@ public sealed record RecipeColumn
         if (!MsiIdentifierGrammar.IsValidForWrite(value))
         {
             throw new ArgumentException(
-                $"Column name '{value}' is not a valid MSI identifier (must match ^[A-Za-z_][A-Za-z0-9_]{{0,30}}$).",
+                $"Column name '{value}' is not a valid MSI identifier: it must start with a letter or " +
+                "underscore and contain only alphanumeric characters and underscores.",
                 nameof(value));
         }
 

@@ -68,7 +68,8 @@ public readonly record struct TableId
         {
             return Result<TableId>.Failure(
                 ErrorKind.Validation,
-                $"Table name '{name}' is not a valid MSI identifier (must match ^[A-Za-z_][A-Za-z0-9_]{{0,30}}$).");
+                $"Table name '{name}' is not a valid MSI identifier: it must start with a letter or " +
+                "underscore and contain only alphanumeric characters and underscores.");
         }
 
         return Result<TableId>.Success(new TableId(name));

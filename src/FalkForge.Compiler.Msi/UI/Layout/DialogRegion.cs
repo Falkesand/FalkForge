@@ -46,7 +46,8 @@ public sealed partial record DialogRegion
         if (!IdentifierRegex.IsMatch(value))
         {
             throw new ArgumentException(
-                $"Name '{value}' is not a valid identifier; expected ^[A-Za-z_][A-Za-z0-9_]*$.",
+                $"Name '{value}' is not a valid identifier; it must start with a letter or underscore " +
+                "and contain only alphanumeric characters and underscores.",
                 paramName);
         }
     }
