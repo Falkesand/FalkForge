@@ -20,11 +20,20 @@ namespace FalkForge.Decompiler.Tests;
 /// <c>WixBurnAccessRealBytesTests</c> drives <c>WixBurnAccess</c> directly.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class MsiTableAccessRealDatabaseTests
+public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAccessRealDatabaseTests.GuardMsiFixture>
 {
     private const string KnownPropertyName = "MsiTableAccessProbeProperty";
     private const string KnownPropertyValue = "ProbeValue-42-XYZ";
-    private const string ControlCharIdentifier = "BadTable";
+    // Escaped rather than a raw embedded byte so the hostile control character is visible in diffs
+    // and cannot be silently normalized away by an editor/encoding tool into a valid identifier.
+    private const string ControlCharIdentifier = "Bad\u0001Table";
+
+    private readonly GuardMsiFixture _guardFixture;
+
+    public MsiTableAccessRealDatabaseTests(GuardMsiFixture guardFixture)
+    {
+        _guardFixture = guardFixture;
+    }
 
     private static string BuildRealMsi(string tempDir)
     {
@@ -51,6 +60,37 @@ public sealed class MsiTableAccessRealDatabaseTests
             $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
 
         return compileResult.Value;
+    }
+
+    /// <summary>
+    /// Builds ONE real MSI, shared read-only across every guard test in this class instead of each
+    /// test running a full <see cref="MsiCompiler.Compile"/> through msi.dll just to obtain a handle
+    /// before an argument guard throws. xUnit runs all tests within a single class sequentially
+    /// (parallelism happens across test collections, not within one), and every guard test only
+    /// reads via <see cref="MsiTableAccess.Open"/> (read-only) and never mutates the file, so
+    /// sharing introduces no cross-test coupling.
+    /// </summary>
+    public sealed class GuardMsiFixture : IDisposable
+    {
+        private readonly string _tempDir;
+
+        public GuardMsiFixture()
+        {
+            _tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessGuardFixture_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(_tempDir);
+            MsiPath = BuildRealMsi(_tempDir);
+        }
+
+        public string MsiPath { get; }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(_tempDir))
+            {
+                try { Directory.Delete(_tempDir, recursive: true); }
+                catch { /* best effort */ }
+            }
+        }
     }
 
     // ── TableExists: present / absent ────────────────────────────────────────────
@@ -213,6 +253,9 @@ public sealed class MsiTableAccessRealDatabaseTests
     // hostile character class it claims to reject must actually be driven through the real
     // method — via QueryTable (validates tableName AND each column) and TableExists (validates
     // tableName) — not merely asserted against a doubled contract.
+    //
+    // All guard tests below share one real MSI built once by GuardMsiFixture (see its doc comment)
+    // instead of each test compiling its own through msi.dll.
 
     public static TheoryData<string> HostileTableIdentifiers => new()
     {
@@ -227,101 +270,48 @@ public sealed class MsiTableAccessRealDatabaseTests
     [MemberData(nameof(HostileTableIdentifiers))]
     public void QueryTable_HostileTableIdentifier_ThrowsArgumentException(string hostileTableName)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var msiPath = BuildRealMsi(tempDir);
-            using var access = MsiTableAccess.Open(msiPath).Value;
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
 
-            var ex = Assert.Throws<ArgumentException>(() => access.QueryTable(hostileTableName, ["Property"]));
-            Assert.Equal("identifier", ex.ParamName);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        var ex = Assert.Throws<ArgumentException>(() => access.QueryTable(hostileTableName, ["Property"]));
+        Assert.Equal("identifier", ex.ParamName);
     }
 
     [Theory]
     [MemberData(nameof(HostileTableIdentifiers))]
     public void QueryTable_HostileColumnIdentifier_ThrowsArgumentException(string hostileColumnName)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var msiPath = BuildRealMsi(tempDir);
-            using var access = MsiTableAccess.Open(msiPath).Value;
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
 
-            var ex = Assert.Throws<ArgumentException>(() =>
-                access.QueryTable("Property", ["Property", hostileColumnName]));
-            Assert.Equal("identifier", ex.ParamName);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        var ex = Assert.Throws<ArgumentException>(() =>
+            access.QueryTable("Property", ["Property", hostileColumnName]));
+        Assert.Equal("identifier", ex.ParamName);
     }
 
     [Theory]
     [MemberData(nameof(HostileTableIdentifiers))]
     public void TableExists_HostileIdentifier_ThrowsArgumentException(string hostileTableName)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var msiPath = BuildRealMsi(tempDir);
-            using var access = MsiTableAccess.Open(msiPath).Value;
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
 
-            var ex = Assert.Throws<ArgumentException>(() => access.TableExists(hostileTableName));
-            Assert.Equal("identifier", ex.ParamName);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        var ex = Assert.Throws<ArgumentException>(() => access.TableExists(hostileTableName));
+        Assert.Equal("identifier", ex.ParamName);
     }
 
     [Fact]
     public void QueryTable_EmptyTableName_ThrowsArgumentException()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var msiPath = BuildRealMsi(tempDir);
-            using var access = MsiTableAccess.Open(msiPath).Value;
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
 
-            Assert.Throws<ArgumentException>(() => access.QueryTable("", ["Property"]));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        var ex = Assert.Throws<ArgumentException>(() => access.QueryTable("", ["Property"]));
+        Assert.Equal("identifier", ex.ParamName);
     }
 
     [Fact]
     public void QueryTable_WhitespaceTableName_ThrowsArgumentException()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var msiPath = BuildRealMsi(tempDir);
-            using var access = MsiTableAccess.Open(msiPath).Value;
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
 
-            Assert.Throws<ArgumentException>(() => access.QueryTable("   ", ["Property"]));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        var ex = Assert.Throws<ArgumentException>(() => access.QueryTable("   ", ["Property"]));
+        Assert.Equal("identifier", ex.ParamName);
     }
 }
