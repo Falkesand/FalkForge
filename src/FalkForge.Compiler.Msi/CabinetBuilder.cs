@@ -29,12 +29,21 @@ public sealed partial class CabinetBuilder : IDisposable
     // point where the MSI's packaged bytes are actually consumed, so it is the only place a
     // digest can be captured without a TOCTOU gap against a later SBOM-writing step reopening
     // the source path (see SbomHelper.WriteSbomSidecar).
-    private readonly Dictionary<nint, (string SourcePath, IncrementalHash Hash)> _pendingSourceHashes = new();
+    private readonly Dictionary<nint, (string FileId, IncrementalHash Hash)> _pendingSourceHashes = new();
 
     // SHA-256 digest (uppercase hex) of every source file's bytes as CbRead actually consumed
-    // them, keyed by ResolvedFile.SourcePath. Populated incrementally as each file's handle is
-    // closed during BuildCabinet; complete once BuildCabinet returns.
+    // them, keyed by ResolvedFile.FileId — the MSI File table's own unique identity, not
+    // SourcePath: two File entries can legitimately share a source path (the same binary shipped
+    // into two components/destinations), and keying on the path would let the second FCIAddFile
+    // call collapse onto the first entry's digest. Populated incrementally as each file's handle
+    // is closed during BuildCabinet; complete once BuildCabinet returns.
     private readonly Dictionary<string, string> _packagedFileHashes = new(StringComparer.Ordinal);
+
+    // The FileId of the ResolvedFile currently being handed to FCIAddFile. FCI invokes
+    // CbGetOpenInfo synchronously within that call to open the source file being added, so this
+    // field lets that callback recover the packaged entry's identity — pszName alone is just the
+    // source path, which is not guaranteed unique across entries.
+    private string _currentFileId = string.Empty;
 
     // Pinned callback delegates - must survive until FCIDestroy completes
     private NativeMethods.FnFciAlloc? _allocCallback;
@@ -72,12 +81,13 @@ public sealed partial class CabinetBuilder : IDisposable
 
     /// <summary>
     /// SHA-256 digest (uppercase hex) of every source file's bytes as the native FCI compressor
-    /// actually read them while building this cabinet, keyed by <see cref="ResolvedFile.SourcePath"/>.
+    /// actually read them while building this cabinet, keyed by <see cref="ResolvedFile.FileId"/>.
     /// Captured at the point the packaged bytes are consumed (CbGetOpenInfo opens the handle,
     /// CbRead feeds every chunk into the digest, CbClose finalizes it) rather than by reopening
     /// the source path afterwards — a source file edited between "cabinet built" and "SBOM
-    /// written" therefore cannot desync the recorded digest from what actually shipped. Populated
-    /// once <see cref="BuildCabinet"/> returns.
+    /// written" therefore cannot desync the recorded digest from what actually shipped. Keyed by
+    /// FileId rather than SourcePath so two File entries sharing a source path each keep their own
+    /// digest. Populated once <see cref="BuildCabinet"/> returns.
     /// </summary>
     public IReadOnlyDictionary<string, string> PackagedFileHashes => _packagedFileHashes;
 
@@ -154,6 +164,11 @@ public sealed partial class CabinetBuilder : IDisposable
                 // FileId), not the on-disk source filename, so the in-cabinet name must be
                 // the FileId. Otherwise the installer aborts with error 1334 'file cannot
                 // be found in cabinet' whenever the two differ.
+                //
+                // FCIAddFile invokes CbGetOpenInfo synchronously to open file.SourcePath, so
+                // recording the FileId here — just before the call — lets that callback tag
+                // the digest it starts with this entry's real identity (see _currentFileId).
+                _currentFileId = file.FileId;
                 var success = NativeMethods.FCIAddFile(
                     hfci,
                     file.SourcePath,

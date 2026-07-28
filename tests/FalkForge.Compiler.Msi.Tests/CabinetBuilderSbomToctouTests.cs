@@ -24,7 +24,6 @@ public sealed class CabinetBuilderSbomToctouTests : IDisposable
     {
         _tempDir = Path.Combine(Path.GetTempPath(), $"CabSbomToctou_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
-        Environment.SetEnvironmentVariable("FALKFORGE_GENERATE_SBOM", null);
     }
 
     public void Dispose()
