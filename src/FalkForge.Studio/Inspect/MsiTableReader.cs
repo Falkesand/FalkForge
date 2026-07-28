@@ -50,6 +50,22 @@ public static class MsiTableReader
         if (string.IsNullOrWhiteSpace(tableName))
             return Result<MsiTableData>.Failure(ErrorKind.Validation, "Table name must not be empty.");
 
+        // tableName is interpolated directly into MSI-SQL below (both as a backtick-quoted
+        // identifier in the outer SELECT and as a quoted literal in GetColumnNames' WHERE
+        // clause). Unlike MsiTableAccess (FalkForge.Decompiler), which only ever receives
+        // compile-time-constant schema names, this method is a public entry point: tableName
+        // can be anything a caller (e.g. Studio's UI, echoing back a name it just read out of
+        // a real, possibly hostile, MSI's own `_Tables` catalog) chooses to pass. Validate it
+        // against the same canonical grammar MsiTableAccess uses before it ever reaches SQL.
+        if (!MsiIdentifierGrammar.IsValidForRead(tableName))
+        {
+            return Result<MsiTableData>.Failure(
+                ErrorKind.Validation,
+                $"Table name '{tableName}' is not a valid MSI identifier: it must match the " +
+                "MSI-SQL identifier grammar (a letter or underscore, followed by letters, digits, " +
+                "underscores, or dots).");
+        }
+
         var dbResult = MsiDatabase.Open(msiPath, readOnly: true);
         if (dbResult.IsFailure)
             return Result<MsiTableData>.Failure(ErrorKind.IoError, $"Cannot open MSI file: {dbResult.Error.Message}");
@@ -57,7 +73,11 @@ public static class MsiTableReader
         using var db = dbResult.Value;
 
         // Get column names from _Columns
-        var columns = GetColumnNames(db, tableName);
+        var columnsResult = GetColumnNames(db, tableName);
+        if (columnsResult.IsFailure)
+            return Result<MsiTableData>.Failure(columnsResult.Error);
+
+        var columns = columnsResult.Value;
         if (columns.Count == 0)
             return Result<MsiTableData>.Failure(ErrorKind.IoError, $"Table '{tableName}' has no columns or does not exist.");
 
@@ -80,7 +100,7 @@ public static class MsiTableReader
         return new MsiTableData(tableName, columns, rows);
     }
 
-    private static List<string> GetColumnNames(MsiDatabase db, string tableName)
+    private static Result<List<string>> GetColumnNames(MsiDatabase db, string tableName)
     {
         var columns = new List<string>();
 
@@ -92,11 +112,25 @@ public static class MsiTableReader
         {
             foreach (var row in result.Value)
             {
-                if (row[0] is { } name)
-                    columns.Add(name);
+                if (row[0] is not { } name)
+                    continue;
+
+                // Column names come straight out of the MSI's own `_Columns` catalog and get
+                // interpolated into the caller's SELECT list as backtick-quoted identifiers.
+                // A hand-crafted/hostile MSI (built by tooling that bypasses msi.dll's own
+                // CREATE TABLE identifier validation) could plant an arbitrary string here --
+                // fail loudly rather than silently dropping or passing through a bad name.
+                if (!MsiIdentifierGrammar.IsValidForRead(name))
+                {
+                    return Result<List<string>>.Failure(
+                        ErrorKind.Validation,
+                        $"MSI file contains an invalid column identifier '{name}' in table '{tableName}'.");
+                }
+
+                columns.Add(name);
             }
         }
 
-        return columns;
+        return Result<List<string>>.Success(columns);
     }
 }
