@@ -12463,8 +12463,8 @@ dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output</code></pre>
       <tr><td><code>MSIX011</code></td><td>Application Executable is required (for each application entry).</td></tr>
       <tr><td><code>MSIX012</code></td><td>MinWindowsVersion must be a valid version string.</td></tr>
       <tr><td><code>MSIX013</code></td><td>File type association name must use lowercase letters, digits, <code>.</code>, <code>-</code> or <code>_</code>.</td></tr>
-      <tr><td><code>MSIX014</code></td><td>A file type association must declare at least one file type, each lowercase and including the leading dot.</td></tr>
-      <tr><td><code>MSIX015</code></td><td>Protocol name must be the lowercase URI scheme alone (<code>contoso</code>, not <code>contoso://</code>).</td></tr>
+      <tr><td><code>MSIX014</code></td><td>A file type association must declare at least one file type. Each entry must include the leading dot, be lowercase, be at most 64 characters, contain no second dot, and exclude the reserved characters <code>&lt; &gt; : % " / \ | ? *</code>.</td></tr>
+      <tr><td><code>MSIX015</code></td><td>Protocol name must be the lowercase URI scheme alone (<code>contoso</code>, not <code>contoso://</code>), 2-39 characters long.</td></tr>
     </tbody>
   </table>
 

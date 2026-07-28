@@ -276,4 +276,89 @@ public sealed class MsixValidatorTests
 
         Assert.True(result.IsSuccess);
     }
+
+    // uap:FileType is bounded to 1-64 characters after the leading dot (2-64 total), must not
+    // contain a second '.', and excludes the reserved characters < > : % " / \ | ? * — the same
+    // schema MakeAppx enforces. A file type that violates these still passes today and only
+    // fails opaquely at packaging/deployment time.
+
+    [Fact]
+    public void Validate_FileTypeLongerThan64Characters_ReturnsFailure()
+    {
+        var fileType = "." + new string('a', 64);
+        var model = ModelWithApplication(app => app
+            .DisplayName("Test App")
+            .FileTypeAssociation("contoso.doc", fileType));
+
+        var result = MsixValidator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("MSIX014", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_FileTypeWithSecondDot_ReturnsFailure()
+    {
+        var model = ModelWithApplication(app => app
+            .DisplayName("Test App")
+            .FileTypeAssociation("contoso.doc", ".tar.gz"));
+
+        var result = MsixValidator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("MSIX014", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_FileTypeWithReservedCharacter_ReturnsFailure()
+    {
+        var model = ModelWithApplication(app => app
+            .DisplayName("Test App")
+            .FileTypeAssociation("contoso.doc", ".c/doc"));
+
+        var result = MsixValidator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("MSIX014", result.Error.Message);
+    }
+
+    // uap:Protocol/@Name is bounded to 2-39 characters by the AppX schema.
+
+    [Fact]
+    public void Validate_ProtocolNameSingleCharacter_ReturnsFailure()
+    {
+        var model = ModelWithApplication(app => app
+            .DisplayName("Test App")
+            .Protocol("p"));
+
+        var result = MsixValidator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("MSIX015", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_ProtocolNameLongerThan39Characters_ReturnsFailure()
+    {
+        var model = ModelWithApplication(app => app
+            .DisplayName("Test App")
+            .Protocol(new string('a', 40)));
+
+        var result = MsixValidator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("MSIX015", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_ProtocolNameAt39Characters_ReturnsSuccess()
+    {
+        var model = ModelWithApplication(app => app
+            .DisplayName("Test App")
+            .Protocol(new string('a', 39)));
+
+        var result = MsixValidator.Validate(model);
+
+        Assert.True(result.IsSuccess);
+    }
 }
