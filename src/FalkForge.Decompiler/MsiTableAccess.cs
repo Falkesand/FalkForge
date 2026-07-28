@@ -79,7 +79,11 @@ public sealed partial class MsiTableAccess : IMsiTableAccess
     // passed the deny-list despite not being valid MSI identifiers at all. This matches every real
     // MSI system-table name (the underscore-prefixed catalog tables: `_Validation`, `_Columns`,
     // `_Tables`, `_Streams`, `_Storages`, ...) and ordinary user-defined names.
-    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_.]*$")]
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
+    // trailing '\n' even without RegexOptions.Multiline, so "Property\n" would slip through an
+    // otherwise-correct ^...$ anchor. \A and \z are absolute string boundaries with no such
+    // exception.
+    [GeneratedRegex(@"\A[A-Za-z_][A-Za-z0-9_.]*\z")]
     private static partial Regex ValidIdentifierGrammar();
 
     private static void ValidateIdentifier(string identifier)

@@ -28,6 +28,11 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
     // and cannot be silently normalized away by an editor/encoding tool into a valid identifier.
     private const string ControlCharIdentifier = "Bad\u0001Table";
 
+    // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n', even
+    // without RegexOptions.Multiline. An otherwise-valid identifier with a trailing newline must
+    // still be rejected -- this is exactly the input class an anchored allow-list exists to catch.
+    private const string TrailingNewlineIdentifier = "Property" + "\n";
+
     private readonly GuardMsiFixture _guardFixture;
 
     public MsiTableAccessRealDatabaseTests(GuardMsiFixture guardFixture)
@@ -264,6 +269,7 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         "Bad'Table",
         "Bad\"Table",
         ControlCharIdentifier,
+        TrailingNewlineIdentifier,
     };
 
     [Theory]
