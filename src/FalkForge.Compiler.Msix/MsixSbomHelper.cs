@@ -54,7 +54,7 @@ internal static class MsixSbomHelper
             {
                 foreach (var component in model.SbomOptions.AdditionalComponents)
                 {
-                    if (!IsValidSha256Hex(component.Sha256Hash))
+                    if (!SbomDigestValidator.IsValidSha256Hex(component.Sha256Hash))
                         return Result<Unit>.Failure(ErrorKind.Validation,
                             $"MSIX SBOM: additional component '{component.Name}' has a digest " +
                             $"'{component.Sha256Hash}' that is not a valid SHA-256 hash (expected 64 " +
@@ -96,24 +96,5 @@ internal static class MsixSbomHelper
     {
         var index = packageRelativePath.LastIndexOf('/');
         return index < 0 ? packageRelativePath : packageRelativePath[(index + 1)..];
-    }
-
-    // Matches BundleValidator.IsValidSha256Hex exactly (BDL033): 64 characters, each an ASCII
-    // hex digit. Both cases are accepted and neither is normalized — the sidecar stores whatever
-    // case the caller supplied, same as the sibling MSI/Bundle SBOM writers' downstream fields do.
-    private static bool IsValidSha256Hex(string value)
-    {
-        const int Sha256HexLength = 64;
-        if (value.Length != Sha256HexLength)
-            return false;
-
-        foreach (var c in value)
-        {
-            var isHex = c is (>= '0' and <= '9') or (>= 'a' and <= 'f') or (>= 'A' and <= 'F');
-            if (!isHex)
-                return false;
-        }
-
-        return true;
     }
 }

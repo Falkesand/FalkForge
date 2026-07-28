@@ -107,4 +107,54 @@ public sealed class SbomIntegrationTests : IDisposable
         var timestamp1 = doc1.RootElement.GetProperty("metadata").GetProperty("timestamp").GetString();
         Assert.Equal("2023-11-14T22:13:20Z", timestamp1);
     }
+
+    private const string ValidSha256Hex = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    [Theory]
+    [InlineData("ABC123")] // too short
+    [InlineData("zz3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85")] // non-hex chars ('z')
+    [InlineData("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855ff")] // too long (66 chars)
+    public void WriteSbomSidecar_AdditionalComponentWithMalformedDigest_ReturnsValidationFailure(string malformedDigest)
+    {
+        // A caller-supplied AdditionalComponents digest is serialized straight into the CycloneDX
+        // sidecar as a SHA-256 attestation. Accepting arbitrary text there lets the sidecar make
+        // an integrity claim that is not even shaped like a hash — reject it before it reaches the
+        // document, matching BundleValidator's IsValidSha256Hex convention (BDL033: exactly 64
+        // hexadecimal characters), same rule already enforced by the MSIX SBOM writer.
+        var model = new PackageBuilder
+        {
+            Name = "ValidatedApp",
+            Version = new Version(1, 0, 0),
+            Manufacturer = "Contoso"
+        }.Sbom(o => o.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, malformedDigest)).Build();
+        var msiOutputPath = Path.Combine(_tempDir, "ValidatedApp.msi");
+
+        var result = SbomHelper.WriteSbomSidecar(model, [], new Dictionary<string, string>(), msiOutputPath);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.False(File.Exists(msiOutputPath + ".cdx.json"));
+    }
+
+    [Fact]
+    public void WriteSbomSidecar_AdditionalComponentWithUppercaseDigest_Accepted()
+    {
+        // BundleValidator.IsValidSha256Hex accepts both cases without normalizing — match that
+        // convention rather than inventing a lowercase-only rule.
+        var model = new PackageBuilder
+        {
+            Name = "ValidatedApp",
+            Version = new Version(1, 0, 0),
+            Manufacturer = "Contoso"
+        }.Sbom(o => o.AddComponent("OpenSSL", "3.0.13", SbomComponentType.Library, ValidSha256Hex.ToUpperInvariant())).Build();
+        var msiOutputPath = Path.Combine(_tempDir, "ValidatedAppUpper.msi");
+
+        var result = SbomHelper.WriteSbomSidecar(model, [], new Dictionary<string, string>(), msiOutputPath);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        using var doc = JsonDocument.Parse(File.ReadAllText(msiOutputPath + ".cdx.json"));
+        var names = doc.RootElement.GetProperty("components").EnumerateArray()
+            .Select(c => c.GetProperty("name").GetString()).ToList();
+        Assert.Contains("OpenSSL", names);
+    }
 }
