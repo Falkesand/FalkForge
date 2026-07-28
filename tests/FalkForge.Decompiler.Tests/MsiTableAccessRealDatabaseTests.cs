@@ -1,0 +1,327 @@
+using System.Runtime.Versioning;
+using FalkForge.Compiler.Msi;
+using FalkForge.Models;
+using FalkForge.Platform.Windows;
+using FalkForge.Testing;
+using Xunit;
+
+namespace FalkForge.Decompiler.Tests;
+
+/// <summary>
+/// Exercises the REAL <see cref="MsiTableAccess"/> against a real MSI database on disk.
+/// Every other test file in this project drives <see cref="MockMsiTableAccess"/> (directly,
+/// or transitively when the round-trip tests build a real MSI but read it back through
+/// <see cref="MsiDecompiler"/> — which internally opens <see cref="MsiTableAccess"/> only
+/// with already-known-safe schema table/column names). None of that ever calls
+/// <see cref="MsiTableAccess.QueryTable"/> or <see cref="MsiTableAccess.TableExists"/> with an
+/// attacker-controlled identifier, so the <c>ValidateIdentifier</c> guard — the only thing
+/// standing between a hostile MSI's table/column names and raw MSI-SQL string interpolation —
+/// has never actually run. This file drives <see cref="MsiTableAccess"/> directly, the way
+/// <c>WixBurnAccessRealBytesTests</c> drives <c>WixBurnAccess</c> directly.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class MsiTableAccessRealDatabaseTests
+{
+    private const string KnownPropertyName = "MsiTableAccessProbeProperty";
+    private const string KnownPropertyValue = "ProbeValue-42-XYZ";
+    private const string ControlCharIdentifier = "BadTable";
+
+    private static string BuildRealMsi(string tempDir)
+    {
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "MsiTableAccessProbeApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Property(KnownPropertyName, KnownPropertyValue);
+            p.Feature("Main", f =>
+            {
+                var source = Path.Combine(tempDir, "probe.txt");
+                File.WriteAllText(source, "probe file contents");
+                f.Files(fs => fs.Add(source).To(KnownFolder.ProgramFiles / "TestCorp" / "MsiTableAccessProbeApp"));
+            });
+        });
+
+        var outputDir = Path.Combine(tempDir, "output");
+        Directory.CreateDirectory(outputDir);
+
+        var compiler = new MsiCompiler(new WindowsFileSystem());
+        var compileResult = compiler.Compile(package, outputDir);
+        Assert.True(compileResult.IsSuccess,
+            $"Compile failed: {(compileResult.IsFailure ? compileResult.Error.Message : "")}");
+
+        return compileResult.Value;
+    }
+
+    // ── TableExists: present / absent ────────────────────────────────────────────
+
+    [Fact]
+    public void TableExists_KnownPresentTable_ReturnsTrue()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            var openResult = MsiTableAccess.Open(msiPath);
+            Assert.True(openResult.IsSuccess, openResult.IsFailure ? openResult.Error.Message : "");
+            using var access = openResult.Value;
+
+            var result = access.TableExists("Property");
+
+            Assert.True(result.IsSuccess);
+            Assert.True(result.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void TableExists_AbsentTable_ReturnsFalse()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            var result = access.TableExists("ThisTableDoesNotExistAtAll12345");
+
+            Assert.True(result.IsSuccess);
+            Assert.False(result.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    // ── QueryTable: known content ─────────────────────────────────────────────────
+
+    [Fact]
+    public void QueryTable_KnownProperty_ReturnsMatchingRow()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            var result = access.QueryTable("Property", ["Property", "Value"]);
+
+            Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+            var row = Assert.Single(result.Value, r => r[0] == KnownPropertyName);
+            Assert.Equal(KnownPropertyValue, row[1]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void QueryTable_EmptyButExistingTable_ReturnsEmptyList()
+    {
+        // A table can exist in the _Tables catalog with zero rows (e.g. a custom table created
+        // but never populated). TableExists must say true; QueryTable must return an empty
+        // list rather than failing.
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = Path.Combine(tempDir, "empty-table.msi");
+            var createResult = MsiDatabase.Create(msiPath);
+            Assert.True(createResult.IsSuccess, createResult.IsFailure ? createResult.Error.Message : "");
+            using (var db = createResult.Value)
+            {
+                var createTableResult = db.Execute(
+                    "CREATE TABLE `EmptyProbe` (`Id` CHAR(72) NOT NULL PRIMARY KEY `Id`)");
+                Assert.True(createTableResult.IsSuccess,
+                    createTableResult.IsFailure ? createTableResult.Error.Message : "");
+                var commitResult = db.Commit();
+                Assert.True(commitResult.IsSuccess, commitResult.IsFailure ? commitResult.Error.Message : "");
+            }
+
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            var existsResult = access.TableExists("EmptyProbe");
+            Assert.True(existsResult.IsSuccess);
+            Assert.True(existsResult.Value);
+
+            var rowsResult = access.QueryTable("EmptyProbe", ["Id"]);
+            Assert.True(rowsResult.IsSuccess, rowsResult.IsFailure ? rowsResult.Error.Message : "");
+            Assert.Empty(rowsResult.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    // ── Open: absent / malformed database ────────────────────────────────────────
+
+    [Fact]
+    public void Open_FileDoesNotExist_ReturnsFileNotFoundFailure()
+    {
+        // MsiDecompiler.Decompile pre-checks File.Exists itself before ever calling
+        // MsiTableAccess.Open, so this guard inside MsiTableAccess.Open is otherwise
+        // unreachable from every existing round-trip test.
+        var path = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.msi");
+
+        var result = MsiTableAccess.Open(path);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
+        Assert.Contains("DEC001", result.Error.Message);
+    }
+
+    [Fact]
+    public void Open_MalformedFile_ReturnsIoErrorFailure()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var path = Path.Combine(tempDir, "garbage.msi");
+            File.WriteAllBytes(path, [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+
+            var result = MsiTableAccess.Open(path);
+
+            Assert.True(result.IsFailure);
+            Assert.Equal(ErrorKind.IoError, result.Error.Kind);
+            Assert.Contains("DEC001", result.Error.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    // ── ValidateIdentifier: hostile table/column names ───────────────────────────
+    //
+    // ValidateIdentifier is the only guard between an untrusted MSI's table/column names and
+    // raw string interpolation into MSI-SQL (`SELECT {columns} FROM `{tableName}`). Every
+    // hostile character class it claims to reject must actually be driven through the real
+    // method — via QueryTable (validates tableName AND each column) and TableExists (validates
+    // tableName) — not merely asserted against a doubled contract.
+
+    public static TheoryData<string> HostileTableIdentifiers => new()
+    {
+        "Bad`Table",
+        "Bad;Table",
+        "Bad'Table",
+        "Bad\"Table",
+        ControlCharIdentifier,
+    };
+
+    [Theory]
+    [MemberData(nameof(HostileTableIdentifiers))]
+    public void QueryTable_HostileTableIdentifier_ThrowsArgumentException(string hostileTableName)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            var ex = Assert.Throws<ArgumentException>(() => access.QueryTable(hostileTableName, ["Property"]));
+            Assert.Equal("identifier", ex.ParamName);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(HostileTableIdentifiers))]
+    public void QueryTable_HostileColumnIdentifier_ThrowsArgumentException(string hostileColumnName)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            var ex = Assert.Throws<ArgumentException>(() =>
+                access.QueryTable("Property", ["Property", hostileColumnName]));
+            Assert.Equal("identifier", ex.ParamName);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(HostileTableIdentifiers))]
+    public void TableExists_HostileIdentifier_ThrowsArgumentException(string hostileTableName)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            var ex = Assert.Throws<ArgumentException>(() => access.TableExists(hostileTableName));
+            Assert.Equal("identifier", ex.ParamName);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void QueryTable_EmptyTableName_ThrowsArgumentException()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            Assert.Throws<ArgumentException>(() => access.QueryTable("", ["Property"]));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void QueryTable_WhitespaceTableName_ThrowsArgumentException()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"MsiTableAccessRT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var msiPath = BuildRealMsi(tempDir);
+            using var access = MsiTableAccess.Open(msiPath).Value;
+
+            Assert.Throws<ArgumentException>(() => access.QueryTable("   ", ["Property"]));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+}
