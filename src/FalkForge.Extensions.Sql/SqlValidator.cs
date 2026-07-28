@@ -10,9 +10,15 @@ public static class SqlValidator
 
     // Secure/public MSI properties (the only kind that can carry a value into a deferred custom action
     // and be marked secure) are all-uppercase identifiers. Enforcing this steers authors onto a property
-    // the engine's SetSecureProperty can actually populate at run time.
+    // the engine's SetSecureProperty can actually populate at run time. This is deliberately its own
+    // pattern, not FalkForge.MsiIdentifierGrammar.IsValidForWrite -- the shared grammar allows lowercase
+    // letters, which a public MSI property name must not.
+    //
+    // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single trailing
+    // '\n' even without RegexOptions.Multiline, so "DB_PASS\n" would slip through an otherwise-correct
+    // ^...$ anchor.
     private static readonly Regex PublicPropertyPattern = new(
-        "^[A-Z][A-Z0-9_]*$",
+        @"\A[A-Z][A-Z0-9_]*\z",
         RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(100));
 

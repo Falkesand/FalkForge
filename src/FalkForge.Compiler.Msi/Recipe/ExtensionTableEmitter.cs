@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using FalkForge.Diagnostics;
 using FalkForge.Extensibility;
 
@@ -43,11 +42,6 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// </summary>
 internal static class ExtensionTableEmitter
 {
-    private static readonly Regex SafeIdentifierPattern = new(
-        "^[A-Za-z_][A-Za-z0-9_]{0,30}$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(100));
-
     /// <summary>Outcome of routing contributor rows: the (possibly merged) built-in tables and any new custom tables.</summary>
     internal readonly record struct EmissionOutcome(
         ImmutableArray<RecipeTable> BuiltInTables,
@@ -422,7 +416,7 @@ internal static class ExtensionTableEmitter
     }
 
     private static bool IsValidIdentifier(string? name)
-        => !string.IsNullOrWhiteSpace(name) && SafeIdentifierPattern.IsMatch(name);
+        => name is { Length: > 0 and <= 31 } && MsiIdentifierGrammar.IsValidForWrite(name);
 
     /// <summary>
     /// Converts a contributed integer-column value without throwing: exceptions would escape the

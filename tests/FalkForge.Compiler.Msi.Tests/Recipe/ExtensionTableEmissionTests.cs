@@ -110,6 +110,31 @@ public sealed class ExtensionTableEmissionTests
     }
 
     [Fact]
+    public void CustomTableContributor_WithTrailingNewlineColumnName_FailsLoud()
+    {
+        using var scratch = new Scratch();
+
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so "Value\n" would slip through an otherwise-
+        // correct ^...$ anchor -- mirrors TableIdTests.Create_with_trailing_newline_fails, now
+        // that ExtensionTableEmitter's identifier guard delegates to MsiIdentifierGrammar.IsValidForWrite.
+        var writeColumns = new ContributedColumn[]
+        {
+            ContributedColumn.Key("Id"),
+            new() { Name = "Value" + "\n", Type = ContributedColumnType.String, Width = 255, Nullable = true },
+        };
+        var row = new MsiTableRow().Set("Id", "A").Set("Value" + "\n", "x");
+        var extension = new FakeExtension("Fake.NewlineColumn",
+            new FakeTableContributor("NewlineColumnTable", writeColumns, row));
+
+        var result = new MsiCompiler(new WindowsFileSystem()).Use(extension)
+            .Compile(MinimalPackage(scratch, "NewlineColumnApp"), scratch.OutputDir);
+
+        Assert.True(result.IsFailure, "Expected a loud build failure for an invalid contributed column name.");
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+    }
+
+    [Fact]
     public void Use_MutatesAndReturnsSameCompiler_SoDiscardedResultStillAttaches()
     {
         var extension = new FakeExtension("Fake.Same");

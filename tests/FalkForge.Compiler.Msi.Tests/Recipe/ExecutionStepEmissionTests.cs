@@ -113,6 +113,27 @@ public sealed class ExecutionStepEmissionTests
     }
 
     [Fact]
+    public void TrailingNewlineStepId_FailsTheBuildLoudly()
+    {
+        using var scratch = new Scratch();
+
+        // .NET regex `$` matches end-of-string OR immediately before a single trailing '\n',
+        // even without RegexOptions.Multiline, so "FfNl\n" would slip through an otherwise-
+        // correct ^...$ anchor -- mirrors TableIdTests.Create_with_trailing_newline_fails, now
+        // that ExecutionStepEmitter's action-id guard delegates to MsiIdentifierGrammar.IsValidForWrite.
+        var step = new ExecutionStep
+        {
+            Id = "FfNl" + "\n",
+            InstallCommand = "powershell.exe -NoProfile -Command \"exit 0\"",
+        };
+
+        var result = Compile(scratch, "ExecNewlineIdApp", new FakeExecutionExtension("Fake.NewlineId", step));
+
+        Assert.True(result.IsFailure, "a trailing-newline execution step id must fail the build");
+        Assert.Equal(ErrorKind.CompilationError, result.Error.Kind);
+    }
+
+    [Fact]
     public void InstallCondition_FlowsToTheSequenceConditionColumn()
     {
         using var scratch = new Scratch();
