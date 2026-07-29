@@ -116,15 +116,31 @@ internal static class IntegritySigner
     /// <para><b>A missing digest is fatal here, unlike in the SBOM.</b> <c>SbomHelper</c> and
     /// <see cref="GenerateSbomForAttestation"/> skip a file the cabinet never reported: under-reporting
     /// a descriptive inventory is safe. A signature is prescriptive — its declared set defines what is
-    /// covered — and <c>MsiIntegrityVerifier</c> only closes the "actual ⊆ declared" direction over
-    /// EMBEDDED cabinets (<c>ReadActualPayloadHashes</c> skips every <c>Media.Cabinet</c> without the
-    /// <c>#</c> prefix). Under an external-cabinet layout a silently dropped file is therefore neither
-    /// declared nor content-bound: it ships unverified while <c>forge verify</c> still reports
-    /// VERIFIED. So the build fails instead of narrowing the covered set behind the publisher's back.
-    /// This costs nothing in a correct build — <c>CabinetPlanner</c> routes every resolved file through
-    /// some cabinet and any FCIAddFile failure already aborts the compile, so a miss can only mean a
-    /// broken invariant. Re-reading the source to fill the gap is not an option: that re-read is the
-    /// bug.</para>
+    /// covered — so dropping a file silently narrows that set behind the publisher's back. That
+    /// weakening is the reason for the hard fail, and it stands on its own: the envelope would claim
+    /// less than the publisher asked it to claim, with nothing in the artifact saying so. The build
+    /// therefore fails rather than signing a set it was not asked to sign.</para>
+    ///
+    /// <para><b>How far the weakening actually reaches.</b> Do not overstate this.
+    /// <c>MsiIntegrityVerifier.FindContentMismatches</c> is BIDIRECTIONAL — it flags both a declared
+    /// file missing from the actual payload and an actual payload file missing from the declaration —
+    /// so under the default embedded-cabinet layout a dropped file is caught immediately: it is still
+    /// in the re-extracted payload, and the "present in the MSI's embedded payload but not signed"
+    /// direction reports FAILED. The gap is confined to an external-cabinet layout
+    /// (<c>MediaTemplate(m =&gt; m.EmbedCabinet(false))</c>, a whole-package setting), where
+    /// <c>ReadActualPayloadHashes</c> re-extracts nothing at all because it skips every
+    /// <c>Media.Cabinet</c> without the <c>#</c> prefix. Even then a PARTIAL drop does not pass: the
+    /// actual set is empty, so every entry still declared is reported "not found in the MSI's embedded
+    /// payload" and the verdict is FAILED (spuriously, but not silently). Only when the dropped file
+    /// was the ONLY declared payload file does the declaration end up EMPTY — and an empty declaration
+    /// trivially matches an empty actual set, so <c>forge verify</c> reports VERIFIED over a file
+    /// nothing checked. That single case is the whole of the trust gap; the general justification for
+    /// failing loud is the unannounced narrowing above, not this corner.</para>
+    ///
+    /// <para>This costs nothing in a correct build — <c>CabinetPlanner</c> routes every resolved file
+    /// through some cabinet and any FCIAddFile failure already aborts the compile, so a miss can only
+    /// mean a broken invariant. Re-reading the source to fill the gap is not an option: that re-read is
+    /// the bug.</para>
     /// </summary>
     private static Result<List<PayloadHashEntry>> BuildPayloadHashEntries(
         IReadOnlyList<ResolvedFile> files,

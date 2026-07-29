@@ -29,14 +29,22 @@ namespace FalkForge.Compiler.Msi.Tests.Signing;
 ///
 /// <para><b>Why a missing packaging digest is fatal here, unlike in the SBOM.</b> The SBOM and the
 /// attestation skip a file the cabinet never reported — under-reporting a descriptive inventory is
-/// safe. A signature is not descriptive but prescriptive: its declared set defines what is covered.
-/// <c>MsiIntegrityVerifier.FindContentMismatches</c> does close the "actual ⊆ declared" direction,
-/// but only over <i>embedded</i> cabinets — <c>ReadActualPayloadHashes</c> skips any
-/// <c>Media.Cabinet</c> without the <c>#</c> prefix. Under an external-cabinet layout
-/// (<c>MediaTemplate</c> with <c>EmbedCabinet = false</c>), a file silently dropped from the signed
-/// set is therefore neither declared nor content-bound: it ships inside the package completely
-/// unverified while <c>forge verify</c> still reports VERIFIED. Narrowing a signature's covered set
-/// without saying so is a real weakening, so the build fails loud instead.</para>
+/// safe. A signature is not descriptive but prescriptive: its declared set defines what is covered,
+/// so dropping a file narrows that set with nothing in the artifact disclosing it. That unannounced
+/// narrowing is the reason for the hard fail, on its own.</para>
+///
+/// <para><b>Stated precisely, because the reachability is easy to overstate.</b>
+/// <c>MsiIntegrityVerifier.FindContentMismatches</c> is BIDIRECTIONAL — a declared file absent from
+/// the actual payload and an actual payload file absent from the declaration are both mismatches —
+/// so under the default embedded-cabinet layout a dropped file is caught at once ("present in the
+/// MSI's embedded payload but not signed"). Only <c>ReadActualPayloadHashes</c> is one-sided: it
+/// skips any <c>Media.Cabinet</c> without the <c>#</c> prefix, so under an external-cabinet layout
+/// (<c>MediaTemplate</c> with <c>EmbedCabinet = false</c>, a whole-package setting) the actual set
+/// is empty. Even there a PARTIAL drop still fails, because every remaining declared entry is then
+/// reported "not found in the MSI's embedded payload". The one case that reports VERIFIED over an
+/// unchecked file is the narrow one where the dropped file was the ONLY declared payload file, which
+/// leaves an empty declaration matching an empty actual set. That corner is real but small; the
+/// build fails loud because of the narrowing, not because of the corner.</para>
 ///
 /// <para><b>How these tests reach the code.</b> They call <c>IntegritySigner.SignAndEmbed</c>
 /// directly — the same internal entry point <c>MsiAuthoring</c> step 8.5 calls, with the same
@@ -148,12 +156,15 @@ public sealed class IntegritySignaturePayloadHashToctouTests : IDisposable
     public void SignAndEmbed_FileMissingFromPackagedHashes_FailsRatherThanSigningANarrowerSet()
     {
         // Deliberately the OPPOSITE of the SBOM/attestation miss-path rule. Silently omitting a
-        // payload file from the signed declaration narrows what the signature covers, and under an
-        // external-cabinet layout MsiIntegrityVerifier never content-binds that file in either
-        // direction — it would ship unsigned inside a package that still verifies. Re-reading the
-        // source to fill the gap is the very bug this branch removes. That leaves failing the build:
-        // in a real compile every resolved file passes through CabinetPlanner and any FCIAddFile
-        // failure already aborts, so a missing digest can only mean a broken invariant.
+        // payload file from the signed declaration narrows what the signature covers, and nothing in
+        // the emitted artifact discloses that it was narrowed — that is the weakening this fail-loud
+        // exists to prevent. (Under the default embedded-cabinet layout the verifier's second,
+        // actual-to-declared direction would still catch the dropped file; the narrow case where a
+        // drop survives as VERIFIED is an external-cabinet layout in which the dropped file was the
+        // only declared payload file. See the class doc — the rule does not depend on that corner.)
+        // Re-reading the source to fill the gap is the very bug this branch removes. That leaves
+        // failing the build: in a real compile every resolved file passes through CabinetPlanner and
+        // any FCIAddFile failure already aborts, so a missing digest can only mean a broken invariant.
         var packagedBytes = "packaged content"u8.ToArray();
         var packagedSource = Path.Combine(_tempDir, "packaged.bin");
         File.WriteAllBytes(packagedSource, packagedBytes);

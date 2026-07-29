@@ -9389,9 +9389,13 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
     file's SHA-256 recomputed, and the result is checked both ways against the signed declaration: every
     declared file must be present with a matching hash (catches missing/altered files), <em>and</em> every
     actual embedded file must be declared (catches an undeclared file added after signing, which a
-    one-directional check would silently pass as VERIFIED). Only externally-referenced (disk-resident)
-    cabinets are not content-bound by this last check &mdash; the same limitation <code>forge extract</code>
-    already has.
+    one-directional check would silently pass as VERIFIED). Externally-referenced (disk-resident) cabinets are
+    not re-extracted at all &mdash; the same limitation <code>forge extract</code> already has. That is not a
+    quiet pass: because those files never enter the recomputed set, the first direction reports each of them as
+    <em>&ldquo;not found in the MSI's embedded payload&rdquo;</em> and the verdict is <code>FAILED</code>. So an
+    <code>Integrity()</code> package built with <code>MediaTemplate(m =&gt; m.EmbedCabinet(false))</code> cannot
+    pass <code>forge verify</code> today, and that failure looks identical to real tamper. External-cabinet
+    content binding is unimplemented, not tolerated.
 </p>
 
 <p>
@@ -13349,6 +13353,27 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     manifest signature for either artifact type. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
     has no Sigil dependency either: it always writes a CycloneDX/SPDX sidecar next to the compiled artifact.
 </p>
+
+<div class="warning">
+    <strong>An MSI <code>Integrity()</code> build now fails if any payload file has no packaging-time
+    digest.</strong> The <code>(name, sha256)</code> pairs the MSI signature commits to come from the digests
+    <code>CabinetBuilder</code> captured while the native cabinet compressor read each file's bytes &mdash; not
+    from re-opening the source path at signing time. If a resolved file is missing from that map,
+    <code>IntegritySigner</code> aborts the compile with an <code>IntegrityError</code> naming the file and its
+    <code>File</code>-table id, instead of signing the remaining files. Previously such a file was silently
+    dropped and an MSI was still produced.
+    <br><br>
+    Why fail rather than sign the rest: a signature's declared set <em>is</em> the statement of what is covered,
+    and nothing in the emitted artifact would disclose that the set had been narrowed. Filling the gap by
+    re-reading the source file is not an option either &mdash; that re-read is exactly the time-of-check /
+    time-of-use hole this behaviour closes.
+    <br><br>
+    A correct build cannot hit this: every resolved file is routed through a cabinet, and a failure to add one
+    already aborts the compile. If you do see it, treat it as a FalkForge bug and report it rather than working
+    around it &mdash; there is no opt-out switch, by design. (<code>--no-sign</code> /
+    <code>FALKFORGE_NO_SIGN</code> skips integrity signing entirely, which is a different thing: it produces an
+    unsigned MSI rather than an incompletely signed one.)
+</div>
 
 <p>
     <strong>What Sigil adds, when it's on PATH.</strong> FalkForge probes <code>sigil --version</code> once per

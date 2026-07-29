@@ -48,8 +48,15 @@ namespace FalkForge.Cli;
 /// <para><b>Known limitations.</b> Only embedded cabinets (<c>Media.Cabinet</c> prefixed
 /// <c>#</c>) are re-extracted for the content-binding check — the same limitation
 /// <c>FalkForge.Cli.MsiExtractor</c> (<c>forge extract</c>) already has. A payload shipped via an
-/// external, disk-resident cabinet is not content-bound by this check (its declared hash is
-/// neither confirmed nor contradicted). The envelope covers embedded PAYLOAD FILES only — it says
+/// external, disk-resident cabinet is not read at all, so it contributes nothing to the ACTUAL set.
+/// That does not leave its declared hash politely unexamined: the first direction of
+/// <see cref="FindContentMismatches"/> still demands every declared file be present in that set, so
+/// each such file is reported as "not found in the MSI's embedded payload" and the whole verdict is
+/// FAILED. An <c>Integrity()</c> package built with <c>MediaTemplate(m =&gt; m.EmbedCabinet(false))</c>
+/// therefore cannot pass <c>forge verify</c> today — the failure is spurious (the payload may be
+/// perfectly intact beside the MSI) and this verifier has no way to tell that apart from real tamper.
+/// External-cabinet content binding is unimplemented, not merely unchecked. The envelope covers
+/// embedded PAYLOAD FILES only — it says
 /// nothing about the content of other MSI database tables (e.g. <c>Registry</c>,
 /// <c>CustomAction</c>, <c>Property</c> rows), so an attacker who edits those directly (without
 /// adding or altering a payload file) is not detected by this verifier. The signature also covers
