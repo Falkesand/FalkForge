@@ -496,7 +496,6 @@ public sealed class DialogSetProducerTests
         => new(
             MakeResolvedPackage(dialogSet),
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
     private static ResolvedPackage MakeResolvedPackage(MsiDialogSet dialogSet)

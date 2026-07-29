@@ -8,9 +8,6 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// </summary>
 public sealed record MsiRecipeBuildOptions
 {
-    /// <summary>How files are ordered for cabinet packing and File.Sequence assignment.</summary>
-    public FileSequencingStrategy Sequencing { get; init; } = FileSequencingStrategy.FileIdOrdinal;
-
     /// <summary>
     /// When <c>true</c>, the builder hashes each registered stream payload at
     /// recipe-build time so reproducibility hashing has SHA-256 already

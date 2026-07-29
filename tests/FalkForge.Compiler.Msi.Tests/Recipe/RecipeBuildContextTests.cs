@@ -11,18 +11,16 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe;
 public sealed class RecipeBuildContextTests
 {
     [Fact]
-    public void Constructor_assigns_all_five_dependencies()
+    public void Constructor_assigns_all_dependencies()
     {
         ResolvedPackage resolved = MakeResolvedPackage();
         MsiRecipeBuildOptions options = new();
-        NoOpFileSequencer sequencer = new();
         DictionaryStreamRegistry registry = new();
 
-        RecipeBuildContext context = new(resolved, options, sequencer, registry);
+        RecipeBuildContext context = new(resolved, options, registry);
 
         Assert.Same(resolved, context.Resolved);
         Assert.Same(options, context.Options);
-        Assert.Same(sequencer, context.FileSequencer);
         Assert.Same(registry, context.Streams);
     }
 
@@ -78,28 +76,21 @@ public sealed class RecipeBuildContextTests
     public void Constructor_throws_on_null_resolved()
     {
         Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            null!, new MsiRecipeBuildOptions(), new NoOpFileSequencer(), new DictionaryStreamRegistry()));
+            null!, new MsiRecipeBuildOptions(), new DictionaryStreamRegistry()));
     }
 
     [Fact]
     public void Constructor_throws_on_null_options()
     {
         Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            MakeResolvedPackage(), null!, new NoOpFileSequencer(), new DictionaryStreamRegistry()));
-    }
-
-    [Fact]
-    public void Constructor_throws_on_null_sequencer()
-    {
-        Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            MakeResolvedPackage(), new MsiRecipeBuildOptions(), null!, new DictionaryStreamRegistry()));
+            MakeResolvedPackage(), null!, new DictionaryStreamRegistry()));
     }
 
     [Fact]
     public void Constructor_throws_on_null_streams()
     {
         Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            MakeResolvedPackage(), new MsiRecipeBuildOptions(), new NoOpFileSequencer(), null!));
+            MakeResolvedPackage(), new MsiRecipeBuildOptions(), null!));
     }
 
     [Fact]
@@ -188,7 +179,6 @@ public sealed class RecipeBuildContextTests
         return new RecipeBuildContext(
             MakeResolvedPackage(installDir),
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
     }
 

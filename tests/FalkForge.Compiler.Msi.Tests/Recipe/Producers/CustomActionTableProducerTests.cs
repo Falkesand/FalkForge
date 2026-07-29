@@ -155,7 +155,6 @@ public sealed class CustomActionTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         CustomActionTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

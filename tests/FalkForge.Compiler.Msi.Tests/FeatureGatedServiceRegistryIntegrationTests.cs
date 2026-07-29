@@ -202,7 +202,6 @@ public sealed class FeatureGatedServiceRegistryIntegrationTests
         var context = new RecipeBuildContext(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
         var result = new RegistryTableProducer().Produce(context);

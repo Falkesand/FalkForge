@@ -82,7 +82,6 @@ public sealed class FeatureTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         FeatureTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

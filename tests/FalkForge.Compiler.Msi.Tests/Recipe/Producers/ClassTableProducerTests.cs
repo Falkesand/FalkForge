@@ -607,7 +607,6 @@ public sealed class ClassTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         ClassTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

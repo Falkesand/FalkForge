@@ -103,7 +103,6 @@ public static partial class MsiRecipeBuilder
         RecipeBuildContext context = new(
             resolved,
             options,
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
         // Level-guarded: with 36 producers running on every compile, skip the interpolated
@@ -200,7 +199,6 @@ public static partial class MsiRecipeBuilder
             Tables = finalTables,
             SummaryInfo = summaryInfo,
             Streams = streams,
-            FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
             CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = ReadOnlyMemory<byte>.Empty,
         };

@@ -215,7 +215,6 @@ public sealed class RemoveRegistryTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         RemoveRegistryTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

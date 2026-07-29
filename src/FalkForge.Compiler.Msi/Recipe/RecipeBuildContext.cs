@@ -45,28 +45,22 @@ internal sealed class RecipeBuildContext
     public RecipeBuildContext(
         ResolvedPackage resolved,
         MsiRecipeBuildOptions options,
-        IFileSequencer fileSequencer,
         IStreamRegistry streams)
     {
         ArgumentNullException.ThrowIfNull(resolved);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(fileSequencer);
         ArgumentNullException.ThrowIfNull(streams);
 
         Resolved = resolved;
         Options = options;
-        FileSequencer = fileSequencer;
         Streams = streams;
     }
 
     /// <summary>The resolved package input to the recipe build.</summary>
     public ResolvedPackage Resolved { get; }
 
-    /// <summary>Build options controlling sequencing, hashing, and memory thresholds.</summary>
+    /// <summary>Build options controlling hashing and memory thresholds.</summary>
     public MsiRecipeBuildOptions Options { get; }
-
-    /// <summary>Strategy used to compute file sequence numbers.</summary>
-    public IFileSequencer FileSequencer { get; }
 
     /// <summary>Stream payload registry shared across all producers.</summary>
     public IStreamRegistry Streams { get; }

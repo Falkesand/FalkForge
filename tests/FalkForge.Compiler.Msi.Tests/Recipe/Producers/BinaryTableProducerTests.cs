@@ -394,7 +394,6 @@ public sealed class BinaryTableProducerTests : IDisposable
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             registry);
         BinaryTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

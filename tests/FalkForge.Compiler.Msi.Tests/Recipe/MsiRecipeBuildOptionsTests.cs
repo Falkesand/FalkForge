@@ -10,17 +10,8 @@ public sealed class MsiRecipeBuildOptionsTests
     {
         MsiRecipeBuildOptions options = new();
 
-        Assert.Equal(FileSequencingStrategy.FileIdOrdinal, options.Sequencing);
         Assert.True(options.EagerStreamHashing);
         Assert.Equal(256 * 1024, options.MaxInMemoryStreamBytes);
-    }
-
-    [Fact]
-    public void With_expression_overrides_sequencing()
-    {
-        MsiRecipeBuildOptions options = new() { Sequencing = FileSequencingStrategy.ComponentThenFileId };
-
-        Assert.Equal(FileSequencingStrategy.ComponentThenFileId, options.Sequencing);
     }
 
     [Fact]
