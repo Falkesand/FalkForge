@@ -86,7 +86,11 @@ public static partial class MsiAuthoring
                     "the sidecar, not the embedded table.");
             }
 
-            Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(msiPath, package, resolved.Files);
+            // packagedFileHashes (captured by CabinetBuilder as FCI actually consumed each file's
+            // bytes) is threaded in so the SBOM attestation vouches for the packaged bytes, exactly
+            // like the step 10 sidecar below — see IntegritySigner.GenerateSbomForAttestation.
+            Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(
+                msiPath, package, resolved.Files, packagedFileHashes);
             if (integrityResult.IsFailure)
             {
                 logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 8.5: integrity signing failed: {integrityResult.Error.Message}",
