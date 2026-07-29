@@ -25,6 +25,7 @@ internal readonly record struct MsiControlEvent
     internal static readonly MsiControlEvent DirectoryListUp = new("DirectoryListUp");
     internal static readonly MsiControlEvent DirectoryListNew = new("DirectoryListNew");
     internal static readonly MsiControlEvent DirectoryListOpen = new("DirectoryListOpen");
+    internal static readonly MsiControlEvent RMShutdownAndRestart = new("RMShutdownAndRestart");
 
     /// <summary>
     /// Creates a property-setting event that writes a value to an MSI property.

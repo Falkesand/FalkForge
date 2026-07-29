@@ -54,6 +54,15 @@ public sealed record DialogContent
     public string? TitleLocKey { get; init; }
 
     /// <summary>
+    /// Raw <c>MsiDialogAttributes</c> bitmask override for this dialog; <see langword="null"/>
+    /// keeps the composer's standard default (Visible|Modal|Minimize|TrackDiskSpace). Needed by
+    /// dialogs the installer creates outside the wizard flow (e.g. MsiRMFilesInUse), which must
+    /// add <c>KeepModeless</c> so InstallValidate can pop them without tearing down the
+    /// in-progress wizard dialog underneath.
+    /// </summary>
+    public int? AttributesOverride { get; init; }
+
+    /// <summary>
     /// Declarative ControlEvent rows fired from this dialog. The composer translates
     /// each entry to an internal <c>MsiControlEventModel</c> on the produced
     /// <see cref="MsiDialogModel"/>. Empty by default.

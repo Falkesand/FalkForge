@@ -12,4 +12,5 @@ internal static class DialogNames
     public const string Exit = "ExitDlg";
     public const string Cancel = "CancelDlg";
     public const string Browse = "BrowseDlg";
+    public const string RestartManagerFilesInUse = "MsiRMFilesInUse";
 }

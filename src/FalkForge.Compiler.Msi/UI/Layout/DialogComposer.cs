@@ -84,6 +84,8 @@ internal static class DialogComposer
             FirstControl = resolvedFirst ?? string.Empty,
             DefaultControl = content.DefaultControl,
             CancelControl = content.CancelControl,
+            Attributes = (MsiDialogAttributes?)content.AttributesOverride
+                ?? MsiDialogAttributes.Visible | MsiDialogAttributes.Modal | MsiDialogAttributes.Minimize | MsiDialogAttributes.TrackDiskSpace,
         };
 
         if (content.Placements.IsDefaultOrEmpty)
