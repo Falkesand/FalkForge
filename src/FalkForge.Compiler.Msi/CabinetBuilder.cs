@@ -18,6 +18,7 @@ public sealed partial class CabinetBuilder : IDisposable
 
     private readonly DateTime? _normalizedTimestamp;
     private readonly IFalkLogger? _logger;
+    private readonly bool _captureSha1;
 
     // File handle tracking: maps pseudo-handles to FileStream instances.
     // FCI callbacks use these to perform file I/O through managed streams.
@@ -74,10 +75,28 @@ public sealed partial class CabinetBuilder : IDisposable
     /// Optional structured logger. Defaults to <see langword="null"/> (no-op) so every
     /// existing caller compiles and behaves unchanged.
     /// </param>
-    public CabinetBuilder(DateTime? normalizedTimestamp = null, IFalkLogger? logger = null)
+    /// <param name="captureSha1">
+    /// Whether to accumulate <see cref="PackagedFileSha1Hashes"/> alongside the SHA-256 map.
+    /// <see langword="true"/> by default so an existing caller — and any future one that does not
+    /// think about it — gets the digest rather than silently losing it.
+    ///
+    /// <para>SHA-1 exists here solely to satisfy SPDX 2.3 §8.4, and SPDX output is opt-in
+    /// (<c>Integrity()</c> defaults to CycloneDX, which ignores the field). Hashing every packaged
+    /// byte a second time on every compile for a format almost no compile requests is waste
+    /// <c>MsiAuthoring.BuildCabinetsAndEmbed</c> declines by passing <see langword="false"/> unless
+    /// the package actually asked for SPDX. The saving is ~1% under LZX-High and materially more
+    /// under <c>CompressionLevel.None</c>, where there is no compressor in the denominator.</para>
+    ///
+    /// <para>This flag carries no knowledge of SBOMs into the FCI callbacks: it is a plain
+    /// "accumulate the second digest or don't", and the SHA-256 accumulation the ECDSA payload
+    /// manifest signs is identical either way.</para>
+    /// </param>
+    public CabinetBuilder(
+        DateTime? normalizedTimestamp = null, IFalkLogger? logger = null, bool captureSha1 = true)
     {
         _normalizedTimestamp = normalizedTimestamp;
         _logger = logger;
+        _captureSha1 = captureSha1;
     }
 
     /// <summary>
@@ -86,13 +105,17 @@ public sealed partial class CabinetBuilder : IDisposable
     /// A struct, not a tuple, so the two <see cref="IncrementalHash"/> instances are named at every
     /// use site — mixing them up would silently file a SHA-1 as a SHA-256, which the ECDSA payload
     /// manifest signs.
+    ///
+    /// <para><see cref="Sha1"/> is nullable because it is only accumulated when SPDX output was
+    /// requested (see the <c>captureSha1</c> constructor parameter). <see cref="Sha256"/> is not:
+    /// it is the digest the signature commits to and is unconditional on every path.</para>
     /// </summary>
-    private readonly record struct PendingDigests(string FileId, IncrementalHash Sha256, IncrementalHash Sha1)
+    private readonly record struct PendingDigests(string FileId, IncrementalHash Sha256, IncrementalHash? Sha1)
     {
         internal void Append(byte[] buffer, int offset, int count)
         {
             Sha256.AppendData(buffer, offset, count);
-            Sha1.AppendData(buffer, offset, count);
+            Sha1?.AppendData(buffer, offset, count);
         }
 
         // Not named Dispose: PendingDigests is a value type that deliberately does not implement
@@ -101,7 +124,7 @@ public sealed partial class CabinetBuilder : IDisposable
         internal void DisposeHashes()
         {
             Sha256.Dispose();
-            Sha1.Dispose();
+            Sha1?.Dispose();
         }
     }
 

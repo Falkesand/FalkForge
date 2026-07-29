@@ -116,7 +116,8 @@ public sealed partial class CabinetBuilder
             if (_pendingSourceHashes.Remove(hf, out var tracked))
             {
                 _packagedFileHashes[tracked.FileId] = Convert.ToHexString(tracked.Sha256.GetHashAndReset());
-                _packagedFileSha1Hashes[tracked.FileId] = Convert.ToHexString(tracked.Sha1.GetHashAndReset());
+                if (tracked.Sha1 is { } sha1)
+                    _packagedFileSha1Hashes[tracked.FileId] = Convert.ToHexString(sha1.GetHashAndReset());
                 tracked.DisposeHashes();
             }
 
@@ -251,14 +252,14 @@ public sealed partial class CabinetBuilder
             // immediately before this FCIAddFile call) — not pszName — is the tracking key,
             // since SourcePath is not guaranteed unique across File entries.
             //
-            // Both digests start unconditionally. Making SHA-1 conditional on SPDX being requested
-            // would mean threading the SBOM format down into an FCI callback that has no business
-            // knowing about SBOMs, to save a hash whose cost is a rounding error next to the LZX
-            // compression happening over the very same bytes.
+            // The SHA-256 starts unconditionally — it is what the ECDSA payload manifest signs. The
+            // SHA-1 starts only when the compile asked for SPDX output (see the captureSha1
+            // constructor parameter); this callback still knows nothing about SBOMs, it is handed a
+            // plain bool.
             _pendingSourceHashes[handle] = new PendingDigests(
                 _currentFileId,
                 IncrementalHash.CreateHash(HashAlgorithmName.SHA256),
-                CreateSpdxFileChecksumHash());
+                _captureSha1 ? CreateSpdxFileChecksumHash() : null);
 
             return handle;
         }

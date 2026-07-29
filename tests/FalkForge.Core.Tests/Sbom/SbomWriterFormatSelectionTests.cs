@@ -102,36 +102,70 @@ public sealed class SbomWriterFormatSelectionTests : IDisposable
         Assert.Equal("CycloneDX", doc.RootElement.GetProperty("bomFormat").GetString());
     }
 
+    /// <summary>
+    /// Identical to <see cref="MakeDocument"/> except the single file component carries no SHA-1 —
+    /// the one input that separates a format which mandates a per-file SHA-1 checksum from one that
+    /// does not.
+    /// </summary>
+    private static SbomDocument DocumentWithFileMissingSha1() => new()
+    {
+        SerialNumber = "urn:uuid:11111111-2222-3333-4444-555555555555",
+        Metadata = new SbomMetadata
+        {
+            Name = "TestApp",
+            Version = "1.2.3",
+            Manufacturer = "Contoso",
+            Timestamp = DateTimeOffset.UnixEpoch,
+        },
+        Components =
+        [
+            new SbomComponent
+            {
+                Name = "app.exe",
+                Version = "1.2.3",
+                Type = SbomComponentType.File,
+                Sha256Hash = Sha256,
+            },
+        ],
+        Dependencies = [],
+    };
+
     [Fact]
     public void WriteToString_SpdxWithAFileMissingItsSha1_SurfacesTheFailureRatherThanEmittingBadSpdx()
     {
-        var document = new SbomDocument
-        {
-            SerialNumber = "urn:uuid:11111111-2222-3333-4444-555555555555",
-            Metadata = new SbomMetadata
-            {
-                Name = "TestApp",
-                Version = "1.2.3",
-                Manufacturer = "Contoso",
-                Timestamp = DateTimeOffset.UnixEpoch,
-            },
-            Components =
-            [
-                new SbomComponent
-                {
-                    Name = "app.exe",
-                    Version = "1.2.3",
-                    Type = SbomComponentType.File,
-                    Sha256Hash = Sha256,
-                },
-            ],
-            Dependencies = [],
-        };
-
-        var result = SbomWriter.WriteToString(document, SbomFormat.Spdx);
+        var result = SbomWriter.WriteToString(DocumentWithFileMissingSha1(), SbomFormat.Spdx);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void RequiresPerFileSha1_MatchesWhatEachFormatsGeneratorActuallyEnforces()
+    {
+        // This predicate is what packaging consults to decide whether to accumulate a second digest
+        // over every packaged byte (MsiAuthoring.ShouldCaptureSpdxFileChecksums). Getting it wrong in
+        // the "false when the format needs it" direction is not a performance bug: SPDX generation
+        // then fails on a missing SHA-1, the MSI compiler swallows that failure by design (SBOM
+        // attestation is never fatal), and the whole SbomAttestation row disappears from the shipped
+        // package with only a warning. So the predicate is not allowed to be an independent opinion
+        // about the formats — it is asserted here against what each generator does when handed a file
+        // component with no SHA-1.
+        //
+        // Enumerated rather than [Theory]-listed on purpose: a third SbomFormat added later is
+        // covered the moment it exists, which is exactly when the packaging decision would otherwise
+        // silently keep answering for two formats only.
+        foreach (var format in Enum.GetValues<SbomFormat>())
+        {
+            var withSha1 = SbomWriter.WriteToString(MakeDocument(), format);
+            Assert.True(withSha1.IsSuccess,
+                $"Setup invariant: {format} must generate cleanly when the SHA-1 IS present, " +
+                $"otherwise the assertion below cannot attribute a failure to the missing digest. " +
+                (withSha1.IsFailure ? withSha1.Error.Message : ""));
+
+            var withoutSha1 = SbomWriter.WriteToString(DocumentWithFileMissingSha1(), format);
+
+            Assert.Equal(SbomWriter.RequiresPerFileSha1(format), withoutSha1.IsFailure);
+        }
     }
 
     [Fact]

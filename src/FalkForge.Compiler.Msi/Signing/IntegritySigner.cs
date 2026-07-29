@@ -42,8 +42,11 @@ internal static class IntegritySigner
     /// decision reads it. A file absent here is not fatal — unlike a missing SHA-256, which is.
     /// </param>
     /// <param name="logger">
-    /// Optional. Used only to surface an SBOM attestation that could not be produced; the signature
-    /// path never logs through it and never depends on it.
+    /// Nullable but <b>not</b> optional — every caller states what it is passing. It is the only way
+    /// an SBOM attestation that could not be produced becomes visible (the failure is swallowed by
+    /// design so it cannot block the signature), so a call site that silently inherited a default of
+    /// <see langword="null"/> would turn that warning off without anyone writing it down. The
+    /// signature path never logs through it and never depends on it.
     /// </param>
     internal static Result<Unit> SignAndEmbed(
         string msiPath,
@@ -51,7 +54,7 @@ internal static class IntegritySigner
         IReadOnlyList<ResolvedFile> resolvedFiles,
         IReadOnlyDictionary<string, string> packagedFileHashes,
         IReadOnlyDictionary<string, string> packagedFileSha1Hashes,
-        IFalkLogger? logger = null)
+        IFalkLogger? logger)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"FalkIntegrity_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
@@ -185,6 +188,25 @@ internal static class IntegritySigner
     private readonly record struct SbomAttestationResult(string AttestJson, string SbomFormatString);
 
     /// <summary>
+    /// The <see cref="SbomFormat"/> this package's SBOM attestation will be generated, labelled and
+    /// attested under. One expression, consulted by everything that has to agree with it.
+    ///
+    /// <para>The null-config fallback must match <see cref="IntegrityConfiguration.SbomFormat"/>'s own
+    /// initializer: "nothing was configured" has to mean the same document as an explicitly-defaulted
+    /// config, not a different one.</para>
+    ///
+    /// <para><b>Why it is internal rather than inlined.</b> Packaging decides several steps earlier
+    /// whether to capture the per-file SHA-1 that SPDX mandates (see
+    /// <c>MsiAuthoring.ShouldCaptureSpdxFileChecksums</c>), and it has to reach the same answer this
+    /// method does. Two copies of "read the configured format, defaulting to CycloneDX" that disagree
+    /// would mean SPDX is generated from a map that was never filled: generation fails on the missing
+    /// SHA-1, the failure is swallowed here by design, and the whole <c>SbomAttestation</c> row
+    /// vanishes from the shipped MSI with only a warning to say so.</para>
+    /// </summary>
+    internal static SbomFormat ResolveAttestationSbomFormat(PackageModel package)
+        => package.Integrity?.SbomFormat ?? SbomFormat.CycloneDx;
+
+    /// <summary>
     /// Produces a Sigil DSSE SBOM attestation when the sigil CLI is available. Returns null (and embeds
     /// nothing beyond the signature) when sigil is absent or any step fails — SBOM is supplementary
     /// provenance and must never block the build or the ECDSA signature already computed above.
@@ -207,11 +229,9 @@ internal static class IntegritySigner
             // ONE value drives both the document that gets written and the label stamped on it.
             // Reading the configured format twice — once for the generator, once for the tag — is
             // how the two came apart in the first place: the writer ignored the enum entirely and
-            // always emitted CycloneDX while the tag dutifully said "spdx".
-            // The no-config fallback must match IntegrityConfiguration.SbomFormat's own default:
-            // a null config is "nothing was configured", which has to mean the same document as an
-            // explicitly-defaulted config, not a different one.
-            var sbomFormat = config?.SbomFormat ?? SbomFormat.CycloneDx;
+            // always emitted CycloneDX while the tag dutifully said "spdx". ResolveAttestationSbomFormat
+            // is that one value, and packaging derives its SHA-1 capture decision from it too.
+            var sbomFormat = ResolveAttestationSbomFormat(package);
             var sbomPath = Path.Combine(tempDir, "sbom.json");
             var sbomResult = GenerateSbomForAttestation(
                 package, resolvedFiles, packagedFileHashes, packagedFileSha1Hashes, sbomPath, sbomFormat);
