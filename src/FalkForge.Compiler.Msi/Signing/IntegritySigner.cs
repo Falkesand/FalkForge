@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Tables;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Models;
 using FalkForge.Sbom;
@@ -31,11 +32,26 @@ namespace FalkForge.Compiler.Msi.Signing;
 [SupportedOSPlatform("windows")]
 internal static class IntegritySigner
 {
+    /// <param name="packagedFileHashes">
+    /// Packaging-time SHA-256 per <see cref="ResolvedFile.FileId"/>. This is what the ECDSA envelope
+    /// signs and what <c>MsiIntegrityVerifier</c> recomputes.
+    /// </param>
+    /// <param name="packagedFileSha1Hashes">
+    /// Packaging-time SHA-1 per <see cref="ResolvedFile.FileId"/>, captured from the same FCI byte
+    /// stream. Feeds the SPDX per-file checksum only (SPDX 2.3 §8.4 makes it mandatory); no trust
+    /// decision reads it. A file absent here is not fatal — unlike a missing SHA-256, which is.
+    /// </param>
+    /// <param name="logger">
+    /// Optional. Used only to surface an SBOM attestation that could not be produced; the signature
+    /// path never logs through it and never depends on it.
+    /// </param>
     internal static Result<Unit> SignAndEmbed(
         string msiPath,
         PackageModel package,
         IReadOnlyList<ResolvedFile> resolvedFiles,
-        IReadOnlyDictionary<string, string> packagedFileHashes)
+        IReadOnlyDictionary<string, string> packagedFileHashes,
+        IReadOnlyDictionary<string, string> packagedFileSha1Hashes,
+        IFalkLogger? logger = null)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"FalkIntegrity_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
@@ -59,7 +75,7 @@ internal static class IntegritySigner
 
             // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
             var attestation = TryGenerateSbomAttestation(
-                msiPath, package, resolvedFiles, packagedFileHashes, config, tempDir);
+                msiPath, package, resolvedFiles, packagedFileHashes, packagedFileSha1Hashes, config, tempDir, logger);
 
             // Step 3: Re-open MSI and embed integrity data — SKIPPED in reproducible mode (see class doc).
             // The nondeterministic signature (and any SBOM attestation row alongside it) never touches the
@@ -178,19 +194,37 @@ internal static class IntegritySigner
         PackageModel package,
         IReadOnlyList<ResolvedFile> resolvedFiles,
         IReadOnlyDictionary<string, string> packagedFileHashes,
+        IReadOnlyDictionary<string, string> packagedFileSha1Hashes,
         IntegrityConfiguration? config,
-        string tempDir)
+        string tempDir,
+        IFalkLogger? logger)
     {
         if (!FalkForge.Signing.SigilDetector.IsAvailable())
             return null;
 
         try
         {
+            // ONE value drives both the document that gets written and the label stamped on it.
+            // Reading the configured format twice — once for the generator, once for the tag — is
+            // how the two came apart in the first place: the writer ignored the enum entirely and
+            // always emitted CycloneDX while the tag dutifully said "spdx".
             var sbomFormat = config?.SbomFormat ?? SbomFormat.Spdx;
             var sbomPath = Path.Combine(tempDir, "sbom.json");
-            var sbomResult = GenerateSbomForAttestation(package, resolvedFiles, packagedFileHashes, sbomPath);
+            var sbomResult = GenerateSbomForAttestation(
+                package, resolvedFiles, packagedFileHashes, packagedFileSha1Hashes, sbomPath, sbomFormat);
             if (sbomResult.IsFailure)
+            {
+                // Still never fatal — the ECDSA signature is already computed and must not be blocked
+                // by supplementary provenance. But it is no longer silent: SPDX generation can now
+                // legitimately refuse (e.g. an SbomOptions file component with no SHA-1, which SPDX
+                // 2.3 §8.4 requires), and a publisher who asked for an attestation deserves to know
+                // one was not produced rather than discover the missing row later.
+                logger?.Log(LogLevel.Warning, "IntegritySigner",
+                    $"SBOM attestation skipped: the {sbomFormat} document could not be generated: " +
+                    sbomResult.Error.Message,
+                    new Dictionary<string, string> { ["code"] = sbomResult.Error.Kind.ToString() });
                 return null;
+            }
 
             var signer = new SigilSigner();
             var attestOutputPath = Path.Combine(tempDir, "sbom.attest.json");
@@ -198,19 +232,30 @@ internal static class IntegritySigner
             if (attestResult.IsFailure)
                 return null;
 
-            var sbomFormatString = sbomFormat switch
-            {
-                SbomFormat.CycloneDx => "cyclonedx",
-                _ => "spdx"
-            };
-
-            return new SbomAttestationResult(File.ReadAllText(attestOutputPath), sbomFormatString);
+            return new SbomAttestationResult(File.ReadAllText(attestOutputPath), ToFormatTag(sbomFormat));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }
     }
+
+    /// <summary>
+    /// The <c>Format</c> column value for the <c>SbomAttestation</c> row of
+    /// <c>_FalkForgeIntegrity</c>. It must describe the document that was actually emitted, so it is
+    /// derived from the very same <see cref="SbomFormat"/> value handed to
+    /// <see cref="GenerateSbomForAttestation"/> — and, unlike before, that value now genuinely
+    /// selects the generator. Unknown values are not silently folded into "spdx": that fallback is
+    /// what let the tag claim SPDX over CycloneDX bytes. The throw is unreachable in practice —
+    /// <c>SbomWriter</c> already refuses an unrecognised format, so this runs only after a document
+    /// was successfully generated for that same value.
+    /// </summary>
+    private static string ToFormatTag(SbomFormat format) => format switch
+    {
+        SbomFormat.Spdx => "spdx",
+        SbomFormat.CycloneDx => "cyclonedx",
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported SBOM format.")
+    };
 
     /// <summary>
     /// Builds the SBOM document handed to <c>sigil attest</c>.
@@ -234,7 +279,9 @@ internal static class IntegritySigner
         PackageModel package,
         IReadOnlyList<ResolvedFile> files,
         IReadOnlyDictionary<string, string> packagedFileHashes,
-        string outputPath)
+        IReadOnlyDictionary<string, string> packagedFileSha1Hashes,
+        string outputPath,
+        SbomFormat format)
     {
         var components = new List<SbomComponent>();
 
@@ -258,12 +305,20 @@ internal static class IntegritySigner
             if (!packagedFileHashes.TryGetValue(file.FileId, out var hash))
                 continue;
 
+            // The SHA-1 comes from the same FCI byte stream as the SHA-256 (see
+            // CabinetBuilder.PackagedFileSha1Hashes) and exists solely because SPDX 2.3 §8.4 makes a
+            // per-file SHA1 checksum mandatory. Absent, it is left null rather than back-filled from
+            // a re-read: SpdxSbomGenerator then refuses the document, which is the right outcome —
+            // the alternative is a file listed under a digest nothing observed.
+            packagedFileSha1Hashes.TryGetValue(file.FileId, out var sha1);
+
             components.Add(new SbomComponent
             {
                 Name = file.FileName,
                 Version = package.Version.ToString(),
                 Type = SbomComponentType.File,
-                Sha256Hash = hash
+                Sha256Hash = hash,
+                Sha1Hash = sha1
             });
         }
 
@@ -290,6 +345,6 @@ internal static class IntegritySigner
             Dependencies = []
         };
 
-        return SbomWriter.WriteToFile(doc, outputPath);
+        return SbomWriter.WriteToFile(doc, outputPath, format);
     }
 }

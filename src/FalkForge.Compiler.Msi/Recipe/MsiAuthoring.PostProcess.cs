@@ -27,6 +27,7 @@ public static partial class MsiAuthoring
         CompileOptions options,
         ResolvedPackage resolved,
         IReadOnlyDictionary<string, string> packagedFileHashes,
+        IReadOnlyDictionary<string, string> packagedFileSha1Hashes,
         IFalkLogger? logger)
     {
         // Step 7: Reproducible timestamp patching — Windows MsiSummaryInfoPersist
@@ -88,9 +89,11 @@ public static partial class MsiAuthoring
 
             // packagedFileHashes (captured by CabinetBuilder as FCI actually consumed each file's
             // bytes) is threaded in so the SBOM attestation vouches for the packaged bytes, exactly
-            // like the step 10 sidecar below — see IntegritySigner.GenerateSbomForAttestation.
+            // like the step 10 sidecar below — see IntegritySigner.GenerateSbomForAttestation. Its
+            // SHA-1 twin rides along for the SPDX per-file checksum (SPDX 2.3 §8.4), captured from
+            // the identical byte stream so it carries the same TOCTOU guarantee.
             Result<Unit> integrityResult = IntegritySigner.SignAndEmbed(
-                msiPath, package, resolved.Files, packagedFileHashes);
+                msiPath, package, resolved.Files, packagedFileHashes, packagedFileSha1Hashes, logger);
             if (integrityResult.IsFailure)
             {
                 logger?.Log(LogLevel.Error, "MsiAuthoring", $"Step 8.5: integrity signing failed: {integrityResult.Error.Message}",

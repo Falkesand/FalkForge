@@ -100,7 +100,7 @@ public sealed class IntegritySignaturePayloadHashToctouTests : IDisposable
         var msiPath = CompileHostMsi("single", sourcePath);
         var package = BuildIntegrityPackage("SigToctouApp", sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 
@@ -141,7 +141,7 @@ public sealed class IntegritySignaturePayloadHashToctouTests : IDisposable
         var msiPath = CompileHostMsi("shared", sourcePath);
         var package = BuildIntegrityPackage("SigSharedSourceApp", sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 
@@ -189,7 +189,7 @@ public sealed class IntegritySignaturePayloadHashToctouTests : IDisposable
         var msiPath = CompileHostMsi("missing", packagedSource);
         var package = BuildIntegrityPackage("SigMissingHashApp", packagedSource);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsFailure, "A payload file with no packaging-time digest must abort the build.");
         Assert.Equal(ErrorKind.IntegrityError, signResult.Error.Kind);
@@ -225,7 +225,7 @@ public sealed class IntegritySignaturePayloadHashToctouTests : IDisposable
 
         File.Delete(sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 

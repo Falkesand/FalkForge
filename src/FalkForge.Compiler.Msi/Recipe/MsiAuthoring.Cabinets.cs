@@ -20,6 +20,10 @@ public static partial class MsiAuthoring
     /// digest of every source file's bytes as the native FCI compressor actually read them (see
     /// <see cref="CabinetBuilder.PackagedFileHashes"/>), aggregated across every cabinet plan — the
     /// SBOM sidecar (Step 10) consumes this instead of reopening source paths after the fact.
+    /// <paramref name="packagedFileSha1Hashes"/> receives the SHA-1 of that same byte stream (see
+    /// <see cref="CabinetBuilder.PackagedFileSha1Hashes"/>), which SPDX 2.3 §8.4 requires per file;
+    /// it is kept as a separate map so the SHA-256 one the ECDSA envelope signs keeps its exact
+    /// shape.
     /// </summary>
     private static Result<MsiDatabaseRecipe> BuildCabinetsAndEmbed(
         ResolvedPackage resolved,
@@ -28,7 +32,8 @@ public static partial class MsiAuthoring
         MsiDatabaseRecipe recipe,
         IFalkLogger? logger,
         out string? cabTempDir,
-        out IReadOnlyDictionary<string, string> packagedFileHashes)
+        out IReadOnlyDictionary<string, string> packagedFileHashes,
+        out IReadOnlyDictionary<string, string> packagedFileSha1Hashes)
     {
         IReadOnlyList<CabinetPlan> plans = CabinetPlanner.Plan(
             resolved.Files,
@@ -45,6 +50,8 @@ public static partial class MsiAuthoring
             System.Collections.Immutable.ImmutableArray.CreateBuilder<CabinetEmbedding>(plans.Count);
         var aggregatedHashes = new Dictionary<string, string>(StringComparer.Ordinal);
         packagedFileHashes = aggregatedHashes;
+        var aggregatedSha1Hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+        packagedFileSha1Hashes = aggregatedSha1Hashes;
 
         foreach (CabinetPlan plan in plans)
         {
@@ -78,6 +85,8 @@ public static partial class MsiAuthoring
             // cabinet regardless of Embedded, so this covers both embedded and external media.
             foreach (var kvp in cabBuilder.PackagedFileHashes)
                 aggregatedHashes[kvp.Key] = kvp.Value;
+            foreach (var kvp in cabBuilder.PackagedFileSha1Hashes)
+                aggregatedSha1Hashes[kvp.Key] = kvp.Value;
 
             if (plan.Embedded)
             {
