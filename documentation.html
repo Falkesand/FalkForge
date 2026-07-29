@@ -9066,7 +9066,9 @@ forge validate package.msi --ice --ice-warnings-as-errors</code></pre>
 # Options:
 #   --verbose     Show detailed table list
 #   --json        Emit a JSON envelope to stdout
-#   --sbom        Extract a CycloneDX SBOM from the MSI integrity table (if present)
+#   --sbom        Extract the SBOM from the MSI integrity table (if present). Its format follows
+#                 the Integrity(i => i.Sbom(...)) setting the package was built with — SPDX 2.3
+#                 by default, CycloneDX 1.6 on request. The Format column names which.
 
 # Examples:
 forge inspect package.msi
@@ -13351,8 +13353,45 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     embedded as the MSI's <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> row, format tag
     <code>falkforge-ecdsa-envelope-v2</code>). No external tool is ever required to produce a verifiable
     manifest signature for either artifact type. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
-    has no Sigil dependency either: it always writes a CycloneDX/SPDX sidecar next to the compiled artifact.
+    has no Sigil dependency either: it always writes a CycloneDX 1.6 sidecar
+    (<code>&lt;output&gt;.cdx.json</code>) next to the compiled artifact. That sidecar is CycloneDX by
+    definition and takes no <code>SbomFormat</code> &mdash; the format setting applies to the
+    <code>Integrity()</code> attestation document described below, not to the sidecar.
 </p>
+
+<div class="warning">
+    <strong><code>Integrity(i =&gt; i.Sbom(format))</code> now selects the document that is actually
+    emitted.</strong> It previously selected only a <em>label</em>: <code>SbomWriter</code> hardcoded the
+    CycloneDX writer, so every attestation predicate was CycloneDX regardless of the setting, while the
+    <code>--type</code> flag passed to <code>sigil attest</code> and the <code>Format</code> column of the MSI's
+    <code>_FalkForgeIntegrity</code>/<code>SbomAttestation</code> row dutifully reported what had been asked for.
+    Since <code>SbomFormat.Spdx</code> is the <em>default</em>, an ordinary <code>Integrity()</code> MSI shipped a
+    row declaring <code>Format="spdx"</code> over CycloneDX bytes. If you have consumers keying off that column,
+    they were being told the wrong schema; re-verify them against a freshly built package.
+    <br><br>
+    <strong>What SPDX output now contains.</strong> A conformant SPDX 2.3 document: a SHA1 checksum per file
+    (&sect;8.4 makes it mandatory &mdash; SHA256 rides along as an additional checksum), a
+    <code>relationships</code> array with <code>DESCRIBES</code> and per-file <code>CONTAINS</code> edges, a
+    <code>packageVerificationCode</code> over the sorted file digests (&sect;7.9), package-root-relative file
+    names (&sect;8.1), and <code>NOASSERTION</code> for every licence and copyright field &mdash; FalkForge has
+    no licence data for a packaged payload and does not invent any.
+    <br><br>
+    <strong>The SHA1 comes from the packaged bytes.</strong> It is accumulated in the same cabinet-compressor
+    callbacks as the SHA-256 (<code>CabinetBuilder.PackagedFileSha1Hashes</code>), so it inherits the same
+    time-of-check/time-of-use guarantee. SHA-1 is collision-broken and appears <em>only</em> because SPDX
+    mandates it as a file identifier: no FalkForge trust decision reads it, and the payload signature and
+    <code>forge verify</code> both use SHA-256. A file component with no SHA-1 makes SPDX generation fail rather
+    than emit a document that announces <code>SPDX-2.3</code> while omitting a mandatory field; the attestation
+    is then skipped with a warning, and the payload signature is unaffected (it never depends on the SBOM).
+    <br><br>
+    <strong>Removed (breaking).</strong> <code>IntegritySbomGenerator</code>, <code>SbomPackageInfo</code> and
+    <code>SbomFileEntry</code> are gone from <code>FalkForge.Core</code>. They were a second, string-returning
+    SBOM path with no production caller whose SPDX output lacked all of the above; keeping it would have left a
+    non-conformant SPDX emitter on the public API surface. Use
+    <code>SbomWriter.WriteToString(document, format)</code> / <code>WriteToFile(document, path, format)</code>
+    with an <code>SbomDocument</code>, or <code>SpdxSbomGenerator</code> / <code>CycloneDxSbomGenerator</code>
+    directly.
+</div>
 
 <div class="warning">
     <strong>An MSI <code>Integrity()</code> build now fails if any payload file has no packaging-time
