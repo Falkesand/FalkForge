@@ -13,7 +13,7 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 /// control: inference across region placements is fragile, so the author states it
 /// directly on each row instead.
 /// </remarks>
-public sealed record DialogRadioButton
+internal sealed record DialogRadioButton
 {
     private readonly string value = string.Empty;
     private readonly string property = string.Empty;

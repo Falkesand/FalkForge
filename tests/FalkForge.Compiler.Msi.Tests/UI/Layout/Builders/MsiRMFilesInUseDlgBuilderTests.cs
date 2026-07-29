@@ -113,12 +113,15 @@ public sealed class MsiRMFilesInUseDlgBuilderTests
     }
 
     [Fact]
-    public void Compose_dialog_attributes_include_keep_modeless()
+    public void Compose_dialog_attributes_equal_visible_modal_minimize_trackdiskspace_keepmodeless()
     {
         var model = DialogComposer.Compose(MsiRMFilesInUseDlgBuilder.Build(), Layouts.Standard370x270);
 
-        // KeepModeless = 0x10; this dialog is popped by the installer engine at InstallValidate,
-        // outside the wizard flow, so it must not tear down the modeless dialog underneath it.
-        Assert.Equal(0x10, (int)model.Attributes & 0x10);
+        // 0x37 = Visible (0x01) | Modal (0x02) | Minimize (0x04) | TrackDiskSpace (0x20) |
+        // KeepModeless (0x10). Asserting the whole value (not just the KeepModeless bit) pins
+        // every component: masking to `& 0x10` alone would let the other four bits mutate freely
+        // (e.g. dropping Modal/Visible, which would make the dialog invisible/non-modal) without
+        // failing this test.
+        Assert.Equal(0x37, (int)model.Attributes);
     }
 }

@@ -143,6 +143,45 @@ public sealed class PropertyTableProducerTests
                 == FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.OptionProperty);
     }
 
+    // ── DialogSet.None: MsiRMFilesInUse is never emitted, so its Property default must not
+    // be either ── DialogSetProducer only appends the MsiRMFilesInUse dialog (and therefore its
+    // ShutdownOption RadioButtonGroup control) when dialogSet != None. A package that enables
+    // Restart Manager but selects DialogSet.None never authors that control, so seeding
+    // FalkForgeRMOption regardless would ship an orphan Property row for a control that does not
+    // exist — matching documentation.html's claim that the feature is inert for DialogSet.None.
+
+    [Fact]
+    public void Produce_with_restart_manager_and_dialogset_none_omits_rm_option()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            enableRestartManager: true,
+            dialogSet: MsiDialogSet.None);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(
+            rows,
+            r => ((CellValue.StringValue)r.Cells[0]).Value
+                == FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.OptionProperty);
+    }
+
+    [Fact]
+    public void Produce_with_restart_manager_and_dialogset_minimal_emits_rm_option()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            enableRestartManager: true,
+            dialogSet: MsiDialogSet.Minimal);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(
+            rows,
+            FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.OptionProperty,
+            FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.UseRestartManagerValue);
+    }
+
     [Fact]
     public void Produce_appends_user_properties_after_builtins()
     {
@@ -221,7 +260,8 @@ public sealed class PropertyTableProducerTests
         System.Guid productCode = default,
         System.Guid upgradeCode = default,
         InstallScope scope = InstallScope.PerMachine,
-        bool enableRestartManager = false)
+        bool enableRestartManager = false,
+        MsiDialogSet dialogSet = MsiDialogSet.Minimal)
     {
         return new ResolvedPackage
         {
@@ -234,6 +274,7 @@ public sealed class PropertyTableProducerTests
                 UpgradeCode = upgradeCode,
                 Scope = scope,
                 EnableRestartManager = enableRestartManager,
+                DialogSet = dialogSet,
                 Properties = properties,
             },
             Components = new List<ResolvedComponent>(),
