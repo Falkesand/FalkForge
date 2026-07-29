@@ -165,7 +165,7 @@ could be determined without deeper investigation than this pass allowed.
 | Class | Line % | Note |
 |---|---|---|
 | DryRunSidecarWriter | 0.0 (REMOVED) | The 0.0% reading was accurate: `DryRunSidecarWriter.WriteSidecar` had no production caller at all. `DryRunSidecarWriterTests.cs` was added 2026-07-27 and covered a writer nothing invoked. The type and both its test files were deleted as abandoned scaffolding; the real dry run is `BuildCommand.RunDryRun`, which writes to the console via `IDryRunContributor` |
-| Interop.FciHandle | 0.0 | (c) thin native-handle wrapper around the Cabinet FCI/FDI interop, no branches |
+| Interop.FciHandle | 0.0 (REMOVED) | The 0.0% reading was accurate for a stronger reason than "no branches": `FciHandle` had no references at all. It was deleted as dead code; the sibling `FdiHandle`, which `CabinetExtractor` does use, is unaffected |
 | PatchCompiler | 0.0 (STALE) | `PatchCompilerTests.cs` was added 2026-07-27, three days after this baseline. The "no unit test file exists" claim was true when written but is false now; current coverage is unverified pending a fresh coverage run |
 | TransformCompiler | 0.0 (STALE) | `TransformCompilerTests.cs` was added 2026-07-27, same situation as PatchCompiler above — a test file now exists; current coverage is unverified pending a fresh coverage run |
 | MsmCompiler | 8.6 | (a) has a dedicated test file (`MsmCompilerTests.cs`) but the msi.dll P/Invoke build path is barely exercised |
@@ -314,7 +314,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| FeatureStateExtensions | 0.0 | (c) thin extension-method helper, likely only exercised through live UI paths |
+| FeatureStateExtensions | 0.0 (REMOVED) | The "likely only exercised through live UI paths" guess was wrong: `GetInstallStatus` had no callers at all, live or otherwise. It and the `FeatureInstallStatus` enum it returned were deleted as dead code |
 
 ## How to re-baseline
 
