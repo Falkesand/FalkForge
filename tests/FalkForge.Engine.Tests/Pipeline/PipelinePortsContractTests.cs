@@ -4,7 +4,6 @@ using FalkForge.Engine.Detection;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
-using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Platform;
 using Xunit;
 
@@ -31,26 +30,6 @@ public sealed class PipelinePortsContractTests
     {
         ISystemClock clock = new FakeClock();
         Assert.True(clock.UtcNow <= DateTimeOffset.UtcNow.AddSeconds(1));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // IRandomSource
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed class FakeRandom : IRandomSource
-    {
-        public Guid NewGuid() => Guid.Empty;
-        public void Fill(Span<byte> buffer) => buffer.Clear();
-    }
-
-    [Fact]
-    public void RandomSource_Interface_Is_Implementable()
-    {
-        IRandomSource rng = new FakeRandom();
-        Assert.Equal(Guid.Empty, rng.NewGuid());
-        Span<byte> buf = stackalloc byte[16];
-        rng.Fill(buf);
-        Assert.True(buf.SequenceEqual(new byte[16]));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -92,120 +71,6 @@ public sealed class PipelinePortsContractTests
 
         var clearResult = store.Clear();
         Assert.True(clearResult.IsSuccess);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // IPayloadCache
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed class FakePayloadCache : IPayloadCache
-    {
-        private readonly Dictionary<string, string> _paths = [];
-
-        public Result<string> Store(Guid bundleId, string packageId, string sha256, string sourceFilePath)
-        {
-            var key = $"{bundleId}:{packageId}:{sha256}";
-            _paths[key] = sourceFilePath;
-            return sourceFilePath;
-        }
-
-        public Result<string> Resolve(Guid bundleId, string packageId, string sha256)
-        {
-            var key = $"{bundleId}:{packageId}:{sha256}";
-            return _paths.TryGetValue(key, out var path)
-                ? Result<string>.Success(path)
-                : Result<string>.Failure(ErrorKind.FileNotFound, "Not cached");
-        }
-
-        public Result<Unit> Remove(Guid bundleId, string packageId, string sha256)
-        {
-            var key = $"{bundleId}:{packageId}:{sha256}";
-            _paths.Remove(key);
-            return Unit.Value;
-        }
-    }
-
-    [Fact]
-    public void PayloadCache_Interface_Is_Implementable()
-    {
-        IPayloadCache cache = new FakePayloadCache();
-        var bundleId = Guid.NewGuid();
-        var storeResult = cache.Store(bundleId, "pkg1", "abc123", @"C:\pkg.msi");
-        Assert.True(storeResult.IsSuccess);
-
-        var resolveResult = cache.Resolve(bundleId, "pkg1", "abc123");
-        Assert.True(resolveResult.IsSuccess);
-
-        var missResult = cache.Resolve(bundleId, "pkg1", "deadbeef");
-        Assert.True(missResult.IsFailure);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // IPayloadSource
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed class FakePayloadSource : IPayloadSource
-    {
-        public Task<Result<string>> DownloadAsync(
-            string url,
-            string expectedSha256,
-            string destinationPath,
-            IProgress<(long BytesReceived, long TotalBytes)>? progress,
-            CancellationToken ct)
-        {
-            return Task.FromResult(Result<string>.Success(destinationPath));
-        }
-    }
-
-    [Fact]
-    public async Task PayloadSource_Interface_Is_Implementable()
-    {
-        IPayloadSource source = new FakePayloadSource();
-        var result = await source.DownloadAsync(
-            "https://example.com/pkg.msi",
-            "abc123",
-            @"C:\dest\pkg.msi",
-            progress: null,
-            CancellationToken.None);
-        Assert.True(result.IsSuccess);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // ILayoutStore
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed class FakeLayoutStore : ILayoutStore
-    {
-        private InstallerManifest? _manifest;
-
-        public Task<Result<Unit>> WriteAsync(InstallerManifest manifest, string layoutPath, CancellationToken ct)
-        {
-            _manifest = manifest;
-            return Task.FromResult(Result<Unit>.Success(Unit.Value));
-        }
-
-        public Task<Result<InstallerManifest>> ReadAsync(string layoutPath, CancellationToken ct)
-            => Task.FromResult(_manifest is not null
-                ? Result<InstallerManifest>.Success(_manifest)
-                : Result<InstallerManifest>.Failure(ErrorKind.FileNotFound, "No manifest"));
-    }
-
-    [Fact]
-    public async Task LayoutStore_Interface_Is_Implementable()
-    {
-        ILayoutStore store = new FakeLayoutStore();
-        var manifest = new InstallerManifest
-        {
-            Name = "Test", Manufacturer = "M", Version = "1.0",
-            BundleId = Guid.NewGuid(), UpgradeCode = Guid.NewGuid(),
-            Scope = InstallScope.PerMachine, Packages = []
-        };
-        var writeResult = await store.WriteAsync(manifest, @"C:\layout", CancellationToken.None);
-        Assert.True(writeResult.IsSuccess);
-
-        var readResult = await store.ReadAsync(@"C:\layout", CancellationToken.None);
-        Assert.True(readResult.IsSuccess);
-        Assert.Equal("Test", readResult.Value.Name);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

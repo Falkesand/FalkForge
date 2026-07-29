@@ -3,15 +3,12 @@ namespace FalkForge.Engine.Tests.Pipeline;
 using FalkForge.Engine.Journal;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
-using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Testing;
 using Xunit;
 
 /// <summary>
-/// Contract tests for the channel/store/source testing fakes:
-/// <see cref="FakeUiChannel"/>, <see cref="InMemoryJournalStore"/>,
-/// <see cref="InMemoryPayloadSource"/>, <see cref="DictPayloadCache"/>,
-/// and <see cref="InMemoryLayoutStore"/>.
+/// Contract tests for the channel/store testing fakes:
+/// <see cref="FakeUiChannel"/> and <see cref="InMemoryJournalStore"/>.
 /// </summary>
 public sealed class TestingFakesChannelStoreTests
 {
@@ -93,114 +90,5 @@ public sealed class TestingFakesChannelStoreTests
         var result = store.LoadAll();
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // InMemoryPayloadSource
-    // ──────────────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task InMemoryPayloadSource_DownloadAsync_WritesRegisteredContent()
-    {
-        var content = "hello-payload"u8.ToArray();
-        var source = new InMemoryPayloadSource()
-            .Register("https://example.com/pkg.msi", content, "abc");
-
-        var dest = Path.GetTempFileName();
-        try
-        {
-            var result = await source.DownloadAsync(
-                "https://example.com/pkg.msi", "abc", dest, null, CancellationToken.None);
-
-            Assert.True(result.IsSuccess);
-            Assert.Equal(dest, result.Value);
-            Assert.Equal(content, await File.ReadAllBytesAsync(dest));
-        }
-        finally
-        {
-            File.Delete(dest);
-        }
-    }
-
-    [Fact]
-    public async Task InMemoryPayloadSource_DownloadAsync_ReturnsFailureForUnknownUrl()
-    {
-        var source = new InMemoryPayloadSource();
-        var result = await source.DownloadAsync(
-            "https://example.com/missing.msi", "", Path.GetTempFileName(),
-            null, CancellationToken.None);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // DictPayloadCache
-    // ──────────────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void DictPayloadCache_StoreAndResolve_RoundTrips()
-    {
-        var cache = new DictPayloadCache();
-        var id = Guid.NewGuid();
-        cache.Store(id, "pkg", "sha256abc", @"C:\cache\pkg.msi");
-        var result = cache.Resolve(id, "pkg", "sha256abc");
-        Assert.True(result.IsSuccess);
-        Assert.Equal(@"C:\cache\pkg.msi", result.Value);
-    }
-
-    [Fact]
-    public void DictPayloadCache_Resolve_ReturnsFileNotFoundForMiss()
-    {
-        var cache = new DictPayloadCache();
-        var result = cache.Resolve(Guid.NewGuid(), "pkg", "sha256");
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
-    }
-
-    [Fact]
-    public void DictPayloadCache_Remove_DeletesEntry()
-    {
-        var cache = new DictPayloadCache();
-        var id = Guid.NewGuid();
-        cache.Store(id, "p", "s", "path");
-        cache.Remove(id, "p", "s");
-        Assert.True(cache.Resolve(id, "p", "s").IsFailure);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // InMemoryLayoutStore
-    // ──────────────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task InMemoryLayoutStore_WriteAndRead_RoundTrips()
-    {
-        var store = new InMemoryLayoutStore();
-        var manifest = new InstallerManifest
-        {
-            Name = "MyApp",
-            Manufacturer = "Acme",
-            Version = "2.0",
-            BundleId = Guid.NewGuid(),
-            UpgradeCode = Guid.NewGuid(),
-            Scope = InstallScope.PerMachine,
-            Packages = []
-        };
-
-        var writeResult = await store.WriteAsync(manifest, @"C:\layout", CancellationToken.None);
-        Assert.True(writeResult.IsSuccess);
-
-        var readResult = await store.ReadAsync(@"C:\layout", CancellationToken.None);
-        Assert.True(readResult.IsSuccess);
-        Assert.Equal("MyApp", readResult.Value.Name);
-    }
-
-    [Fact]
-    public async Task InMemoryLayoutStore_Read_ReturnsFileNotFoundForMissingPath()
-    {
-        var store = new InMemoryLayoutStore();
-        var result = await store.ReadAsync(@"C:\no-such-layout", CancellationToken.None);
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
     }
 }

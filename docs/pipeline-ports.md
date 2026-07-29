@@ -65,84 +65,6 @@ All step interfaces are `internal` and consumed only by `InstallerPipeline`. The
 
 ## Ports
 
-### `IPayloadSource`
-
-**Role:** Network I/O for downloading installer payloads.
-
-**Contract:**
-
-```csharp
-public interface IPayloadSource
-{
-    Task<Result<string>> DownloadAsync(
-        string url,
-        string expectedSha256,
-        string destinationPath,
-        IProgress<(long BytesReceived, long TotalBytes)>? progress,
-        CancellationToken ct);
-}
-```
-
-**Threading:** Async; concurrent calls allowed, the production adapter uses a shared `HttpClient` and an optional shared `TokenBucket`. Implementations should be thread-safe.
-
-**Adapters:**
-- `HttpPayloadSource` — wraps `PayloadDownloader`. Inherits HTTPS enforcement, three-attempt retry with exponential back-off, SHA-256 verification, path-traversal guard on the destination path, optional bandwidth throttling via `TokenBucket`. `allowResume: false` is hard-coded; consumers that need resume must call `PayloadDownloader` directly.
-
-**Test adapter:** None shipped. Easy to fake by writing a dummy file at `destinationPath` and returning `Result<string>.Success(destinationPath)`.
-
----
-
-### `IPayloadCache`
-
-**Role:** Local disk cache for downloaded installer payloads, keyed by `(bundleId, packageId, sha256)`.
-
-**Contract:**
-
-```csharp
-public interface IPayloadCache
-{
-    Result<string> Store(Guid bundleId, string packageId, string sha256, string sourceFilePath);
-    Result<string> Resolve(Guid bundleId, string packageId, string sha256);
-    Result<Unit>   Remove(Guid bundleId, string packageId, string sha256);
-}
-```
-
-**Threading:** Synchronous. `Resolve` and `Remove` perform directory enumeration and SHA-256 hashing of every file in the package directory, so callers should treat them as I/O-bound. Production adapter has no internal locking — concurrent `Store` calls for the same key are racy at the file-copy level.
-
-**Error model:** `ErrorKind.CacheError` for hash mismatch, I/O failure, or path-traversal rejection; `ErrorKind.FileNotFound` from `Resolve` when no entry exists.
-
-**Adapters:**
-- `DiskPayloadCache` — backs onto `CacheLayout`. Inherits the three-layer path-traversal defense: allowlist regex on `packageId`, `Path.GetFileName` sanitization on file name, `Path.GetFullPath` containment check. Hash computed via `SHA256.HashData(Stream)` (no allocation). Partial files on hash mismatch are deleted.
-
-**Test adapter:** None shipped. Trivial to fake with an in-memory `Dictionary<(Guid, string, string), string>`.
-
----
-
-### `ILayoutStore`
-
-**Role:** Persist / load the `InstallerManifest` for installer layout mode (admin image / unattended source).
-
-**Contract:**
-
-```csharp
-public interface ILayoutStore
-{
-    Task<Result<Unit>> WriteAsync(InstallerManifest manifest, string layoutPath, CancellationToken ct);
-    Task<Result<InstallerManifest>> ReadAsync(string layoutPath, CancellationToken ct);
-}
-```
-
-**Threading:** Async file I/O. Concurrent `WriteAsync` to the same `layoutPath` is undefined.
-
-**Error model:** `ErrorKind.LayoutError` for serialization or I/O failure, `ErrorKind.FileNotFound` from `ReadAsync` when `manifest.json` is absent.
-
-**Adapters:**
-- `FileSystemLayoutStore` — writes `manifest.json` inside `layoutPath` using the AOT-safe `LayoutJsonContext`. Creates the directory on `WriteAsync`. Returns a typed failure when JSON deserialization yields null.
-
-**Test adapter:** None shipped. Trivial to fake with an in-memory dictionary keyed by `layoutPath`.
-
----
-
 ### `IUiChannel`
 
 **Role:** Cross-process UI communication. Pipeline code emits `PipelineEvent` and reads `UiRequest`; the channel hides binary message framing, the HMAC pipe handshake, and the wire-level `EngineMessage` subtypes.
@@ -250,29 +172,6 @@ public interface ISystemClock
 
 ---
 
-### `IRandomSource`
-
-**Role:** Abstracts entropy generation so tests can supply a deterministic seed instead of cryptographic randomness and `Guid.NewGuid()`.
-
-**Contract:**
-
-```csharp
-public interface IRandomSource
-{
-    Guid NewGuid();
-    void Fill(Span<byte> buffer);
-}
-```
-
-**Threading:** Production adapter delegates to `RandomNumberGenerator.Fill` and `Guid.NewGuid`, both thread-safe. `Fill` allocates nothing (Span overload).
-
-**Adapters:**
-- `CryptoRandomSource` — production adapter. Cryptographically strong; suitable for nonce and HMAC-secret generation. `Fill` short-circuits on an empty span.
-
-**Test adapter:** None shipped. Fakes typically wrap a seeded `Random` for reproducible tests; do not use such fakes in production code paths that need cryptographic strength.
-
----
-
 ## Adapter Disposal & Lifetime
 
 | Adapter | Disposal | Notes |
@@ -282,10 +181,7 @@ public interface IRandomSource
 | `NullUiChannel` | `IAsyncDisposable` | No-op (singleton). |
 | `NamedPipeElevationGateway` | `IAsyncDisposable` | Best-effort `Process.Kill(entireProcessTree: true)` on the companion, disposes `ElevationClient` and the pipe. Idempotent. |
 | `FileSystemJournalStore` | `IDisposable` | Closes the journal file handle. |
-| `HttpPayloadSource` | None | The shared `HttpClient` and `TokenBucket` are owned by the caller. |
-| `DiskPayloadCache` | None | Pure file I/O; nothing to release. |
-| `FileSystemLayoutStore` | None | Pure file I/O. |
-| `SystemClock`, `CryptoRandomSource` | None | Stateless. |
+| `SystemClock` | None | Stateless. |
 
 The pipeline orchestrator and `PipelineRunner` do not own port lifetimes. The composition root (typically `EngineSession` or a CLI entry point) constructs each adapter, hands it to `InstallerPipelineBuilder`, and disposes it after `RunAsync` returns.
 
@@ -305,13 +201,14 @@ The pipeline orchestrator and `PipelineRunner` do not own port lifetimes. The co
 | `WithUiChannel(IUiChannel)` | All steps (defaults to `NullUiChannel.Instance`) |
 | `WithLogger(IFalkLogger)` | `RollbackStep` diagnostics |
 
-`ISystemClock`, `IRandomSource`, `IPayloadCache`, `IPayloadSource`, and `ILayoutStore` each have a
-production adapter (below) but no `InstallerPipelineBuilder.With…` method — the builder does not
-accept them today. The `EngineHost` retirement that was meant to gate their wiring is long complete
-(see above); no phase step currently consumes these ports, so re-adding builder support for one of
-them is a real design task (a step needs to be written that calls it), not a follow-up rename. Do
-that design work — including the new step — before wiring one back in, rather than re-adding a
-`With…` method that has nowhere to flow.
+`ISystemClock` has a production adapter (`SystemClock`) but no `InstallerPipelineBuilder.With…`
+method — the builder does not accept it today, and no phase step consumes it. Wiring it in is a real
+design task (a step needs to be written that calls it), not a follow-up rename.
+
+An earlier `IPayloadCache` / `IPayloadSource` / `ILayoutStore` / `IRandomSource` port set was
+built alongside these but never wired to any step, and was removed rather than left as scaffolding.
+The live payload path is `PayloadDownloader` → `PackageCache` → `LayoutManager`; see
+`src/FalkForge.Engine/Download/`, `src/FalkForge.Engine/Cache/`, and `src/FalkForge.Engine/Layout/`.
 
 ## See Also
 
@@ -319,5 +216,5 @@ that design work — including the new step — before wiring one back in, rathe
 - `CLAUDE.md` — "Engine Architecture (3-process model)" section for the UI ↔ Engine ↔ Elevated process layout.
 - `src/FalkForge.Engine.Protocol/Messages/` — the wire-level `EngineMessage` types that `NamedPipeUiChannel` translates.
 - `src/FalkForge.Engine/Journal/` — `JournalEntry`, `RollbackJournal`, and the undo operation hierarchy consumed by `IRollbackJournalStore`.
-- `src/FalkForge.Engine/Cache/` — `CacheLayout`, the path-traversal-hardened layout that `DiskPayloadCache` builds on.
+- `src/FalkForge.Engine/Cache/` — `CacheLayout`, the path-traversal-hardened cache layout, and `PackageCache`.
 - `src/FalkForge.Engine/Download/` — `PayloadDownloader`, `TokenBucket`, retry policy, and `UpdateChecker`.

@@ -43,12 +43,8 @@ flowchart TD
 |---|---|---|---|
 | `IUiChannel` | `Engine.Pipeline` | `NamedPipeUiChannel` | `FakeUiChannel` (Testing) |
 | `IElevatedCommandGateway` | `Engine.Pipeline` | `NamedPipeElevationGateway` | `InProcessElevationGateway` (Testing) |
-| `IPayloadSource` | `Engine.Pipeline` | `HttpPayloadSource` | `InMemoryPayloadSource` (Testing) |
 | `IRollbackJournalStore` | `Engine.Pipeline` | `FileSystemJournalStore` | `InMemoryJournalStore` (Testing) |
-| `IPayloadCache` | `Engine.Pipeline` | `DiskPayloadCache` | `DictPayloadCache` (Testing) |
-| `ILayoutStore` | `Engine.Pipeline` | `FileSystemLayoutStore` | `InMemoryLayoutStore` (Testing) |
 | `ISystemClock` | `Engine.Pipeline` | `SystemClock` | `FakeClock` (Testing) |
-| `IRandomSource` | `Engine.Pipeline` | `CryptoRandomSource` | `DeterministicRandom` (Testing) |
 | `IFileSystem` | `Platform` | `WindowsFileSystem` | `MockFileSystem` (Testing) |
 | `IMsiApi` | `Platform.Windows` | `WindowsMsiApi` | `FakeMsiApi` (Testing) |
 | `IProcessRunner` | `Engine.Execution` | `ProcessRunner` | `FakeProcessRunner` (Testing) |
@@ -123,8 +119,6 @@ await using var pipeline = new InstallerPipelineBuilder()
     .WithJournalStore(journalStore)
     .WithUndoOperations(undoOperations)
     .WithUiChannel(fakeChannel)
-    .WithClock(new FakeClock(DateTimeOffset.UtcNow))
-    .WithRandom(new DeterministicRandom(seed: 42))
     .WithLogger(new ListLogger())
     .Build();
 
@@ -175,15 +169,11 @@ For tests, `EngineSession.BindToChannel(fakeChannel, options?)` is the internal 
 
 ---
 
-## Determinism: `ISystemClock` and `IRandomSource`
-
-Two small ports eliminate all non-deterministic behavior from pipeline code:
+## Determinism: `ISystemClock`
 
 - **`ISystemClock`** — wraps `DateTime.UtcNow`. Production: `SystemClock`. Tests: `FakeClock(DateTimeOffset start)` — frozen by default, advanceable via `Advance(TimeSpan)`. Any code that computes timestamps, timeouts, or retry back-off intervals against the clock is deterministic in tests.
 
-- **`IRandomSource`** — wraps `RandomNumberGenerator.Fill` and `Guid.NewGuid()`. Production: `CryptoRandomSource`. Tests: `DeterministicRandom(seed)` — seeded PRNG, stable GUIDs. Any code that generates correlation IDs, journal entry identifiers, or nonce values is reproducible in tests.
-
-With both ports in play, two runs of the same test with the same inputs produce byte-identical event streams, log content, and journal entries — enabling golden-file assertion patterns and reliable regression detection.
+With the clock port in play, two runs of the same test with the same inputs produce byte-identical event streams, log content, and journal entries — enabling golden-file assertion patterns and reliable regression detection.
 
 ---
 
@@ -193,7 +183,7 @@ With both ports in play, two runs of the same test with the same inputs produce 
 
 1. `EngineSession.RunUntilShutdown(ct)` catches `OperationCanceledException` when `ct` fires and returns `EngineTerminalState.Cancelled` immediately.
 2. Inside `PipelineRunner.RunAsync(ct)`, the token is threaded through every `IInstallerPipeline` phase call: `DetectAsync(ct)`, `PlanAsync(request, ct)`, `ElevateAsync(ct)`, `ApplyAsync(ct)`.
-3. Each phase step forwards the token into port calls — `IPayloadSource.DownloadAsync(..., ct)`, `IElevatedCommandGateway` operations, `PackageExecutor` invocations.
+3. Each phase step forwards the token into port calls — `IElevatedCommandGateway` operations, `PackageExecutor` invocations, `PayloadDownloader.DownloadAsync(..., ct)`.
 4. `RollbackAsync` is always called with `CancellationToken.None`. A user cancel that triggers rollback must not also cancel the rollback itself — the undo work must complete even if the original operation was cancelled.
 
 When `ApplyAsync` is interrupted by cancellation, `PipelineRunner` invokes `RollbackAsync(CancellationToken.None)` before returning exit code 3. The `EngineSession` maps exit code 3 to `EngineTerminalState.RolledBack`.
