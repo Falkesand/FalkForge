@@ -83,8 +83,9 @@ public sealed record DialogContent
 
     /// <summary>
     /// Declarative RadioButton table rows for this dialog's RadioButtonGroup controls.
-    /// The <c>Property</c> column is taken from the owning control's bound property.
-    /// Empty by default.
+    /// Each row carries its own group <see cref="DialogRadioButton.Property"/>, supplied
+    /// explicitly by the caller rather than resolved from the owning control — see the
+    /// <see cref="DialogRadioButton"/> remarks for why. Empty by default.
     /// </summary>
     public ImmutableArray<DialogRadioButton> RadioButtons { get; init; } = ImmutableArray<DialogRadioButton>.Empty;
 }
