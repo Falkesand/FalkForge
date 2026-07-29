@@ -34,6 +34,7 @@ public sealed class RestartManagerSession : IRestartManager
                     "A Restart Manager session is already active.");
             }
 
+            // RmStartSession requires a buffer of CCH_RM_SESSION_KEY + 1 characters (key + null).
             var sessionKey = new char[NativeRestartManagerMethods.CCH_RM_SESSION_KEY + 1];
             var error = NativeRestartManagerMethods.RmStartSession(out _sessionHandle, 0, sessionKey);
 
