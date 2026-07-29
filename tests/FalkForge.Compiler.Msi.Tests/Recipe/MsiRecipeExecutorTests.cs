@@ -228,7 +228,6 @@ public sealed class MsiRecipeExecutorTests : IDisposable
             Tables = ImmutableArray<RecipeTable>.Empty,
             SummaryInfo = summary,
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
-            FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
             CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = ReadOnlyMemory<byte>.Empty,
         };

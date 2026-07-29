@@ -117,7 +117,6 @@ public sealed class RemoveIniFileTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
@@ -239,7 +238,6 @@ public sealed class RemoveIniFileTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
@@ -308,7 +306,6 @@ public sealed class RemoveIniFileTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         RemoveIniFileTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

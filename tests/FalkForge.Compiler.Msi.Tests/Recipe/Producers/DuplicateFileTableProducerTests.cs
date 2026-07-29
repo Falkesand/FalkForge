@@ -194,7 +194,6 @@ public sealed class DuplicateFileTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         DuplicateFileTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

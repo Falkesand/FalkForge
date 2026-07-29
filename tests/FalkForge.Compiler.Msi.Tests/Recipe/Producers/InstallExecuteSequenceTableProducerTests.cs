@@ -884,7 +884,6 @@ public sealed class InstallExecuteSequenceTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         InstallExecuteSequenceTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

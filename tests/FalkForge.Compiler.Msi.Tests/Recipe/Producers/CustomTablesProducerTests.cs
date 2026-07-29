@@ -312,7 +312,6 @@ public sealed class CustomTablesProducerTests
         RecipeBuildContext context = new(
             MakeResolvedPackage([table]),
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             registry);
 
         Result<ImmutableArray<RecipeTable>> result = new CustomTablesProducer().Produce(context);
@@ -419,7 +418,6 @@ public sealed class CustomTablesProducerTests
         => new(
             MakeResolvedPackage(customTables),
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
     private static ResolvedPackage MakeResolvedPackage(IReadOnlyList<CustomTableModel> customTables)

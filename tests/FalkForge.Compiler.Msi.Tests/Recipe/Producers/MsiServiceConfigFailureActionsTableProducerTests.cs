@@ -169,7 +169,6 @@ public sealed class MsiServiceConfigFailureActionsTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeRow>> result = new MsiServiceConfigFailureActionsTableProducer().Produce(context);
@@ -197,7 +196,6 @@ public sealed class MsiServiceConfigFailureActionsTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeRow>> result = new MsiServiceConfigFailureActionsTableProducer().Produce(context);
@@ -212,7 +210,6 @@ public sealed class MsiServiceConfigFailureActionsTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         MsiServiceConfigFailureActionsTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

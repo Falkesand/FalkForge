@@ -11,8 +11,7 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// <summary>
 /// Computes a stable SHA-256 digest over the canonicalised content of an
 /// <see cref="MsiDatabaseRecipe"/>. The hash covers <see cref="MsiDatabaseRecipe.Tables"/>,
-/// <see cref="MsiDatabaseRecipe.SummaryInfo"/>, <see cref="MsiDatabaseRecipe.Streams"/>,
-/// <see cref="MsiDatabaseRecipe.FileSequencing"/>, and
+/// <see cref="MsiDatabaseRecipe.SummaryInfo"/>, <see cref="MsiDatabaseRecipe.Streams"/>, and
 /// <see cref="MsiDatabaseRecipe.CabinetEmbeddings"/>. <see cref="MsiDatabaseRecipe.ContentHash"/>
 /// itself is intentionally excluded — the recipe being hashed always carries
 /// <c>ContentHash = ReadOnlyMemory&lt;byte&gt;.Empty</c> in the hashing payload,
@@ -54,7 +53,6 @@ internal static class RecipeContentHasher
         AppendTables(hasher, recipe.Tables);
         AppendSummaryInfo(hasher, recipe.SummaryInfo);
         AppendStreams(hasher, recipe.Streams);
-        AppendFileSequencing(hasher, recipe.FileSequencing);
         AppendCabinetEmbeddings(hasher, recipe.CabinetEmbeddings);
 
         byte[] digest = hasher.GetHashAndReset();
@@ -233,21 +231,6 @@ internal static class RecipeContentHasher
                 $"Unsupported StreamSource subtype '{source.GetType().FullName}' encountered while hashing recipe."),
         };
         AppendByte(hasher, tag);
-    }
-
-    private static void AppendFileSequencing(IncrementalHash hasher, ImmutableArray<FileSequenceEntry> sequencing)
-    {
-        AppendInt32(hasher, sequencing.IsDefault ? 0 : sequencing.Length);
-        if (sequencing.IsDefault)
-        {
-            return;
-        }
-
-        foreach (FileSequenceEntry entry in sequencing)
-        {
-            AppendString(hasher, entry.FileId);
-            AppendInt32(hasher, entry.Sequence);
-        }
     }
 
     private static void AppendCabinetEmbeddings(

@@ -46,7 +46,6 @@ public sealed class MsiDatabaseRecipeTests
             Tables = ImmutableArray.Create(table),
             SummaryInfo = summary,
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
-            FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
             CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = hash
         };
@@ -54,7 +53,6 @@ public sealed class MsiDatabaseRecipeTests
         Assert.Single(recipe.Tables);
         Assert.Equal(summary, recipe.SummaryInfo);
         Assert.Empty(recipe.Streams);
-        Assert.True(recipe.FileSequencing.IsEmpty);
         Assert.True(recipe.CabinetEmbeddings.IsEmpty);
         Assert.Equal(32, recipe.ContentHash.Length);
     }
@@ -85,7 +83,6 @@ public sealed class MsiDatabaseRecipeTests
                 Security = 0,
             },
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
-            FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
             CabinetEmbeddings = ImmutableArray.Create(embedding),
             ContentHash = ReadOnlyMemory<byte>.Empty
         };

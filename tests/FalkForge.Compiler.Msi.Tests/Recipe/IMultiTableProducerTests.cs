@@ -150,7 +150,6 @@ public sealed class IMultiTableProducerTests
         => new(
             MakeResolvedPackage(),
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
 
     private static ResolvedPackage MakeResolvedPackage()

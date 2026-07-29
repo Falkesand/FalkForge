@@ -136,18 +136,6 @@ public sealed class MsiRecipeBuilderTests
     }
 
     [Fact]
-    public void Build_empty_pipeline_emits_empty_file_sequencing()
-    {
-        MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
-            MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
-
-        Assert.True(recipe.FileSequencing.IsEmpty);
-        Assert.False(recipe.FileSequencing.IsDefault);
-    }
-
-    [Fact]
     public void Build_empty_pipeline_has_empty_cabinet_embeddings()
     {
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(

@@ -219,7 +219,6 @@ public sealed class LaunchConditionTableProducerTests
         RecipeBuildContext context = new(
             resolved,
             new MsiRecipeBuildOptions(),
-            new NoOpFileSequencer(),
             new DictionaryStreamRegistry());
         LaunchConditionTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

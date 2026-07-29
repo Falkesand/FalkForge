@@ -7,9 +7,9 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <see cref="ResolvedPackage.Files"/> in order and emits one row per file.
 /// Sequence numbers are assigned by walking the flat file list starting at
 /// 1 — matches the convention in <see cref="TableEmitter.EmitFiles"/>.
-/// Phase-4 scope: real cabinet-driven sequencing strategies arrive in later
-/// phases via <see cref="MsiRecipeBuildOptions.Sequencing"/>; for now the
-/// producer uses ordinal index. Version/Language are emitted as null since
+/// Sequence numbers follow the ordinal index of the resolved file list; this
+/// producer is the only place file sequencing is decided.
+/// Version/Language are emitted as null since
 /// <see cref="ResolvedFile"/> exposes neither today; Attributes carries
 /// 512 (msidbFileAttributesVital) only when <see cref="ResolvedFile.Vital"/>
 /// is true (the default, matching the legacy emitter) — a non-vital file

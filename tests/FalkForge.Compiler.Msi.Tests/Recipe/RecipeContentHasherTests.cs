@@ -125,7 +125,6 @@ public sealed class RecipeContentHasherTests
                 Security = 0,
             },
             Streams = ImmutableDictionary<string, StreamSource>.Empty,
-            FileSequencing = ImmutableArray<FileSequenceEntry>.Empty,
             CabinetEmbeddings = ImmutableArray<CabinetEmbedding>.Empty,
             ContentHash = ReadOnlyMemory<byte>.Empty,
         };
