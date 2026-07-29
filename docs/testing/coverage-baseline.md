@@ -49,9 +49,10 @@ this local default-gated run is recorded below.
 
 This document was captured 2026-07-24 and has not been re-run since — several rows below
 are marked `(STALE)` where a fact independently checked out as false or no-longer-current.
-In addition to the four `(STALE)` fixes for pre-existing drift (`PatchCompiler`,
-`TransformCompiler`, `DryRunSidecarWriter` already had test files; `RestartManagerSession`
-gained one), this branch adds real-implementation coverage for three types that previously
+In addition to the `(STALE)` fixes for pre-existing drift (`PatchCompiler` and
+`TransformCompiler` already had test files; `RestartManagerSession` gained one; note that
+`DryRunSidecarWriter` has since been deleted outright as dead code — see its row below), this
+branch adds real-implementation coverage for three types that previously
 only ran behind a test double:
 
 - **`MsiTableAccess`** (`FalkForge.Decompiler`) — does not appear in the hot-spot list below
@@ -163,7 +164,7 @@ could be determined without deeper investigation than this pass allowed.
 
 | Class | Line % | Note |
 |---|---|---|
-| DryRunSidecarWriter | 0.0 (STALE) | `DryRunSidecarWriterTests.cs` was added 2026-07-27, three days after this 2026-07-24 baseline was captured. The 0.0% figure is known-stale; current coverage is unverified pending a fresh `scripts/coverage.ps1` run |
+| DryRunSidecarWriter | 0.0 (REMOVED) | The 0.0% reading was accurate: `DryRunSidecarWriter.WriteSidecar` had no production caller at all. `DryRunSidecarWriterTests.cs` was added 2026-07-27 and covered a writer nothing invoked. The type and both its test files were deleted as abandoned scaffolding; the real dry run is `BuildCommand.RunDryRun`, which writes to the console via `IDryRunContributor` |
 | Interop.FciHandle | 0.0 | (c) thin native-handle wrapper around the Cabinet FCI/FDI interop, no branches |
 | PatchCompiler | 0.0 (STALE) | `PatchCompilerTests.cs` was added 2026-07-27, three days after this baseline. The "no unit test file exists" claim was true when written but is false now; current coverage is unverified pending a fresh coverage run |
 | TransformCompiler | 0.0 (STALE) | `TransformCompilerTests.cs` was added 2026-07-27, same situation as PatchCompiler above — a test file now exists; current coverage is unverified pending a fresh coverage run |
