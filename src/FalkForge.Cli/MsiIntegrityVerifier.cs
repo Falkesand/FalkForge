@@ -301,9 +301,13 @@ public static class MsiIntegrityVerifier
     /// Re-extracts every embedded cabinet and recomputes each contained file's SHA-256, keyed by
     /// the MSI <c>File</c> table's long file name — the same identity <c>IntegritySigner</c> signs
     /// under (see <c>FalkForge.Compiler.Msi.Signing.IntegritySigner.BuildPayloadHashEntries</c>,
-    /// which hashes <c>ResolvedFile.SourcePath</c> keyed by <c>ResolvedFile.FileName</c>, and
-    /// <c>FileTableProducer</c>, which writes that same <c>FileName</c> into the File table's
-    /// <c>FileName</c> column verbatim). Duplicate-name detection is delegated to
+    /// which declares each entry under <c>ResolvedFile.FileName</c>, and <c>FileTableProducer</c>,
+    /// which writes that same <c>FileName</c> into the File table's <c>FileName</c> column
+    /// verbatim). Both sides are computed over the PACKAGED bytes: the digests declared here were
+    /// captured by <c>CabinetBuilder</c> as the FCI compressor consumed each file, and the digests
+    /// below are recomputed from those same bytes after re-extraction — so a source file edited
+    /// between packaging and signing cannot make an otherwise-honest build fail this check.
+    /// Duplicate-name detection is delegated to
     /// <see cref="AccumulatePayloadHashes"/> — see its docs for why a plain dictionary assignment is
     /// not safe here.
     /// </summary>

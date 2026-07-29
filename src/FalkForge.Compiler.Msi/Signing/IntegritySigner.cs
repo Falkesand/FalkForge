@@ -1,5 +1,4 @@
 using System.Runtime.Versioning;
-using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Models;
@@ -48,8 +47,11 @@ internal static class IntegritySigner
             // Step 1: Sign payload hashes (pure-.NET ECDSA; no external tool required). Always runs when
             // this method is called — the caller (MsiAuthoring step 8.5) gates on Integrity() being
             // configured and signing not being explicitly disabled, nothing more.
-            var entries = BuildPayloadHashEntries(resolvedFiles);
-            var signResult = EcdsaManifestSigner.Sign(entries, config);
+            var entriesResult = BuildPayloadHashEntries(resolvedFiles, packagedFileHashes);
+            if (entriesResult.IsFailure)
+                return Result<Unit>.Failure(entriesResult.Error);
+
+            var signResult = EcdsaManifestSigner.Sign(entriesResult.Value, config);
             if (signResult.IsFailure)
                 return Result<Unit>.Failure(signResult.Error);
 
@@ -94,16 +96,54 @@ internal static class IntegritySigner
         }
     }
 
-    private static List<PayloadHashEntry> BuildPayloadHashEntries(IReadOnlyList<ResolvedFile> files)
+    /// <summary>
+    /// Builds the <c>(fileName, sha256)</c> pairs the ECDSA envelope commits to, sourced from the
+    /// digests <c>CabinetBuilder</c> captured while the native FCI compressor actually read each
+    /// file's bytes (see <c>CabinetBuilder.Callbacks.cs</c>) — never by reopening
+    /// <see cref="ResolvedFile.SourcePath"/> here. Between packaging (step 5) and integrity signing
+    /// (step 8.5) that path can change under a racing build step, an AV rescan rewrite, or anyone
+    /// with write access to the build tree, and a signature over re-read bytes vouches for content
+    /// the cabinet never contained. <c>FalkForge.Cli.MsiIntegrityVerifier</c> recomputes its side by
+    /// re-extracting the embedded cabinets, so sourcing both halves from the packaged bytes makes
+    /// signer and verifier agree by construction.
+    ///
+    /// <para>Keyed by <see cref="ResolvedFile.FileId"/> — the MSI File table's own unique identity —
+    /// not <c>SourcePath</c>: two File rows may legitimately share one source path (the same binary
+    /// shipped into two components), and <c>SourcePath</c> finds nothing at all in this FileId-keyed
+    /// map. The entry NAME stays <see cref="ResolvedFile.FileName"/> because that is the identity the
+    /// verifier resolves actual payload files under.</para>
+    ///
+    /// <para><b>A missing digest is fatal here, unlike in the SBOM.</b> <c>SbomHelper</c> and
+    /// <see cref="GenerateSbomForAttestation"/> skip a file the cabinet never reported: under-reporting
+    /// a descriptive inventory is safe. A signature is prescriptive — its declared set defines what is
+    /// covered — and <c>MsiIntegrityVerifier</c> only closes the "actual ⊆ declared" direction over
+    /// EMBEDDED cabinets (<c>ReadActualPayloadHashes</c> skips every <c>Media.Cabinet</c> without the
+    /// <c>#</c> prefix). Under an external-cabinet layout a silently dropped file is therefore neither
+    /// declared nor content-bound: it ships unverified while <c>forge verify</c> still reports
+    /// VERIFIED. So the build fails instead of narrowing the covered set behind the publisher's back.
+    /// This costs nothing in a correct build — <c>CabinetPlanner</c> routes every resolved file through
+    /// some cabinet and any FCIAddFile failure already aborts the compile, so a miss can only mean a
+    /// broken invariant. Re-reading the source to fill the gap is not an option: that re-read is the
+    /// bug.</para>
+    /// </summary>
+    private static Result<List<PayloadHashEntry>> BuildPayloadHashEntries(
+        IReadOnlyList<ResolvedFile> files,
+        IReadOnlyDictionary<string, string> packagedFileHashes)
     {
         var entries = new List<PayloadHashEntry>(files.Count);
         foreach (var file in files)
         {
-            if (!File.Exists(file.SourcePath))
-                continue;
+            if (!packagedFileHashes.TryGetValue(file.FileId, out var hash))
+            {
+                return Result<List<PayloadHashEntry>>.Failure(
+                    ErrorKind.IntegrityError,
+                    $"Integrity signing: payload file '{file.FileName}' (File id '{file.FileId}') has no " +
+                    "packaging-time SHA-256, so the signature cannot honestly cover it. Signing the " +
+                    "remaining files would silently narrow what the signature declares, and re-reading " +
+                    "the source file now could vouch for bytes the cabinet never packaged. This " +
+                    "indicates the cabinet build did not record a digest for every resolved file.");
+            }
 
-            using var stream = File.OpenRead(file.SourcePath);
-            var hash = Convert.ToHexString(SHA256.HashData(stream));
             entries.Add(new PayloadHashEntry(file.FileName, hash));
         }
 
@@ -178,7 +218,10 @@ internal static class IntegritySigner
             // this FileId-keyed map. A file absent from the map (e.g. never actually added to a
             // cabinet) is skipped rather than falling back to a re-read of a possibly-stale
             // source file: the SBOM may under-report, but it must never assert a digest it did
-            // not observe. Identical rule to SbomHelper.WriteSbomSidecar.
+            // not observe. Identical rule to SbomHelper.WriteSbomSidecar. In practice this skip is
+            // now defensive only — BuildPayloadHashEntries already refused the whole signing step
+            // (step 1) if any resolved file lacked a packaging digest, so step 2 is unreachable
+            // with an incomplete map. It stays because the rule, not the reachability, is the point.
             if (!packagedFileHashes.TryGetValue(file.FileId, out var hash))
                 continue;
 
