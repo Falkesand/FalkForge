@@ -454,12 +454,6 @@ Historically auto-generated; the extraction script has been retired — this fil
 | SGN002 | Signing requires CertificatePath or CertificateThumbprint | `src/FalkForge.Core/Validation/RemainingRules.cs` |
 | SGN003 | DigestAlgorithm must be sha256, sha384, or sha512 | `src/FalkForge.Core/Validation/RemainingRules.cs` |
 
-## SHA — SHA hashing
-
-| Code | Message | Source |
-|------|---------|--------|
-| SHA256 | );                 writer.WriteString( | `src/FalkForge.Core/Sbom/IntegritySbomGenerator.cs` |
-
 ## SHC — Shortcut
 
 | Code | Message | Source |
