@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -137,10 +138,33 @@ public sealed class SpdxSbomGenerator : ISbomGenerator
 
         writer.WritePropertyName("creators");
         writer.WriteStartArray();
-        writer.WriteStringValue("Tool: FalkForge");
+        writer.WriteStringValue(ToolCreator);
         writer.WriteEndArray();
 
         writer.WriteEndObject();
+    }
+
+    /// <summary>
+    /// SPDX 2.3 §6.8 specifies a tool creator as <c>"Tool: toolidentifier-version"</c>. The version
+    /// was previously omitted, which validators flag: an SBOM that does not say which build of the
+    /// producing tool wrote it cannot be reproduced or triaged. Resolved once from this assembly's
+    /// informational version, with the '+' build-metadata suffix trimmed because SPDX parses the
+    /// segment after the final '-' as the version.
+    /// </summary>
+    private static readonly string ToolCreator = BuildToolCreator();
+
+    private static string BuildToolCreator()
+    {
+        var informational = typeof(SpdxSbomGenerator).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informational))
+            return "Tool: FalkForge";
+
+        var plus = informational.IndexOf('+', StringComparison.Ordinal);
+        var version = plus >= 0 ? informational[..plus] : informational;
+
+        return string.IsNullOrWhiteSpace(version) ? "Tool: FalkForge" : "Tool: FalkForge-" + version;
     }
 
     private static void WritePackages(
