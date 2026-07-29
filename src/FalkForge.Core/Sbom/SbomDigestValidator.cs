@@ -15,10 +15,21 @@ namespace FalkForge.Sbom;
 public static class SbomDigestValidator
 {
     private const int Sha256HexLength = 64;
+    private const int Sha1HexLength = 40;
 
-    public static bool IsValidSha256Hex(string value)
+    public static bool IsValidSha256Hex(string value) => IsHexOfLength(value, Sha256HexLength);
+
+    /// <summary>
+    /// Validates a SHA-1 hex digest: exactly 40 hexadecimal characters, either case, unnormalized.
+    /// Used by <see cref="SpdxSbomGenerator"/>, where SPDX 2.3 §8.4 makes a per-file SHA1 checksum
+    /// mandatory. SHA-1 appears in FalkForge solely as that spec-mandated identifier; nothing makes
+    /// a trust decision on it, and this method asserts shape only, never fitness for one.
+    /// </summary>
+    public static bool IsValidSha1Hex(string value) => IsHexOfLength(value, Sha1HexLength);
+
+    private static bool IsHexOfLength(string value, int expectedLength)
     {
-        if (value.Length != Sha256HexLength)
+        if (value.Length != expectedLength)
             return false;
 
         foreach (var c in value)
