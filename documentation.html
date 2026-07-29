@@ -792,6 +792,7 @@
           <a href="#dlg-featuretree-template">FeatureTree Template</a>
           <a href="#dlg-mondo-template">Mondo Template</a>
           <a href="#dlg-advanced-template">Advanced Template</a>
+          <a href="#dlg-restart-manager-dialog">MsiRMFilesInUse Dialog (Restart Manager)</a>
           <a href="#dlg-authoring-custom-dialog">Authoring a Custom Dialog</a>
           <a href="#dlg-customization-api">Dialog Customization API</a>
         </div>
@@ -2886,7 +2887,7 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>AboutUrl</code></td><td><code>string?</code></td><td><code>null</code></td><td>Product information URL.</td></tr>
       <tr><td><code>UpdateUrl</code></td><td><code>string?</code></td><td><code>null</code></td><td>Update information URL.</td></tr>
       <tr><td><code>LicenseFile</code></td><td><code>string?</code></td><td><code>null</code></td><td>Path to RTF license file for the license dialog.</td></tr>
-      <tr><td><code>EnableRestartManager</code></td><td><code>bool</code></td><td><code>false</code></td><td>Whether to enable Windows Restart Manager integration.</td></tr>
+      <tr><td><code>EnableRestartManager</code></td><td><code>bool</code></td><td><code>false</code></td><td>Whether to enable Windows Restart Manager integration (sets <code>MSIRMSHUTDOWN=0</code> and authors the <code>MsiRMFilesInUse</code> dialog). Set via <code>EnableRestartManagerSupport()</code>, not directly.</td></tr>
     </tbody>
   </table>
 
@@ -2926,7 +2927,7 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>UISequence(Action&lt;SequenceBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Inserts actions into the InstallUISequence table.</td></tr>
       <tr><td><code>MediaTemplate(Action&lt;MediaTemplateBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures cabinet and media settings.</td></tr>
       <tr><td><code>Binary(string name, string sourcePath)</code></td><td><code>PackageBuilder</code></td><td>Adds a binary resource (DLL, EXE, bitmap) to the Binary table.</td></tr>
-      <tr><td><code>EnableRestartManagerSupport()</code></td><td><code>PackageBuilder</code></td><td>Enables Windows Restart Manager integration.</td></tr>
+      <tr><td><code>EnableRestartManagerSupport()</code></td><td><code>PackageBuilder</code></td><td>Enables Windows Restart Manager integration: sets <code>MSIRMSHUTDOWN=0</code> and authors the <code>MsiRMFilesInUse</code> dialog so full-UI installs can close and restart locked applications.</td></tr>
       <tr><td><code>Signing(Action&lt;SigningOptionsBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures Authenticode code signing for the output MSI.</td></tr>
       <tr><td><code>UseDialogSet(MsiDialogSet dialogSet)</code></td><td><code>PackageBuilder</code></td><td>Selects the built-in MSI dialog template set.</td></tr>
       <tr><td><code>SetLocalizationData(IReadOnlyList&lt;LocalizationData&gt;)</code></td><td><code>PackageBuilder</code></td><td>Applies localization string tables for multi-language support.</td></tr>
@@ -4434,6 +4435,14 @@ p.CreateFolder(cf =&gt; cf
 
     p.EnableRestartManagerSupport();
 }, new MsiCompiler());</code></pre>
+  <p>
+    Because the sample above selects <code>MsiDialogSet.FeatureTree</code>, calling
+    <code>EnableRestartManagerSupport()</code> also authors the <code>MsiRMFilesInUse</code> dialog into
+    that dialog set (see &sect;14). FalkForge appends this dialog to every stock dialog set
+    (<code>Minimal</code>, <code>InstallDir</code>, <code>FeatureTree</code>, <code>Mondo</code>,
+    <code>Advanced</code>) when the flag is set; it is inert for <code>MsiDialogSet.None</code>, since a
+    silent install has no dialog set to append to.
+  </p>
 
   <!-- 8.28 WinGet Manifest -->
   <h3 id="msi-winget-builder">8.28 WinGet Manifest Generation</h3>
@@ -8629,6 +8638,81 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <code>LicenseAccepted = "1"</code>).
 </div>
 
+<h3 id="dlg-restart-manager-dialog">MsiRMFilesInUse Dialog (Restart Manager)</h3>
+<p><code>src/FalkForge.Compiler.Msi/UI/Layout/Builders/MsiRMFilesInUseDlgBuilder.cs</code></p>
+
+<p>
+    When <code>EnableRestartManagerSupport()</code> is set (see &sect;8.2), <code>DialogSetProducer</code>
+    appends one more dialog to whichever stock dialog set is active &mdash; <code>MsiRMFilesInUse</code>,
+    370&times;270 DLU, matching WiX's own <code>MsiRMFilesInUse.wxs</code> geometry. Unlike every other
+    dialog in this section, it is not part of the wizard flow: Windows Installer creates it directly at
+    <code>InstallValidate</code> when Restart Manager reports files in use at full UI, so it is reachable
+    from no other dialog and carries <code>KeepModeless</code> (0x10) on top of the standard attributes
+    (0x27), giving 0x37 &mdash; it must not tear down whatever modeless dialog is already on screen
+    underneath it. It is skipped entirely when <code>DialogSet</code> is <code>None</code>, and appended
+    for every other dialog set.
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Control</th><th>Type</th><th>Bound property / text</th></tr></thead>
+    <tbody>
+        <tr><td>Title</td><td>Text</td><td><code>Dialog.RestartManager.Title</code></td></tr>
+        <tr><td>Description</td><td>Text</td><td><code>Dialog.RestartManager.Description</code></td></tr>
+        <tr><td>Text</td><td>Text</td><td><code>Dialog.RestartManager.Text</code></td></tr>
+        <tr><td>List</td><td>ListBox</td><td>the built-in <code>FileInUseProcess</code> property, populated by the Windows Installer engine at runtime</td></tr>
+        <tr><td>ShutdownOption</td><td>RadioButtonGroup</td><td><code>FalkForgeRMOption</code></td></tr>
+        <tr><td>OK</td><td>PushButton</td><td>&mdash;</td></tr>
+        <tr><td>Cancel</td><td>PushButton</td><td>&mdash;</td></tr>
+    </tbody>
+</table>
+
+<p>
+    <code>ShutdownOption</code>'s two <code>RadioButton</code> table rows, both bound to
+    <code>FalkForgeRMOption</code>:
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Order</th><th>Value</th><th>Text</th></tr></thead>
+    <tbody>
+        <tr><td>1</td><td><code>UseRM</code></td><td><code>Dialog.RestartManager.CloseApps</code></td></tr>
+        <tr><td>2</td><td><code>DontUseRM</code></td><td><code>Dialog.RestartManager.DontCloseApps</code></td></tr>
+    </tbody>
+</table>
+
+<p>
+    <code>PropertyTableProducer</code> seeds <code>FalkForgeRMOption = "UseRM"</code> as the
+    <code>Property</code> table default &mdash; ICE34 requires a <code>RadioButtonGroup</code>'s bound
+    property to already equal one of its <code>RadioButton</code> values, or the group is not
+    TAB-selectable and validation fails.
+</p>
+
+<p>The three <code>ControlEvent</code> rows, in <code>Ordering</code> order per control:</p>
+
+<table class="api-table">
+    <thead><tr><th>Control</th><th>Event</th><th>Argument</th><th>Condition</th><th>Ordering</th></tr></thead>
+    <tbody>
+        <tr><td>OK</td><td><code>RMShutdownAndRestart</code></td><td><code>0</code></td><td><code>FalkForgeRMOption~="UseRM"</code></td><td>1</td></tr>
+        <tr><td>OK</td><td><code>EndDialog</code></td><td><code>Return</code></td><td><code>1</code></td><td>2</td></tr>
+        <tr><td>Cancel</td><td><code>EndDialog</code></td><td><code>Exit</code></td><td><code>1</code></td><td>1</td></tr>
+    </tbody>
+</table>
+
+<div class="note">
+    This ordering is <strong>inverted relative to WiX</strong>, which publishes <code>EndDialog</code>
+    before <code>RMShutdownAndRestart</code>. See ADR
+    <a href="docs/adr/0006-msirmfilesinuse-dialog-emission.md">0006</a> for why: the
+    <code>ControlEvent</code> table documentation states events fire in <code>Ordering</code> column
+    order, and RM-then-end is the reading that matches that sentence literally.
+</div>
+
+<p>
+    Five localization keys back the dialog's text, seeded as defaults in both
+    <code>en-US.json</code> and <code>sv-SE.json</code> (and as an internal fallback, so a package
+    supplying its own <code>LocalizationData</code> without these keys still builds): <code>Dialog.RestartManager.Title</code>,
+    <code>Dialog.RestartManager.Description</code>, <code>Dialog.RestartManager.Text</code>,
+    <code>Dialog.RestartManager.CloseApps</code>, <code>Dialog.RestartManager.DontCloseApps</code>.
+</p>
+
 <h3 id="dlg-authoring-custom-dialog">Authoring a Custom Dialog (<code>AddCustomDialog</code>)</h3>
 
 <h4>How MSI dialogs work</h4>
@@ -8760,6 +8844,15 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
         <tr><td><code>Control(type, name, x, y, w, h)</code></td><td>any <code>CustomControlType</code></td><td>depends</td><td>Escape hatch for types with no dedicated adder &mdash; <code>RadioButtonGroup</code>, <code>ComboBox</code>, <code>ListBox</code>, <code>SelectionTree</code>, <code>DirectoryCombo</code>, <code>DirectoryList</code>, <code>MaskedEdit</code>, <code>VolumeCostList</code>, <code>ProgressBar</code>. Several need a companion table (for example <code>RadioButtonGroup</code> needs a <code>RadioButton</code> table) authored separately &mdash; only the <code>Control</code> row is emitted here.</td></tr>
     </tbody>
 </table>
+
+<div class="note">
+    FalkForge's recipe pipeline now emits a <code>RadioButton</code> table (see &sect;14's
+    <code>MsiRMFilesInUse</code> dialog below for a worked example), so a <code>RadioButtonGroup</code>
+    control is ICE34-clean when its rows come from the internal declarative dialog descriptor used by
+    the stock templates. <code>AddCustomDialog</code> does not populate that table from a
+    <code>CustomDialogBuilder</code>-authored <code>RadioButtonGroup</code> yet &mdash; the note above
+    (&ldquo;needs a companion table&hellip;authored separately&rdquo;) still applies to that path.
+</div>
 
 <p>Appearance/state modifiers, on the <code>CustomDialogControlBuilder</code> a control adder's <code>configure</code> callback receives (default attributes are <code>Visible | Enabled</code>):</p>
 

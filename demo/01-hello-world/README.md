@@ -66,5 +66,4 @@ dotnet build demo/01-hello-world
 - `Reproducible()` ensures that building the same source twice produces a byte-identical MSI, useful for build
   verification and supply-chain integrity.
 - `EnableRestartManagerSupport()` lets Windows gracefully close applications that have files in use during
-  installation under silent or basic-UI installs, avoiding forced reboots — only apps that registered for restart
-  come back automatically.
+  installation, avoiding forced reboots — only apps that registered for restart come back automatically.
