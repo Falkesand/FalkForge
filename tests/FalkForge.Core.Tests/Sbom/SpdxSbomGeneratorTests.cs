@@ -81,7 +81,25 @@ public sealed class SpdxSbomGeneratorTests
 
         var creationInfo = doc.RootElement.GetProperty("creationInfo");
         Assert.Equal("2026-07-29T10:20:30Z", creationInfo.GetProperty("created").GetString());
-        Assert.Equal("Tool: FalkForge", creationInfo.GetProperty("creators")[0].GetString());
+    }
+
+    [Fact]
+    public void Generate_NamesItselfAsAVersionedToolCreator()
+    {
+        // §6.8 specifies the creator form "Tool: toolidentifier-version". The version was previously
+        // omitted, which validators flag — an SBOM that does not record which build of the producing
+        // tool wrote it cannot be reproduced or triaged from its own contents.
+        using var doc = Generate(MakeDocument(File("app.exe", Sha256A, Sha1A)));
+
+        var creator = doc.RootElement.GetProperty("creationInfo").GetProperty("creators")[0].GetString();
+
+        Assert.NotNull(creator);
+        Assert.StartsWith("Tool: FalkForge-", creator, StringComparison.Ordinal);
+        var version = creator["Tool: FalkForge-".Length..];
+        Assert.NotEmpty(version);
+        // '+' introduces SemVer build metadata; SPDX reads the segment after the final '-' as the
+        // version, so the suffix must not survive into the creator string.
+        Assert.DoesNotContain('+', version);
     }
 
     [Fact]
