@@ -83,15 +83,17 @@ public sealed class DialogSetProducerTests
     }
 
     [Fact]
-    public void Produce_RadioButton_table_has_seven_columns()
+    public void Produce_RadioButton_table_has_nine_columns()
     {
         ImmutableArray<RecipeTable> tables = ProduceTables(MsiDialogSet.Minimal);
         RecipeTable radioButton = GetTable(tables, "RadioButton");
 
         // RadioButton DDL: Property, Order, Value, X, Y, Width, Height, Text, Help — nine
-        // columns total. (The seven NOT-NULL geometry/key columns plus the two LOCALIZABLE
-        // Text/Help columns needed to carry radio-button labels through to the Control-table
-        // style localization pass in DialogSetProducer.Localization.cs.)
+        // columns total: seven NOT-NULL geometry/key columns (Property, Order, Value, X, Y,
+        // Width, Height) plus the two LOCALIZABLE Text/Help columns needed to carry
+        // radio-button labels through to the Control-table style localization pass in
+        // DialogSetProducer.Localization.cs. Easy to undercount as "seven" if you stop at the
+        // NOT-NULL columns and forget the two LOCALIZABLE ones.
         Assert.Equal(9, radioButton.Columns.Length);
         Assert.Equal("Property", radioButton.Columns[0].Name);
         Assert.Equal("Order", radioButton.Columns[1].Name);
