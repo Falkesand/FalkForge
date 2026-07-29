@@ -42,8 +42,12 @@ public sealed class IntegrityBuilderTests
     }
 
     [Fact]
-    public void Default_ReturnsSpdxAndNoKey()
+    public void Default_ReturnsCycloneDxAndNoKey()
     {
+        // Must match IntegrityConfiguration's own default (see IntegrityConfigurationTests for why
+        // it is CycloneDX): the builder and the model are two doors onto one setting, and a
+        // divergence would mean `new IntegrityConfiguration()` and `Integrity(_ => { })` produce
+        // different SBOM documents from identical-looking code.
         var package = InstallerTestHost.BuildPackage(p =>
         {
             p.Name = "App";
@@ -52,7 +56,7 @@ public sealed class IntegrityBuilderTests
         });
 
         Assert.NotNull(package.Integrity);
-        Assert.Equal(SbomFormat.Spdx, package.Integrity.SbomFormat);
+        Assert.Equal(SbomFormat.CycloneDx, package.Integrity.SbomFormat);
         Assert.Null(package.Integrity.SigningKeyPath);
         Assert.Null(package.Integrity.CertStoreThumbprint);
         Assert.Null(package.Integrity.StoreLocation);

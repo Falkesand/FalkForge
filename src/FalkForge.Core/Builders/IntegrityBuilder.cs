@@ -13,7 +13,9 @@ public sealed class IntegrityBuilder
     private string? _storeLocation;
     private string? _vaultProvider;
     private string? _vaultKeyRef;
-    private SbomFormat _sbomFormat = SbomFormat.Spdx;
+    // Must stay in lockstep with IntegrityConfiguration.SbomFormat's initializer — see that member
+    // for why the default is CycloneDX rather than the enum's zero value.
+    private SbomFormat _sbomFormat = SbomFormat.CycloneDx;
     private int _epoch;
     private readonly List<string> _revokedFingerprints = [];
 

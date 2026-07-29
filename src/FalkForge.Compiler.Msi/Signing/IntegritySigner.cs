@@ -208,7 +208,10 @@ internal static class IntegritySigner
             // Reading the configured format twice — once for the generator, once for the tag — is
             // how the two came apart in the first place: the writer ignored the enum entirely and
             // always emitted CycloneDX while the tag dutifully said "spdx".
-            var sbomFormat = config?.SbomFormat ?? SbomFormat.Spdx;
+            // The no-config fallback must match IntegrityConfiguration.SbomFormat's own default:
+            // a null config is "nothing was configured", which has to mean the same document as an
+            // explicitly-defaulted config, not a different one.
+            var sbomFormat = config?.SbomFormat ?? SbomFormat.CycloneDx;
             var sbomPath = Path.Combine(tempDir, "sbom.json");
             var sbomResult = GenerateSbomForAttestation(
                 package, resolvedFiles, packagedFileHashes, packagedFileSha1Hashes, sbomPath, sbomFormat);

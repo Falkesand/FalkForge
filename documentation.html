@@ -9067,8 +9067,8 @@ forge validate package.msi --ice --ice-warnings-as-errors</code></pre>
 #   --verbose     Show detailed table list
 #   --json        Emit a JSON envelope to stdout
 #   --sbom        Extract the SBOM from the MSI integrity table (if present). Its format follows
-#                 the Integrity(i => i.Sbom(...)) setting the package was built with — SPDX 2.3
-#                 by default, CycloneDX 1.6 on request. The Format column names which.
+#                 the Integrity(i => i.Sbom(...)) setting the package was built with — CycloneDX 1.6
+#                 by default, SPDX 2.3 on request. The Format column names which.
 
 # Examples:
 forge inspect package.msi
@@ -13365,9 +13365,17 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     CycloneDX writer, so every attestation predicate was CycloneDX regardless of the setting, while the
     <code>--type</code> flag passed to <code>sigil attest</code> and the <code>Format</code> column of the MSI's
     <code>_FalkForgeIntegrity</code>/<code>SbomAttestation</code> row dutifully reported what had been asked for.
-    Since <code>SbomFormat.Spdx</code> is the <em>default</em>, an ordinary <code>Integrity()</code> MSI shipped a
-    row declaring <code>Format="spdx"</code> over CycloneDX bytes. If you have consumers keying off that column,
-    they were being told the wrong schema; re-verify them against a freshly built package.
+    <code>SbomFormat.Spdx</code> used to be the <em>default</em>, so an ordinary <code>Integrity()</code> MSI
+    shipped a row declaring <code>Format="spdx"</code> over CycloneDX bytes. If you have consumers keying off
+    that column, they were being told the wrong schema; re-verify them against a freshly built package.
+    <br><br>
+    <strong>The default output is unchanged: CycloneDX 1.6.</strong> The default moved from
+    <code>SbomFormat.Spdx</code> to <code>SbomFormat.CycloneDx</code> precisely <em>so that</em> it would stay
+    unchanged &mdash; the old default's label was wrong, but its bytes were CycloneDX and that is what existing
+    consumers parse. SPDX 2.3 is now available on request via <code>Integrity(i =&gt; i.Sbom(SbomFormat.Spdx))</code>.
+    A build that never called <code>.Sbom(...)</code> emits exactly the document it always did, now correctly
+    labelled <code>cyclonedx</code>. (The <code>SbomFormat</code> enum members are deliberately not renumbered:
+    <code>Spdx</code> remains <code>0</code>, so any persisted numeric value keeps its meaning.)
     <br><br>
     <strong>What SPDX output now contains.</strong> A conformant SPDX 2.3 document: a SHA1 checksum per file
     (&sect;8.4 makes it mandatory &mdash; SHA256 rides along as an additional checksum), a
