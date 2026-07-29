@@ -35,9 +35,6 @@ internal static class NativeRestartManagerMethods
     /// </summary>
     internal const int CCH_RM_MAX_SVC_NAME = 63;
 
-    /// <summary>Maximum number of processes the Restart Manager can return in a single call.</summary>
-    internal const int RM_MAX_PROCESSES = 128;
-
     [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
     internal static extern int RmStartSession(
         out uint pSessionHandle,
