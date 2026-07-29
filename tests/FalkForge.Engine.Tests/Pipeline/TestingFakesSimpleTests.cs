@@ -8,8 +8,8 @@ using Xunit;
 
 /// <summary>
 /// Contract tests for the simple testing fakes:
-/// <see cref="FakeClock"/>, <see cref="DeterministicRandom"/>,
-/// <see cref="ListLogger"/>, and <see cref="NullRestartManager"/>.
+/// <see cref="FakeClock"/>, <see cref="ListLogger"/>, and
+/// <see cref="NullRestartManager"/>.
 /// </summary>
 public sealed class TestingFakesSimpleTests
 {
@@ -41,28 +41,6 @@ public sealed class TestingFakesSimpleTests
         var target = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
         clock.Set(target);
         Assert.Equal(target, clock.UtcNow);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // DeterministicRandom
-    // ──────────────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void DeterministicRandom_NewGuid_ReturnsDistinctValues()
-    {
-        var rng = new DeterministicRandom();
-        var g1 = rng.NewGuid();
-        var g2 = rng.NewGuid();
-        Assert.NotEqual(g1, g2);
-    }
-
-    [Fact]
-    public void DeterministicRandom_Fill_WritesFillByte()
-    {
-        var rng = new DeterministicRandom(fillByte: 0x42);
-        Span<byte> buf = stackalloc byte[8];
-        rng.Fill(buf);
-        Assert.True(buf.SequenceEqual(stackalloc byte[8] { 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42 }));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

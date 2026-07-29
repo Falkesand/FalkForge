@@ -7491,12 +7491,7 @@ public sealed record EngineSessionOptions
 
 <pre><code class="language-csharp">public sealed class InstallerPipelineBuilder
 {
-    public InstallerPipelineBuilder WithClock(IClock clock);
-    public InstallerPipelineBuilder WithRandom(IRandomSource random);
-    public InstallerPipelineBuilder WithJournalStore(IJournalStore store);
-    public InstallerPipelineBuilder WithPayloadCache(IPayloadCache cache);
-    public InstallerPipelineBuilder WithPayloadSource(IPayloadSource source);
-    public InstallerPipelineBuilder WithLayoutStore(ILayoutStore store);
+    public InstallerPipelineBuilder WithJournalStore(IRollbackJournalStore store);
     public InstallerPipelineBuilder WithUiChannel(IUiChannel channel);
     public InstallerPipelineBuilder WithElevationGateway(IElevatedCommandGateway gateway);
     public InstallerPipelineBuilder WithManifest(InstallerManifest manifest);
@@ -7505,6 +7500,8 @@ public sealed record EngineSessionOptions
     public InstallerPipelineBuilder WithVariableStore(VariableStore variables);
     public InstallerPipelineBuilder WithUndoOperations(IReadOnlyList&lt;IUndoOperation&gt; ops);
     public InstallerPipelineBuilder WithLogger(IFalkLogger logger);
+    public InstallerPipelineBuilder WithTrustStoreAdvanceOnVerifiedApply(bool enabled = true);
+    public InstallerPipelineBuilder WithPayloadRoot(string payloadRoot);
     public IInstallerPipeline Build();
 }</code></pre>
 
