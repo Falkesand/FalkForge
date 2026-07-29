@@ -97,8 +97,13 @@ public sealed class SpdxSbomGeneratorTests
         Assert.StartsWith("Tool: FalkForge-", creator, StringComparison.Ordinal);
         var version = creator["Tool: FalkForge-".Length..];
         Assert.NotEmpty(version);
-        // '+' introduces SemVer build metadata; SPDX reads the segment after the final '-' as the
-        // version, so the suffix must not survive into the creator string.
+        // '+' introduces SemVer build metadata, which SemVer §10 excludes from version identity — it
+        // names the build, not the version — so it must not survive into the creator string. The
+        // prerelease suffix deliberately does survive (see BuildToolCreator): at 0.5.0-beta.5 the
+        // creator is "Tool: FalkForge-0.5.0-beta.5", because a prerelease build must not claim
+        // authorship under the release version. So this asserts only the '+' trim; it does not assert
+        // that the segment after the final '-' is the whole version, which is not true and is not a
+        // §6.8 requirement.
         Assert.DoesNotContain('+', version);
     }
 
@@ -351,8 +356,15 @@ public sealed class SpdxSbomGeneratorTests
     [Fact]
     public void Generate_IsDeterministicForIdenticalInput()
     {
-        // Reproducible() builds compare SBOM bytes across runs, so nothing in the writer may depend
-        // on the wall clock or a fresh GUID.
+        // Reproducible() builds compare SBOM bytes across runs, so two Generate calls over one
+        // document must produce identical bytes. What this actually catches is a fresh GUID (or any
+        // other per-call entropy) leaking into the document namespace or an SPDXID.
+        //
+        // It does NOT prove the writer is independent of the wall clock, and an earlier comment here
+        // claimed it did: `created` is second-granularity, so two back-to-back DateTimeOffset.UtcNow
+        // calls stringify identically and a wall-clock-reading writer would sail through this. The
+        // guard for that is Generate_DerivesCreationTimestampFromTheDocument_NotTheWallClock, which
+        // asserts the emitted timestamp equals the one supplied on the document.
         var document = MakeDocument(File("app.exe", Sha256A, Sha1A));
 
         using var first = new MemoryStream();

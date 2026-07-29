@@ -157,8 +157,19 @@ public sealed class SpdxSbomGenerator : ISbomGenerator
     /// SPDX 2.3 §6.8 specifies a tool creator as <c>"Tool: toolidentifier-version"</c>. The version
     /// was previously omitted, which validators flag: an SBOM that does not say which build of the
     /// producing tool wrote it cannot be reproduced or triaged. Resolved once from this assembly's
-    /// informational version, with the '+' build-metadata suffix trimmed because SPDX parses the
-    /// segment after the final '-' as the version.
+    /// informational version.
+    ///
+    /// <para><b>What is trimmed and why.</b> Only the SemVer build-metadata suffix (<c>+…</c>), which
+    /// SemVer §10 excludes from version identity — it names the build, not the version. The
+    /// prerelease suffix is deliberately kept: it IS part of the version, and truncating
+    /// <c>0.5.0-beta.5</c> to <c>0.5.0</c> would have a prerelease build claim authorship under a
+    /// release that never produced this document — the same shape of untruth this class exists to
+    /// remove. §6.8 gives no rule for splitting the pair back apart, so keeping the prerelease is not
+    /// in tension with anything the spec says: at <c>0.5.0-beta.5</c> the emitted string is
+    /// <c>Tool: FalkForge-0.5.0-beta.5</c>, whose segment after the final '-' is <c>beta.5</c> rather
+    /// than the whole version, and that is fine. (An earlier version of this comment asserted SPDX
+    /// parses the segment after the final '-' as the version and justified the trim by it; no such
+    /// rule exists in §6.8. The trim is retained on the SemVer §10 grounds above, which do hold.)</para>
     /// </summary>
     private static readonly string ToolCreator = BuildToolCreator();
 
