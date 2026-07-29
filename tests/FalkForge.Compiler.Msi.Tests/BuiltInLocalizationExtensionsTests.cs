@@ -155,6 +155,44 @@ public sealed class BuiltInLocalizationExtensionsTests
         Assert.Equal("&Nästa >", strings["Button.Next"]);
     }
 
+    // ── Restart-Manager dialog keys (MsiRMFilesInUse authoring, phase 2 of 5) ────────────────
+    // Both built-in cultures must define the five Dialog.RestartManager.* keys so that an
+    // authored MsiRMFilesInUse dialog resolves cleanly out of the box, matching every other
+    // stock dialog's localization coverage.
+
+    [Fact]
+    public void Built_in_cultures_define_restart_manager_dialog_keys()
+    {
+        var builder = new LocalizationBuilder();
+        builder.AddBuiltInCultures();
+        builder.DefaultCulture("en-US");
+
+        var result = builder.Build();
+
+        Assert.True(result.IsSuccess);
+        var enUs = result.Value.Single(m => m.Culture == "en-US");
+        var svSe = result.Value.Single(m => m.Culture == "sv-SE");
+
+        string[] keys =
+        [
+            "Dialog.RestartManager.Title",
+            "Dialog.RestartManager.Description",
+            "Dialog.RestartManager.Text",
+            "Dialog.RestartManager.CloseApps",
+            "Dialog.RestartManager.DontCloseApps",
+        ];
+
+        foreach (var key in keys)
+        {
+            Assert.True(
+                enUs.Strings.TryGetValue(key, out var enValue) && !string.IsNullOrEmpty(enValue),
+                $"en-US is missing a non-empty value for '{key}'.");
+            Assert.True(
+                svSe.Strings.TryGetValue(key, out var svValue) && !string.IsNullOrEmpty(svValue),
+                $"sv-SE is missing a non-empty value for '{key}'.");
+        }
+    }
+
     [Fact]
     public void GetBuiltInCultureJsonBytes_UnknownCulture_ThrowsInvalidOperation()
     {

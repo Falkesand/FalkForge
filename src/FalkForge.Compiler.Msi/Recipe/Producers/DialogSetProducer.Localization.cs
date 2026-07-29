@@ -10,6 +10,25 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 // stayed in the primary language for every additional culture).
 internal sealed partial class DialogSetProducer
 {
+    // English defaults for the MsiRMFilesInUse dialog's Dialog.RestartManager.* keys (mirrors
+    // en-US.json). Seeded alongside UiText.* below so a package with custom LocalizationData
+    // still resolves these references even though it never translates them itself — without
+    // this, EnableRestartManagerSupport() combined with custom LocalizationData would hit an
+    // unresolvable "!(loc.Dialog.RestartManager.*)" reference and fail the build.
+    // Declared BEFORE UiTextLocDefaults: static field initializers run in declaration order, and
+    // BuildUiTextLocDefaults() (called from the UiTextLocDefaults initializer) reads this array —
+    // if this field came after, it would still be null (default) when that call runs.
+    private static readonly (string Key, string Text)[] RestartManagerLocDefaults =
+    [
+        ("Dialog.RestartManager.Title", "Files In Use"),
+        ("Dialog.RestartManager.Description", "Some files that need to be updated are currently in use."),
+        ("Dialog.RestartManager.Text",
+            "The following applications are using files that need to be updated by this setup. You can let Setup close these applications and restart them, or close them yourself and try again."),
+        ("Dialog.RestartManager.CloseApps", "Close the applications and attempt to &restart them."),
+        ("Dialog.RestartManager.DontCloseApps",
+            "&Do not close applications. A reboot will be required to complete setup."),
+    ];
+
     // "UiText.<Key>" -> literal English default, derived once from the fixed UiTextEntries. Seeded
     // into the PRIMARY culture whenever a package supplies custom LocalizationData (which otherwise
     // excludes the built-in en-US/sv-SE strings entirely, per the branch below) so authors are never
@@ -19,10 +38,15 @@ internal sealed partial class DialogSetProducer
 
     private static Dictionary<string, string> BuildUiTextLocDefaults()
     {
-        var defaults = new Dictionary<string, string>(UiTextEntries.Length);
+        var defaults = new Dictionary<string, string>(UiTextEntries.Length + RestartManagerLocDefaults.Length);
         for (int i = 0; i < UiTextEntries.Length; i++)
         {
             defaults[$"UiText.{UiTextEntries[i].Key}"] = UiTextEntries[i].Text;
+        }
+
+        for (int i = 0; i < RestartManagerLocDefaults.Length; i++)
+        {
+            defaults[RestartManagerLocDefaults[i].Key] = RestartManagerLocDefaults[i].Text;
         }
 
         return defaults;
