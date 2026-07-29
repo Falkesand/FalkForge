@@ -167,6 +167,24 @@ internal static class DialogComposer
                 });
             }
         }
+
+        if (!content.RadioButtons.IsDefaultOrEmpty)
+        {
+            foreach (var declarative in content.RadioButtons)
+            {
+                model.RadioButtons.Add(new MsiRadioButtonModel
+                {
+                    Property = declarative.Property,
+                    Order = declarative.Order,
+                    Value = declarative.Value,
+                    X = declarative.X,
+                    Y = declarative.Y,
+                    Width = declarative.Width,
+                    Height = declarative.Height,
+                    Text = string.IsNullOrEmpty(declarative.TextOrLocKey) ? null : declarative.TextOrLocKey,
+                });
+            }
+        }
     }
 
     private static MsiConditionAction ParseConditionAction(string action)

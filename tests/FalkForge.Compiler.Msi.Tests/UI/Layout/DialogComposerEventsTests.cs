@@ -147,6 +147,46 @@ public sealed class DialogComposerEventsTests
     }
 
     [Fact]
+    public void Compose_copies_declarative_radio_buttons_onto_model()
+    {
+        var content = ContentWith() with
+        {
+            RadioButtons = ImmutableArray.Create(
+                new DialogRadioButton
+                {
+                    Property = "INSTALLLEVEL",
+                    Value = "1",
+                    Order = 1,
+                    X = 0,
+                    Y = 0,
+                    Width = 200,
+                    Height = 10,
+                    TextOrLocKey = "Typical",
+                },
+                new DialogRadioButton
+                {
+                    Property = "INSTALLLEVEL",
+                    Value = "2",
+                    Order = 2,
+                    X = 0,
+                    Y = 12,
+                    Width = 200,
+                    Height = 10,
+                    TextOrLocKey = "Custom",
+                }),
+        };
+
+        var model = DialogComposer.Compose(content, Layouts.Standard370x270);
+
+        Assert.Equal(2, model.RadioButtons.Count);
+        Assert.Equal("INSTALLLEVEL", model.RadioButtons[0].Property);
+        Assert.Equal("1", model.RadioButtons[0].Value);
+        Assert.Equal("Typical", model.RadioButtons[0].Text);
+        Assert.Equal(2, model.RadioButtons[1].Order);
+        Assert.Equal("Custom", model.RadioButtons[1].Text);
+    }
+
+    [Fact]
     public void Compose_event_order_preserved()
     {
         var content = ContentWith(events: ImmutableArray.Create(

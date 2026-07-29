@@ -46,6 +46,7 @@ internal static class WellKnownTableIds
     internal static readonly TableId MsiServiceConfigFailureActions = TableId.Create("MsiServiceConfigFailureActions").Value;
     internal static readonly TableId ProgId = TableId.Create("ProgId").Value;
     internal static readonly TableId Property = TableId.Create("Property").Value;
+    internal static readonly TableId RadioButton = TableId.Create("RadioButton").Value;
     internal static readonly TableId Registry = TableId.Create("Registry").Value;
     internal static readonly TableId RemoveFile = TableId.Create("RemoveFile").Value;
     internal static readonly TableId RemoveIniFile = TableId.Create("RemoveIniFile").Value;

@@ -172,4 +172,32 @@ internal sealed partial class DialogSetProducer
             ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
         };
     }
+
+    private static TableSchema BuildRadioButtonSchema()
+    {
+        // RadioButton DDL: Property CHAR(72) NN, Order SHORT NN, Value CHAR(64) NN,
+        // X SHORT NN, Y SHORT NN, Width SHORT NN, Height SHORT NN, Text LONGCHAR LOC,
+        // Help CHAR(50) LOC
+        // PRIMARY KEY Property, Order
+        // No foreign keys: RadioButton keys off a Property name, not off Dialog/Control, so
+        // there is no FK ordering constraint against those tables.
+        ImmutableArray<RecipeColumn> cols = ImmutableArray.Create(
+            RecipeColumn.String("Property", 72),
+            RecipeColumn.Integer("Order", 2),
+            RecipeColumn.String("Value", 64),
+            RecipeColumn.Integer("X", 2),
+            RecipeColumn.Integer("Y", 2),
+            RecipeColumn.Integer("Width", 2),
+            RecipeColumn.Integer("Height", 2),
+            RecipeColumn.String("Text", 0, nullable: true, localizableKey: true), // LONGCHAR
+            RecipeColumn.String("Help", 50, nullable: true, localizableKey: true));
+
+        return new TableSchema
+        {
+            Name = WellKnownTableIds.RadioButton,
+            Columns = cols,
+            PrimaryKey = ImmutableArray.Create(new ColumnIndex(0), new ColumnIndex(1)),
+            ForeignKeys = ImmutableArray<ForeignKeySpec>.Empty,
+        };
+    }
 }
