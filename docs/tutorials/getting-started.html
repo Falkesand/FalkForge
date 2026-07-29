@@ -143,9 +143,9 @@ package<span class="punc">.</span><span class="method">MediaTemplate</span><span
 <span class="cmt">// Enable deterministic builds (same source → identical MSI output)</span>
 package<span class="punc">.</span><span class="method">Reproducible</span><span class="punc">();</span>
 
-<span class="cmt">// Enable Windows Restart Manager — gracefully close files-in-use during install</span>
+<span class="cmt">// Enable Windows Restart Manager — gracefully close files-in-use during install (silent/basic UI)</span>
 package<span class="punc">.</span><span class="method">EnableRestartManagerSupport</span><span class="punc">();</span></code></pre>
-    <p><code>MediaTemplate</code> controls how payload files are compressed. <code>EmbedCabinet(true)</code> stores everything inside the MSI itself &mdash; one file to distribute. <code>Reproducible()</code> ensures the same source always produces a byte-identical MSI, useful for build verification. <code>EnableRestartManagerSupport()</code> lets Windows gracefully close applications that have files in use during installation.</p>
+    <p><code>MediaTemplate</code> controls how payload files are compressed. <code>EmbedCabinet(true)</code> stores everything inside the MSI itself &mdash; one file to distribute. <code>Reproducible()</code> ensures the same source always produces a byte-identical MSI, useful for build verification. <code>EnableRestartManagerSupport()</code> lets Windows gracefully close applications that have files in use during installation under silent or basic-UI installs; full UI needs an authored MsiRMFilesInUse dialog, which FalkForge doesn't currently emit.</p>
 
     <details class="deep-dive">
       <summary>Deep dive: What are cabinets?</summary>

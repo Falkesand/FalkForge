@@ -70,15 +70,29 @@ public sealed class PropertyTableProducerTests
     }
 
     [Fact]
-    public void Produce_with_restart_manager_emits_msirmshutdown()
+    public void Produce_with_restart_manager_emits_msirmshutdown_zero()
     {
+        // MSIRMSHUTDOWN values (learn.microsoft.com/windows/win32/msi/msirmshutdown):
+        //   0 = affected processes/services shut down unconditionally (chosen here).
+        //   1 = same as 0, but unresponsive processes are FORCED to shut down.
+        //   2 = affected processes/services shut down ONLY IF EVERY ONE of them
+        //       has called Win32 RegisterApplicationRestart. Services always count
+        //       as restartable (RM_PROCESS_INFO.bRestartable), but ordinary
+        //       third-party apps rarely register, so "2" often shuts down nothing
+        //       for them. "0" always shuts down, but per RmRestart's own docs only
+        //       apps that registered for restart come back — unregistered apps
+        //       stay closed.
+        // Scope: this property is only consulted for silent (/qn) and basic-UI
+        // (/qb) installs. At full UI, Windows Installer only asks Restart Manager
+        // to act via an authored MsiRMFilesInUse dialog, which FalkForge does not
+        // currently emit.
         ResolvedPackage resolved = MakeResolved(
             properties: System.Array.Empty<PropertyModel>(),
             enableRestartManager: true);
 
         ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
 
-        AssertRow(rows, "MSIRMSHUTDOWN", "2");
+        AssertRow(rows, "MSIRMSHUTDOWN", "0");
     }
 
     [Fact]
