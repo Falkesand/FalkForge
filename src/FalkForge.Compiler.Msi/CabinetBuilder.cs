@@ -23,13 +23,15 @@ public sealed partial class CabinetBuilder : IDisposable
     // FCI callbacks use these to perform file I/O through managed streams.
     private readonly Dictionary<nint, FileStream> _openStreams = new();
 
-    // Tracks an in-flight SHA-256 digest for every handle CbGetOpenInfo opened (i.e. every
-    // source file FCIAddFile is reading to compress into the cabinet), keyed by the pseudo-handle
-    // CbRead sees. CbClose finalizes the digest into _packagedFileHashes below. This is the sole
-    // point where the MSI's packaged bytes are actually consumed, so it is the only place a
+    // Tracks the in-flight digests for every handle CbGetOpenInfo opened (i.e. every source file
+    // FCIAddFile is reading to compress into the cabinet), keyed by the pseudo-handle CbRead sees.
+    // CbClose finalizes them into _packagedFileHashes / _packagedFileSha1Hashes below. This is the
+    // sole point where the MSI's packaged bytes are actually consumed, so it is the only place a
     // digest can be captured without a TOCTOU gap against a later SBOM-writing step reopening
-    // the source path (see SbomHelper.WriteSbomSidecar).
-    private readonly Dictionary<nint, (string FileId, IncrementalHash Hash)> _pendingSourceHashes = new();
+    // the source path (see SbomHelper.WriteSbomSidecar). Both algorithms are fed from the one
+    // CbRead chunk, so the SHA-1 costs no extra read and cannot describe a different byte stream
+    // than the SHA-256 does.
+    private readonly Dictionary<nint, PendingDigests> _pendingSourceHashes = new();
 
     // SHA-256 digest (uppercase hex) of every source file's bytes as CbRead actually consumed
     // them, keyed by ResolvedFile.FileId — the MSI File table's own unique identity, not
@@ -38,6 +40,10 @@ public sealed partial class CabinetBuilder : IDisposable
     // call collapse onto the first entry's digest. Populated incrementally as each file's handle
     // is closed during BuildCabinet; complete once BuildCabinet returns.
     private readonly Dictionary<string, string> _packagedFileHashes = new(StringComparer.Ordinal);
+
+    // SHA-1 counterpart of _packagedFileHashes, over the identical byte stream. See
+    // PackagedFileSha1Hashes for why a broken hash is captured at all and what it may not be used for.
+    private readonly Dictionary<string, string> _packagedFileSha1Hashes = new(StringComparer.Ordinal);
 
     // The FileId of the ResolvedFile currently being handed to FCIAddFile. FCI invokes
     // CbGetOpenInfo synchronously within that call to open the source file being added, so this
@@ -74,6 +80,31 @@ public sealed partial class CabinetBuilder : IDisposable
         _logger = logger;
     }
 
+    /// <summary>
+    /// The digests being accumulated for one in-flight source file, plus the
+    /// <see cref="ResolvedFile.FileId"/> they will be filed under once <c>CbClose</c> finalizes them.
+    /// A struct, not a tuple, so the two <see cref="IncrementalHash"/> instances are named at every
+    /// use site — mixing them up would silently file a SHA-1 as a SHA-256, which the ECDSA payload
+    /// manifest signs.
+    /// </summary>
+    private readonly record struct PendingDigests(string FileId, IncrementalHash Sha256, IncrementalHash Sha1)
+    {
+        internal void Append(byte[] buffer, int offset, int count)
+        {
+            Sha256.AppendData(buffer, offset, count);
+            Sha1.AppendData(buffer, offset, count);
+        }
+
+        // Not named Dispose: PendingDigests is a value type that deliberately does not implement
+        // IDisposable (it is copied out of the dictionary by value), and a Dispose-shaped method on
+        // a non-IDisposable type reads as an ownership contract it does not have.
+        internal void DisposeHashes()
+        {
+            Sha256.Dispose();
+            Sha1.Dispose();
+        }
+    }
+
     public void Dispose()
     {
         CleanupOpenStreams();
@@ -90,6 +121,26 @@ public sealed partial class CabinetBuilder : IDisposable
     /// digest. Populated once <see cref="BuildCabinet"/> returns.
     /// </summary>
     public IReadOnlyDictionary<string, string> PackagedFileHashes => _packagedFileHashes;
+
+    /// <summary>
+    /// SHA-1 digest (uppercase hex) of the same packaged byte stream <see cref="PackagedFileHashes"/>
+    /// covers, keyed identically by <see cref="ResolvedFile.FileId"/>. Accumulated in the very same FCI
+    /// callbacks — one <c>CbRead</c> chunk feeds both digests — so it inherits the TOCTOU guarantee for
+    /// free: there is no second pass over the source file that a racing writer could slip between.
+    ///
+    /// <para><b>Why a broken hash is captured at all.</b> SPDX 2.3 §8.4 fixes the cardinality of a
+    /// file's checksum at "1..1 for the SHA1 algorithm, 0..* for all other algorithms" — a SPDX
+    /// document without a per-file SHA1 is not a valid SPDX document, whatever else it carries. This
+    /// value exists solely to satisfy that identifier requirement (and the package verification code
+    /// derived from it, SPDX 2.3 §7.9).</para>
+    ///
+    /// <para><b>What it must never be used for.</b> SHA-1 is collision-broken and nothing in FalkForge
+    /// makes a trust decision on it. The ECDSA payload manifest signs
+    /// <see cref="PackagedFileHashes"/> (SHA-256) and <c>MsiIntegrityVerifier</c> re-verifies against
+    /// SHA-256; this map feeds descriptive SBOM output only. Do not route it into a signature, a
+    /// comparison that gates installation, or any tamper check.</para>
+    /// </summary>
+    public IReadOnlyDictionary<string, string> PackagedFileSha1Hashes => _packagedFileSha1Hashes;
 
     public Result<string> BuildCabinet(
         IReadOnlyList<ResolvedFile> files,
@@ -271,8 +322,8 @@ public sealed partial class CabinetBuilder : IDisposable
         _openStreams.Clear();
 
         // Any handle still pending here means CbClose never ran for it (e.g. an FCI failure
-        // path) — its digest is incomplete, so dispose without finalizing into _packagedFileHashes.
-        foreach (var tracked in _pendingSourceHashes.Values) tracked.Hash.Dispose();
+        // path) — its digests are incomplete, so dispose without finalizing into either map.
+        foreach (var tracked in _pendingSourceHashes.Values) tracked.DisposeHashes();
         _pendingSourceHashes.Clear();
     }
 }
