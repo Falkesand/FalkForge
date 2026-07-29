@@ -15,7 +15,9 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <para>
 /// Tables emitted (for any active dialog set):
 /// <c>Dialog</c>, <c>Control</c>, <c>ControlEvent</c>, <c>ControlCondition</c>,
-/// <c>EventMapping</c>, <c>TextStyle</c>, <c>UIText</c>, <c>RadioButton</c>.
+/// <c>EventMapping</c>, <c>TextStyle</c>, <c>UIText</c> — always — plus <c>RadioButton</c> only
+/// when a dialog actually authors a RadioButtonGroup row (currently only
+/// <c>MsiRMFilesInUse</c>, gated on <see cref="FalkForge.Models.PackageModel.EnableRestartManager"/>).
 /// </para>
 ///
 /// <para>
@@ -102,6 +104,14 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
     // entry) used to read identically to MenuLocal ("install just this feature"), which is wrong
     // per the Windows Installer SelectionTree control contract — the two options must read
     // differently or the feature-picker context menu is meaningless.
+    //
+    // CROSS-FILE INIT ORDER WARNING: DialogSetProducer.Localization.cs's UiTextLocDefaults field
+    // initializer calls BuildUiTextLocDefaults(), which reads this array. That field lives in a
+    // DIFFERENT partial-class file, and C# does not guarantee static field initializer order
+    // ACROSS partial-class files — only within a single file, and only by declaration order (see
+    // the same-file hazard already documented in DialogSetProducer.Localization.cs, which caused
+    // an NRE failing 107+ tests during development). This currently works only because of
+    // Compile-item ordering; do not move this declaration without re-checking that ordering.
     private static readonly (string Key, string Text)[] UiTextEntries =
     [
         ("AbsentPath",             ""),

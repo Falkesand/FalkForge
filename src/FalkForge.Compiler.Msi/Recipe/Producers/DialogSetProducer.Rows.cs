@@ -5,16 +5,25 @@ using FalkForge.Compiler.Msi.UI;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
 
-// Turns the composed dialog list into the eight MSI UI recipe tables (Dialog, Control,
-// ControlEvent, ControlCondition, EventMapping, TextStyle, UIText, RadioButton).
+// Turns the composed dialog list into the seven always-present MSI UI recipe tables (Dialog,
+// Control, ControlEvent, ControlCondition, EventMapping, TextStyle, UIText), plus an eighth
+// (RadioButton) added only when at least one dialog actually authors a RadioButtonGroup row —
+// see BuildDialogTables's remarks.
 internal sealed partial class DialogSetProducer
 {
     /// <summary>
-    /// Builds all eight MSI UI tables from <paramref name="dialogs"/>: one row per dialog/control/
+    /// Builds the MSI UI tables from <paramref name="dialogs"/>: one row per dialog/control/
     /// event/condition/mapping/radio-button, plus the fixed <see cref="TextStyles"/> and
     /// <see cref="UiTextEntries"/> rows. Called once <paramref name="dialogs"/> has been composed,
     /// localized, and had its license text injected.
     /// </summary>
+    /// <remarks>
+    /// The <c>RadioButton</c> table is emitted only when at least one row was collected. An
+    /// always-empty table served no purpose and cost every package that never authors a
+    /// RadioButtonGroup (i.e. never opts into Restart Manager) a spurious extra table in its
+    /// compiled MSI — churn a <c>Reproducible()</c> build has no reason to carry, since it is
+    /// never populated for those packages either way.
+    /// </remarks>
     private static ImmutableArray<RecipeTable> BuildDialogTables(
         List<MsiDialogModel> dialogs, ImmutableArray<(string Key, string Text)> uiTextEntries)
     {
@@ -165,7 +174,12 @@ internal sealed partial class DialogSetProducer
             });
         }
 
-        ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(8);
+        ImmutableArray<RecipeRow> radioButtonRows = rbRows.ToImmutable();
+
+        // Seven always-present tables, plus RadioButton only when it has rows — see
+        // BuildDialogTables's <remarks>.
+        ImmutableArray<RecipeTable>.Builder tableBuilder =
+            ImmutableArray.CreateBuilder<RecipeTable>(radioButtonRows.Length > 0 ? 8 : 7);
 
         tableBuilder.Add(MakeTable(DialogSchema,           dialogRows.ToImmutable(),  MsiTableDefinitions.CreateDialogTable));
         tableBuilder.Add(MakeTable(ControlSchema,          controlRows.ToImmutable(), MsiTableDefinitions.CreateControlTable));
@@ -174,7 +188,11 @@ internal sealed partial class DialogSetProducer
         tableBuilder.Add(MakeTable(EventMappingSchema,     emRows.ToImmutable(),      MsiTableDefinitions.CreateEventMappingTable));
         tableBuilder.Add(MakeTable(TextStyleSchema,        tsRows.ToImmutable(),      MsiTableDefinitions.CreateTextStyleTable));
         tableBuilder.Add(MakeTable(UITextSchema,           uitRows.ToImmutable(),     MsiTableDefinitions.CreateUITextTable));
-        tableBuilder.Add(MakeTable(RadioButtonSchema,      rbRows.ToImmutable(),      MsiTableDefinitions.CreateRadioButtonTable));
+
+        if (radioButtonRows.Length > 0)
+        {
+            tableBuilder.Add(MakeTable(RadioButtonSchema, radioButtonRows, MsiTableDefinitions.CreateRadioButtonTable));
+        }
 
         return tableBuilder.ToImmutable();
     }
