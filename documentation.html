@@ -13360,8 +13360,8 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
 </p>
 
 <div class="warning">
-    <strong><code>Integrity(i =&gt; i.Sbom(format))</code> now selects the document that is actually
-    emitted.</strong> It previously selected only a <em>label</em>: <code>SbomWriter</code> hardcoded the
+    <strong>For MSI packages, <code>Integrity(i =&gt; i.Sbom(format))</code> now selects the document that
+    is actually emitted.</strong> It previously selected only a <em>label</em>: <code>SbomWriter</code> hardcoded the
     CycloneDX writer, so every attestation predicate was CycloneDX regardless of the setting, while the
     <code>--type</code> flag passed to <code>sigil attest</code> and the <code>Format</code> column of the MSI's
     <code>_FalkForgeIntegrity</code>/<code>SbomAttestation</code> row dutifully reported what had been asked for.
@@ -13376,6 +13376,16 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     A build that never called <code>.Sbom(...)</code> emits exactly the document it always did, now correctly
     labelled <code>cyclonedx</code>. (The <code>SbomFormat</code> enum members are deliberately not renumbered:
     <code>Spdx</code> remains <code>0</code>, so any persisted numeric value keeps its meaning.)
+    <br><br>
+    <strong>Bundle attestations are CycloneDX 1.6 regardless of <code>Sbom(format)</code>.</strong>
+    <code>BundleBuilder.Integrity()</code> does not honour a SPDX request &mdash; and it now says so instead of
+    claiming otherwise. A bundle payload entry carries only a SHA-256; there is no SHA-1 anywhere in the bundle
+    pipeline, and SPDX 2.3 &sect;8.4 makes a per-file SHA1 mandatory, so a SPDX bundle document could not be
+    generated at all. (Previously the bundle path wrote CycloneDX bytes and passed the <em>requested</em> format
+    to <code>sigil attest --type</code>, putting a false <code>predicateType</code> <em>inside</em> the signed
+    DSSE envelope.) One value now drives both the writer and the tag, so a bundle attestation's label always
+    matches its content. Giving bundles genuine SPDX output requires capturing a SHA-1 while payloads are
+    hashed, the way <code>CabinetBuilder</code> does for MSI; that is tracked separately.
     <br><br>
     <strong>What SPDX output now contains.</strong> A conformant SPDX 2.3 document: a SHA1 checksum per file
     (&sect;8.4 makes it mandatory &mdash; SHA256 rides along as an additional checksum), a

@@ -116,6 +116,17 @@ public sealed class SigilSignerTests
     }
 
     [Fact]
+    public void BuildAttestArgs_UnknownFormat_ThrowsRatherThanQuietlyClaimingSpdx()
+    {
+        // This switch carried the same silent `_ => "spdx"` fold that let the bundle path stamp
+        // CycloneDX bytes as SPDX. Here the tag goes onto `sigil attest --type`, i.e. into the
+        // predicateType of a SIGNED envelope, so a plausible-looking wrong answer is worse than a
+        // crash. An unrecognised enum value is a programming error, not user input.
+        Assert.Throws<ArgumentOutOfRangeException>(() => SigilSigner.BuildAttestArgs(
+            @"C:\out\app.msi", @"C:\out\sbom.json", (SbomFormat)999, config: null));
+    }
+
+    [Fact]
     public void BuildAttestArgs_WithSigningKey_AddsKeyFlag()
     {
         var config = new IntegrityConfiguration { SigningKeyPath = @"C:\keys\sign.pem" };
