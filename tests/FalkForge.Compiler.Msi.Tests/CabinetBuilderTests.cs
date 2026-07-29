@@ -486,6 +486,42 @@ public sealed class CabinetBuilderTests : IDisposable
     }
 
     [Fact]
+    public void BuildCabinet_FileLargerThanOneFciReadChunk_HashesEveryChunkInOrder()
+    {
+        // Every other PackagedFileHashes test uses a file small enough to be consumed by a single
+        // CbRead call, so they all pass even if IncrementalHash accumulation across calls is broken.
+        // That gap used to be tolerable: the digest only fed a descriptive SBOM. It no longer is —
+        // IntegritySigner.BuildPayloadHashEntries now signs these exact values, so an accumulation
+        // bug would produce an ECDSA envelope declaring a digest matching no real file, and
+        // MsiIntegrityVerifier (which recomputes from the whole extracted file) would reject every
+        // large payload as tamper.
+        //
+        // 256 KiB is comfortably past FCI's per-read chunk size (tens of KiB), so CbRead is
+        // guaranteed to be called many times for this one file and CbClose must finalize a digest
+        // built from all of them, in order.
+        //
+        // The content is pseudo-random rather than a repeated pattern on purpose: with a repeating
+        // filler, dropping, duplicating or reordering a chunk could still yield the correct digest
+        // by coincidence. The expected value is computed from the same buffer that was written, so
+        // the test does not depend on Random's sequence being stable across runtimes.
+        var content = new byte[256 * 1024];
+        new Random(20260729).NextBytes(content);
+
+        var sourceFile = Path.Combine(_tempDir, "large.bin");
+        File.WriteAllBytes(sourceFile, content);
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "large.bin", "C_large", "F_large") };
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_large", out var actualHash));
+        Assert.Equal(expectedHash, actualHash);
+    }
+
+    [Fact]
     public void BuildCabinet_TwoFilesShareSourcePath_BothFileIdsRecordedIndependently()
     {
         // Two File-table entries can legitimately point at the same on-disk source (the same
