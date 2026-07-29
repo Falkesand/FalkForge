@@ -85,15 +85,16 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var msiPath = CompileHostMsi("single", sourcePath);
         var package = BuildIntegrityPackage("AttestToctouApp", sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 
         var components = ReadAttestedComponents(msiPath);
         var component = Assert.Single(components);
         Assert.Equal("payload.bin", component.Name);
-        Assert.Equal(packagedHash, component.Sha256Hash);
-        Assert.NotEqual(mutatedHash, component.Sha256Hash);
+        // ignoreCase: SPDX 2.3 §8.4 specifies lowercase hex, Convert.ToHexString emits uppercase.
+        Assert.Equal(packagedHash, component.Sha256Hash, ignoreCase: true);
+        Assert.NotEqual(mutatedHash, component.Sha256Hash, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -126,7 +127,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var msiPath = CompileHostMsi("shared", sourcePath);
         var package = BuildIntegrityPackage("AttestSharedSourceApp", sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 
@@ -134,7 +135,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         Assert.Equal(2, components.Count);
         Assert.Contains(components, c => c.Name == "shared1.dll");
         Assert.Contains(components, c => c.Name == "shared2.dll");
-        Assert.All(components, c => Assert.Equal(packagedHash, c.Sha256Hash));
+        Assert.All(components, c => Assert.Equal(packagedHash, c.Sha256Hash, ignoreCase: true));
     }
 
     [Fact]
@@ -177,7 +178,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var msiPath = CompileHostMsi("missing", packagedSource);
         var package = BuildIntegrityPackage("AttestMissingHashApp", packagedSource);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
 
         Assert.True(signResult.IsFailure, "A payload file with no packaging-time digest must abort the build.");
         Assert.Equal(ErrorKind.IntegrityError, signResult.Error.Kind);
@@ -231,7 +232,12 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var package = BuildIntegrityPackage("SbomGuardApp", packagedSource);
         var sbomPath = Path.Combine(_tempDir, "guard-sbom.json");
 
-        var result = IntegritySigner.GenerateSbomForAttestation(package, files, packagedFileHashes, sbomPath);
+        // CycloneDX keeps this test on the skip guard rather than on SPDX's mandatory-SHA1 rule:
+        // under SPDX the ghost file would be rejected for having no SHA-1 before the skip is even
+        // reached, which would prove nothing about the skip. The SPDX equivalent is covered by
+        // IntegritySbomFormatHonestyTests.
+        var result = IntegritySigner.GenerateSbomForAttestation(
+            package, files, packagedFileHashes, EmptySha1Hashes, sbomPath, SbomFormat.CycloneDx);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
 
@@ -253,10 +259,23 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
 
     private sealed record AttestedComponent(string? Name, string? Sha256Hash);
 
+    private static readonly Dictionary<string, string> EmptySha1Hashes = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Reads back the SBOM the compiler asked sigil to attest. The FakeSigil double in
     /// FAKESIGIL_ATTEST_SUCCEEDS mode wraps the predicate document verbatim as the DSSE envelope's
     /// <c>payload</c>, so this is the exact SBOM <c>GenerateSbomForAttestation</c> produced.
+    ///
+    /// <para>Parses the SPDX 2.3 shape, because <c>Integrity()</c> defaults to
+    /// <c>SbomFormat.Spdx</c> and that setting now genuinely selects the writer. It previously
+    /// selected nothing — every document was CycloneDX whatever the caller asked for — so this
+    /// helper used to read <c>components[].hashes[]</c>. Keeping these TOCTOU tests on the default
+    /// format (rather than pinning them to CycloneDX) means they keep covering the path a real
+    /// <c>Integrity()</c> build takes.</para>
+    ///
+    /// <para>SPDX file names are package-root-relative ("./name", §8.1) and digests are lowercase
+    /// (§8.4); both are normalized here so the assertions stay about the digest's provenance, which
+    /// is what these tests are for.</para>
     /// </summary>
     private static List<AttestedComponent> ReadAttestedComponents(string msiPath)
     {
@@ -265,15 +284,22 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
             $"Expected an attestation sidecar at '{attestPath}' — the attesting fake sigil must have run.");
 
         using var doc = JsonDocument.Parse(File.ReadAllText(attestPath));
-        return doc.RootElement
-            .GetProperty("payload")
-            .GetProperty("components")
+        var payload = doc.RootElement.GetProperty("payload");
+        Assert.Equal("SPDX-2.3", payload.GetProperty("spdxVersion").GetString());
+
+        return payload
+            .GetProperty("files")
             .EnumerateArray()
-            .Select(c => new AttestedComponent(
-                c.GetProperty("name").GetString(),
-                c.GetProperty("hashes").EnumerateArray().Single().GetProperty("content").GetString()))
+            .Select(f => new AttestedComponent(
+                StripRelativePrefix(f.GetProperty("fileName").GetString()),
+                f.GetProperty("checksums").EnumerateArray()
+                    .Single(c => c.GetProperty("algorithm").GetString() == "SHA256")
+                    .GetProperty("checksumValue").GetString()))
             .ToList();
     }
+
+    private static string? StripRelativePrefix(string? fileName)
+        => fileName is not null && fileName.StartsWith("./", StringComparison.Ordinal) ? fileName[2..] : fileName;
 
     /// <summary>
     /// Puts the FakeSigil test double on PATH in its opt-in attest-succeeds mode. Without a sigil

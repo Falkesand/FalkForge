@@ -1,6 +1,8 @@
 using System.Runtime.Versioning;
+using System.Text.Json;
 using FalkForge.Compiler.Msi.Tables;
 using FalkForge.Engine.Protocol.Integrity;
+using FalkForge.Models;
 using FalkForge.Signing;
 using FalkForge.Testing;
 using Xunit;
@@ -36,6 +38,7 @@ public sealed class MsiIntegritySigningTests : IDisposable
     {
         Environment.SetEnvironmentVariable("PATH", _originalPath);
         Environment.SetEnvironmentVariable("FALKFORGE_NO_SIGN", null);
+        Environment.SetEnvironmentVariable("FAKESIGIL_ATTEST_SUCCEEDS", null);
         SigilDetector.Reset();
         if (Directory.Exists(_tempDir))
         {
@@ -207,6 +210,82 @@ public sealed class MsiIntegritySigningTests : IDisposable
         // above, deterministically, regardless of what is (or is not) installed on the host machine.
         Assert.DoesNotContain(rows, r => r[0] == "SbomAttestation");
         Assert.False(File.Exists(result.Value + ".attest.json"));
+    }
+
+    [Theory]
+    [InlineData(SbomFormat.Spdx, "spdx")]
+    [InlineData(SbomFormat.CycloneDx, "cyclonedx")]
+    public void Compile_WithIntegrity_SbomAttestationFormatColumnDescribesTheDocumentActuallyEmbedded(
+        SbomFormat requested, string expectedFormatTag)
+    {
+        // THE false-claim surface. The `Format` column of the SbomAttestation row is the only thing a
+        // consumer of a shipped MSI can read to learn how to parse the attested predicate. Before this
+        // fix it was derived from the configured SbomFormat while the document itself was produced by
+        // a hardcoded CycloneDX writer, so an Integrity()-configured MSI — SPDX being the default —
+        // shipped `Format="spdx"` over CycloneDX bytes.
+        //
+        // Asserting the tag alone would have passed throughout the entire lifetime of the bug, so this
+        // reads the embedded document's OWN self-declaration out of the DSSE payload and requires the
+        // two to agree. FakeSigil's attest-succeeds mode wraps the predicate verbatim as that payload,
+        // so what is asserted here is byte-for-byte the SBOM the compiler generated.
+        EnableAttestingFakeSigil();
+
+        var (sourceFile, outputDir) = CreatePackageInputs($"format_{requested}");
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = $"SbomFormat{requested}App";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SbomFormatApp"));
+            p.Integrity(i => i.Sbom(requested));
+        });
+
+        var result = new MsiCompiler().Compile(package, outputDir);
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var rows = ReadIntegrityRows(result.Value);
+        var sbomRow = Assert.Single(rows, r => r[0] == "SbomAttestation");
+
+        Assert.Equal(expectedFormatTag, sbomRow[1]);
+
+        using var attestation = JsonDocument.Parse(sbomRow[2]!);
+        var embedded = attestation.RootElement.GetProperty("payload");
+
+        if (requested == SbomFormat.Spdx)
+        {
+            Assert.Equal("SPDX-2.3", embedded.GetProperty("spdxVersion").GetString());
+            Assert.False(embedded.TryGetProperty("bomFormat", out _));
+
+            // The SHA1 the whole SPDX path exists for, sourced from the packaged bytes.
+            var checksums = embedded.GetProperty("files")[0].GetProperty("checksums")
+                .EnumerateArray()
+                .Select(c => c.GetProperty("algorithm").GetString())
+                .ToList();
+            Assert.Contains("SHA1", checksums);
+            Assert.Contains("SHA256", checksums);
+        }
+        else
+        {
+            Assert.Equal("CycloneDX", embedded.GetProperty("bomFormat").GetString());
+            Assert.False(embedded.TryGetProperty("spdxVersion", out _));
+        }
+    }
+
+    /// <summary>
+    /// Puts the FakeSigil double on PATH in its opt-in attest-succeeds mode, so an attestation row is
+    /// actually produced. Without it, IntegritySigner swallows the attest failure by design and there
+    /// is no SbomAttestation row to inspect.
+    /// </summary>
+    private void EnableAttestingFakeSigil()
+    {
+        var fakeSigilDir = ResolveFakeSigilDirectory();
+        Assert.True(File.Exists(Path.Combine(fakeSigilDir, "sigil.exe")),
+            $"Test setup invariant: FakeSigil build output not found at '{fakeSigilDir}'.");
+
+        Environment.SetEnvironmentVariable("FAKESIGIL_ATTEST_SUCCEEDS", "1");
+        Environment.SetEnvironmentVariable("PATH", fakeSigilDir + Path.PathSeparator + _originalPath);
+        SigilDetector.Reset();
+        Assert.True(SigilDetector.IsAvailable(), "Test setup invariant: the fake sigil.exe must answer --version.");
     }
 
     [Fact]

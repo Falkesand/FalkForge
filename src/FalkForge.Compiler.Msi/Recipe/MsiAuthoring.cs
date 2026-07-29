@@ -281,12 +281,14 @@ public static partial class MsiAuthoring
         // in MsiAuthoring.Cabinets.cs.
         string? cabTempDir = null;
         IReadOnlyDictionary<string, string> packagedFileHashes = new Dictionary<string, string>();
+        IReadOnlyDictionary<string, string> packagedFileSha1Hashes = new Dictionary<string, string>();
         try
         {
             if (resolved.Files.Count > 0)
             {
                 Result<MsiDatabaseRecipe> cabResult = BuildCabinetsAndEmbed(
-                    resolved, package, outputPath, recipe, logger, out cabTempDir, out packagedFileHashes);
+                    resolved, package, outputPath, recipe, logger, out cabTempDir, out packagedFileHashes,
+                    out packagedFileSha1Hashes);
                 if (cabResult.IsFailure)
                 {
                     return Result<string>.Failure(cabResult.Error);
@@ -361,7 +363,7 @@ public static partial class MsiAuthoring
         // ICE validation, SBOM sidecar, WinGet manifest. See RunPostProcessSteps in
         // MsiAuthoring.PostProcess.cs.
         Result<Unit> postProcessResult = RunPostProcessSteps(
-            package, msiPath, outputPath, options, resolved, packagedFileHashes, logger);
+            package, msiPath, outputPath, options, resolved, packagedFileHashes, packagedFileSha1Hashes, logger);
         if (postProcessResult.IsFailure)
             return Result<string>.Failure(postProcessResult.Error);
 
