@@ -16,9 +16,22 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 public sealed record DialogRadioButton
 {
     private readonly string value = string.Empty;
+    private readonly string property = string.Empty;
 
     /// <summary>The MSI property this radio button's owning group control is bound to.</summary>
-    public required string Property { get; init; }
+    public required string Property
+    {
+        get => this.property;
+        init
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException("Property must not be empty.", nameof(Property));
+            }
+
+            this.property = value;
+        }
+    }
 
     /// <summary>The value assigned to <see cref="Property"/> when this radio button is selected.</summary>
     public required string Value
