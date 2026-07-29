@@ -212,7 +212,25 @@ internal static class IntegritySigner
         }
     }
 
-    private static Result<Unit> GenerateSbomForAttestation(
+    /// <summary>
+    /// Builds the SBOM document handed to <c>sigil attest</c>.
+    ///
+    /// <para><b>Internal, not private, on purpose.</b> The miss-path skip below is unreachable
+    /// through <see cref="SignAndEmbed"/> — <see cref="BuildPayloadHashEntries"/> already refuses the
+    /// whole signing step when any resolved file lacks a packaging digest, so step 2 never runs with
+    /// an incomplete map. An unreachable branch is a guaranteed mutation survivor, so it is tested
+    /// here directly rather than left as permanently uncovered code.</para>
+    ///
+    /// <para>Deleting the skip instead was considered and rejected. Without it the lookup becomes an
+    /// indexer, and a missing key throws <see cref="KeyNotFoundException"/> — which
+    /// <see cref="TryGenerateSbomAttestation"/> does not catch (it catches only <c>IOException</c> and
+    /// <c>UnauthorizedAccessException</c>). That would turn the deliberately never-fatal, opportunistic
+    /// attestation step into a build crash, which is exactly the property this path is designed not to
+    /// have. The guard also encodes a rule that is correct in its own right and shared with the
+    /// reachable <c>SbomHelper.WriteSbomSidecar</c>: an SBOM may under-report, but it must never assert
+    /// a digest it did not observe.</para>
+    /// </summary>
+    internal static Result<Unit> GenerateSbomForAttestation(
         PackageModel package,
         IReadOnlyList<ResolvedFile> files,
         IReadOnlyDictionary<string, string> packagedFileHashes,
@@ -234,10 +252,9 @@ internal static class IntegritySigner
             // this FileId-keyed map. A file absent from the map (e.g. never actually added to a
             // cabinet) is skipped rather than falling back to a re-read of a possibly-stale
             // source file: the SBOM may under-report, but it must never assert a digest it did
-            // not observe. Identical rule to SbomHelper.WriteSbomSidecar. In practice this skip is
-            // now defensive only — BuildPayloadHashEntries already refused the whole signing step
-            // (step 1) if any resolved file lacked a packaging digest, so step 2 is unreachable
-            // with an incomplete map. It stays because the rule, not the reachability, is the point.
+            // not observe. Identical rule to SbomHelper.WriteSbomSidecar. This skip is unreachable
+            // via SignAndEmbed (see the method doc for why it is kept and why the method is
+            // internal); IntegrityAttestationSbomToctouTests pins it by calling this directly.
             if (!packagedFileHashes.TryGetValue(file.FileId, out var hash))
                 continue;
 
