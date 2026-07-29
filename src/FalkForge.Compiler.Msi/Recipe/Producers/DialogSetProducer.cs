@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using FalkForge.Compiler.Msi.UI;
 using FalkForge.Compiler.Msi.UI.Layout;
+using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using FalkForge.Compiler.Msi.UI.Templates;
 using FalkForge.Models;
 
@@ -166,6 +167,18 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         {
             IDialogTemplate template = GetTemplate(dialogSet);
             dialogs.AddRange(template.GetDialogs(package));
+
+            // The MsiRMFilesInUse dialog is not part of the wizard flow — the installer creates it
+            // directly from InstallValidate when Restart Manager reports files in use at Full UI.
+            // It is therefore appended per-package (gated on the author's opt-in) rather than
+            // declared by each of the five stock templates.
+            if (package.EnableRestartManager)
+            {
+                dialogs.Add(DialogComposer.Compose(
+                    MsiRMFilesInUseDlgBuilder.Build(),
+                    Layouts.Standard370x270,
+                    package.DialogCustomization));
+            }
         }
 
         for (int cd = 0; cd < package.CustomDialogs.Count; cd++)

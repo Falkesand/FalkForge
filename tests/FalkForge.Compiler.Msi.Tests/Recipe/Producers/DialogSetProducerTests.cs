@@ -572,6 +572,113 @@ public sealed class DialogSetProducerTests
         Assert.Equal("Files In Use", text.Value);
     }
 
+    // ── MsiRMFilesInUse: appended per-package, gated on EnableRestartManager ──
+    // This dialog is not part of any of the five stock templates (it is created by the
+    // installer engine directly at InstallValidate, reachable from no other dialog), so it is
+    // appended by the producer itself rather than by IDialogTemplate.GetDialogs.
+
+    [Fact]
+    public void Produce_with_restart_manager_enabled_emits_MsiRMFilesInUse_dialog_row()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
+        RecipeTable dialog = GetTable(tables, "Dialog");
+
+        Assert.Contains(dialog.Rows, r =>
+            r.Cells[0] is CellValue.StringValue sv &&
+            sv.Value == "MsiRMFilesInUse");
+    }
+
+    [Fact]
+    public void Produce_without_restart_manager_omits_MsiRMFilesInUse_dialog_row()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: false);
+        RecipeTable dialog = GetTable(tables, "Dialog");
+
+        Assert.DoesNotContain(dialog.Rows, r =>
+            r.Cells[0] is CellValue.StringValue sv &&
+            sv.Value == "MsiRMFilesInUse");
+    }
+
+    [Fact]
+    public void Produce_with_restart_manager_enabled_emits_two_RadioButton_rows()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
+        RecipeTable radioButton = GetTable(tables, "RadioButton");
+
+        Assert.Equal(2, radioButton.Rows.Length);
+    }
+
+    [Fact]
+    public void Produce_with_DialogSet_None_omits_MsiRMFilesInUse_even_when_rm_enabled()
+    {
+        RecipeBuildContext context = new(
+            new ResolvedPackage
+            {
+                Package = new PackageModel
+                {
+                    Name = "Test",
+                    Manufacturer = "M",
+                    Version = new Version(1, 0, 0),
+                    DialogSet = MsiDialogSet.None,
+                    EnableRestartManager = true,
+                },
+                Components = [],
+                Files = [],
+            },
+            new MsiRecipeBuildOptions(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public void Produce_with_restart_manager_emits_rm_shutdown_control_event_with_use_rm_condition()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
+        RecipeTable controlEvent = GetTable(tables, "ControlEvent");
+
+        RecipeRow row = controlEvent.Rows.Single(r =>
+            r.Cells[0] is CellValue.StringValue dlg && dlg.Value == "MsiRMFilesInUse" &&
+            r.Cells[2] is CellValue.StringValue ev && ev.Value == "RMShutdownAndRestart");
+
+        var condition = (CellValue.StringValue)row.Cells[4];
+        Assert.Equal("FalkForgeRMOption~=\"UseRM\"", condition.Value);
+    }
+
+    [Fact]
+    public void Produce_resolves_radio_button_label_localization()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
+        RecipeTable radioButton = GetTable(tables, "RadioButton");
+
+        foreach (RecipeRow row in radioButton.Rows)
+        {
+            if (row.Cells[7] is CellValue.StringValue text)
+            {
+                Assert.DoesNotContain("!(loc.", text.Value, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_MsiRMFilesInUse_emitted_for_every_stock_dialog_set(MsiDialogSet dialogSet)
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(dialogSet, enableRestartManager: true);
+        RecipeTable dialog = GetTable(tables, "Dialog");
+
+        Assert.Contains(dialog.Rows, r =>
+            r.Cells[0] is CellValue.StringValue sv &&
+            sv.Value == "MsiRMFilesInUse");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     // Multi-culture localization is now realized as per-culture MST transforms by MsiAuthoring
     // (see MsiAuthoringLocalizationTests); the producer no longer queues a DLG005 "dropped" warning.
@@ -579,6 +686,30 @@ public sealed class DialogSetProducerTests
     private static ImmutableArray<RecipeTable> ProduceTables(MsiDialogSet dialogSet)
     {
         RecipeBuildContext context = MakeContext(dialogSet);
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
+        Assert.True(result.IsSuccess, "DialogSetProducer.Produce failed");
+        return result.Value;
+    }
+
+    private static ImmutableArray<RecipeTable> ProduceTablesWithRestartManager(MsiDialogSet dialogSet, bool enableRestartManager)
+    {
+        RecipeBuildContext context = new(
+            new ResolvedPackage
+            {
+                Package = new PackageModel
+                {
+                    Name = "Test",
+                    Manufacturer = "M",
+                    Version = new Version(1, 0, 0),
+                    DialogSet = dialogSet,
+                    EnableRestartManager = enableRestartManager,
+                },
+                Components = [],
+                Files = [],
+            },
+            new MsiRecipeBuildOptions(),
+            new DictionaryStreamRegistry());
+
         Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
         Assert.True(result.IsSuccess, "DialogSetProducer.Produce failed");
         return result.Value;
