@@ -501,6 +501,75 @@ public sealed class DialogSetProducerTests
             sv.Value == "VerdanaBold13");
     }
 
+    // ── Custom LocalizationData must not drop the built-in Dialog.RestartManager.* defaults ──
+    // Regression guard: DialogSetProducer.Localization.cs seeds UiTextLocDefaults under a
+    // package's own LocalizationData (built-in en-US/sv-SE strings are otherwise dropped
+    // entirely once an author supplies custom localization). Without also seeding the five
+    // Dialog.RestartManager.* keys there, a package combining custom LocalizationData with
+    // EnableRestartManagerSupport() would hit an unresolvable "!(loc.Dialog.RestartManager.*)"
+    // reference and fail the build — a previously-working package breaking silently.
+
+    [Fact]
+    public void Produce_with_custom_localization_still_resolves_restart_manager_defaults()
+    {
+        var customDialog = new CustomDialogModel
+        {
+            Id = "RmFilesInUseDlg",
+            Controls =
+            [
+                new CustomDialogControlModel
+                {
+                    Name = "TitleText",
+                    Type = CustomControlType.Text,
+                    X = 0,
+                    Y = 0,
+                    Width = 200,
+                    Height = 10,
+                    Text = "!(loc.Dialog.RestartManager.Title)",
+                },
+            ],
+        };
+
+        var package = new PackageModel
+        {
+            Name = "Test",
+            Manufacturer = "M",
+            Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.None,
+            EnableRestartManager = true,
+            CustomDialogs = [customDialog],
+            LocalizationData =
+            [
+                new LocalizationData
+                {
+                    // Author supplies their own culture, but never translates the framework's
+                    // Dialog.RestartManager.* keys — the seeded defaults must still resolve them.
+                    Culture = "en-US",
+                    Strings = new System.Collections.Generic.Dictionary<string, string>
+                    {
+                        ["Button.OK"] = "OK",
+                    },
+                },
+            ],
+        };
+
+        RecipeBuildContext context = new(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new MsiRecipeBuildOptions(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+
+        RecipeTable control = GetTable(result.Value, "Control");
+        RecipeRow row = control.Rows.Single(r =>
+            r.Cells[1] is CellValue.StringValue sv && sv.Value == "TitleText");
+
+        var text = (CellValue.StringValue)row.Cells[9];
+        Assert.Equal("Files In Use", text.Value);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     // Multi-culture localization is now realized as per-culture MST transforms by MsiAuthoring
     // (see MsiAuthoringLocalizationTests); the producer no longer queues a DLG005 "dropped" warning.
