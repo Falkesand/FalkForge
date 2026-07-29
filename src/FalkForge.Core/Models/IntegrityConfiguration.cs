@@ -29,7 +29,17 @@ public sealed class IntegrityConfiguration
     public string? VaultProvider { get; init; }
     public string? VaultKeyRef { get; init; }
     /// <summary>
-    /// Which SBOM document the <c>Integrity()</c> attestation predicate is emitted as.
+    /// Which SBOM document an <b>MSI</b> <c>Integrity()</c> attestation predicate is emitted as.
+    ///
+    /// <para><b>Scope: MSI attestations only — this does not govern every <c>Integrity()</c>
+    /// attestation.</b> A bundle attestation emits CycloneDX regardless of what is set here. A
+    /// bundle payload entry carries only a SHA-256 and SPDX 2.3 §8.4 makes a per-file SHA1
+    /// mandatory, so honouring a SPDX request would make the document fail generation — and
+    /// because SBOM attestation is deliberately never fatal, the whole attestation would vanish
+    /// behind a warning. <c>BundleIntegritySigner.AttestationFormat</c> (in
+    /// <c>FalkForge.Compiler.Bundle</c>) is the single value that decides that, and it carries the
+    /// full reasoning. The plain <c>.Sbom()</c> sidecar — MSI, bundle and MSIX alike — is
+    /// CycloneDX by definition and consults no format at all.</para>
     ///
     /// <para><b>Why CycloneDX is the default even though <see cref="SbomFormat.Spdx"/> is the enum's
     /// zero value.</b> This setting used to select only a <i>label</i> — <c>SbomWriter</c> hardcoded

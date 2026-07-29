@@ -62,6 +62,14 @@ public sealed class IntegrityBuilder
 
     public IntegrityBuilder Vault(string provider, string keyRef) { _vaultProvider = provider; _vaultKeyRef = keyRef; return this; }
 
+    /// <summary>
+    /// Selects the document format of an <b>MSI</b> <c>Integrity()</c> attestation predicate.
+    ///
+    /// <para>It is not a global SBOM switch: a bundle attestation emits CycloneDX regardless of
+    /// what is passed here, and the plain <c>.Sbom()</c> sidecar is CycloneDX by definition. See
+    /// <see cref="IntegrityConfiguration.SbomFormat"/> for both reasons, and for why the default is
+    /// <see cref="SbomFormat.CycloneDx"/> rather than the enum's zero value.</para>
+    /// </summary>
     public IntegrityBuilder Sbom(SbomFormat format) { _sbomFormat = format; return this; }
 
     /// <summary>

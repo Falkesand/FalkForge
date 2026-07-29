@@ -47,7 +47,18 @@ public static class SbomDigestValidator
     /// Lives here rather than being copy-pasted into each writer: the MSI, Bundle and MSIX sidecar
     /// helpers each carried their own identical loop, and the two attestation paths — the
     /// signed ones — carried none at all.
+    ///
+    /// <para><b>A null <paramref name="components"/> throws rather than returning a failed
+    /// <see cref="Result{T}"/>, deliberately.</b> The <c>Result</c> channel here models one thing:
+    /// "a digest in this data is not shaped like a hash", an outcome a build can report and a
+    /// publisher can fix. A null list is not data — it is a broken call. No caller can reach it
+    /// from input: <c>SbomOptions.AdditionalComponents</c> is a computed property over a private
+    /// list and <c>SbomDocument.Components</c> is <c>required</c> and non-nullable, so null arrives
+    /// only through <c>null!</c>. Folding that into the same channel would make a programming error
+    /// look like a recoverable validation finding. <see cref="ReproducibleSbomIdentity.Resolve"/>
+    /// guards the very same list the same way a few lines later in every caller.</para>
     /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="components"/> is null.</exception>
     public static Result<Unit> ValidateComponentDigests(
         IReadOnlyList<SbomComponent> components, string context)
     {
