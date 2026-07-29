@@ -35,7 +35,8 @@ internal static class IntegritySigner
     internal static Result<Unit> SignAndEmbed(
         string msiPath,
         PackageModel package,
-        IReadOnlyList<ResolvedFile> resolvedFiles)
+        IReadOnlyList<ResolvedFile> resolvedFiles,
+        IReadOnlyDictionary<string, string> packagedFileHashes)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"FalkIntegrity_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
@@ -55,7 +56,8 @@ internal static class IntegritySigner
             var manifestJson = signResult.Value;
 
             // Step 2: SBOM attestation — opportunistic, sigil-only, never fatal.
-            var attestation = TryGenerateSbomAttestation(msiPath, package, resolvedFiles, config, tempDir);
+            var attestation = TryGenerateSbomAttestation(
+                msiPath, package, resolvedFiles, packagedFileHashes, config, tempDir);
 
             // Step 3: Re-open MSI and embed integrity data — SKIPPED in reproducible mode (see class doc).
             // The nondeterministic signature (and any SBOM attestation row alongside it) never touches the
@@ -119,6 +121,7 @@ internal static class IntegritySigner
         string msiPath,
         PackageModel package,
         IReadOnlyList<ResolvedFile> resolvedFiles,
+        IReadOnlyDictionary<string, string> packagedFileHashes,
         IntegrityConfiguration? config,
         string tempDir)
     {
@@ -129,7 +132,7 @@ internal static class IntegritySigner
         {
             var sbomFormat = config?.SbomFormat ?? SbomFormat.Spdx;
             var sbomPath = Path.Combine(tempDir, "sbom.json");
-            var sbomResult = GenerateSbomForAttestation(package, resolvedFiles, sbomPath);
+            var sbomResult = GenerateSbomForAttestation(package, resolvedFiles, packagedFileHashes, sbomPath);
             if (sbomResult.IsFailure)
                 return null;
 
@@ -156,17 +159,28 @@ internal static class IntegritySigner
     private static Result<Unit> GenerateSbomForAttestation(
         PackageModel package,
         IReadOnlyList<ResolvedFile> files,
+        IReadOnlyDictionary<string, string> packagedFileHashes,
         string outputPath)
     {
         var components = new List<SbomComponent>();
 
         foreach (var file in files)
         {
-            if (!File.Exists(file.SourcePath))
+            // packagedFileHashes is captured by CabinetBuilder while the native FCI compressor
+            // reads each file's bytes into the cabinet (see CabinetBuilder.Callbacks.cs) — never
+            // reopened here from the source path, which could have changed between packaging
+            // (step 5) and integrity signing (step 8.5): a racing build step, an AV rescan
+            // rewrite, or anyone with write access to the build tree. An attestation is a signed
+            // claim, so vouching for bytes that were never packaged is strictly worse here than
+            // in the plain sidecar. Keyed by FileId (the MSI File table's own unique identity),
+            // not SourcePath: two File entries can legitimately share a source path, and
+            // SourcePath would collapse them onto one digest — and would find nothing at all in
+            // this FileId-keyed map. A file absent from the map (e.g. never actually added to a
+            // cabinet) is skipped rather than falling back to a re-read of a possibly-stale
+            // source file: the SBOM may under-report, but it must never assert a digest it did
+            // not observe. Identical rule to SbomHelper.WriteSbomSidecar.
+            if (!packagedFileHashes.TryGetValue(file.FileId, out var hash))
                 continue;
-
-            using var stream = File.OpenRead(file.SourcePath);
-            var hash = Convert.ToHexString(SHA256.HashData(stream));
 
             components.Add(new SbomComponent
             {
