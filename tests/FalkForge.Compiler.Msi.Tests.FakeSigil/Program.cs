@@ -39,6 +39,14 @@ if (args.Length > 0
 
     // The predicate is a JSON document, so embedding it verbatim keeps the envelope valid JSON
     // and lets a test assert on the exact SBOM the compiler produced.
+    //
+    // NOT CONFORMANT DSSE, deliberately. A real DSSE envelope's "payload" is a BASE64 string and its
+    // signature is computed over PAE(payloadType, payload); this writes the predicate as a raw nested
+    // JSON object and a constant fake "sig". That is fine for the one thing this double is for —
+    // letting a test read back which digests the compiler asked to have attested — because nothing in
+    // FalkForge parses this output; IntegritySigner copies the file through verbatim. Do NOT build
+    // DSSE-parsing, base64-decoding, or signature-verifying tests on top of this shape: they would be
+    // testing the double, not the format. Emit real DSSE here first if that is ever needed.
     var predicateJson = File.ReadAllText(predicatePath);
     File.WriteAllText(
         outputPath,

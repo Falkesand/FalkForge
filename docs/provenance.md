@@ -387,8 +387,11 @@ forge verify MyApp-1.0.0.msi --trusted-key A1B2C3...   # authorship (repeatable 
 
 **What is signed.** Identical shape to bundles: the ordered `(name, sha256)` list of every payload
 file FalkForge embeds in the MSI, keyed by the file's target name (the `File` table's `FileName`
-column) and hashed from the *original source file on disk* at build time — not from any MSI
-container byte. `forge verify` recomputes this independently at verification time by re-extracting
+column) and hashed from the *bytes the cabinet actually packaged* — `CabinetBuilder` captures each
+file's SHA-256 inside the native FCI callbacks, as the compressor consumes the file, rather than
+reopening the source path later at signing time. (A source file edited, replaced, or deleted between
+packaging and signing therefore cannot change or remove what the signature declares.) `forge verify`
+recomputes this independently at verification time by re-extracting
 every embedded cabinet and re-hashing each file, then binds that recomputed hash back to the
 signed declaration **bidirectionally**:
 
@@ -421,7 +424,12 @@ database tampering.
 
 > **Known limitations.** Only *embedded* cabinets (`Media.Cabinet` prefixed `#`) are re-extracted
 > for the content-binding check — the same limitation `forge extract` already has. A payload
-> shipped via an external, disk-resident cabinet is neither confirmed nor contradicted by it.
+> shipped via an external, disk-resident cabinet is not read at all, so it never enters the *actual*
+> set — but the first direction above still demands every declared file be found there, so such a
+> file is reported as *"not found in the MSI's embedded payload"* and the verdict is `FAILED`. In
+> practice that means an `Integrity()` package built with `MediaTemplate(m => m.EmbedCabinet(false))`
+> cannot pass `forge verify` today, and the failure is indistinguishable from real tamper.
+> External-cabinet content binding is unimplemented, not silently tolerated.
 > The envelope covers embedded payload FILES only — it says nothing about the content of other
 > MSI database tables (e.g. `Registry`, `CustomAction`, `Property` rows), so an attacker who edits
 > those directly, without adding or altering a payload file, is not detected. The signature check

@@ -138,7 +138,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
     }
 
     [Fact]
-    public void SignAndEmbed_FileMissingFromPackagedHashes_ProducesNoAttestationAtAll()
+    public void SignAndEmbed_FileMissingFromPackagedHashes_FailsTheBuildAndEmitsNoSignatureOrAttestation()
     {
         // Supersedes the original expectation ("...IsSkippedRatherThanReRead"), which asserted the
         // attestation simply omitted the unreported file. That was correct while only the SBOM
