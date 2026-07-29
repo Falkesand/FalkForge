@@ -125,6 +125,24 @@ internal sealed partial class DialogSetProducer
                     control.Text = r.Value;
                 }
             }
+
+            // Without this, radio labels ship as raw "!(loc.…)" strings into the MSI — a
+            // silent-failure trap, since the label would simply render literally instead of
+            // failing the build.
+            for (int rbi = 0; rbi < dialog.RadioButtons.Count; rbi++)
+            {
+                MsiRadioButtonModel radioButton = dialog.RadioButtons[rbi];
+                if (radioButton.Text is not null && radioButton.Text.Contains("!(loc.", StringComparison.Ordinal))
+                {
+                    Result<string> r = resolver.Resolve(radioButton.Text, requestedCulture);
+                    if (r.IsFailure)
+                    {
+                        return Result<ImmutableArray<(string, string)>>.Failure(r.Error);
+                    }
+
+                    radioButton.Text = r.Value;
+                }
+            }
         }
 
         // UIText rows are a fixed static array shared across every build (never mutated in

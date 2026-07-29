@@ -18,4 +18,5 @@ internal sealed class MsiDialogModel
     public List<MsiControlEventModel> Events { get; init; } = [];
     public List<MsiControlConditionModel> Conditions { get; init; } = [];
     public List<MsiEventMappingModel> EventMappings { get; init; } = [];
+    public List<MsiRadioButtonModel> RadioButtons { get; init; } = [];
 }

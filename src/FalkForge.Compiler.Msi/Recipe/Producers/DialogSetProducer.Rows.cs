@@ -5,15 +5,15 @@ using FalkForge.Compiler.Msi.UI;
 
 namespace FalkForge.Compiler.Msi.Recipe.Producers;
 
-// Turns the composed dialog list into the seven MSI UI recipe tables (Dialog, Control,
-// ControlEvent, ControlCondition, EventMapping, TextStyle, UIText).
+// Turns the composed dialog list into the eight MSI UI recipe tables (Dialog, Control,
+// ControlEvent, ControlCondition, EventMapping, TextStyle, UIText, RadioButton).
 internal sealed partial class DialogSetProducer
 {
     /// <summary>
-    /// Builds all seven MSI UI tables from <paramref name="dialogs"/>: one row per dialog/control/
-    /// event/condition/mapping, plus the fixed <see cref="TextStyles"/> and <see cref="UiTextEntries"/>
-    /// rows. Called once <paramref name="dialogs"/> has been composed, localized, and had its license
-    /// text injected.
+    /// Builds all eight MSI UI tables from <paramref name="dialogs"/>: one row per dialog/control/
+    /// event/condition/mapping/radio-button, plus the fixed <see cref="TextStyles"/> and
+    /// <see cref="UiTextEntries"/> rows. Called once <paramref name="dialogs"/> has been composed,
+    /// localized, and had its license text injected.
     /// </summary>
     private static ImmutableArray<RecipeTable> BuildDialogTables(
         List<MsiDialogModel> dialogs, ImmutableArray<(string Key, string Text)> uiTextEntries)
@@ -24,6 +24,7 @@ internal sealed partial class DialogSetProducer
         ImmutableArray<RecipeRow>.Builder ceRows      = ImmutableArray.CreateBuilder<RecipeRow>();
         ImmutableArray<RecipeRow>.Builder ccRows      = ImmutableArray.CreateBuilder<RecipeRow>();
         ImmutableArray<RecipeRow>.Builder emRows      = ImmutableArray.CreateBuilder<RecipeRow>();
+        ImmutableArray<RecipeRow>.Builder rbRows      = ImmutableArray.CreateBuilder<RecipeRow>();
 
         // Index-based loop avoids IReadOnlyList<T> enumerator heap allocation (HAA0401).
         for (int di = 0; di < dialogs.Count; di++)
@@ -86,6 +87,25 @@ internal sealed partial class DialogSetProducer
                 });
             }
 
+            // RadioButton rows
+            for (int ri = 0; ri < d.RadioButtons.Count; ri++)
+            {
+                MsiRadioButtonModel rb = d.RadioButtons[ri];
+                rbRows.Add(new RecipeRow
+                {
+                    Cells = ImmutableArray.Create<CellValue>(
+                        new CellValue.StringValue(rb.Property),
+                        new CellValue.IntValue(rb.Order),
+                        new CellValue.StringValue(rb.Value),
+                        new CellValue.IntValue(rb.X),
+                        new CellValue.IntValue(rb.Y),
+                        new CellValue.IntValue(rb.Width),
+                        new CellValue.IntValue(rb.Height),
+                        StringOrNull(rb.Text),
+                        new CellValue.Null()),   // Help — always null
+                });
+            }
+
             // ControlCondition rows
             for (int ki = 0; ki < d.Conditions.Count; ki++)
             {
@@ -145,7 +165,7 @@ internal sealed partial class DialogSetProducer
             });
         }
 
-        ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(7);
+        ImmutableArray<RecipeTable>.Builder tableBuilder = ImmutableArray.CreateBuilder<RecipeTable>(8);
 
         tableBuilder.Add(MakeTable(DialogSchema,           dialogRows.ToImmutable(),  MsiTableDefinitions.CreateDialogTable));
         tableBuilder.Add(MakeTable(ControlSchema,          controlRows.ToImmutable(), MsiTableDefinitions.CreateControlTable));
@@ -154,6 +174,7 @@ internal sealed partial class DialogSetProducer
         tableBuilder.Add(MakeTable(EventMappingSchema,     emRows.ToImmutable(),      MsiTableDefinitions.CreateEventMappingTable));
         tableBuilder.Add(MakeTable(TextStyleSchema,        tsRows.ToImmutable(),      MsiTableDefinitions.CreateTextStyleTable));
         tableBuilder.Add(MakeTable(UITextSchema,           uitRows.ToImmutable(),     MsiTableDefinitions.CreateUITextTable));
+        tableBuilder.Add(MakeTable(RadioButtonSchema,      rbRows.ToImmutable(),      MsiTableDefinitions.CreateRadioButtonTable));
 
         return tableBuilder.ToImmutable();
     }

@@ -14,7 +14,7 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 /// <para>
 /// Tables emitted (for any active dialog set):
 /// <c>Dialog</c>, <c>Control</c>, <c>ControlEvent</c>, <c>ControlCondition</c>,
-/// <c>EventMapping</c>, <c>TextStyle</c>, <c>UIText</c>.
+/// <c>EventMapping</c>, <c>TextStyle</c>, <c>UIText</c>, <c>RadioButton</c>.
 /// </para>
 ///
 /// <para>
@@ -141,6 +141,7 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
     private static readonly TableSchema EventMappingSchema     = BuildEventMappingSchema();
     private static readonly TableSchema TextStyleSchema        = BuildTextStyleSchema();
     private static readonly TableSchema UITextSchema           = BuildUITextSchema();
+    private static readonly TableSchema RadioButtonSchema       = BuildRadioButtonSchema();
 
     /// <inheritdoc/>
     public Result<ImmutableArray<RecipeTable>> Produce(RecipeBuildContext context)

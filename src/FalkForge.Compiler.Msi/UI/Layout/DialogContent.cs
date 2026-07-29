@@ -71,4 +71,11 @@ public sealed record DialogContent
     /// such as <c>SetProgress</c> or <c>ActionText</c>. Empty by default.
     /// </summary>
     public ImmutableArray<DialogEventMapping> EventMappings { get; init; } = ImmutableArray<DialogEventMapping>.Empty;
+
+    /// <summary>
+    /// Declarative RadioButton table rows for this dialog's RadioButtonGroup controls.
+    /// The <c>Property</c> column is taken from the owning control's bound property.
+    /// Empty by default.
+    /// </summary>
+    public ImmutableArray<DialogRadioButton> RadioButtons { get; init; } = ImmutableArray<DialogRadioButton>.Empty;
 }

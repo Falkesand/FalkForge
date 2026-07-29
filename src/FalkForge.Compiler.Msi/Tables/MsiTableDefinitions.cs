@@ -147,6 +147,9 @@ internal static class MsiTableDefinitions
     internal const string CreateUITextTable =
         "CREATE TABLE `UIText` (`Key` CHAR(72) NOT NULL, `Text` CHAR(255) LOCALIZABLE PRIMARY KEY `Key`)";
 
+    internal const string CreateRadioButtonTable =
+        "CREATE TABLE `RadioButton` (`Property` CHAR(72) NOT NULL, `Order` SHORT NOT NULL, `Value` CHAR(64) NOT NULL, `X` SHORT NOT NULL, `Y` SHORT NOT NULL, `Width` SHORT NOT NULL, `Height` SHORT NOT NULL, `Text` LONGCHAR LOCALIZABLE, `Help` CHAR(50) LOCALIZABLE PRIMARY KEY `Property`, `Order`)";
+
     internal const string CreateFalkForgeIntegrityTable =
         "CREATE TABLE `_FalkForgeIntegrity` (`Id` CHAR(72) NOT NULL, `Format` CHAR(64) NOT NULL, `Data` LONGCHAR NOT NULL PRIMARY KEY `Id`)";
 }

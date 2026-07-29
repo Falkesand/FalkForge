@@ -28,6 +28,7 @@ public sealed class DialogSetProducerTests
         "EventMapping",
         "TextStyle",
         "UIText",
+        "RadioButton",
     ];
 
     // ── None → empty ──────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ public sealed class DialogSetProducerTests
     // ── Minimal: correct table names ──────────────────────────────────────────
 
     [Fact]
-    public void Produce_Minimal_emits_all_seven_ui_tables()
+    public void Produce_Minimal_emits_all_eight_ui_tables()
     {
         RecipeBuildContext context = MakeContext(MsiDialogSet.Minimal);
 
@@ -67,6 +68,33 @@ public sealed class DialogSetProducerTests
         {
             Assert.Contains(tables, t => t.Name.Value == name);
         }
+    }
+
+    // ── RadioButton: emitted (empty) for every dialog set ─────────────────────
+    // ICE34 requires a RadioButton table row for every RadioButtonGroup control's group
+    // property; this producer must emit the table itself even before any dialog authors rows.
+
+    [Fact]
+    public void Produce_Minimal_emits_RadioButton_table()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTables(MsiDialogSet.Minimal);
+
+        Assert.Contains(tables, t => t.Name.Value == "RadioButton");
+    }
+
+    [Fact]
+    public void Produce_RadioButton_table_has_seven_columns()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTables(MsiDialogSet.Minimal);
+        RecipeTable radioButton = GetTable(tables, "RadioButton");
+
+        // RadioButton DDL: Property, Order, Value, X, Y, Width, Height, Text, Help — nine
+        // columns total. (The seven NOT-NULL geometry/key columns plus the two LOCALIZABLE
+        // Text/Help columns needed to carry radio-button labels through to the Control-table
+        // style localization pass in DialogSetProducer.Localization.cs.)
+        Assert.Equal(9, radioButton.Columns.Length);
+        Assert.Equal("Property", radioButton.Columns[0].Name);
+        Assert.Equal("Order", radioButton.Columns[1].Name);
     }
 
     // ── Minimal: row count sanity ─────────────────────────────────────────────
@@ -411,7 +439,7 @@ public sealed class DialogSetProducerTests
     // ── MsiRecipeBuilder integration ──────────────────────────────────────────
 
     [Fact]
-    public void MsiRecipeBuilder_with_DialogSetProducer_Minimal_appends_seven_ui_tables()
+    public void MsiRecipeBuilder_with_DialogSetProducer_Minimal_appends_eight_ui_tables()
     {
         ResolvedPackage resolved = MakeResolvedPackage(MsiDialogSet.Minimal);
 
@@ -423,8 +451,8 @@ public sealed class DialogSetProducerTests
 
         Assert.True(result.IsSuccess);
 
-        // 35 built-in tables (Lock* suppressed for no-permission package) + 7 UI tables = 42.
-        Assert.Equal(42, result.Value.Tables.Length);
+        // 35 built-in tables (Lock* suppressed for no-permission package) + 8 UI tables = 43.
+        Assert.Equal(43, result.Value.Tables.Length);
 
         foreach (string name in UiTableNames)
         {
