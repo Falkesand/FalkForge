@@ -2927,7 +2927,7 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>UISequence(Action&lt;SequenceBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Inserts actions into the InstallUISequence table.</td></tr>
       <tr><td><code>MediaTemplate(Action&lt;MediaTemplateBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures cabinet and media settings.</td></tr>
       <tr><td><code>Binary(string name, string sourcePath)</code></td><td><code>PackageBuilder</code></td><td>Adds a binary resource (DLL, EXE, bitmap) to the Binary table.</td></tr>
-      <tr><td><code>EnableRestartManagerSupport()</code></td><td><code>PackageBuilder</code></td><td>Enables Windows Restart Manager integration: sets <code>MSIRMSHUTDOWN=0</code> and authors the <code>MsiRMFilesInUse</code> dialog so full-UI installs can close and restart locked applications.</td></tr>
+      <tr><td><code>EnableRestartManagerSupport()</code></td><td><code>PackageBuilder</code></td><td>Enables Windows Restart Manager integration: sets <code>MSIRMSHUTDOWN=0</code> and authors the <code>MsiRMFilesInUse</code> dialog so full-UI installs can close and restart locked applications &mdash; only apps that registered for restart come back automatically.</td></tr>
       <tr><td><code>Signing(Action&lt;SigningOptionsBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Configures Authenticode code signing for the output MSI.</td></tr>
       <tr><td><code>UseDialogSet(MsiDialogSet dialogSet)</code></td><td><code>PackageBuilder</code></td><td>Selects the built-in MSI dialog template set.</td></tr>
       <tr><td><code>SetLocalizationData(IReadOnlyList&lt;LocalizationData&gt;)</code></td><td><code>PackageBuilder</code></td><td>Applies localization string tables for multi-language support.</td></tr>
@@ -8653,6 +8653,14 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     for every other dialog set.
 </p>
 
+<div class="note">
+    Choosing "close and restart the applications" does not guarantee every closed application comes
+    back &mdash; only apps that registered for restart come back automatically. Restart Manager's
+    <code>RmRestart</code> only relaunches processes that called Win32
+    <code>RegisterApplicationRestart</code> before Setup closed them; an unregistered application is
+    simply closed and stays closed.
+</div>
+
 <table class="api-table">
     <thead><tr><th>Control</th><th>Type</th><th>Bound property / text</th></tr></thead>
     <tbody>
@@ -8661,6 +8669,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
         <tr><td>Text</td><td>Text</td><td><code>Dialog.RestartManager.Text</code></td></tr>
         <tr><td>List</td><td>ListBox</td><td>the built-in <code>FileInUseProcess</code> property, populated by the Windows Installer engine at runtime</td></tr>
         <tr><td>ShutdownOption</td><td>RadioButtonGroup</td><td><code>FalkForgeRMOption</code></td></tr>
+        <tr><td>BottomLine</td><td>Line</td><td>&mdash; (the standard footer separator shared by every full-canvas wizard dialog; see <code>DialogFooter.BottomLine()</code>)</td></tr>
         <tr><td>OK</td><td>PushButton</td><td>&mdash;</td></tr>
         <tr><td>Cancel</td><td>PushButton</td><td>&mdash;</td></tr>
     </tbody>
@@ -8699,10 +8708,10 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 
 <div class="note">
     This ordering is <strong>inverted relative to WiX</strong>, which publishes <code>EndDialog</code>
-    before <code>RMShutdownAndRestart</code>. See ADR
-    <a href="docs/adr/0006-msirmfilesinuse-dialog-emission.md">0006</a> for why: the
-    <code>ControlEvent</code> table documentation states events fire in <code>Ordering</code> column
-    order, and RM-then-end is the reading that matches that sentence literally.
+    before <code>RMShutdownAndRestart</code>. Both orders work — see ADR
+    <a href="docs/adr/0006-msirmfilesinuse-dialog-emission.md">0006</a>, Decision 3: this is a
+    readability choice (the row order reads in the causal order the two events actually happen),
+    not a correctness fix, and there is no established functional difference from WiX's order.
 </div>
 
 <p>
@@ -8712,6 +8721,15 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <code>Dialog.RestartManager.Description</code>, <code>Dialog.RestartManager.Text</code>,
     <code>Dialog.RestartManager.CloseApps</code>, <code>Dialog.RestartManager.DontCloseApps</code>.
 </p>
+
+<div class="note">
+    Building a package with Restart Manager enabled produces one expected, benign ICE17 warning:
+    the <code>List</code> control's <code>ListBox</code> table has no rows for its
+    <code>FileInUseProcess</code> property. That is correct &mdash; ICE17 itself documents this
+    exact case as ignorable (the list is populated by the Windows Installer engine at runtime, not
+    authored), and <code>forge validate</code> will surface the warning with no further
+    explanation, so it is expected and does not indicate a defect.
+</div>
 
 <h3 id="dlg-authoring-custom-dialog">Authoring a Custom Dialog (<code>AddCustomDialog</code>)</h3>
 

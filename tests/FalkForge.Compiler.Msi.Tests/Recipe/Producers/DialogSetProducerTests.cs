@@ -18,7 +18,10 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe.Producers;
 /// </summary>
 public sealed class DialogSetProducerTests
 {
-    // Expected UI table names emitted by any active dialog set.
+    // Table names emitted by any active dialog set. RadioButton is deliberately NOT in this
+    // list: unlike the other seven, it is only emitted when at least one dialog actually
+    // authors a RadioButtonGroup row (see BuildDialogTables's remarks) — asserted separately by
+    // the RadioButton-specific tests below.
     private static readonly string[] UiTableNames =
     [
         "Dialog",
@@ -28,7 +31,6 @@ public sealed class DialogSetProducerTests
         "EventMapping",
         "TextStyle",
         "UIText",
-        "RadioButton",
     ];
 
     // ── None → empty ──────────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ public sealed class DialogSetProducerTests
     // ── Minimal: correct table names ──────────────────────────────────────────
 
     [Fact]
-    public void Produce_Minimal_emits_all_eight_ui_tables()
+    public void Produce_Minimal_emits_all_seven_ui_tables()
     {
         RecipeBuildContext context = MakeContext(MsiDialogSet.Minimal);
 
@@ -70,22 +72,24 @@ public sealed class DialogSetProducerTests
         }
     }
 
-    // ── RadioButton: emitted (empty) for every dialog set ─────────────────────
-    // ICE34 requires a RadioButton table row for every RadioButtonGroup control's group
-    // property; this producer must emit the table itself even before any dialog authors rows.
+    // ── RadioButton: only emitted when a dialog actually authors a row ────────
+    // Unlike the seven tables above, RadioButton is NOT unconditional: an always-empty table
+    // served no purpose and cost every package that never opts into Restart Manager (the only
+    // current RadioButtonGroup author) a spurious extra table — churn a Reproducible() build has
+    // no reason to carry for a package that never asked for the feature.
 
     [Fact]
-    public void Produce_Minimal_emits_RadioButton_table()
+    public void Produce_Minimal_without_restart_manager_omits_RadioButton_table()
     {
         ImmutableArray<RecipeTable> tables = ProduceTables(MsiDialogSet.Minimal);
 
-        Assert.Contains(tables, t => t.Name.Value == "RadioButton");
+        Assert.DoesNotContain(tables, t => t.Name.Value == "RadioButton");
     }
 
     [Fact]
     public void Produce_RadioButton_table_has_nine_columns()
     {
-        ImmutableArray<RecipeTable> tables = ProduceTables(MsiDialogSet.Minimal);
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
         RecipeTable radioButton = GetTable(tables, "RadioButton");
 
         // RadioButton DDL: Property, Order, Value, X, Y, Width, Height, Text, Help — nine
@@ -441,7 +445,7 @@ public sealed class DialogSetProducerTests
     // ── MsiRecipeBuilder integration ──────────────────────────────────────────
 
     [Fact]
-    public void MsiRecipeBuilder_with_DialogSetProducer_Minimal_appends_eight_ui_tables()
+    public void MsiRecipeBuilder_with_DialogSetProducer_Minimal_appends_seven_ui_tables()
     {
         ResolvedPackage resolved = MakeResolvedPackage(MsiDialogSet.Minimal);
 
@@ -453,13 +457,50 @@ public sealed class DialogSetProducerTests
 
         Assert.True(result.IsSuccess);
 
-        // 35 built-in tables (Lock* suppressed for no-permission package) + 8 UI tables = 43.
-        Assert.Equal(43, result.Value.Tables.Length);
+        // 35 built-in tables (Lock* suppressed for no-permission package) + 7 UI tables = 42.
+        // No RadioButton table: this package never enables Restart Manager, so no dialog
+        // authors a RadioButtonGroup row (see BuildDialogTables's remarks).
+        Assert.Equal(42, result.Value.Tables.Length);
 
         foreach (string name in UiTableNames)
         {
             Assert.Contains(result.Value.Tables, t => t.Name.Value == name);
         }
+
+        Assert.DoesNotContain(result.Value.Tables, t => t.Name.Value == "RadioButton");
+    }
+
+    [Fact]
+    public void MsiRecipeBuilder_with_DialogSetProducer_Minimal_and_restart_manager_appends_eight_ui_tables_including_RadioButton()
+    {
+        ResolvedPackage resolved = new()
+        {
+            Package = new PackageModel
+            {
+                Name = "Test",
+                Manufacturer = "M",
+                Version = new Version(1, 0, 0),
+                DialogSet = MsiDialogSet.Minimal,
+                EnableRestartManager = true,
+            },
+            Components = [],
+            Files = [],
+        };
+
+        Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
+            resolved,
+            [],
+            new MsiRecipeBuildOptions(),
+            [new DialogSetProducer()]);
+
+        Assert.True(result.IsSuccess);
+
+        // 35 built-in tables + 7 always-present UI tables + RadioButton (populated, since
+        // MsiRMFilesInUse's ShutdownOption group authors two rows) = 43.
+        Assert.Equal(43, result.Value.Tables.Length);
+
+        RecipeTable radioButton = GetTable(result.Value.Tables, "RadioButton");
+        Assert.Equal(2, radioButton.Rows.Length);
     }
 
     [Fact]

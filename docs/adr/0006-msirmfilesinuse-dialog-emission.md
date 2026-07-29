@@ -8,14 +8,20 @@
 
 `PackageBuilder.EnableRestartManagerSupport()` sets `PackageModel.EnableRestartManager`, which
 `PropertyTableProducer` uses to author `MSIRMSHUTDOWN=0` in the `Property` table
-(`src/FalkForge.Compiler.Msi/Recipe/Producers/PropertyTableProducer.cs:56-63`). That property tells
-Windows Installer's built-in `MsiRMFilesInUse` action to shut down and restart locked applications
-via Restart Manager instead of falling back to the legacy `FilesInUse`/reboot-required path — but
-only if the install is running at full UI *and* an `MsiRMFilesInUse` dialog is authored in the
-package. Without that dialog, `MsiRMFilesInUse` (the built-in action, not our dialog of the same
-name) has nothing to show, silently skips its Restart Manager logic, and the install falls back to
-the legacy path — meaning `EnableRestartManagerSupport()` had no observable effect on the default
-double-click (full UI) install path before this change.
+(`src/FalkForge.Compiler.Msi/Recipe/Producers/PropertyTableProducer.cs:56-63`). There is no separate
+built-in "`MsiRMFilesInUse` action" — per Microsoft's own
+[`MsiRMFilesInUse` dialog documentation](https://learn.microsoft.com/windows/win32/msi/msirmfilesinuse-dialog),
+"this dialog box will be created as required by the `InstallValidate` action." At full UI,
+`InstallValidate` queries Restart Manager for files in use and, when it finds any, creates the
+`MsiRMFilesInUse` dialog to ask the user whether Restart Manager should close and restart the
+owning applications — but only if that dialog is actually authored in the package. `MSIRMSHUTDOWN`
+is a separate, orthogonal control: it governs *how* Restart Manager shuts processes down once the
+user has agreed (or, at silent/basic UI where there is no dialog to ask, unconditionally) — 0 shuts
+down every affected process/service, 1 additionally forces unresponsive ones, 2 shuts down only if
+every one of them registered for restart. Without an authored `MsiRMFilesInUse` dialog,
+`InstallValidate` has nothing to create at full UI, so the install silently falls back to the
+legacy `FilesInUse`/reboot-required path — meaning `EnableRestartManagerSupport()` had no observable
+effect on the default double-click (full UI) install path before this change.
 
 Separately, `CustomControlType.RadioButtonGroup`
 (`src/FalkForge.Core/Models/CustomControlType.cs:49`) has been an authorable control type since it
@@ -55,8 +61,10 @@ The dialog is appended only when `package.EnableRestartManager` is `true`
 - It makes the existing flag mean something end-to-end for the first time: before this change,
   setting `MSIRMSHUTDOWN=0` with no dialog authored was a no-op at full UI.
 - Every package that does *not* opt in keeps byte-identical MSI output — no new dialog, no new
-  `RadioButton`/`Control`/`ControlEvent` rows, no reproducibility or parity-baseline churn for
-  packages that never asked for Restart Manager support.
+  `Control`/`ControlEvent` rows, and no `RadioButton` table at all: that table is emitted only when
+  at least one dialog actually populates it (see the RadioButton-table fix accompanying this ADR),
+  so a package that never enables Restart Manager carries none of this feature's tables or rows —
+  no reproducibility or parity-baseline churn for packages that never asked for it.
 - It avoids handing every package an unconditional ICE34 authoring burden (a `RadioButtonGroup`
   needing a matching `Property` default) for a feature most packages will never use.
 - It leaves bundle authors a suppression lever: a child MSI that should not offer the Restart
@@ -81,24 +89,27 @@ template is active and everything to do with whether Restart Manager support is 
 insertion point at the producer covers all five stock sets, keeps the five template files and their
 existing tests untouched, and avoids five copies of the same conditional.
 
-### 3. Invert `ControlEvent` ordering relative to WiX
+### 3. Order `ControlEvent` rows RM-then-end, not WiX's end-then-RM
 
 WiX's own `MsiRMFilesInUse.wxs` publishes `EndDialog` on OK before `RMShutdownAndRestart`. This
-builder inverts it: `RMShutdownAndRestart` (argument `0`, condition `FalkForgeRMOption~="UseRM"`)
-fires at Ordering 1, `EndDialog` (argument `Return`) fires at Ordering 2
-(`MsiRMFilesInUseDlgBuilder.cs:60-82`).
+builder orders them the other way: `RMShutdownAndRestart` (argument `0`, condition
+`FalkForgeRMOption~="UseRM"`) fires at Ordering 1, `EndDialog` (argument `Return`) fires at
+Ordering 2 (`MsiRMFilesInUseDlgBuilder.cs:60-82`).
 
-Justification, quoted from the
-[`ControlEvent` table documentation](https://learn.microsoft.com/en-us/windows/win32/msi/controlevent-table):
-"The installer starts each event in the order specified in the Ordering column." RM-then-end is the
-reading that matches that sentence literally — Restart Manager is asked to act while the dialog
-chain is still open, then the chain ends. WiX's end-then-RM ordering only works in practice because
-MSI defers dialog teardown until the whole action sequence finishes, not because `Ordering` is
-somehow non-authoritative for that pair of events.
+This is a readability choice, not a correctness fix, and there is no established functional
+difference between the two orders. The
+[`ControlEvent` table documentation](https://learn.microsoft.com/en-us/windows/win32/msi/controlevent-table)
+states only that "the installer starts each event in the order specified in the Ordering column" —
+that sentence is order-neutral: it says events fire in `Ordering` sequence, but it does not say
+which of the two orders is required, and both an RM-then-end and an end-then-RM ordering satisfy it
+equally. WiX has shipped its end-then-RM order for years with no evidence it fails to invoke
+Restart Manager, so there is nothing to suggest the two orders behave differently at runtime. We
+order RM-then-end here purely because it reads in the causal order the two events actually
+happen — Restart Manager acts, then the dialog ends — not because the other order is wrong.
 
-**This is the decision most likely to be "corrected" back to WiX order by a future reader who
-checks the reference implementation — that is the main reason this ADR exists.** Do not revert this
-ordering without re-reading this record and `MsiRMFilesInUseDlgBuilder`'s own `<remarks>`.
+**A future reader who checks the reference implementation may be tempted to "align" this back to
+WiX's order. Either order works; this note exists only so that reader isn't left guessing why our
+copy differs, not to forbid the change.**
 
 ## Consequences
 
@@ -120,9 +131,10 @@ ordering without re-reading this record and `MsiRMFilesInUseDlgBuilder`'s own `<
   `RadioButtonGroup` control. A future change would need to either extend `CustomDialogBuilder` with
   a `RadioButton`-row adder or extend the translator to source rows from a new field on
   `CustomDialogControlModel`.
-- If this ordering (Decision 3) is ever "fixed" back to WiX's end-then-RM order, that is a functional
-  regression, not a cleanup — re-read this ADR and `MsiRMFilesInUseDlgBuilder`'s remarks before doing
-  so.
+- Decision 3's RM-then-end ordering is a readability choice with no established functional
+  difference from WiX's end-then-RM order — switching to WiX's order is a valid stylistic change,
+  not a regression, though it should be done deliberately (re-reading this ADR first) rather than
+  by silently copying WiX's structure without noticing the deviation.
 - Whether the dialog actually functions at runtime (appears, closes the locked app, exits 0 instead
   of 3010) cannot be proven by any unit test — it needs one manual run on a machine the author
   controls: hold a file open, install at full UI, and observe the dialog, the app closing, and the
