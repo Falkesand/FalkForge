@@ -107,6 +107,42 @@ public sealed class PropertyTableProducerTests
         Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "MSIRMSHUTDOWN");
     }
 
+    // ── ICE34: RadioButtonGroup property needs a Property-table default ──────
+    // A RadioButtonGroup control is not TAB-selectable and ICE34 fails validation unless the
+    // group's bound property has a Property-table row whose value equals one of the group's
+    // RadioButton values. MsiRMFilesInUseDlgBuilder's ShutdownOption group is bound to
+    // FalkForgeRMOption, so this producer must default it whenever the dialog can be emitted.
+
+    [Fact]
+    public void Produce_with_restart_manager_emits_rm_option_default_matching_a_radio_button_value()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            enableRestartManager: true);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(
+            rows,
+            FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.OptionProperty,
+            FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.UseRestartManagerValue);
+    }
+
+    [Fact]
+    public void Produce_without_restart_manager_omits_rm_option()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            properties: System.Array.Empty<PropertyModel>(),
+            enableRestartManager: false);
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(
+            rows,
+            r => ((CellValue.StringValue)r.Cells[0]).Value
+                == FalkForge.Compiler.Msi.UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.OptionProperty);
+    }
+
     [Fact]
     public void Produce_appends_user_properties_after_builtins()
     {

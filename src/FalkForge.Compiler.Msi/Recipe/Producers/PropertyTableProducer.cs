@@ -61,6 +61,15 @@ internal sealed class PropertyTableProducer : ITableProducer
             // whole shutdown. 0 always shuts down, but leaves unregistered
             // apps closed, not restarted. Full value-table rationale: PropertyTableProducerTests.
             props["MSIRMSHUTDOWN"] = "0";
+
+            // ICE34: a RadioButtonGroup's property must have a Property-table default equal to
+            // one of its RadioButton values, or the group is not TAB-selectable and validation
+            // fails. MsiRMFilesInUseDlgBuilder's ShutdownOption group is bound to this property;
+            // the shared constants avoid a four-places-one-name hazard (this producer, the
+            // Control row's Property, the RadioButton rows' Property, and the ControlEvent
+            // Condition string all name the same MSI property).
+            props[UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.OptionProperty] =
+                UI.Layout.Builders.MsiRMFilesInUseDlgBuilder.UseRestartManagerValue;
         }
 
         // ARPPRODUCTICON points Add/Remove Programs at an Icon table row. The
