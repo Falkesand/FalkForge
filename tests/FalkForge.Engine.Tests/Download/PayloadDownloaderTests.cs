@@ -121,6 +121,27 @@ public sealed class PayloadDownloaderTests : IDisposable
         Assert.Contains("URL cannot be empty", result.Error.Message);
     }
 
+    /// <summary>
+    /// An empty expected hash must fail closed. Integrity verification is the only thing
+    /// standing between a downloaded payload and execution, so a caller that supplies no
+    /// hash must be rejected outright -- never silently treated as "skip verification".
+    /// </summary>
+    [Fact]
+    public async Task DownloadAsync_EmptyExpectedSha256_ReturnsFailure()
+    {
+        using var client = new HttpClient();
+        var downloader = new PayloadDownloader(client);
+        var targetPath = Path.Combine(_tempDir, "payload.bin");
+
+        var result = await downloader.DownloadAsync(
+            "https://example.com/file.bin", string.Empty, targetPath);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DownloadError, result.Error.Kind);
+        Assert.Contains("hash cannot be empty", result.Error.Message);
+        Assert.False(File.Exists(targetPath));
+    }
+
     [Fact]
     public async Task Download_WithPathTraversal_ReturnsFailure()
     {
