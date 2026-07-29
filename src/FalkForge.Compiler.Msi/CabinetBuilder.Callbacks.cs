@@ -53,10 +53,12 @@ public sealed partial class CabinetBuilder
                 Marshal.Copy(buffer, 0, memory, bytesRead);
 
                 // hf is the same pseudo-handle CbGetOpenInfo opened for this source file, so
-                // every byte actually handed to FCI here is also fed into its running digest —
-                // that digest becomes the SBOM's SHA-256 claim (see PackagedFileHashes).
+                // every byte actually handed to FCI here is also fed into its running digests —
+                // SHA-256 becomes the signed payload claim (see PackagedFileHashes) and SHA-1 the
+                // SPDX per-file checksum (see PackagedFileSha1Hashes). One chunk, both digests:
+                // neither can describe a byte stream the other did not see.
                 if (bytesRead > 0 && _pendingSourceHashes.TryGetValue(hf, out var tracked))
-                    tracked.Hash.AppendData(buffer, 0, bytesRead);
+                    tracked.Append(buffer, 0, bytesRead);
 
                 return (uint)bytesRead;
             }
@@ -109,13 +111,13 @@ public sealed partial class CabinetBuilder
         {
             if (_openStreams.Remove(hf, out var stream)) stream.Dispose();
 
-            // FCI is fully done reading this source file now — finalize its digest into
-            // PackagedFileHashes so SbomHelper can consume it instead of reopening the source path.
+            // FCI is fully done reading this source file now — finalize both digests so SbomHelper
+            // and the SPDX writer can consume them instead of reopening the source path.
             if (_pendingSourceHashes.Remove(hf, out var tracked))
             {
-                var digest = tracked.Hash.GetHashAndReset();
-                tracked.Hash.Dispose();
-                _packagedFileHashes[tracked.FileId] = Convert.ToHexString(digest);
+                _packagedFileHashes[tracked.FileId] = Convert.ToHexString(tracked.Sha256.GetHashAndReset());
+                _packagedFileSha1Hashes[tracked.FileId] = Convert.ToHexString(tracked.Sha1.GetHashAndReset());
+                tracked.DisposeHashes();
             }
 
             return 0;
@@ -245,10 +247,18 @@ public sealed partial class CabinetBuilder
             // pszName is exactly the pszSourceFile FCIAddFile was called with — this is the one
             // callback FCI uses to open a file being ADDED to the cabinet (as opposed to CbOpen,
             // used for temp/cabinet-output files), so it is the correct point to start capturing
-            // the packaged-bytes digest for this source file. _currentFileId (set by BuildCabinet
+            // the packaged-bytes digests for this source file. _currentFileId (set by BuildCabinet
             // immediately before this FCIAddFile call) — not pszName — is the tracking key,
             // since SourcePath is not guaranteed unique across File entries.
-            _pendingSourceHashes[handle] = (_currentFileId, IncrementalHash.CreateHash(HashAlgorithmName.SHA256));
+            //
+            // Both digests start unconditionally. Making SHA-1 conditional on SPDX being requested
+            // would mean threading the SBOM format down into an FCI callback that has no business
+            // knowing about SBOMs, to save a hash whose cost is a rounding error next to the LZX
+            // compression happening over the very same bytes.
+            _pendingSourceHashes[handle] = new PendingDigests(
+                _currentFileId,
+                IncrementalHash.CreateHash(HashAlgorithmName.SHA256),
+                CreateSpdxFileChecksumHash());
 
             return handle;
         }
@@ -261,6 +271,19 @@ public sealed partial class CabinetBuilder
             return -1;
         }
     }
+
+    /// <summary>
+    /// Creates the SHA-1 accumulator whose output becomes a file's SPDX 2.3 §8.4 checksum — a
+    /// mandatory field ("1..1 for the SHA1 algorithm") that no other digest can satisfy. SHA-1 is
+    /// collision-broken and is used here purely as that spec-mandated identifier; see
+    /// <see cref="PackagedFileSha1Hashes"/> for the full contract, including that nothing in
+    /// FalkForge may make a trust decision on this value.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA5350:Do Not Use Weak Cryptographic Algorithms",
+        Justification = "SPDX 2.3 §8.4 mandates a SHA1 file checksum. Identifier only — never a trust decision; " +
+                        "the signed payload manifest and MsiIntegrityVerifier both use SHA-256.")]
+    private static IncrementalHash CreateSpdxFileChecksumHash()
+        => IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
 
     // ── DOS date/time helpers ───────────────────────────────────────────
 

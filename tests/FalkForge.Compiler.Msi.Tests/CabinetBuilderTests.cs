@@ -552,6 +552,124 @@ public sealed class CabinetBuilderTests : IDisposable
         Assert.Equal(expectedHash, hash2);
     }
 
+    // ── PackagedFileSha1Hashes (SPDX 2.3 mandatory per-file checksum) ────
+
+    [Fact]
+    public void BuildCabinet_PopulatesPackagedFileSha1Hashes_WithSha1OfActualBytes()
+    {
+        // SPDX 2.3 §8.4 makes a SHA1 checksum mandatory for every file ("1..1 for the SHA1
+        // algorithm"), so a SPDX SBOM cannot be emitted from the SHA-256 map alone. The digest is
+        // accumulated in the same FCI callbacks as the SHA-256 one — same handle, same CbRead
+        // chunks — rather than by reopening the source afterwards, so it carries the identical
+        // TOCTOU guarantee instead of reintroducing the gap the SHA-256 capture was built to close.
+        var content = "hash me with both algorithms";
+        var sourceFile = CreateTempFile("bothhash.txt", content);
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "bothhash.txt", "C_both", "F_both") };
+        var contentBytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var expectedSha1 = Convert.ToHexString(Sha1Of(contentBytes));
+        var expectedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(contentBytes));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.True(builder.PackagedFileSha1Hashes.TryGetValue("F_both", out var actualSha1));
+        Assert.Equal(expectedSha1, actualSha1);
+
+        // The SHA-256 map is what the ECDSA payload manifest signs. Adding a second digest must
+        // leave it byte-for-byte what it always was — this asserts the two accumulate independently
+        // rather than one clobbering or truncating the other's stream.
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_both", out var actualSha256));
+        Assert.Equal(expectedSha256, actualSha256);
+    }
+
+    [Fact]
+    public void BuildCabinet_FileLargerThanOneFciReadChunk_AccumulatesSha1AcrossEveryChunk()
+    {
+        // Mirrors the SHA-256 multi-chunk test: a file small enough for one CbRead call would pass
+        // even with the SHA-1 accumulation wired up wrongly (started per chunk, or appended from the
+        // wrong buffer offset). 256 KiB is well past FCI's per-read chunk size (tens of KiB), and
+        // comfortably past the 64 KiB the SPDX per-file checksum must survive, so CbRead is called
+        // many times for this one file and CbClose must finalize a digest built from all of them, in
+        // order. Pseudo-random content, not a repeating filler, so a dropped/duplicated/reordered
+        // chunk cannot coincidentally yield the right digest.
+        var content = new byte[256 * 1024];
+        new Random(20260729).NextBytes(content);
+
+        var sourceFile = Path.Combine(_tempDir, "large-sha1.bin");
+        File.WriteAllBytes(sourceFile, content);
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "large-sha1.bin", "C_lg1", "F_lg1") };
+        var expectedSha1 = Convert.ToHexString(Sha1Of(content));
+        var expectedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.True(builder.PackagedFileSha1Hashes.TryGetValue("F_lg1", out var actualSha1));
+        Assert.Equal(expectedSha1, actualSha1);
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_lg1", out var actualSha256));
+        Assert.Equal(expectedSha256, actualSha256);
+    }
+
+    [Fact]
+    public void BuildCabinet_PackagedFileSha1Hashes_UnaffectedBySourceMutationAfterBuild()
+    {
+        // The whole point of capturing inside the callbacks: the SHA-1 that lands in the SPDX
+        // document must describe the bytes that shipped in the cabinet, not whatever a racing build
+        // step or an attacker with write access left at SourcePath afterwards.
+        var sourceFile = CreateTempFile("mutate-sha1.txt", "original packaged bytes");
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "mutate-sha1.txt", "C_ms1", "F_ms1") };
+        var expectedSha1 = Convert.ToHexString(
+            Sha1Of(System.Text.Encoding.UTF8.GetBytes("original packaged bytes")));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+        File.WriteAllText(sourceFile, "mutated after the cabinet was already built");
+
+        Assert.True(builder.PackagedFileSha1Hashes.TryGetValue("F_ms1", out var actualSha1));
+        Assert.Equal(expectedSha1, actualSha1);
+    }
+
+    [Fact]
+    public void BuildCabinet_TwoFilesShareSourcePath_BothFileIdsRecordSha1Independently()
+    {
+        // Same key-choice guard as the SHA-256 map: keying on SourcePath would collapse the second
+        // File entry onto the first slot, so the SPDX document would silently list one fewer file
+        // than the package contains — and the package verification code derived from those SHA-1s
+        // would then describe a file set the MSI does not have.
+        var sourceFile = CreateTempFile("shared-sha1.dll", "shared payload bytes");
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[]
+        {
+            MakeResolvedFile(sourceFile, "shared1.dll", "C_ss1", "F_ss1"),
+            MakeResolvedFile(sourceFile, "shared2.dll", "C_ss2", "F_ss2"),
+        };
+        var expectedSha1 = Convert.ToHexString(
+            Sha1Of(System.Text.Encoding.UTF8.GetBytes("shared payload bytes")));
+
+        using var builder = new CabinetBuilder();
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.Equal(2, builder.PackagedFileSha1Hashes.Count);
+        Assert.True(builder.PackagedFileSha1Hashes.TryGetValue("F_ss1", out var sha1First));
+        Assert.True(builder.PackagedFileSha1Hashes.TryGetValue("F_ss2", out var sha1Second));
+        Assert.Equal(expectedSha1, sha1First);
+        Assert.Equal(expectedSha1, sha1Second);
+    }
+
+    // SHA-1 is used here only to reproduce the identifier SPDX 2.3 mandates, never to make a trust
+    // decision — exactly the contract CabinetBuilder.PackagedFileSha1Hashes documents.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA5350:Do Not Use Weak Cryptographic Algorithms",
+        Justification = "Reproduces the SPDX 2.3 mandatory per-file SHA1 identifier under test; not a trust decision.")]
+    private static byte[] Sha1Of(byte[] content) => System.Security.Cryptography.SHA1.HashData(content);
+
     [Fact]
     public void BuildCabinet_OutputDirectoryCreatedIfMissing()
     {
