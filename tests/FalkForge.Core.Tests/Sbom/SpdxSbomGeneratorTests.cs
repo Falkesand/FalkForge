@@ -133,6 +133,9 @@ public sealed class SpdxSbomGeneratorTests
         Assert.True(result.IsFailure, "A file component with no SHA-1 cannot produce a valid SPDX 2.3 document.");
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
         Assert.Contains("app.exe", result.Error.Message, StringComparison.Ordinal);
+        // A diagnostic code, like every other fail-loud path in the provenance surface: a bare
+        // ErrorKind.Validation is not something a publisher can look up or grep a build log for.
+        Assert.Contains("SBM003", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -147,6 +150,44 @@ public sealed class SpdxSbomGeneratorTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void Generate_FileWithMalformedSha256_FailsRatherThanSerializingItAsAChecksumClaim()
+    {
+        // The SHA-1 was already shape-checked; the SHA-256 rode straight through to the checksums
+        // array beside it. Both are checksum fields, i.e. integrity claims, and a writer that
+        // validates one and passes the other through is asserting a digest it never examined —
+        // which is the rule this class's own doc comment states it enforces.
+        using var ms = new MemoryStream();
+
+        var result = new SpdxSbomGenerator().Generate(MakeDocument(File("app.exe", "not-a-sha256", Sha1A)), ms);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("SBM004", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_PackageComponentWithMalformedSha256_FailsRatherThanSerializingIt()
+    {
+        // A non-file component's SHA-256 is written into a `checksums` array too (§7.10), and it is
+        // the one digest a CALLER supplies directly (SbomOptions.AddComponent), so it is the most
+        // likely to be malformed and the least likely to have been observed by FalkForge at all.
+        var library = new SbomComponent
+        {
+            Name = "Newtonsoft.Json",
+            Version = "13.0.3",
+            Type = SbomComponentType.Library,
+            Sha256Hash = "zzzz",
+        };
+        using var ms = new MemoryStream();
+
+        var result = new SpdxSbomGenerator().Generate(MakeDocument(File("app.exe", Sha256A, Sha1A), library), ms);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Newtonsoft.Json", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

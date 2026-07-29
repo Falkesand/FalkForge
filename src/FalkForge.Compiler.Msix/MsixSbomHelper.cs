@@ -52,14 +52,10 @@ internal static class MsixSbomHelper
             // (CodeRabbit #3658582431).
             if (model.SbomOptions is not null)
             {
-                foreach (var component in model.SbomOptions.AdditionalComponents)
-                {
-                    if (!SbomDigestValidator.IsValidSha256Hex(component.Sha256Hash))
-                        return Result<Unit>.Failure(ErrorKind.Validation,
-                            $"MSIX SBOM: additional component '{component.Name}' has a digest " +
-                            $"'{component.Sha256Hash}' that is not a valid SHA-256 hash (expected 64 " +
-                            "hexadecimal characters).");
-                }
+                var digestValidation = SbomDigestValidator.ValidateComponentDigests(
+                    model.SbomOptions.AdditionalComponents, "MSIX SBOM");
+                if (digestValidation.IsFailure)
+                    return digestValidation;
 
                 components.AddRange(model.SbomOptions.AdditionalComponents);
             }

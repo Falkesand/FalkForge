@@ -220,8 +220,18 @@ internal static class BundleIntegritySigner
             });
         }
 
+        // Digest-checked before they join the document, exactly as BundleSbomHelper does for the
+        // plain sidecar — this is the signed one of the two, so an unexamined caller-supplied
+        // digest here becomes a cryptographically-vouched claim.
         if (model.SbomOptions is not null)
+        {
+            var digestValidation = SbomDigestValidator.ValidateComponentDigests(
+                model.SbomOptions.AdditionalComponents, "Bundle SBOM attestation");
+            if (digestValidation.IsFailure)
+                return Result<SbomFormat>.Failure(digestValidation.Error);
+
             components.AddRange(model.SbomOptions.AdditionalComponents);
+        }
 
         // Deterministic serial + timestamp under an explicit Reproducible() epoch override or,
         // absent that, SOURCE_DATE_EPOCH — so the attestation SBOM is reproducible (was

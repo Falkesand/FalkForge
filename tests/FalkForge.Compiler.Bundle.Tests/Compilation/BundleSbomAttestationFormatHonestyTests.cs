@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FalkForge.Compiler.Bundle.Compilation;
 using FalkForge.Models;
+using FalkForge.Sbom;
 using Xunit;
 
 namespace FalkForge.Compiler.Bundle.Tests.Compilation;
@@ -81,6 +82,24 @@ public sealed class BundleSbomAttestationFormatHonestyTests : IDisposable
     }
 
     [Fact]
+    public void AdditionalComponentWithMalformedDigest_FailsRatherThanAttestingIt()
+    {
+        // BundleSbomHelper already refuses a caller-supplied digest that is not shaped like a hash
+        // before writing the plain .cdx.json sidecar; the attestation path appended the same
+        // components unchecked, even though it is the signed one of the two.
+        var model = BuildModel(
+            new IntegrityConfiguration(),
+            new SbomOptions().AddComponent("Contoso.Lib", "1.2.3", SbomComponentType.Library, "not-a-digest"));
+
+        var result = BundleIntegritySigner.GenerateSbomForAttestation(
+            model, BuildPayloads(), Path.Combine(_tempDir, "addcomp-sbom.json"));
+
+        Assert.True(result.IsFailure, "A caller-supplied digest that is not shaped like a hash must not be attested.");
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("SBM004", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildAttestArgs_UnknownFormat_ThrowsRatherThanQuietlyClaimingSpdx()
     {
         // The silent fold is the mechanism of the original defect: an unrecognised value produced a
@@ -107,7 +126,7 @@ public sealed class BundleSbomAttestationFormatHonestyTests : IDisposable
         },
     ];
 
-    private static BundleModel BuildModel(IntegrityConfiguration integrity) => new()
+    private static BundleModel BuildModel(IntegrityConfiguration integrity, SbomOptions? sbomOptions = null) => new()
     {
         Name = "TestBundle",
         Manufacturer = "Contoso",
@@ -117,5 +136,6 @@ public sealed class BundleSbomAttestationFormatHonestyTests : IDisposable
         Scope = InstallScope.PerMachine,
         Packages = new List<BundlePackageModel>().AsReadOnly(),
         Integrity = integrity,
+        SbomOptions = sbomOptions,
     };
 }
