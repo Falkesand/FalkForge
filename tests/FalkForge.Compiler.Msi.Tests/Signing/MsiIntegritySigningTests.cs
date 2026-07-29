@@ -46,24 +46,6 @@ public sealed class MsiIntegritySigningTests : IDisposable
         }
     }
 
-    /// <summary>
-    /// Resolves the FakeSigil test-double project's own build output directory (where its
-    /// <c>sigil.exe</c> apphost lands), deriving the Configuration/TargetFramework segments from
-    /// this very assembly's own <see cref="AppContext.BaseDirectory"/> rather than hardcoding
-    /// "Debug"/"net10.0" — robust to a Release run or a future TFM bump. FakeSigil's
-    /// ProjectReference uses <c>ReferenceOutputAssembly="false"</c> precisely so its output is
-    /// NOT copied next to this test host (see that csproj's comment for why), so tests that want
-    /// it reachable must explicitly prepend this directory to PATH themselves.
-    /// </summary>
-    private static string ResolveFakeSigilDirectory()
-    {
-        var binDir = new DirectoryInfo(AppContext.BaseDirectory);       // .../bin/<Config>/<TFM>
-        var configDir = binDir.Parent ?? throw new DirectoryNotFoundException();
-        var projectDir = configDir.Parent?.Parent ?? throw new DirectoryNotFoundException(); // .../<ThisProject>
-        var testsRoot = projectDir.Parent ?? throw new DirectoryNotFoundException();          // .../tests
-        return Path.Combine(testsRoot.FullName, "FalkForge.Compiler.Msi.Tests.FakeSigil", "bin", configDir.Name, binDir.Name);
-    }
-
     private (string sourceFile, string outputDir) CreatePackageInputs(string label)
     {
         var sourceDir = Path.Combine(_tempDir, $"{label}_source");
@@ -176,12 +158,7 @@ public sealed class MsiIntegritySigningTests : IDisposable
         // output, never linked into this assembly's code) puts a `sigil.exe` right next to this test
         // assembly that answers `--version` successfully but fails every other subcommand, exactly
         // like a real but unconfigured sigil install.
-        var fakeSigilDir = ResolveFakeSigilDirectory();
-        Assert.True(File.Exists(Path.Combine(fakeSigilDir, "sigil.exe")),
-            $"Test setup invariant: FakeSigil build output not found at '{fakeSigilDir}'.");
-        Environment.SetEnvironmentVariable("PATH", fakeSigilDir + Path.PathSeparator + _originalPath);
-        SigilDetector.Reset();
-        Assert.True(SigilDetector.IsAvailable(), "Test setup invariant: the fake sigil.exe must answer --version.");
+        FakeSigilHarness.EnableDetection(_originalPath);
 
         var (sourceFile, outputDir) = CreatePackageInputs(nameof(Compile_WithIntegrity_WhenSigilSubcommandFails_StillEmbedsEcdsaSignature));
         var package = InstallerTestHost.BuildPackage(p =>
@@ -228,7 +205,7 @@ public sealed class MsiIntegritySigningTests : IDisposable
         // reads the embedded document's OWN self-declaration out of the DSSE payload and requires the
         // two to agree. FakeSigil's attest-succeeds mode wraps the predicate verbatim as that payload,
         // so what is asserted here is byte-for-byte the SBOM the compiler generated.
-        EnableAttestingFakeSigil();
+        FakeSigilHarness.EnableAttesting(_originalPath);
 
         var (sourceFile, outputDir) = CreatePackageInputs($"format_{requested}");
         var package = InstallerTestHost.BuildPackage(p =>
@@ -285,7 +262,7 @@ public sealed class MsiIntegritySigningTests : IDisposable
         // Both halves are asserted because either alone is satisfiable by the bug: the tag alone
         // passed throughout the lifetime of the original defect, and the bytes alone would not
         // catch a tag that misdescribes them.
-        EnableAttestingFakeSigil();
+        FakeSigilHarness.EnableAttesting(_originalPath);
 
         var (sourceFile, outputDir) = CreatePackageInputs("default_format");
         var package = InstallerTestHost.BuildPackage(p =>
@@ -313,21 +290,61 @@ public sealed class MsiIntegritySigningTests : IDisposable
             "A default Integrity() build must not start emitting SPDX bytes.");
     }
 
-    /// <summary>
-    /// Puts the FakeSigil double on PATH in its opt-in attest-succeeds mode, so an attestation row is
-    /// actually produced. Without it, IntegritySigner swallows the attest failure by design and there
-    /// is no SbomAttestation row to inspect.
-    /// </summary>
-    private void EnableAttestingFakeSigil()
+    [Fact]
+    public void Compile_WithIntegrity_RequestedSbomFormat_DoesNotChangeWhatTheSignatureDeclares()
     {
-        var fakeSigilDir = ResolveFakeSigilDirectory();
-        Assert.True(File.Exists(Path.Combine(fakeSigilDir, "sigil.exe")),
-            $"Test setup invariant: FakeSigil build output not found at '{fakeSigilDir}'.");
+        // Packaging now decides, from the requested SbomFormat, whether to accumulate the per-file
+        // SHA-1 that SPDX 2.3 §8.4 mandates (MsiAuthoring.ShouldCaptureSpdxFileChecksums). That makes
+        // an SBOM setting reach into the packaging callbacks that also produce the SHA-256 the ECDSA
+        // envelope signs — so this pins the blast radius: choosing a document format may narrow the
+        // SBOM's descriptive input and NOTHING else. The signed declaration must be identical.
+        //
+        // Asserted on the envelope's own (name, sha256) set rather than on the signature bytes,
+        // because ECDSA signing is deliberately nondeterministic (fresh nonce per call) — the same
+        // payload signs differently every time by design, so comparing signatures would prove
+        // nothing and comparing them for equality would fail for the wrong reason.
+        // ONE source file, compiled twice. Giving each format its own file would compare two
+        // different payloads and the equality below would be meaningless (it would also fail).
+        var sourceDir = Path.Combine(_tempDir, "blastradius_source");
+        Directory.CreateDirectory(sourceDir);
+        var sourceFile = Path.Combine(sourceDir, "app.exe");
+        File.WriteAllText(sourceFile, "fake executable content shared by both SBOM formats");
 
-        Environment.SetEnvironmentVariable("FAKESIGIL_ATTEST_SUCCEEDS", "1");
-        Environment.SetEnvironmentVariable("PATH", fakeSigilDir + Path.PathSeparator + _originalPath);
-        SigilDetector.Reset();
-        Assert.True(SigilDetector.IsAvailable(), "Test setup invariant: the fake sigil.exe must answer --version.");
+        var declarations = new List<List<(string Name, string Sha256)>>();
+
+        foreach (var format in new[] { SbomFormat.Spdx, SbomFormat.CycloneDx })
+        {
+            var outputDir = Path.Combine(_tempDir, $"blastradius_{format}_output");
+            Directory.CreateDirectory(outputDir);
+
+            var package = InstallerTestHost.BuildPackage(p =>
+            {
+                p.Name = "SbomBlastRadiusApp";
+                p.Manufacturer = "TestCorp";
+                p.Version = new Version(1, 0, 0);
+                p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SbomBlastRadiusApp"));
+                p.Integrity(i => i.Sbom(format));
+            });
+
+            var result = new MsiCompiler().Compile(package, outputDir);
+            Assert.True(result.IsSuccess, $"Compile failed for {format}: {(result.IsFailure ? result.Error.Message : "")}");
+
+            var manifestRow = Assert.Single(ReadIntegrityRows(result.Value), r => r[0] == "ManifestSignature");
+            var envelope = IntegrityEnvelopeCodec.Parse(manifestRow[2]!);
+            Assert.NotNull(envelope);
+            Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope),
+                $"The {format} build's envelope must still verify against its own embedded key.");
+
+            declarations.Add(envelope.Files
+                .Select(f => (f.Name, f.Sha256))
+                .OrderBy(f => f.Name, StringComparer.Ordinal)
+                .ToList());
+        }
+
+        // Non-empty first: two empty declarations are trivially equal, and an empty one is exactly the
+        // failure mode IntegritySigner.BuildPayloadHashEntries exists to prevent.
+        Assert.NotEmpty(declarations[0]);
+        Assert.Equal(declarations[0], declarations[1]);
     }
 
     [Fact]

@@ -585,6 +585,35 @@ public sealed class CabinetBuilderTests : IDisposable
     }
 
     [Fact]
+    public void BuildCabinet_WithSha1CaptureDisabled_SkipsTheSha1ButLeavesTheSignedSha256Untouched()
+    {
+        // SHA-1 exists solely to satisfy SPDX 2.3 §8.4, and SPDX is opt-in (Integrity() defaults to
+        // CycloneDX, which ignores the field entirely). Hashing every packaged byte a second time on
+        // every compile to serve a format almost no compile requests is waste MsiAuthoring can
+        // decline — measurably so under CompressionLevel.None, where there is no compressor in the
+        // denominator to hide it.
+        //
+        // What must NOT change is the SHA-256 the ECDSA payload manifest signs: it is asserted here
+        // against the same content to prove the opt-out narrows the SBOM's descriptive input and
+        // nothing else. The default stays "capture", so an existing caller (and any future one that
+        // forgets) pays the hash rather than silently losing a digest.
+        var content = "capture the signed digest only";
+        var sourceFile = CreateTempFile("nosha1.txt", content);
+        var outputDir = Path.Combine(_tempDir, "output");
+        var files = new[] { MakeResolvedFile(sourceFile, "nosha1.txt", "C_ns1", "F_ns1") };
+        var expectedSha256 = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content)));
+
+        using var builder = new CabinetBuilder(captureSha1: false);
+        var result = builder.BuildCabinet(files, outputDir, CompressionLevel.High);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.Empty(builder.PackagedFileSha1Hashes);
+        Assert.True(builder.PackagedFileHashes.TryGetValue("F_ns1", out var actualSha256));
+        Assert.Equal(expectedSha256, actualSha256);
+    }
+
+    [Fact]
     public void BuildCabinet_FileLargerThanOneFciReadChunk_AccumulatesSha1AcrossEveryChunk()
     {
         // Mirrors the SHA-256 multi-chunk test: a file small enough for one CbRead call would pass

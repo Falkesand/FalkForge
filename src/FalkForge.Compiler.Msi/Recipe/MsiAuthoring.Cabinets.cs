@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using FalkForge.Compiler.Msi.Cabinets;
+using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Diagnostics;
 using FalkForge.Models;
+using FalkForge.Sbom;
 
 namespace FalkForge.Compiler.Msi.Recipe;
 
@@ -23,7 +25,9 @@ public static partial class MsiAuthoring
     /// <paramref name="packagedFileSha1Hashes"/> receives the SHA-1 of that same byte stream (see
     /// <see cref="CabinetBuilder.PackagedFileSha1Hashes"/>), which SPDX 2.3 §8.4 requires per file;
     /// it is kept as a separate map so the SHA-256 one the ECDSA envelope signs keeps its exact
-    /// shape.
+    /// shape. That SHA-1 is captured only when the package actually asked for SPDX output — see
+    /// <see cref="ShouldCaptureSpdxFileChecksums"/>; otherwise the map comes back empty and nothing
+    /// downstream reads it.
     /// </summary>
     private static Result<MsiDatabaseRecipe> BuildCabinetsAndEmbed(
         ResolvedPackage resolved,
@@ -45,6 +49,8 @@ public static partial class MsiAuthoring
         cabTempDir = Path.Combine(Path.GetTempPath(), $"FalkForge_recipe_{Guid.NewGuid():N}");
         Directory.CreateDirectory(cabTempDir);
 
+        bool captureSha1 = ShouldCaptureSpdxFileChecksums(package);
+
         var externalSink = new ExternalFileCabinetSink(outputPath);
         System.Collections.Immutable.ImmutableArray<CabinetEmbedding>.Builder embeddingsBuilder =
             System.Collections.Immutable.ImmutableArray.CreateBuilder<CabinetEmbedding>(plans.Count);
@@ -64,7 +70,7 @@ public static partial class MsiAuthoring
             string diskTempDir = Path.Combine(cabTempDir, $"disk{plan.DiskId}");
             Directory.CreateDirectory(diskTempDir);
 
-            using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp, logger);
+            using CabinetBuilder cabBuilder = new(package.ReproducibleOptions?.Timestamp, logger, captureSha1);
             Result<string> cabResult = cabBuilder.BuildCabinet(
                 slice,
                 diskTempDir,
@@ -128,4 +134,33 @@ public static partial class MsiAuthoring
 
         return Result<MsiDatabaseRecipe>.Success(recipe);
     }
+
+    /// <summary>
+    /// Whether this compile needs the per-file SHA-1 that SPDX 2.3 §8.4 makes mandatory.
+    ///
+    /// <para>Exactly one consumer exists: <c>IntegritySigner</c>'s SBOM attestation, and only when it
+    /// is generating SPDX. The plain <c>.Sbom()</c> sidecar is CycloneDX by definition (it writes
+    /// <c>.cdx.json</c> and passes no format at all) and the CycloneDX writer ignores
+    /// <c>SbomComponent.Sha1Hash</c> entirely, so every other compile would hash all of its packaged
+    /// bytes a second time and throw the result away.</para>
+    ///
+    /// <para><b>Answering "no" wrongly is not a performance bug.</b> SPDX generation would then fail
+    /// on the missing SHA-1, <c>IntegritySigner</c> swallows that failure by design so it cannot
+    /// block the already-computed ECDSA signature, and the entire <c>SbomAttestation</c> row would
+    /// disappear from the shipped MSI behind a warning. So neither half of this decision is restated
+    /// here: <b>which</b> format the attestation will use comes from
+    /// <see cref="IntegritySigner.ResolveAttestationSbomFormat"/> — literally the expression
+    /// <c>IntegritySigner</c> itself uses — and <b>whether</b> that format mandates the digest comes
+    /// from <see cref="SbomWriter.RequiresPerFileSha1"/>, which
+    /// <c>SbomWriterFormatSelectionTests.RequiresPerFileSha1_MatchesWhatEachFormatsGeneratorActuallyEnforces</c>
+    /// asserts against every generator's real behaviour across the whole enum. There is no third
+    /// opinion left to drift.</para>
+    ///
+    /// <para>The coupling is additionally guarded end to end:
+    /// <c>MsiIntegritySigningTests.Compile_WithIntegrity_SbomAttestationFormatColumnDescribesTheDocumentActuallyEmbedded</c>
+    /// compiles a real <c>Sbom(SbomFormat.Spdx)</c> package through <c>MsiCompiler</c> and asserts a
+    /// SHA1 checksum is present in the embedded document.</para>
+    /// </summary>
+    private static bool ShouldCaptureSpdxFileChecksums(PackageModel package)
+        => SbomWriter.RequiresPerFileSha1(IntegritySigner.ResolveAttestationSbomFormat(package));
 }

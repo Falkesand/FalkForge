@@ -63,7 +63,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
     [Fact]
     public void SignAndEmbed_SourceMutatedAfterCabinetBuild_AttestsPackagedBytesNotMutatedBytes()
     {
-        EnableAttestingFakeSigil();
+        FakeSigilHarness.EnableAttesting(_originalPath);
 
         var packagedBytes = "packaged content"u8.ToArray();
         var sourcePath = Path.Combine(_tempDir, "payload.bin");
@@ -85,7 +85,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var msiPath = CompileHostMsi("single", sourcePath);
         var package = BuildIntegrityPackage("AttestToctouApp", sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes, logger: null);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 
@@ -105,7 +105,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         // own unique identity — precisely because SourcePath is not unique. Keying the attestation
         // lookup on SourcePath instead would find nothing in that map and silently drop every
         // component from the signed SBOM, so this guards the key choice as well as the digest source.
-        EnableAttestingFakeSigil();
+        FakeSigilHarness.EnableAttesting(_originalPath);
 
         var packagedBytes = "shared payload bytes"u8.ToArray();
         var sourcePath = Path.Combine(_tempDir, "shared.dll");
@@ -127,7 +127,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var msiPath = CompileHostMsi("shared", sourcePath);
         var package = BuildIntegrityPackage("AttestSharedSourceApp", sourcePath);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, files, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes, logger: null);
 
         Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
 
@@ -154,7 +154,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         // is simply stronger than before — nothing is emitted at all rather than an SBOM that
         // silently under-reports. GenerateSbomForAttestation keeps its own skip as a local guard;
         // this test asserts the composite behaviour callers actually observe.
-        EnableAttestingFakeSigil();
+        FakeSigilHarness.EnableAttesting(_originalPath);
 
         var packagedSource = Path.Combine(_tempDir, "packaged.bin");
         File.WriteAllBytes(packagedSource, "packaged content"u8.ToArray());
@@ -178,7 +178,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         var msiPath = CompileHostMsi("missing", packagedSource);
         var package = BuildIntegrityPackage("AttestMissingHashApp", packagedSource);
 
-        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes);
+        var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes, cabBuilder.PackagedFileSha1Hashes, logger: null);
 
         Assert.True(signResult.IsFailure, "A payload file with no packaging-time digest must abort the build.");
         Assert.Equal(ErrorKind.IntegrityError, signResult.Error.Kind);
@@ -300,31 +300,6 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
 
     private static string? StripRelativePrefix(string? fileName)
         => fileName is not null && fileName.StartsWith("./", StringComparison.Ordinal) ? fileName[2..] : fileName;
-
-    /// <summary>
-    /// Puts the FakeSigil test double on PATH in its opt-in attest-succeeds mode. Without a sigil
-    /// whose <c>attest</c> subcommand succeeds, <c>IntegritySigner</c> swallows the failure by design
-    /// and no attestation is ever written, leaving nothing to assert on. The default
-    /// everything-fails behaviour of that same double (and the never-fatal-SBOM contract test that
-    /// depends on it) is untouched — the success mode is env-var gated.
-    /// </summary>
-    private void EnableAttestingFakeSigil()
-    {
-        var binDir = new DirectoryInfo(AppContext.BaseDirectory);       // .../bin/<Config>/<TFM>
-        var configDir = binDir.Parent ?? throw new DirectoryNotFoundException();
-        var projectDir = configDir.Parent?.Parent ?? throw new DirectoryNotFoundException(); // .../<ThisProject>
-        var testsRoot = projectDir.Parent ?? throw new DirectoryNotFoundException();          // .../tests
-        var fakeSigilDir = Path.Combine(
-            testsRoot.FullName, "FalkForge.Compiler.Msi.Tests.FakeSigil", "bin", configDir.Name, binDir.Name);
-
-        Assert.True(File.Exists(Path.Combine(fakeSigilDir, "sigil.exe")),
-            $"Test setup invariant: FakeSigil build output not found at '{fakeSigilDir}'.");
-
-        Environment.SetEnvironmentVariable("FAKESIGIL_ATTEST_SUCCEEDS", "1");
-        Environment.SetEnvironmentVariable("PATH", fakeSigilDir + Path.PathSeparator + _originalPath);
-        SigilDetector.Reset();
-        Assert.True(SigilDetector.IsAvailable(), "Test setup invariant: the fake sigil.exe must answer --version.");
-    }
 
     private static ResolvedFile MakeResolvedFile(string sourcePath, string fileName, string componentId, string fileId)
         => new()
