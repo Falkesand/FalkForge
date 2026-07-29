@@ -1,0 +1,5 @@
+# Vendored upstream assets must survive checkout byte-for-byte. tests/FalkForge.Core.Tests/Assets
+# documents each file's upstream commit AND its SHA-256; letting git normalize line endings on
+# checkout would silently make that recorded digest wrong on every developer machine, which is
+# precisely the kind of unverifiable provenance claim the SBOM work exists to remove.
+tests/FalkForge.Core.Tests/Assets/spdx-2.3-schema.json -text

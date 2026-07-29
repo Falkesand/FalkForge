@@ -9,6 +9,14 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
+    <!-- SPDX conformance checking only — see Sbom/SpdxSchemaConformanceTests.cs. -->
+    <PackageReference Include="JsonSchema.Net" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The official SPDX 2.3 JSON schema, vendored verbatim so CI keeps checking emitted documents
+         against the spec's own machine-readable definition rather than against hand-read prose.
+         Provenance is recorded in Assets/README.md; do not hand-edit the schema. -->
+    <None Include="Assets\spdx-2.3-schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Core\FalkForge.Core.csproj" />
