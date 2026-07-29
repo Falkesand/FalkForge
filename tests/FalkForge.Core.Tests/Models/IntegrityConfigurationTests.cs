@@ -6,11 +6,21 @@ namespace FalkForge.Core.Tests.Models;
 public sealed class IntegrityConfigurationTests
 {
     [Fact]
-    public void Default_UsesSpdxAndNullKeys()
+    public void Default_UsesCycloneDxAndNullKeys()
     {
+        // CycloneDX, not SPDX, is the default — and that is a compatibility guarantee, not a
+        // preference. Nobody could ever have relied on the old default's *label* (it was wrong: the
+        // writer emitted CycloneDX whatever the enum said), but every existing consumer parses the
+        // *bytes*, which have always been CycloneDX. Leaving Spdx as the default while the enum
+        // finally selects a writer would silently change what a default Integrity() build ships.
+        //
+        // It also avoids a silent regression: SbomOptions.AddComponent's sha1 argument is optional,
+        // so an existing caller that adds a File component without one makes SPDX generation fail
+        // (SPDX 2.3 §8.4) — and because SBOM attestation is deliberately never fatal, the whole
+        // SbomAttestation row would simply vanish with a warning.
         var config = new IntegrityConfiguration();
 
-        Assert.Equal(SbomFormat.Spdx, config.SbomFormat);
+        Assert.Equal(SbomFormat.CycloneDx, config.SbomFormat);
         Assert.Null(config.SigningKeyPath);
         Assert.Null(config.CertStoreThumbprint);
         Assert.Null(config.StoreLocation);

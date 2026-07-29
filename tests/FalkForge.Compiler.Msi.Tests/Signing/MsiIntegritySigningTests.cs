@@ -271,6 +271,48 @@ public sealed class MsiIntegritySigningTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Compile_WithIntegrity_AndNoSbomFormatRequested_StillShipsCycloneDxBytesUnderACycloneDxTag()
+    {
+        // The compatibility guarantee of this branch, asserted end to end through MsiCompiler rather
+        // than on the enum constant. Making SbomFormat finally select a writer changes what a
+        // DEFAULT Integrity() build emits unless the default itself moves: every package built
+        // before this branch shipped CycloneDX bytes (the writer was hardcoded), so an unchanged
+        // Spdx default would have swapped the attested document's schema out from under every
+        // existing consumer — and src/FalkForge.Cli/MsiInspector.cs shows the in-tree consumer
+        // pattern, selecting `Data` and never reading `Format`.
+        //
+        // Both halves are asserted because either alone is satisfiable by the bug: the tag alone
+        // passed throughout the lifetime of the original defect, and the bytes alone would not
+        // catch a tag that misdescribes them.
+        EnableAttestingFakeSigil();
+
+        var (sourceFile, outputDir) = CreatePackageInputs("default_format");
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "SbomDefaultFormatApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SbomDefaultFormatApp"));
+            // Deliberately no .Sbom(...) call — this is the default path.
+            p.Integrity(i => { });
+        });
+
+        var result = new MsiCompiler().Compile(package, outputDir);
+        Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
+
+        var rows = ReadIntegrityRows(result.Value);
+        var sbomRow = Assert.Single(rows, r => r[0] == "SbomAttestation");
+
+        Assert.Equal("cyclonedx", sbomRow[1]);
+
+        using var attestation = JsonDocument.Parse(sbomRow[2]!);
+        var embedded = attestation.RootElement.GetProperty("payload");
+        Assert.Equal("CycloneDX", embedded.GetProperty("bomFormat").GetString());
+        Assert.False(embedded.TryGetProperty("spdxVersion", out _),
+            "A default Integrity() build must not start emitting SPDX bytes.");
+    }
+
     /// <summary>
     /// Puts the FakeSigil double on PATH in its opt-in attest-succeeds mode, so an attestation row is
     /// actually produced. Without it, IntegritySigner swallows the attest failure by design and there

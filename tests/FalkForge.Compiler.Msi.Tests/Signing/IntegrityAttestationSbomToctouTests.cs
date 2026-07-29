@@ -266,12 +266,12 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
     /// FAKESIGIL_ATTEST_SUCCEEDS mode wraps the predicate document verbatim as the DSSE envelope's
     /// <c>payload</c>, so this is the exact SBOM <c>GenerateSbomForAttestation</c> produced.
     ///
-    /// <para>Parses the SPDX 2.3 shape, because <c>Integrity()</c> defaults to
-    /// <c>SbomFormat.Spdx</c> and that setting now genuinely selects the writer. It previously
-    /// selected nothing — every document was CycloneDX whatever the caller asked for — so this
-    /// helper used to read <c>components[].hashes[]</c>. Keeping these TOCTOU tests on the default
-    /// format (rather than pinning them to CycloneDX) means they keep covering the path a real
-    /// <c>Integrity()</c> build takes.</para>
+    /// <para>Parses the SPDX 2.3 shape, because <see cref="BuildIntegrityPackage"/> explicitly asks
+    /// for <c>SbomFormat.Spdx</c>. SPDX is the demanding case for a TOCTOU test: it carries a
+    /// per-file SHA-1 <i>as well as</i> the SHA-256, and both come from the same FCI byte stream, so
+    /// running these tests through the SPDX writer exercises the full digest-provenance path rather
+    /// than half of it. The CycloneDX default path is covered end to end by
+    /// <c>MsiIntegritySigningTests</c>.</para>
     ///
     /// <para>SPDX file names are package-root-relative ("./name", §8.1) and digests are lowercase
     /// (§8.4); both are normalized here so the assertions stay about the digest's provenance, which
@@ -337,6 +337,11 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
             FileId = fileId,
         };
 
+    /// <summary>
+    /// SPDX is requested explicitly rather than relied on as a default: the default is CycloneDX
+    /// (see <c>IntegrityConfiguration.SbomFormat</c>), and these tests want the SPDX writer for the
+    /// reason given on <see cref="ReadAttestedComponents"/>.
+    /// </summary>
     private static PackageModel BuildIntegrityPackage(string name, string sourcePath)
         => InstallerTestHost.BuildPackage(p =>
         {
@@ -344,7 +349,7 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
             p.Manufacturer = "TestCorp";
             p.Version = new Version(1, 0, 0);
             p.Files(f => f.Add(sourcePath).To(KnownFolder.ProgramFiles / "TestCorp" / name));
-            p.Integrity(i => { });
+            p.Integrity(i => i.Sbom(SbomFormat.Spdx));
         });
 
     /// <summary>

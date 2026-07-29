@@ -28,7 +28,27 @@ public sealed class IntegrityConfiguration
     public string? StoreLocation { get; init; }
     public string? VaultProvider { get; init; }
     public string? VaultKeyRef { get; init; }
-    public SbomFormat SbomFormat { get; init; } = SbomFormat.Spdx;
+    /// <summary>
+    /// Which SBOM document the <c>Integrity()</c> attestation predicate is emitted as.
+    ///
+    /// <para><b>Why CycloneDX is the default even though <see cref="SbomFormat.Spdx"/> is the enum's
+    /// zero value.</b> This setting used to select only a <i>label</i> — <c>SbomWriter</c> hardcoded
+    /// the CycloneDX generator — so every package ever built emitted CycloneDX bytes no matter what
+    /// was configured. Now that the value genuinely selects the writer, leaving the default at
+    /// <c>Spdx</c> would silently change the bytes a default <c>Integrity()</c> build ships. Nobody
+    /// could have depended on the old label (it was wrong); everybody depends on the bytes.</para>
+    ///
+    /// <para>It also prevents a silent regression: <c>SbomOptions.AddComponent</c>'s <c>sha1</c>
+    /// argument is optional, so an existing caller adding a <c>File</c> component without one makes
+    /// SPDX generation fail (SPDX 2.3 §8.4 requires a per-file SHA1) — and because SBOM attestation
+    /// is deliberately never fatal, the whole <c>SbomAttestation</c> row would vanish with only a
+    /// warning. Under CycloneDX that caller keeps working exactly as before.</para>
+    ///
+    /// <para>The enum members are deliberately NOT renumbered to move <c>CycloneDx</c> to zero:
+    /// <c>Spdx = 0</c> is what any already-persisted numeric value means, and reordering would
+    /// reinterpret it.</para>
+    /// </summary>
+    public SbomFormat SbomFormat { get; init; } = SbomFormat.CycloneDx;
 
     /// <summary>
     /// Key-epoch counter (C14 Stage 2, §6). Bumped by the publisher only when a key is retired or revoked
