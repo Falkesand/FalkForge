@@ -62,6 +62,14 @@ public sealed class SpdxSbomGenerator : ISbomGenerator
                 packages.Add(component);
         }
 
+        // Every digest this writer is about to serialize, file and package alike, must be shaped
+        // like a hash before anything is written — see ValidateFileChecksums for why both halves
+        // are checked here rather than one being trusted.
+        var digestValidation = SbomDigestValidator.ValidateComponentDigests(
+            document.Components, "SPDX SBOM");
+        if (digestValidation.IsFailure)
+            return digestValidation;
+
         var validation = ValidateFileChecksums(files);
         if (validation.IsFailure)
             return validation;
@@ -97,11 +105,19 @@ public sealed class SpdxSbomGenerator : ISbomGenerator
 
     /// <summary>
     /// SPDX 2.3 §8.4 fixes a file's checksum cardinality at "1..1 for the SHA1 algorithm, 0..* for
-    /// all other algorithms". A missing or malformed SHA-1 therefore cannot produce a valid document,
-    /// and a checksum field is an integrity claim — the same reason
-    /// <c>SbomHelper.WriteSbomSidecar</c> refuses a caller-supplied SHA-256 that is not shaped like a
-    /// hash. Both are reported before a single byte is written so a partial document never reaches
-    /// the stream.
+    /// all other algorithms", so a file component with no SHA-1 cannot produce a valid document.
+    /// That <b>presence</b> rule is SPDX-specific and lives here.
+    ///
+    /// <para>The <b>shape</b> rule — every digest actually written must look like a hash, because a
+    /// checksum field is an integrity claim — is not SPDX-specific and is applied to the whole
+    /// component list by <see cref="SbomDigestValidator.ValidateComponentDigests"/> before this
+    /// runs. It previously covered only <see cref="SbomComponent.Sha1Hash"/> while
+    /// <see cref="SbomComponent.Sha256Hash"/> was passed straight through into the very same
+    /// <c>checksums</c> array, for files and for packages alike — validating one digest and
+    /// vouching for its neighbour unexamined.</para>
+    ///
+    /// <para>Both are reported before a single byte is written, so a partial document never reaches
+    /// the stream.</para>
     /// </summary>
     private static Result<Unit> ValidateFileChecksums(List<SbomComponent> files)
     {
@@ -110,16 +126,9 @@ public sealed class SpdxSbomGenerator : ISbomGenerator
             if (string.IsNullOrEmpty(file.Sha1Hash))
             {
                 return Result<Unit>.Failure(ErrorKind.Validation,
-                    $"SPDX SBOM: file component '{file.Name}' has no SHA-1 digest. SPDX 2.3 §8.4 requires " +
-                    "exactly one SHA1 checksum per file, so this document cannot be emitted as SPDX. Supply " +
-                    "Sha1Hash on the component, or request SbomFormat.CycloneDx instead.");
-            }
-
-            if (!SbomDigestValidator.IsValidSha1Hex(file.Sha1Hash))
-            {
-                return Result<Unit>.Failure(ErrorKind.Validation,
-                    $"SPDX SBOM: file component '{file.Name}' has a digest '{file.Sha1Hash}' that is not a " +
-                    "valid SHA-1 hash (expected 40 hexadecimal characters).");
+                    $"SBM003: SPDX SBOM: file component '{file.Name}' has no SHA-1 digest. SPDX 2.3 §8.4 " +
+                    "requires exactly one SHA1 checksum per file, so this document cannot be emitted as SPDX. " +
+                    "Supply Sha1Hash on the component, or request SbomFormat.CycloneDx instead.");
             }
         }
 

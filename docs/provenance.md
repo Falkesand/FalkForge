@@ -685,6 +685,8 @@ once plan support is confirmed or the repository is made public.
 | INT009 | A signature is required but the engine's effective trusted set is empty (fail closed) |
 | SBM001 | Failed to compute SHA-256 hash for SBOM component |
 | SBM002 | Failed to write SBOM output file |
+| SBM003 | SPDX output requested but a file component has no SHA-1 digest (SPDX 2.3 §8.4 makes it mandatory). Supply `sha1` on the component or request `SbomFormat.CycloneDx` |
+| SBM004 | An SBOM component carries a digest that is not shaped like a hash (SHA-256 must be 64 hex characters, SHA-1 40). A checksum field is an integrity claim, so it is never serialized unexamined |
 | PLN001 | Detection phase failed during plan-only mode |
 | PLN002 | Planning phase failed during plan-only mode |
 | PLN003 | Failed to serialize plan to JSON |

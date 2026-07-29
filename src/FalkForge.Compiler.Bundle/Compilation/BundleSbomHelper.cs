@@ -43,14 +43,10 @@ internal static class BundleSbomHelper
             // sidecar make an integrity attestation that is not even shaped like a hash.
             if (model.SbomOptions is not null)
             {
-                foreach (var component in model.SbomOptions.AdditionalComponents)
-                {
-                    if (!SbomDigestValidator.IsValidSha256Hex(component.Sha256Hash))
-                        return Result<Unit>.Failure(ErrorKind.Validation,
-                            $"Bundle SBOM: additional component '{component.Name}' has a digest " +
-                            $"'{component.Sha256Hash}' that is not a valid SHA-256 hash (expected 64 " +
-                            "hexadecimal characters).");
-                }
+                var digestValidation = SbomDigestValidator.ValidateComponentDigests(
+                    model.SbomOptions.AdditionalComponents, "Bundle SBOM");
+                if (digestValidation.IsFailure)
+                    return digestValidation;
 
                 components.AddRange(model.SbomOptions.AdditionalComponents);
             }

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Compiler.Msi.Signing;
 using FalkForge.Models;
+using FalkForge.Sbom;
 using FalkForge.Testing;
 using Xunit;
 
@@ -13,8 +14,8 @@ namespace FalkForge.Compiler.Msi.Tests.Signing;
 /// stamped on them.
 ///
 /// <para>Before this fix nothing branched on the enum when generating a document:
-/// <c>SbomWriter</c> hardcoded <c>CycloneDxSbomGenerator</c>, so a build that asked for SPDX — the
-/// <b>default</b>, see <c>IntegrityConfiguration.SbomFormat</c> — got CycloneDX bytes carrying an
+/// <c>SbomWriter</c> hardcoded <c>CycloneDxSbomGenerator</c>, so a build that asked for SPDX — which
+/// was then the <b>default</b> — got CycloneDX bytes carrying an
 /// <c>Format="spdx"</c> tag in the MSI's <c>_FalkForgeIntegrity</c> table and a
 /// <c>--type spdx</c> flag on the <c>sigil attest</c> invocation. A false label on an integrity
 /// artefact is worse than no label: a consumer that trusts it parses the wrong schema, and a
@@ -146,6 +147,36 @@ public sealed class IntegritySbomFormatHonestyTests : IDisposable
         Assert.False(
             doc.RootElement.TryGetProperty("spdxVersion", out _),
             "A CycloneDX document must not carry SPDX's spdxVersion discriminator.");
+    }
+
+    [Fact]
+    public void GenerateSbomForAttestation_AdditionalComponentWithMalformedDigest_FailsRatherThanAttestingIt()
+    {
+        // The sidecar path (SbomHelper.WriteSbomSidecar) already refused a caller-supplied digest
+        // that is not shaped like a hash; the attestation path appended AdditionalComponents with no
+        // check at all. That is backwards: the attestation is the SIGNED artefact, so an unexamined
+        // digest inside it is a cryptographically-vouched claim FalkForge never verified even the
+        // shape of. CycloneDX is requested so the failure comes from this rule and not from SPDX's
+        // separate mandatory-SHA1 rule.
+        var (files, sha256, sha1) = CreatePayload("addcomp");
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "AddComponentApp";
+            p.Manufacturer = "TestCorp";
+            p.Version = new Version(1, 0, 0);
+            p.Files(f => f.Add(files[0].SourcePath).To(KnownFolder.ProgramFiles / "TestCorp" / "AddComponentApp"));
+            p.Integrity(i => i.Sbom(SbomFormat.CycloneDx));
+            p.Sbom(o => o.AddComponent("Contoso.Lib", "1.2.3", SbomComponentType.Library, "not-a-digest"));
+        });
+        var sbomPath = Path.Combine(_tempDir, "addcomp-sbom.json");
+
+        var result = IntegritySigner.GenerateSbomForAttestation(
+            package, files, sha256, sha1, sbomPath, SbomFormat.CycloneDx);
+
+        Assert.True(result.IsFailure, "A caller-supplied digest that is not shaped like a hash must not be attested.");
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("Contoso.Lib", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("SBM004", result.Error.Message, StringComparison.Ordinal);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────

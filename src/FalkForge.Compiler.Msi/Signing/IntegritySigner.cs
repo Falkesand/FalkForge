@@ -325,8 +325,19 @@ internal static class IntegritySigner
             });
         }
 
+        // Caller-supplied components are digest-checked before they join the document. The plain
+        // sidecar (SbomHelper.WriteSbomSidecar) has always done this; the attestation — the SIGNED
+        // artefact of the two — appended them unchecked, so an arbitrary string could end up as a
+        // cryptographically-vouched checksum claim.
         if (package.SbomOptions is not null)
+        {
+            var digestValidation = SbomDigestValidator.ValidateComponentDigests(
+                package.SbomOptions.AdditionalComponents, "MSI SBOM attestation");
+            if (digestValidation.IsFailure)
+                return digestValidation;
+
             components.AddRange(package.SbomOptions.AdditionalComponents);
+        }
 
         // Deterministic serial + timestamp under an explicit Reproducible() epoch override or,
         // absent that, SOURCE_DATE_EPOCH — so the attestation SBOM is reproducible (was
