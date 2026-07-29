@@ -41,7 +41,7 @@ package.MediaTemplate(mt =>
 // Enable deterministic builds (same source → identical MSI output)
 package.Reproducible();
 
-// Enable Windows Restart Manager — gracefully close files-in-use during install
+// Enable Windows Restart Manager — gracefully close files-in-use during install (silent/basic UI)
 package.EnableRestartManagerSupport();
 
 // Files — add a single file and set its install directory
@@ -65,5 +65,6 @@ dotnet build demo/01-hello-world
   cabinets inside the MSI itself.
 - `Reproducible()` ensures that building the same source twice produces a byte-identical MSI, useful for build
   verification and supply-chain integrity.
-- `EnableRestartManagerSupport()` allows Windows to gracefully close and restart applications that have files in use
-  during installation, avoiding forced reboots.
+- `EnableRestartManagerSupport()` lets Windows gracefully close applications that have files in use during
+  installation under silent or basic-UI installs, avoiding forced reboots — only apps that registered for restart
+  come back automatically.

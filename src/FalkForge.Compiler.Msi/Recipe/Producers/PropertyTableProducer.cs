@@ -55,7 +55,12 @@ internal sealed class PropertyTableProducer : ITableProducer
 
         if (package.EnableRestartManager)
         {
-            props["MSIRMSHUTDOWN"] = "2";
+            // 0, not 2: value 2 gates the SHUTDOWN itself on every affected
+            // app having called Win32 RegisterApplicationRestart (services
+            // always count as restartable) — one unregistered app blocks the
+            // whole shutdown. 0 always shuts down, but leaves unregistered
+            // apps closed, not restarted. Full value-table rationale: PropertyTableProducerTests.
+            props["MSIRMSHUTDOWN"] = "0";
         }
 
         // ARPPRODUCTICON points Add/Remove Programs at an Icon table row. The

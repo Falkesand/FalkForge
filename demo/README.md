@@ -529,7 +529,7 @@ All `payload/` directories contain **dummy placeholder files** (zero-byte or min
 
 ### 01 -- Hello World
 
-Absolute minimum MSI installer. A single file installed to Program Files with Minimal dialog set. Demonstrates `MediaTemplate` (cabinet naming, compression, embedding), `Reproducible()` for deterministic builds, and `EnableRestartManagerSupport()` for graceful files-in-use handling.
+Absolute minimum MSI installer. A single file installed to Program Files with Minimal dialog set. Demonstrates `MediaTemplate` (cabinet naming, compression, embedding), `Reproducible()` for deterministic builds, and `EnableRestartManagerSupport()` for graceful files-in-use handling under silent/basic-UI installs.
 
 ### 02 -- Notepad Clone
 
