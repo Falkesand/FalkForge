@@ -138,18 +138,25 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
     }
 
     [Fact]
-    public void SignAndEmbed_FileMissingFromPackagedHashes_IsSkippedRatherThanReRead()
+    public void SignAndEmbed_FileMissingFromPackagedHashes_ProducesNoAttestationAtAll()
     {
-        // The miss-path contract, inherited verbatim from SbomHelper: a file the cabinet never
-        // reported a digest for is omitted from the attestation. Under-reporting is acceptable;
-        // re-reading the source to fill the gap is the very bug this branch removes, because that
-        // digest was never observed being packaged.
+        // Supersedes the original expectation ("...IsSkippedRatherThanReRead"), which asserted the
+        // attestation simply omitted the unreported file. That was correct while only the SBOM
+        // sourced packaged digests. Now that the ECDSA signature does too (see
+        // IntegritySignaturePayloadHashToctouTests), a missing packaging digest is fatal at step 1
+        // of SignAndEmbed — a signature's declared set defines what is covered, so quietly narrowing
+        // it is a real weakening, unlike under-reporting a descriptive SBOM. The attestation is
+        // produced at step 2 and is therefore never reached.
+        //
+        // What still holds, and is what this test now pins: a file the cabinet never reported a
+        // digest for is NEVER absorbed into a signed artefact by re-reading its source. The outcome
+        // is simply stronger than before — nothing is emitted at all rather than an SBOM that
+        // silently under-reports. GenerateSbomForAttestation keeps its own skip as a local guard;
+        // this test asserts the composite behaviour callers actually observe.
         EnableAttestingFakeSigil();
 
-        var packagedBytes = "packaged content"u8.ToArray();
         var packagedSource = Path.Combine(_tempDir, "packaged.bin");
-        File.WriteAllBytes(packagedSource, packagedBytes);
-        var packagedHash = Convert.ToHexString(SHA256.HashData(packagedBytes));
+        File.WriteAllBytes(packagedSource, "packaged content"u8.ToArray());
 
         var unpackagedSource = Path.Combine(_tempDir, "never-packaged.bin");
         File.WriteAllBytes(unpackagedSource, "present on disk but never packaged"u8.ToArray());
@@ -172,13 +179,16 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
 
         var signResult = IntegritySigner.SignAndEmbed(msiPath, package, signedFiles, cabBuilder.PackagedFileHashes);
 
-        Assert.True(signResult.IsSuccess, signResult.IsFailure ? signResult.Error.Message : "");
+        Assert.True(signResult.IsFailure, "A payload file with no packaging-time digest must abort the build.");
+        Assert.Equal(ErrorKind.IntegrityError, signResult.Error.Kind);
 
-        var components = ReadAttestedComponents(msiPath);
-        var component = Assert.Single(components);
-        Assert.Equal("packaged.bin", component.Name);
-        Assert.Equal(packagedHash, component.Sha256Hash);
-        Assert.DoesNotContain(components, c => c.Name == "never-packaged.bin");
+        // The attesting fake sigil is on PATH and would have produced a sidecar had step 2 run, so
+        // its absence proves the ghost file never reached the attestation — not merely that sigil
+        // was unavailable.
+        Assert.False(File.Exists(msiPath + ".attest.json"),
+            "No attestation may be emitted when the payload set could not be established.");
+        Assert.False(File.Exists(msiPath + ".sig.json"),
+            "No signature sidecar may be emitted when the payload set could not be established.");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────
