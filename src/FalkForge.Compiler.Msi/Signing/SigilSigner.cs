@@ -18,11 +18,16 @@ internal sealed class SigilSigner
         SbomFormat format,
         IntegrityConfiguration? config)
     {
+        // No catch-all arm: the `--type` flag becomes the DSSE envelope's predicateType, a claim
+        // inside the signed envelope about what the predicate document is. Folding an unrecognised
+        // value into "spdx" is how a CycloneDX predicate came to be signed as SPDX. Unreachable in
+        // practice — SbomWriter already refuses an unrecognised format, so this runs only after a
+        // document was successfully generated for that same value.
         var formatString = format switch
         {
             SbomFormat.Spdx => "spdx",
             SbomFormat.CycloneDx => "cyclonedx",
-            _ => "spdx"
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unsupported SBOM format.")
         };
 
         var args = new List<string>

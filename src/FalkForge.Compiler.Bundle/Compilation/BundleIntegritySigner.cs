@@ -22,6 +22,25 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 /// </summary>
 internal static class BundleIntegritySigner
 {
+    /// <summary>
+    /// The SBOM format a bundle attestation is emitted as, <b>regardless</b> of
+    /// <c>Integrity(i =&gt; i.Sbom(format))</c>. One named value drives both the document that gets
+    /// written and the <c>--type</c> tag that labels it, so the two cannot drift apart — reading
+    /// the configured format once for the writer and once for the tag is exactly how they came
+    /// apart before.
+    ///
+    /// <para><b>Why bundles are not simply threaded through to the requested format.</b> A bundle
+    /// payload component carries only a SHA-256 (<see cref="PayloadEntry.Sha256Hash"/>); there is no
+    /// SHA-1 anywhere in the bundle pipeline. SPDX 2.3 §8.4 makes a per-file SHA1 checksum
+    /// mandatory, so passing <see cref="SbomFormat.Spdx"/> here would make
+    /// <c>SpdxSbomGenerator</c> refuse the document — and because SBOM attestation is deliberately
+    /// never fatal, the entire attestation would vanish behind a swallowed failure. Giving bundles
+    /// real SPDX output requires capturing a SHA-1 alongside the SHA-256 while payloads are hashed,
+    /// the way <c>CabinetBuilder</c> does for MSI; until then, CycloneDX is what a bundle can
+    /// honestly produce and therefore what it must honestly claim.</para>
+    /// </summary>
+    private const SbomFormat AttestationFormat = SbomFormat.CycloneDx;
+
     internal static Result<InstallerManifest> SignAndEnrich(
         InstallerManifest manifest,
         BundleModel model,
@@ -136,7 +155,7 @@ internal static class BundleIntegritySigner
             Directory.CreateDirectory(tempDir);
 
             var sbomPath = Path.Combine(tempDir, "sbom.json");
-            var sbomResult = GenerateSbom(model, payloads, sbomPath);
+            var sbomResult = GenerateSbomForAttestation(model, payloads, sbomPath);
             if (sbomResult.IsFailure)
                 return null;
 
@@ -148,7 +167,7 @@ internal static class BundleIntegritySigner
             File.WriteAllBytes(dummyArtifactPath, []);
             var attestOutputPath = Path.Combine(tempDir, "sbom.attest.json");
             var attestResult = signer.RunAttest(
-                dummyArtifactPath, sbomPath, config.SbomFormat, attestOutputPath, config);
+                dummyArtifactPath, sbomPath, sbomResult.Value, attestOutputPath, config);
             if (attestResult.IsFailure)
                 return null;
 
@@ -169,7 +188,21 @@ internal static class BundleIntegritySigner
         }
     }
 
-    private static Result<Unit> GenerateSbom(
+    /// <summary>
+    /// Writes the SBOM document that becomes the DSSE attestation predicate and returns the format
+    /// it was written as, which the caller stamps onto <c>sigil attest --type</c>. Returning it —
+    /// rather than letting the caller re-read the configuration — is what keeps the label and the
+    /// bytes derived from one value.
+    ///
+    /// <para>Deliberately takes no <see cref="IntegrityConfiguration"/>: the requested
+    /// <see cref="SbomFormat"/> does not participate, so the method should not be able to consult
+    /// it. See <see cref="AttestationFormat"/> for why a bundle cannot honour a SPDX request.</para>
+    ///
+    /// <para><b>Internal, not private,</b> so the label-matches-content invariant can be pinned
+    /// directly (<c>BundleSbomAttestationFormatHonestyTests</c>). The end-to-end path needs the
+    /// external <c>sigil</c> CLI, which no bundle test harness provides.</para>
+    /// </summary>
+    internal static Result<SbomFormat> GenerateSbomForAttestation(
         BundleModel model,
         IReadOnlyList<PayloadEntry> payloads,
         string outputPath)
@@ -210,6 +243,12 @@ internal static class BundleIntegritySigner
             Dependencies = []
         };
 
-        return SbomWriter.WriteToFile(doc, outputPath);
+        // AttestationFormat, not config.SbomFormat — see that constant for why a bundle cannot
+        // currently produce SPDX. The format is RETURNED rather than re-derived by the caller so
+        // the sigil --type tag is stamped from the very value that selected the writer.
+        var writeResult = SbomWriter.WriteToFile(doc, outputPath, AttestationFormat);
+        return writeResult.IsFailure
+            ? Result<SbomFormat>.Failure(writeResult.Error)
+            : Result<SbomFormat>.Success(AttestationFormat);
     }
 }
