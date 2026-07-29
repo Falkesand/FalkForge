@@ -16,8 +16,24 @@ internal static class NativeRestartManagerMethods
     internal const int ERROR_SUCCESS = 0;
     internal const int ERROR_MORE_DATA = 234;
 
-    /// <summary>Maximum length of a Restart Manager session key string (including null terminator).</summary>
-    internal const int CCH_RM_SESSION_KEY = 256;
+    /// <summary>
+    /// Length in characters of a Restart Manager session key, excluding the null terminator.
+    /// restartmanager.h: <c>#define CCH_RM_SESSION_KEY (sizeof(GUID)*2)</c> — the key is the
+    /// 32-character hex rendering of a GUID.
+    /// </summary>
+    internal const int CCH_RM_SESSION_KEY = 32;
+
+    /// <summary>
+    /// Maximum length in characters of <c>RM_PROCESS_INFO.strAppName</c>, excluding the null
+    /// terminator. restartmanager.h: <c>#define CCH_RM_MAX_APP_NAME 255</c>.
+    /// </summary>
+    internal const int CCH_RM_MAX_APP_NAME = 255;
+
+    /// <summary>
+    /// Maximum length in characters of <c>RM_PROCESS_INFO.strServiceShortName</c>, excluding the
+    /// null terminator. restartmanager.h: <c>#define CCH_RM_MAX_SVC_NAME 63</c>.
+    /// </summary>
+    internal const int CCH_RM_MAX_SVC_NAME = 63;
 
     /// <summary>Maximum number of processes the Restart Manager can return in a single call.</summary>
     internal const int RM_MAX_PROCESSES = 128;
@@ -68,15 +84,22 @@ internal static class NativeRestartManagerMethods
         public System.Runtime.InteropServices.ComTypes.FILETIME ProcessStartTime;
     }
 
+    /// <summary>
+    /// Mirrors <c>RM_PROCESS_INFO</c> from restartmanager.h. The inline character buffers must be
+    /// sized exactly as the header declares them: <c>RmGetList</c> writes an array of these
+    /// structures straight into the managed buffer, so a single extra character in strAppName
+    /// shifts every following field AND corrupts the array stride. Layout is pinned by
+    /// tests/FalkForge.Engine.Tests/RestartManager/NativeRestartManagerLayoutTests.cs.
+    /// </summary>
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal struct RM_PROCESS_INFO
     {
         public RM_UNIQUE_PROCESS Process;
 
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCH_RM_SESSION_KEY + 1)]
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCH_RM_MAX_APP_NAME + 1)]
         public string strAppName;
 
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CCH_RM_MAX_SVC_NAME + 1)]
         public string strServiceShortName;
 
         public RM_APP_TYPE ApplicationType;
