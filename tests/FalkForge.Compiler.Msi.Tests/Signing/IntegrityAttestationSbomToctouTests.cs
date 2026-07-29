@@ -191,6 +191,64 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
             "No signature sidecar may be emitted when the payload set could not be established.");
     }
 
+    [Fact]
+    public void GenerateSbomForAttestation_FileMissingFromPackagedHashes_OmitsItRatherThanReReadingTheSource()
+    {
+        // Tests the guard directly, because it is no longer reachable through SignAndEmbed:
+        // BuildPayloadHashEntries (step 1) now aborts the whole signing step when any resolved file
+        // lacks a packaging digest, so step 2 never runs with an incomplete map. An unreachable
+        // branch is a guaranteed mutation survivor, hence this test rather than deleting the guard.
+        //
+        // The rule it encodes is right independently of its reachability, and is shared with the
+        // very much reachable SbomHelper.WriteSbomSidecar: an SBOM may under-report, but it must
+        // never assert a digest it did not observe. Concretely, the ghost file below exists on disk
+        // and is readable, so a re-read fallback would happily produce a digest for it — bytes that
+        // were never packaged, inside a document that is about to be signed as a DSSE attestation.
+        //
+        // Deleting the guard is not the cheap alternative it looks like: the lookup would become an
+        // indexer, and a missing key would throw KeyNotFoundException past
+        // TryGenerateSbomAttestation's catch (IOException/UnauthorizedAccessException only), turning
+        // a deliberately never-fatal opportunistic step into a build crash.
+        var packagedSource = Path.Combine(_tempDir, "packaged.bin");
+        File.WriteAllBytes(packagedSource, "packaged content"u8.ToArray());
+
+        var unpackagedSource = Path.Combine(_tempDir, "never-packaged.bin");
+        File.WriteAllBytes(unpackagedSource, "present on disk but never packaged"u8.ToArray());
+
+        var files = new[]
+        {
+            MakeResolvedFile(packagedSource, "packaged.bin", "C_packaged", "F_packaged"),
+            MakeResolvedFile(unpackagedSource, "never-packaged.bin", "C_ghost", "F_ghost"),
+        };
+
+        // Only the first file has a packaging-time digest; F_ghost is absent from the map entirely.
+        var observedHash = Convert.ToHexString(SHA256.HashData("packaged content"u8.ToArray()));
+        var packagedFileHashes = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["F_packaged"] = observedHash,
+        };
+
+        var package = BuildIntegrityPackage("SbomGuardApp", packagedSource);
+        var sbomPath = Path.Combine(_tempDir, "guard-sbom.json");
+
+        var result = IntegritySigner.GenerateSbomForAttestation(package, files, packagedFileHashes, sbomPath);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(sbomPath));
+        var components = doc.RootElement.GetProperty("components")
+            .EnumerateArray()
+            .Select(c => new AttestedComponent(
+                c.GetProperty("name").GetString(),
+                c.GetProperty("hashes").EnumerateArray().Single().GetProperty("content").GetString()))
+            .ToList();
+
+        var component = Assert.Single(components);
+        Assert.Equal("packaged.bin", component.Name);
+        Assert.Equal(observedHash, component.Sha256Hash);
+        Assert.DoesNotContain(components, c => c.Name == "never-packaged.bin");
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────
 
     private sealed record AttestedComponent(string? Name, string? Sha256Hash);
