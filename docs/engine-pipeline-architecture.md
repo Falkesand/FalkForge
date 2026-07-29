@@ -171,7 +171,7 @@ For tests, `EngineSession.BindToChannel(fakeChannel, options?)` is the internal 
 
 ## Determinism: `ISystemClock`
 
-- **`ISystemClock`** — wraps `DateTime.UtcNow`. Production: `SystemClock`. Tests: `FakeClock(DateTimeOffset start)` — frozen by default, advanceable via `Advance(TimeSpan)`. Any code that computes timestamps, timeouts, or retry back-off intervals against the clock is deterministic in tests.
+- **`ISystemClock`** — wraps `DateTimeOffset.UtcNow`. Production: `SystemClock`. Tests: `FakeClock(DateTimeOffset start)` — frozen by default, advanceable via `Advance(TimeSpan)`. Any code that computes timestamps, timeouts, or retry back-off intervals against the clock is deterministic in tests.
 
 With the clock port in play, two runs of the same test with the same inputs produce byte-identical event streams, log content, and journal entries — enabling golden-file assertion patterns and reliable regression detection.
 

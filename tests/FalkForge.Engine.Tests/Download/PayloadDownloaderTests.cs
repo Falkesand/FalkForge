@@ -110,7 +110,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task DownloadAsync_EmptyUrl_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "payload.bin");
 
@@ -129,7 +130,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task DownloadAsync_EmptyExpectedSha256_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "payload.bin");
 
@@ -145,7 +147,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task Download_WithPathTraversal_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
 
         var result = await downloader.DownloadAsync(
@@ -161,7 +164,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     {
         // This test verifies the canonical-path containment check catches traversal
         // even when the path doesn't literally contain ".." (the old check was bypassable).
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
 
         // Construct an absolute path that resolves outside the intended directory
@@ -179,7 +183,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task Download_WithFileSchemeUrl_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "payload.bin");
 
@@ -194,7 +199,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task Download_WithFtpSchemeUrl_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "payload.bin");
 
@@ -209,7 +215,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task DownloadAsync_WithHttpUrl_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "payload.bin");
 
@@ -224,7 +231,8 @@ public sealed class PayloadDownloaderTests : IDisposable
     [Fact]
     public async Task Download_WithInvalidUrl_ReturnsFailure()
     {
-        using var client = new HttpClient();
+        var handler = new ThrowingHttpHandler();
+        using var client = new HttpClient(handler);
         var downloader = new PayloadDownloader(client);
         var targetPath = Path.Combine(_tempDir, "payload.bin");
 
@@ -423,6 +431,27 @@ public sealed class PayloadDownloaderTests : IDisposable
         public SyncProgress(Action<T> handler) => _handler = handler;
 
         public void Report(T value) => _handler(value);
+    }
+
+    /// <summary>
+    /// Handler that refuses to perform any request at all.
+    ///
+    /// WHY: the input-validation tests above assert that <c>DownloadAsync</c> rejects bad input
+    /// (empty URL, empty expected hash, path traversal, non-https scheme, unparseable URL)
+    /// <em>before</em> it touches the network. Wired to a real <see cref="HttpClient"/> with no
+    /// handler, a regressed guard would let those tests fall through to a genuine request against
+    /// the public internet — making the suite slow, network-dependent, and quietly wrong rather
+    /// than failing. Injecting this handler turns any such fall-through into an immediate,
+    /// deterministic, offline failure that names the URL the downloader tried to fetch.
+    /// </summary>
+    private sealed class ThrowingHttpHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            throw new InvalidOperationException(
+                $"PayloadDownloader attempted a network request to '{request.RequestUri}'. " +
+                "An input-validation guard that must reject this input before any network I/O has regressed.");
+        }
     }
 
     private sealed class MockHttpHandler : HttpMessageHandler

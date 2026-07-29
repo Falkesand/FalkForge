@@ -200,6 +200,13 @@ The pipeline orchestrator and `PipelineRunner` do not own port lifetimes. The co
 | `WithElevationGateway(IElevatedCommandGateway)` | `ElevateStep` (skipped when omitted) |
 | `WithUiChannel(IUiChannel)` | All steps (defaults to `NullUiChannel.Instance`) |
 | `WithLogger(IFalkLogger)` | `RollbackStep` diagnostics |
+| `WithTrustStoreAdvanceOnVerifiedApply(bool = true)` | `ApplyStep` (require-signed update path only — forwards the manifest signature's epoch + revocations to the elevated companion after a successful apply; a fresh install never advances the store) |
+| `WithPayloadRoot(string)` | `ApplyStep` (self-extract path — resolves each action's install path under `{payloadRoot}/{PackageId}` with a containment guard, instead of the manifest's build-machine `SourcePath`) |
+
+Two further methods are `internal`, for in-assembly composition only, and are therefore not part of
+the public builder surface: `WithUpdateServices(UpdateChecker, UpdateService)` (wires the manifest's
+update feed into `DetectStep` and `IInstallerPipeline.LaunchUpdate`) and
+`WithIntegrityTrustPolicy(TrustPolicy)` (overrides the apply-time integrity gate's trust policy).
 
 `ISystemClock` has a production adapter (`SystemClock`) but no `InstallerPipelineBuilder.With…`
 method — the builder does not accept it today, and no phase step consumes it. Wiring it in is a real
