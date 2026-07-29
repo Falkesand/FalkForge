@@ -654,12 +654,95 @@ public sealed class DialogSetProducerTests
         ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
         RecipeTable radioButton = GetTable(tables, "RadioButton");
 
-        foreach (RecipeRow row in radioButton.Rows)
+        // Row-count assertion first: with zero rows the loop below (and the original version of
+        // this test, before this fix) passes vacuously without ever exercising resolution. Then
+        // pin the actual resolved en-US text (from Localization/en-US.json), not just "not still
+        // a !(loc.…) reference" — a resolver bug that substitutes the WRONG key's text would still
+        // satisfy a "no !(loc." check.
+        Assert.Equal(2, radioButton.Rows.Length);
+
+        var useRmText = (CellValue.StringValue)radioButton.Rows[0].Cells[7];
+        Assert.Equal("Close the applications and attempt to &restart them.", useRmText.Value);
+
+        var dontUseRmText = (CellValue.StringValue)radioButton.Rows[1].Cells[7];
+        Assert.Equal("&Do not close applications. A reboot will be required to complete setup.", dontUseRmText.Value);
+    }
+
+    // ── RadioButton: full cell-for-cell mapping ───────────────────────────────
+    // Regression guard for a swapped-column mutation: DialogSetProducer.Rows.cs writes nine cells
+    // per RadioButton row in a fixed order (Property, Order, Value, X, Y, Width, Height, Text,
+    // Help). Before this test, only the row COUNT, the loc-freeness of Cells[7], and the column
+    // NAMES were asserted anywhere — a mutation that swapped the X and Width cells (rows would
+    // emit X=295, Width=0, and both radio options render zero-width, so the user can select
+    // neither) sailed through every existing test, msi.dll (both are SHORT columns), and ICE34/
+    // ICE17 (neither inspects geometry). This test reads every geometry/key cell explicitly, so
+    // that mutation now fails it.
+
+    [Fact]
+    public void Produce_with_restart_manager_emits_radio_button_rows_with_correct_cell_mapping()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
+        RecipeTable radioButton = GetTable(tables, "RadioButton");
+
+        Assert.Equal(2, radioButton.Rows.Length);
+
+        // Pinned against MsiRMFilesInUseDlgBuilder.Build()'s own radioButtons array — the intent
+        // the builder authors, not a value guessed independently of it.
+        AssertRadioButtonRow(
+            radioButton.Rows[0],
+            property: "FalkForgeRMOption", order: 1, value: "UseRM",
+            x: 0, y: 0, width: 295, height: 16);
+
+        AssertRadioButtonRow(
+            radioButton.Rows[1],
+            property: "FalkForgeRMOption", order: 2, value: "DontUseRM",
+            x: 0, y: 20, width: 295, height: 16);
+    }
+
+    private static void AssertRadioButtonRow(
+        RecipeRow row, string property, int order, string value, int x, int y, int width, int height)
+    {
+        Assert.Equal(property, ((CellValue.StringValue)row.Cells[0]).Value);
+        Assert.Equal(order, ((CellValue.IntValue)row.Cells[1]).Value);
+        Assert.Equal(value, ((CellValue.StringValue)row.Cells[2]).Value);
+        Assert.Equal(x, ((CellValue.IntValue)row.Cells[3]).Value);
+        Assert.Equal(y, ((CellValue.IntValue)row.Cells[4]).Value);
+        Assert.Equal(width, ((CellValue.IntValue)row.Cells[5]).Value);
+        Assert.Equal(height, ((CellValue.IntValue)row.Cells[6]).Value);
+
+        // Help (Cells[8]) is always null — see DialogSetProducer.Rows.cs's RadioButton row build.
+        Assert.IsType<CellValue.Null>(row.Cells[8]);
+    }
+
+    // ── ControlEvent: EndDialog Condition must never be blank ─────────────────
+    // Per the ControlEvent table docs: "The installer does not trigger an event with a blank in
+    // the Condition field unless no other events of the control evaluate to True." A NULL
+    // condition on OK/EndDialog would mean OK does not close the dialog whenever the default
+    // UseRM option is selected (the RMShutdownAndRestart event's condition is the only other
+    // event on OK, and it is false once RM already ran and the property no longer matches
+    // however the state evolves) — it only works today because DialogComposer.cs and
+    // DialogSetProducer.Rows.cs both coalesce a null Condition to "1". This test pins the emitted
+    // value directly so a future change that reads WiX's own .wxs (which omits Condition on this
+    // Publish) cannot silently reintroduce a blank condition here.
+
+    [Fact]
+    public void Produce_with_restart_manager_emits_end_dialog_rows_with_condition_one()
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(MsiDialogSet.Minimal, enableRestartManager: true);
+        RecipeTable controlEvent = GetTable(tables, "ControlEvent");
+
+        var endDialogRows = controlEvent.Rows
+            .Where(r =>
+                r.Cells[0] is CellValue.StringValue dlg && dlg.Value == "MsiRMFilesInUse" &&
+                r.Cells[2] is CellValue.StringValue ev && ev.Value == "EndDialog")
+            .ToList();
+
+        // OK's EndDialog and Cancel's EndDialog — both must carry Condition "1".
+        Assert.Equal(2, endDialogRows.Count);
+        foreach (RecipeRow row in endDialogRows)
         {
-            if (row.Cells[7] is CellValue.StringValue text)
-            {
-                Assert.DoesNotContain("!(loc.", text.Value, StringComparison.Ordinal);
-            }
+            var condition = (CellValue.StringValue)row.Cells[4];
+            Assert.Equal("1", condition.Value);
         }
     }
 

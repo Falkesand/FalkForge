@@ -60,7 +60,14 @@ public sealed record DialogContent
     /// add <c>KeepModeless</c> so InstallValidate can pop them without tearing down the
     /// in-progress wizard dialog underneath.
     /// </summary>
-    public int? AttributesOverride { get; init; }
+    /// <remarks>
+    /// Internal: every <c>new DialogContent { ... }</c> site is an internal stock-dialog builder
+    /// in this assembly (see <c>DialogRadioButton</c>'s remarks for the same reasoning applied to
+    /// <see cref="RadioButtons"/>), so this is not reachable public API. Kept unvalidated because
+    /// the only callers are trusted internal builders; if this ever becomes a public setter, add
+    /// the same Visible/Modal-bit validation its sibling properties use.
+    /// </remarks>
+    internal int? AttributesOverride { get; init; }
 
     /// <summary>
     /// Declarative ControlEvent rows fired from this dialog. The composer translates
@@ -87,5 +94,11 @@ public sealed record DialogContent
     /// explicitly by the caller rather than resolved from the owning control — see the
     /// <see cref="DialogRadioButton"/> remarks for why. Empty by default.
     /// </summary>
-    public ImmutableArray<DialogRadioButton> RadioButtons { get; init; } = ImmutableArray<DialogRadioButton>.Empty;
+    /// <remarks>
+    /// Internal, like <see cref="DialogRadioButton"/> itself: every <c>DialogContent</c>
+    /// construction site is an internal stock-dialog builder in this assembly, and
+    /// <c>DialogComposer.Compose</c> (the only consumer) is internal too, so this is not
+    /// reachable public API.
+    /// </remarks>
+    internal ImmutableArray<DialogRadioButton> RadioButtons { get; init; } = ImmutableArray<DialogRadioButton>.Empty;
 }
