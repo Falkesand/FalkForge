@@ -2931,7 +2931,7 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>UseDialogSet(MsiDialogSet dialogSet)</code></td><td><code>PackageBuilder</code></td><td>Selects the built-in MSI dialog template set.</td></tr>
       <tr><td><code>SetLocalizationData(IReadOnlyList&lt;LocalizationData&gt;)</code></td><td><code>PackageBuilder</code></td><td>Applies localization string tables for multi-language support.</td></tr>
       <tr><td><code>Integrity(Action&lt;IntegrityBuilder&gt;)</code></td><td><code>PackageBuilder</code></td><td>Enables ECDSA-P256 payload signing. See &sect;23 for key generation, baking, and rotation.</td></tr>
-      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>PackageBuilder</code></td><td>Emits an SBOM (SPDX or CycloneDX) alongside the compiled MSI. Equivalent to the CLI <code>--sbom</code> flag.</td></tr>
+      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>PackageBuilder</code></td><td>Emits a CycloneDX 1.6 SBOM sidecar (<code>&lt;package&gt;.msi.cdx.json</code>) alongside the compiled MSI. Equivalent to the CLI <code>--sbom</code> flag. The sidecar is CycloneDX by definition and takes no <code>SbomFormat</code>; that setting applies only to the <code>Integrity()</code> attestation (&sect;23).</td></tr>
       <tr><td><code>Build()</code></td><td><code>PackageModel</code></td><td>Finalizes configuration and produces the immutable <code>PackageModel</code>.</td></tr>
     </tbody>
   </table>
@@ -4781,7 +4781,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Feature(string id, Action&lt;BundleFeatureBuilder&gt; configure)</code></td><td><code>BundleBuilder</code></td><td>Declares a bundle feature that groups packages for optional selection.</td></tr>
       <tr><td><code>DependencyProvider(string key, string version, string? displayName)</code></td><td><code>BundleBuilder</code></td><td>Registers this bundle as a dependency provider with the given key and version.</td></tr>
       <tr><td><code>DependencyConsumer(string providerKey, string consumerKey)</code></td><td><code>BundleBuilder</code></td><td>Declares a dependency on another provider identified by key.</td></tr>
-      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>BundleBuilder</code></td><td>Emits an SBOM (SPDX or CycloneDX) alongside the compiled bundle. Equivalent to the CLI <code>--sbom</code> flag.</td></tr>
+      <tr><td><code>Sbom(Action&lt;SbomOptions&gt;? configure = null)</code></td><td><code>BundleBuilder</code></td><td>Emits a CycloneDX 1.6 SBOM sidecar (<code>&lt;bundle&gt;.exe.cdx.json</code>) alongside the compiled bundle. Equivalent to the CLI <code>--sbom</code> flag. The sidecar is CycloneDX by definition and takes no <code>SbomFormat</code>; bundle <code>Integrity()</code> attestations are CycloneDX too (&sect;23).</td></tr>
       <tr><td><code>Integrity(Action&lt;IntegrityBuilder&gt;)</code></td><td><code>BundleBuilder</code></td><td>Enables ECDSA-P256 payload signing of the bundle's payload hash list. With no key configured a throwaway key is generated per build (tamper-evidence only); <code>SigningKey(path)</code> / <code>AddSigningKey(path)</code> / <code>SigningKeys(params)</code> load a stable PEM key (publishers bake its fingerprint into the engine for authorship). <code>HybridKey(classicalKeyPath, pqKeyPath)</code> (repeatable) adds a hybrid post-quantum signing identity: the classical ECDSA key plus an ML-DSA-65 companion, both signing the same manifest. See &sect;23 for the full signing, trust, and key-rotation narrative.</td></tr>
       <tr><td><code>DryRun()</code></td><td><code>BundleBuilder</code></td><td>Bakes dry-run mode into the manifest: the engine Apply phase simulates package execution instead of running real installers. Equivalent at runtime to launching the compiled bundle with <code>--dry-run</code> (<code>MyInstaller.exe --dry-run</code>), which takes precedence over the baked flag.</td></tr>
       <tr><td><code>Build()</code></td><td><code>BundleModel</code></td><td>Builds and returns the final <code>BundleModel</code> for compilation.</td></tr>
@@ -9067,7 +9067,7 @@ forge validate package.msi --ice --ice-warnings-as-errors</code></pre>
 #   --verbose     Show detailed table list
 #   --json        Emit a JSON envelope to stdout
 #   --sbom        Extract the SBOM from the MSI integrity table (if present). Its format follows
-#                 the Integrity(i => i.Sbom(...)) setting the package was built with — CycloneDX 1.6
+#                 the Integrity(i =&gt; i.Sbom(...)) setting the package was built with — CycloneDX 1.6
 #                 by default, SPDX 2.3 on request. The Format column names which.
 
 # Examples:
