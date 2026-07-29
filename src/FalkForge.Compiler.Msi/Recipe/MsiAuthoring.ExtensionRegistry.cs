@@ -20,8 +20,6 @@ public static partial class MsiAuthoring
 
         public List<IExecutionContributor> ExecutionContributors { get; } = [];
 
-        public List<IDryRunContributor> DryRunContributors { get; } = [];
-
         public void RegisterDialogStep(IDialogStepBuilder builder)
             => DialogStepBuilders.Add(builder);
 
@@ -34,7 +32,13 @@ public static partial class MsiAuthoring
         public void RegisterExecutionContributor(IExecutionContributor contributor)
             => ExecutionContributors.Add(contributor);
 
+        // Required by IExtensionRegistry, but genuinely inert: dry-run previews are produced by
+        // 'forge build --dry-run' / 'forge validate', which iterate the extension list directly
+        // and call IDryRunContributor.GetDryRunActions themselves. Retaining the registrations
+        // here would build a list nothing ever reads, so registration is accepted and dropped.
         public void RegisterDryRunContributor(IDryRunContributor contributor)
-            => DryRunContributors.Add(contributor);
+        {
+            // Intentionally empty — see comment above.
+        }
     }
 }
