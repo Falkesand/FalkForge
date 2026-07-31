@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Recipe.Producers;
+using FalkForge.Compiler.Msi.Tests.UI.Layout;
 using FalkForge.Models;
 using Xunit;
 
@@ -802,6 +804,117 @@ public sealed class DialogSetProducerTests
             r.Cells[0] is CellValue.StringValue sv &&
             sv.Value == "MsiRMFilesInUse");
     }
+
+    // ── Tab cycle: every emitted dialog has ONE closed Control_Next ring ─────────────────────
+    // No ICE validates Control_Next here (ICE03 only checks it via the _Validation table, which
+    // this repo does not author), so these row-level graph-invariant checks — read straight off
+    // the emitted Control rows, not the pre-emission MsiDialogModel — are the only gate protecting
+    // keyboard navigation across every stock dialog set.
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_every_dialog_has_a_single_closed_tab_cycle(MsiDialogSet dialogSet)
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTables(dialogSet);
+        AssertAllDialogsHaveSingleClosedCycle(tables);
+    }
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_with_restart_manager_every_dialog_including_MsiRMFilesInUse_has_a_single_closed_tab_cycle(
+        MsiDialogSet dialogSet)
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTablesWithRestartManager(dialogSet, enableRestartManager: true);
+        AssertAllDialogsHaveSingleClosedCycle(tables);
+    }
+
+    // ── Tab cycle: Control_First always names one of the dialog's own controls ──────────────
+    // Control_First is left exactly as authored (never derived from the cycle), so this is an
+    // invariant test rather than a value-pinning one: whichever control the dialog names as its
+    // entry point must actually exist as a Control row on that same dialog.
+
+    [Theory]
+    [InlineData(MsiDialogSet.Minimal)]
+    [InlineData(MsiDialogSet.InstallDir)]
+    [InlineData(MsiDialogSet.FeatureTree)]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Produce_Control_First_names_a_control_in_the_tab_cycle(MsiDialogSet dialogSet)
+    {
+        ImmutableArray<RecipeTable> tables = ProduceTables(dialogSet);
+        RecipeTable dialog = GetTable(tables, "Dialog");
+        RecipeTable control = GetTable(tables, "Control");
+
+        foreach (RecipeRow row in dialog.Rows)
+        {
+            string dialogName = Str(row.Cells[0]);
+            string controlFirst = Str(row.Cells[7]);
+
+            bool namesOwnControl = control.Rows.Any(r =>
+                Str(r.Cells[0]) == dialogName && Str(r.Cells[1]) == controlFirst);
+
+            Assert.True(
+                namesOwnControl,
+                $"Dialog '{dialogName}' declares Control_First '{controlFirst}', which is not one of its own Control rows.");
+        }
+    }
+
+    // ── Tab cycle: deterministic across repeated builds ───────────────────────────────────────
+    // Nothing existing pins this: DialogTabCycle.Assign's geometric sort uses an explicit
+    // Comparison<int> rather than relying on sort stability, but a Reproducible() build still
+    // needs the emitted (Dialog_, Control, Control_Next) triples to be byte-identical run to run.
+
+    [Fact]
+    public void Produce_tab_cycle_is_identical_across_repeated_builds()
+    {
+        ImmutableArray<RecipeTable> first = ProduceTablesWithRestartManager(MsiDialogSet.Mondo, enableRestartManager: true);
+        ImmutableArray<RecipeTable> second = ProduceTablesWithRestartManager(MsiDialogSet.Mondo, enableRestartManager: true);
+
+        var firstChain = ControlNextChain(first);
+        var secondChain = ControlNextChain(second);
+
+        Assert.Equal(firstChain, secondChain);
+    }
+
+    private static List<(string Dialog, string Control, string? Next)> ControlNextChain(ImmutableArray<RecipeTable> tables)
+        => GetTable(tables, "Control").Rows
+            .Select(r => (
+                Dialog: Str(r.Cells[0]),
+                Control: Str(r.Cells[1]),
+                Next: r.Cells[10] is CellValue.StringValue sv ? sv.Value : null))
+            .ToList();
+
+    private static void AssertAllDialogsHaveSingleClosedCycle(ImmutableArray<RecipeTable> tables)
+    {
+        RecipeTable control = GetTable(tables, "Control");
+
+        var byDialog = control.Rows
+            .GroupBy(r => Str(r.Cells[0]), StringComparer.Ordinal)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<(string Name, string TypeName, string? Next)>)g
+                    .Select(r => (
+                        Name: Str(r.Cells[1]),
+                        TypeName: Str(r.Cells[2]),
+                        Next: r.Cells[10] is CellValue.StringValue sv ? sv.Value : null))
+                    .ToList(),
+                StringComparer.Ordinal);
+
+        foreach (var controls in byDialog.Values)
+        {
+            TabCycleAssert.AssertSingleClosedCycle(controls);
+        }
+    }
+
+    private static string Str(CellValue cell) => ((CellValue.StringValue)cell).Value;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     // Multi-culture localization is now realized as per-culture MST transforms by MsiAuthoring

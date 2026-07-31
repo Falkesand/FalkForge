@@ -124,4 +124,39 @@ public sealed class MsiRMFilesInUseDlgBuilderTests
         // failing this test.
         Assert.Equal(0x37, (int)model.Attributes);
     }
+
+    // Regression test for the keyboard-consent defect: before DialogTabCycle existed,
+    // DialogComposer never set Control_Next, so the whole tab chain was NULL and a keyboard-only
+    // user was stuck on the seeded FalkForgeRMOption=UseRM default with no way to reach
+    // ShutdownOption (and therefore no way to decline having their applications terminated).
+    [Fact]
+    public void Compose_shutdown_option_is_reachable_by_tab_from_control_first()
+    {
+        var model = DialogComposer.Compose(MsiRMFilesInUseDlgBuilder.Build(), Layouts.Standard370x270);
+        DialogTabCycle.Assign(model);
+
+        string current = model.FirstControl;
+        bool reached = false;
+        for (int hop = 0; hop < model.Controls.Count; hop++)
+        {
+            if (current == "ShutdownOption")
+            {
+                reached = true;
+                break;
+            }
+
+            var control = model.Controls.SingleOrDefault(c => c.Name == current);
+            if (control?.NextControl is null)
+            {
+                break;
+            }
+
+            current = control.NextControl;
+        }
+
+        Assert.True(
+            reached,
+            "ShutdownOption must be reachable via Tab from Control_First, or a keyboard-only user " +
+            "cannot decline the default 'close applications' choice.");
+    }
 }
