@@ -52,6 +52,22 @@ public sealed class DialogTabCycleTests
         Assert.Null(finish.NextControl);
     }
 
+    // ADR 0007 section 5 claims ProgressDlg's NULL Control_Next is "proven by exact-row-level test
+    // coverage" the same as ExitDlg's above — this pins that same guarantee for ProgressDlg's sole
+    // focusable control (Title/StatusLabel/ActionText are Text and BottomLine is Line, all
+    // non-focusable, leaving Cancel as the sole focusable control), so the claim is actually true
+    // for both dialogs rather than only ExitDlg.
+    [Fact]
+    public void Assign_leaves_next_control_null_for_ProgressDlg_sole_focusable_control()
+    {
+        var model = DialogComposer.Compose(ProgressDlgBuilder.Build(), Layouts.Standard370x270);
+
+        DialogTabCycle.Assign(model);
+
+        var cancel = model.Controls.Single(c => c.Name == "Cancel");
+        Assert.Null(cancel.NextControl);
+    }
+
     // MsiRMFilesInUse: Title/Description/Text are Text controls and BottomLine is a Line —
     // all four are non-focusable and must stay out of the cycle entirely (never linked to, never
     // pointing anywhere), unlike WiX which additionally marks List TabSkip="yes" — this repo

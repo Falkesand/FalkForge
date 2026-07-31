@@ -19,24 +19,25 @@ namespace FalkForge.Compiler.Msi.UI;
 /// needed", but a keyboard-navigation dead end for any control that is not the seeded default.
 /// </para>
 /// <para>
-/// Focusable/non-focusable mirrors WiX's own compiler (<c>Compiler_UI.cs</c>,
-/// <c>ParseControlElement</c>), which marks Billboard, Bitmap, GroupBox, Icon, Line, ProgressBar,
-/// Text, and VolumeCostList as not tabbable. This repo's <see cref="MsiControlType"/> has no
-/// Billboard/ListView member, so the excluded set here is exactly Text, Line, Bitmap, Icon,
-/// ProgressBar, GroupBox, VolumeCostList — see <see cref="IsFocusable"/>. WiX also exposes an
-/// author-facing <c>TabSkip="yes"</c> escape hatch; the Windows Installer Control Attributes table
-/// has no such bit, so there is deliberately no equivalent knob here — the type-based exclusion is
-/// the only lever, and a dialog that wants a control skipped (e.g. MsiRMFilesInUse's process
-/// <c>List</c>) keeps it in the cycle on purpose rather than opting out.
+/// Focusable/non-focusable matches WiX's documented compiler behaviour, which marks Billboard,
+/// Bitmap, GroupBox, Icon, Line, ProgressBar, Text, and VolumeCostList as not tabbable. This repo's
+/// <see cref="MsiControlType"/> has no Billboard/ListView member, so the excluded set here is
+/// exactly Text, Line, Bitmap, Icon, ProgressBar, GroupBox, VolumeCostList — see
+/// <see cref="IsFocusable"/>. WiX also exposes an author-facing <c>TabSkip="yes"</c> escape hatch;
+/// the Windows Installer Control Attributes table has no such bit, so there is deliberately no
+/// equivalent knob here — the type-based exclusion is the only lever, and a dialog that wants a
+/// control skipped (e.g. MsiRMFilesInUse's process <c>List</c>) keeps it in the cycle on purpose
+/// rather than opting out.
 /// </para>
 /// <para>
 /// Cycle order is GEOMETRIC — Y ascending, then X ascending, then declaration index as a final
 /// tiebreak — rather than declaration order. <see cref="Layout.RightPackedRegionLayout"/> packs
-/// the FIRST-declared control of a region against the region's RIGHT edge, and every stock footer
-/// declares its buttons <c>Cancel, Next, Back</c> in that order, so a declaration-order cycle
-/// would tab Cancel -> Next -> Back — backwards against the on-screen Back/Next/Cancel row. The
-/// (Y, X, index) key is a total order over the control list (no two controls share a key unless
-/// they share an index, which cannot happen), so the sort needs no stability guarantee.
+/// the FIRST-declared control of a region against the region's RIGHT edge, and every three-button
+/// wizard footer declares its buttons <c>Cancel, Next, Back</c> in that order, so a
+/// declaration-order cycle would tab Cancel -> Next -> Back — backwards against the on-screen
+/// Back/Next/Cancel row. The (Y, X, index) key is a total order over the control list (no two
+/// controls share a key unless they share an index, which cannot happen), so the sort needs no
+/// stability guarantee.
 /// </para>
 /// <para>
 /// No ICE validates any of this: ICE03 would check <c>Control_Next</c> as a foreign key, but only
