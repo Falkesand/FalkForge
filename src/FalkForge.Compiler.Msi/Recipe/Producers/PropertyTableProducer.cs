@@ -159,6 +159,29 @@ internal sealed class PropertyTableProducer : ITableProducer
             props["SecureCustomProperties"] = string.Join(';', secureNames);
         }
 
+        // AdminProperties: same shape as SecureCustomProperties above (separate pass, last-declaration-
+        // wins, ordinal-sorted), but driven by IsAdmin and — unlike IsSecure — with NO uppercase
+        // restriction: MSI's AdminProperties explicitly allows mixed-case (private) property names.
+        Dictionary<string, bool> adminByName = new(StringComparer.Ordinal);
+        foreach (PropertyModel property in package.Properties)
+        {
+            adminByName[property.Name] = property.IsAdmin;
+        }
+
+        SortedSet<string> adminNames = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, bool> entry in adminByName)
+        {
+            if (entry.Value)
+            {
+                adminNames.Add(entry.Key);
+            }
+        }
+
+        if (adminNames.Count > 0)
+        {
+            props["AdminProperties"] = string.Join(';', adminNames);
+        }
+
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>(props.Count);
         foreach (KeyValuePair<string, string> entry in props)
         {
