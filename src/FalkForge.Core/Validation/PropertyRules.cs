@@ -16,11 +16,12 @@ public static class PropertyRules
 {
     /// <summary>
     /// Property names the compiler computes and emits itself from every property's flags (plus, for
-    /// <c>MsiHiddenProperties</c>, extension-contributed secrets). Authoring
-    /// <c>SecureCustomProperties</c>/<c>AdminProperties</c> by hand is silently overwritten by the
-    /// computed list (last-declaration-wins semantics — see <c>PropertyTableProducer</c>); authoring
-    /// <c>MsiHiddenProperties</c> collides with the computed row at the primary-key validator with an
-    /// opaque "Duplicate primary key in table Property" failure.
+    /// <c>MsiHiddenProperties</c>, extension-contributed secrets). Authoring one of these by hand is
+    /// rejected regardless of casing (the set is <c>OrdinalIgnoreCase</c>): the decompiler's
+    /// <c>internalProps</c> filter (<c>MsiPackageReconstructor.BuildUserProperties</c>) is also
+    /// <c>OrdinalIgnoreCase</c>, so a case-variant name (e.g. <c>securecustomproperties</c>) would be
+    /// silently DROPPED on the next decompile/migrate rather than round-tripped as an ordinary
+    /// property — rejecting it here at author time is cheaper than a name that quietly vanishes later.
     /// </summary>
     private static readonly FrozenSet<string> ReservedPropertyNames =
         FrozenSet.Create(StringComparer.OrdinalIgnoreCase,
@@ -62,8 +63,9 @@ public static class PropertyRules
         ModelSection.Property,
         "Property name is reserved",
         "SecureCustomProperties, AdminProperties, and MsiHiddenProperties are computed and emitted "
-            + "by the compiler itself from every property's flags; authoring one by hand is either "
-            + "silently overwritten or collides with the computed row.",
+            + "by the compiler itself from every property's flags; authoring one by hand (in any "
+            + "casing) is rejected because the decompiler would silently drop it back out on the "
+            + "next decompile/migrate.",
         static ctx => ValidationCollectionHelper.ValidateCollection(ctx.Package.Properties,
             static (p, i) => ReservedPropertyNames.Contains(p.Name)
                 ? new Violation(new RuleId("PRP002"), Severity.Error,
@@ -71,9 +73,11 @@ public static class PropertyRules
                     $"Property name '{p.Name}' is reserved: the compiler computes and emits " +
                     "SecureCustomProperties and AdminProperties from every property's IsSecure/IsAdmin " +
                     "flag, and MsiHiddenProperties from IsHidden flags plus extension-contributed " +
-                    "secrets. Authoring SecureCustomProperties or AdminProperties by hand is silently " +
-                    "overwritten by the computed list; authoring MsiHiddenProperties collides with the " +
-                    "computed row at the primary-key validator (\"Duplicate primary key in table Property\").")
+                    "secrets. The reservation is case-insensitive because the decompiler's internal-" +
+                    "property filter is also case-insensitive: a case variant of one of these names " +
+                    "(e.g. 'securecustomproperties') would be silently dropped on the next decompile " +
+                    "or `forge migrate` rather than round-tripped, so authoring it by hand is rejected " +
+                    "here instead of vanishing later.")
                 : null));
 
     /// <summary>

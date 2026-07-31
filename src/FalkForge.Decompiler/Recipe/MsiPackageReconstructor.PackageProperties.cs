@@ -39,11 +39,30 @@ public static partial class MsiPackageReconstructor
             {
                 Name = p.Property,
                 Value = p.Value,
-                IsSecure = secureNames.Contains(p.Property),
+                // A mixed-case entry in SecureCustomProperties is malformed but still writable in a
+                // foreign/third-party MSI (this list is never validated by Windows Installer itself).
+                // SecureCustomProperties only ever recognizes public property names (no lowercase
+                // letter), so a mixed-case entry is already inert in the ORIGINAL MSI -- it is never
+                // actually treated as secure there either. Reconstructing IsSecure=true from it would
+                // misrepresent the source; reporting IsSecure=false is the faithful read, not a lossy
+                // one, and keeps `forge migrate`/`forge verify --rebuild` from hard-failing on PRP001
+                // for a name the user cannot fix in someone else's MSI.
+                IsSecure = secureNames.Contains(p.Property) && !ContainsLowercase(p.Property),
                 IsAdmin = adminNames.Contains(p.Property),
                 IsHidden = hiddenNames.Contains(p.Property)
             })
             .ToList();
+    }
+
+    private static bool ContainsLowercase(string name)
+    {
+        foreach (char c in name)
+        {
+            if (char.IsLower(c))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

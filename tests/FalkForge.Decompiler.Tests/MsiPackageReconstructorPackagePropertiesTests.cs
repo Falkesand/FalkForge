@@ -49,6 +49,25 @@ public sealed class MsiPackageReconstructorPackagePropertiesTests
         Assert.True(property.IsSecure);
     }
 
+    [Fact]
+    public void Rebuild_MixedCaseNameListedInSecureCustomProperties_IsNotSecure()
+    {
+        // A mixed-case entry in SecureCustomProperties is malformed but still writable in a
+        // foreign/third-party MSI. Windows Installer's SecureCustomProperties only ever recognizes
+        // public property names (no lowercase letter), so a mixed-case entry is already inert in
+        // the ORIGINAL MSI -- it is never actually treated as secure. Reconstructing IsSecure=true
+        // from it would misrepresent the source; reporting IsSecure=false is the faithful read, not
+        // a lossy one. This also keeps `forge migrate`/`forge verify --rebuild` from hard-failing on
+        // PRP001 (secure property must be uppercase) for a name the user cannot fix in someone
+        // else's MSI.
+        var properties = Reconstruct(
+            new PropertyRow("Db_Password", "secret"),
+            new PropertyRow("SecureCustomProperties", "Db_Password"));
+
+        var property = Assert.Single(properties, p => p.Name == "Db_Password");
+        Assert.False(property.IsSecure);
+    }
+
     // ── IsAdmin round-trip (AdminProperties) ─────────────────────────────────
 
     [Fact]
