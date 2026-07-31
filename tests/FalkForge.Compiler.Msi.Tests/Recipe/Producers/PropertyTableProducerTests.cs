@@ -232,6 +232,119 @@ public sealed class PropertyTableProducerTests
         Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "DropEmpty");
     }
 
+    // ── SecureCustomProperties emission ──────────────────────────────────────
+
+    [Fact]
+    public void Produce_emits_securecustomproperties_ordinal_sorted()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "Z_PWD", Value = "z", IsSecure = true },
+            new PropertyModel { Name = "A_PWD", Value = "a", IsSecure = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "A_PWD;Z_PWD");
+    }
+
+    [Fact]
+    public void Produce_emits_securecustomproperties_for_secure_property_with_empty_value()
+    {
+        // Real-world shape: a secure property is normally declared with NO default value (the
+        // runtime value is supplied only at install time, e.g. via SetSecureProperty). The
+        // empty-value drop applied to ordinary rows below must not also drop the SECURE
+        // membership itself, or every conventionally-declared secure property would silently
+        // never reach SecureCustomProperties.
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "DB_PASSWORD", Value = "", IsSecure = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "DB_PASSWORD");
+        // The property's OWN row is still dropped (empty value, NOT NULL column) —
+        // only the aggregated membership list survives.
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "DB_PASSWORD");
+    }
+
+    [Fact]
+    public void Produce_omits_securecustomproperties_row_when_nothing_is_secure()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "PLAIN", Value = "x" },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "SecureCustomProperties");
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_excludes_unflagged_properties()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "SECRET", Value = "s", IsSecure = true },
+            new PropertyModel { Name = "PLAIN", Value = "p" },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "SECRET");
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_deduplicates_repeated_secure_names()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "SECRET", Value = "s1", IsSecure = true },
+            new PropertyModel { Name = "SECRET", Value = "s2", IsSecure = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "SECRET");
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_has_no_trailing_semicolon()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "A_PWD", Value = "a", IsSecure = true },
+            new PropertyModel { Name = "B_PWD", Value = "b", IsSecure = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        RecipeRow row = Assert.Single(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "SecureCustomProperties");
+        string value = ((CellValue.StringValue)row.Cells[1]).Value;
+        Assert.False(value.EndsWith(';'));
+        Assert.Equal("A_PWD;B_PWD", value);
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_duplicate_name_last_declaration_wins()
+    {
+        // Matches the Value dictionary's own last-write-wins semantics for a repeated property
+        // name (see the props[property.Name] = property.Value assignment above): when the same
+        // name is declared twice, the LAST declaration's IsSecure flag determines membership,
+        // not "secure if ANY declaration was secure."
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "SECRET", Value = "s1", IsSecure = true },
+            new PropertyModel { Name = "SECRET", Value = "s2", IsSecure = false },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "SecureCustomProperties");
+    }
+
     private static void AssertRow(ImmutableArray<RecipeRow> rows, string name, string value)
     {
         RecipeRow row = Assert.Single(

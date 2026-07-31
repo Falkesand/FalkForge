@@ -130,6 +130,35 @@ internal sealed class PropertyTableProducer : ITableProducer
             props[property.Name] = property.Value;
         }
 
+        // Separate pass over package.Properties (NOT the props dictionary above): SecureCustomProperties
+        // membership is driven purely by each property's IsSecure flag, independent of its Value — a
+        // secure property is conventionally declared with NO default (the real value arrives only at
+        // install time), and such empty values are dropped from props/rows below. Computing membership
+        // here, before that drop, is what keeps a secure-with-empty-value property from silently losing
+        // its SecureCustomProperties entry. A name declared more than once uses last-declaration-wins,
+        // matching the props[property.Name] = property.Value assignment immediately above.
+        Dictionary<string, bool> secureByName = new(StringComparer.Ordinal);
+        foreach (PropertyModel property in package.Properties)
+        {
+            secureByName[property.Name] = property.IsSecure;
+        }
+
+        SortedSet<string> secureNames = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, bool> entry in secureByName)
+        {
+            if (entry.Value)
+            {
+                secureNames.Add(entry.Key);
+            }
+        }
+
+        if (secureNames.Count > 0)
+        {
+            // string.Join never emits a trailing separator; SortedSet iterates in ordinal order, so the
+            // emitted list is deterministic (author enumeration order is not) — required for Reproducible().
+            props["SecureCustomProperties"] = string.Join(';', secureNames);
+        }
+
         ImmutableArray<RecipeRow>.Builder rows = ImmutableArray.CreateBuilder<RecipeRow>(props.Count);
         foreach (KeyValuePair<string, string> entry in props)
         {
