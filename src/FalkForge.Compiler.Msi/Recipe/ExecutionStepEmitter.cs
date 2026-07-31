@@ -16,6 +16,11 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// It emits nothing itself; it returns two <see cref="IMsiTableContributor"/> instances that target
 /// those built-in tables, so the generated rows flow through the <b>same</b> merge path
 /// (<see cref="ExtensionTableEmitter"/>) as any other contributor — one code path, PK/FK validated.
+/// It also aggregates every step's secret property names and returns them (see
+/// <see cref="BuildResult.HiddenPropertyNames"/>) rather than emitting an
+/// <c>MsiHiddenProperties</c> row itself — the caller merges those names with author-declared
+/// <see cref="Models.PropertyModel.IsHidden"/> names via <see cref="HiddenPropertiesEmitter"/>, which
+/// owns the single write-side occurrence of that row.
 /// </para>
 ///
 /// <para><b>Per step</b> (in this deterministic order so sequence numbers ascend correctly):</para>
@@ -81,23 +86,38 @@ internal static class ExecutionStepEmitter
     private const int MaxActionIdLength = 69;
 
     /// <summary>
-    /// Builds the <c>CustomAction</c> and <c>InstallExecuteSequence</c> contributors for the given
-    /// steps. Returns a loud <see cref="ErrorKind.CompilationError"/> failure for an invalid step id,
-    /// an over-length command, or sequence-band exhaustion — never a silently dropped step.
+    /// Result of <see cref="BuildContributors"/>: the synthetic <c>CustomAction</c> /
+    /// <c>InstallExecuteSequence</c> contributors, plus the ordinal-sorted, de-duplicated set of
+    /// secret property names aggregated across every step of every extension. The caller (not this
+    /// type) merges <see cref="HiddenPropertyNames"/> with author-declared hidden property names and
+    /// emits the single resulting <c>MsiHiddenProperties</c> row via
+    /// <see cref="HiddenPropertiesEmitter.TryBuild"/>.
     /// </summary>
-    internal static Result<ImmutableArray<IMsiTableContributor>> BuildContributors(
-        IReadOnlyList<ExecutionStep> steps)
+    internal readonly record struct BuildResult(
+        ImmutableArray<IMsiTableContributor> Contributors,
+        ImmutableArray<string> HiddenPropertyNames);
+
+    /// <summary>
+    /// Builds the <c>CustomAction</c> and <c>InstallExecuteSequence</c> contributors for the given
+    /// steps, plus the aggregated secret property names. Returns a loud
+    /// <see cref="ErrorKind.CompilationError"/> failure for an invalid step id, an over-length
+    /// command, or sequence-band exhaustion — never a silently dropped step.
+    /// </summary>
+    internal static Result<BuildResult> BuildContributors(IReadOnlyList<ExecutionStep> steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
 
         var caRows = new List<MsiTableRow>(steps.Count * 3);
         var seqRows = new List<MsiTableRow>(steps.Count * 3);
 
-        // Single source of truth for the MsiHiddenProperties scrub list: every secret property name
-        // declared by ANY step of ANY extension is aggregated here, de-duplicated and ordinal-sorted (so
-        // the emitted value is deterministic for reproducible builds), then written as exactly ONE Property
-        // row below. This replaces the former per-extension MsiHiddenProperties contributors, whose separate
-        // rows collided on the Property primary key when two secret-bearing extensions shared a package.
+        // Single source of truth for the secret property names this call aggregates: every secret
+        // property name declared by ANY step of ANY extension is collected here, de-duplicated and
+        // ordinal-sorted (so the final emitted value is deterministic for reproducible builds), then
+        // returned to the caller in BuildResult.HiddenPropertyNames. The caller merges this set with
+        // author-declared PropertyModel.IsHidden names and emits exactly ONE MsiHiddenProperties row
+        // via HiddenPropertiesEmitter — this replaces the former per-extension MsiHiddenProperties
+        // contributors, whose separate rows collided on the Property primary key when two
+        // secret-bearing extensions shared a package.
         var hiddenProperties = new SortedSet<string>(StringComparer.Ordinal);
 
         int installSeq = InstallBandStart;
@@ -135,7 +155,7 @@ internal static class ExecutionStepEmitter
             // covered (documented on ExecutionStep) — fine for the current consumers.
             if (step.CustomActionData is { Length: > 0 } data)
             {
-                Result<ImmutableArray<IMsiTableContributor>>? failure = EmitAction(
+                Result<BuildResult>? failure = EmitAction(
                     step, $"{step.Id}_d", "CustomActionData", data, CustomActionType.SetProperty,
                     step.Id, installCondition, ref installSeq, InstallBandEnd, install: true,
                     actionNames, caRows, seqRows);
@@ -146,7 +166,7 @@ internal static class ExecutionStepEmitter
             // ── (2) rollback action (scheduled before the install action).
             if (step.RollbackCommand is { Length: > 0 } rollback)
             {
-                Result<ImmutableArray<IMsiTableContributor>>? failure = EmitAction(
+                Result<BuildResult>? failure = EmitAction(
                     step, $"{step.Id}_rb", "RollbackCommand", rollback, deferred | CustomActionType.Rollback,
                     DeferredSource, installCondition, ref installSeq, InstallBandEnd, install: true,
                     actionNames, caRows, seqRows);
@@ -155,7 +175,7 @@ internal static class ExecutionStepEmitter
             }
 
             // ── (3) deferred install action.
-            Result<ImmutableArray<IMsiTableContributor>>? installFailure = EmitAction(
+            Result<BuildResult>? installFailure = EmitAction(
                 step, step.Id, "InstallCommand", step.InstallCommand, deferred,
                 DeferredSource, installCondition, ref installSeq, InstallBandEnd, install: true,
                 actionNames, caRows, seqRows);
@@ -166,7 +186,7 @@ internal static class ExecutionStepEmitter
             if (step.UninstallCommand is { Length: > 0 } uninstall)
             {
                 string uninstallCondition = ComposeCondition(step.UninstallCondition, DefaultUninstallCondition);
-                Result<ImmutableArray<IMsiTableContributor>>? failure = EmitAction(
+                Result<BuildResult>? failure = EmitAction(
                     step, $"{step.Id}_un", "UninstallCommand", uninstall, deferred,
                     DeferredSource, uninstallCondition, ref uninstallSeq, UninstallBandEnd, install: false,
                     actionNames, caRows, seqRows);
@@ -182,23 +202,13 @@ internal static class ExecutionStepEmitter
             }
         }
 
-        var contributors = new List<IMsiTableContributor>(3)
-        {
+        ImmutableArray<IMsiTableContributor> contributors =
+        [
             new StaticTableContributor("CustomAction", caRows),
             new StaticTableContributor("InstallExecuteSequence", seqRows),
-        };
+        ];
 
-        // Emit exactly ONE MsiHiddenProperties Property row carrying the aggregated, deterministic list.
-        // No secrets → no row (parity with the prior per-extension no-secret behaviour).
-        if (hiddenProperties.Count > 0)
-        {
-            var hiddenRow = new MsiTableRow()
-                .Set("Property", "MsiHiddenProperties")
-                .Set("Value", string.Join(';', hiddenProperties));
-            contributors.Add(new StaticTableContributor("Property", [hiddenRow]));
-        }
-
-        return Result<ImmutableArray<IMsiTableContributor>>.Success([.. contributors]);
+        return Result<BuildResult>.Success(new BuildResult(contributors, [.. hiddenProperties]));
     }
 
     /// <summary>
@@ -206,7 +216,7 @@ internal static class ExecutionStepEmitter
     /// uniqueness and advancing the sequence counter. Returns a non-null failure Result on any guard
     /// violation, or <see langword="null"/> on success.
     /// </summary>
-    private static Result<ImmutableArray<IMsiTableContributor>>? EmitAction(
+    private static Result<BuildResult>? EmitAction(
         ExecutionStep step,
         string actionName,
         string field,
@@ -223,7 +233,7 @@ internal static class ExecutionStepEmitter
     {
         Result<Unit> length = GuardLength(step.Id, field, command);
         if (length.IsFailure)
-            return Result<ImmutableArray<IMsiTableContributor>>.Failure(length.Error);
+            return Result<BuildResult>.Failure(length.Error);
 
         // Check capacity BEFORE consuming a slot so the last slot in the band (bandEnd) is usable and
         // a failure never names a step it already scheduled.
@@ -273,7 +283,7 @@ internal static class ExecutionStepEmitter
                 $"{MaxTargetLength}-character sanity limit for an MSI CustomAction.Target. Shorten the " +
                 "command (for long or secret payloads, pass data via ExecutionStep.CustomActionData instead).");
 
-    private static Result<ImmutableArray<IMsiTableContributor>> BandExhausted(string id, bool install)
+    private static Result<BuildResult> BandExhausted(string id, bool install)
     {
         string band = install
             ? $"install sequence band ({InstallBandStart}-{InstallBandEnd})"
@@ -282,18 +292,6 @@ internal static class ExecutionStepEmitter
                     "steps in one package.");
     }
 
-    private static Result<ImmutableArray<IMsiTableContributor>> Fail(string message)
-        => Result<ImmutableArray<IMsiTableContributor>>.Failure(ErrorKind.CompilationError, message);
-
-    /// <summary>
-    /// Minimal <see cref="IMsiTableContributor"/> over an already-materialized row set that targets a
-    /// built-in MSI table (so no write schema is needed — the compiler owns that table's columns).
-    /// </summary>
-    private sealed class StaticTableContributor(string tableName, IReadOnlyList<MsiTableRow> rows)
-        : IMsiTableContributor
-    {
-        public string TableName => tableName;
-
-        public IReadOnlyList<MsiTableRow> GetRows(ExtensionContext context) => rows;
-    }
+    private static Result<BuildResult> Fail(string message)
+        => Result<BuildResult>.Failure(ErrorKind.CompilationError, message);
 }
