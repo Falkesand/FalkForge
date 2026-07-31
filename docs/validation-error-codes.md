@@ -4,7 +4,7 @@ Reference for every diagnostic code emitted by validators, builders, decompilers
 
 Historically auto-generated; the extraction script has been retired — this file is now hand-maintained. Keep entries in sync with the validation rule sources (`src/FalkForge.Core/Validation/...` and the other `Source` columns below).
 
-**Total codes:** 237 across 52 categories.
+**Total codes:** 239 across 53 categories.
 
 ## Categories at a Glance
 
@@ -43,6 +43,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 | NET | .NET search | `src/FalkForge.Extensions.DotNet` |
 | PKG | Package model | `src/FalkForge.Core/Validation` |
 | PRM | Permissions | `src/FalkForge.Core/Validation` |
+| PRP | Property | `src/FalkForge.Core/Validation` |
 | QEX | QuietExec (Util) | `src/FalkForge.Extensions.Util/QuietExec` |
 | REG | Registry | `src/FalkForge.Core/Validation` |
 | RFX | RemoveFolderEx (Util) | `src/FalkForge.Extensions.Util/RemoveFolderEx` |
@@ -385,6 +386,13 @@ Historically auto-generated; the extraction script has been retired — this fil
 | PRM002 | Permission must have either SDDL or User | `src/FalkForge.Core/Validation/MiscRules.IniPermissions.cs` |
 | PRM003 | Permission Table must be a valid MSI table name | `src/FalkForge.Core/Validation/MiscRules.IniPermissions.cs` |
 | PRM004 | Cannot mix SDDL and User/Domain permissions in the same package | `src/FalkForge.Core/Validation/MiscRules.IniPermissions.cs` |
+
+## PRP — Property
+
+| Code | Message | Source |
+|------|---------|--------|
+| PRP001 | Secure property name must be uppercase (a lowercase letter makes SecureCustomProperties never include it) | `src/FalkForge.Core/Validation/PropertyRules.cs` |
+| PRP002 | Property name is reserved (SecureCustomProperties, AdminProperties, MsiHiddenProperties are compiler-computed) | `src/FalkForge.Core/Validation/PropertyRules.cs` |
 
 ## QEX — QuietExec (Util)
 

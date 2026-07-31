@@ -3775,9 +3775,9 @@ p.EnvironmentVariable("PATH", MsiProperty.InstallFolder / "bin", ev =&gt;
       <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>IsSecure</code></td><td><code>bool</code></td><td><code>false</code></td><td>If true, the property can be passed from the client to the server (elevated) process.</td></tr>
-      <tr><td><code>IsAdmin</code></td><td><code>bool</code></td><td><code>false</code></td><td>If true, the property is restricted to admin-only access.</td></tr>
-      <tr><td><code>IsHidden</code></td><td><code>bool</code></td><td><code>false</code></td><td>If true, the property value is hidden from logs.</td></tr>
+      <tr><td><code>IsSecure</code></td><td><code>bool</code></td><td><code>false</code></td><td>If true, the property name is listed in the compiled MSI's <code>SecureCustomProperties</code>, so its run-time value is passed from the client (UI) process to the elevated execute sequence and reaches deferred custom actions. Windows Installer only ever recognizes this for an ALL-UPPERCASE public property name; a lowercase-containing name marked <code>IsSecure</code> fails the build (PRP001) instead of silently doing nothing.</td></tr>
+      <tr><td><code>IsAdmin</code></td><td><code>bool</code></td><td><code>false</code></td><td>If true, the property name is listed in the compiled MSI's <code>AdminProperties</code>: Windows Installer saves the property's value at administrative installation time (<code>msiexec /a</code>), and subsequent per-machine installs from that admin image use the saved value. This is <em>not</em> an access-control restriction &mdash; it has no relation to who may set or read the property.</td></tr>
+      <tr><td><code>IsHidden</code></td><td><code>bool</code></td><td><code>false</code></td><td>If true, the property name is listed in the compiled MSI's <code>MsiHiddenProperties</code>, so Windows Installer scrubs its value from a verbose (<code>/L*v</code>) install log. Aggregated together with every extension-contributed secret into one row &mdash; see the <code>IExecutionContributor</code> / <code>ExecutionStep</code> secure secret channel below.</td></tr>
     </tbody>
   </table>
 
@@ -3785,8 +3785,8 @@ p.EnvironmentVariable("PATH", MsiProperty.InstallFolder / "bin", ev =&gt;
 
 p.Property("DB_CONNECTION", "Server=localhost", prop =&gt;
 {
-    prop.IsSecure = true;
-    prop.IsHidden = true;  // Redact from install logs
+    prop.IsSecure = true;   // must be ALL-UPPERCASE, or PRP001 fails the build
+    prop.IsHidden = true;   // Redact from install logs
 });</code></pre>
 
   <!-- ================================================================ -->
@@ -6995,9 +6995,11 @@ Installer.Build(args, package =&gt;
     Windows authentication for exactly this reason). The extension author lists the source property
     (and the generated <code>Id_d</code>/<code>Id</code> property) in <code>HiddenProperties</code> so
     it is scrubbed from a verbose install log. The compiler aggregates <code>HiddenProperties</code> from
-    every execution step of every extension in the package into a single, deterministic
-    <code>MsiHiddenProperties</code> property row &mdash; an extension must not author its own
-    <code>MsiHiddenProperties</code> row (two would collide on the same primary key).
+    every execution step of every extension in the package, together with every author-declared property
+    whose <code>PropertyBuilder.IsHidden</code> flag is set (see <a href="#msi-property-builder">8.17
+    PropertyBuilder</a>), into a single, deterministic <code>MsiHiddenProperties</code> property row
+    &mdash; neither an extension nor a package author may author that row directly (PRP002); two
+    independent <code>MsiHiddenProperties</code> rows would collide on the same primary key.
   </p>
 
   <h4>CommandLine escaping helpers</h4>
