@@ -8662,18 +8662,29 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 </div>
 
 <table class="api-table">
-    <thead><tr><th>Control</th><th>Type</th><th>Bound property / text</th></tr></thead>
+    <thead><tr><th>Control</th><th>Type</th><th>Bound property / text</th><th>Control_Next</th></tr></thead>
     <tbody>
-        <tr><td>Title</td><td>Text</td><td><code>Dialog.RestartManager.Title</code></td></tr>
-        <tr><td>Description</td><td>Text</td><td><code>Dialog.RestartManager.Description</code></td></tr>
-        <tr><td>Text</td><td>Text</td><td><code>Dialog.RestartManager.Text</code></td></tr>
-        <tr><td>List</td><td>ListBox</td><td>the built-in <code>FileInUseProcess</code> property, populated by the Windows Installer engine at runtime</td></tr>
-        <tr><td>ShutdownOption</td><td>RadioButtonGroup</td><td><code>FalkForgeRMOption</code></td></tr>
-        <tr><td>BottomLine</td><td>Line</td><td>&mdash; (the standard footer separator shared by every full-canvas wizard dialog; see <code>DialogFooter.BottomLine()</code>)</td></tr>
-        <tr><td>OK</td><td>PushButton</td><td>&mdash;</td></tr>
-        <tr><td>Cancel</td><td>PushButton</td><td>&mdash;</td></tr>
+        <tr><td>Title</td><td>Text</td><td><code>Dialog.RestartManager.Title</code></td><td>&mdash; (non-focusable)</td></tr>
+        <tr><td>Description</td><td>Text</td><td><code>Dialog.RestartManager.Description</code></td><td>&mdash; (non-focusable)</td></tr>
+        <tr><td>Text</td><td>Text</td><td><code>Dialog.RestartManager.Text</code></td><td>&mdash; (non-focusable)</td></tr>
+        <tr><td>List</td><td>ListBox</td><td>the built-in <code>FileInUseProcess</code> property, populated by the Windows Installer engine at runtime</td><td>ShutdownOption</td></tr>
+        <tr><td>ShutdownOption</td><td>RadioButtonGroup</td><td><code>FalkForgeRMOption</code></td><td>OK</td></tr>
+        <tr><td>BottomLine</td><td>Line</td><td>&mdash; (the standard footer separator shared by every full-canvas wizard dialog; see <code>DialogFooter.BottomLine()</code>)</td><td>&mdash; (non-focusable)</td></tr>
+        <tr><td>OK</td><td>PushButton</td><td>&mdash;</td><td>Cancel</td></tr>
+        <tr><td>Cancel</td><td>PushButton</td><td>&mdash;</td><td>List</td></tr>
     </tbody>
 </table>
+
+<p>
+    The tab ring is <code>List &rarr; ShutdownOption &rarr; OK &rarr; Cancel &rarr; List</code>, with
+    <code>Control_First = OK</code> (the seeded default action). This is a deliberate deviation from
+    WiX's own <code>MsiRMFilesInUse.wxs</code>, which marks the process list <code>TabSkip="yes"</code>
+    to skip past it: FalkForge keeps <code>List</code> in the cycle on purpose, because the in-use
+    process names are exactly the information a user needs to decide whether to let Setup close those
+    applications. There is also no <code>TabSkip</code>-equivalent knob anywhere in FalkForge &mdash;
+    the Windows Installer Control Attributes table has no such bit, and the type-based focusable/
+    non-focusable split above is the only lever.
+</p>
 
 <p>
     <code>ShutdownOption</code>'s two <code>RadioButton</code> table rows, both bound to
@@ -8784,7 +8795,14 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <code>Control_First</code> names the control that gets initial focus, and each control's
     <code>Control_Next</code> points at the next control Tab should move to. Chase every
     <code>Control_Next</code> pointer and you get the full tab cycle; a control left out of the chain is
-    simply unreachable by keyboard.
+    simply unreachable by keyboard. FalkForge builds this chain automatically for every composed
+    dialog (stock templates, the Restart Manager <code>MsiRMFilesInUse</code> modal, and author-defined
+    custom dialogs alike): each dialog's focusable controls &mdash; everything except decorative/static
+    types (<code>Text</code>, <code>Line</code>, <code>Bitmap</code>, <code>Icon</code>,
+    <code>ProgressBar</code>, <code>GroupBox</code>, <code>VolumeCostList</code>) &mdash; are linked into
+    one closed ring in geometric order: top to bottom, then left to right within a row. A dialog with at
+    most one focusable control gets no <code>Control_Next</code> at all (nothing to tab to); see
+    <code>Next(controlName)</code> below for how an author opts a dialog out of this automatic wiring.
 </p>
 
 <p>
@@ -8887,7 +8905,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     </tbody>
 </table>
 
-<p>The same <code>configure</code> callback also has <code>Text(text)</code> (replaces the control text), <code>Property(property)</code> ((re)binds the MSI property), and <code>Next(controlName)</code> (sets <code>Control_Next</code> for tab order).</p>
+<p>The same <code>configure</code> callback also has <code>Text(text)</code> (replaces the control text), <code>Property(property)</code> ((re)binds the MSI property), and <code>Next(controlName)</code> (sets <code>Control_Next</code> for tab order). Supplying <code>Next(...)</code> on <em>any</em> control of a custom dialog opts the <strong>whole dialog</strong> out of FalkForge's automatic tab-cycle wiring (see "Tab order" above) &mdash; the dialog is then authored exactly as the calls describe, with no auto-completion of the rest of the chain. This is deliberate: silently completing a partially-authored chain is how a broken half-cycle gets manufactured, so authoring even one link makes the whole dialog the author's responsibility.</p>
 
 <p>Event verbs, chained off the same <code>configure</code> callback:</p>
 
