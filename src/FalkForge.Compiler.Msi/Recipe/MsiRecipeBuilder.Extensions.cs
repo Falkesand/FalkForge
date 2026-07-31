@@ -27,6 +27,8 @@ public static partial class MsiRecipeBuilder
         // collide. The synthetic contributors merge into the built-in CustomAction /
         // InstallExecuteSequence tables through the same path as any other contributor.
         IReadOnlyList<IMsiTableContributor> effectiveContributors = contributors;
+        ImmutableArray<string> extensionHiddenProperties = ImmutableArray<string>.Empty;
+
         if (executionContributors is { Count: > 0 })
         {
             var steps = new List<ExecutionStep>();
@@ -39,7 +41,7 @@ public static partial class MsiRecipeBuilder
 
             if (steps.Count > 0)
             {
-                Result<ImmutableArray<IMsiTableContributor>> execResult =
+                Result<ExecutionStepEmitter.BuildResult> execResult =
                     ExecutionStepEmitter.BuildContributors(steps);
                 if (execResult.IsFailure)
                 {
@@ -49,11 +51,30 @@ public static partial class MsiRecipeBuilder
                     return Result<(ImmutableArray<RecipeTable>, ImmutableArray<RecipeTable>)>.Failure(execResult.Error);
                 }
 
-                var merged = new List<IMsiTableContributor>(contributors.Count + execResult.Value.Length);
+                extensionHiddenProperties = execResult.Value.HiddenPropertyNames;
+
+                // A NEW list, not a mutation of `contributors` — effectiveContributors may alias the
+                // caller's own collection.
+                var merged = new List<IMsiTableContributor>(contributors.Count + execResult.Value.Contributors.Length);
                 merged.AddRange(contributors);
-                merged.AddRange(execResult.Value);
+                merged.AddRange(execResult.Value.Contributors);
                 effectiveContributors = merged;
             }
+        }
+
+        // Author-declared PropertyModel.IsHidden names merge with extension-contributed secrets into
+        // ONE MsiHiddenProperties row. This call is UNCONDITIONAL — deliberately outside the
+        // `executionContributors is { Count: > 0 }` gate above — so a package with author-hidden
+        // properties but NO execution-contributing extension at all still gets the row.
+        IMsiTableContributor? hiddenContributor = HiddenPropertiesEmitter.TryBuild(
+            context.Resolved.Package.Properties, extensionHiddenProperties);
+        if (hiddenContributor is not null)
+        {
+            // Again a NEW list rather than a mutation, for the same aliasing reason as above.
+            var merged = new List<IMsiTableContributor>(effectiveContributors.Count + 1);
+            merged.AddRange(effectiveContributors);
+            merged.Add(hiddenContributor);
+            effectiveContributors = merged;
         }
 
         if (effectiveContributors.Count > 0)
