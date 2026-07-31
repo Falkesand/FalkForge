@@ -18,11 +18,19 @@ using MockRegistry = FalkForge.Testing.MockRegistry;
 /// <c>static () =&gt; null</c> variable-store accessor and <c>ExeExecutor</c> via its one-arg
 /// constructor (which also defaults the accessor to null) — so <c>[VARIABLE]</c> references in
 /// MSI properties and EXE arguments were NEVER expanded in production, even after the built-in
-/// seeding fix landed (a separate commit) made the store non-empty. This test drives a full
-/// Detect → Plan → Apply pipeline with an EXE package whose <c>InstallArguments</c> references a
-/// built-in variable, and asserts the process runner actually received the EXPANDED string —
-/// proving the executor was constructed with a live accessor into the SAME <see cref="VariableStore"/>
-/// the pipeline seeds, not a null one.
+/// seeding fix landed (a separate commit) made the store non-empty.
+/// <para>
+/// This test drives a full Detect → Plan → Apply pipeline with an EXE package whose
+/// <c>InstallArguments</c> references a built-in variable, and asserts the process runner actually
+/// received the EXPANDED string — but it builds its OWN <c>MsiExecutor</c>/<c>ExeExecutor</c> and
+/// <see cref="InstallerPipelineBuilder"/> by hand, mirroring what <see cref="EngineSession.BindToPipe"/>
+/// is <em>supposed</em> to do. It never calls <see cref="EngineSession.BindToPipe"/> itself, so it
+/// proves the wiring PATTERN is sound but cannot catch a regression in the actual production
+/// construction (e.g. <c>BindToPipe</c> reverting to <c>new ExeExecutor(processRunner)</c> or
+/// <c>MsiExecutor(static () =&gt; null, ...)</c> — this test would stay green either way).
+/// See <c>EngineSessionExecutorWiringTests</c> for the tests that call
+/// <see cref="EngineSession.BindToPipe"/> for real and close that gap.
+/// </para>
 /// </summary>
 public sealed class ExeExecutorVariableWiringTests
 {
