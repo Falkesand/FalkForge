@@ -7,12 +7,33 @@ using FalkForge.Platform;
 
 public static class BuiltInVariables
 {
-    public static void Populate(VariableStore store, IPlatformServices? platform, ISystemClock? clock = null)
+    /// <remarks>
+    /// <paramref name="elevationCompanionAvailable"/> feeds the <c>Privileged</c> built-in
+    /// (see <see cref="PopulateSessionInfo"/>). <c>FalkForge.Engine</c> runs <c>asInvoker</c>
+    /// (see <c>app.manifest</c>) and performs per-machine work through a separate elevated
+    /// companion process reached two phases after Detect (<c>ElevateStep</c>, at
+    /// <c>EnginePhase.Elevating</c>) — so <c>platform.Environment.IsElevated</c> alone answers the
+    /// wrong question for this architecture: on the normal double-click flow the engine process
+    /// itself is never elevated even when the install can perfectly well perform a per-machine
+    /// install via the companion, so a package gated on <c>Condition.IsPrivileged</c> would be
+    /// silently skipped every time. <c>Privileged</c> now means "can THIS INSTALL perform
+    /// privileged work" — the process token is already elevated (covers a caller that runs the
+    /// engine elevated directly with no companion), OR an elevation companion is configured and
+    /// available. The companion's availability is known at Detect time (resolved from
+    /// <c>EngineSessionOptions.ElevationCompanionPath</c>/<c>ElevationCompanionPolicy</c> before
+    /// <c>EngineSession.BindToPipe</c> builds the pipeline), so this is answerable up front rather
+    /// than guessed.
+    /// </remarks>
+    public static void Populate(
+        VariableStore store,
+        IPlatformServices? platform,
+        ISystemClock? clock = null,
+        bool elevationCompanionAvailable = false)
     {
         PopulateOsVersion(store);
         PopulateArchitecture(store);
         PopulateFolders(store, platform);
-        PopulateSessionInfo(store, platform);
+        PopulateSessionInfo(store, platform, elevationCompanionAvailable);
         PopulateUserInfo(store, platform);
         PopulateMsiInfo(store);
         PopulateDateInfo(store, clock);
@@ -111,14 +132,23 @@ public static class BuiltInVariables
             : string.Empty);
     }
 
-    private static void PopulateSessionInfo(VariableStore store, IPlatformServices? platform)
+    private static void PopulateSessionInfo(
+        VariableStore store, IPlatformServices? platform, bool elevationCompanionAvailable)
     {
-        // Privileged: delegates to IEnvironment.IsElevated, whose production implementation
-        // (WindowsEnvironment) answers via WindowsIdentity/WindowsPrincipal.IsInRole(Administrator)
-        // — the standard .NET elevation check, not a registry probe. The prior probe read
-        // HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion, a key every logged-on user (admin or
-        // not) can read, so it always reported "elevated" regardless of actual privilege.
-        store.Set(BuiltInVariableNames.Privileged, platform?.Environment.IsElevated == true ? 1L : 0L);
+        // Privileged means "can THIS INSTALL perform privileged (per-machine) work", not "is the
+        // current process token elevated" — those are different questions for an asInvoker engine
+        // that elevates through a separate companion process (see the <remarks> on Populate).
+        // A prior probe read HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion (a key every logged-on
+        // user, admin or not, can read — always "elevated"); the probe after that was
+        // IEnvironment.IsElevated alone (the process token), which is honest about what IT
+        // reports but is the wrong SIGNAL here: on the normal double-click flow the engine process
+        // is never itself elevated even when the install can do per-machine work via the
+        // companion. IEnvironment.IsElevated is still one of the two real inputs — a caller that
+        // runs the engine already elevated with no companion (e.g. BindToChannel test/headless
+        // hosts) must still see Privileged=1.
+        var processElevated = platform?.Environment.IsElevated == true;
+        store.Set(BuiltInVariableNames.Privileged,
+            processElevated || elevationCompanionAvailable ? 1L : 0L);
 
         // Terminal Server / Remote Desktop detection via registry
         var isTerminalServer = false;

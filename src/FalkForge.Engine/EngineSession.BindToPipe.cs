@@ -292,7 +292,12 @@ public sealed partial class EngineSession
             .WithPlatformServices(platform)
             .WithClock(options.Clock ?? new SystemClock())
             .WithUiChannel(uiChannel)
-            .WithLogger(logger);
+            .WithLogger(logger)
+            // Feeds the Privileged built-in: an asInvoker engine can still do per-machine work
+            // via this companion even when the process itself is not elevated (see the Populate
+            // remarks in BuiltInVariables). companionExePath is resolved above from the
+            // bootstrapper-verified path or the ambient probe, whichever policy applies.
+            .WithElevationCompanionAvailable(companionExePath is not null);
 
         if (journalStore is not null)
             pipelineBuilder = pipelineBuilder

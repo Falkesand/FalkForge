@@ -38,6 +38,7 @@ public sealed class InstallerPipelineBuilder
     private bool _advanceTrustStoreOnVerifiedApply;
     private FalkForge.Engine.Integrity.TrustPolicy? _integrityTrustPolicy;
     private string? _payloadRoot;
+    private bool _elevationCompanionAvailable;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -208,6 +209,23 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Declares that an elevation companion is configured and available for this session (resolved
+    /// by <see cref="FalkForge.Engine.EngineSession.BindToPipe"/> from
+    /// <see cref="FalkForge.Engine.EngineSessionOptions.ElevationCompanionPath"/>/
+    /// <see cref="FalkForge.Engine.EngineSessionOptions.ElevationCompanionPolicy"/> before the pipeline is built).
+    /// Feeds the <c>Privileged</c> built-in (see the <c>Populate</c> remarks in
+    /// <see cref="FalkForge.Engine.Variables.BuiltInVariables"/>): the engine is <c>asInvoker</c>
+    /// and performs per-machine work through this companion, so whether one is available is part
+    /// of "can this install perform privileged work" even when the engine process itself is not
+    /// currently elevated. Not called (default <c>false</c>) when no companion is configured.
+    /// </summary>
+    public InstallerPipelineBuilder WithElevationCompanionAvailable(bool available = true)
+    {
+        _elevationCompanionAvailable = available;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -225,7 +243,7 @@ public sealed class InstallerPipelineBuilder
         IDetectStep? detectStep = (_manifest is not null && _registry is not null)
             ? new DetectStep(
                 _manifest, _registry, uiChannel, _updateChecker, _updateService,
-                _variableStore, _platformServices, _clock)
+                _variableStore, _platformServices, _clock, _elevationCompanionAvailable)
             : null;
 
         IPlanStep? planStep = (_manifest is not null)

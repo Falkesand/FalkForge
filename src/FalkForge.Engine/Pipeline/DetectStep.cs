@@ -30,6 +30,7 @@ internal sealed class DetectStep : IDetectStep
     private readonly VariableStore? _variableStore;
     private readonly IPlatformServices? _platform;
     private readonly ISystemClock? _clock;
+    private readonly bool _elevationCompanionAvailable;
 
     public DetectStep(
         InstallerManifest manifest,
@@ -39,7 +40,8 @@ internal sealed class DetectStep : IDetectStep
         UpdateService? updateService = null,
         VariableStore? variableStore = null,
         IPlatformServices? platform = null,
-        ISystemClock? clock = null)
+        ISystemClock? clock = null,
+        bool elevationCompanionAvailable = false)
     {
         _manifest = manifest;
         _registry = registry;
@@ -49,6 +51,7 @@ internal sealed class DetectStep : IDetectStep
         _variableStore = variableStore;
         _platform = platform;
         _clock = clock;
+        _elevationCompanionAvailable = elevationCompanionAvailable;
     }
 
     /// <inheritdoc/>
@@ -73,7 +76,7 @@ internal sealed class DetectStep : IDetectStep
             // behavior.
             if (_variableStore is not null)
             {
-                BuiltInVariables.Populate(_variableStore, _platform, _clock);
+                BuiltInVariables.Populate(_variableStore, _platform, _clock, _elevationCompanionAvailable);
             }
 
             var detector = new PackageDetector(_registry);
