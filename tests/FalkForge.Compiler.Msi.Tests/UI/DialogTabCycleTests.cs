@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using FalkForge.Compiler.Msi.UI;
 using FalkForge.Compiler.Msi.UI.Layout;
@@ -74,19 +76,88 @@ public sealed class DialogTabCycleTests
     }
 
     // All-or-nothing guard: completing a partial chain automatically is how a broken half-cycle
-    // gets manufactured, so ANY authored Control_Next on ANY control opts the WHOLE dialog out.
+    // gets manufactured, so ANY authored Control_Next on ANY control opts the WHOLE dialog out —
+    // not just when the authored link happens to sit on Controls[0]. The authored link here sits
+    // on Controls[2] specifically: a guard narrowed to "only Controls[0] disables the dialog"
+    // (e.g. `if (controls[0].NextControl is not null) return;`) would NOT see it, so Assign would
+    // proceed to auto-wire all three controls — overwriting the author's own C->A link and giving
+    // A/B non-null values they should never receive. This test fails under that narrowing.
     [Fact]
     public void Assign_does_not_touch_a_dialog_whose_author_supplied_a_chain()
     {
         var model = new MsiDialogModel { Name = "PartialDlg", FirstControl = "A" };
-        model.Controls.Add(new MsiControlModel { Name = "A", Type = MsiControlType.PushButton, NextControl = "B" });
+        model.Controls.Add(new MsiControlModel { Name = "A", Type = MsiControlType.PushButton });
         model.Controls.Add(new MsiControlModel { Name = "B", Type = MsiControlType.PushButton });
-        model.Controls.Add(new MsiControlModel { Name = "C", Type = MsiControlType.PushButton });
+        model.Controls.Add(new MsiControlModel { Name = "C", Type = MsiControlType.PushButton, NextControl = "A" });
+
+        DialogTabCycle.Assign(model);
+
+        Assert.Null(model.Controls[0].NextControl);
+        Assert.Null(model.Controls[1].NextControl);
+        Assert.Equal("A", model.Controls[2].NextControl);
+    }
+
+    // Empty-string / whitespace NextControl must NOT count as an authored chain: unlike a real
+    // author-supplied link, it carries no intent and (via DialogSetProducer.Rows.cs's StringOrNull)
+    // would otherwise emit a Control_Next cell pointing at a control literally named "" — a value
+    // DLG017's IsNullOrWhiteSpace guard does not catch either. Assign must treat it as absent and
+    // proceed to auto-wire (overwriting the blank placeholder), not opt the whole dialog out.
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Assign_treats_empty_or_whitespace_NextControl_as_unauthored(string blank)
+    {
+        var model = new MsiDialogModel { Name = "BlankDlg", FirstControl = "A" };
+        model.Controls.Add(new MsiControlModel { Name = "A", Type = MsiControlType.PushButton, NextControl = blank });
+        model.Controls.Add(new MsiControlModel { Name = "B", Type = MsiControlType.PushButton });
 
         DialogTabCycle.Assign(model);
 
         Assert.Equal("B", model.Controls[0].NextControl);
-        Assert.Null(model.Controls[1].NextControl);
-        Assert.Null(model.Controls[2].NextControl);
+        Assert.Equal("A", model.Controls[1].NextControl);
+    }
+
+    // The focusable/non-focusable classifier (here and in TabCycleAssert) both default an
+    // unrecognized MsiControlType to focusable (`_ => true`). Adding a new enum member without
+    // deciding its focusability would have BOTH classifiers silently agree it is a tab stop,
+    // shipping a dead tab stop with no test noticing. This test pins the full membership of each
+    // set so Enum.GetValues<MsiControlType>() growing without a matching update to one of these
+    // two sets fails here first.
+    [Fact]
+    public void Every_MsiControlType_member_is_explicitly_classified_as_focusable_or_not()
+    {
+        var nonFocusable = new HashSet<MsiControlType>
+        {
+            MsiControlType.Text,
+            MsiControlType.Line,
+            MsiControlType.Bitmap,
+            MsiControlType.Icon,
+            MsiControlType.ProgressBar,
+            MsiControlType.GroupBox,
+            MsiControlType.VolumeCostList,
+        };
+        var focusable = new HashSet<MsiControlType>
+        {
+            MsiControlType.PushButton,
+            MsiControlType.CheckBox,
+            MsiControlType.ScrollableText,
+            MsiControlType.PathEdit,
+            MsiControlType.SelectionTree,
+            MsiControlType.RadioButtonGroup,
+            MsiControlType.ComboBox,
+            MsiControlType.Edit,
+            MsiControlType.ListBox,
+            MsiControlType.DirectoryCombo,
+            MsiControlType.DirectoryList,
+            MsiControlType.MaskedEdit,
+        };
+
+        var all = new HashSet<MsiControlType>(Enum.GetValues<MsiControlType>());
+
+        Assert.Empty(nonFocusable.Intersect(focusable));
+        Assert.True(
+            all.SetEquals(nonFocusable.Union(focusable)),
+            "MsiControlType has a member not explicitly classified as focusable or non-focusable in this test " +
+            "(and, if a real new member, in DialogTabCycle.IsFocusable / TabCycleAssert too).");
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Runtime.InteropServices;
 
 namespace FalkForge.Compiler.Msi.UI;
 
@@ -67,7 +68,11 @@ internal static class DialogTabCycle
 
         for (int i = 0; i < count; i++)
         {
-            if (controls[i].NextControl is not null)
+            // Empty/whitespace does not count as an authored chain — it carries no author intent
+            // and (via DialogSetProducer.Rows.cs's StringOrNull) would otherwise ship a
+            // Control_Next cell pointing at a control literally named "". Treating it as absent
+            // lets auto-wiring proceed and overwrite the blank placeholder with a real link.
+            if (!string.IsNullOrWhiteSpace(controls[i].NextControl))
             {
                 return;
             }
@@ -78,7 +83,7 @@ internal static class DialogTabCycle
             return;
         }
 
-        // Worst case every control is focusable, so the index buffer is sized to the full control
+        // Worst case every control is focusable, so the entry buffer is sized to the full control
         // count. Stock dialogs top out around a dozen controls; ArrayPool covers any larger
         // author-defined custom dialog without an unbounded stackalloc.
         const int StackThreshold = 32;
@@ -86,9 +91,9 @@ internal static class DialogTabCycle
         // Declared-and-initialized in one statement (the idiomatic safe pattern): a stackalloc
         // assigned to a variable declared earlier, even unconditionally, trips CS8353 because its
         // safe-to-escape scope no longer matches the variable's declaring scope.
-        Span<int> stackBuffer = stackalloc int[StackThreshold];
-        int[]? rented = count > StackThreshold ? ArrayPool<int>.Shared.Rent(count) : null;
-        Span<int> indexBuffer = rented is not null ? rented.AsSpan(0, count) : stackBuffer[..count];
+        Span<FocusEntry> stackBuffer = stackalloc FocusEntry[StackThreshold];
+        FocusEntry[]? rented = count > StackThreshold ? ArrayPool<FocusEntry>.Shared.Rent(count) : null;
+        Span<FocusEntry> entryBuffer = rented is not null ? rented.AsSpan(0, count) : stackBuffer[..count];
 
         try
         {
@@ -97,7 +102,7 @@ internal static class DialogTabCycle
             {
                 if (IsFocusable(controls[i].Type))
                 {
-                    indexBuffer[focusableCount++] = i;
+                    entryBuffer[focusableCount++] = new FocusEntry(controls[i].Y, controls[i].X, i);
                 }
             }
 
@@ -108,41 +113,54 @@ internal static class DialogTabCycle
                 return;
             }
 
-            Span<int> focusable = indexBuffer[..focusableCount];
+            Span<FocusEntry> focusable = entryBuffer[..focusableCount];
 
-            focusable.Sort((a, b) =>
+            // (Y, X, OriginalIndex) is pre-packed into the span itself so the comparison below
+            // needs no closure over `controls` — a zero-capture static lambda, unlike a capturing
+            // one, allocates no display class or delegate per dialog per build (Gate 6; matches
+            // the static-lambda Sort pattern in PackageCodeDerivation.cs and the sequence table
+            // producers).
+            focusable.Sort(static (a, b) =>
             {
-                MsiControlModel ca = controls[a];
-                MsiControlModel cb = controls[b];
-
-                int byY = ca.Y.CompareTo(cb.Y);
+                int byY = a.Y.CompareTo(b.Y);
                 if (byY != 0)
                 {
                     return byY;
                 }
 
-                int byX = ca.X.CompareTo(cb.X);
+                int byX = a.X.CompareTo(b.X);
                 if (byX != 0)
                 {
                     return byX;
                 }
 
-                return a.CompareTo(b);
+                return a.OriginalIndex.CompareTo(b.OriginalIndex);
             });
 
             for (int i = 0; i < focusableCount; i++)
             {
-                int nextIndex = focusable[(i + 1) % focusableCount];
-                controls[focusable[i]].NextControl = controls[nextIndex].Name;
+                int currentIndex = focusable[i].OriginalIndex;
+                int nextIndex = focusable[(i + 1) % focusableCount].OriginalIndex;
+                controls[currentIndex].NextControl = controls[nextIndex].Name;
             }
         }
         finally
         {
             if (rented is not null)
             {
-                ArrayPool<int>.Shared.Return(rented);
+                ArrayPool<FocusEntry>.Shared.Return(rented);
             }
         }
+    }
+
+    // Packs (Y, X, OriginalIndex) for the geometric sort so the Comparison<T> passed to
+    // Span<T>.Sort needs no closure over the control list — see Assign's remarks.
+    [StructLayout(LayoutKind.Auto)]
+    private readonly struct FocusEntry(int y, int x, int originalIndex)
+    {
+        public int Y { get; } = y;
+        public int X { get; } = x;
+        public int OriginalIndex { get; } = originalIndex;
     }
 
     // Mirrors WiX Compiler_UI.cs's notTabbable set (Billboard/ListView have no MsiControlType
