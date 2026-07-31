@@ -361,7 +361,25 @@ public sealed class CSharpEmitter
     {
         foreach (var prop in properties)
         {
-            AppendLine($"builder.Property({Quote(prop.Name)}, {Quote(prop.Value)});");
+            if (!prop.IsSecure && !prop.IsAdmin && !prop.IsHidden)
+            {
+                AppendLine($"builder.Property({Quote(prop.Name)}, {Quote(prop.Value)});");
+                continue;
+            }
+
+            // At least one security flag is set — emit the configure-lambda overload so the
+            // flag round-trips through `forge migrate` instead of silently reverting to an
+            // ordinary (unsecured, logged-in-plaintext) property.
+            var flags = new List<string>(3);
+            if (prop.IsSecure)
+                flags.Add("p.IsSecure = true;");
+            if (prop.IsAdmin)
+                flags.Add("p.IsAdmin = true;");
+            if (prop.IsHidden)
+                flags.Add("p.IsHidden = true;");
+
+            AppendLine(
+                $"builder.Property({Quote(prop.Name)}, {Quote(prop.Value)}, p => {{ {string.Join(' ', flags)} }});");
         }
         if (properties.Count > 0)
             AppendLine();
