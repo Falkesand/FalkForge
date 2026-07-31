@@ -345,6 +345,67 @@ public sealed class PropertyTableProducerTests
         Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "SecureCustomProperties");
     }
 
+    // ── AdminProperties emission ─────────────────────────────────────────────
+
+    [Fact]
+    public void Produce_emits_adminproperties_ordinal_sorted()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "Z_ADMIN", Value = "z", IsAdmin = true },
+            new PropertyModel { Name = "A_ADMIN", Value = "a", IsAdmin = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "AdminProperties", "A_ADMIN;Z_ADMIN");
+    }
+
+    [Fact]
+    public void Produce_omits_adminproperties_row_when_nothing_is_admin()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "PLAIN", Value = "x" },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "AdminProperties");
+    }
+
+    [Fact]
+    public void Produce_adminproperties_allows_mixed_case_name()
+    {
+        // Unlike SecureCustomProperties (PRP001), AdminProperties explicitly permits mixed-case
+        // (private) property names in MSI — this guards against copy-pasting the PRP001-style
+        // uppercase check onto IsAdmin.
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "MixedCaseAdmin", Value = "x", IsAdmin = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "AdminProperties", "MixedCaseAdmin");
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_and_adminproperties_are_independent()
+    {
+        ResolvedPackage resolved = MakeResolved(new[]
+        {
+            new PropertyModel { Name = "BOTH_FLAGS", Value = "x", IsSecure = true, IsAdmin = true },
+            new PropertyModel { Name = "SECURE_ONLY", Value = "y", IsSecure = true },
+            new PropertyModel { Name = "ADMIN_ONLY", Value = "z", IsAdmin = true },
+        });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "BOTH_FLAGS;SECURE_ONLY");
+        AssertRow(rows, "AdminProperties", "ADMIN_ONLY;BOTH_FLAGS");
+    }
+
     private static void AssertRow(ImmutableArray<RecipeRow> rows, string name, string value)
     {
         RecipeRow row = Assert.Single(
