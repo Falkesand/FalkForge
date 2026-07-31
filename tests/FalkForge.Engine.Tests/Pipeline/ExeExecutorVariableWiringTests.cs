@@ -82,8 +82,6 @@ public sealed class ExeExecutorVariableWiringTests
 
         // Mirrors exactly how EngineSession.BindToPipe wires MsiExecutor/ExeExecutor after the
         // fix: both share the SAME VariableStore instance registered via WithVariableStore below.
-        // Mirrors exactly how EngineSession.BindToPipe wires MsiExecutor/ExeExecutor after the
-        // fix: both share the SAME VariableStore instance registered via WithVariableStore below.
         var packageExecutor = new PackageExecutor(
             new MsiExecutor(static () => null, () => store),
             new MsuExecutor(runner),

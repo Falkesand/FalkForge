@@ -139,8 +139,10 @@ public static class BuiltInVariables
         // current process token elevated" — those are different questions for an asInvoker engine
         // that elevates through a separate companion process (see the <remarks> on Populate).
         // A prior probe read HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion (a key every logged-on
-        // user, admin or not, can read — always "elevated"); the probe after that was
-        // IEnvironment.IsElevated alone (the process token), which is honest about what IT
+        // user, admin or not, can read — always "elevated"), but that probe was DEAD CODE, not a
+        // live bug: Populate() itself was never called from production until the commit that
+        // wired DetectStep to call it, so no released build ever reached that probe. The probe
+        // after it was IEnvironment.IsElevated alone (the process token), which is honest about what IT
         // reports but is the wrong SIGNAL here: on the normal double-click flow the engine process
         // is never itself elevated even when the install can do per-machine work via the
         // companion. IEnvironment.IsElevated is still one of the two real inputs — a caller that

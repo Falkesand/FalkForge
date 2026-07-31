@@ -110,4 +110,40 @@ public sealed class VariableResolverTests
 
         Assert.Equal("/dir=[Dir]", result);
     }
+
+    [Fact]
+    public void ResolveVariables_SecretVariable_NeverExpanded()
+    {
+        var store = new VariableStore();
+        store.SetSecret("LicenseKey", "TOP-SECRET-VALUE");
+
+        // A secret must never expand into an EXE command line: process command lines are visible
+        // to any user on the machine (Task Manager, WMI, /proc), so exposing a secret there
+        // defeats the entire point of storing it as a secret.
+        var result = VariableResolver.Resolve("/key=[LicenseKey]", store);
+
+        Assert.Equal("/key=[LicenseKey]", result);
+    }
+
+    [Fact]
+    public void ResolveVariables_NameRegisteredAsBothPlainAndSecret_NeverExpandsPlainShadow()
+    {
+        var store = new VariableStore();
+
+        // Not a scenario the current production pipeline creates (PlanStep only ever calls
+        // Set(), never SetSecret() — see the D1 finding), but nothing STOPS a future caller from
+        // registering both under the same name, and GetString would happily resolve the plain
+        // shadow value while ignoring that the name is ALSO marked secret. Once a name is marked
+        // secret it must never auto-expand via this path at all: the guard refuses on
+        // IsSecret(name) regardless of what else happens to be registered under that name. This
+        // is the one case that actually falsifies a missing guard — GetString alone cannot tell
+        // the two apart, so without an explicit IsSecret check this test resolves the plain
+        // shadow value instead of refusing.
+        store.Set("LicenseKey", "PLAIN-SHADOW-VALUE");
+        store.SetSecret("LicenseKey", "TOP-SECRET-VALUE");
+
+        var result = VariableResolver.Resolve("/key=[LicenseKey]", store);
+
+        Assert.Equal("/key=[LicenseKey]", result);
+    }
 }
