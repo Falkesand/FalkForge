@@ -5,9 +5,10 @@ using Xunit;
 namespace FalkForge.Core.Tests.Validation;
 
 /// <summary>
-/// Per-rule isolated tests for PropertyRules (PRP001) — the authoring-time guard that catches a
-/// secure property whose name can never legally appear in SecureCustomProperties (Windows
-/// Installer public property names cannot contain lowercase letters).
+/// Per-rule isolated tests for PropertyRules (PRP001-002) — authoring-time guards. PRP001 catches
+/// a secure property whose name can never legally appear in SecureCustomProperties (Windows
+/// Installer public property names cannot contain lowercase letters). PRP002 catches an author
+/// hand-authoring one of the three property names the compiler itself computes and emits.
 /// </summary>
 public sealed class PropertyRulesTests
 {
@@ -74,5 +75,28 @@ public sealed class PropertyRulesTests
     {
         Assert.Empty(PropertyRules.Prp001_SecurePropertyMustBeUppercase
             .Evaluate(Ctx(Prop("dbPassword"))));
+    }
+
+    // ── PRP002 ──────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("SecureCustomProperties")]
+    [InlineData("AdminProperties")]
+    [InlineData("MsiHiddenProperties")]
+    [InlineData("securecustomproperties")]
+    [InlineData("MSIHIDDENPROPERTIES")]
+    public void Prp002_reserved_name_yields_error_including_case_variants(string name)
+    {
+        var violations = PropertyRules.Prp002_ReservedPropertyName.Evaluate(Ctx(Prop(name))).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("PRP002", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Prp002_non_reserved_name_is_valid()
+    {
+        Assert.Empty(PropertyRules.Prp002_ReservedPropertyName.Evaluate(Ctx(Prop("DB_PASSWORD"))));
     }
 }
