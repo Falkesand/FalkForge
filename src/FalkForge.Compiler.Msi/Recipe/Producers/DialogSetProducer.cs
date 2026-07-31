@@ -198,6 +198,16 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
 
         AppendInsertedExtensionStepDialogs(package, dialogs);
 
+        // Author each composed dialog's Control_Next tab cycle here — the single point where
+        // stock templates, Restart Manager's MsiRMFilesInUse, author-defined custom dialogs, and
+        // extension-contributed steps have all converged into one list, so no dialog source can
+        // forget to wire Control_Next. See DialogTabCycle's remarks for why this is not done
+        // inside DialogComposer.Compose instead.
+        for (int di = 0; di < dialogs.Count; di++)
+        {
+            DialogTabCycle.Assign(dialogs[di]);
+        }
+
         // Nothing to emit → no UI tables (matches the legacy "no UI = no tables" behaviour).
         if (dialogs.Count == 0)
         {
