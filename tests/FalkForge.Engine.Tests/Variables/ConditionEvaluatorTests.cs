@@ -311,6 +311,78 @@ public sealed class ConditionEvaluatorTests : IDisposable
         Assert.False(result.Value);
     }
 
+    // --- VersionNT MSI-style integer coercion (major*100 + minor) ---
+    //
+    // BuiltInVariables stores VersionNT as a System.Version (the OS's real dotted version),
+    // but the WiX-idiomatic condition authors actually write is an undotted integer threshold
+    // ("VersionNT >= 603" for Windows 8.1, per MSI's own major*100+minor encoding). Before the
+    // fix, "603" tokenized as a plain IntLiteral, matched neither the both-Version nor
+    // both-int branch of Compare(), and fell through to ordinal STRING comparison
+    // ("10.0.26200.0" vs "603"), which is always false regardless of the real OS version.
+
+    [Fact]
+    public void Evaluate_VersionNTAgainstMsiIntegerThreshold_Windows10OrLater_True()
+    {
+        // Windows 10/11-shaped VersionNT, as BuiltInVariables.Populate seeds it from
+        // System.Environment.OSVersion.Version.
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTAgainstMsiIntegerThreshold_ExactWindows10_True()
+    {
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        // 1000 = 10.0 under the major*100+minor convention.
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 1000", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTAgainstMsiIntegerThreshold_AboveCurrentMajor_False()
+    {
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        // 1100 = 11.0 — a future major this store's 10.0 must NOT satisfy. Not vacuously true:
+        // proves the coercion actually compares rather than always short-circuiting to true.
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 1100", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTMajorPlainInteger_GreaterOrEqual_True()
+    {
+        // VersionNTMajor is stored as a plain integer (not Version) — this form must keep
+        // working unaffected by the Version<->int coercion added for VersionNT itself.
+        _store.Set("VersionNTMajor", 10L);
+
+        var result = ConditionEvaluator.Evaluate("VersionNTMajor >= 10", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_MsiIntegerThresholdAgainstVersionNT_ReversedOperands_True()
+    {
+        // Same convention with the integer on the LEFT — an equally valid authoring form.
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        var result = ConditionEvaluator.Evaluate("603 <= VersionNT", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
     // --- Integer comparisons ---
 
     [Fact]

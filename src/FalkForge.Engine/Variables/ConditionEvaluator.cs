@@ -253,6 +253,25 @@ public static class ConditionEvaluator
                 return EvaluateComparison(cmp, op);
             }
 
+            // One side is a Version (e.g. VersionNT, seeded from the OS's real dotted version)
+            // and the other a bare undotted integer (e.g. "VersionNT >= 603") — the WiX-idiomatic
+            // form authors actually write. MSI's own version-shaped built-ins (VersionNT,
+            // VersionMsi, ...) encode integer thresholds as major*100 + minor (603 = 6.3, 1000 =
+            // 10.0), so convert the integer side using that convention and compare as Version.
+            // This branch only fires when exactly one side carries a Version — a plain
+            // int-vs-int comparison (VersionNTMajor >= 10, WindowsBuildNumber >= 22000, ...)
+            // still hits the branch above, unaffected.
+            if (left.VersionValue is not null && right.VersionValue is null && right.IntValue is not null)
+            {
+                var cmp = left.VersionValue.CompareTo(MsiIntegerToVersion(right.IntValue.Value));
+                return EvaluateComparison(cmp, op);
+            }
+            if (right.VersionValue is not null && left.VersionValue is null && left.IntValue is not null)
+            {
+                var cmp = MsiIntegerToVersion(left.IntValue.Value).CompareTo(right.VersionValue);
+                return EvaluateComparison(cmp, op);
+            }
+
             // Fallback: case-insensitive string comparison
             var strCmp = string.Compare(
                 left.StringValue ?? string.Empty,
@@ -274,6 +293,23 @@ public static class ConditionEvaluator
                 TokenType.GreaterOrEqual => cmp >= 0,
                 _ => Result<bool>.Failure(ErrorKind.Validation, $"Unknown comparison operator: {op}")
             };
+        }
+
+        /// <summary>
+        /// Converts an integer authored against a version-shaped built-in (VersionNT, VersionMsi,
+        /// ...) into the equivalent <see cref="Version"/> using MSI's own major*100 + minor
+        /// encoding (603 = 6.3, 1000 = 10.0). A negative value or one whose magnitude cannot fit
+        /// a 32-bit component degrades to <c>0.0</c> rather than throwing — a malformed authored
+        /// condition should evaluate false, not crash the install.
+        /// </summary>
+        private static Version MsiIntegerToVersion(long value)
+        {
+            if (value is < 0 or > int.MaxValue)
+            {
+                return new Version(0, 0);
+            }
+
+            return new Version((int)(value / 100), (int)(value % 100));
         }
 
         private static bool IsTruthy(ConditionValue value)
