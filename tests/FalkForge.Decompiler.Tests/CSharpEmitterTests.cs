@@ -1,3 +1,5 @@
+using FalkForge.Decompiler.Recipe;
+using FalkForge.Decompiler.Recipe.Schemas;
 using FalkForge.Models;
 using Xunit;
 
@@ -170,6 +172,123 @@ public sealed class CSharpEmitterTests
         var source = emitter.Emit(model);
 
         Assert.Contains("builder.Property(\"MY_PROP\", \"my_value\")", source);
+    }
+
+    // ── Property security flags (IsSecure/IsAdmin/IsHidden) must survive migration ──────────
+    // Regression: EmitProperties used to emit only the 2-arg builder.Property(name, value) form,
+    // silently dropping IsSecure/IsAdmin/IsHidden on every `forge migrate` run. A secure/hidden
+    // property (e.g. a secret) would come back as an ordinary, logged-in-plaintext property.
+
+    [Fact]
+    public void Emit_WithSecureProperty_EmitsConfigureLambdaSettingIsSecure()
+    {
+        var model = new PackageModel
+        {
+            Name = "Test App",
+            Manufacturer = "Test Corp",
+            Version = new Version(1, 0, 0),
+            Properties =
+            [
+                new PropertyModel { Name = "APP_SECRET", Value = "s3cret", IsSecure = true }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.Contains(
+            "builder.Property(\"APP_SECRET\", \"s3cret\", p => { p.IsSecure = true; });",
+            source);
+    }
+
+    [Fact]
+    public void Emit_WithAdminProperty_EmitsConfigureLambdaSettingIsAdmin()
+    {
+        var model = new PackageModel
+        {
+            Name = "Test App",
+            Manufacturer = "Test Corp",
+            Version = new Version(1, 0, 0),
+            Properties =
+            [
+                new PropertyModel { Name = "DEPLOY_TIER", Value = "prod", IsAdmin = true }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.Contains(
+            "builder.Property(\"DEPLOY_TIER\", \"prod\", p => { p.IsAdmin = true; });",
+            source);
+    }
+
+    [Fact]
+    public void Emit_WithHiddenProperty_EmitsConfigureLambdaSettingIsHidden()
+    {
+        var model = new PackageModel
+        {
+            Name = "Test App",
+            Manufacturer = "Test Corp",
+            Version = new Version(1, 0, 0),
+            Properties =
+            [
+                new PropertyModel { Name = "APP_SECRET", Value = "s3cret", IsHidden = true }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.Contains(
+            "builder.Property(\"APP_SECRET\", \"s3cret\", p => { p.IsHidden = true; });",
+            source);
+    }
+
+    [Fact]
+    public void Emit_WithNoPropertyFlags_EmitsPlainTwoArgumentFormWithNoConfigureLambda()
+    {
+        var model = new PackageModel
+        {
+            Name = "Test App",
+            Manufacturer = "Test Corp",
+            Version = new Version(1, 0, 0),
+            Properties =
+            [
+                new PropertyModel { Name = "MY_PROP", Value = "my_value" }
+            ]
+        };
+
+        var source = new CSharpEmitter().Emit(model);
+
+        Assert.Contains("builder.Property(\"MY_PROP\", \"my_value\");", source);
+        Assert.DoesNotContain("MY_PROP\", \"my_value\", p =>", source);
+    }
+
+    [Fact]
+    public void Emit_RoundTripFromMsiHiddenProperties_SurvivesIntoEmittedSource()
+    {
+        // Reconstruct a model the same way `forge migrate` does (Property table rows +
+        // MsiHiddenProperties), then feed that reconstructed model straight into the emitter —
+        // proving the flag survives decompile -> emit end to end, not just in an emitter-only test.
+        var reconstructed = MsiPackageReconstructor.Rebuild(
+            propertyRows:
+            [
+                new PropertyRow("APP_SECRET", "s3cret"),
+                new PropertyRow("MsiHiddenProperties", "APP_SECRET")
+            ],
+            directoryRows: [],
+            componentRows: [],
+            fileRows: [],
+            featureRows: [],
+            featureComponentsRows: [],
+            registryRows: [],
+            serviceRows: [],
+            shortcutRows: [],
+            upgradeRows: []);
+
+        var source = new CSharpEmitter().Emit(reconstructed);
+
+        Assert.Contains(
+            "builder.Property(\"APP_SECRET\", \"s3cret\", p => { p.IsHidden = true; });",
+            source);
     }
 
     [Fact]
