@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using FalkForge.Models;
 
 namespace FalkForge.Validation;
@@ -13,6 +14,18 @@ namespace FalkForge.Validation;
 /// </summary>
 public static class PropertyRules
 {
+    /// <summary>
+    /// Property names the compiler computes and emits itself from every property's flags (plus, for
+    /// <c>MsiHiddenProperties</c>, extension-contributed secrets). Authoring
+    /// <c>SecureCustomProperties</c>/<c>AdminProperties</c> by hand is silently overwritten by the
+    /// computed list (last-declaration-wins semantics — see <c>PropertyTableProducer</c>); authoring
+    /// <c>MsiHiddenProperties</c> collides with the computed row at the primary-key validator with an
+    /// opaque "Duplicate primary key in table Property" failure.
+    /// </summary>
+    private static readonly FrozenSet<string> ReservedPropertyNames =
+        FrozenSet.Create(StringComparer.OrdinalIgnoreCase,
+            "SecureCustomProperties", "AdminProperties", "MsiHiddenProperties");
+
     /// <summary>
     /// PRP001 — a property marked <c>IsSecure</c> must have an all-uppercase name. Windows
     /// Installer's <c>SecureCustomProperties</c> list only ever contains public properties, and
@@ -40,6 +53,29 @@ public static class PropertyRules
                     $"silently inert. Rename it to all uppercase (e.g. '{p.Name.ToUpperInvariant()}').")
                 : null));
 
+    /// <summary>
+    /// PRP002 — a property must not author one of the three reserved, compiler-computed names.
+    /// </summary>
+    public static readonly ValidationRule Prp002_ReservedPropertyName = new(
+        new RuleId("PRP002"),
+        Severity.Error,
+        ModelSection.Property,
+        "Property name is reserved",
+        "SecureCustomProperties, AdminProperties, and MsiHiddenProperties are computed and emitted "
+            + "by the compiler itself from every property's flags; authoring one by hand is either "
+            + "silently overwritten or collides with the computed row.",
+        static ctx => ValidationCollectionHelper.ValidateCollection(ctx.Package.Properties,
+            static (p, i) => ReservedPropertyNames.Contains(p.Name)
+                ? new Violation(new RuleId("PRP002"), Severity.Error,
+                    ModelPath.Root.Field("Properties").Index(i).Field("Name"),
+                    $"Property name '{p.Name}' is reserved: the compiler computes and emits " +
+                    "SecureCustomProperties and AdminProperties from every property's IsSecure/IsAdmin " +
+                    "flag, and MsiHiddenProperties from IsHidden flags plus extension-contributed " +
+                    "secrets. Authoring SecureCustomProperties or AdminProperties by hand is silently " +
+                    "overwritten by the computed list; authoring MsiHiddenProperties collides with the " +
+                    "computed row at the primary-key validator (\"Duplicate primary key in table Property\").")
+                : null));
+
     private static bool ContainsLowercase(string name)
     {
         foreach (char c in name)
@@ -55,5 +91,6 @@ public static class PropertyRules
     public static readonly ValidationRule[] All =
     [
         Prp001_SecurePropertyMustBeUppercase,
+        Prp002_ReservedPropertyName,
     ];
 }
