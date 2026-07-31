@@ -149,7 +149,7 @@ public sealed partial class EngineSession
 
         var msiExecutor = new MsiExecutor(
             static () => null,
-            static () => null,
+            () => variableStore,
             static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
@@ -161,7 +161,7 @@ public sealed partial class EngineSession
         // is kept only as the floor for the --manifest / plan / offline-layout path, where PayloadRoot is
         // null and SourcePath stays manifest-authoritative — same guard behavior as before on that path.
         var bundleExecutor = new BundleExecutor(processRunner, options.PayloadRoot ?? cacheLayout.BasePath);
-        var exeExecutor = new ExeExecutor(processRunner);
+        var exeExecutor = new ExeExecutor(processRunner, () => variableStore);
         var netRuntimeExecutor = new NetRuntimeExecutor(processRunner);
         var packageExecutor = new PackageExecutor(
             msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
