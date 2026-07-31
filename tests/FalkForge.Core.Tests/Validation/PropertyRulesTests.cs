@@ -99,4 +99,68 @@ public sealed class PropertyRulesTests
     {
         Assert.Empty(PropertyRules.Prp002_ReservedPropertyName.Evaluate(Ctx(Prop("DB_PASSWORD"))));
     }
+
+    // ── PRP003 ──────────────────────────────────────────────────────────────
+    // MsiHiddenProperties/SecureCustomProperties/AdminProperties are all built with
+    // string.Join(';', names). A ';' or whitespace in a flagged property's name splits or
+    // mis-parses that list, silently corrupting it (the flag goes inert; an unrelated split-off
+    // name is added to the list instead).
+
+    [Fact]
+    public void Prp003_semicolon_in_name_marked_secure_yields_error()
+    {
+        var violations = PropertyRules.Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace
+            .Evaluate(Ctx(Prop("A;B", secure: true))).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("PRP003", violations[0].RuleId.Value);
+        Assert.Equal(Severity.Error, violations[0].Severity);
+    }
+
+    [Fact]
+    public void Prp003_semicolon_in_name_marked_admin_yields_error()
+    {
+        var violations = PropertyRules.Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace
+            .Evaluate(Ctx(Prop("A;B", admin: true))).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("PRP003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
+    public void Prp003_semicolon_in_name_marked_hidden_yields_error()
+    {
+        var violations = PropertyRules.Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace
+            .Evaluate(Ctx(Prop("A;B", hidden: true))).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("PRP003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
+    public void Prp003_whitespace_in_name_marked_hidden_yields_error()
+    {
+        var violations = PropertyRules.Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace
+            .Evaluate(Ctx(Prop("APP SECRET", hidden: true))).ToList();
+
+        Assert.Single(violations);
+        Assert.Equal("PRP003", violations[0].RuleId.Value);
+    }
+
+    [Fact]
+    public void Prp003_unflagged_property_with_semicolon_is_not_rejected()
+    {
+        // Scoping proof: an unflagged property's name is never written into a semicolon-delimited
+        // list, so PRP003 must not touch it — that is a broader identifier-format question, out
+        // of scope for this rule.
+        Assert.Empty(PropertyRules.Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace
+            .Evaluate(Ctx(Prop("A;B"))));
+    }
+
+    [Fact]
+    public void Prp003_normal_flagged_name_is_valid()
+    {
+        Assert.Empty(PropertyRules.Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace
+            .Evaluate(Ctx(Prop("APP_SECRET", secure: true, hidden: true))));
+    }
 }
