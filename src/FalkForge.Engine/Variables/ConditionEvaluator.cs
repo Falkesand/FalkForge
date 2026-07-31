@@ -253,6 +253,33 @@ public static class ConditionEvaluator
                 return EvaluateComparison(cmp, op);
             }
 
+            // One side is a Version (e.g. VersionNT, seeded from the OS's real dotted version)
+            // and the other a bare undotted integer (e.g. "VersionNT >= 603") — the WiX-idiomatic
+            // form authors actually write. MSI's own version-shaped built-ins (VersionNT,
+            // VersionMsi, ...) encode integer thresholds as major*100 + minor (603 = 6.3, 1000 =
+            // 10.0) and have NO representation for build/revision at all, so the comparison must
+            // happen at that same two-component precision on BOTH sides: truncate the real
+            // Version down to (Major, Minor) before comparing it against the coerced integer.
+            // Comparing the real Version's *native* precision against the coerced one is wrong
+            // for every operator whose 6.3.9600.x is being asked against a "603" threshold — an
+            // unset Build/Revision (-1 on the coerced side) always sorts below the real side's
+            // actual Build, so "=" and "<=" wrongly report false and "gt"/"<>" wrongly report
+            // true at an exact major.minor match; only "<" and ">=" happen to still land right
+            // by accident. Truncating first makes every operator agree with MSI's own two-part
+            // semantics. This branch only fires when exactly one side carries a Version — a
+            // plain int-vs-int comparison (VersionNTMajor >= 10, WindowsBuildNumber >= 22000,
+            // ...) still hits the branch above, unaffected.
+            if (left.VersionValue is not null && right.VersionValue is null && right.IntValue is not null)
+            {
+                var cmp = TruncateToMsiPrecision(left.VersionValue).CompareTo(MsiIntegerToVersion(right.IntValue.Value));
+                return EvaluateComparison(cmp, op);
+            }
+            if (right.VersionValue is not null && left.VersionValue is null && left.IntValue is not null)
+            {
+                var cmp = MsiIntegerToVersion(left.IntValue.Value).CompareTo(TruncateToMsiPrecision(right.VersionValue));
+                return EvaluateComparison(cmp, op);
+            }
+
             // Fallback: case-insensitive string comparison
             var strCmp = string.Compare(
                 left.StringValue ?? string.Empty,
@@ -275,6 +302,38 @@ public static class ConditionEvaluator
                 _ => Result<bool>.Failure(ErrorKind.Validation, $"Unknown comparison operator: {op}")
             };
         }
+
+        /// <summary>
+        /// Converts an integer authored against a version-shaped built-in (VersionNT, VersionMsi,
+        /// ...) into the equivalent <see cref="Version"/> using MSI's own major*100 + minor
+        /// encoding (603 = 6.3, 1000 = 10.0). A negative value or one whose magnitude cannot fit
+        /// a 32-bit component degrades to <c>0.0</c> rather than throwing — a malformed authored
+        /// condition should evaluate false, not crash the install.
+        /// The result always has exactly two significant components (Build/Revision unset, i.e.
+        /// -1) because that is all the MSI integer encoding can express. Callers MUST compare it
+        /// against the real side truncated to the same two-component precision via
+        /// <see cref="TruncateToMsiPrecision"/> — comparing it against a Version with a real
+        /// Build/Revision lets the unset -1 wrongly outrank (or under-rank) that real value.
+        /// </summary>
+        private static Version MsiIntegerToVersion(long value)
+        {
+            if (value is < 0 or > int.MaxValue)
+            {
+                return new Version(0, 0);
+            }
+
+            return new Version((int)(value / 100), (int)(value % 100));
+        }
+
+        /// <summary>
+        /// Drops a <see cref="Version"/> down to MSI's two-component precision (Major, Minor
+        /// only). Required before comparing a version-shaped built-in (VersionNT, VersionMsi,
+        /// ...) against a value produced by <see cref="MsiIntegerToVersion"/>, since that integer
+        /// encoding has no Build/Revision at all — comparing full native precision on one side
+        /// against the coerced two-component value on the other would let an unset component
+        /// (-1) skew the comparison once Major and Minor already tie.
+        /// </summary>
+        private static Version TruncateToMsiPrecision(Version version) => new(version.Major, version.Minor);
 
         private static bool IsTruthy(ConditionValue value)
         {

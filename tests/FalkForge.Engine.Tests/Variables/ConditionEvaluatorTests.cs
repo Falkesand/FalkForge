@@ -311,6 +311,229 @@ public sealed class ConditionEvaluatorTests : IDisposable
         Assert.False(result.Value);
     }
 
+    // --- VersionNT MSI-style integer coercion (major*100 + minor) ---
+    //
+    // BuiltInVariables stores VersionNT as a System.Version (the OS's real dotted version),
+    // but the WiX-idiomatic condition authors actually write is an undotted integer threshold
+    // ("VersionNT >= 603" for Windows 8.1, per MSI's own major*100+minor encoding). Before the
+    // fix, "603" tokenized as a plain IntLiteral, matched neither the both-Version nor
+    // both-int branch of Compare(), and fell through to ordinal STRING comparison
+    // ("10.0.26200.0" vs "603"), which is always false regardless of the real OS version.
+
+    [Fact]
+    public void Evaluate_VersionNTAgainstMsiIntegerThreshold_Windows10OrLater_True()
+    {
+        // Windows 10/11-shaped VersionNT, as BuiltInVariables.Populate seeds it from
+        // System.Environment.OSVersion.Version.
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTAgainstMsiIntegerThreshold_ExactWindows10_True()
+    {
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        // 1000 = 10.0 under the major*100+minor convention.
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 1000", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTAgainstMsiIntegerThreshold_AboveCurrentMajor_False()
+    {
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        // 1100 = 11.0 — a future major this store's 10.0 must NOT satisfy. Not vacuously true:
+        // proves the coercion actually compares rather than always short-circuiting to true.
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 1100", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTMajorPlainInteger_GreaterOrEqual_True()
+    {
+        // VersionNTMajor is stored as a plain integer (not Version) — this form must keep
+        // working unaffected by the Version<->int coercion added for VersionNT itself.
+        _store.Set("VersionNTMajor", 10L);
+
+        var result = ConditionEvaluator.Evaluate("VersionNTMajor >= 10", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_MsiIntegerThresholdAgainstVersionNT_ReversedOperands_True()
+    {
+        // Same convention with the integer on the LEFT — an equally valid authoring form.
+        _store.Set("VersionNT", new Version(10, 0, 26200, 0));
+
+        var result = ConditionEvaluator.Evaluate("603 <= VersionNT", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    // --- VersionNT MSI-style integer coercion — full six-operator matrix at an EXACT major.minor
+    // match ---
+    //
+    // MSI's VersionNT is documented as a two-component value (major*100 + minor); Build and
+    // Revision have no meaning in it at all. BuiltInVariables seeds VersionNT from the real OS
+    // Version though, which on any real machine carries a non-zero Build (e.g. 9600, 26200).
+    // Version.CompareTo ranks an unset component (-1, what MsiIntegerToVersion's two-arg
+    // `new Version(major, minor)` produces) below any defined non-negative one — so once Major
+    // and Minor tie, the real side's non-zero Build always outranks the coerced side's -1, and
+    // the comparison reports "greater" even though the two are MSI-equal. That silently breaks
+    // "=", "<=", "<>" AND "gt" at the exact-match boundary (only "<" and ">=" survive by std
+    // accident, because "greater" satisfies both "not equal to false" reasoning for >= and
+    // "not less" for <). Every case below uses a non-zero Build/Revision (Windows 8.1-shaped,
+    // 6.3.9600.16384) specifically so the boundary triggers, and pairs each operator with both a
+    // True and a False condition so no assertion can pass vacuously.
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_Equals_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT = 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_Equals_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT = 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_NotEquals_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <> 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_NotEquals_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <> 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessOrEqual_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <= 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessOrEqual_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <= 602", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessThan_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT < 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessThan_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT < 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterThan_False()
+    {
+        // The case that most contradicts "gt already works": at an exact match the real side's
+        // non-zero Build (9600) currently outranks the coerced side's undefined component, so
+        // today this wrongly evaluates True. 8.1 IS 6.3, not greater than it.
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT > 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterThan_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT > 602", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterOrEqual_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterOrEqual_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
     // --- Integer comparisons ---
 
     [Fact]

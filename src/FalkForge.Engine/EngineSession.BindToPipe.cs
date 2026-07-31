@@ -142,9 +142,14 @@ public sealed partial class EngineSession
         var platform = new WindowsPlatformServices();
         var processRunner = new ProcessRunner();
 
+        // Created here (rather than at pipeline-build time, its previous home) so the same
+        // instance can be handed to MsiExecutor/ExeExecutor below AND to the pipeline builder —
+        // one VariableStore per session, not two disconnected ones.
+        var variableStore = new VariableStore();
+
         var msiExecutor = new MsiExecutor(
             static () => null,
-            static () => null,
+            () => variableStore,
             static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
@@ -156,7 +161,7 @@ public sealed partial class EngineSession
         // is kept only as the floor for the --manifest / plan / offline-layout path, where PayloadRoot is
         // null and SourcePath stays manifest-authoritative — same guard behavior as before on that path.
         var bundleExecutor = new BundleExecutor(processRunner, options.PayloadRoot ?? cacheLayout.BasePath);
-        var exeExecutor = new ExeExecutor(processRunner);
+        var exeExecutor = new ExeExecutor(processRunner, () => variableStore);
         var netRuntimeExecutor = new NetRuntimeExecutor(processRunner);
         var packageExecutor = new PackageExecutor(
             msiExecutor, msuExecutor, mspExecutor, bundleExecutor, exeExecutor, netRuntimeExecutor);
@@ -279,14 +284,20 @@ public sealed partial class EngineSession
         }
 
         // ── Pipeline ────────────────────────────────────────────────────────
-        var variableStore = new VariableStore();
         var pipelineBuilder = new InstallerPipelineBuilder()
             .WithManifest(manifest)
             .WithRegistry(platform.Registry)
             .WithPackageExecutor(packageExecutor)
             .WithVariableStore(variableStore)
+            .WithPlatformServices(platform)
+            .WithClock(options.Clock ?? new SystemClock())
             .WithUiChannel(uiChannel)
-            .WithLogger(logger);
+            .WithLogger(logger)
+            // Feeds the Privileged built-in: an asInvoker engine can still do per-machine work
+            // via this companion even when the process itself is not elevated (see the Populate
+            // remarks in BuiltInVariables). companionExePath is resolved above from the
+            // bootstrapper-verified path or the ambient probe, whichever policy applies.
+            .WithElevationCompanionAvailable(companionExePath is not null);
 
         if (journalStore is not null)
             pipelineBuilder = pipelineBuilder

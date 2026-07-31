@@ -29,6 +29,8 @@ public sealed class InstallerPipelineBuilder
     private IRegistry? _registry;
     private PackageExecutor? _packageExecutor;
     private VariableStore? _variableStore;
+    private IPlatformServices? _platformServices;
+    private ISystemClock? _clock;
     private IReadOnlyList<IUndoOperation>? _undoOperations;
     private IFalkLogger? _logger;
     private FalkForge.Engine.Download.UpdateChecker? _updateChecker;
@@ -36,6 +38,7 @@ public sealed class InstallerPipelineBuilder
     private bool _advanceTrustStoreOnVerifiedApply;
     private FalkForge.Engine.Integrity.TrustPolicy? _integrityTrustPolicy;
     private string? _payloadRoot;
+    private bool _elevationCompanionAvailable;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -106,6 +109,29 @@ public sealed class InstallerPipelineBuilder
     public InstallerPipelineBuilder WithVariableStore(VariableStore variableStore)
     {
         _variableStore = variableStore;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the <see cref="IPlatformServices"/> used by <see cref="DetectStep"/> to seed
+    /// machine-state built-in variables (folders, architecture, elevation, computer name, ...)
+    /// into the <see cref="VariableStore"/> registered via <see cref="WithVariableStore"/>. When
+    /// not provided, built-ins that need platform data fall back to their OS-default values (see
+    /// <see cref="FalkForge.Engine.Variables.BuiltInVariables"/>).
+    /// </summary>
+    public InstallerPipelineBuilder WithPlatformServices(IPlatformServices platform)
+    {
+        _platformServices = platform;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the <see cref="ISystemClock"/> used to seed the <c>Date</c>/<c>Time</c> built-in
+    /// variables deterministically. When not provided, <see cref="DateTime.UtcNow"/> is used.
+    /// </summary>
+    public InstallerPipelineBuilder WithClock(ISystemClock clock)
+    {
+        _clock = clock;
         return this;
     }
 
@@ -183,6 +209,23 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Declares that an elevation companion is configured and available for this session (resolved
+    /// by <see cref="FalkForge.Engine.EngineSession.BindToPipe"/> from
+    /// <see cref="FalkForge.Engine.EngineSessionOptions.ElevationCompanionPath"/>/
+    /// <see cref="FalkForge.Engine.EngineSessionOptions.ElevationCompanionPolicy"/> before the pipeline is built).
+    /// Feeds the <c>Privileged</c> built-in (see the <c>Populate</c> remarks in
+    /// <see cref="FalkForge.Engine.Variables.BuiltInVariables"/>): the engine is <c>asInvoker</c>
+    /// and performs per-machine work through this companion, so whether one is available is part
+    /// of "can this install perform privileged work" even when the engine process itself is not
+    /// currently elevated. Not called (default <c>false</c>) when no companion is configured.
+    /// </summary>
+    public InstallerPipelineBuilder WithElevationCompanionAvailable(bool available = true)
+    {
+        _elevationCompanionAvailable = available;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -198,7 +241,9 @@ public sealed class InstallerPipelineBuilder
         var uiChannel = _uiChannel ?? NullUiChannel.Instance;
 
         IDetectStep? detectStep = (_manifest is not null && _registry is not null)
-            ? new DetectStep(_manifest, _registry, uiChannel, _updateChecker, _updateService)
+            ? new DetectStep(
+                _manifest, _registry, uiChannel, _updateChecker, _updateService,
+                _variableStore, _platformServices, _clock, _elevationCompanionAvailable)
             : null;
 
         IPlanStep? planStep = (_manifest is not null)
