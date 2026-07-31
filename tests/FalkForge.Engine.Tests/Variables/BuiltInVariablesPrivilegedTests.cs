@@ -9,19 +9,23 @@ using Xunit;
 /// <c>HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion</c>, a key every logged-on user (admin or
 /// not) can read, so <c>Privileged</c> always reported 1 — a bundle gating an admin-only package
 /// on <c>Privileged</c> would plan it for a standard user and then fail at apply. The replacement
-/// probes <c>HKLM\SECURITY</c>, which only an elevated (non-UAC-filtered) process can read.
-/// Both directions are asserted: a test that only checked "grants 1" would still pass against the
-/// always-1 bug.
+/// delegates to <c>IEnvironment.IsElevated</c> (production: <c>WindowsIdentity</c>/
+/// <c>WindowsPrincipal.IsInRole(WindowsBuiltInRole.Administrator)</c> — the standard .NET
+/// elevation check). Both directions are asserted here against the fake; the fake only proves the
+/// branch logic ("IsElevated true/false maps to Privileged 1/0") — it says nothing about what
+/// <c>WindowsEnvironment.IsElevated</c> actually returns on a real Windows token, which is why a
+/// separate real-system test (<c>WindowsEnvironmentTests</c>, gated behind
+/// <c>FALKFORGE_REAL_SYSTEM_E2E</c>) exists to check that against
+/// <see cref="System.Security.Principal.WindowsPrincipal"/> directly.
 /// </summary>
 public sealed class BuiltInVariablesPrivilegedTests
 {
     [Fact]
-    public void Populate_SecurityHiveUnreadable_PrivilegedIsZero()
+    public void Populate_NotElevated_PrivilegedIsZero()
     {
-        // Fake registry with no SECURITY key registered — simulates a non-elevated process for
-        // which HKLM\SECURITY does not resolve (access denied).
         var registry = new MockRegistry();
-        var platform = new FakePlatformServices(registry);
+        var environment = new FakeEnvironment { IsElevated = false };
+        var platform = new FakePlatformServices(registry, environment);
         var store = new VariableStore();
 
         BuiltInVariables.Populate(store, platform);
@@ -32,10 +36,11 @@ public sealed class BuiltInVariablesPrivilegedTests
     }
 
     [Fact]
-    public void Populate_SecurityHiveReadable_PrivilegedIsOne()
+    public void Populate_Elevated_PrivilegedIsOne()
     {
-        var registry = new MockRegistry().AddKey(RegistryRoot.LocalMachine, "SECURITY");
-        var platform = new FakePlatformServices(registry);
+        var registry = new MockRegistry();
+        var environment = new FakeEnvironment { IsElevated = true };
+        var platform = new FakePlatformServices(registry, environment);
         var store = new VariableStore();
 
         BuiltInVariables.Populate(store, platform);

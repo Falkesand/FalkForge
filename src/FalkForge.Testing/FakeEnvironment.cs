@@ -16,6 +16,7 @@ public sealed class FakeEnvironment : IEnvironment
 
     public string MachineName { get; set; } = "FAKE-BUILD-HOST";
     public bool Is64BitOperatingSystem { get; set; } = true;
+    public bool IsElevated { get; set; }
 
     public FakeEnvironment SetVariable(string name, string value)
     {

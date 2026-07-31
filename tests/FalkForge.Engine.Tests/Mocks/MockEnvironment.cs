@@ -9,6 +9,7 @@ public sealed class MockEnvironment : IEnvironment
 
     public string MachineName { get; set; } = "TESTMACHINE";
     public bool Is64BitOperatingSystem { get; set; } = true;
+    public bool IsElevated { get; set; }
 
     public MockEnvironment SetVariable(string name, string value)
     {
